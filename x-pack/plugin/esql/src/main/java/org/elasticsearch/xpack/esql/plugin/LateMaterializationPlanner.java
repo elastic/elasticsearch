@@ -128,7 +128,7 @@ class LateMaterializationPlanner {
         }
         var updatedFragment = new Project(Source.EMPTY, withAddedDocToRelation, expectedDataOutput);
         FragmentExec updatedFragmentExec = fragmentExec.withFragment(updatedFragment);
-        ExchangeSinkExec updatedDataPlan = originalPlan.replaceChild(updatedFragmentExec);
+        ExchangeSinkExec updatedDataPlan = originalPlan.replaceChildAndUpdateOutput(updatedFragmentExec);
 
         // Replace the TopN child with the data driver as the source.
         PhysicalPlan reductionPlan = toPhysical(fragmentExec.fragment(), context).transformDown(TopNExec.class, t -> {
@@ -137,11 +137,12 @@ class LateMaterializationPlanner {
             boolean fragmentIsSorted = updatedFragment.child() instanceof TopN;
             return fragmentIsSorted ? t.replaceChild(exchangeExec).withSortedInput() : t.replaceChild(exchangeExec);
         });
-        ExchangeSinkExec reductionPlanWithSize = originalPlan.replaceChild(
-            EstimatesRowSize.estimateRowSize(updatedFragmentExec.estimatedRowSize(), reductionPlan)
-        );
+        PhysicalPlan sizedReductionPlan = EstimatesRowSize.estimateRowSize(updatedFragmentExec.estimatedRowSize(), reductionPlan);
+        ExchangeSinkExec reductionPlanWithSize = originalPlan.replaceChild(sizedReductionPlan);
 
-        return Optional.of(new ReductionPlan(reductionPlanWithSize, updatedDataPlan));
+        // The TopN reduction plan should not be further optimized locally on the node reduce driver, since we took great pains to
+        // preplan in advance, including all the necessary field extractions!
+        return Optional.of(new ReductionPlan(reductionPlanWithSize, updatedDataPlan, LocalPhysicalOptimization.DISABLED));
     }
 
     private static PhysicalPlan toPhysical(LogicalPlan plan, LocalPhysicalOptimizerContext context) {

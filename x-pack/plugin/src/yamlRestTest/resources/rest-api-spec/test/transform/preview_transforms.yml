@@ -1,5 +1,9 @@
 setup:
+  - requires:
+      test_runner_features: [allowed_warnings]
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index: airline-data
         body:

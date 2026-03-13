@@ -17,6 +17,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -58,6 +59,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.NoSuchFileException;
@@ -93,6 +95,7 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomR
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -614,6 +617,49 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         }
     }
 
+    public void testRetriesAreTerminatedWhenClientProviderIsClosed() {
+        final BlobContainer blobContainer = createBlobContainer(randomIntBetween(1000, 2000));
+        final byte[] blobContents = randomByteArrayOfLength(1024);
+        final int incompleteLength = 10;
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_while_store_closes"), exchange -> {
+            boolean closeAfterHandling = false;
+            try {
+                Streams.readFully(exchange.getRequestBody());
+                if ("HEAD".equals(exchange.getRequestMethod())) {
+                    handleHeadRequest(exchange, blobContents);
+                } else if ("GET".equals(exchange.getRequestMethod())) {
+                    final int rangeStart = getRangeStart(exchange);
+                    assertThat(rangeStart, lessThan(blobContents.length));
+                    final OptionalInt rangeEnd = getRangeEnd(exchange);
+                    assertTrue(rangeEnd.isPresent());
+                    assertThat(rangeEnd.getAsInt(), greaterThanOrEqualTo(rangeStart));
+                    final int requestedLength = (rangeEnd.getAsInt() - rangeStart) + 1;
+                    assertThat(requestedLength, lessThanOrEqualTo(blobContents.length - rangeStart));
+                    assertThat(requestedLength, greaterThan(incompleteLength));
+                    addSuccessfulDownloadHeaders(exchange, blobContents, requestedLength);
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), requestedLength);
+                    exchange.getResponseBody().write(blobContents, rangeStart, incompleteLength);
+                    closeAfterHandling = true;
+                } else {
+                    ExceptionsHelper.maybeDieOnAnotherThread(
+                        new AssertionError("Unexpected request method: " + exchange.getRequestMethod())
+                    );
+                }
+            } finally {
+                exchange.close();
+                if (closeAfterHandling) {
+                    // Close the client provider after we've sent the response
+                    clientProvider.close();
+                }
+            }
+        });
+
+        assertThrows(
+            AlreadyClosedException.class,
+            () -> Streams.readFully(blobContainer.readBlob(randomRetryingPurpose(), "read_blob_while_store_closes"))
+        );
+    }
+
     private BlobContainer createBlobContainer(int maxRetries, String secondaryHost, LocationMode locationMode) {
         return createBlobContainer(maxRetries, null, null, null, null, null, BlobPath.EMPTY, secondaryHost, locationMode);
     }
@@ -752,7 +798,12 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
 
     private String getEndpointForServer(HttpServer server, String accountName) {
         InetSocketAddress address = server.getAddress();
-        return "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort() + "/" + accountName;
+        InetAddress inetAddress = address.getAddress();
+        // Use "localhost" for loopback addresses to work around Azure SDK's inability to parse bracketed IPv6 addresses
+        String host = inetAddress.isLoopbackAddress() && inetAddress instanceof Inet6Address
+            ? "localhost"
+            : InetAddresses.toUriString(inetAddress);
+        return "http://" + host + ":" + address.getPort() + "/" + accountName;
     }
 
     @Override

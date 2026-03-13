@@ -1,0 +1,32 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/operators/",
+  "type" : "operator",
+  "operator" : "and",
+  "name" : "and",
+  "description" : "Returns elements from the left vector that have matching label sets in the right vector. Values and metric name come from the left-hand side.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "lhs",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector."
+        },
+        {
+          "name" : "rhs",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "vector1 and vector2"
+  ],
+  "preview" : true,
+  "snapshot_only" : false
+}

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -24,6 +25,7 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithme
 
 public class Mul extends DenseVectorArithmeticOperation implements BinaryComparisonInversible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Mul", Mul::new);
+    public static final String OP_NAME = "Mul";
 
     @FunctionInfo(operator = "*", returnType = { "double", "integer", "long", "unsigned_long", "dense_vector" }, description = """
         Multiply two values together. For numeric fields, if either field is <<esql-multivalued-fields,multivalued>>
@@ -52,7 +54,7 @@ public class Mul extends DenseVectorArithmeticOperation implements BinaryCompari
             MulLongsEvaluator.Factory::new,
             MulUnsignedLongsEvaluator.Factory::new,
             MulDoublesEvaluator.Factory::new,
-            DenseVectorsEvaluator.MulFactory::new
+            MUL_DENSE_VECTOR_EVALUATOR
         );
     }
 
@@ -64,7 +66,7 @@ public class Mul extends DenseVectorArithmeticOperation implements BinaryCompari
             MulLongsEvaluator.Factory::new,
             MulUnsignedLongsEvaluator.Factory::new,
             MulDoublesEvaluator.Factory::new,
-            DenseVectorsEvaluator.MulFactory::new
+            MUL_DENSE_VECTOR_EVALUATOR
         );
     }
 
@@ -118,4 +120,28 @@ public class Mul extends DenseVectorArithmeticOperation implements BinaryCompari
         return NumericUtils.asFiniteNumber(lhs * rhs);
     }
 
+    private static float mulDenseVectorElements(float lhs, float rhs) {
+        return NumericUtils.asFiniteNumber(lhs * rhs);
+    }
+
+    private static final DenseVectorBinaryEvaluator MUL_DENSE_VECTOR_EVALUATOR = new DenseVectorBinaryEvaluator() {
+        @Override
+        public ExpressionEvaluator.Factory vectorsOperation(
+            Source source,
+            ExpressionEvaluator.Factory lhs,
+            ExpressionEvaluator.Factory rhs
+        ) {
+            return new DenseVectorsEvaluator.Factory(source, lhs, rhs, Mul::mulDenseVectorElements, OP_NAME);
+        }
+
+        @Override
+        public ExpressionEvaluator.Factory scalarVectorOperation(Source source, float lhs, ExpressionEvaluator.Factory rhs) {
+            return new DenseVectorScalarEvaluator.Factory(source, lhs, rhs, Mul::mulDenseVectorElements, OP_NAME);
+        }
+
+        @Override
+        public ExpressionEvaluator.Factory vectorScalarOperation(Source source, ExpressionEvaluator.Factory lhs, float rhs) {
+            return new DenseVectorScalarEvaluator.Factory(source, lhs, rhs, Mul::mulDenseVectorElements, OP_NAME);
+        }
+    };
 }

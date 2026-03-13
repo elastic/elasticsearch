@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.NamedDiff;
@@ -16,11 +17,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.IOUtils;
@@ -48,7 +46,6 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.internal.InternalSearchPlugin;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
@@ -104,6 +101,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
@@ -124,7 +122,7 @@ import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankR
 import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
 import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.registry.ModelRegistryMetadata;
+import org.elasticsearch.xpack.inference.registry.ModelRegistryClusterStateMetadata;
 import org.elasticsearch.xpack.inference.rest.RestDeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.rest.RestGetCCMConfigurationAction;
@@ -163,6 +161,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMPersistentStora
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
+import org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiService;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
 import org.elasticsearch.xpack.inference.services.groq.GroqService;
@@ -249,6 +248,15 @@ public class InferencePlugin extends Plugin
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
     public static final String INFERENCE_RESPONSE_THREAD_POOL_NAME = "inference_response";
 
+    private static final String INFERENCE_INDEX_DESCRIPTION = "Contains inference service and model configuration";
+
+    /**
+     * TransportVersion indicating when Mixedbread features were added. The Mixedbread integration has been removed, but this transport
+     * version definition cannot be deleted
+     */
+    @SuppressWarnings("unused")
+    public static final TransportVersion INFERENCE_MIXEDBREAD_ADDED = TransportVersion.fromName("inference_mixedbread_added");
+
     private final Settings settings;
     private final SetOnce<HttpRequestSender.Factory> httpFactory = new SetOnce<>();
     private final SetOnce<AmazonBedrockRequestSender.Factory> amazonBedrockFactory = new SetOnce<>();
@@ -296,13 +304,7 @@ public class InferencePlugin extends Plugin
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
@@ -483,6 +485,7 @@ public class InferencePlugin extends Plugin
             ccmService
         );
 
+        var inferenceFeatureService = new InferenceFeatureService(services.clusterService(), services.featureService());
         var authTaskExecutor = AuthorizationTaskExecutor.create(
             services.clusterService(),
             services.featureService(),
@@ -496,7 +499,8 @@ public class InferencePlugin extends Plugin
                 modelRegistry,
                 services.client(),
                 ccmFeature,
-                ccmService
+                ccmService,
+                inferenceFeatureService
             )
         );
         authorizationTaskExecutorRef.set(authTaskExecutor);
@@ -556,6 +560,7 @@ public class InferencePlugin extends Plugin
             context -> new GroqService(httpFactory.get(), serviceComponents.get(), context),
             context -> new CohereService(httpFactory.get(), serviceComponents.get(), context),
             context -> new ContextualAiService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new FireworksAiService(httpFactory.get(), serviceComponents.get(), context),
             context -> new AzureOpenAiService(httpFactory.get(), serviceComponents.get(), context),
             context -> new AzureAiStudioService(httpFactory.get(), serviceComponents.get(), context),
             context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get(), context),
@@ -584,8 +589,16 @@ public class InferencePlugin extends Plugin
                 new NamedWriteableRegistry.Entry(RankBuilder.class, TextSimilarityRankBuilder.NAME, TextSimilarityRankBuilder::new),
                 new NamedWriteableRegistry.Entry(RankBuilder.class, RandomRankBuilder.NAME, RandomRankBuilder::new),
                 new NamedWriteableRegistry.Entry(RankDoc.class, TextSimilarityRankDoc.NAME, TextSimilarityRankDoc::new),
-                new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::new),
-                new NamedWriteableRegistry.Entry(NamedDiff.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::readDiffFrom),
+                new NamedWriteableRegistry.Entry(
+                    Metadata.ProjectCustom.class,
+                    ModelRegistryClusterStateMetadata.TYPE,
+                    ModelRegistryClusterStateMetadata::new
+                ),
+                new NamedWriteableRegistry.Entry(
+                    NamedDiff.class,
+                    ModelRegistryClusterStateMetadata.TYPE,
+                    ModelRegistryClusterStateMetadata::readDiffFrom
+                ),
                 new NamedWriteableRegistry.Entry(
                     QueryBuilder.class,
                     InterceptedInferenceMatchQueryBuilder.NAME,
@@ -615,8 +628,8 @@ public class InferencePlugin extends Plugin
             List.of(
                 new NamedXContentRegistry.Entry(
                     Metadata.ProjectCustom.class,
-                    new ParseField(ModelRegistryMetadata.TYPE),
-                    ModelRegistryMetadata::fromXContent
+                    new ParseField(ModelRegistryClusterStateMetadata.TYPE),
+                    ModelRegistryClusterStateMetadata::fromXContent
                 ),
                 new NamedXContentRegistry.Entry(
                     Metadata.ProjectCustom.class,
@@ -636,8 +649,19 @@ public class InferencePlugin extends Plugin
             .setIndexPattern(InferenceIndex.INDEX_PATTERN)
             .setAliasName(InferenceIndex.INDEX_ALIAS)
             .setPrimaryIndex(InferenceIndex.INDEX_NAME)
-            .setDescription("Contains inference service and model configuration")
+            .setDescription(INFERENCE_INDEX_DESCRIPTION)
             .setMappings(InferenceIndex.mappingsV1())
+            .setSettings(InferenceIndex.settings())
+            .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+            .build();
+
+        var inferenceIndexV2Descriptor = SystemIndexDescriptor.builder()
+            .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+            .setIndexPattern(InferenceIndex.INDEX_PATTERN)
+            .setAliasName(InferenceIndex.INDEX_ALIAS)
+            .setPrimaryIndex(InferenceIndex.INDEX_NAME)
+            .setDescription(INFERENCE_INDEX_DESCRIPTION)
+            .setMappings(InferenceIndex.mappingsV2())
             .setSettings(InferenceIndex.settings())
             .setOrigin(ClientHelper.INFERENCE_ORIGIN)
             .build();
@@ -648,11 +672,11 @@ public class InferencePlugin extends Plugin
                 .setIndexPattern(InferenceIndex.INDEX_PATTERN)
                 .setAliasName(InferenceIndex.INDEX_ALIAS)
                 .setPrimaryIndex(InferenceIndex.INDEX_NAME)
-                .setDescription("Contains inference service and model configuration")
-                .setMappings(InferenceIndex.mappings())
+                .setDescription(INFERENCE_INDEX_DESCRIPTION)
+                .setMappings(InferenceIndex.currentMappings())
                 .setSettings(getIndexSettings())
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
-                .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor))
+                .setPriorSystemIndexDescriptors(List.of(inferenceIndexV1Descriptor, inferenceIndexV2Descriptor))
                 .build(),
             SystemIndexDescriptor.builder()
                 .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
@@ -716,10 +740,12 @@ public class InferencePlugin extends Plugin
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.copyOf(getInferenceSettings());
+        List<Setting<?>> settings = new ArrayList<>(getClusterSettings());
+        settings.add(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID);
+        return Collections.unmodifiableList(settings);
     }
 
-    public static Set<Setting<?>> getInferenceSettings() {
+    public static Set<Setting<?>> getClusterSettings() {
         Set<Setting<?>> settings = new HashSet<>();
         settings.addAll(HttpSettings.getSettingsDefinitions());
         settings.addAll(HttpClientManager.getSettingsDefinitions());

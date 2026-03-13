@@ -81,6 +81,11 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
+    @Override
+    protected boolean supportsFloatVectorFallback() {
+        return false;
+    }
+
     private KnnVectorsFormat format;
 
     @Override

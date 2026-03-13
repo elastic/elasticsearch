@@ -12,6 +12,7 @@ package org.elasticsearch.gradle.transform;
 import org.apache.commons.io.IOUtils;
 import org.apache.tools.zip.ZipEntry;
 import org.apache.tools.zip.ZipFile;
+import org.gradle.api.artifacts.transform.CacheableTransform;
 import org.gradle.api.artifacts.transform.TransformOutputs;
 import org.gradle.api.logging.Logging;
 
@@ -25,6 +26,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.gradle.util.PermissionUtils.chmod;
 
+@CacheableTransform
 public abstract class UnzipTransform implements UnpackTransform {
 
     public void unpack(File zipFile, File targetDir, TransformOutputs outputs, boolean asFiletreeOutput) throws IOException {

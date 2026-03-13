@@ -2160,17 +2160,20 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testSortMixedFieldTypes() throws IOException {
         assertAcked(
-            prepareCreate("index_long").setMapping("foo", "type=long"),
+            prepareCreate("index_long").setMapping("foo", "type=long").setSettings(Settings.builder().put("number_of_shards", 2)),
             prepareCreate("index_integer").setMapping("foo", "type=integer"),
             prepareCreate("index_double").setMapping("foo", "type=double"),
-            prepareCreate("index_keyword").setMapping("foo", "type=keyword")
+            prepareCreate("index_keyword").setMapping("foo", "type=keyword").setSettings(Settings.builder().put("number_of_shards", 2))
         );
 
         prepareIndex("index_long").setId("1").setSource("foo", "123").get();
+        prepareIndex("index_long").setId("2").setSource("foo", "124").get();
         prepareIndex("index_integer").setId("1").setSource("foo", "123").get();
         prepareIndex("index_double").setId("1").setSource("foo", "123").get();
         prepareIndex("index_keyword").setId("1").setSource("foo", "123").get();
+        prepareIndex("index_keyword").setId("2").setSource("foo", "124").get();
         refresh();
+        ensureGreen("index_long", "index_keyword");
 
         // for debugging, we try to see where the documents are located
         try (RestClient restClient = createRestClient()) {
@@ -2186,15 +2189,11 @@ public class FieldSortIT extends ESIntegTestCase {
             assertNoFailures(prepareSearch("index_long", "index_integer").addSort(new FieldSortBuilder("foo")).setSize(10));
         }
 
-        String errMsg = "Can't sort on field [foo]; the field has incompatible sort types";
-
-        { // mixing long and double types is not allowed
-            SearchPhaseExecutionException exc = expectThrows(
-                SearchPhaseExecutionException.class,
-                prepareSearch("index_long", "index_double").addSort(new FieldSortBuilder("foo")).setSize(10)
-            );
-            assertThat(exc.getCause().toString(), containsString(errMsg));
+        { // mixing long and double types is ok, as we convert to double sort
+            assertNoFailures(prepareSearch("index_long", "index_double").addSort(new FieldSortBuilder("foo")).setSize(10));
         }
+
+        String errMsg = "Can't sort on field [foo]; the field has incompatible sort types";
 
         { // mixing long and keyword types is not allowed
             SearchPhaseExecutionException exc = expectThrows(

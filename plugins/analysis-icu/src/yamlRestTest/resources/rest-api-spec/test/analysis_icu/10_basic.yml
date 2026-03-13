@@ -103,3 +103,33 @@
     - match:  { tokens.1.token: foo }
     - match:  { tokens.2.token: bâr }
     - match:  { tokens.3.token: russ }
+---
+"Transform with custom ruleset":
+    - requires:
+        cluster_features: ["analysis.icu_transform.custom_ruleset"]
+        reason: "Custom ruleset support for icu_transform added"
+    - do:
+        indices.create:
+            index:  test_custom_ruleset
+            body:
+                settings:
+                    index:
+                        analysis:
+                            filter:
+                                my_custom_transform:
+                                    type: icu_transform
+                                    ruleset: "ä > ae; ö > oe; ü > ue; Ä > Ae; Ö > Oe; Ü > Ue;"
+                            analyzer:
+                                my_analyzer:
+                                    tokenizer: standard
+                                    filter: ["my_custom_transform"]
+    - do:
+        indices.analyze:
+          index:    test_custom_ruleset
+          body:
+            analyzer: my_analyzer
+            text:     Ärger öffnet Überall
+    - length: { tokens: 3 }
+    - match:  { tokens.0.token: Aerger }
+    - match:  { tokens.1.token: oeffnet }
+    - match:  { tokens.2.token: Ueberall }

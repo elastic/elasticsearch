@@ -43,10 +43,11 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
     }
 
     public void testAllZeroValues() {
+        assumeFalse("Cosine is undefined for zero vectors", function == VectorSimilarityFunctions.Function.COSINE);
         testByteVectors(byte[]::new);
     }
 
-    public void testRandomFloats() {
+    public void testRandomBytes() {
         testByteVectors(ESTestCase::randomByteArrayOfLength);
     }
 
@@ -69,7 +70,7 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
             var nativeSeg1 = segment.asSlice((long) first * dims, dims);
             var nativeSeg2 = segment.asSlice((long) second * dims, dims);
 
-            int expected = scalarSimilarity(values[first], values[second]);
+            float expected = scalarSimilarity(values[first], values[second]);
             assertEquals(expected, similarity(nativeSeg1, nativeSeg2, dims), delta);
             if (supportsHeapSegments()) {
                 var heapSeg1 = MemorySegment.ofArray(values[first]);
@@ -96,7 +97,7 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
         float[] expectedScores = new float[numVecs];
         scalarSimilarityBulk(values[queryOrd], values, expectedScores);
 
-        var nativeQuerySeg = segment.asSlice((long) queryOrd * dims, (long) dims);
+        var nativeQuerySeg = segment.asSlice((long) queryOrd * dims, dims);
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
         similarityBulk(segment, nativeQuerySeg, dims, numVecs, bulkScoresSeg);
         assertScoresEquals(expectedScores, bulkScoresSeg);
@@ -210,9 +211,9 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
 
-    int similarity(MemorySegment a, MemorySegment b, int length) {
+    float similarity(MemorySegment a, MemorySegment b, int length) {
         try {
-            return (int) getVectorDistance().getHandle(
+            return (float) getVectorDistance().getHandle(
                 function,
                 VectorSimilarityFunctions.DataType.INT8,
                 VectorSimilarityFunctions.Operation.SINGLE
@@ -251,8 +252,9 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
         }
     }
 
-    int scalarSimilarity(byte[] a, byte[] b) {
+    float scalarSimilarity(byte[] a, byte[] b) {
         return switch (function) {
+            case COSINE -> cosineScalar(a, b);
             case DOT_PRODUCT -> dotProductScalar(a, b);
             case SQUARE_DISTANCE -> squareDistanceScalar(a, b);
         };
@@ -260,6 +262,7 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
 
     void scalarSimilarityBulk(byte[] query, byte[][] data, float[] scores) {
         switch (function) {
+            case COSINE -> bulkScalar(JDKVectorLibraryInt8Tests::cosineScalar, query, data, scores);
             case DOT_PRODUCT -> bulkScalar(JDKVectorLibraryInt8Tests::dotProductScalar, query, data, scores);
             case SQUARE_DISTANCE -> bulkScalar(JDKVectorLibraryInt8Tests::squareDistanceScalar, query, data, scores);
         }
@@ -267,9 +270,26 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
 
     void scalarSimilarityBulkWithOffsets(byte[] query, byte[][] data, int[] offsets, float[] scores) {
         switch (function) {
+            case COSINE -> bulkWithOffsetsScalar(JDKVectorLibraryInt8Tests::cosineScalar, query, data, offsets, scores);
             case DOT_PRODUCT -> bulkWithOffsetsScalar(JDKVectorLibraryInt8Tests::dotProductScalar, query, data, offsets, scores);
             case SQUARE_DISTANCE -> bulkWithOffsetsScalar(JDKVectorLibraryInt8Tests::squareDistanceScalar, query, data, offsets, scores);
         }
+    }
+
+    /** Computes the cosine of the given vectors a and b. */
+    static float cosineScalar(byte[] a, byte[] b) {
+        int sum = 0;
+        int norm1 = 0;
+        int norm2 = 0;
+
+        for (int i = 0; i < a.length; i++) {
+            byte elem1 = a[i];
+            byte elem2 = b[i];
+            sum += elem1 * elem2;
+            norm1 += elem1 * elem1;
+            norm2 += elem2 * elem2;
+        }
+        return (float) (sum / Math.sqrt((double) norm1 * (double) norm2));
     }
 
     /** Computes the dot product of the given vectors a and b. */
@@ -281,7 +301,7 @@ public class JDKVectorLibraryInt8Tests extends VectorSimilarityFunctionsTests {
         return res;
     }
 
-    /** Computes the dot product of the given vectors a and b. */
+    /** Computes the square distance of the given vectors a and b. */
     static int squareDistanceScalar(byte[] a, byte[] b) {
         int squareSum = 0;
         for (int i = 0; i < a.length; i++) {

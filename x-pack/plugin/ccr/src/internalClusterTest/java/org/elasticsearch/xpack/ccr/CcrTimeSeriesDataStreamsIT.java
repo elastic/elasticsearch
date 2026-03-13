@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -267,50 +269,49 @@ public class CcrTimeSeriesDataStreamsIT extends CcrIntegTestCase {
             refresh(followerClient(), dataStreamName);
             assertHitCount(followerClient().prepareSearch(dataStreamName).setTrackTotalHits(true).setSize(0), nonDeletedDocs.size());
         });
+
+        Thread.sleep(30_000L);
+        leaderClient().execute(ForceMergeAction.INSTANCE, new ForceMergeRequest()).actionGet();
     }
 
     private static void putDataStreamTemplate(Client client, String dataStreamName, int primaries, int replicas, boolean useSyntheticId)
         throws IOException {
+        var settingsBuilder = indexSettings(primaries, replicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+            .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), randomBoolean());
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
+            settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId);
+        }
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request(getTestClass().getName().toLowerCase(Locale.ROOT))
             .indexTemplate(
                 ComposableIndexTemplate.builder()
                     .indexPatterns(List.of(dataStreamName))
-                    .template(
-                        new Template(
-                            indexSettings(primaries, replicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
-                                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-                                .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), randomBoolean())
-                                .put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId)
-                                .build(),
-                            new CompressedXContent("""
-                                {
-                                    "_doc": {
+                    .template(new Template(settingsBuilder.build(), new CompressedXContent("""
+                        {
+                            "_doc": {
+                                "properties": {
+                                    "@timestamp": {
+                                        "type": "date"
+                                    },
+                                    "hostname": {
+                                        "type": "keyword",
+                                        "time_series_dimension": true
+                                    },
+                                    "metric": {
                                         "properties": {
-                                            "@timestamp": {
-                                                "type": "date"
-                                            },
-                                            "hostname": {
+                                            "field": {
                                                 "type": "keyword",
                                                 "time_series_dimension": true
                                             },
-                                            "metric": {
-                                                "properties": {
-                                                    "field": {
-                                                        "type": "keyword",
-                                                        "time_series_dimension": true
-                                                    },
-                                                    "value": {
-                                                        "type": "integer",
-                                                        "time_series_metric": "counter"
-                                                    }
-                                                }
+                                            "value": {
+                                                "type": "integer",
+                                                "time_series_metric": "counter"
                                             }
                                         }
                                     }
-                                }"""),
-                            null
-                        )
-                    )
+                                }
+                            }
+                        }"""), null))
                     .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                     .build()
             );

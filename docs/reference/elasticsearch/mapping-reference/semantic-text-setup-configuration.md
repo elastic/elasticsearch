@@ -13,14 +13,14 @@ This page provides instructions for setting up and configuring `semantic_text` f
 
 ## Configure {{infer}} endpoints [configure-inference-endpoints]
 
-You can configure {{infer}} endpoints for `semantic_text` fields in the following ways: 
+You can configure {{infer}} endpoints for `semantic_text` fields in the following ways:
 
 - [Use ELSER on EIS](#using-elser-on-eis)
 - [Use default and preconfigured endpoints](#default-and-preconfigured-endpoints)
 - [Use a custom {{infer}} endpoint](#using-custom-endpoint)
 
 :::{note}
-If you use a [custom {{infer}} endpoint](#using-custom-endpoint) through your ML node and not through Elastic {{infer-cap}} Service (EIS), the recommended method is to [use dedicated endpoints for ingestion and search](#dedicated-endpoints-for-ingestion-and-search). 
+If you use a [custom {{infer}} endpoint](#using-custom-endpoint) through your ML node and not through Elastic {{infer-cap}} Service (EIS), the recommended method is to [use dedicated endpoints for ingestion and search](#dedicated-endpoints-for-ingestion-and-search).
 
 {applies_to}`stack: ga 9.1.0` If you use EIS, you don't have to set up dedicated endpoints.
 :::
@@ -195,7 +195,7 @@ PUT my-index-000002
 
 ### Use dedicated endpoints for ingestion and search [dedicated-endpoints-for-ingestion-and-search]
 
-If you use a [custom {{infer}} endpoint](#using-custom-endpoint) through your ML node and not through Elastic {{infer-cap}} Service, the recommended way to use `semantic_text` is by having dedicated {{infer}} endpoints for ingestion and search. 
+If you use a [custom {{infer}} endpoint](#using-custom-endpoint) through your ML node and not through Elastic {{infer-cap}} Service, the recommended way to use `semantic_text` is by having dedicated {{infer}} endpoints for ingestion and search.
 
 This ensures that search speed remains unaffected by ingestion workloads, and vice versa. After creating dedicated {{infer}} endpoints for both, you can reference them using the `inference_id`
 and `search_inference_id` parameters when setting up the index mapping for an index that uses the `semantic_text` field.
@@ -214,4 +214,72 @@ PUT my-index-000003
   }
 }
 ```
-% TEST[skip:Requires {{infer}} endpoint]
+
+## Set `index_options` for `sparse_vectors` [index-options-sparse_vectors]
+
+```{applies_to}
+stack: ga 9.2
+```
+
+Configuring `index_options` for [sparse vector fields](/reference/elasticsearch/mapping-reference/sparse-vector.md) lets you configure [token pruning](/reference/elasticsearch/mapping-reference/sparse-vector.md#token-pruning), which controls whether non-significant or overly frequent tokens are omitted to improve query performance.
+
+The following example enables token pruning and sets pruning thresholds for a `sparse_vector` field:
+
+
+```console
+PUT semantic-embeddings
+{
+  "mappings": {
+    "properties": {
+      "content": {
+        "type": "semantic_text",
+        "index_options": {
+          "sparse_vector": {
+            "prune": true, <1>
+            "pruning_config": {
+              "tokens_freq_ratio_threshold": 10, <2>
+              "tokens_weight_threshold": 0.5 <3>
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+1. (Optional) Enables pruning. Default is `true`.
+2. (Optional) Prunes tokens whose frequency is more than 10 times the average token frequency in the field. Default is `5`.
+3. (Optional) Prunes tokens whose weight is lower than 0.5. Default is `0.4`.
+
+Learn more about [sparse_vector index options](/reference/elasticsearch/mapping-reference/sparse-vector.md#sparse-vector-index-options) settings and [token pruning](/reference/elasticsearch/mapping-reference/sparse-vector.md#token-pruning).
+
+## Set `index_options` for `dense_vectors` [index-options-dense_vectors]
+
+Configuring `index_options` for [dense vector fields](/reference/elasticsearch/mapping-reference/dense-vector.md) lets you control how dense vectors are indexed for kNN search. You can select the indexing algorithm, such as `int8_hnsw`, `int4_hnsw`, or `disk_bbq`, among [other available index options](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-options).
+
+The following example shows how to configure `index_options` for a dense vector field using the `int8_hnsw` indexing algorithm:
+
+
+```console
+PUT semantic-embeddings
+{
+  "mappings": {
+    "properties": {
+      "content": {
+        "type": "semantic_text",
+        "index_options": {
+          "dense_vector": {
+            "type": "int8_hnsw", <1>
+            "m": 15, <2>
+            "ef_construction": 90 <3>
+          }
+        }
+      }
+    }
+  }
+}
+```
+1. (Optional) Selects the `int8_hnsw` vector quantization strategy. Learn about [default quantization types](/reference/elasticsearch/mapping-reference/dense-vector.md#default-quantization-types).
+2. (Optional) Sets `m` to 15 to control how many neighbors each node connects to in the HNSW graph. Default is `16`.
+3. (Optional) Sets `ef_construction` to 90 to control how many candidate neighbors are considered during graph construction. Default is `100`.
+

@@ -170,10 +170,36 @@ final class RemoteRequestBuilders {
                 }
             }
 
+            if (searchRequest.getProjectRouting() != null) {
+                entity.field("project_routing", searchRequest.getProjectRouting());
+            }
+
             entity.endObject();
             request.setJsonEntity(Strings.toString(entity));
         } catch (IOException e) {
             throw new ElasticsearchException("unexpected error building entity", e);
+        }
+        return request;
+    }
+
+    // TODO - Do we need to set the IndexFilter field here? https://github.com/elastic/elasticsearch-team/issues/2392
+    static Request openPit(String[] indices, TimeValue keepAlive) {
+        StringBuilder path = new StringBuilder("/");
+        addIndices(path, indices);
+        path.append("_pit");
+        Request request = new Request("POST", path.toString());
+        request.addParameter("keep_alive", keepAlive.getStringRep());
+        request.addParameter("allow_partial_search_results", "false");
+        return request;
+    }
+
+    static Request closePit(BytesReference pitId) {
+        Request request = new Request("DELETE", "/_pit");
+        try (XContentBuilder entity = JsonXContent.contentBuilder()) {
+            entity.startObject().field("id", java.util.Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(pitId))).endObject();
+            request.setJsonEntity(Strings.toString(entity));
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to build close pit entity", e);
         }
         return request;
     }

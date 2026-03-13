@@ -139,7 +139,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             DEFAULT_REGION_UNAVAILABLE
         ) {
             private InetAddress[] resolveHost(String host) throws UnknownHostException {
-                assertEquals("127.0.0.1", host);
+                assertTrue(InetAddress.getByName(host).isLoopbackAddress());
                 if (shouldErrorOnDns && randomBoolean() && randomBoolean()) {
                     throw new UnknownHostException(host);
                 }
@@ -204,7 +204,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
 
         final InetSocketAddress address = httpServer.getAddress();
-        final String endpoint = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
+        String host = InetAddresses.toUriString(address.getAddress());
+        final String endpoint = "http://" + host + ":" + address.getPort();
         logger.info("--> creating client with endpoint [{}]", endpoint);
         clientSettings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint);
 
@@ -1547,24 +1548,35 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     private List<Measurement> getRetryStartedMeasurements() {
         return Measurement.combine(
             recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, S3RepositoriesMetrics.METRIC_RETRY_EVENT_TOTAL)
+                .getMeasurements(InstrumentType.LONG_COUNTER, RepositoriesMetrics.METRIC_INPUT_STREAM_RETRY_EVENT_TOTAL)
         );
     }
 
     private List<Measurement> getRetryCompletedMeasurements() {
         return Measurement.combine(
             recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, S3RepositoriesMetrics.METRIC_RETRY_SUCCESS_TOTAL)
+                .getMeasurements(InstrumentType.LONG_COUNTER, RepositoriesMetrics.METRIC_INPUT_STREAM_RETRY_SUCCESS_TOTAL)
         );
     }
 
     private List<Measurement> getRetryHistogramMeasurements() {
         return recordingMeterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_HISTOGRAM, S3RepositoriesMetrics.METRIC_RETRY_ATTEMPTS_HISTOGRAM);
+            .getMeasurements(InstrumentType.LONG_HISTOGRAM, RepositoriesMetrics.METRIC_INPUT_STREAM_RETRY_ATTEMPTS_HISTOGRAM);
     }
 
     private Map<String, Object> metricAttributes(String action) {
-        return Map.of("repo_type", "s3", "repo_name", "repository", "operation", "GetObject", "purpose", "Indices", "action", action);
+        return Map.of(
+            "repo_type",
+            "s3",
+            "repo_name",
+            "repository",
+            "operation",
+            "GetObject",
+            "purpose",
+            "Indices",
+            "es_retry_action",
+            action
+        );
     }
 
     private static boolean isMultiDeleteRequest(HttpExchange exchange) {

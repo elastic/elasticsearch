@@ -240,6 +240,11 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         }
 
         @Override
+        public boolean canProduceMoreDataWithoutExtraInput() {
+            return lastPage != null;
+        }
+
+        @Override
         public void close() {
 
         }
@@ -284,6 +289,10 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                     case BlockResultMissing unused -> getNullsBlock(doc);
                     case BlockResultSuccess success -> success.block;
                 };
+            }
+            // For NULL-typed fields (unmapped fields with NULLIFY mode), return nulls
+            if (fa.dataType() == DataType.NULL) {
+                return (doc, copier) -> getNullsBlock(doc);
             }
         }
         return (indexDoc, blockCopier) -> switch (extractBlockForSingleDoc(indexDoc, attribute.name(), blockCopier)) {

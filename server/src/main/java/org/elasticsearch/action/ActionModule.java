@@ -128,24 +128,6 @@ import org.elasticsearch.action.admin.indices.resolve.TransportResolveClusterAct
 import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction;
-import org.elasticsearch.action.admin.indices.sampling.DeleteSampleConfigurationAction;
-import org.elasticsearch.action.admin.indices.sampling.GetAllSampleConfigurationAction;
-import org.elasticsearch.action.admin.indices.sampling.GetSampleAction;
-import org.elasticsearch.action.admin.indices.sampling.GetSampleConfigurationAction;
-import org.elasticsearch.action.admin.indices.sampling.GetSampleStatsAction;
-import org.elasticsearch.action.admin.indices.sampling.PutSampleConfigurationAction;
-import org.elasticsearch.action.admin.indices.sampling.RestDeleteSampleConfigurationAction;
-import org.elasticsearch.action.admin.indices.sampling.RestGetAllSampleConfigurationAction;
-import org.elasticsearch.action.admin.indices.sampling.RestGetSampleAction;
-import org.elasticsearch.action.admin.indices.sampling.RestGetSampleConfigurationAction;
-import org.elasticsearch.action.admin.indices.sampling.RestGetSampleStatsAction;
-import org.elasticsearch.action.admin.indices.sampling.RestPutSampleConfigurationAction;
-import org.elasticsearch.action.admin.indices.sampling.TransportDeleteSampleConfigurationAction;
-import org.elasticsearch.action.admin.indices.sampling.TransportGetAllSampleConfigurationAction;
-import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleAction;
-import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleConfigurationAction;
-import org.elasticsearch.action.admin.indices.sampling.TransportGetSampleStatsAction;
-import org.elasticsearch.action.admin.indices.sampling.TransportPutSampleConfigurationAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.TransportIndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
@@ -233,13 +215,12 @@ import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.project.ProjectIdResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -427,6 +408,7 @@ import org.elasticsearch.rest.action.synonyms.RestGetSynonymsAction;
 import org.elasticsearch.rest.action.synonyms.RestGetSynonymsSetsAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.snapshots.TransportUpdateSnapshotStatusAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -447,7 +429,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.ingest.SamplingService.RANDOM_SAMPLING_FEATURE_FLAG;
 
 /**
  * Builds and binds the generic action map, all {@link TransportAction}s, and {@link ActionFilters}.
@@ -463,16 +444,14 @@ public class ActionModule extends AbstractModule {
     private static final RestHandler placeholderRestHandler = (request, channel, client) -> {};
 
     private final Settings settings;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final NamedWriteableRegistry namedWriteableRegistry;
-    private final IndexScopedSettings indexScopedSettings;
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
     private final List<ActionPlugin> actionPlugins;
     private final Map<String, ActionHandler> actions;
     private final ActionFilters actionFilters;
     private final IncrementalBulkService bulkService;
-    private final ProjectIdResolver projectIdResolver;
+    private final ProjectResolver projectResolver;
+    private final CrossProjectModeDecider crossProjectModeDecider;
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
     private final RestController restController;
@@ -487,8 +466,6 @@ public class ActionModule extends AbstractModule {
     public ActionModule(
         Environment env,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexScopedSettings indexScopedSettings,
         ClusterSettings clusterSettings,
         SettingsFilter settingsFilter,
         ThreadPool threadPool,
@@ -504,19 +481,18 @@ public class ActionModule extends AbstractModule {
         List<ReservedProjectStateHandler<?>> reservedProjectStateHandlers,
         RestExtension restExtension,
         IncrementalBulkService bulkService,
-        ProjectIdResolver projectIdResolver
+        CrossProjectModeDecider crossProjectModeDecider,
+        ProjectResolver projectResolver
     ) {
         this.settings = env.settings();
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.namedWriteableRegistry = namedWriteableRegistry;
-        this.indexScopedSettings = indexScopedSettings;
         this.clusterSettings = clusterSettings;
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
         actions = setupActions(env, actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         this.bulkService = bulkService;
-        this.projectIdResolver = projectIdResolver;
+        this.projectResolver = projectResolver;
+        this.crossProjectModeDecider = crossProjectModeDecider;
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<RestHeaderDefinition> headers = Stream.concat(
@@ -841,15 +817,6 @@ public class ActionModule extends AbstractModule {
         actions.register(GetSynonymRuleAction.INSTANCE, TransportGetSynonymRuleAction.class);
         actions.register(DeleteSynonymRuleAction.INSTANCE, TransportDeleteSynonymRuleAction.class);
 
-        if (RANDOM_SAMPLING_FEATURE_FLAG) {
-            actions.register(GetSampleAction.INSTANCE, TransportGetSampleAction.class);
-            actions.register(PutSampleConfigurationAction.INSTANCE, TransportPutSampleConfigurationAction.class);
-            actions.register(GetSampleStatsAction.INSTANCE, TransportGetSampleStatsAction.class);
-            actions.register(DeleteSampleConfigurationAction.INSTANCE, TransportDeleteSampleConfigurationAction.class);
-            actions.register(GetSampleConfigurationAction.INSTANCE, TransportGetSampleConfigurationAction.class);
-            actions.register(GetAllSampleConfigurationAction.INSTANCE, TransportGetAllSampleConfigurationAction.class);
-        }
-
         return unmodifiableMap(actions.getRegistry());
     }
 
@@ -889,7 +856,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestNodesInfoAction(settingsFilter));
         registerHandler.accept(new RestRemoteClusterInfoAction());
         registerHandler.accept(new RestNodesCapabilitiesAction());
-        registerHandler.accept(new RestNodesStatsAction(projectIdResolver));
+        registerHandler.accept(new RestNodesStatsAction(projectResolver));
         registerHandler.accept(new RestNodesUsageAction());
         registerHandler.accept(new RestNodesHotThreadsAction());
         registerHandler.accept(new RestClusterAllocationExplainAction());
@@ -900,7 +867,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestClusterHealthAction());
         registerHandler.accept(new RestClusterUpdateSettingsAction());
         registerHandler.accept(new RestClusterGetSettingsAction(settings, clusterSettings, settingsFilter));
-        registerHandler.accept(new RestClusterRerouteAction(settingsFilter, projectIdResolver));
+        registerHandler.accept(new RestClusterRerouteAction(settingsFilter, projectResolver));
         registerHandler.accept(new RestClusterSearchShardsAction());
         registerHandler.accept(new RestPendingClusterTasksAction());
         registerHandler.accept(new RestPutRepositoryAction());
@@ -964,27 +931,31 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestForceMergeAction());
         registerHandler.accept(new RestClearIndicesCacheAction());
         registerHandler.accept(new RestResolveClusterAction());
-        registerHandler.accept(new RestResolveIndexAction(settings));
+        registerHandler.accept(new RestResolveIndexAction(crossProjectModeDecider));
 
-        registerHandler.accept(new RestIndexAction(clusterService, projectIdResolver));
-        registerHandler.accept(new CreateHandler(clusterService, projectIdResolver));
-        registerHandler.accept(new AutoIdHandler(clusterService, projectIdResolver));
+        registerHandler.accept(new RestIndexAction(clusterService, projectResolver));
+        registerHandler.accept(new CreateHandler(clusterService, projectResolver));
+        registerHandler.accept(new AutoIdHandler(clusterService, projectResolver));
         registerHandler.accept(new RestGetAction());
         registerHandler.accept(new RestGetSourceAction());
         registerHandler.accept(new RestMultiGetAction(settings));
         registerHandler.accept(new RestDeleteAction());
-        registerHandler.accept(new RestCountAction(settings));
+        registerHandler.accept(new RestCountAction(crossProjectModeDecider));
         registerHandler.accept(new RestTermVectorsAction());
         registerHandler.accept(new RestMultiTermVectorsAction());
         registerHandler.accept(new RestBulkAction(settings, clusterSettings, bulkService));
         registerHandler.accept(new RestUpdateAction());
 
-        registerHandler.accept(new RestSearchAction(restController.getSearchUsageHolder(), clusterSupportsFeature, settings));
+        registerHandler.accept(
+            new RestSearchAction(restController.getSearchUsageHolder(), clusterSupportsFeature, crossProjectModeDecider)
+        );
         registerHandler.accept(new RestSearchScrollAction());
         registerHandler.accept(new RestClearScrollAction());
-        registerHandler.accept(new RestOpenPointInTimeAction(settings));
+        registerHandler.accept(new RestOpenPointInTimeAction(crossProjectModeDecider));
         registerHandler.accept(new RestClosePointInTimeAction());
-        registerHandler.accept(new RestMultiSearchAction(settings, restController.getSearchUsageHolder(), clusterSupportsFeature));
+        registerHandler.accept(
+            new RestMultiSearchAction(settings, restController.getSearchUsageHolder(), clusterSupportsFeature, crossProjectModeDecider)
+        );
         registerHandler.accept(new RestKnnSearchAction());
 
         registerHandler.accept(new RestValidateQueryAction());
@@ -1002,7 +973,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetScriptContextAction());
         registerHandler.accept(new RestGetScriptLanguageAction());
 
-        registerHandler.accept(new RestFieldCapabilitiesAction(settings));
+        registerHandler.accept(new RestFieldCapabilitiesAction(crossProjectModeDecider));
 
         // Tasks API
         registerHandler.accept(new RestListTasksAction(nodesInCluster));
@@ -1025,12 +996,12 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestShardsAction());
         registerHandler.accept(new RestMasterAction());
         registerHandler.accept(new RestNodesAction());
-        registerHandler.accept(new RestClusterInfoAction(projectIdResolver));
+        registerHandler.accept(new RestClusterInfoAction(projectResolver));
         registerHandler.accept(new RestTasksAction(nodesInCluster));
-        registerHandler.accept(new RestIndicesAction(projectIdResolver));
+        registerHandler.accept(new RestIndicesAction(projectResolver));
         registerHandler.accept(new RestSegmentsAction());
         // Fully qualified to prevent interference with rest.action.count.RestCountAction
-        registerHandler.accept(new org.elasticsearch.rest.action.cat.RestCountAction(settings));
+        registerHandler.accept(new org.elasticsearch.rest.action.cat.RestCountAction(crossProjectModeDecider));
         // Fully qualified to prevent interference with rest.action.indices.RestRecoveryAction
         registerHandler.accept(new RestCatRecoveryAction());
         registerHandler.accept(new RestHealthAction());
@@ -1044,7 +1015,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestRepositoriesAction());
         registerHandler.accept(new RestSnapshotAction());
         registerHandler.accept(new RestTemplatesAction());
-        registerHandler.accept(new RestCatComponentTemplateAction(projectIdResolver));
+        registerHandler.accept(new RestCatComponentTemplateAction(projectResolver));
         registerHandler.accept(new RestAnalyzeIndexDiskUsageAction());
         registerHandler.accept(new RestFieldUsageStatsAction());
 
@@ -1053,18 +1024,15 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestUpdateDesiredNodesAction());
         registerHandler.accept(new RestDeleteDesiredNodesAction());
 
+        ActionPlugin.RestHandlersServices restHandlersServices = new ActionPlugin.RestHandlersServices(
+            settings,
+            restController,
+            projectResolver,
+            crossProjectModeDecider
+        );
+
         for (ActionPlugin plugin : actionPlugins) {
-            for (RestHandler handler : plugin.getRestHandlers(
-                settings,
-                namedWriteableRegistry,
-                restController,
-                clusterSettings,
-                indexScopedSettings,
-                settingsFilter,
-                indexNameExpressionResolver,
-                nodesInCluster,
-                clusterSupportsFeature
-            )) {
+            for (RestHandler handler : plugin.getRestHandlers(restHandlersServices, nodesInCluster, clusterSupportsFeature)) {
                 registerHandler.accept(handler);
             }
         }
@@ -1078,15 +1046,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPutSynonymRuleAction());
         registerHandler.accept(new RestGetSynonymRuleAction());
         registerHandler.accept(new RestDeleteSynonymRuleAction());
-
-        if (RANDOM_SAMPLING_FEATURE_FLAG) {
-            registerHandler.accept(new RestGetSampleAction());
-            registerHandler.accept(new RestPutSampleConfigurationAction());
-            registerHandler.accept(new RestGetSampleStatsAction());
-            registerHandler.accept(new RestDeleteSampleConfigurationAction());
-            registerHandler.accept(new RestGetSampleConfigurationAction());
-            registerHandler.accept(new RestGetAllSampleConfigurationAction());
-        }
     }
 
     @Override

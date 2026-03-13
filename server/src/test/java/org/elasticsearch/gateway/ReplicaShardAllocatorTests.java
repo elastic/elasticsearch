@@ -474,6 +474,76 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.UNASSIGNED).size(), equalTo(0));
     }
 
+    /**
+     * Verifies that when all nodes return NOT_PREFERRED, the shard is still allocated to the
+     * matching node since NOT_PREFERRED allows assignment.
+     */
+    public void testNotPreferredFullMatchAllocation() {
+        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(notPreferredAllocationDeciders());
+        DiscoveryNode nodeToMatch = randomBoolean() ? node2 : node3;
+        testAllocator.addData(node1, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION))
+            .addData(nodeToMatch, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+        allocateAllUnassigned(allocation);
+        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(1));
+        assertThat(
+            shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
+            equalTo(nodeToMatch.getId())
+        );
+    }
+
+    /**
+     * When THROTTLE and NOT_PREFERRED decisions are present, THROTTLE takes precedence and the shard
+     * moves to the ignored unassigned list rather than being allocated to a NOT_PREFERRED node.
+     */
+    public void testThrottlePreferredOverNotPreferredRemainsInUnassigned() {
+        DiscoveryNode throttledNode = randomBoolean() ? node2 : node3;
+        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(
+            new AllocationDeciders(Arrays.asList(new SameShardAllocationDecider(createBuiltInClusterSettings()), new AllocationDecider() {
+                @Override
+                public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                    if (node.node().equals(throttledNode)) {
+                        return Decision.THROTTLE;
+                    }
+                    return Decision.NOT_PREFERRED;
+                }
+            }))
+        );
+        for (DiscoveryNode node : List.of(node1, node2, node3)) {
+            testAllocator.addData(node, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+        }
+        allocateAllUnassigned(allocation);
+        assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
+        assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
+    }
+
+    /**
+     * When some nodes return NO and one returns NOT_PREFERRED, the shard should be allocated to the
+     * NOT_PREFERRED node when it has matching data, since NOT_PREFERRED is preferred over NO.
+     */
+    public void testNotPreferredPreferredOverNo() {
+        DiscoveryNode notPreferredNode = randomBoolean() ? node2 : node3;
+        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(
+            new AllocationDeciders(Arrays.asList(new SameShardAllocationDecider(createBuiltInClusterSettings()), new AllocationDecider() {
+                @Override
+                public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                    if (node.node().equals(notPreferredNode)) {
+                        return Decision.NOT_PREFERRED;
+                    }
+                    return Decision.NO;
+                }
+            }))
+        );
+        for (DiscoveryNode node : List.of(node1, node2, node3)) {
+            testAllocator.addData(node, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+        }
+        allocateAllUnassigned(allocation);
+        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(1));
+        assertThat(
+            shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
+            equalTo(notPreferredNode.getId())
+        );
+    }
+
     public void testDoNotCancelForBrokenNode() {
         Set<String> failedNodes = new HashSet<>();
         failedNodes.add(node3.getId());
@@ -509,6 +579,12 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         testAllocator.processExistingRecoveries(allocation, shardRouting -> true);
         assertThat(allocation.routingNodesChanged(), equalTo(false));
         assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.UNASSIGNED), empty());
+    }
+
+    private static AllocationDeciders notPreferredAllocationDeciders() {
+        return new AllocationDeciders(
+            Arrays.asList(new TestAllocateDecision(Decision.NOT_PREFERRED), new SameShardAllocationDecider(createBuiltInClusterSettings()))
+        );
     }
 
     private RoutingAllocation onePrimaryOnNode1And1Replica(AllocationDeciders deciders) {

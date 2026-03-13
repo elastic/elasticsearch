@@ -12,12 +12,14 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.action.support.IndicesOptions.ConcreteTargetOptions;
 import org.elasticsearch.action.support.IndicesOptions.CrossProjectModeOptions;
 import org.elasticsearch.action.support.IndicesOptions.GatekeeperOptions;
+import org.elasticsearch.action.support.IndicesOptions.IndexAbstractionOptions;
 import org.elasticsearch.action.support.IndicesOptions.WildcardOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -59,6 +61,7 @@ public class IndicesOptionsTests extends ESTestCase {
                         .allowSelectors(randomBoolean())
                 )
                 .crossProjectModeOptions(new CrossProjectModeOptions(randomBoolean()))
+                .indexAbstractionOptions(IndexAbstractionOptions.builder().resolveViews(randomBoolean()))
                 .build();
 
             BytesStreamOutput output = new BytesStreamOutput();
@@ -69,6 +72,23 @@ public class IndicesOptionsTests extends ESTestCase {
 
             assertThat(indicesOptions2, equalTo(indicesOptions));
         }
+    }
+
+    public void testSerializationResolveViewsDroppedBeforeSupportVersion() throws Exception {
+        IndicesOptions indicesOptions = IndicesOptions.builder()
+            .wildcardOptions(WildcardOptions.builder().matchOpen(true).matchClosed(false))
+            .indexAbstractionOptions(IndexAbstractionOptions.builder().resolveViews(true))
+            .build();
+
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.setTransportVersion(TransportVersionUtils.getPreviousVersion(IndicesOptions.INDICES_OPTIONS_RESOLVE_VIEWS));
+        indicesOptions.writeIndicesOptions(output);
+
+        StreamInput streamInput = output.bytes().streamInput();
+        streamInput.setTransportVersion(output.getTransportVersion());
+        IndicesOptions deserialized = IndicesOptions.readIndicesOptions(streamInput);
+
+        assertFalse(deserialized.indexAbstractionOptions().resolveViews());
     }
 
     public void testFromOptions() {
@@ -355,12 +375,14 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean()
         );
         CrossProjectModeOptions crossProjectModeOptions = new CrossProjectModeOptions(randomBoolean());
+        IndexAbstractionOptions indexAbstractionOptions = new IndexAbstractionOptions(randomBoolean());
 
         IndicesOptions indicesOptions = new IndicesOptions(
             concreteTargetOptions,
             wildcardOptions,
             gatekeeperOptions,
-            crossProjectModeOptions
+            crossProjectModeOptions,
+            indexAbstractionOptions
         );
 
         XContentType type = randomFrom(XContentType.values());

@@ -697,7 +697,7 @@ public class InternalEngineTests extends EngineTestCase {
             }
 
             @Override
-            protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) {
+            protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) {
                 super.flushHoldingLock(force, waitIfOngoing, listener);
                 postFlushSegmentInfoGen.set(getLastCommittedSegmentInfos().getGeneration());
                 assertThat(getPreCommitSegmentGeneration(), equalTo(preCommitGen.get()));
@@ -2909,6 +2909,125 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testAcquireLastIndexCommitWithConcurrentFlush() throws Exception {
+        engine.close();
+        final var interceptFlush = new AtomicBoolean(false);
+        final var flushBarrier = new CyclicBarrier(2);
+        engine = new InternalEngine(engine.config()) {
+            @Override
+            protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) {
+                final FlushResultListener effectiveListener;
+                if (interceptFlush.compareAndSet(true, false)) {
+                    effectiveListener = new FlushResultListener() {
+                        @Override
+                        public void afterFlushWithLock(long generation) {
+                            safeAwait(flushBarrier);
+                            listener.afterFlushWithLock(generation);
+                        }
+
+                        @Override
+                        public void onResponse(FlushResult flushResult) {
+                            listener.onResponse(flushResult);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    };
+                } else {
+                    effectiveListener = listener;
+                }
+                super.flushHoldingLock(force, waitIfOngoing, effectiveListener);
+            }
+        };
+        recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
+        engine.ensureCanFlush();
+
+        final int nIterations = between(1, 10);
+        for (int i = 0; i < nIterations; i++) {
+            final String docA = Integer.toString(2 * i + 1);
+            final String docB = Integer.toString(2 * i + 2);
+            engine.index(indexForDoc(testParsedDocument(docA, null, testDocumentWithTextField(), SOURCE, null)));
+            final long genBeforeFlush = engine.getLastCommittedSegmentInfos().getGeneration();
+
+            final var concurrentFlushThread = new Thread(() -> {
+                try {
+                    safeAwait(flushBarrier);
+                    engine.index(indexForDoc(testParsedDocument(docB, null, testDocumentWithTextField(), SOURCE, null)));
+                    engine.flush(randomBoolean(), true);
+                } catch (Exception e) {
+                    fail(e);
+                }
+            });
+            concurrentFlushThread.start();
+
+            interceptFlush.set(true);
+            try (Engine.IndexCommitRef commitRef = engine.acquireLastIndexCommit(true)) {
+                safeJoin(concurrentFlushThread);
+                final long acquiredGen = commitRef.getIndexCommit().getGeneration();
+                // The first flush creates generation genBeforeFlush + 1.
+                // The concurrent flush creates genBeforeFlush + 2.
+                // The acquired commit must be from the first flush, not the concurrent one.
+                assertThat(acquiredGen, equalTo(genBeforeFlush + 1));
+                assertThat(engine.getLastCommittedSegmentInfos().getGeneration(), equalTo(genBeforeFlush + 2));
+            }
+        }
+    }
+
+    public void testAcquireLastIndexCommitReleasesCommitOnFailure() throws Exception {
+        engine.close();
+        final var shouldFail = new AtomicBoolean(false);
+        final int failureVariant = between(0, 2);
+        engine = new InternalEngine(engine.config()) {
+            @Override
+            protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) {
+                final FlushResultListener effectiveListener;
+                if (shouldFail.get() && failureVariant == 0) {
+                    effectiveListener = new FlushResultListener() {
+                        @Override
+                        public void afterFlushWithLock(long generation) {
+                            listener.afterFlushWithLock(generation);
+                            throw new ElasticsearchException("simulated failure after acquiring commit");
+                        }
+
+                        @Override
+                        public void onResponse(FlushResult flushResult) {
+                            listener.onResponse(flushResult);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    };
+                } else {
+                    effectiveListener = listener;
+                }
+                super.flushHoldingLock(force, waitIfOngoing, effectiveListener);
+                if (shouldFail.get() && failureVariant == 1) {
+                    throw new ElasticsearchException("simulated failure at the end");
+                }
+            }
+
+            @Override
+            protected void waitForCommitDurability(long generation, ActionListener<Void> listener) {
+                if (shouldFail.get() && failureVariant == 2) {
+                    listener.onFailure(new ElasticsearchException("simulated durability failure"));
+                } else {
+                    super.waitForCommitDurability(generation, listener);
+                }
+            }
+        };
+        recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
+        engine.ensureCanFlush();
+
+        engine.index(indexForDoc(testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null)));
+        shouldFail.set(true);
+        expectThrows(ElasticsearchException.class, () -> engine.acquireLastIndexCommit(true));
+        assertFalse("acquired commit should have been released on failure", hasAcquiredIndexCommitsForTesting(engine));
+    }
+
     private Long getHighestSeqNo(final IndexReader reader) throws IOException {
         boolean usePoints = switch (defaultSettings.seqNoIndexOptions()) {
             case POINTS_AND_DOC_VALUES -> randomBoolean();
@@ -4766,6 +4885,22 @@ public class InternalEngineTests extends EngineTestCase {
             }
             engine.refresh("test");
             lookupAndCheck.run();
+        }
+    }
+
+    public void testLoadDocIdAndSeqNoWithLoadSeqNoFalse() throws IOException {
+        engine.index(indexForDoc(createParsedDoc("1", null)));
+        engine.refresh("test");
+
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            DocIdAndSeqNo withSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), Uid.encodeId("1"), true);
+            assertNotNull(withSeqNo);
+            assertThat(withSeqNo.seqNo, greaterThanOrEqualTo(0L));
+
+            DocIdAndSeqNo withoutSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), Uid.encodeId("1"), false);
+            assertNotNull(withoutSeqNo);
+            assertThat(withoutSeqNo.seqNo, equalTo(UNASSIGNED_SEQ_NO));
+            assertThat(withoutSeqNo.docId, equalTo(withSeqNo.docId));
         }
     }
 
@@ -7765,6 +7900,40 @@ public class InternalEngineTests extends EngineTestCase {
             commits.stream().map(IndexCommit::getGeneration).sorted().toList(),
             expectedGenerations.isEmpty() ? emptyIterable() : equalTo(expectedGenerations)
         );
+    }
+
+    public void testGetWithSequenceNumbersDisabled() throws IOException {
+        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+        Settings settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
+        assertTrue(indexSettings.sequenceNumbersDisabled());
+        try (
+            Store store = createStore();
+            InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))
+        ) {
+            ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
+            engine.index(indexForDoc(doc));
+            engine.refresh("test");
+
+            MapperService mapperService = createMapperService();
+            try (
+                Engine.GetResult get = engine.get(
+                    new Engine.Get(true, false, doc.id()),
+                    mapperService.mappingLookup(),
+                    mapperService.documentParser(),
+                    randomSearcherWrapper()
+                )
+            ) {
+                assertTrue(get.exists());
+                assertThat(get.docIdAndVersion().seqNo, equalTo(UNASSIGNED_SEQ_NO));
+                assertThat(get.docIdAndVersion().primaryTerm, equalTo(UNASSIGNED_PRIMARY_TERM));
+            }
+        }
     }
 
     private static void releaseCommitRef(Map<IndexCommit, Engine.IndexCommitRef> commits, long generation) {

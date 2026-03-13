@@ -52,6 +52,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -146,6 +147,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         Property.IndexScope
     );
 
+    public static final FeatureFlag DIRECTORY_METRICS_FEATURE_FLAG = new FeatureFlag("directory_metrics");
+
     /**
      * A {@link org.apache.lucene.store.IOContext.FileOpenHint} that we will only read the Lucene file footer
      */
@@ -184,11 +187,32 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         OnClose onClose,
         boolean hasIndexSort
     ) {
-        super(shardId, indexSettings);
-        this.directory = new StoreDirectory(
-            byteSizeDirectory(directory, indexSettings, logger),
-            Loggers.getLogger("index.store.deletes", shardId)
+        this(
+            shardId,
+            indexSettings,
+            directory,
+            shardLock,
+            onClose,
+            hasIndexSort,
+            new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new)
         );
+    }
+
+    public Store(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        Directory directory,
+        ShardLock shardLock,
+        OnClose onClose,
+        boolean hasIndexSort,
+        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder
+    ) {
+        super(shardId, indexSettings);
+        ByteSizeDirectory byteSizeDirectory = byteSizeDirectory(directory, indexSettings, logger);
+        if (DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
+            byteSizeDirectory = new StoreMetricsDirectory(byteSizeDirectory, metricHolder);
+        }
+        this.directory = new StoreDirectory(byteSizeDirectory, Loggers.getLogger("index.store.deletes", shardId));
         this.shardLock = shardLock;
         this.onClose = onClose;
         this.hasIndexSort = hasIndexSort;

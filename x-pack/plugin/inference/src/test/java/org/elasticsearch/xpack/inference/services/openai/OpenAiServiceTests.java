@@ -39,6 +39,8 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -58,7 +60,6 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
-import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
@@ -164,7 +165,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
                 EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION)
             ) {
                 @Override
-                protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+                protected OpenAiService createService(ThreadPool threadPool, HttpClientManager clientManager) {
                     return OpenAiServiceTests.createService(threadPool, clientManager);
                 }
 
@@ -671,42 +672,42 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
     }
 
     public void testUnifiedCompletionInfer() throws Exception {
-        // The escapes are because the streaming response must be on a single line
-        String responseJson = """
-            data: {\
-                "id":"12345",\
-                "object":"chat.completion.chunk",\
-                "created":123456789,\
-                "model":"gpt-4o-mini",\
-                "system_fingerprint": "123456789",\
-                "choices":[\
-                    {\
-                        "index":0,\
-                        "delta":{\
-                            "content":"hello, world"\
-                        },\
-                        "logprobs":null,\
-                        "finish_reason":"stop"\
-                    }\
-                ],\
-                "usage":{\
-                    "prompt_tokens": 16,\
-                    "completion_tokens": 28,\
-                    "total_tokens": 44,\
-                    "prompt_tokens_details": {\
-                        "cached_tokens": 0,\
-                        "audio_tokens": 0\
-                    },\
-                    "completion_tokens_details": {\
-                        "reasoning_tokens": 0,\
-                        "audio_tokens": 0,\
-                        "accepted_prediction_tokens": 0,\
-                        "rejected_prediction_tokens": 0\
-                    }\
-                }\
-            }
+        String responseJson = Strings.format("""
+            data: %s
 
-            """;
+            """, XContentHelper.stripWhitespace("""
+            {
+                "id": "12345",
+                "object": "chat.completion.chunk",
+                "created": 123456789,
+                "model": "gpt-4o-mini",
+                "system_fingerprint": "123456789",
+                "choices": [{
+                        "index": 0,
+                        "delta": {
+                            "content": "hello, world"
+                        },
+                        "logprobs": null,
+                        "finish_reason": "stop"
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 16,
+                    "completion_tokens": 28,
+                    "total_tokens": 44,
+                    "prompt_tokens_details": {
+                        "cached_tokens": 0,
+                        "audio_tokens": 0
+                    },
+                    "completion_tokens_details": {
+                        "reasoning_tokens": 0,
+                        "audio_tokens": 0,
+                        "accepted_prediction_tokens": 0,
+                        "rejected_prediction_tokens": 0
+                    }
+                }
+            }
+            """));
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
@@ -715,19 +716,38 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
 
             var result = listener.actionGet(TIMEOUT);
-            InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
-                {"id":"12345","choices":[{"delta":{"content":"hello, world"},"finish_reason":"stop","index":0}],""" + """
-                "model":"gpt-4o-mini","object":"chat.completion.chunk",""" + """
-                "usage":{"completion_tokens":28,"prompt_tokens":16,"total_tokens":44,""" + """
-                "prompt_tokens_details":{"cached_tokens":0}}}""");
+            InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent(XContentHelper.stripWhitespace("""
+                {
+                    "id": "12345",
+                    "choices": [{
+                            "delta": {
+                                "content": "hello, world"
+                            },
+                            "finish_reason": "stop",
+                            "index": 0
+                        }
+                    ],
+                    "model": "gpt-4o-mini",
+                    "object": "chat.completion.chunk",
+                    "usage": {
+                        "completion_tokens": 28,
+                        "prompt_tokens": 16,
+                        "total_tokens": 44,
+                        "prompt_tokens_details": {
+                            "cached_tokens": 0
+                        },
+                        "completion_tokens_details": {
+                            "reasoning_tokens": 0
+                        }
+                    }
+                }
+                """));
         }
     }
 
@@ -749,9 +769,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             var latch = new CountDownLatch(1);
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 ActionListener.runAfter(ActionTestUtils.assertNoSuccessListener(e -> {
                     try (var builder = XContentFactory.jsonBuilder()) {
@@ -806,9 +824,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );

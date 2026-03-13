@@ -96,6 +96,11 @@ public class LimitOperator implements Operator {
     }
 
     @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return lastInput != null;
+    }
+
+    @Override
     public Page getOutput() {
         if (lastInput == null) {
             return null;
@@ -118,7 +123,7 @@ public class LimitOperator implements Operator {
             for (int b = 0; b < blocks.length; b++) {
                 blocks[b] = page.getBlock(b).filter(false, filter);
             }
-            result = new Page(blocks);
+            result = new Page(upTo, blocks);
         } finally {
             if (result == null) {
                 Releasables.closeExpectNoException(page::releaseBlocks, Releasables.wrap(blocks));

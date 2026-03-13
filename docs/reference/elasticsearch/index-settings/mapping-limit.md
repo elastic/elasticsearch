@@ -4,6 +4,7 @@ mapped_pages:
 navigation_title: Mapping limit
 applies_to:
   stack: all
+  serverless: all
 ---
 
 # Mapping limit settings [mapping-settings-limit]

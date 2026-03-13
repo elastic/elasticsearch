@@ -25,7 +25,6 @@ import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -180,12 +179,17 @@ public abstract class BucketedSort implements Releasable {
         }
         long start = inHeapMode(bucket) ? rootIndex : (rootIndex + getNextGatherOffset(rootIndex) + 1);
         long end = rootIndex + bucketSize;
+
+        // If we are in the gathering mode, we need to heapify before sorting.
+        if (inHeapMode(bucket) == false) {
+            heapify(rootIndex, (int) (end - start));
+        }
+        heapSort(rootIndex, (int) (end - start));
+
         List<T> result = new ArrayList<>(bucketSize);
         for (long index = start; index < end; index++) {
             result.add(builder.build(index, getValue(index)));
         }
-        // TODO we usually have a heap here so we could use that to build the results sorted.
-        result.sort(order.wrap(Comparator.<T>naturalOrder()));
         return result;
     }
 
@@ -306,10 +310,18 @@ public abstract class BucketedSort implements Releasable {
      * </ul>
      * @param rootIndex the index the start of the bucket
      */
-    private void heapify(long rootIndex) {
-        int maxParent = bucketSize / 2 - 1;
+    private void heapify(long rootIndex, int heapSize) {
+        int maxParent = heapSize / 2 - 1;
         for (int parent = maxParent; parent >= 0; parent--) {
-            downHeap(rootIndex, parent);
+            downHeap(rootIndex, parent, heapSize);
+        }
+    }
+
+    private void heapSort(long rootIndex, int heapSize) {
+        while (heapSize > 0) {
+            swap(rootIndex, rootIndex + heapSize - 1);
+            heapSize--;
+            downHeap(rootIndex, 0, heapSize);
         }
     }
 
@@ -320,21 +332,21 @@ public abstract class BucketedSort implements Releasable {
      * @param parent Index within the bucket of the parent to check.
      *               For example, 0 is the "root".
      */
-    private void downHeap(long rootIndex, int parent) {
+    private void downHeap(long rootIndex, int parent, int heapSize) {
         while (true) {
             long parentIndex = rootIndex + parent;
             int worst = parent;
             long worstIndex = parentIndex;
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
-            if (leftChild < bucketSize) {
+            if (leftChild < heapSize) {
                 if (betterThan(worstIndex, leftIndex)) {
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-                if (rightChild < bucketSize && betterThan(worstIndex, rightIndex)) {
+                if (rightChild < heapSize && betterThan(worstIndex, rightIndex)) {
                     worst = rightChild;
                     worstIndex = rightIndex;
                 }
@@ -377,7 +389,7 @@ public abstract class BucketedSort implements Releasable {
                     // TODO a "bottom up" insert would save a couple of comparisons. Worth it?
                     setIndexToDocValue(rootIndex);
                     loader().loadFromDoc(rootIndex, doc);
-                    downHeap(rootIndex, 0);
+                    downHeap(rootIndex, 0, bucketSize);
                 }
                 return;
             }
@@ -394,7 +406,7 @@ public abstract class BucketedSort implements Releasable {
             loader().loadFromDoc(index, doc);
             if (next == 0) {
                 heapMode.set(bucket);
-                heapify(rootIndex);
+                heapify(rootIndex, bucketSize);
             } else {
                 setNextGatherOffset(rootIndex, next - 1);
             }

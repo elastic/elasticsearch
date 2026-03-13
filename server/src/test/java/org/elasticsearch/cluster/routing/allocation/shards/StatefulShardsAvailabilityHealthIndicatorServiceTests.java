@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -136,6 +137,7 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -2838,6 +2840,9 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 var key = new ShardRoutingKey(shardRouting.getIndexName(), shardRouting.getId(), shardRouting.primary());
                 return decisions.getOrDefault(key, ShardAllocationDecision.NOT_TAKEN);
             }
+        );
+        when(allocationService.createImmutableRoutingAllocation(any(ClusterState.class), anyLong())).thenAnswer(
+            iom -> TestRoutingAllocationFactory.forClusterState(iom.getArgument(0)).currentNanoTime(iom.getArgument(1)).immutable()
         );
         return new StatefulShardsAvailabilityHealthIndicatorService(clusterService, allocationService, systemIndices, projectResolver);
     }

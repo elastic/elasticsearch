@@ -609,6 +609,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 cs,
                 randomBoolean(),
                 req,
+                RerouteBehavior.PERFORM_REROUTE,
                 ActionListener.noop(),
                 false
             )

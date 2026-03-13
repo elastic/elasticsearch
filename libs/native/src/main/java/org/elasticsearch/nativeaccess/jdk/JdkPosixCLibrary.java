@@ -119,6 +119,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
         "send",
         FunctionDescriptor.of(JAVA_LONG, JAVA_INT, ADDRESS, JAVA_LONG, JAVA_INT)
     );
+    private static final MethodHandle sysconf$mh = downcallHandle("sysconf", FunctionDescriptor.of(JAVA_LONG, JAVA_INT));
 
     static final MemorySegment errnoState = Arena.ofAuto().allocate(CAPTURE_ERRNO_LAYOUT);
 
@@ -316,6 +317,15 @@ class JdkPosixCLibrary implements PosixCLibrary {
         try {
             logger.info("Sending {} bytes to socket", buffer.buffer().remaining());
             return (long) send$mh.invokeExact(errnoState, sockfd, segment, (long) buffer.buffer().remaining(), flags);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public long sysconf(int name) {
+        try {
+            return (long) sysconf$mh.invokeExact(name);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

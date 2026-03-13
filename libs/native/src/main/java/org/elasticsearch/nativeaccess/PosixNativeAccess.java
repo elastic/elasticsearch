@@ -234,4 +234,11 @@ public abstract class PosixNativeAccess extends AbstractNativeAccess {
     static boolean checkEnableSystemProperty() {
         return Optional.ofNullable(System.getProperty(ENABLE_JDK_VECTOR_LIBRARY)).map(Boolean::valueOf).orElse(Boolean.TRUE);
     }
+
+    /**
+     * @return number of jiffies (kernel clock ticks) per second.
+     */
+    long jiffiesPerSecond() {
+        return libc.sysconf(PosixCLibrary._SC_CLK_TCK);
+    }
 }

@@ -101,8 +101,6 @@ public final class MutableRoutingAllocation extends RoutingAllocation {
         return super.routingNodes();
     }
 
-
-
     @Override
     public RoutingChangesObserver changes() {
         return routingChangesObserver;

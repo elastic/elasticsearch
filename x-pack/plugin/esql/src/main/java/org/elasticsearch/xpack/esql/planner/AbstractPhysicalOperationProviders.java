@@ -41,10 +41,8 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -254,7 +252,6 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
     private static class IntermediateInputs {
         private final List<Attribute> inputAttributes;
         private int nextOffset;
-        private final Map<AggregateFunction, Integer> offsets = new HashMap<>();
 
         IntermediateInputs(AggregateExec aggregateExec) {
             inputAttributes = aggregateExec.child().output();
@@ -263,12 +260,10 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
 
         List<Attribute> nextInputAttributes(AggregateFunction af, boolean grouping) {
             int intermediateStateSize = AggregateMapper.intermediateStateDesc(af, grouping).size();
-            int offset = offsets.computeIfAbsent(af, unused -> {
-                int v = nextOffset;
-                nextOffset += intermediateStateSize;
-                return v;
-            });
-            return inputAttributes.subList(offset, offset + intermediateStateSize);
+            int endOffset = nextOffset + intermediateStateSize;
+            List<Attribute> attributes = inputAttributes.subList(nextOffset, endOffset);
+            nextOffset = endOffset;
+            return attributes;
         }
     }
 

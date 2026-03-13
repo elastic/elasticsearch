@@ -38,13 +38,13 @@ public final class SpatialCentroidShapeCombinedDocValuesAggregatorFunctionSuppli
   @Override
   public SpatialCentroidShapeCombinedDocValuesAggregatorFunction aggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return SpatialCentroidShapeCombinedDocValuesAggregatorFunction.create(driverContext, channels, encoder);
+    return new SpatialCentroidShapeCombinedDocValuesAggregatorFunction(driverContext, channels, encoder);
   }
 
   @Override
   public SpatialCentroidShapeCombinedDocValuesGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return SpatialCentroidShapeCombinedDocValuesGroupingAggregatorFunction.create(channels, driverContext, encoder);
+    return new SpatialCentroidShapeCombinedDocValuesGroupingAggregatorFunction(channels, driverContext, encoder);
   }
 
   @Override

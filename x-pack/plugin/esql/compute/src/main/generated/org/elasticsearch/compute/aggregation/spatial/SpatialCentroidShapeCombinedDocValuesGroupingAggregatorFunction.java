@@ -46,18 +46,12 @@ public final class SpatialCentroidShapeCombinedDocValuesGroupingAggregatorFuncti
 
   private final CoordinateEncoder encoder;
 
-  public SpatialCentroidShapeCombinedDocValuesGroupingAggregatorFunction(List<Integer> channels,
-      CentroidShapeAggregator.GroupingShapeCentroidState state, DriverContext driverContext,
-      CoordinateEncoder encoder) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
+  SpatialCentroidShapeCombinedDocValuesGroupingAggregatorFunction(List<Integer> channels,
+      DriverContext driverContext, CoordinateEncoder encoder) {
     this.encoder = encoder;
-  }
-
-  public static SpatialCentroidShapeCombinedDocValuesGroupingAggregatorFunction create(
-      List<Integer> channels, DriverContext driverContext, CoordinateEncoder encoder) {
-    return new SpatialCentroidShapeCombinedDocValuesGroupingAggregatorFunction(channels, SpatialCentroidShapeCombinedDocValuesAggregator.initGrouping(driverContext.bigArrays(), encoder), driverContext, encoder);
+    this.channels = channels;
+    this.state = SpatialCentroidShapeCombinedDocValuesAggregator.initGrouping(driverContext.bigArrays(), encoder);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

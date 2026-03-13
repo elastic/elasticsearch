@@ -47,12 +47,11 @@ public final class SpatialCentroidShapeSourceValuesAggregatorFunction implements
   private final CoordinateEncoder encoder;
 
   SpatialCentroidShapeSourceValuesAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, CentroidShapeAggregator.ShapeCentroidState state,
-      CoordinateEncoder encoder) {
+      List<Integer> channels, CoordinateEncoder encoder) {
+    this.encoder = encoder;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-    this.encoder = encoder;
+    this.state = SpatialCentroidShapeSourceValuesAggregator.initSingle(encoder);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

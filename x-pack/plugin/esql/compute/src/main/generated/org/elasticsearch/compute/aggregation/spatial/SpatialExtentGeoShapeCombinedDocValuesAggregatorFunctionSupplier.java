@@ -33,13 +33,13 @@ public final class SpatialExtentGeoShapeCombinedDocValuesAggregatorFunctionSuppl
   @Override
   public SpatialExtentGeoShapeCombinedDocValuesAggregatorFunction aggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return SpatialExtentGeoShapeCombinedDocValuesAggregatorFunction.create(driverContext, channels);
+    return new SpatialExtentGeoShapeCombinedDocValuesAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public SpatialExtentGeoShapeCombinedDocValuesGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return SpatialExtentGeoShapeCombinedDocValuesGroupingAggregatorFunction.create(channels, driverContext);
+    return new SpatialExtentGeoShapeCombinedDocValuesGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

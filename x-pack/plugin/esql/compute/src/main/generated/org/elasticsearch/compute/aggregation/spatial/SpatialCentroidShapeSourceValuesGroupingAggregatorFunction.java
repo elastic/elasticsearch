@@ -49,12 +49,12 @@ public final class SpatialCentroidShapeSourceValuesGroupingAggregatorFunction im
 
   private final CoordinateEncoder encoder;
 
-  public SpatialCentroidShapeSourceValuesGroupingAggregatorFunction(List<Integer> channels,
+  SpatialCentroidShapeSourceValuesGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext, CoordinateEncoder encoder) {
-    this.channels = channels;
-    this.state = SpatialCentroidShapeSourceValuesAggregator.initGrouping(driverContext.bigArrays());
-    this.driverContext = driverContext;
     this.encoder = encoder;
+    this.channels = channels;
+    this.state = SpatialCentroidShapeSourceValuesAggregator.initGrouping(driverContext.bigArrays(), encoder);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

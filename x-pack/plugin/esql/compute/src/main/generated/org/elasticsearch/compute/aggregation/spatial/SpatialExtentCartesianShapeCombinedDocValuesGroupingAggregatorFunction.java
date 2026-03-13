@@ -40,16 +40,11 @@ public final class SpatialExtentCartesianShapeCombinedDocValuesGroupingAggregato
 
   private final DriverContext driverContext;
 
-  public SpatialExtentCartesianShapeCombinedDocValuesGroupingAggregatorFunction(
-      List<Integer> channels, SpatialExtentGroupingState state, DriverContext driverContext) {
+  SpatialExtentCartesianShapeCombinedDocValuesGroupingAggregatorFunction(List<Integer> channels,
+      DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = SpatialExtentCartesianShapeCombinedDocValuesAggregator.initGrouping();
     this.driverContext = driverContext;
-  }
-
-  public static SpatialExtentCartesianShapeCombinedDocValuesGroupingAggregatorFunction create(
-      List<Integer> channels, DriverContext driverContext) {
-    return new SpatialExtentCartesianShapeCombinedDocValuesGroupingAggregatorFunction(channels, SpatialExtentCartesianShapeCombinedDocValuesAggregator.initGrouping(), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

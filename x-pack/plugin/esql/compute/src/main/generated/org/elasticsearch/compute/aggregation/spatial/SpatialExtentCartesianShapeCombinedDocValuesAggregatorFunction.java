@@ -37,16 +37,11 @@ public final class SpatialExtentCartesianShapeCombinedDocValuesAggregatorFunctio
 
   private final List<Integer> channels;
 
-  public SpatialExtentCartesianShapeCombinedDocValuesAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, SpatialExtentState state) {
+  SpatialExtentCartesianShapeCombinedDocValuesAggregatorFunction(DriverContext driverContext,
+      List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static SpatialExtentCartesianShapeCombinedDocValuesAggregatorFunction create(
-      DriverContext driverContext, List<Integer> channels) {
-    return new SpatialExtentCartesianShapeCombinedDocValuesAggregatorFunction(driverContext, channels, SpatialExtentCartesianShapeCombinedDocValuesAggregator.initSingle());
+    this.state = SpatialExtentCartesianShapeCombinedDocValuesAggregator.initSingle();
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

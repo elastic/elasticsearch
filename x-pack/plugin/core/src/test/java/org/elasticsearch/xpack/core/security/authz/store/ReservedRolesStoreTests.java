@@ -2081,6 +2081,15 @@ public class ReservedRolesStoreTests extends ESTestCase {
             final IndexAbstraction otherIndex = mockIndexAbstraction("some-unrelated-index");
             assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(otherIndex), is(false));
         });
+
+        // logs-*.* indices have read-only access
+        final IndexAbstraction logsStarDotStar = mockIndexAbstraction("logs-myintegration.dataset-default");
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(logsStarDotStar), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(logsStarDotStar), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(logsStarDotStar), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(logsStarDotStar), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(logsStarDotStar), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(logsStarDotStar), is(false));
     }
 
     public void testKibanaAdminRole() {

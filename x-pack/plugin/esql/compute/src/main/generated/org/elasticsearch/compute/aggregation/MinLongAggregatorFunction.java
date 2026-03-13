@@ -33,16 +33,10 @@ public final class MinLongAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public MinLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      LongState state) {
+  MinLongAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MinLongAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MinLongAggregatorFunction(driverContext, channels, new LongState(MinLongAggregator.init()));
+    this.state = new LongState(MinLongAggregator.init());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

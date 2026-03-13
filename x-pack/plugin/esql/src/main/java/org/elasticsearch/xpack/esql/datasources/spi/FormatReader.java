@@ -22,14 +22,22 @@ import java.util.concurrent.Executor;
 /**
  * Unified interface for reading data formats.
  * <p>
- * Simple formats: implement only {@link #read} (sync) - async wrapping is automatic.
- * Async-capable formats: override {@link #readAsync} for native async behavior.
+ * Simple formats: implement only {@link #read(StorageObject, FormatReadContext)} (sync) -
+ * async wrapping is automatic.
+ * Async-capable formats: override {@link #readAsync(StorageObject, FormatReadContext, Executor, ActionListener)}
+ * for native async behavior.
  * <p>
  * The output is ESQL's native Page format rather than Arrow to avoid
  * mandating Arrow as a dependency for all format implementations.
  * <p>
  * Implementations should provide metadata discovery via {@link #metadata(StorageObject)}
  * which returns a unified {@link SourceMetadata} containing schema and source information.
+ * <p>
+ * Per-query format configuration (delimiter, encoding, etc.) is set on the reader instance
+ * via {@link #withConfig(Map)}. Per-query optimizer hints (pushed filters for row-group
+ * or stripe skipping) are set via {@link #withPushedFilter(Object)}. Per-read execution
+ * parameters (projection, batch size, limit, error policy, split config) are bundled in
+ * {@link FormatReadContext}.
  */
 public interface FormatReader extends Closeable {
 
@@ -60,7 +68,7 @@ public interface FormatReader extends Closeable {
         return ErrorPolicy.STRICT;
     }
 
-    // === SYNC API (required - implement this for simple formats) ===
+    // === METADATA ===
 
     SourceMetadata metadata(StorageObject object) throws IOException;
 
@@ -68,74 +76,52 @@ public interface FormatReader extends Closeable {
         return metadata(object).schema();
     }
 
-    CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException;
+    // === READ API ===
 
     /**
-     * Read with an explicit error policy. Implementations that support error tolerance
-     * should override this to honor the policy. The default delegates to
-     * {@link #read(StorageObject, List, int)} which uses the format's default error policy.
+     * Reads data from the given storage object using the provided context.
+     * <p>
+     * This is the primary read method. All implementations must override this method.
      */
-    default CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, ErrorPolicy errorPolicy)
-        throws IOException {
-        return read(object, projectedColumns, batchSize);
+    CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException;
+
+    /**
+     * Convenience overload that delegates to {@link #read(StorageObject, FormatReadContext)}.
+     * Keeps test code and simple call sites working without constructing a context.
+     */
+    default CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
+        return read(object, FormatReadContext.of(projectedColumns, batchSize));
     }
 
-    default CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, int rowLimit)
-        throws IOException {
-        CloseableIterator<Page> iter = read(object, projectedColumns, batchSize);
-        return rowLimit == NO_LIMIT ? iter : new LimitingIterator(iter, rowLimit);
-    }
-
-    default CloseableIterator<Page> read(
+    /**
+     * Asynchronously reads data from the given storage object using the provided context.
+     * <p>
+     * The default wraps the synchronous {@link #read(StorageObject, FormatReadContext)} in the
+     * provided executor. Formats with native async support should override this.
+     */
+    default void readAsync(
         StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        int rowLimit,
-        ErrorPolicy errorPolicy
-    ) throws IOException {
-        CloseableIterator<Page> iter = read(object, projectedColumns, batchSize, errorPolicy);
-        return rowLimit == NO_LIMIT ? iter : new LimitingIterator(iter, rowLimit);
+        FormatReadContext context,
+        Executor executor,
+        ActionListener<CloseableIterator<Page>> listener
+    ) {
+        executor.execute(() -> {
+            try {
+                listener.onResponse(read(object, context));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
-    default CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        List<Attribute> resolvedAttributes
-    ) throws IOException {
-        return read(object, projectedColumns, batchSize);
-    }
-
-    default CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        boolean lastSplit,
-        List<Attribute> resolvedAttributes
-    ) throws IOException {
-        return readSplit(object, projectedColumns, batchSize, skipFirstLine, resolvedAttributes);
-    }
-
-    default CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        boolean lastSplit,
-        List<Attribute> resolvedAttributes,
-        ErrorPolicy errorPolicy
-    ) throws IOException {
-        return readSplit(object, projectedColumns, batchSize, skipFirstLine, lastSplit, resolvedAttributes);
-    }
+    // === CONFIGURATION ===
 
     String formatName();
 
     List<String> fileExtensions();
 
     /**
-     * Returns a format reader configured with the given config map.
+     * Returns a format reader configured with the given config map (from the WITH clause).
      * Implementations should parse format-specific options from the config
      * and return a new reader instance if any options are present.
      * The default returns {@code this} (no configuration).
@@ -144,46 +130,40 @@ public interface FormatReader extends Closeable {
         return this;
     }
 
-    // === ASYNC API (optional - default wraps sync in executor) ===
-
-    default void readAsync(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        Executor executor,
-        ActionListener<CloseableIterator<Page>> listener
-    ) {
-        readAsync(object, projectedColumns, batchSize, NO_LIMIT, executor, listener);
+    /**
+     * Returns a format reader configured with the given pushed filter from the optimizer.
+     * <p>
+     * The pushed filter is an opaque object produced by {@code FilterPushdownSupport} during
+     * local physical optimization. Only format readers that support predicate pushdown
+     * (e.g., Parquet row-group skipping, ORC stripe-level predicates) need to override this.
+     * <p>
+     * The filter is per-query: it applies identically to every file/split in the query.
+     * Implementations should cast the filter to their expected type and return a new reader
+     * instance with the filter stored as an instance field.
+     *
+     * @param pushedFilter opaque filter object, or null if no filter was pushed
+     * @return a new reader with the filter applied, or {@code this} if the filter is not applicable
+     */
+    default FormatReader withPushedFilter(Object pushedFilter) {
+        return this;
     }
 
-    default void readAsync(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        int rowLimit,
-        Executor executor,
-        ActionListener<CloseableIterator<Page>> listener
-    ) {
-        readAsync(object, projectedColumns, batchSize, rowLimit, null, executor, listener);
-    }
-
-    default void readAsync(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        int rowLimit,
-        ErrorPolicy errorPolicy,
-        Executor executor,
-        ActionListener<CloseableIterator<Page>> listener
-    ) {
-        executor.execute(() -> {
-            try {
-                ErrorPolicy effective = errorPolicy != null ? errorPolicy : defaultErrorPolicy();
-                listener.onResponse(read(object, projectedColumns, batchSize, rowLimit, effective));
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        });
+    /**
+     * Returns a format reader configured with the schema attributes.
+     * <p>
+     * The schema is determined during the planning phase (via {@link #metadata(StorageObject)})
+     * and is constant for all files/splits in a query. Passing it here allows the reader to skip
+     * re-reading/inferring the schema from the file header on every read, which is especially
+     * important for split-based reads where the split may start mid-file (no header available).
+     * <p>
+     * Formats with embedded schemas (Parquet, ORC) may ignore this since they always read
+     * the schema from the file metadata.
+     *
+     * @param schema the planning-phase schema attributes, or null to clear
+     * @return a new reader with the schema set, or {@code this} if the schema is not needed
+     */
+    default FormatReader withSchema(List<Attribute> schema) {
+        return this;
     }
 
     default boolean supportsNativeAsync() {
@@ -199,7 +179,7 @@ public interface FormatReader extends Closeable {
         private final CloseableIterator<Page> delegate;
         private int remaining;
 
-        LimitingIterator(CloseableIterator<Page> delegate, int rowLimit) {
+        public LimitingIterator(CloseableIterator<Page> delegate, int rowLimit) {
             if (rowLimit <= 0) {
                 throw new IllegalArgumentException("rowLimit must be positive, got: " + rowLimit);
             }

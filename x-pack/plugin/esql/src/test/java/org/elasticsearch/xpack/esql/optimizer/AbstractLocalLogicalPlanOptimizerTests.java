@@ -16,10 +16,8 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -28,6 +26,8 @@ import org.junit.BeforeClass;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
@@ -57,7 +57,7 @@ public class AbstractLocalLogicalPlanOptimizerTests extends ESTestCase {
         analyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(test),
                 defaultLookupResolution(),
                 emptyPolicyResolution(),
@@ -71,7 +71,7 @@ public class AbstractLocalLogicalPlanOptimizerTests extends ESTestCase {
         allTypesAnalyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(testAll),
                 emptyPolicyResolution(),
                 emptyInferenceResolution()
@@ -91,7 +91,7 @@ public class AbstractLocalLogicalPlanOptimizerTests extends ESTestCase {
         tsAnalyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(tsIndex, tsDownsampledIndex),
                 emptyPolicyResolution(),
                 emptyInferenceResolution()
@@ -120,7 +120,7 @@ public class AbstractLocalLogicalPlanOptimizerTests extends ESTestCase {
         metricsAnalyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(metricsIndex),
                 defaultLookupResolution(),
                 enrichResolution,
@@ -135,7 +135,7 @@ public class AbstractLocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected LogicalPlan plan(String query, Analyzer analyzer) {
-        var analyzed = analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query));
+        var analyzed = analyzer.analyze(TEST_PARSER.parseQuery(query));
         return logicalOptimizer.optimize(analyzed);
     }
 

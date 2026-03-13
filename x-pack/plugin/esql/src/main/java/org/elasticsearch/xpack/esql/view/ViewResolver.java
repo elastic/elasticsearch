@@ -235,14 +235,18 @@ public class ViewResolver {
             }
 
             final List<ViewPlan> subqueries = new ArrayList<>();
+            final LinkedHashSet<String> ancestorViews = new LinkedHashSet<>(seenViews);
             SubscribableListener<Void> chain = SubscribableListener.newForked(l2 -> l2.onResponse(null));
             for (var view : response.views()) {
                 chain = chain.andThen(l2 -> {
-                    validateViewReferenceAndMarkSeen(view.name(), seenViews);
+                    seenViews.add(view.name());
+                    // Make sure we don't block sibling branches from containing the same views
+                    LinkedHashSet<String> branchSeenViews = new LinkedHashSet<>(ancestorViews);
+                    validateViewReferenceAndMarkSeen(view.name(), branchSeenViews);
                     replaceViews(
                         resolve(view, parser, viewQueries),
                         parser,
-                        seenViews,
+                        branchSeenViews,
                         viewQueries,
                         depth + 1,
                         l2.delegateFailureAndWrap((l3, fullyResolved) -> {

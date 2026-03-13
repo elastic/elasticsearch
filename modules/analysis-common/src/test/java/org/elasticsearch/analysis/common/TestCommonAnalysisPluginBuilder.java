@@ -10,6 +10,8 @@
 package org.elasticsearch.analysis.common;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -20,7 +22,9 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -63,10 +67,18 @@ public class TestCommonAnalysisPluginBuilder {
         IndicesService indicesService = mock(IndicesService.class);
         when(indicesService.getCircuitBreakerService()).thenReturn(circuitBreakerService);
 
+        Set<Setting<?>> allSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        allSettings.add(SynonymTokenFilterFactory.MAX_SYNONYM_SET_TOKENS_SETTING);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, allSettings);
+
+        org.elasticsearch.cluster.service.ClusterService clusterService = mock(org.elasticsearch.cluster.service.ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
         Plugin.PluginServices pluginServices = mock(Plugin.PluginServices.class);
         when(pluginServices.scriptService()).thenReturn(scriptService);
         when(pluginServices.client()).thenReturn(client);
         when(pluginServices.indicesService()).thenReturn(indicesService);
+        when(pluginServices.clusterService()).thenReturn(clusterService);
 
         CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
         plugin.createComponents(pluginServices);

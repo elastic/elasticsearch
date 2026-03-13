@@ -37,10 +37,10 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         rootBuilder.add(new ObjectMapper.Builder("disabled").enabled(disabledFieldEnabled));
         ObjectMapper.Builder fooBuilder = new ObjectMapper.Builder("foo").enabled(fooFieldEnabled);
         if (includeBarField) {
-            fooBuilder.add(new TextFieldMapper.Builder("bar", createDefaultIndexAnalyzers()));
+            fooBuilder.add(new TextFieldMapper.Builder("bar", defaultIndexSettings(), createDefaultIndexAnalyzers(), false));
         }
         if (includeBazField) {
-            fooBuilder.add(new TextFieldMapper.Builder("baz", createDefaultIndexAnalyzers()));
+            fooBuilder.add(new TextFieldMapper.Builder("baz", defaultIndexSettings(), createDefaultIndexAnalyzers(), false));
         }
         rootBuilder.add(fooBuilder);
         return rootBuilder;
@@ -515,7 +515,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     }
 
     private TextFieldMapper.Builder createTextKeywordMultiField(String name, String multiFieldName) {
-        TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
+        TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, defaultIndexSettings(), createDefaultIndexAnalyzers(), false);
         builder.multiFieldsBuilder.add(new KeywordFieldMapper.Builder(multiFieldName, INDEX_SETTINGS));
         return builder;
     }

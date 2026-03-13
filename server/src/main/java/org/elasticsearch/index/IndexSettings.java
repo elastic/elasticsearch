@@ -757,6 +757,14 @@ public final class IndexSettings {
         }
     }, Property.IndexScope, Property.Final);
 
+    public static final FeatureFlag INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG = new FeatureFlag("index_disabled_by_default");
+    public static final Setting<Boolean> INDEX_DISABLED_BY_DEFAULT = Setting.boolSetting(
+        "index.mapping.index_disabled_by_default",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * The {@link IndexMode "mode"} of the index.
      */
@@ -1164,6 +1172,7 @@ public final class IndexSettings {
     private final boolean useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
+    private final boolean indexDisabledByDefault;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -1366,6 +1375,7 @@ public final class IndexSettings {
         useDocValuesSkipperForHostname = USE_DOC_VALUES_SKIPPER.exists(settings)
             ? scopedSettings.get(USE_DOC_VALUES_SKIPPER)
             : version.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && version.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB);
+        indexDisabledByDefault = INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled() && scopedSettings.get(INDEX_DISABLED_BY_DEFAULT);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
@@ -2170,6 +2180,10 @@ public final class IndexSettings {
      */
     public boolean useEs812PostingsFormat() {
         return useEs812PostingsFormat;
+    }
+
+    public boolean isIndexDisabledByDefault() {
+        return indexDisabledByDefault;
     }
 
     /**

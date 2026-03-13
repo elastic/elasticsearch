@@ -260,6 +260,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         if (IndexSettings.ALLOW_LARGE_BINARY_BLOCK_SIZE.isEnabled()) {
             settings.add(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         }
+        if (IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled()) {
+            settings.add(IndexSettings.INDEX_DISABLED_BY_DEFAULT);
+        }
         settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);
     };

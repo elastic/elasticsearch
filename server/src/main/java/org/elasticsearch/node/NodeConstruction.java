@@ -1272,7 +1272,13 @@ class NodeConstruction {
 
         final TimeValue metricsInterval = settings.getAsTime("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(10));
         final NodeMetrics nodeMetrics = new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService, metricsInterval);
-        final IndicesMetrics indicesMetrics = new IndicesMetrics(telemetryProvider.getMeterRegistry(), indicesService, metricsInterval);
+        final IndicesMetrics indicesMetrics = new IndicesMetrics(
+            telemetryProvider.getMeterRegistry(),
+            indicesService,
+            metricsInterval,
+            clusterService,
+            systemIndices
+        );
         final SystemMetrics systemMetrics = new SystemMetrics(telemetryProvider.getMeterRegistry());
 
         OnlinePrewarmingService onlinePrewarmingService = pluginsService.loadSingletonServiceProvider(

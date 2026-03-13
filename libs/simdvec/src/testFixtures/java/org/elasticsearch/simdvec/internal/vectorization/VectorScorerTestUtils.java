@@ -223,28 +223,6 @@ public class VectorScorerTestUtils {
         }
     }
 
-    /**
-     * Packs unpacked int4 values (one value per byte) into nibble-packed format (two values per byte).
-     */
-    public static byte[] packNibbles(byte[] unpacked) {
-        int packedLength = unpacked.length / 2;
-        byte[] packed = new byte[packedLength];
-        for (int i = 0; i < packedLength; i++) {
-            packed[i] = (byte) ((unpacked[i] << 4) | (unpacked[i + packedLength] & 0x0F));
-        }
-        return packed;
-    }
-
-    public static byte[] unpackNibbles(byte[] packed, int dims) {
-        byte[] unpacked = new byte[dims];
-        int packedLen = packed.length;
-        for (int i = 0; i < packedLen; i++) {
-            unpacked[i] = (byte) ((packed[i] & 0xFF) >> 4);
-            unpacked[i + packedLen] = (byte) (packed[i] & 0x0F);
-        }
-        return unpacked;
-    }
-
     public static void writePackedVectorWithCorrection(
         IndexOutput out,
         byte[] packed,

@@ -75,18 +75,6 @@ class ScalarOperations {
         return res;
     }
 
-    static int dotProductI4SinglePacked(byte[] unpacked, byte[] packed) {
-        int total = 0;
-        for (int i = 0; i < packed.length; i++) {
-            byte packedByte = packed[i];
-            byte unpacked1 = unpacked[i];
-            byte unpacked2 = unpacked[i + packed.length];
-            total += (packedByte & 0x0F) * unpacked2;
-            total += ((packedByte & 0xFF) >> 4) * unpacked1;
-        }
-        return total;
-    }
-
     public static float applyI4Corrections(
         int rawDot,
         int dims,

@@ -244,6 +244,15 @@ public class MetadataCreateIndexService {
         }
     }
 
+    public static long getTotalUserIndices(SystemIndices systemIndices, ProjectMetadata projectMetadata) {
+        return projectMetadata.stream()
+            .filter(
+                indexMetadata -> indexMetadata.isSystem() == false
+                    && systemIndices.isFeatureAssociatedIndex(indexMetadata.getIndex().getName()) == false
+            )
+            .count();
+    }
+
     public void validateIndexLimit(ProjectMetadata projectMetadata, CreateIndexClusterStateUpdateRequest request) {
         if (maxIndicesPerProjectEnabled == false) {
             return;
@@ -257,12 +266,7 @@ public class MetadataCreateIndexService {
             return;
         }
 
-        var totalUserIndices = projectMetadata.stream()
-            .filter(
-                indexMetadata -> indexMetadata.isSystem() == false
-                    && systemIndices.isFeatureAssociatedIndex(indexMetadata.getIndex().getName()) == false
-            )
-            .count();
+        var totalUserIndices = getTotalUserIndices(systemIndices, projectMetadata);
         if (totalUserIndices >= maxIndicesPerProject) {
             throw new IndexLimitExceededException(
                 "This action would add an index, but this project currently has ["

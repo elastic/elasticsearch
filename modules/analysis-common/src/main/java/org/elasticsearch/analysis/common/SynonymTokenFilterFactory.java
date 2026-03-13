@@ -62,21 +62,23 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                             + "]! Loading synonyms from index is supported only for search time synonyms!"
                     );
                 }
-                String synonymsSet = factory.settings.get(SynonymsSource.INDEX.getSettingName(), null);
+                String synonymSetSetting = SynonymsSource.INDEX.getSettingName();
+                List<String> synonymSets = factory.settings.getAsList(synonymSetSetting, null);
+
                 // provide empty synonyms on index creation and index metadata checks to ensure that we
                 // don't block a master thread
                 ReaderWithOrigin reader;
                 if (context != IndexCreationContext.RELOAD_ANALYZERS) {
                     reader = new ReaderWithOrigin(
                         new StringReader(""),
-                        "fake empty [" + synonymsSet + "] synonyms_set in .synonyms index",
-                        synonymsSet
+                        "fake empty [" + synonymSetSetting + "] synonyms_set(s) in .synonyms index",
+                        synonymSetSetting
                     );
                 } else {
                     reader = new ReaderWithOrigin(
-                        Analysis.getReaderFromIndex(synonymsSet, factory.synonymsManagementAPIService, factory.lenient),
-                        "[" + synonymsSet + "] synonyms_set in .synonyms index",
-                        synonymsSet
+                        Analysis.getReaderFromIndex(synonymSets, factory.synonymsManagementAPIService, factory.lenient),
+                        "[" + synonymSetSetting + "] synonyms_set(s) in .synonyms index",
+                        synonymSetSetting
                     );
                 }
 

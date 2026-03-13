@@ -941,9 +941,11 @@ public class CacheTests extends ESTestCase {
         AtomicReference<Throwable> waitingThreadResult = new AtomicReference<>();
         Thread waitingThread = new Thread(() -> {
             try {
-                cache.computeIfAbsent(1, k -> {
-                    throw new IllegalStateException("failed to load");
-                }, cancellationCallback -> cancellationRegistered.countDown());
+                cache.computeIfAbsent(
+                    1,
+                    k -> { throw new IllegalStateException("failed to load"); },
+                    cancellationCallback -> cancellationRegistered.countDown()
+                );
                 waitingThreadResult.set(new AssertionError("expected ExecutionException"));
             } catch (ExecutionException | TaskCancelledException e) {
                 waitingThreadResult.set(e);

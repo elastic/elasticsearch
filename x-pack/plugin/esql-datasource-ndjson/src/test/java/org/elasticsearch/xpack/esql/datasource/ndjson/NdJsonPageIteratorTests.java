@@ -343,6 +343,33 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    public void testNonNullValueForNullTypedColumn() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        String ndjson = """
+            {"data": null, "id": 0}
+            {"data": [1, 2, 3], "id": 1}
+            """;
+
+        var settings = Settings.builder().put(NdJsonFormatReader.SCHEMA_SAMPLE_SIZE_SETTING, 1).build();
+        var reader = new NdJsonFormatReader(settings, blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        var schema = reader.metadata(object).schema();
+        assertSchema(schema, "id:INTEGER"); // data is all null during inference, and therefore ignored
+
+        try (var iterator = reader.read(object, List.of("data", "id"), 200)) {
+            var page = iterator.next();
+            // 2nd line ignored as inference was only on line 2
+            assertPage(page, """
+                     NULL      |      INT     \s
+                ---------------+---------------
+                null           |0             \s
+                null           |1             \s
+                """);
+        }
+    }
+
     // --- findNextRecordBoundary tests ---
 
     public void testFindNextRecordBoundaryNewline() throws IOException {

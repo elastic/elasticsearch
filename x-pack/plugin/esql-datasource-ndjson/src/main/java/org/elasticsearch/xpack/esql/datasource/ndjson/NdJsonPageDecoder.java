@@ -185,20 +185,22 @@ public class NdJsonPageDecoder implements Closeable {
     // A tree of decoders. Avoids path reconstruction when traversing nested objects.
     private class BlockDecoder {
         @Nullable
-        Attribute attribute;
-        Block.Builder blockBuilder;
+        DataType dataType;
+        String name;
         int blockIdx;
+        Block.Builder blockBuilder;
         Map<String, BlockDecoder> children;
 
         void setAttribute(Attribute attribute, int blockIdx) {
-            this.attribute = attribute;
+            this.dataType = attribute.dataType();
+            this.name = attribute.name();
             this.blockIdx = blockIdx;
         }
 
         // Builders setup independently as we need to create new ones for each page.
         void setupBuilders(Block.Builder[] blockBuilders) {
-            if (attribute != null) {
-                blockBuilder = switch (attribute.dataType()) {
+            if (dataType != null) {
+                blockBuilder = switch (dataType) {
                     // Keep in sync with NdJsonSchemaInferrer.inferValueSchema
                     case BOOLEAN -> blockFactory.newBooleanBlockBuilder(batchSize);
                     case NULL -> new ConstantNullBlock.Builder(blockFactory);
@@ -207,7 +209,7 @@ public class NdJsonPageDecoder implements Closeable {
                     case DOUBLE -> blockFactory.newDoubleBlockBuilder(batchSize);
                     case KEYWORD -> blockFactory.newBytesRefBlockBuilder(batchSize);
                     case DATETIME -> blockFactory.newLongBlockBuilder(batchSize); // milliseconds since epoch
-                    default -> throw new IllegalArgumentException("Unsupported data type: " + attribute.dataType());
+                    default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
                 };
                 blockBuilders[blockIdx] = blockBuilder;
             }
@@ -240,7 +242,8 @@ public class NdJsonPageDecoder implements Closeable {
         }
 
         private void beginPositionEntry() {
-            if (blockBuilder != null) {
+            // We may have DataType.NULL for unknown colums. And NullBlock.Builder throws on beginPositionEntry()
+            if (blockBuilder != null && dataType != DataType.NULL) {
                 blockBuilder.beginPositionEntry();
             }
             if (children != null) {
@@ -251,7 +254,7 @@ public class NdJsonPageDecoder implements Closeable {
         }
 
         private void endPositionEntry() {
-            if (blockBuilder != null) {
+            if (blockBuilder != null && dataType != DataType.NULL) {
                 blockBuilder.endPositionEntry();
             }
             if (children != null) {
@@ -263,6 +266,14 @@ public class NdJsonPageDecoder implements Closeable {
 
         private void decodeValue(JsonParser parser, boolean inArray) throws IOException {
             JsonToken token = parser.currentToken();
+
+            if (dataType == DataType.NULL) {
+                // Don't do anything. We must do a single appendNull() on null blocks, this will be done
+                // at the end of decodePage() when we check that all blocks have moved forward.
+                parser.skipChildren();
+                return;
+            }
+
             if (token == JsonToken.START_ARRAY) {
                 // Start a multi-value entry on this decoder and all its children (nested arrays are flattened).
                 // Note: the `inArray` flag is needed because blockBuilder.beginPositionEntry() is not idempotent.
@@ -291,7 +302,7 @@ public class NdJsonPageDecoder implements Closeable {
                 return;
             }
 
-            switch (attribute.dataType()) {
+            switch (dataType) {
                 case BOOLEAN -> {
                     if (token == JsonToken.VALUE_TRUE) {
                         ((BooleanBlock.Builder) blockBuilder).appendBoolean(true);
@@ -343,7 +354,7 @@ public class NdJsonPageDecoder implements Closeable {
                         unexpectedValue(blockBuilder, parser, inArray);
                     }
                 }
-                default -> throw new IllegalArgumentException("Unsupported data type: " + attribute.dataType());
+                default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
             }
         }
 
@@ -354,12 +365,7 @@ public class NdJsonPageDecoder implements Closeable {
                 builder.appendNull();
             }
 
-            LOGGER.warn(
-                "Unexpected token type: {} for attribute: {} at {}",
-                parser.currentToken(),
-                attribute.name(),
-                parser.getTokenLocation()
-            );
+            LOGGER.warn("Unexpected token type: {} for attribute: {} at {}", parser.currentToken(), name, parser.getTokenLocation());
             // Ignore any children to keep reading other values
             parser.skipChildren();
         }

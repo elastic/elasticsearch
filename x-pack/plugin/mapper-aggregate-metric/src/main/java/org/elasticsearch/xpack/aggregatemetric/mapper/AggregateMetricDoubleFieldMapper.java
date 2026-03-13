@@ -39,7 +39,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
-import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoader;
+import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -841,7 +841,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             metricDocValues.clear();
             for (Metric m : metrics) {
                 String fieldName = subfieldName(name, m);
-                SortedNumericDocValues dv = SortedNumericDocValuesSyntheticFieldLoader.docValuesOrNull(reader, fieldName);
+                SortedNumericDocValues dv = SortedNumericDocValuesSyntheticFieldLoaderLayer.docValuesOrNull(reader, fieldName);
                 if (dv != null) {
                     metricDocValues.put(m, dv);
                 }

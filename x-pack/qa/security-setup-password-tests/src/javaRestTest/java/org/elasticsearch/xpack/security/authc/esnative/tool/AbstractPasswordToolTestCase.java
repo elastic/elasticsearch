@@ -11,9 +11,7 @@ import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -32,7 +30,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -88,8 +85,12 @@ public abstract class AbstractPasswordToolTestCase extends ESRestTestCase {
         Map<String, Object> firstNodeHttp = (Map<String, Object>) firstNode.get("http");
         String nodePublishAddress = (String) firstNodeHttp.get("publish_address");
         final int lastColonIndex = nodePublishAddress.lastIndexOf(':');
-        InetAddress actualPublishAddress = InetAddresses.forString(nodePublishAddress.substring(0, lastColonIndex));
-        InetAddress expectedPublishAddress = new NetworkService(Collections.emptyList()).resolvePublishHostAddresses(Strings.EMPTY_ARRAY);
+        String addressPart = nodePublishAddress.substring(0, lastColonIndex);
+        // Strip brackets from IPv6 addresses (e.g., "[::1]" -> "::1")
+        if (addressPart.startsWith("[") && addressPart.endsWith("]")) {
+            addressPart = addressPart.substring(1, addressPart.length() - 1);
+        }
+        InetAddress actualPublishAddress = InetAddresses.forString(addressPart);
         final int port = Integer.valueOf(nodePublishAddress.substring(lastColonIndex + 1));
 
         List<String> lines = Files.readAllLines(configPath.resolve("elasticsearch.yml"));
@@ -97,8 +98,9 @@ public abstract class AbstractPasswordToolTestCase extends ESRestTestCase {
             .filter(s -> s.startsWith("http.port") == false && s.startsWith("http.publish_port") == false)
             .collect(Collectors.toList());
         lines.add(randomFrom("http.port", "http.publish_port") + ": " + port);
-        if (expectedPublishAddress.equals(actualPublishAddress) == false) {
-            lines.add("http.publish_address: " + InetAddresses.toAddrString(actualPublishAddress));
+
+        if (false == lines.stream().anyMatch(s -> s.startsWith("http.publish_host"))) {
+            lines.add("http.publish_host: " + InetAddresses.toAddrString(actualPublishAddress));
         }
         Files.write(configPath.resolve("elasticsearch.yml"), lines, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING);
     }

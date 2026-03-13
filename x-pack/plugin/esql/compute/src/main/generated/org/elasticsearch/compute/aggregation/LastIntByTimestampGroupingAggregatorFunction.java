@@ -35,16 +35,11 @@ public final class LastIntByTimestampGroupingAggregatorFunction implements Group
 
   private final DriverContext driverContext;
 
-  public LastIntByTimestampGroupingAggregatorFunction(List<Integer> channels,
-      LastIntByTimestampAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static LastIntByTimestampGroupingAggregatorFunction create(List<Integer> channels,
+  LastIntByTimestampGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new LastIntByTimestampGroupingAggregatorFunction(channels, LastIntByTimestampAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = LastIntByTimestampAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

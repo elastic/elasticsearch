@@ -73,4 +73,33 @@ public class RestBulkActionIT extends ESIntegTestCase {
             )
         );
     }
+
+    public void testBulkIndexWithSourceOnErrorDisabledWithPipeline() throws Exception {
+        var source = "{\"field\": NaN}";
+        var sourceEscaped = "{\\\"field\\\": NaN}";
+        var pipeline = randomAlphaOfLength(12);
+
+        var putPipelineRequest = new Request("PUT", "/_ingest/pipeline/" + pipeline);
+        putPipelineRequest.setJsonEntity("{\"processors\":[]}");
+        getRestClient().performRequest(putPipelineRequest);
+
+        var request = new Request("PUT", "/test_index/_bulk");
+        request.addParameter("pipeline", pipeline);
+        request.setJsonEntity(Strings.format("{\"index\":{\"_id\":\"1\"}}\n%s\n", source));
+
+        Response response = getRestClient().performRequest(request);
+        String responseContent = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), UTF_8));
+        assertThat(responseContent, containsString(sourceEscaped));
+
+        request.addParameter(RestUtils.INCLUDE_SOURCE_ON_ERROR_PARAMETER, "false");
+
+        response = getRestClient().performRequest(request);
+        responseContent = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), UTF_8));
+        assertThat(
+            responseContent,
+            both(not(containsString(sourceEscaped))).and(
+                containsString("REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled)")
+            )
+        );
+    }
 }

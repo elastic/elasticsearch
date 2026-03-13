@@ -3765,8 +3765,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         }
     }
 
-    // ---- unmapped_fields="load" disallows branching commands (see #142367) ----
-
     public void testLoadModeDisallowsFork() {
         verificationFailure(
             setUnmappedLoad("FROM test | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"),
@@ -3853,8 +3851,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 | LOOKUP JOIN languages_lookup ON language_code)
             """), "Subqueries and views are not supported with unmapped_fields=\"load\"");
     }
-
-    // ---- load mode with multiple forbidden commands in the same query ----
 
     public void testLoadModeDisallowsForkAndLookupJoin() {
         verificationFailure(

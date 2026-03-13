@@ -63,7 +63,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
         new EndpointMetadata(
             new EndpointMetadata.Heuristics(List.of("heuristic1", "heuristic2"), StatusHeuristic.BETA, "2025-01-01", "2025-12-31"),
             new EndpointMetadata.Internal("fingerprint", 1L),
-            new EndpointMetadata.Display("name")
+            new EndpointMetadata.Display("name", "creator")
         )
     );
 
@@ -86,7 +86,8 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
               "version": 1
             },
             "display": {
-              "name": "name"
+              "name": "name",
+              "model_creator": "creator"
             }
           }
         }
@@ -201,19 +202,26 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
     @Override
     protected MinimalServiceSettings mutateInstanceForVersion(MinimalServiceSettings instance, TransportVersion version) {
         var metadataVersion = TransportVersion.fromName("inference_endpoint_metadata_fields_added");
+        var metadataDisplayModelCreatorAddedVersion = TransportVersion.fromName("inference_endpoint_metadata_display_model_creator_added");
 
-        if (version.supports(metadataVersion)) {
-            return instance;
-        } else {
-            return new MinimalServiceSettings(
-                instance.service(),
-                instance.taskType(),
-                instance.dimensions(),
-                instance.similarity(),
-                instance.elementType(),
-                EndpointMetadata.EMPTY_INSTANCE
+        var endpointMetadata = instance.endpointMetadata();
+        if (version.supports(metadataVersion) == false) {
+            endpointMetadata = EndpointMetadata.EMPTY_INSTANCE;
+        } else if (version.supports(metadataDisplayModelCreatorAddedVersion) == false) {
+            endpointMetadata = new EndpointMetadata(
+                endpointMetadata.heuristics(),
+                endpointMetadata.internal(),
+                new EndpointMetadata.Display(endpointMetadata.display().name(), null)
             );
         }
+        return new MinimalServiceSettings(
+            instance.service(),
+            instance.taskType(),
+            instance.dimensions(),
+            instance.similarity(),
+            instance.elementType(),
+            endpointMetadata
+        );
     }
 
     @Override

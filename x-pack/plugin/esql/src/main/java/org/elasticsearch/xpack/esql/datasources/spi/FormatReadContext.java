@@ -108,6 +108,9 @@ public record FormatReadContext(
         }
 
         public FormatReadContext build() {
+            if (batchSize <= 0) {
+                throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
+            }
             return new FormatReadContext(projectedColumns, batchSize, rowLimit, errorPolicy, firstSplit, lastSplit);
         }
     }

@@ -233,6 +233,8 @@ public final class ParallelParsingCoordinator {
                 boolean lastSplit = segmentIndex == totalSegments - 1;
                 StorageObject segObj = new RangeStorageObject(storageObject, offset, length);
 
+                // All segments start at record boundaries (probed by computeSegments),
+                // so firstSplit is true for every segment: no line needs to be skipped.
                 FormatReadContext ctx = FormatReadContext.builder()
                     .projectedColumns(projectedColumns)
                     .batchSize(batchSize)

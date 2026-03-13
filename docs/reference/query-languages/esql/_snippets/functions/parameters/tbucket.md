@@ -3,5 +3,11 @@
 ## Parameters
 
 `buckets`
-:   Desired bucket size.
+:   Target number of buckets, or desired bucket size. When a number is provided, the actual bucket size is derived from `from`/`to` or the `@timestamp` range in the query filter {applies_to}`stack: ga 9.4`. When a duration or period is provided, it is used as the explicit bucket size.
+
+`from`
+:   Start of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter {applies_to}`stack: ga 9.4`.
+
+`to`
+:   End of the range. Required with a numeric `buckets` when no `@timestamp` range is in the query filter {applies_to}`stack: ga 9.4`.
 

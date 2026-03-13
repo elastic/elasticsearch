@@ -10,8 +10,11 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -30,30 +33,44 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     public static final String SCHEMA_SAMPLE_SIZE_SETTING = "esql.datasource.ndjson.schema_sample_size";
     public static final int DEFAULT_SCHEMA_SAMPLE_SIZE = 100;
 
+    private static final Logger log = LogManager.getLogger(NdJsonFormatReader.class);
+
     private final BlockFactory blockFactory;
     private final Settings settings;
+    private final List<Attribute> resolvedSchema;
 
-    public NdJsonFormatReader(Settings settings, BlockFactory blockFactory) {
+    public NdJsonFormatReader(Settings settings, BlockFactory blockFactory, List<Attribute> resolvedSchema) {
         this.blockFactory = blockFactory;
         this.settings = settings == null ? Settings.EMPTY : settings;
+        this.resolvedSchema = resolvedSchema;
+    }
+
+    NdJsonFormatReader(Settings settings, BlockFactory blockFactory) {
+        this(settings, blockFactory, null);
     }
 
     // For testing only
     NdJsonFormatReader(BlockFactory blockFactory) {
-        this(null, blockFactory);
+        this(null, blockFactory, null);
+    }
+
+    @Override
+    public NdJsonFormatReader withSchema(List<Attribute> schema) {
+        return new NdJsonFormatReader(settings, blockFactory, schema);
+    }
+
+    private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object) throws IOException {
+        if (attributes != null && attributes.isEmpty() == false) {
+            return attributes;
+        }
+        log.info("Inferring missing schema for {}", object.path());
+        try (var stream = object.newStream()) {
+            return NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize(settings));
+        }
     }
 
     private static int schemaSampleSize(Settings settings) {
         return settings.getAsInt(SCHEMA_SAMPLE_SIZE_SETTING, DEFAULT_SCHEMA_SAMPLE_SIZE);
-    }
-
-    private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object) throws IOException {
-        if (attributes != null) {
-            return attributes;
-        }
-        try (var stream = object.newStream()) {
-            return NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize(settings));
-        }
     }
 
     @Override
@@ -66,43 +83,17 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     @Override
-    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
-        // FIXME: either read schema ahead of time, or buffer the stream and replay it to avoid opening it twice.
-        var attributes = inferSchemaIfNeeded(null, object);
-        return new NdJsonPageIterator(object, projectedColumns, batchSize, blockFactory, false, false, attributes);
-    }
-
-    @Override
-    public CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        List<Attribute> resolvedAttributes
-    ) throws IOException {
-        resolvedAttributes = inferSchemaIfNeeded(resolvedAttributes, object);
-        return new NdJsonPageIterator(object, projectedColumns, batchSize, blockFactory, skipFirstLine, false, resolvedAttributes);
-    }
-
-    @Override
-    public CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        boolean lastSplit,
-        List<Attribute> resolvedAttributes
-    ) throws IOException {
-        resolvedAttributes = inferSchemaIfNeeded(resolvedAttributes, object);
-        boolean trimLastPartialLine = lastSplit == false;
+    public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+        boolean skipFirstLine = context.firstSplit() == false;
+        boolean trimLastPartialLine = context.lastSplit() == false;
         return new NdJsonPageIterator(
             object,
-            projectedColumns,
-            batchSize,
+            context.projectedColumns(),
+            context.batchSize(),
             blockFactory,
             skipFirstLine,
             trimLastPartialLine,
-            resolvedAttributes
+            inferSchemaIfNeeded(resolvedSchema, object)
         );
     }
 

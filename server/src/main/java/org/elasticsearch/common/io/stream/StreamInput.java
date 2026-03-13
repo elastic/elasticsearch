@@ -1356,6 +1356,19 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads a possibly-{@code null} list of {@link NamedWriteable}s
+     * which was written using {@link StreamOutput#writeOptionalNamedWriteableCollection(Collection)}.
+     * If the returned list contains any entries it will be a (mutable) {@link ArrayList}. If it is empty it might be immutable.
+     */
+    @Nullable
+    public <T extends NamedWriteable> List<T> readOptionalNamedWriteableCollectionAsList(Class<T> categoryClass) throws IOException {
+        if (readBoolean()) {
+            return readNamedWriteableCollectionAsList(categoryClass);
+        }
+        return null;
+    }
+
+    /**
      * Reads a collection which was written using {@link StreamOutput#writeCollection}, accumulating the results using the provided
      * consumer.
      */

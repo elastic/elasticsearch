@@ -103,7 +103,7 @@ public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable 
         return true;
     }
 
-    AzureOpenAiOAuth2Settings(OAuth2Settings oauth2Settings, String tenantId) {
+    public AzureOpenAiOAuth2Settings(OAuth2Settings oauth2Settings, String tenantId) {
         this.oauth2Settings = Objects.requireNonNull(oauth2Settings);
         this.tenantId = Objects.requireNonNull(tenantId);
     }
@@ -160,6 +160,19 @@ public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable 
         oauth2Settings.toXContent(builder, params);
         builder.field(TENANT_ID_FIELD, tenantId);
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        AzureOpenAiOAuth2Settings that = (AzureOpenAiOAuth2Settings) o;
+        return Objects.equals(oauth2Settings, that.oauth2Settings) && Objects.equals(tenantId, that.tenantId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(oauth2Settings, tenantId);
     }
 
 }

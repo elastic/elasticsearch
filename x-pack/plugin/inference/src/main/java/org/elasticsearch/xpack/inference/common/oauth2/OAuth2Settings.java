@@ -97,7 +97,7 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
         return true;
     }
 
-    OAuth2Settings(String clientId, List<String> scopes) {
+    public OAuth2Settings(String clientId, List<String> scopes) {
         this.clientId = Objects.requireNonNull(clientId);
         this.scopes = Objects.requireNonNull(scopes);
     }
@@ -145,5 +145,18 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
         builder.field(CLIENT_ID_FIELD, clientId);
         builder.field(SCOPES_FIELD, scopes);
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        OAuth2Settings that = (OAuth2Settings) o;
+        return Objects.equals(clientId, that.clientId) && Objects.equals(scopes, that.scopes);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(clientId, scopes);
     }
 }

@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -241,7 +242,7 @@ public class MetricTemporalityFieldMapper extends FieldMapper {
     }
 
     @Override
-    public Map<String, org.elasticsearch.index.analysis.NamedAnalyzer> indexAnalyzers() {
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
     }
 
@@ -261,7 +262,7 @@ public class MetricTemporalityFieldMapper extends FieldMapper {
         if (parser.currentToken().isValue() == false) {
             throw new DocumentParsingException(parser.getTokenLocation(), "Expected a value, but got [" + parser.currentToken() + "]");
         }
-        if (context.doc().getField(fieldType().name()) != null) {
+        if (context.doc().getByKey(fieldType().name()) != null) {
             throw new IllegalArgumentException(
                 "Field ["
                     + fullPath()
@@ -273,7 +274,10 @@ public class MetricTemporalityFieldMapper extends FieldMapper {
         try {
             ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), context.parser());
             BytesRef normalizedValue = normalizeTemporalityAsBytes(parser.text());
-            context.doc().add(new KeywordFieldMapper.KeywordField(fieldType().name(), normalizedValue, fieldType));
+            context.doc().addWithKey(
+                fieldType().name(),
+                new KeywordFieldMapper.KeywordField(fieldType().name(), normalizedValue, fieldType)
+            );
 
             assert fieldType().isDimension();
             context.getRoutingFields().addString(fieldType().name(), normalizedValue);

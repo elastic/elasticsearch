@@ -322,12 +322,12 @@ public class MetricTemporalityFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void assertFetchMany(MapperService mapperService, String field, Object value, String format, int count) throws IOException {
-        assumeFalse("metric_temporality does not support multiple values in the same field", false);
+        assumeFalse("metric_temporality does not support multiple values in the same field", true);
     }
 
     @Override
     public void testSyntheticSourceKeepArrays() {
-        assumeFalse("This mapper is single-valued and rejects arrays.", false);
+        assumeFalse("This mapper is single-valued and rejects arrays.", true);
     }
 
     @Override

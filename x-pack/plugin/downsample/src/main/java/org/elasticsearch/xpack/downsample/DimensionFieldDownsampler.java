@@ -89,7 +89,8 @@ public class DimensionFieldDownsampler extends LastValueFieldDownsampler {
     static List<DimensionFieldDownsampler> create(
         final SearchExecutionContext context,
         final String[] dimensions,
-        final Map<String, String> multiFieldSources
+        final Map<String, String> multiFieldSources,
+        DownsamplerCountPerValueType fieldCounts
     ) {
         List<DimensionFieldDownsampler> downsamplers = new ArrayList<>();
         for (String dimension : dimensions) {
@@ -98,6 +99,7 @@ public class DimensionFieldDownsampler extends LastValueFieldDownsampler {
             assert fieldType != null : "Unknown type for dimension field: [" + sourceFieldName + "]";
 
             if (context.fieldExistsInIndex(fieldType.name())) {
+                fieldCounts.increaseDimensionFields();
                 final IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
                 if (fieldType instanceof FlattenedFieldMapper.KeyedFlattenedFieldType flattenedFieldType) {
                     // Name of the field type and name of the dimension are different in this case.

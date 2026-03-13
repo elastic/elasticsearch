@@ -43,6 +43,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.junit.After;
 import org.junit.Before;
@@ -61,6 +62,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -140,8 +142,8 @@ public class AsyncSearchTaskTests extends ESTestCase {
         try (AsyncSearchTask task = createAsyncSearchTask()) {
             TaskInfo taskInfo = task.taskInfo("node1", true);
             assertThat(taskInfo.status(), notNullValue());
-            assertThat(taskInfo.toString(), containsString("\"request_id\" : \"" + task.getExecutionId().getEncoded() + "\""));
-            assertThat(taskInfo.toString(), containsString("\"keep_alive\" : \"1h\""));
+            assertThat(taskInfo, hasToString(containsString("\"request_id\" : \"" + task.getExecutionId().getEncoded() + "\"")));
+            assertThat(taskInfo, hasToString(containsString("\"keep_alive\" : \"1h\"")));
         }
     }
 
@@ -151,7 +153,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
                 List.of(new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new))
             );
             TaskInfo taskInfo = task.taskInfo("node1", true);
-            TransportVersion previousVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.current());
+            TransportVersion previousVersion = TransportVersionUtils.randomVersionNotSupporting(AsyncTask.ASYNC_TASK_KEEP_ALIVE_STATUS);
             TaskInfo serialized = copyWriteable(taskInfo, oldRegistry, TaskInfo::from, previousVersion);
             assertThat(serialized.status(), instanceOf(RawTaskStatus.class));
             Map<String, Object> statusMap = ((RawTaskStatus) serialized.status()).toMap();

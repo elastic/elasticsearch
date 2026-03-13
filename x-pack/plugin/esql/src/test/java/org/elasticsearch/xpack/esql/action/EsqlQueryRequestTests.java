@@ -37,6 +37,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -894,7 +895,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             new AsyncExecutionId(randomAlphaOfLength(10), new TaskId(randomAlphaOfLength(4), randomNonNegativeLong())),
             TimeValue.timeValueDays(2)
         );
-        TransportVersion previousVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.current());
+        TransportVersion previousVersion = TransportVersionUtils.randomVersionNotSupporting(AsyncTask.ASYNC_TASK_KEEP_ALIVE_STATUS);
         EsqlQueryStatus serialized = copyWriteable(
             status,
             namedWriteableRegistry,
@@ -910,7 +911,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             new AsyncExecutionId(randomAlphaOfLength(10), new TaskId(randomAlphaOfLength(4), randomNonNegativeLong())),
             TimeValue.timeValueDays(2)
         );
-        TransportVersion previousVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.current());
+        TransportVersion previousVersion = TransportVersionUtils.randomVersionNotSupporting(AsyncTask.ASYNC_TASK_KEEP_ALIVE_STATUS);
         EsqlQueryStatus withoutKeepAlive = copyWriteable(
             status,
             namedWriteableRegistry,

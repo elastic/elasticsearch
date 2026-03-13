@@ -497,13 +497,16 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
 
     private TaskInfo getRunningAsyncSearchTask(String asyncSearchId) throws Exception {
         var targetTaskId = AsyncExecutionId.decode(asyncSearchId).getTaskId();
-        TaskInfo found = null;
-        for (TaskInfo taskInfo : client().admin().cluster().prepareListTasks().setDetailed(true).get().getTasks()) {
-            if (taskInfo.taskId().equals(targetTaskId)) {
-                found = taskInfo;
-                break;
-            }
-        }
+        TaskInfo found = client().admin()
+            .cluster()
+            .prepareListTasks()
+            .setDetailed(true)
+            .get()
+            .getTasks()
+            .stream()
+            .filter(taskInfo -> taskInfo.taskId().equals(targetTaskId))
+            .findAny()
+            .orElse(null);
         assertNotNull(found);
         return found;
     }

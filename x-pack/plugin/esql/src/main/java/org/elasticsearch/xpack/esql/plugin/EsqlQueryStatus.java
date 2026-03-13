@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,11 +14,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.AsyncTask;
 
 import java.io.IOException;
 
 public record EsqlQueryStatus(AsyncExecutionId id, TimeValue keepAlive) implements Task.Status {
-    public static final TransportVersion ESQL_QUERY_TASK_KEEP_ALIVE_STATUS = TransportVersion.fromName("esql_query_task_keep_alive_status");
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Task.Status.class,
         "EsqlDocIdStatus",
@@ -34,14 +33,14 @@ public record EsqlQueryStatus(AsyncExecutionId id, TimeValue keepAlive) implemen
     private EsqlQueryStatus(StreamInput stream) throws IOException {
         this(
             AsyncExecutionId.readFrom(stream),
-            stream.getTransportVersion().supports(ESQL_QUERY_TASK_KEEP_ALIVE_STATUS) ? stream.readOptionalTimeValue() : null
+            stream.getTransportVersion().supports(AsyncTask.ASYNC_TASK_KEEP_ALIVE_STATUS) ? stream.readOptionalTimeValue() : null
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         id.writeTo(out);
-        if (out.getTransportVersion().supports(ESQL_QUERY_TASK_KEEP_ALIVE_STATUS)) {
+        if (out.getTransportVersion().supports(AsyncTask.ASYNC_TASK_KEEP_ALIVE_STATUS)) {
             out.writeOptionalTimeValue(keepAlive);
         }
     }

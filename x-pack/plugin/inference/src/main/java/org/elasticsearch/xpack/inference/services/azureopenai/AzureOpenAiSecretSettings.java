@@ -17,7 +17,6 @@ import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuth2Secrets;
-import org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuthSettings;
 
 import java.util.Collections;
 import java.util.EnumSet;
@@ -123,7 +122,7 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
                         .setType(SettingsConfigurationFieldType.STRING)
                         .build()
                 );
-                configurationMap.putAll(AzureOpenAiOAuthSettings.getClientSecretConfiguration());
+                configurationMap.putAll(AzureOpenAiOAuth2Secrets.getClientSecretConfiguration());
                 return Collections.unmodifiableMap(configurationMap);
             });
     }

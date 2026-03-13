@@ -15,51 +15,50 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.SettingsConfiguration;
-import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.common.parser.StringParser.extractStringList;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.EXACTLY_ONE_CONFIG_DESCRIPTION;
 
 public class AzureOpenAiOAuthSettings implements ToXContentFragment, Writeable {
 
     public static final TransportVersion AZURE_OPENAI_OAUTH_SETTINGS = TransportVersion.fromName("azure_openai_oauth_settings");
 
-    public static final String CLIENT_ID_FIELD = "client_id";
     public static final String TENANT_ID_FIELD = "tenant_id";
-    public static final String SCOPES_FIELD = "scopes";
 
-    public static final String REQUIRED_FIELDS = String.join(", ", CLIENT_ID_FIELD, TENANT_ID_FIELD, SCOPES_FIELD);
+    public static final String REQUIRED_FIELDS = String.join(
+        ", ",
+        OAuth2Settings.CLIENT_ID_FIELD,
+        TENANT_ID_FIELD,
+        OAuth2Settings.SCOPES_FIELD
+    );
 
     public static final String REQUIRED_FIELDS_DESCRIPTION = Strings.format("OAuth2 requires the fields [%s], to be set.", REQUIRED_FIELDS);
 
-    private record UpdateSettings(@Nullable String clientId, @Nullable String tenantId, @Nullable List<String> scopes) {}
+    private record UpdateSettings(OAuth2Settings oauth2Settings, @Nullable String tenantId) {
+        UpdateSettings {
+            Objects.requireNonNull(oauth2Settings);
+        }
+    }
 
-    private final String clientId;
+    private final OAuth2Settings oauth2Settings;
     private final String tenantId;
-    private final List<String> scopes;
 
     public static AzureOpenAiOAuthSettings fromMap(Map<String, Object> map, ValidationException validationException) {
-        var clientId = extractOptionalString(map, CLIENT_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var oauth2ServiceSettings = OAuth2Settings.fromMap(map, validationException);
         var tenantId = extractOptionalString(map, TENANT_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var scopes = extractStringList(map, SCOPES_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        var hasFields = validateFields(clientId, tenantId, scopes, validationException);
+        var hasFields = validateFields(oauth2ServiceSettings, tenantId, validationException);
 
         if (hasFields) {
-            return new AzureOpenAiOAuthSettings(clientId, tenantId, scopes);
-
+            return new AzureOpenAiOAuthSettings(oauth2ServiceSettings, tenantId);
         }
 
         return null;
@@ -73,25 +72,21 @@ public class AzureOpenAiOAuthSettings implements ToXContentFragment, Writeable {
      * a ValidationException is thrown.
      */
     private static boolean validateFields(
-        @Nullable String clientId,
+        @Nullable OAuth2Settings oauth2Settings,
         @Nullable String tenantId,
-        @Nullable List<String> scopes,
         ValidationException validationException
     ) {
-        boolean anyFieldProvided = clientId != null || tenantId != null || scopes != null;
+        boolean anyFieldProvided = oauth2Settings != null || tenantId != null;
         if (anyFieldProvided == false) {
             return false;
         }
 
         var missingFields = new ArrayList<String>();
-        if (clientId == null) {
-            missingFields.add(CLIENT_ID_FIELD);
+        if (oauth2Settings == null) {
+            missingFields.add(OAuth2Settings.REQUIRED_FIELDS);
         }
         if (tenantId == null) {
             missingFields.add(TENANT_ID_FIELD);
-        }
-        if (scopes == null) {
-            missingFields.add(SCOPES_FIELD);
         }
 
         if (missingFields.isEmpty() == false) {
@@ -108,18 +103,18 @@ public class AzureOpenAiOAuthSettings implements ToXContentFragment, Writeable {
         return true;
     }
 
-    AzureOpenAiOAuthSettings(String clientId, String tenantId, List<String> scopes) {
-        this.clientId = Objects.requireNonNull(clientId);
+    AzureOpenAiOAuthSettings(OAuth2Settings oauth2Settings, String tenantId) {
+        this.oauth2Settings = Objects.requireNonNull(oauth2Settings);
         this.tenantId = Objects.requireNonNull(tenantId);
-        this.scopes = Objects.requireNonNull(scopes);
     }
 
     public AzureOpenAiOAuthSettings(StreamInput in) throws IOException {
-        this(in.readString(), in.readString(), in.readStringCollectionAsImmutableList());
+        this.oauth2Settings = new OAuth2Settings(in);
+        this.tenantId = in.readString();
     }
 
     public String getClientId() {
-        return clientId;
+        return oauth2Settings.getClientId();
     }
 
     public String getTenantId() {
@@ -127,58 +122,44 @@ public class AzureOpenAiOAuthSettings implements ToXContentFragment, Writeable {
     }
 
     public List<String> getScopes() {
-        return scopes;
+        return oauth2Settings.getScopes();
     }
 
     public AzureOpenAiOAuthSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
-        var updated = fromMapForUpdate(serviceSettings, validationException);
+        var updated = fromMapForUpdate(serviceSettings, oauth2Settings, validationException);
 
-        var clientIdToUpdate = updated.clientId() != null ? updated.clientId() : clientId;
         var tenantIdToUpdate = updated.tenantId() != null ? updated.tenantId() : tenantId;
-        var scopesToUpdate = updated.scopes() != null ? updated.scopes() : scopes;
 
-        validateFields(clientIdToUpdate, tenantIdToUpdate, scopesToUpdate, validationException);
+        validateFields(updated.oauth2Settings(), tenantIdToUpdate, validationException);
 
-        return new AzureOpenAiOAuthSettings(clientIdToUpdate, tenantIdToUpdate, scopesToUpdate);
+        return new AzureOpenAiOAuthSettings(updated.oauth2Settings(), tenantIdToUpdate);
     }
 
-    private static UpdateSettings fromMapForUpdate(Map<String, Object> map, ValidationException validationException) {
-        var clientId = extractOptionalString(map, CLIENT_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var tenant_id = extractOptionalString(map, TENANT_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var scopes = extractStringList(map, SCOPES_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
+    private static UpdateSettings fromMapForUpdate(
+        Map<String, Object> map,
+        OAuth2Settings oAuth2Settings,
+        ValidationException validationException
+    ) {
+        var oauth2ServiceSettings = oAuth2Settings.updateServiceSettings(map, validationException);
+        var tenantId = extractOptionalString(map, TENANT_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         validationException.throwIfValidationErrorsExist();
 
-        return new UpdateSettings(clientId, tenant_id, scopes);
+        return new UpdateSettings(oauth2ServiceSettings, tenantId);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(clientId);
+        oauth2Settings.writeTo(out);
         out.writeString(tenantId);
-        out.writeStringCollection(scopes);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(CLIENT_ID_FIELD, clientId);
+        oauth2Settings.toXContent(builder, params);
         builder.field(TENANT_ID_FIELD, tenantId);
-        builder.field(SCOPES_FIELD, scopes);
         return builder;
     }
 
-    public static Map<String, SettingsConfiguration> getClientSecretConfiguration() {
-        return Map.of(
-            AzureOpenAiOAuth2Secrets.CLIENT_SECRET_FIELD,
-            new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION))
-                .setDescription(EXACTLY_ONE_CONFIG_DESCRIPTION)
-                .setLabel("OAuth2 Client Secret")
-                .setRequired(false)
-                .setSensitive(true)
-                .setUpdatable(true)
-                .setType(SettingsConfigurationFieldType.STRING)
-                .build()
-        );
-    }
 }

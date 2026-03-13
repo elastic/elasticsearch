@@ -12,10 +12,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
 
 import java.io.IOException;
+import java.util.EnumSet;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuthSettings.AZURE_OPENAI_OAUTH_SETTINGS;
@@ -85,5 +90,19 @@ public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretSettings {
     @Override
     public int hashCode() {
         return Objects.hash(clientSecret, inferenceId);
+    }
+
+    public static Map<String, SettingsConfiguration> getClientSecretConfiguration() {
+        return Map.of(
+            AzureOpenAiOAuth2Secrets.CLIENT_SECRET_FIELD,
+            new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION))
+                .setDescription(EXACTLY_ONE_CONFIG_DESCRIPTION)
+                .setLabel("OAuth2 Client Secret")
+                .setRequired(false)
+                .setSensitive(true)
+                .setUpdatable(true)
+                .setType(SettingsConfigurationFieldType.STRING)
+                .build()
+        );
     }
 }

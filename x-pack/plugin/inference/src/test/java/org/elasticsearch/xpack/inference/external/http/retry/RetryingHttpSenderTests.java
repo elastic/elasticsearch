@@ -349,10 +349,11 @@ public class RetryingHttpSenderTests extends ESTestCase {
         verifyNoInteractions(httpClient);
     }
 
-    public void testSend_ReturnsElasticsearchExceptionFailure_WhenTheHttpClientThrowsAnIllegalStateException() throws IOException {
+    public void testSend_ReturnsOriginalIllegalStateExceptionWithoutWrapping_WhenTheHttpClientThrowsAnIllegalStateException()
+        throws IOException {
         var httpClient = mock(HttpClient.class);
 
-        doAnswer(invocation -> { throw new IllegalStateException("failed"); }).when(httpClient).send(any(), any(), any());
+        doThrow(new IllegalStateException("failed")).when(httpClient).send(any(), any(), any());
 
         var inferenceResults = mock(InferenceServiceResults.class);
         Answer<InferenceServiceResults> answer = (invocation) -> inferenceResults;

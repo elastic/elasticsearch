@@ -144,9 +144,9 @@ public class RetryingHttpSender implements RequestSender {
                 if (exceptionToUse instanceof SenderException senderException) {
                     exceptionToUse = senderException.getOriginalException();
 
-                    logException(logger, request, senderException.getResult(), responseHandler.getRequestType(), exceptionToUse);
+                    logResponseException(logger, request, senderException.getResult(), responseHandler.getRequestType(), exceptionToUse);
                 } else {
-                    logException(logger, request, responseHandler.getRequestType(), exceptionToUse);
+                    logRequestException(logger, request, responseHandler.getRequestType(), exceptionToUse);
                 }
 
                 /*
@@ -269,9 +269,15 @@ public class RetryingHttpSender implements RequestSender {
         retrier.run();
     }
 
-    private void logException(Logger logger, Request request, @Nullable HttpResult result, String requestType, Exception exception) {
+    private void logResponseException(
+        Logger logger,
+        Request request,
+        @Nullable HttpResult result,
+        String requestType,
+        Exception exception
+    ) {
         if (result == null) {
-            logException(logger, request, requestType, exception);
+            logRequestException(logger, request, requestType, exception);
             return;
         }
 
@@ -290,7 +296,7 @@ public class RetryingHttpSender implements RequestSender {
         );
     }
 
-    private void logException(Logger logger, Request request, String requestType, Exception exception) {
+    private void logRequestException(Logger logger, Request request, String requestType, Exception exception) {
         var causeException = ExceptionsHelper.unwrapCause(exception);
 
         throttlerManager.warn(

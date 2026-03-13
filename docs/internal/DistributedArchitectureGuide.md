@@ -1648,19 +1648,19 @@ serialized to Lucene files. Every time the serialization format of mappings, pos
 persisted index structure changes, a new `IndexVersion` constant must be added.
 
 The `IndexVersion` class contains two fields: an integer `id` and the
-Lucene [Version](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/util/Version.html)
+Lucene [Version](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/util/Version.html)
 that the index was written with. The stored Lucene version is used for Lucene API calls that depend on the version,
 such as [reading segment metadata](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/lucene/Lucene.java#L173).
 
 The `IndexVersion` class
-was [introduced](https://github.com/elastic/elasticsearch/pull/94827) in 8.8.0. Before that, the node release `Version` was used for both purposes. Prior to 8.9.0
-the `id` field was the same as the release version, for backwards compatibility. In 8.9.0 it changed to an
-incrementing number, and disconnected from the release version.
+was [introduced](https://github.com/elastic/elasticsearch/pull/94827) in 8.8.0. Before that, the node release `Version` 
+was used for both purposes. Prior to 8.9.0 the `id` field was the same as the release version, for backwards 
+compatibility. In 8.9.0 it changed to an incrementing number, and disconnected from the release version.
 
 All known versions are declared as constants in [IndexVersions] (e.g. `UPGRADE_TO_LUCENE_10_4_0`,
 `SEMANTIC_TEXT_FIELD_TYPE`, or `GENERIC_DENSE_VECTOR_FORMAT`).
-The [list](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexVersions.java#L62)
-serves as the source of truth for version-to-Lucene mappings and a merge-conflict check.
+This [list](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexVersions.java#L62)
+serves as the source of truth for version-to-Lucene mappings and merge-conflict checks.
 
 The `IndexVersion`
 is [stamped](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/MetadataCreateIndexService.java#L1231)
@@ -1690,11 +1690,11 @@ Note that Lucene [enforces similar constraints](https://github.com/apache/lucene
 Indices created in the penultimate major version (N-2), i.e. older than `MINIMUM_COMPATIBLE` but at or above
 [IndexVersions.MINIMUM_READONLY_COMPATIBLE](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexVersions.java#L269),
 can only be opened in read-only mode. They must have been marked as read-only (with a write block) on the previous
-major version before upgrading. Their mappings and field types are still fully understood by the current node. Only
+major version before upgrading. Their mappings and field types are still fully understood by the current version. Only
 writes are blocked.
 
 Indices older than `MINIMUM_READONLY_COMPATIBLE` are classified as legacy. Their on-disk format
-is too old for the current node to fully understand their mappings or field types, so they are automatically converted
+is too old for the current version to fully understand their mappings or field types, so they are automatically converted
 to degraded read-only archives via [RestoreService.convertLegacyIndex()](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/snapshots/RestoreService.java#L1801)
 when restored from a snapshot.
 Both `MINIMUM_COMPATIBLE` and `MINIMUM_READONLY_COMPATIBLE` are bumped with each new major release to maintain this
@@ -1752,8 +1752,9 @@ to them.
 [CodecService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/CodecService.java
 [TSDBSyntheticIdPostingsFormat]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/tsdb/TSDBSyntheticIdPostingsFormat.java
 [TSDBSyntheticIdStoredFieldsReader]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/tsdb/TSDBSyntheticIdStoredFieldsReader.java
+[AbstractTSDBSyntheticIdCodec]
 
-Lucene's [codec](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/codecs/package-summary.html) abstraction
+Lucene's [Codec](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/codecs/package-summary.html) abstraction
 lets each field type choose its own on-disk format. A codec is a bundle of format implementations: one for postings,
 one for stored fields, one for doc values, one for vectors, etc.
 
@@ -1761,7 +1762,8 @@ Elasticsearch ships its own codec stack, managed by the [CodecService] class. It
 (e.g. [Lucene104Codec](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/codecs/lucene104/Lucene104Codec.html))
 with Elasticsearch-specific customizations:
 
-- Stored fields compression: Lucene's default LZ4/DEFLATE is [replaced](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/CodecService.java#L64)
+- Lucene's default LZ4/DEFLATE stored field compression
+  is [replaced](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/CodecService.java#L64)
   with ZSTD (see `Zstd814StoredFieldsFormat`) for better compression ratios.
   Users can also set `index.codec: best_compression` on an index to switch to a higher-compression ZSTD mode
   (`Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION`), trading indexing throughput for smaller on-disk stored
@@ -1777,7 +1779,7 @@ with Elasticsearch-specific customizations:
   metadata objects loaded from each segment's `.fnm` file. Field names, attribute keys, and attribute maps that are
   identical across segments are [interned](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/DeduplicatingFieldInfosFormat.java#L50)
   so they share a single object in memory, reducing heap usage on indices with many segments.
-- TSDB synthetic `_id`: for time-series indices with synthetic IDs enabled (`index.mapping.synthetic_id`), the
+- For time-series indices with synthetic IDs enabled (`index.mapping.synthetic_id`), the `AbstractTSDBSyntheticIdCodec`
   codec [avoids writing](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/mapper/SyntheticIdField.java#L32)
   the `_id` inverted index and stored field to disk. The `_id` field is still declared as indexed, but
   [SyntheticIdField](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/mapper/SyntheticIdField.java)
@@ -1793,7 +1795,60 @@ mechanism loads the codec that originally wrote each segment.
 
 #### Segment Merges
 
-(Merges + add a quick description about soft deletes)
+[MergePolicyConfig]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/MergePolicyConfig.java
+[ElasticsearchMergeScheduler]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/ElasticsearchMergeScheduler.java
+[ThreadPoolMergeScheduler]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/ThreadPoolMergeScheduler.java
+[SoftDeletesPolicy]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/SoftDeletesPolicy.java
+[PrunePostingsMergePolicy]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/PrunePostingsMergePolicy.java
+[ShuffleForcedMergePolicy]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/ShuffleForcedMergePolicy.java
+[ThreadPoolMergeExecutorService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/ThreadPoolMergeExecutorService.java
+
+Because Lucene segments are immutable, updates and deletes cannot modify documents in place. Over time,
+small segments accumulate from successive flushes.
+[Merges](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/MergePolicy.html) combine multiple
+segments into fewer, larger ones. Merges both reclaim space from obsolete documents and improve query performance by
+reducing the number of segments a search must visit.
+
+[MergePolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/MergePolicy.html)s decides
+which segments to merge and when. Elasticsearch configures this through [MergePolicyConfig], which uses
+Lucene's [TieredMergePolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/TieredMergePolicy.html)
+as the base policy. Then the `InternalEngine`
+[wraps](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L2808)
+this base policy with several layers:
+
+- [SoftDeletesRetentionMergePolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/SoftDeletesRetentionMergePolicy.html):
+  retains soft-deleted documents (more details about soft deletes in subsequent paragraphs).
+- [PrunePostingsMergePolicy]: drops the _id field postings for deleted documents during segment merges, maintaining
+  consistent update performance even when a large number of soft deleted/updated documents are retained.
+- [ShuffleForcedMergePolicy]: randomizes segment ordering during force merges so that recently-indexed
+  documents are not always co-located at the end, to improve time-based queries efficiency.
+
+[MergeScheduler](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/MergeScheduler.html)s decides how
+merges are executed. The default implementation is [ThreadPoolMergeScheduler], which runs merges on the
+[ThreadPoolMergeExecutorService] shared node-level thread pool with disk-aware I/O throttling.
+
+Elasticsearch never hard-deletes documents from Lucene. Instead, every update and delete
+uses Lucene's [soft-delete](https://issues.apache.org/jira/browse/LUCENE-8198) mechanism. The [InternalEngine]
+[calls](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1645)
+[IndexWriter.softUpdateDocument](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/IndexWriter.html#softUpdateDocument(org.apache.lucene.index.Term,java.lang.Iterable,org.apache.lucene.document.Field...)),
+which atomically marks the previous version of a document as soft-deleted
+(by setting a `__soft_deletes` numeric doc-values field to `1`) and writes the new version or a delete
+tombstone into the current segment.
+The old document is also marked as deleted in the `.liv` bitset, just like a hard delete. The
+difference is that hard-deleted documents are always discarded during merges, whereas documents carrying the
+`__soft_deletes` marker can be selectively retained. Lucene's
+[SoftDeletesRetentionMergePolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/SoftDeletesRetentionMergePolicy.html)
+decides which soft-deleted documents to keep by evaluating a retention query at merge time.
+Elasticsearch provides this query through its [SoftDeletesPolicy], which evaluates whether a document can be discarded
+based on the minimum sequence number to retain (evaluated from the global checkpoint), the
+`index.soft_deletes.retention.operations` setting, and any active retention leases held by replicas or CCR followers.
+
+The soft delete feature is essential for the correctness of [peer recovery](#peer-recovery) and
+[CCR](#cross-cluster-replication-ccr). Both rely on replaying missed operations from the Lucene index to bring a
+stale replica or follower up to date. Without soft deletes, Lucene would discard deleted documents during merges,
+leaving no trace that the document existed or got deleted. A replica that missed the delete but not the original write
+would still have the document and effectively resurrect it. Soft-deleted tombstones prevent this by preserving
+delete operations in the Lucene index until all replicas and followers have processed them.
 
 # Recovery
 

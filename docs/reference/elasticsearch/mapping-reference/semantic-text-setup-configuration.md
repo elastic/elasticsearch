@@ -49,13 +49,13 @@ PUT my-index-000001
 
 The default {{infer}} endpoint varies by deployment type and version:
 
-- {applies_to}`serverless: ga` {applies_to}`stack: ga 9.4` On {{serverless-short}} and {{ecloud}} 9.4+, the `inference_id` parameter defaults to `.jina-embeddings-v5-text-small` and runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis).
+- {applies_to}`serverless: ga` {applies_to}`stack: ga 9.4` On {{serverless-short}} and {{ecloud}} 9.4+, the `inference_id` parameter defaults to `.jina-embeddings-v5-text-small` and runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md).
 
 - {applies_to}`stack: ga 9.3` In version 9.3, the `inference_id` parameter defaults to `.elser-2-elastic` and runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis).
 
 - {applies_to}`stack: ga 9.0-9.2` In versions 9.0-9.2, the `inference_id` parameter defaults to `.elser-2-elasticsearch` and runs on the `elasticsearch` service.
 
-If you use the default {{infer}} endpoint and upgrade to a later version, newly created indices might use a different embedding model than existing ones. Queries that target these indices together can produce unexpected ranking results.
+If you use the default {{infer}} endpoint, it might be updated to a newer version and use a different embedding model than the previous default endpoints. Queries that target these indices together can produce unexpected ranking results.
 For details, refer to [potential issues when mixing embedding models across indices](#default-endpoint-considerations).
 :::
 
@@ -119,7 +119,7 @@ When a query targets indices that use different {{infer}} endpoints, {{es}} must
 
 To mitigate this issue, ensure that indices queried together use the same {{infer}} endpoint. You can do this by:
 
-- explicitly setting the `inference_id` when defining the `semantic_text` field, or 
+- explicitly setting the `inference_id` when defining the `semantic_text` field for new indeces, or 
 - by [reindexing](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex) older indices with the desired endpoint.
 
 #### Alerts based on raw relevance scores might stop triggering
@@ -136,7 +136,7 @@ To mitigate this issue, adjust alert thresholds to match the scoring range of th
 
 Preconfigured endpoints are {{infer}} endpoints that are automatically available in the deployment or project and do not require manual creation. The available preconfigured endpoints vary across deployment types and versions. 
 
-To view the list of available preconfigured endpoints for your deployment, go to **{{infer-cap}} endpoints** in Kibana.
+To view the list of available preconfigured endpoints for your deployment, go to **{{infer-cap}} endpoints** in {{kib}}.
 
 To use a preconfigured endpoint, set the `inference_id` parameter to the identifier of the endpoint you want to use:
 
@@ -147,7 +147,7 @@ PUT my-index-000004
     "properties": {
       "inference_field": {
         "type": "semantic_text",
-        "inference_id": ".jina-embeddings-v3"
+        "inference_id": ".jina-embeddings-v5-text-nano"
       }
     }
   }

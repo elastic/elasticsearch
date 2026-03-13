@@ -321,7 +321,7 @@ public class FieldAttribute extends TypedAttribute {
             case FULL -> {
                 var nodeStringName = field.getNodeStringName();
                 nodeStringName = nodeStringName.isEmpty() ? nodeStringName : Strings.format("(%s)", nodeStringName);
-                yield Strings.format("%s{%s%s%s}#%s".formatted(qualifiedName(), label(), nodeStringName, synthetic() ? "$" : "", id()));
+                yield Strings.format("%s{%s%s%s}#%s", qualifiedName(), label(), nodeStringName, synthetic() ? "$" : "", id());
             }
             case LIMITED -> super.nodeString(format);
         };

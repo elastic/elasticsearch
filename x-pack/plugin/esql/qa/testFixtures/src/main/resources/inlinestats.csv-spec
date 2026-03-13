@@ -5045,6 +5045,316 @@ FROM employees
 62060.27272727273 |3              |28941          
 ;
 
+
+inlineStatsDateFormatYear
+required_capability: inline_stats
+
+FROM employees
+| KEEP emp_no, hire_date
+| INLINE STATS count = COUNT(*) BY year_hired = DATE_FORMAT("yyyy", hire_date)
+| SORT emp_no
+| LIMIT 5
+;
+
+emp_no:integer | hire_date:datetime       | count:long | year_hired:keyword
+10001          | 1986-06-26T00:00:00.000Z | 11         | 1986
+10002          | 1985-11-21T00:00:00.000Z | 11         | 1985
+10003          | 1986-08-28T00:00:00.000Z | 11         | 1986
+10004          | 1986-12-01T00:00:00.000Z | 11         | 1986
+10005          | 1989-09-12T00:00:00.000Z | 13         | 1989
+;
+
+inlineStatsDateFormatMonth
+required_capability: inline_stats
+
+FROM employees
+| KEEP emp_no, hire_date, salary
+| INLINE STATS avg_salary = AVG(salary) BY month_hired = DATE_FORMAT("yyyy-MM", hire_date)
+| EVAL avg_salary = ROUND(avg_salary)
+| SORT emp_no
+| LIMIT 5
+;
+
+emp_no:integer | hire_date:datetime       | salary:integer | month_hired:keyword | avg_salary:double
+10001          | 1986-06-26T00:00:00.000Z | 57305          | 1986-06             | 57305.0
+10002          | 1985-11-21T00:00:00.000Z | 56371          | 1985-11             | 54540.0
+10003          | 1986-08-28T00:00:00.000Z | 61805          | 1986-08             | 52704.0
+10004          | 1986-12-01T00:00:00.000Z | 36174          | 1986-12             | 36174.0
+10005          | 1989-09-12T00:00:00.000Z | 63528          | 1989-09             | 49924.0
+;
+
+inlineStatsDateFormatDay
+required_capability: inline_stats
+
+FROM employees
+| KEEP emp_no, hire_date, salary
+| INLINE STATS max_salary = MAX(salary) BY day_hired = DATE_FORMAT("yyyy-MM-dd", hire_date)
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | hire_date:datetime       | salary:integer | max_salary:integer | day_hired:keyword
+10001          | 1986-06-26T00:00:00.000Z | 57305          | 57305              | 1986-06-26
+10002          | 1985-11-21T00:00:00.000Z | 56371          | 56371              | 1985-11-21
+10003          | 1986-08-28T00:00:00.000Z | 61805          | 61805              | 1986-08-28
+;
+
+inlineStatsDateFormatMixed
+required_capability: inline_stats
+
+FROM employees
+| KEEP emp_no, hire_date, salary
+| INLINE STATS 
+    count = COUNT(*),
+    avg_salary = AVG(salary)
+  BY 
+    year_hired = DATE_FORMAT("yyyy", hire_date),
+    week_hired = DATE_FORMAT("yyyy-w", hire_date)
+| EVAL avg_salary = ROUND(avg_salary)
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | hire_date:datetime       | salary:integer | count:long | year_hired:keyword | week_hired:keyword | avg_salary:double
+10001          | 1986-06-26T00:00:00.000Z | 57305          | 1          | 1986               | 1986-26            | 57305.0
+10002          | 1985-11-21T00:00:00.000Z | 56371          | 4          | 1985               | 1985-47            | 54540.0
+10003          | 1986-08-28T00:00:00.000Z | 61805          | 1          | 1986               | 1986-35            | 61805.0  
+;
+
+inlineStatsDateFormatWithLiterals
+required_capability: inline_stats
+
+FROM employees
+| KEEP emp_no, hire_date
+| INLINE STATS count = COUNT(*) BY formatted_date = DATE_FORMAT("'Year:'yyyy'-Month:'MM", hire_date)
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | hire_date:datetime       | count:long | formatted_date:keyword
+10001          | 1986-06-26T00:00:00.000Z | 1          | Year:1986-Month:06
+10002          | 1985-11-21T00:00:00.000Z | 4          | Year:1985-Month:11
+10003          | 1986-08-28T00:00:00.000Z | 2          | Year:1986-Month:08
+;
+
+inlineStatsDateFormatNonOptimizable
+required_capability: inline_stats
+
+FROM employees
+| KEEP emp_no, hire_date
+| INLINE STATS count = COUNT(*) BY week = DATE_FORMAT("yyyy-w", hire_date)
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | hire_date:datetime       | count:long | week:keyword
+10001          | 1986-06-26T00:00:00.000Z | 1          | 1986-26
+10002          | 1985-11-21T00:00:00.000Z | 4          | 1985-47
+10003          | 1986-08-28T00:00:00.000Z | 1          | 1986-35
+;
+
+inlineStatsDateFormatMultipleOptimizations
+required_capability: inline_stats
+
+FROM employees
+| KEEP emp_no, hire_date, salary
+| INLINE STATS 
+    count = COUNT(*),
+    min_salary = MIN(salary),
+    max_salary = MAX(salary)
+  BY 
+    year_hired = DATE_FORMAT("yyyy", hire_date),
+    month_hired = DATE_FORMAT("yyyy-MM", hire_date),
+    day_hired = DATE_FORMAT("yyyy-MM-dd", hire_date)
+| SORT day_hired
+| LIMIT 3
+;
+
+emp_no:integer | hire_date:datetime       | salary:integer | count:long | min_salary:integer | max_salary:integer | year_hired:keyword | month_hired:keyword | day_hired:keyword
+10009          | 1985-02-18T00:00:00.000Z | 66174          | 1          | 66174              | 66174              | 1985               | 1985-02             | 1985-02-18
+10048          | 1985-02-24T00:00:00.000Z | 26436          | 1          | 26436              | 26436              | 1985               | 1985-02             | 1985-02-24
+10098          | 1985-05-13T00:00:00.000Z | 44817          | 1          | 44817              | 44817              | 1985               | 1985-05             | 1985-05-13
+
+;
+
+inlineStatsDateFormatWithDateNanos
+required_capability: inline_stats
+
+FROM sample_data_ts_nanos
+| KEEP @timestamp, event_duration, client_ip
+| INLINE STATS 
+    count = COUNT(*),
+    avg_duration = AVG(event_duration)
+BY year_month = DATE_FORMAT("yyyy-MM", @timestamp)
+| EVAL avg_duration = ROUND(avg_duration)
+| SORT @timestamp
+| LIMIT 5
+;
+
+@timestamp:date_nanos          | event_duration:long | client_ip:ip | count:long | year_month:keyword | avg_duration:double
+2023-10-23T12:15:03.360123456Z | 3450233             | 172.21.2.162 | 7          | 2023-10            | 3318761.0
+2023-10-23T12:27:28.948123456Z | 2764889             | 172.21.2.113 | 7          | 2023-10            | 3318761.0
+2023-10-23T13:33:34.937123456Z | 1232382             | 172.21.0.5   | 7          | 2023-10            | 3318761.0
+2023-10-23T13:51:54.732123456Z | 725448              | 172.21.3.15  | 7          | 2023-10            | 3318761.0
+2023-10-23T13:52:55.015123456Z | 8268153             | 172.21.3.15  | 7          | 2023-10            | 3318761.0
+;
+
+inlineStatsDateFormatDateNanosYear
+required_capability: inline_stats
+
+FROM sample_data_ts_nanos
+| KEEP @timestamp, event_duration
+| INLINE STATS 
+    count = COUNT(*),
+    min_timestamp = MIN(@timestamp),
+    max_timestamp = MAX(@timestamp),
+    total_duration = SUM(event_duration)
+BY year = DATE_FORMAT("yyyy", @timestamp)
+| SORT @timestamp
+| LIMIT 3
+;
+
+@timestamp:date_nanos          | event_duration:long | count:long | min_timestamp:date_nanos       | max_timestamp:date_nanos       | total_duration:long | year:keyword
+2023-10-23T12:15:03.360123456Z | 3450233             | 7          | 2023-10-23T12:15:03.360123456Z | 2023-10-23T13:55:01.543123456Z | 23231327            | 2023
+2023-10-23T12:27:28.948123456Z | 2764889             | 7          | 2023-10-23T12:15:03.360123456Z | 2023-10-23T13:55:01.543123456Z | 23231327            | 2023
+2023-10-23T13:33:34.937123456Z | 1232382             | 7          | 2023-10-23T12:15:03.360123456Z | 2023-10-23T13:55:01.543123456Z | 23231327            | 2023
+;
+
+inlineStatsDateFormatDateNanosHour
+required_capability: inline_stats
+
+FROM sample_data_ts_nanos
+| KEEP @timestamp, event_duration, client_ip
+| INLINE STATS 
+    count = COUNT(*),
+    clients = COUNT(client_ip),
+    max_duration = MAX(event_duration)
+BY hour = DATE_FORMAT("HH", @timestamp)
+| SORT @timestamp
+| LIMIT 5
+;
+
+@timestamp:date_nanos          | event_duration:long | client_ip:ip | count:long | clients:long | max_duration:long | hour:keyword
+2023-10-23T12:15:03.360123456Z | 3450233             | 172.21.2.162 | 2          | 2            | 3450233           | 12
+2023-10-23T12:27:28.948123456Z | 2764889             | 172.21.2.113 | 2          | 2            | 3450233           | 12
+2023-10-23T13:33:34.937123456Z | 1232382             | 172.21.0.5   | 5          | 5            | 8268153           | 13
+2023-10-23T13:51:54.732123456Z | 725448              | 172.21.3.15  | 5          | 5            | 8268153           | 13
+2023-10-23T13:52:55.015123456Z | 8268153             | 172.21.3.15  | 5          | 5            | 8268153           | 13
+;
+
+inlineStatsDateFormatDateNanosMultipleFormats
+required_capability: inline_stats
+
+FROM sample_data_ts_nanos
+| KEEP @timestamp, event_duration
+| INLINE STATS 
+    count = COUNT(*),
+    avg_duration = AVG(event_duration)
+BY 
+    year = DATE_FORMAT("yyyy", @timestamp),
+    month = DATE_FORMAT("MM", @timestamp),
+    day = DATE_FORMAT("dd", @timestamp),
+    hour = DATE_FORMAT("HH", @timestamp)
+| EVAL avg_duration = ROUND(avg_duration)
+| SORT @timestamp
+| LIMIT 5
+;
+
+@timestamp:date_nanos          | event_duration:long | count:long | year:keyword | month:keyword | day:keyword | hour:keyword | avg_duration:double
+2023-10-23T12:15:03.360123456Z | 3450233             | 2          | 2023         | 10            | 23          | 12           | 3107561.0
+2023-10-23T12:27:28.948123456Z | 2764889             | 2          | 2023         | 10            | 23          | 12           | 3107561.0
+2023-10-23T13:33:34.937123456Z | 1232382             | 5          | 2023         | 10            | 23          | 13           | 3403241.0
+2023-10-23T13:51:54.732123456Z | 725448              | 5          | 2023         | 10            | 23          | 13           | 3403241.0
+2023-10-23T13:52:55.015123456Z | 8268153             | 5          | 2023         | 10            | 23          | 13           | 3403241.0
+;
+
+inlineStatsDateFormatDateNanosWithFilter
+required_capability: inline_stats
+
+FROM sample_data_ts_nanos
+| WHERE event_duration > 2000000
+| KEEP @timestamp, event_duration, client_ip
+| INLINE STATS 
+    count = COUNT(*),
+    min_duration = MIN(event_duration),
+    max_duration = MAX(event_duration)
+BY year = DATE_FORMAT("yyyy", @timestamp)
+| SORT @timestamp
+| LIMIT 3
+;
+
+@timestamp:date_nanos          | event_duration:long | client_ip:ip | count:long | min_duration:long | max_duration:long | year:keyword
+2023-10-23T12:15:03.360123456Z | 3450233             | 172.21.2.162 | 4          | 2764889           | 8268153           | 2023
+2023-10-23T12:27:28.948123456Z | 2764889             | 172.21.2.113 | 4          | 2764889           | 8268153           | 2023
+2023-10-23T13:52:55.015123456Z | 8268153             | 172.21.3.15  | 4          | 2764889           | 8268153           | 2023
+;
+
+inlineStatsDateFormatDateNanosComplexPattern
+required_capability: inline_stats
+
+FROM sample_data_ts_nanos
+| KEEP @timestamp, event_duration, client_ip
+| INLINE STATS 
+    count = COUNT(*),
+    clients = COUNT(client_ip)
+BY formatted_time = DATE_FORMAT("yyyy-MM-dd HH:mm", @timestamp)
+| SORT @timestamp
+| LIMIT 5
+;
+
+@timestamp:date_nanos          | event_duration:long | client_ip:ip | count:long | clients:long | formatted_time:keyword
+2023-10-23T12:15:03.360123456Z | 3450233             | 172.21.2.162 | 1          | 1            | 2023-10-23 12:15
+2023-10-23T12:27:28.948123456Z | 2764889             | 172.21.2.113 | 1          | 1            | 2023-10-23 12:27
+2023-10-23T13:33:34.937123456Z | 1232382             | 172.21.0.5   | 1          | 1            | 2023-10-23 13:33
+2023-10-23T13:51:54.732123456Z | 725448              | 172.21.3.15  | 1          | 1            | 2023-10-23 13:51
+2023-10-23T13:52:55.015123456Z | 8268153             | 172.21.3.15  | 1          | 1            | 2023-10-23 13:52  
+;
+
+inlineStatsDateFormatDateNanosWithNullHandling
+required_capability: inline_stats
+
+FROM sample_data_ts_nanos
+| KEEP @timestamp, event_duration, client_ip
+| EVAL filtered_timestamp = CASE(event_duration > 5000000, @timestamp, null)
+| INLINE STATS 
+    count_all = COUNT(*),
+    count_filtered = COUNT(filtered_timestamp),
+    avg_duration = AVG(event_duration)
+BY year = DATE_FORMAT("yyyy", COALESCE(filtered_timestamp, @timestamp))
+| EVAL avg_duration = ROUND(avg_duration)
+| SORT @timestamp
+| LIMIT 5
+;
+
+@timestamp:date_nanos          | event_duration:long | client_ip:ip | filtered_timestamp:date_nanos  | count_all:long | count_filtered:long | year:keyword | avg_duration:double
+2023-10-23T12:15:03.360123456Z | 3450233             | 172.21.2.162 | null                           | 7              | 2                   | 2023         | 3318761.0
+2023-10-23T12:27:28.948123456Z | 2764889             | 172.21.2.113 | null                           | 7              | 2                   | 2023         | 3318761.0
+2023-10-23T13:33:34.937123456Z | 1232382             | 172.21.0.5   | null                           | 7              | 2                   | 2023         | 3318761.0
+2023-10-23T13:51:54.732123456Z | 725448              | 172.21.3.15  | null                           | 7              | 2                   | 2023         | 3318761.0
+2023-10-23T13:52:55.015123456Z | 8268153             | 172.21.3.15  | 2023-10-23T13:52:55.015123456Z | 7              | 2                   | 2023         | 3318761.0
+;
+
+inlineStatsDateFormatOptimizationsWithConcat
+required_capability: inline_stats
+
+FROM employees
+| KEEP emp_no, hire_date
+| EVAL format = CONCAT("yyyy", "-MM")
+| INLINE STATS count = COUNT(*) BY year_month_hired = DATE_FORMAT(format, hire_date)
+| SORT emp_no
+| LIMIT 5
+;
+
+emp_no:integer | hire_date:datetime       | format:keyword | count:long | year_month_hired:keyword
+10001          | 1986-06-26T00:00:00.000Z | yyyy-MM        | 1          | 1986-06
+10002          | 1985-11-21T00:00:00.000Z | yyyy-MM        | 4          | 1985-11
+10003          | 1986-08-28T00:00:00.000Z | yyyy-MM        | 2          | 1986-08
+10004          | 1986-12-01T00:00:00.000Z | yyyy-MM        | 1          | 1986-12
+10005          | 1989-09-12T00:00:00.000Z | yyyy-MM        | 4          | 1989-09
+;
+
+
+
 doubleInlineStatsPrunning_With_MV_Functions
 required_capability: fix_inline_stats_incorrect_prunning
 

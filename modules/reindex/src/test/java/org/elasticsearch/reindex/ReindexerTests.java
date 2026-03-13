@@ -533,13 +533,14 @@ public class ReindexerTests extends ESTestCase {
             request.setSlices(1);
 
             final BulkByScrollTask task = new BulkByScrollTask(
-                randomLong(),
+                randomTaskId(),
                 "reindex",
                 "reindex",
                 "test",
                 TaskId.EMPTY_TASK_ID,
                 Collections.emptyMap(),
-                false
+                false,
+                randomOrigin()
             );
 
             final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
@@ -601,13 +602,14 @@ public class ReindexerTests extends ESTestCase {
                 request.setSlices(1);
 
                 final BulkByScrollTask task = new BulkByScrollTask(
-                    randomLong(),
+                    randomTaskId(),
                     "reindex",
                     "reindex",
                     "test",
                     TaskId.EMPTY_TASK_ID,
                     Collections.emptyMap(),
-                    false
+                    false,
+                    randomOrigin()
                 );
 
                 MockLog.awaitLogger(() -> {
@@ -678,13 +680,14 @@ public class ReindexerTests extends ESTestCase {
                 request.setSlices(1);
 
                 final BulkByScrollTask task = new BulkByScrollTask(
-                    randomLong(),
+                    randomTaskId(),
                     "reindex",
                     "reindex",
                     "test",
                     TaskId.EMPTY_TASK_ID,
                     Collections.emptyMap(),
-                    false
+                    false,
+                    randomOrigin()
                 );
 
                 final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
@@ -750,13 +753,14 @@ public class ReindexerTests extends ESTestCase {
                 request.getSearchRequest().routing("r1");
 
                 final BulkByScrollTask task = new BulkByScrollTask(
-                    randomLong(),
+                    randomTaskId(),
                     "reindex",
                     "reindex",
                     "test",
                     TaskId.EMPTY_TASK_ID,
                     Collections.emptyMap(),
-                    false
+                    false,
+                    randomOrigin()
                 );
 
                 final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
@@ -823,13 +827,14 @@ public class ReindexerTests extends ESTestCase {
                 request.getSearchRequest().preference("_local");
 
                 final BulkByScrollTask task = new BulkByScrollTask(
-                    randomLong(),
+                    randomTaskId(),
                     "reindex",
                     "reindex",
                     "test",
                     TaskId.EMPTY_TASK_ID,
                     Collections.emptyMap(),
-                    false
+                    false,
+                    randomOrigin()
                 );
 
                 final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
@@ -896,13 +901,14 @@ public class ReindexerTests extends ESTestCase {
                 request.getSearchRequest().allowPartialSearchResults(true);
 
                 final BulkByScrollTask task = new BulkByScrollTask(
-                    randomLong(),
+                    randomTaskId(),
                     "reindex",
                     "reindex",
                     "test",
                     TaskId.EMPTY_TASK_ID,
                     Collections.emptyMap(),
-                    false
+                    false,
+                    randomOrigin()
                 );
 
                 final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
@@ -1174,13 +1180,14 @@ public class ReindexerTests extends ESTestCase {
             );
 
             BulkByScrollTask task = new BulkByScrollTask(
-                randomLong(),
+                randomTaskId(),
                 "reindex",
                 "reindex",
                 "test",
                 TaskId.EMPTY_TASK_ID,
                 Collections.emptyMap(),
-                false
+                false,
+                randomOrigin()
             );
 
             PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();

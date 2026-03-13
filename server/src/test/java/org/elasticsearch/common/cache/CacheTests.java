@@ -845,7 +845,7 @@ public class CacheTests extends ESTestCase {
         assertEquals("existing-value", result);
     }
 
-    public void testComputeIfAbsentWithCancellation() throws Exception {
+    public void testComputeIfAbsentWithCancellationDuringInitialLookupWait() throws Exception {
         final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
 
         CountDownLatch computeStarted = new CountDownLatch(1);
@@ -872,10 +872,14 @@ public class CacheTests extends ESTestCase {
 
         // Thread 2: Get the same key with cancellation
         AtomicBoolean wasCancelled = new AtomicBoolean(false);
+        AtomicBoolean waitingLoaderInvoked = new AtomicBoolean(false);
         Thread waitingThread = new Thread(() -> {
             try {
                 AtomicBoolean cancelled = new AtomicBoolean(false);
-                cache.computeIfAbsent(1, k -> "should-not-be-called", cancellationCallback -> {
+                cache.computeIfAbsent(1, k -> {
+                    waitingLoaderInvoked.set(true);
+                    return "should-not-be-called";
+                }, cancellationCallback -> {
                     new Thread(() -> {
                         try {
                             Thread.sleep(50);
@@ -898,6 +902,7 @@ public class CacheTests extends ESTestCase {
 
         assertFalse("Waiting thread should have completed", waitingThread.isAlive());
         assertTrue("Waiting thread should have been cancelled", wasCancelled.get());
+        assertFalse("Waiting thread must not invoke loader when waiting on existing in-flight computation", waitingLoaderInvoked.get());
 
         cancelTriggered.countDown();
         safeAwait(computeComplete);

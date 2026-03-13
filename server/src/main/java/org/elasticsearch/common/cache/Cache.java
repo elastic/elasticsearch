@@ -454,12 +454,20 @@ public class Cache<K, V> {
     /**
      * This variant supports cancellation - if a cancellation callback is provided and triggered while waiting for
      * another thread to compute the value, a TaskCancelledException will be thrown.
+     * <p>
+     * Waiting can happen at multiple points:
+     * <ul>
+     * <li>during the initial eager lookup when another thread already has an in-flight computation for the key, and</li>
+     * <li>after this thread loses the put-if-absent race and must wait on the winner's computation.</li>
+     * </ul>
      *
-     * @throws TaskCancelledException thrown if the operation is cancelled while waiting
+     * @param cancellationRegistrar if non-null, accepts a Runnable to be called when this wait should be cancelled
+     * @throws TaskCancelledException thrown if the operation is cancelled at any cache wait point
      */
     public V computeIfAbsent(K key, CacheLoader<K, V> loader, Consumer<Runnable> cancellationRegistrar) throws ExecutionException {
         long now = now();
         // we have to eagerly evict expired entries or our putIfAbsent call below will fail
+        // this can block on an existing in-flight computation and may throw TaskCancelledException
         V value = get(key, now, true, cancellationRegistrar);
         if (value == null) {
             // we need to synchronize loading of a value for a given key; however, holding the segment lock while

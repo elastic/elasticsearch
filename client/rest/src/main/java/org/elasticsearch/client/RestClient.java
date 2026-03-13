@@ -78,6 +78,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -86,6 +87,7 @@ import java.util.zip.GZIPOutputStream;
 import javax.net.ssl.SSLHandshakeException;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.Collections.EMPTY_SET;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
 
@@ -229,6 +231,7 @@ public class RestClient implements Closeable {
     /**
      * Replaces the nodes with which the client communicates.
      */
+    @SuppressWarnings("checkstyle:DescendantToken")
     public synchronized void setNodes(Collection<Node> nodes) {
         if (nodes == null || nodes.isEmpty()) {
             throw new IllegalArgumentException("nodes must not be null or empty");
@@ -236,9 +239,13 @@ public class RestClient implements Closeable {
         AuthCache authCache = new BasicAuthCache();
 
         Map<HttpHost, Node> nodesByHost = new LinkedHashMap<>();
+
+        Set<HttpHost> hosts = new HashSet<>();
         for (Node node : nodes) {
             Objects.requireNonNull(node, "node cannot be null");
             // TODO should we throw an IAE if we have two nodes with the same host?
+            if (!hosts.add(node.getHost()))
+                throw new IllegalArgumentException("There two nodes with the same host");
             nodesByHost.put(node.getHost(), node);
             authCache.put(node.getHost(), new BasicScheme());
         }

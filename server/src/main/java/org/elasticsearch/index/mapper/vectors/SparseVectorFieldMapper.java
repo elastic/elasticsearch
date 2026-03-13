@@ -619,18 +619,13 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             if (prune != null) {
                 builder.field(PRUNE_FIELD_NAME.getPreferredName(), prune);
             }
             if (pruningConfig != null) {
                 builder.field(PRUNING_CONFIG_FIELD_NAME.getPreferredName(), pruningConfig);
             }
-
-            builder.endObject();
-            return builder;
         }
 
         @Override

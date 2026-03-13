@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
 import org.elasticsearch.inference.TaskType;
@@ -39,6 +40,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.InferenceIndex;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
+import org.elasticsearch.xpack.inference.mapper.ExtendedDenseVectorIndexOptions;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
 import org.junit.After;
@@ -49,8 +51,11 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 @ESTestCase.WithoutEntitlements // due to dependency issue ES-12435
@@ -111,7 +116,7 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
     }
 
     public void testValidateIndexOptionsWithBasicLicense() throws Exception {
-        final String inferenceId = "test-inference-id-1";
+        final String inferenceId = randomIdentifier();
         final String inferenceFieldName = "inference_field";
         createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, BBQ_COMPATIBLE_SERVICE_SETTINGS);
         downgradeLicenseAndRestartCluster();
@@ -132,7 +137,7 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
     }
 
     public void testSetDefaultBBQIndexOptionsWithBasicLicense() throws Exception {
-        final String inferenceId = "test-inference-id-2";
+        final String inferenceId = randomIdentifier();
         final String inferenceFieldName = "inference_field";
         createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, BBQ_COMPATIBLE_SERVICE_SETTINGS);
         downgradeLicenseAndRestartCluster();
@@ -142,12 +147,49 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         final Map<String, Object> expectedFieldMapping = generateExpectedFieldMapping(
             inferenceFieldName,
             inferenceId,
-            SemanticTextFieldMapper.defaultBbqHnswDenseVectorIndexOptions()
+            new ExtendedDenseVectorIndexOptions(
+                SemanticTextFieldMapper.defaultBbqHnswDenseVectorIndexOptions(),
+                DenseVectorFieldMapper.ElementType.BFLOAT16
+            )
         );
 
         // Filter out null/empty values from params we didn't set to make comparison easier
         Map<String, Object> actualFieldMappings = filterNullOrEmptyValues(getFieldMappings(inferenceFieldName, true));
         assertThat(actualFieldMappings, equalTo(expectedFieldMapping));
+    }
+
+    public void testInvalidElementTypeOverride() throws Exception {
+        final Function<DenseVectorFieldMapper.ElementType, DenseVectorFieldMapper.ElementType> getInvalidElementTypeOverride = i -> {
+            DenseVectorFieldMapper.ElementType o;
+            if (i == DenseVectorFieldMapper.ElementType.FLOAT) {
+                o = randomFrom(Set.of(DenseVectorFieldMapper.ElementType.BYTE, DenseVectorFieldMapper.ElementType.BIT));
+            } else {
+                o = randomValueOtherThan(i, () -> randomFrom(DenseVectorFieldMapper.ElementType.values()));
+            }
+
+            return o;
+        };
+
+        for (int i = 0; i < 10; i++) {
+            final String inferenceId = randomIdentifier();
+            final String inferenceFieldName = "inference_field";
+            final DenseVectorFieldMapper.ElementType modelElementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
+            final DenseVectorFieldMapper.ElementType overrideElementType = getInvalidElementTypeOverride.apply(modelElementType);
+
+            createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, generateRandomTextEmbeddingServiceSettings(modelElementType));
+
+            IndexOptions indexOptions = new ExtendedDenseVectorIndexOptions(null, overrideElementType);
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                prepareCreate(INDEX_NAME).setMapping(generateMapping(inferenceFieldName, inferenceId, indexOptions))
+            );
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "Model element type [" + modelElementType + "] is incompatible with element type override [" + overrideElementType + "]"
+                )
+            );
+        }
     }
 
     private void createInferenceEndpoint(TaskType taskType, String inferenceId, Map<String, Object> serviceSettings) throws IOException {
@@ -178,7 +220,8 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         builder.field("inference_id", inferenceId);
         if (indexOptions != null) {
             builder.startObject("index_options");
-            if (indexOptions instanceof DenseVectorFieldMapper.DenseVectorIndexOptions) {
+            if (indexOptions instanceof DenseVectorFieldMapper.DenseVectorIndexOptions
+                || indexOptions instanceof ExtendedDenseVectorIndexOptions) {
                 builder.field("dense_vector");
                 indexOptions.toXContent(builder, ToXContent.EMPTY_PARAMS);
             }
@@ -186,6 +229,21 @@ public class SemanticTextIndexOptionsIT extends ESIntegTestCase {
         }
         builder.endObject();
         builder.endObject();
+    }
+
+    private static Map<String, Object> generateRandomTextEmbeddingServiceSettings(DenseVectorFieldMapper.ElementType elementType) {
+        return Map.of(
+            "model",
+            "my_model",
+            "dimensions",
+            randomIntBetween(4, 32) * 8, // Always generate a dimension count divisible by 8 so it is compatible with all element types
+            "similarity",
+            "cosine",
+            "api_key",
+            "my_api_key",
+            "element_type",
+            elementType.toString()
+        );
     }
 
     private static Map<String, Object> generateExpectedFieldMapping(

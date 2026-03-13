@@ -133,7 +133,7 @@ public final class RootFlattenedFromKeyedFieldData implements IndexFieldData<Lea
      * including the \0 separator) from each value, and deduplicates the results. The output
      * values are sorted lexicographically.
      */
-    static class KeyStrippingDeduplicatingDocValues extends SortedBinaryDocValues {
+    static final class KeyStrippingDeduplicatingDocValues extends SortedBinaryDocValues {
 
         private final SortedBinaryDocValues delegate;
         private final TreeSet<BytesRef> uniqueValues = new TreeSet<>();
@@ -173,7 +173,7 @@ public final class RootFlattenedFromKeyedFieldData implements IndexFieldData<Lea
         }
     }
 
-    public static class Builder implements IndexFieldData.Builder {
+    public static final class Builder implements IndexFieldData.Builder {
         private final String rootFieldName;
         private final String keyedFieldName;
         private final boolean usesBinaryDocValues;

@@ -9,11 +9,15 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -410,7 +414,21 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testTermsAggregationWithDuplicateValues() throws IOException {
-        prepareIndex("test").setId("1")
+        String indexName = "test-noindex-terms-agg";
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("labels")
+            .field("type", "flattened")
+            .field("index", false)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex(indexName, Settings.EMPTY, mapping);
+
+        prepareIndex(indexName).setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(
                 XContentFactory.jsonBuilder()
@@ -425,7 +443,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
             .get();
 
         TermsAggregationBuilder builder = terms("terms").field("labels");
-        assertNoFailuresAndResponse(client().prepareSearch("test").addAggregation(builder), response -> {
+        assertNoFailuresAndResponse(client().prepareSearch(indexName).addAggregation(builder), response -> {
             Terms terms = response.getAggregations().get("terms");
             assertThat(terms, notNullValue());
             assertThat(terms.getBuckets().size(), equalTo(2));
@@ -438,6 +456,58 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
             assertEquals("foo", fooBucket.getKey());
             assertEquals(1, fooBucket.getDocCount());
         });
+    }
+
+    public void testNoRootDocValuesFieldWhenIndexFalse() throws Exception {
+        String indexName = "test-noindex-no-root-dv";
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("labels")
+            .field("type", "flattened")
+            .field("index", false)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex(indexName, Settings.EMPTY, mapping);
+
+        prepareIndex(indexName).setId("1")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .setSource(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("labels")
+                    .field("key1", "value1")
+                    .field("key2", "value2")
+                    .endObject()
+                    .endObject()
+            )
+            .get();
+
+        var indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
+        var shard = indexService.getShard(0);
+        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            for (var leaf : searcher.getDirectoryReader().leaves()) {
+                for (FieldInfo fieldInfo : leaf.reader().getFieldInfos()) {
+                    if (fieldInfo.name.equals("labels")) {
+                        assertEquals(
+                            "root field 'labels' should not have doc values when index=false",
+                            DocValuesType.NONE,
+                            fieldInfo.getDocValuesType()
+                        );
+                    }
+                    if (fieldInfo.name.equals("labels._keyed")) {
+                        assertNotEquals(
+                            "keyed field 'labels._keyed' should have doc values",
+                            DocValuesType.NONE,
+                            fieldInfo.getDocValuesType()
+                        );
+                    }
+                }
+            }
+        }
     }
 
     public void testSourceFiltering() {

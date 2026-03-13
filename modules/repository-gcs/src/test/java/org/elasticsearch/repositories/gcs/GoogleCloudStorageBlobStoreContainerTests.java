@@ -12,6 +12,7 @@ package org.elasticsearch.repositories.gcs;
 import com.google.cloud.BatchResult;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Bucket;
+import com.google.cloud.storage.CopyWriter;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageBatch;
 import com.google.cloud.storage.StorageBatchResult;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -102,5 +104,54 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
             );
             assertThat(e.getCause(), instanceOf(StorageException.class));
         }
+    }
+
+    public void testCopy() throws Exception {
+        final var sourceBucketName = randomAlphaOfLengthBetween(1, 10);
+        final var sourceBlobName = randomAlphaOfLengthBetween(1, 10);
+        final var blobName = randomAlphaOfLengthBetween(1, 10);
+        final var projectId = ProjectId.DEFAULT;
+        final String clientName = "test";
+        final String repositoryName = "repo";
+        final var storageService = mock(GoogleCloudStorageService.class);
+        final var statsCollector = new GcsRepositoryStatsCollector();
+        final var blobStore = new GoogleCloudStorageBlobStore(
+            ProjectId.DEFAULT,
+            sourceBucketName,
+            clientName,
+            repositoryName,
+            storageService,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            1024,
+            BackoffPolicy.noBackoff(),
+            statsCollector
+        );
+        final var storage = mock(Storage.class);
+        final var storageRpc = mock(com.google.api.services.storage.Storage.class);
+        final var meteredStorage = new MeteredStorage(storage, storageRpc, statsCollector);
+        when(storageService.client(projectId, clientName, repositoryName, statsCollector)).thenReturn(meteredStorage);
+        final long megabytesCopiedPerChunk = randomIntBetween(5, 1000);
+        final var clientSettings = mock(GoogleCloudStorageClientSettings.class);
+        when(clientSettings.getMegabytesCopiedPerChunk()).thenReturn(megabytesCopiedPerChunk);
+        when(storageService.clientSettings(projectId, clientName)).thenReturn(clientSettings);
+
+        final var srcBlobPath = BlobPath.EMPTY.add(randomAlphaOfLengthBetween(1, 10));
+        final var srcBlobContainer = new GoogleCloudStorageBlobContainer(srcBlobPath, blobStore);
+        final var dstBlobPath = BlobPath.EMPTY.add(randomAlphaOfLengthBetween(1, 10));
+        final var dstBlobContainer = new GoogleCloudStorageBlobContainer(dstBlobPath, blobStore);
+
+        final ArgumentCaptor<Storage.CopyRequest> captor = ArgumentCaptor.forClass(Storage.CopyRequest.class);
+        final CopyWriter copyWriter = mock(com.google.cloud.storage.CopyWriter.class);
+        when(copyWriter.isDone()).thenReturn(true);
+        when(storage.copy(captor.capture())).thenReturn(copyWriter);
+
+        dstBlobContainer.copyBlob(randomPurpose(), srcBlobContainer, sourceBlobName, blobName, randomLongBetween(1, 10_000));
+
+        final Storage.CopyRequest request = captor.getValue();
+        assertEquals(sourceBucketName, request.getSource().getBucket());
+        assertEquals(srcBlobPath.buildAsString() + sourceBlobName, request.getSource().getName());
+        assertEquals(sourceBucketName, request.getTarget().getBucket());
+        assertEquals(dstBlobPath.buildAsString() + blobName, request.getTarget().getName());
+        assertEquals(megabytesCopiedPerChunk, request.getMegabytesCopiedPerChunk().longValue());
     }
 }

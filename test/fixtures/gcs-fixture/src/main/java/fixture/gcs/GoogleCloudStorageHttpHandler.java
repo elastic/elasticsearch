@@ -15,6 +15,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
@@ -66,6 +68,8 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
     private final Map<String, Integer> batchDeleteFailureCounters = new HashMap<>();
     // maximum number of delete failures for individual blob
     private static final int MAX_DELETE_FAILURES = 3;
+
+    private static final long DEFAULT_MAX_BYTES_REWRITTEN_PER_CALL = ByteSizeValue.of(100, ByteSizeUnit.MB).getBytes();
 
     public GoogleCloudStorageHttpHandler(final String bucket) {
         this.bucket = Objects.requireNonNull(bucket);
@@ -267,6 +271,48 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 // don't fail deletes here, fixture will inject failures before reaching this point
                 final var deleteStatus = deleteObject(object);
                 exchange.sendResponseHeaders(deleteStatus.getStatus(), -1);
+            } else if (Regex.simpleMatch("POST /storage/v1/b/" + bucket + "/o*/rewriteTo/b/" + bucket + "/o/*", request)) {
+                final var matcher = REWRITE_PATTERN.matcher(request);
+                if (matcher.find() == false) {
+                    throw failAndThrow("Cannot parse rewrite request: " + request);
+                }
+
+                final String srcBucket = matcher.group("srcBucket");
+                final String dstBucket = matcher.group("dstBucket");
+                assert bucket.equals(srcBucket) && bucket.equals(dstBucket);
+                final String srcObject = URLDecoder.decode(matcher.group("srcObject"), UTF_8);
+                final String dstObject = URLDecoder.decode(matcher.group("dstObject"), UTF_8);
+
+                final Map<String, String> params = new HashMap<>();
+                RestUtils.decodeQueryString(exchange.getRequestURI(), params);
+                final String rewriteToken = params.get("rewriteToken");
+                final long maxBytesRewrittenPerCall = Long.parseLong(
+                    params.getOrDefault("maxBytesRewrittenPerCall", String.valueOf(DEFAULT_MAX_BYTES_REWRITTEN_PER_CALL))
+                );
+
+                var rewriteResponse = mockGcsBlobStore.rewrite(srcObject, dstObject, rewriteToken, maxBytesRewrittenPerCall);
+                try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+                    builder.startObject();
+                    builder.field("kind", "storage#rewriteResponse");
+                    builder.field("totalBytesRewritten", Long.toString(rewriteResponse.totalBytesRewritten()));
+                    builder.field("objectSize", Long.toString(rewriteResponse.objectSize()));
+                    boolean done = rewriteResponse.rewriteToken() == null;
+                    builder.field("done", done);
+                    if (done) {
+                        assert rewriteResponse.dstBlob() != null;
+                        builder.startObject("resource");
+                        writeBlobAsXContent(rewriteResponse.dstBlob(), builder, bucket);
+                        builder.endObject();
+                    } else {
+                        builder.field("rewriteToken", rewriteResponse.rewriteToken());
+                    }
+                    builder.endObject();
+
+                    BytesReference responseBytes = BytesReference.bytes(builder);
+                    exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseBytes.length());
+                    responseBytes.writeTo(exchange.getResponseBody());
+                }
             } else {
                 exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
             }
@@ -279,13 +325,19 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
     private void writeBlobVersionAsJson(HttpExchange exchange, MockGcsBlobStore.BlobVersion newBlobVersion) throws IOException {
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            builder.startObject();
             writeBlobAsXContent(newBlobVersion, builder, bucket);
+            builder.endObject();
             BytesReference responseBytes = BytesReference.bytes(builder);
             exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
             exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseBytes.length());
             responseBytes.writeTo(exchange.getResponseBody());
         }
     }
+
+    static final Pattern REWRITE_PATTERN = Pattern.compile(
+        "POST .+/v1/b/(?<srcBucket>[^/]+)/o/(?<srcObject>[^?]+)" + "/rewriteTo/b/(?<dstBucket>[^/]+)/o/(?<dstObject>[^?\\s]+)"
+    );
 
     // Example of request line
     static final Pattern METHOD_BUCKET_OBJECT_PATTERN = Pattern.compile(
@@ -409,7 +461,9 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
             }
             builder.startArray("items");
             for (MockGcsBlobStore.BlobVersion blobVersion : pageOfBlobs().blobs()) {
+                builder.startObject();
                 writeBlobAsXContent(blobVersion, builder, bucket);
+                builder.endObject();
             }
             builder.endArray();
             builder.field("prefixes", pageOfBlobs.prefixes());
@@ -420,14 +474,12 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
     private static void writeBlobAsXContent(MockGcsBlobStore.BlobVersion blobVersion, XContentBuilder builder, String bucket)
         throws IOException {
-        builder.startObject();
         builder.field("kind", "storage#object");
         builder.field("bucket", bucket);
         builder.field("name", blobVersion.path());
         builder.field("id", blobVersion.path());
         builder.field("size", String.valueOf(blobVersion.contents().length()));
         builder.field("generation", String.valueOf(blobVersion.generation()));
-        builder.endObject();
     }
 
     private void sendError(HttpExchange exchange, MockGcsBlobStore.GcsRestException e) throws IOException {

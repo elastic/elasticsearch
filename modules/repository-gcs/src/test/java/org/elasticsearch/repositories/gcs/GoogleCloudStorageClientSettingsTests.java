@@ -42,6 +42,7 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSetting
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MAX_RETRIES_SETTING;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MEGABYTES_COPIED_PER_CHUNK_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.PROJECT_ID_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.getClientSettings;
@@ -126,7 +127,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             APPLICATION_NAME_SETTING.getDefault(Settings.EMPTY),
             new URI(""),
             null,
-            MAX_RETRIES_SETTING.getDefault(Settings.EMPTY)
+            MAX_RETRIES_SETTING.getDefault(Settings.EMPTY),
+            MEGABYTES_COPIED_PER_CHUNK_SETTING.getDefault(Settings.EMPTY)
         );
         assertEquals(credential.getProjectId(), googleCloudStorageClientSettings.getProjectId());
     }
@@ -144,7 +146,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             APPLICATION_NAME_SETTING.getDefault(Settings.EMPTY),
             new URI(""),
             proxy,
-            MAX_RETRIES_SETTING.getDefault(Settings.EMPTY)
+            MAX_RETRIES_SETTING.getDefault(Settings.EMPTY),
+            MEGABYTES_COPIED_PER_CHUNK_SETTING.getDefault(Settings.EMPTY)
         );
         assertEquals(proxy, googleCloudStorageClientSettings.getProxy());
     }
@@ -215,7 +218,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             original.getApplicationName(),
             original.getTokenUri(),
             original.getProxy(),
-            original.getMaxRetries()
+            original.getMaxRetries(),
+            original.getMegabytesCopiedPerChunk()
         );
     }
 
@@ -229,7 +233,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         URI tokenUri = original.getTokenUri();
         Proxy proxy = original.getProxy();
         int maxRetries = original.getMaxRetries();
-        switch (randomIntBetween(0, 8)) {
+        long megabytesCopiedPerChunk = original.getMegabytesCopiedPerChunk();
+        switch (randomIntBetween(0, 9)) {
             case 0 -> credential = randomValueOtherThan(original.getCredential(), () -> {
                 try {
                     return randomCredential(clientName).v1();
@@ -251,6 +256,10 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
                 () -> new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), randomIntBetween(49152, 65535)))
             );
             case 8 -> maxRetries = randomValueOtherThan(original.getMaxRetries(), () -> randomIntBetween(0, 5));
+            case 9 -> megabytesCopiedPerChunk = randomValueOtherThan(
+                original.getMegabytesCopiedPerChunk(),
+                () -> randomLongBetween(5, 5000)
+            );
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new GoogleCloudStorageClientSettings(
@@ -262,7 +271,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             applicationName,
             tokenUri,
             proxy,
-            maxRetries
+            maxRetries,
+            megabytesCopiedPerChunk
         );
     }
 
@@ -362,6 +372,10 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             maxRetries = MAX_RETRIES_SETTING.getDefault(Settings.EMPTY);
         }
 
+        long megabytesCopiedPerChunk = randomBoolean()
+            ? randomIntBetween(5, 5000)
+            : MEGABYTES_COPIED_PER_CHUNK_SETTING.getDefault(Settings.EMPTY);
+
         return new GoogleCloudStorageClientSettings(
             credential,
             endpoint,
@@ -371,7 +385,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             applicationName,
             new URI(""),
             null,
-            maxRetries
+            maxRetries,
+            megabytesCopiedPerChunk
         );
     }
 

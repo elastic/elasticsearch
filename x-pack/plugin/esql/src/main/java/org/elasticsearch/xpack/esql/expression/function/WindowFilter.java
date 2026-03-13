@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -33,13 +35,15 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class WindowFilter extends EsqlScalarFunction implements TimestampAware {
+public class WindowFilter extends EsqlScalarFunction implements TimestampAware, VersionedNamedWriteable {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "WindowFilter",
         WindowFilter::new
     );
+
+    public static final TransportVersion TIME_SERIES_WINDOW_FILTER = TransportVersion.fromName("time_series_window_filter");
 
     private final Expression window, bucket, timestamp;
 
@@ -70,6 +74,11 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware {
     @Override
     public String getWriteableName() {
         return ENTRY.name;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TIME_SERIES_WINDOW_FILTER;
     }
 
     @Override
@@ -106,8 +115,13 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware {
         Duration foldedWindow = (Duration) window.fold(toEvaluator.foldCtx());
         Rounding.Prepared preparedRounding = bucketBucket.getDateRoundingOrNull(toEvaluator.foldCtx());
         var timestampFactory = toEvaluator.apply(timestamp);
-        Map<Long, Long> nextTimestamps = new HashMap<>();
-        return new WindowFilterEvaluator.Factory(source(), foldedWindow.toMillis(), preparedRounding, nextTimestamps, timestampFactory);
+        return new WindowFilterEvaluator.Factory(
+            source(),
+            foldedWindow.toMillis(),
+            preparedRounding,
+            driverContext -> new HashMap<>(),
+            timestampFactory
+        );
     }
 
     @Override
@@ -116,7 +130,12 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware {
     }
 
     @Evaluator
-    static boolean process(@Fixed long window, @Fixed Rounding.Prepared bucket, @Fixed Map<Long, Long> nextTimestamps, long timestamp) {
+    static boolean process(
+        @Fixed long window,
+        @Fixed Rounding.Prepared bucket,
+        @Fixed(scope = Fixed.Scope.THREAD_LOCAL) Map<Long, Long> nextTimestamps,
+        long timestamp
+    ) {
         long bucketStart = bucket.round(timestamp);
         long bucketEnd = nextTimestamps.computeIfAbsent(bucketStart, bucket::nextRoundingValue);
         return timestamp >= bucketEnd - window;

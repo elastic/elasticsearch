@@ -9,6 +9,7 @@ import java.lang.Long;
 import java.lang.Override;
 import java.lang.String;
 import java.util.Map;
+import java.util.function.Function;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.compute.data.Block;
@@ -127,12 +128,13 @@ public final class WindowFilterEvaluator implements ExpressionEvaluator {
 
     private final Rounding.Prepared bucket;
 
-    private final Map<Long, Long> nextTimestamps;
+    private final Function<DriverContext, Map<Long, Long>> nextTimestamps;
 
     private final ExpressionEvaluator.Factory timestamp;
 
     public Factory(Source source, long window, Rounding.Prepared bucket,
-        Map<Long, Long> nextTimestamps, ExpressionEvaluator.Factory timestamp) {
+        Function<DriverContext, Map<Long, Long>> nextTimestamps,
+        ExpressionEvaluator.Factory timestamp) {
       this.source = source;
       this.window = window;
       this.bucket = bucket;
@@ -142,7 +144,7 @@ public final class WindowFilterEvaluator implements ExpressionEvaluator {
 
     @Override
     public WindowFilterEvaluator get(DriverContext context) {
-      return new WindowFilterEvaluator(source, window, bucket, nextTimestamps, timestamp.get(context), context);
+      return new WindowFilterEvaluator(source, window, bucket, nextTimestamps.apply(context), timestamp.get(context), context);
     }
 
     @Override

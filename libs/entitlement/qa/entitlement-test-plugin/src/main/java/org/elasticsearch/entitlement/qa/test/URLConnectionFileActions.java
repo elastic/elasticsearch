@@ -149,6 +149,8 @@ class URLConnectionFileActions {
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void sunJarURLConnectionGetJarFile() throws Exception {
+        // Use a lambda instead of a method reference to avoid exposing JarFile as a type parameter,
+        // which would trigger a forbiddenApis violation.
         callJarConnection(conn -> {
             conn.getJarFile();
             return null;

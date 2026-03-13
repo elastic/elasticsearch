@@ -96,6 +96,11 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
                 assertNotNull(FieldData.unwrapSingleton(bytesValues));
             }
 
+            var valueMode = bytesValues.getValueMode();
+            assertThat(valueMode, equalTo(expectedValueModeSingleValueAllSet()));
+            var sparsity = bytesValues.getSparsity();
+            assertThat(sparsity, equalTo(expectedSparsitySingleValueAllSet()));
+
             assertTrue(bytesValues.advanceExact(0));
             assertThat(bytesValues.docValueCount(), equalTo(1));
             assertThat(bytesValues.nextValue(), equalTo(new BytesRef(two())));
@@ -135,6 +140,14 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         }
     }
 
+    protected SortedBinaryDocValues.ValueMode expectedValueModeSingleValueAllSet() {
+        return SortedBinaryDocValues.ValueMode.UNKNOWN;
+    }
+
+    protected SortedBinaryDocValues.Sparsity expectedSparsitySingleValueAllSet() {
+        return SortedBinaryDocValues.Sparsity.UNKNOWN;
+    }
+
     protected abstract void fillSingleValueWithMissing() throws Exception;
 
     public void assertValues(SortedBinaryDocValues values, int docId, BytesRef... actualValues) throws IOException {
@@ -166,11 +179,23 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
             SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
+            var valueMode = bytesValues.getValueMode();
+            assertThat(valueMode, equalTo(expectedValueModeSingleValueWithMissing()));
+            var sparsity = bytesValues.getSparsity();
+            assertThat(sparsity, equalTo(expectedSparsitySingleValueWithMissing()));
 
             assertValues(bytesValues, 0, two());
             assertValues(bytesValues, 1, Strings.EMPTY_ARRAY);
             assertValues(bytesValues, 2, three());
         }
+    }
+
+    protected SortedBinaryDocValues.ValueMode expectedValueModeSingleValueWithMissing() {
+        return SortedBinaryDocValues.ValueMode.UNKNOWN;
+    }
+
+    protected SortedBinaryDocValues.Sparsity expectedSparsitySingleValueWithMissing() {
+        return SortedBinaryDocValues.Sparsity.UNKNOWN;
     }
 
     protected abstract void fillMultiValueAllSet() throws Exception;
@@ -187,6 +212,10 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
             SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
+            var valueMode = bytesValues.getValueMode();
+            assertThat(valueMode, equalTo(expectedValueModeMultiValueAllSet()));
+            var sparsity = bytesValues.getSparsity();
+            assertThat(sparsity, equalTo(expectedSparsityMultiValueAllSet()));
             assertNull(FieldData.unwrapSingleton(bytesValues));
             assertValues(bytesValues, 0, two(), four());
             assertValues(bytesValues, 1, one());
@@ -211,6 +240,14 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         }
     }
 
+    protected SortedBinaryDocValues.ValueMode expectedValueModeMultiValueAllSet() {
+        return SortedBinaryDocValues.ValueMode.UNKNOWN;
+    }
+
+    protected SortedBinaryDocValues.Sparsity expectedSparsityMultiValueAllSet() {
+        return SortedBinaryDocValues.Sparsity.UNKNOWN;
+    }
+
     protected abstract void fillMultiValueWithMissing() throws Exception;
 
     public void testMultiValueWithMissing() throws Exception {
@@ -222,11 +259,23 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
             SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
+            var valueMode = bytesValues.getValueMode();
+            assertThat(valueMode, equalTo(expectedValueModeMultiValueWithMissing()));
+            var sparsity = bytesValues.getSparsity();
+            assertThat(sparsity, equalTo(expectedSparsityMultiValueWithMissing()));
 
             assertValues(bytesValues, 0, two(), four());
             assertValues(bytesValues, 1, Strings.EMPTY_ARRAY);
             assertValues(bytesValues, 2, three());
         }
+    }
+
+    protected SortedBinaryDocValues.ValueMode expectedValueModeMultiValueWithMissing() {
+        return SortedBinaryDocValues.ValueMode.UNKNOWN;
+    }
+
+    protected SortedBinaryDocValues.Sparsity expectedSparsityMultiValueWithMissing() {
+        return SortedBinaryDocValues.Sparsity.UNKNOWN;
     }
 
     public void testMissingValueForAll() throws Exception {

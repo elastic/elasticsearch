@@ -131,7 +131,7 @@ public class S3BlobStoreRepositoryTimeoutTests extends ESMockAPIBasedRepositoryI
         s3StallingHttpHandler.setStallLatchRef(latch);
         try {
             final var purpose = randomFrom(OperationPurpose.values());
-            final String blobName = "test-" + randomIdentifier();
+            final String blobName = randomIdentifier("test-");
             assert BlobContainer.assertPurposeConsistency(purpose, blobName);
             final var e = expectThrows(
                 IOException.class,

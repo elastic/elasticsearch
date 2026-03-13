@@ -65,7 +65,7 @@ public class MonitoringBulkResponseTests extends ESTestCase {
                 response = new MonitoringBulkResponse(Math.abs(randomLong()), new MonitoringBulkResponse.Error(exception));
             }
 
-            TransportVersion version = TransportVersionUtils.randomVersion(random());
+            TransportVersion version = TransportVersionUtils.randomVersion();
             BytesStreamOutput output = new BytesStreamOutput();
             output.setTransportVersion(version);
             response.writeTo(output);

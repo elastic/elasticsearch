@@ -38,7 +38,7 @@ public class NowTests extends AbstractConfigurationFunctionTestCase {
                 List.of(),
                 matchesPattern("LiteralsEvaluator\\[lit=.*]"),
                 DataType.DATETIME,
-                equalTo(configuration.now().toInstant().toEpochMilli())
+                equalTo(configuration.now().toEpochMilli())
             ).withConfiguration(TestCaseSupplier.TEST_SOURCE, configuration);
         })));
     }
@@ -50,7 +50,7 @@ public class NowTests extends AbstractConfigurationFunctionTestCase {
 
     @Override
     protected Matcher<Object> allNullsMatcher() {
-        return equalTo(testCase.getConfiguration().now().toInstant().toEpochMilli());
+        return equalTo(testCase.getConfiguration().now().toEpochMilli());
     }
 
 }

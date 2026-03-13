@@ -1,0 +1,5 @@
+pr: 139955
+summary: Prefetch vectors during rescoring
+area: Vector Search
+type: enhancement
+issues: []

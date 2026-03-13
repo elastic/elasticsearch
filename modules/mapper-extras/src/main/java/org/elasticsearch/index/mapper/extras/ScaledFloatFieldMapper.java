@@ -41,13 +41,14 @@ import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
-import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoader;
+import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -206,6 +207,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public ScaledFloatFieldMapper build(MapperBuilderContext context) {
             ScaledFloatFieldType type = new ScaledFloatFieldType(
                 context.buildFullName(leafName()),
@@ -307,7 +313,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
             long scaledValue = Math.round(scale(value));
-            return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, indexType().hasPoints());
+            return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, indexType());
         }
 
         @Override
@@ -357,7 +363,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.COUNTER) {
                 // Counters are not supported by ESQL so we load them in null
-                return BlockLoader.CONSTANT_NULLS;
+                return ConstantNull.INSTANCE;
             }
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
                 return new DoublesBlockLoader(name(), l -> l / scalingFactor);
@@ -646,7 +652,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     context.addIgnoredField(mappedFieldType.name());
                     if (isSourceSynthetic) {
                         // Save a copy of the field so synthetic source can load it
-                        context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
+                        IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
                     }
                     return;
                 } else {
@@ -679,7 +685,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 context.addIgnoredField(mappedFieldType.name());
                 if (isSourceSynthetic) {
                     // Save a copy of the field so synthetic source can load it
-                    context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
+                    IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
                 }
                 return;
             } else {
@@ -848,16 +854,21 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 )
             );
             if (ignoreMalformed.value()) {
-                layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));
+                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
             }
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         } else {
-            return new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value()) {
-                @Override
-                protected void writeValue(XContentBuilder b, long value) throws IOException {
-                    b.value(decodeForSyntheticSource(value, scalingFactor));
-                }
-            };
+            var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
+            layers.add(
+                new SortedNumericDocValuesSyntheticFieldLoaderLayer(
+                    fullPath(),
+                    (b, value) -> b.value(decodeForSyntheticSource(value, scalingFactor))
+                )
+            );
+            if (ignoreMalformed.value()) {
+                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
+            }
+            return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         }
     }
 

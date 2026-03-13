@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -160,17 +161,24 @@ public class EsRelation extends LeafPlan {
     }
 
     @Override
-    public String nodeString() {
+    public String nodeString(NodeStringFormat format) {
         return nodeName()
             + "["
             + indexPattern
             + "]"
             + (indexMode != IndexMode.STANDARD ? "[" + indexMode.name() + "]" : "")
-            + NodeUtils.limitedToString(attrs);
+            + NodeUtils.toString(attrs, format);
     }
 
     public EsRelation withAttributes(List<Attribute> newAttributes) {
         return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, newAttributes);
+    }
+
+    public EsRelation withAdditionalAttribute(Attribute additionalAttribute) {
+        List<Attribute> newAttrs = new ArrayList<>(attrs.size() + 1);
+        newAttrs.addAll(attrs);
+        newAttrs.add(additionalAttribute);
+        return withAttributes(newAttrs);
     }
 
     public EsRelation withIndexMode(IndexMode indexMode) {

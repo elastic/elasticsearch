@@ -119,8 +119,6 @@ class S3Service extends AbstractLifecycleComponent {
         final Settings nodeSettings = clusterService.getSettings();
         webIdentityTokenCredentialsProvider = new CustomWebIdentityTokenCredentialsProvider(
             environment,
-            System::getenv,
-            System::getProperty,
             Clock.systemUTC(),
             resourceWatcherService
         );
@@ -448,15 +446,9 @@ class S3Service extends AbstractLifecycleComponent {
         private StsWebIdentityTokenFileCredentialsProvider credentialsProvider;
         private StsClient securityTokenServiceClient;
 
-        CustomWebIdentityTokenCredentialsProvider(
-            Environment environment,
-            SystemEnvironment systemEnvironment,
-            JvmEnvironment jvmEnvironment,
-            Clock clock,
-            ResourceWatcherService resourceWatcherService
-        ) {
-            // Check whether the original environment variable exists. If it doesn't, the system doesn't support AWS web identity tokens
-            final var webIdentityTokenFileEnvVar = systemEnvironment.getEnv(AWS_WEB_IDENTITY_TOKEN_FILE.name());
+        CustomWebIdentityTokenCredentialsProvider(Environment environment, Clock clock, ResourceWatcherService resourceWatcherService) {
+            // Check whether the original environment variable exists. If it doesn't, the system doesn't support AWS web identity tokens.
+            final var webIdentityTokenFileEnvVar = System.getenv(AWS_WEB_IDENTITY_TOKEN_FILE.name());
             if (webIdentityTokenFileEnvVar == null) {
                 return;
             }
@@ -487,7 +479,7 @@ class S3Service extends AbstractLifecycleComponent {
                 );
             }
 
-            final var roleArn = systemEnvironment.getEnv(AWS_ROLE_ARN.name());
+            final var roleArn = System.getenv(AWS_ROLE_ARN.name());
             if (roleArn == null) {
                 LOGGER.warn(
                     """
@@ -499,7 +491,7 @@ class S3Service extends AbstractLifecycleComponent {
             }
 
             final var roleSessionName = Objects.requireNonNullElseGet(
-                systemEnvironment.getEnv(AWS_ROLE_SESSION_NAME.name()),
+                System.getenv(AWS_ROLE_SESSION_NAME.name()),
                 // Mimic the default behaviour of the AWS SDK in case the session name is not set
                 // See `com.amazonaws.auth.WebIdentityTokenCredentialsProvider#45`
                 () -> "aws-sdk-java-" + clock.millis()
@@ -508,7 +500,7 @@ class S3Service extends AbstractLifecycleComponent {
             {
                 final var securityTokenServiceClientBuilder = StsClient.builder();
                 // allow an endpoint override in tests
-                final var endpointOverride = jvmEnvironment.getProperty("org.elasticsearch.repositories.s3.stsEndpointOverride", null);
+                final var endpointOverride = System.getProperty("org.elasticsearch.repositories.s3.stsEndpointOverride", null);
                 if (endpointOverride != null) {
                     securityTokenServiceClientBuilder.endpointOverride(URI.create(endpointOverride));
                 }
@@ -673,15 +665,5 @@ class S3Service extends AbstractLifecycleComponent {
         public String toString() {
             return "ErrorLogging[" + delegate + "]";
         }
-    }
-
-    @FunctionalInterface
-    interface SystemEnvironment {
-        String getEnv(String name);
-    }
-
-    @FunctionalInterface
-    interface JvmEnvironment {
-        String getProperty(String key, String defaultValue);
     }
 }

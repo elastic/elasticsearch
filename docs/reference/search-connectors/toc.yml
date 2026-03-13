@@ -40,7 +40,6 @@ toc:
     - file: es-connectors-run-from-source.md
     - file: es-connectors-docker-compose-quickstart.md
     - file: es-postgresql-connector-client-tutorial.md
-- file: elastic-managed-connectors.md # TODO: I should be deleted
 - file: build-customize-connectors.md
 - file: connectors-ui-in-kibana.md
 # TO DO: Do we want this page? (It's not in the inventory.)

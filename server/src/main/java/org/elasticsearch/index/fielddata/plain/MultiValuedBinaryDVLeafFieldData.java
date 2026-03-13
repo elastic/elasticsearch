@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
@@ -22,6 +20,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 
 public final class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
+
     private final String fieldName;
     private final LeafReader leafReader;
     private final ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory;
@@ -47,8 +46,7 @@ public final class MultiValuedBinaryDVLeafFieldData implements LeafFieldData {
         try {
             // Need to return a new instance each time this gets invoked,
             // otherwise a positioned or exhausted instance can be returned:
-            BinaryDocValues binaryValues = DocValues.getBinary(leafReader, fieldName);
-            return new MultiValuedSortedBinaryDocValues(binaryValues);
+            return MultiValuedSortedBinaryDocValues.from(leafReader, fieldName);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

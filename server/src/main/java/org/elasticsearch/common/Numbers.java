@@ -193,4 +193,12 @@ public final class Numbers {
         }
         return true;
     }
+
+    /**
+     * Checks if a value is a power of two using bitwise arithmetic.
+     * Note: Returns true for 0 and all negative numbers.
+     */
+    public static boolean isPowerOfTwo(int value) {
+        return (value & (value - 1)) == 0;
+    }
 }

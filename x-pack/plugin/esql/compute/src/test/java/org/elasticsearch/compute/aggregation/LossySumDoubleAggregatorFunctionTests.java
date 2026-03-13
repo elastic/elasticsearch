@@ -13,10 +13,11 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.SequenceDoubleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceDoubleBlockSourceOperator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -60,7 +61,7 @@ public class LossySumDoubleAggregatorFunctionTests extends AggregatorFunctionTes
                 new TestResultPageSinkOperator(results::add)
             )
         ) {
-            runDriver(d);
+            new TestDriverRunner().run(d);
         }
         assertThat(results.get(0).<DoubleBlock>getBlock(0).getDouble(0), equalTo(Double.MAX_VALUE + 1));
         assertDriverContext(driverContext);

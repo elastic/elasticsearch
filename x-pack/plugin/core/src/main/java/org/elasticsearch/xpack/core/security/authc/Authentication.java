@@ -8,9 +8,10 @@ package org.elasticsearch.xpack.core.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.BufferedStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Base64;
@@ -627,13 +629,23 @@ public final class Authentication implements ToXContentObject {
         return doEncode(effectiveSubject, authenticatingSubject, type);
     }
 
+    // something of a hack, it would be better to use a properly-recycled buffer here, but there's no easy way to access the recycler
+    private static final ThreadLocal<BytesRef> threadLocalEncodingBuffer = ThreadLocal.withInitial(
+        () -> new BytesRef(new byte[1024], 0, 1024)
+    );
+
     // Package private for testing
     static String doEncode(Subject effectiveSubject, Subject authenticatingSubject, AuthenticationType type) throws IOException {
-        BytesStreamOutput output = new BytesStreamOutput();
-        output.setTransportVersion(effectiveSubject.getTransportVersion());
-        TransportVersion.writeVersion(effectiveSubject.getTransportVersion(), output);
-        doWriteTo(effectiveSubject, authenticatingSubject, type, output);
-        return Base64.getEncoder().encodeToString(BytesReference.toBytes(output.bytes()));
+        try (
+            var byteArrayOutputStream = new ByteArrayOutputStream();
+            var output = new BufferedStreamOutput(byteArrayOutputStream, threadLocalEncodingBuffer.get())
+        ) {
+            output.setTransportVersion(effectiveSubject.getTransportVersion());
+            TransportVersion.writeVersion(effectiveSubject.getTransportVersion(), output);
+            doWriteTo(effectiveSubject, authenticatingSubject, type, output);
+            output.flush();
+            return Base64.getEncoder().encodeToString(byteArrayOutputStream.toByteArray());
+        }
     }
 
     public void writeTo(StreamOutput out) throws IOException {

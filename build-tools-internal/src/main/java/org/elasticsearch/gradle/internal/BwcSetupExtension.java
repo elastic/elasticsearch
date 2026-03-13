@@ -24,6 +24,8 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.provider.ValueSource;
 import org.gradle.api.provider.ValueSourceParameters;
+import org.gradle.api.services.BuildService;
+import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
@@ -42,6 +44,7 @@ public class BwcSetupExtension {
 
     private static final String MINIMUM_COMPILER_VERSION_PATH = "src/main/resources/minimumCompilerVersion";
     private static final Version BUILD_TOOL_MINIMUM_VERSION = Version.fromString("7.14.0");
+    public static final String BWC_THROTTLE_MAX_PARALLEL_USAGES = "bwc.throttle.maxParallelUsages";
     private final Project project;
     private final ObjectFactory objectFactory;
     private final ProviderFactory providerFactory;
@@ -103,7 +106,6 @@ public class BwcSetupExtension {
         return project.getTasks().register(name, LoggedExec.class, loggedExec -> {
             loggedExec.dependsOn("checkoutBwcBranch");
             loggedExec.getWorkingDir().set(checkoutDir.get());
-
             loggedExec.doFirst(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
@@ -172,14 +174,37 @@ public class BwcSetupExtension {
                 loggedExec.args("-I", initScript.getAbsolutePath());
             }
             loggedExec.getIndentingConsoleOutput().set(unreleasedVersionInfo.map(v -> v.version().toString()));
+
+            // We wanna have the option to throttle the parallel execution of the bwc tasks themselves
+            // e.g. for CI environments with limited resources or when running ci caching scripts
+            configureBwcThrottle(project, loggedExec);
             configAction.execute(loggedExec);
         });
+    }
+
+    private static void configureBwcThrottle(Project project, LoggedExec loggedExec) {
+        Provider<String> throttleProperty = project.getProviders().systemProperty(BWC_THROTTLE_MAX_PARALLEL_USAGES);
+        if (throttleProperty.isPresent()) {
+            try {
+                int maxParallelUsages = Integer.parseInt(throttleProperty.get());
+                if (maxParallelUsages < 1) {
+                    throw new GradleException("System property 'bwc.throttle.maxParallelUsages' must be >= 1");
+                }
+                Provider<BwcThrottle> throttle = project.getGradle()
+                    .getSharedServices()
+                    .registerIfAbsent("bwcThrottle", BwcThrottle.class, spec -> spec.getMaxParallelUsages().set(maxParallelUsages));
+
+                loggedExec.usesService(throttle);
+            } catch (NumberFormatException e) {
+                throw new GradleException("System property 'bwc.throttle.maxParallelUsages' must be an integer value", e);
+            }
+        }
     }
 
     /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
     private static Provider<String> getJavaHome(ObjectFactory objectFactory, JavaToolchainService toolChainService, final int version) {
         Property<JavaLanguageVersion> value = objectFactory.property(JavaLanguageVersion.class).value(JavaLanguageVersion.of(version));
-        return toolChainService.launcherFor(javaToolchainSpec -> { javaToolchainSpec.getLanguageVersion().value(value); })
+        return toolChainService.launcherFor(javaToolchainSpec -> javaToolchainSpec.getLanguageVersion().value(value))
             .map(launcher -> launcher.getMetadata().getInstallationPath().getAsFile().getAbsolutePath());
     }
 
@@ -212,4 +237,6 @@ public class BwcSetupExtension {
             Property<File> getCheckoutDir();
         }
     }
+
+    public abstract class BwcThrottle implements BuildService<BuildServiceParameters.None> {}
 }

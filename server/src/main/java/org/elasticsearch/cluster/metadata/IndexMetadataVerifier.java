@@ -310,6 +310,7 @@ public class IndexMetadataVerifier {
                         throw new UnsupportedOperationException("IndexMetadataVerifier");
                     },
                     mapperMetrics,
+                    null,
                     null
                 )
             ) {

@@ -164,11 +164,14 @@ public abstract class TransportVersionResourcesService implements BuildService<T
             definition.ids().stream().map(Object::toString).collect(Collectors.joining(",")) + "\n",
             StandardCharsets.UTF_8
         );
+        gitCommand("add", path.toString());
     }
 
     void deleteReferableDefinition(String name) throws IOException {
         Path path = transportResourcesDir.resolve(getDefinitionRelativePath(name, true));
-        Files.deleteIfExists(path);
+        if (Files.deleteIfExists(path)) {
+            gitCommand("rm", "--ignore-unmatch", path.toString());
+        }
     }
 
     /** Return all unreferable definitions, mapped by their name. */
@@ -241,14 +244,12 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     }
 
     /** Write the given upper bound to a file in the transport resources */
-    void writeUpperBound(TransportVersionUpperBound upperBound, boolean stageInGit) throws IOException {
+    void writeUpperBound(TransportVersionUpperBound upperBound) throws IOException {
         Path path = transportResourcesDir.resolve(getUpperBoundRelativePath(upperBound.name()));
         logger.debug("Writing upper bound [" + upperBound + "] to [" + path + "]");
         Files.writeString(path, upperBound.definitionName() + "," + upperBound.definitionId().complete() + "\n", StandardCharsets.UTF_8);
 
-        if (stageInGit) {
-            gitCommand("add", path.toString());
-        }
+        gitCommand("add", path.toString());
     }
 
     /** Return the path within the repository of the given latest */
@@ -258,6 +259,18 @@ public abstract class TransportVersionResourcesService implements BuildService<T
 
     private Path getUpperBoundRelativePath(String name) {
         return UPPER_BOUNDS_DIR.resolve(name + ".csv");
+    }
+
+    boolean hasCherryPickConflicts() {
+        if (refExists("CHERRY_PICK_HEAD") == false) {
+            return false;
+        }
+        return gitCommand("diff", "--name-only", "--diff-filter=U", transportResourcesDir.toString()).strip().isEmpty() == false;
+    }
+
+    void checkoutOriginalChange() {
+        gitCommand("checkout", "--theirs", transportResourcesDir.toString());
+        gitCommand("add", transportResourcesDir.toString());
     }
 
     boolean checkIfDefinitelyOnReleaseBranch(Collection<TransportVersionUpperBound> upperBounds, String currentUpperBoundName) {
@@ -278,9 +291,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         if (baseRefName.get() == null) {
             synchronized (baseRefName) {
                 String refName;
-                // the existence of the MERGE_HEAD ref means we are in the middle of a merge, and should use that as our base
-                String gitDir = gitCommand("rev-parse", "--git-dir").strip();
-                if (Files.exists(Path.of(gitDir).resolve("MERGE_HEAD"))) {
+                if (refExists("MERGE_HEAD")) {
                     refName = gitCommand("rev-parse", "--verify", "MERGE_HEAD").strip();
                 } else {
                     String upstreamRef = findUpstreamRef();
@@ -394,6 +405,12 @@ public abstract class TransportVersionResourcesService implements BuildService<T
 
         String content = gitCommand("show", getBaseRefName() + ":./" + pathString).strip();
         return parser.apply(resourcePath, content);
+    }
+
+    private boolean refExists(String refName) {
+        // the existence of the MERGE_HEAD/CHERRY_PICK_HEAD ref means we are in the middle of a merge/cherry-pick
+        String gitDir = gitCommand("rev-parse", "--git-dir").strip();
+        return Files.exists(Path.of(gitDir).resolve(refName));
     }
 
     private static Map<String, TransportVersionDefinition> readDefinitions(Path dir, boolean isReferable) throws IOException {

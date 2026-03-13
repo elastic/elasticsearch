@@ -9,12 +9,13 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasable;
 
 /**
  * Provides a context for evaluating a grouping aggregator.
  * A time-series aggregator might need more than just the DriverContext to evaluate, such as the range interval of each group.
  */
-public class GroupingAggregatorEvaluationContext {
+public class GroupingAggregatorEvaluationContext implements Releasable {
     private final DriverContext driverContext;
 
     public GroupingAggregatorEvaluationContext(DriverContext driverContext) {
@@ -27,5 +28,10 @@ public class GroupingAggregatorEvaluationContext {
 
     public BlockFactory blockFactory() {
         return driverContext.blockFactory();
+    }
+
+    @Override
+    public void close() {
+
     }
 }

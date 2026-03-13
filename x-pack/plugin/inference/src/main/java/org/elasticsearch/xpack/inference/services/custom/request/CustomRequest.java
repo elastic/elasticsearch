@@ -29,8 +29,8 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.common.JsonUtils.toJson;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.REQUEST;
-import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.URL;
 
 public class CustomRequest implements Request {
 

@@ -162,14 +162,22 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
 
         assertThat(blobStore.currentPath, nullValue());
 
-        assertNoThrottling(response);
+        assertResponseSummaryFields(request, response);
     }
 
-    static void assertNoThrottling(RepositoryAnalyzeAction.Response response) {
+    static void assertResponseSummaryFields(RepositoryAnalyzeAction.Request request, RepositoryAnalyzeAction.Response response) {
         try {
             final var responseMap = convertToMap(response);
-            assertEquals(Strings.toString(response), 0, (int) ObjectPath.eval("summary.write.total_throttled_nanos", responseMap));
-            assertEquals(Strings.toString(response), 0, (int) ObjectPath.eval("summary.read.total_throttled_nanos", responseMap));
+            final var responseString = Strings.toString(response);
+            assertThat(responseString, ObjectPath.eval("summary.write.count", responseMap), equalTo(request.getBlobCount()));
+
+            // extraordinarily unlikely but in theory up to half of the writes could be copies, and each of those writes could attempt the
+            // copy early, fail with a NoSuchFileException, and thus not attempt to read the copy, so we can only assert this:
+            final var minReadCount = request.getBlobCount() / 2;
+            assertThat(responseString, ObjectPath.eval("summary.read.count", responseMap), greaterThanOrEqualTo(minReadCount));
+
+            assertThat(responseString, ObjectPath.eval("summary.write.total_throttled_nanos", responseMap), equalTo(0));
+            assertThat(responseString, ObjectPath.eval("summary.read.total_throttled_nanos", responseMap), equalTo(0));
         } catch (IOException e) {
             fail(e);
         }

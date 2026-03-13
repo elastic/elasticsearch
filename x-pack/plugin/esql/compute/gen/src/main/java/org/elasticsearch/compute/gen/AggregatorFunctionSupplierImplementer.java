@@ -10,7 +10,6 @@ package org.elasticsearch.compute.gen;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
-import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
 import org.elasticsearch.compute.ann.Aggregator;
@@ -21,6 +20,7 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -40,6 +40,7 @@ import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
 import static org.elasticsearch.compute.gen.Types.STRING;
 import static org.elasticsearch.compute.gen.Types.WARNINGS;
+import static org.elasticsearch.compute.gen.Types.WARNING_SOURCE_LOCATION;
 
 /**
  * Implements "AggregationFunctionSupplier" from a class annotated with both
@@ -98,9 +99,7 @@ public class AggregatorFunctionSupplierImplementer {
         builder.addSuperinterface(AGGREGATOR_FUNCTION_SUPPLIER);
 
         if (hasWarnings) {
-            builder.addField(TypeName.INT, "warningsLineNumber");
-            builder.addField(TypeName.INT, "warningsColumnNumber");
-            builder.addField(STRING, "warningsSourceText");
+            builder.addField(WARNING_SOURCE_LOCATION, "warningsSource");
         }
         createParameters.stream().forEach(p -> p.declareField(builder));
         builder.addMethod(ctor());
@@ -115,12 +114,8 @@ public class AggregatorFunctionSupplierImplementer {
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
         if (hasWarnings) {
-            builder.addParameter(TypeName.INT, "warningsLineNumber");
-            builder.addParameter(TypeName.INT, "warningsColumnNumber");
-            builder.addParameter(STRING, "warningsSourceText");
-            builder.addStatement("this.warningsLineNumber = warningsLineNumber");
-            builder.addStatement("this.warningsColumnNumber = warningsColumnNumber");
-            builder.addStatement("this.warningsSourceText = warningsSourceText");
+            builder.addParameter(WARNING_SOURCE_LOCATION, "warningsSource");
+            builder.addStatement("this.warningsSource = warningsSource");
         }
         createParameters.stream().forEach(p -> p.buildCtor(builder));
         return builder.build();
@@ -166,15 +161,11 @@ public class AggregatorFunctionSupplierImplementer {
         builder.returns(aggregatorImplementer.implementation());
 
         if (hasWarnings) {
-            builder.addStatement(
-                "var warnings = $T.createWarnings(driverContext.warningsMode(), "
-                    + "warningsLineNumber, warningsColumnNumber, warningsSourceText)",
-                WARNINGS
-            );
+            builder.addStatement("var warnings = $T.createWarnings(driverContext.warningsMode(), warningsSource)", WARNINGS);
         }
 
         builder.addStatement(
-            "return $T.create($L)",
+            "return new $T($L)",
             aggregatorImplementer.implementation(),
             Stream.concat(
                 Stream.concat(hasWarnings ? Stream.of("warnings") : Stream.of(), Stream.of("driverContext, channels")),
@@ -193,15 +184,11 @@ public class AggregatorFunctionSupplierImplementer {
         builder.returns(groupingAggregatorImplementer.implementation());
 
         if (hasWarnings) {
-            builder.addStatement(
-                "var warnings = $T.createWarnings(driverContext.warningsMode(), "
-                    + "warningsLineNumber, warningsColumnNumber, warningsSourceText)",
-                WARNINGS
-            );
+            builder.addStatement("var warnings = $T.createWarnings(driverContext.warningsMode(), warningsSource)", WARNINGS);
         }
 
         builder.addStatement(
-            "return $T.create($L)",
+            "return new $T($L)",
             groupingAggregatorImplementer.implementation(),
             Stream.concat(
                 Stream.concat(hasWarnings ? Stream.of("warnings") : Stream.of(), Stream.of("channels, driverContext")),
@@ -215,10 +202,22 @@ public class AggregatorFunctionSupplierImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("describe").returns(String.class);
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
 
+        Map<String, String> complexTypesMapping = Map.of(
+            "BytesRef",
+            "Byte",
+            "ExponentialHistogram",
+            "Exponential_histogram",
+            "TDigest",
+            "Tdigest"
+        );
+
         ExecutableElement describe = optionalStaticMethod(declarationType, requireType(STRING), requireName("describe"), requireArgs());
         if (describe == null) {
             String name = declarationType.getSimpleName().toString();
-            name = name.replace("BytesRef", "Byte"); // The hack expects one word types so let's make BytesRef into Byte
+            for (var entry : complexTypesMapping.entrySet()) {
+                // The hack expects one word types so let's turn complex types into single words
+                name = name.replace(entry.getKey(), entry.getValue());
+            }
             String[] parts = name.split("(?=\\p{Upper})");
             if (false == parts[parts.length - 1].equals("Aggregator") || parts.length < 3) {
                 throw new IllegalArgumentException("Can't generate description for " + declarationType.getSimpleName());

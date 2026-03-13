@@ -18,7 +18,9 @@ import org.junit.ClassRule;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class GenerativeForkIT extends GenerativeForkRestTest {
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test"));
+    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> {
+        spec.plugin("inference-service-test").settings(nodeSpec -> LOGGING_CLUSTER_SETTINGS);
+    });
 
     @Override
     protected String getTestRestCluster() {

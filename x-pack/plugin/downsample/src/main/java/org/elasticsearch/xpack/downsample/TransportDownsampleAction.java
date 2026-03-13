@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
@@ -51,6 +52,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -74,6 +76,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.XPackFeatures;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -114,6 +117,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     private final IndicesService indicesService;
     private final MasterServiceTaskQueue<DownsampleClusterStateUpdateTask> taskQueue;
     private final MetadataCreateIndexService metadataCreateIndexService;
+    private final FeatureService featureService;
     private final IndexScopedSettings indexScopedSettings;
     private final PersistentTasksService persistentTasksService;
     private final DownsampleMetrics downsampleMetrics;
@@ -151,6 +155,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         IndicesService indicesService,
         ClusterService clusterService,
         TransportService transportService,
+        FeatureService featureService,
         ThreadPool threadPool,
         MetadataCreateIndexService metadataCreateIndexService,
         ActionFilters actionFilters,
@@ -164,6 +169,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             indicesService,
             clusterService,
             transportService,
+            featureService,
             threadPool,
             metadataCreateIndexService,
             actionFilters,
@@ -182,6 +188,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         IndicesService indicesService,
         ClusterService clusterService,
         TransportService transportService,
+        FeatureService featureService,
         ThreadPool threadPool,
         MetadataCreateIndexService metadataCreateIndexService,
         ActionFilters actionFilters,
@@ -204,6 +211,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         this.client = client;
         this.indicesService = indicesService;
         this.metadataCreateIndexService = metadataCreateIndexService;
+        this.featureService = featureService;
         this.projectResolver = projectResolver;
         this.indexScopedSettings = indexScopedSettings;
         this.taskQueue = taskQueue;
@@ -362,7 +370,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
             final String mapping;
             try {
-                mapping = createDownsampleIndexMapping(request.getDownsampleConfig(), sourceIndexMappings);
+                boolean isDefaultMetricDeprecated = featureService.clusterHasFeature(
+                    state,
+                    XPackFeatures.AGGREGATE_METRIC_DOUBLE_DEPRECATED_DEFAULT_METRIC
+                );
+                mapping = createDownsampleIndexMapping(request.getDownsampleConfig(), sourceIndexMappings, isDefaultMetricDeprecated);
             } catch (IOException e) {
                 recordFailureMetrics(startTime);
                 delegate.onFailure(e);
@@ -370,15 +382,19 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             }
 
             /*
-             * When creating the downsample index, we copy the index.number_of_shards from source index,
-             * and we set the index.number_of_replicas to 0, to avoid replicating the index being built.
+             * When creating the downsample index, we copy the index.number_of_shards from source index.
+             * We set minNumReplicas to 0 if running in stateful mode, to avoid replicating the index being built.
+             * If running in stateless mode, we set minNumReplicas to 1. This is because in stateless deployments, indices without replicas
+             * are not readable, and that would break our persistent task recovery mechanism which relies on reading the latest written
+             * tsid into the downsampling target index. Not having replicas in stateless would result in downsampling persistent tasks to
+             * always start from scratch.
              * Also, we set the index.refresh_interval to -1.
              * We will set the correct number of replicas and refresh the index later.
              *
              * We should note that there is a risk of losing a node during the downsample process. In this
              * case downsample will fail.
              */
-            int minNumReplicas = clusterService.getSettings().getAsInt(Downsample.DOWNSAMPLE_MIN_NUMBER_OF_REPLICAS_NAME, 0);
+            int minNumReplicas = DiscoveryNode.isStateless(clusterService.getSettings()) ? 1 : 0;
 
             // 3. Create downsample index
             createDownsampleIndex(
@@ -703,8 +719,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
      * @param sourceIndexMappings a map with the source index mapping
      * @return the mapping of the downsample index
      */
-    public static String createDownsampleIndexMapping(final DownsampleConfig config, final Map<String, Object> sourceIndexMappings)
-        throws IOException {
+    public static String createDownsampleIndexMapping(
+        final DownsampleConfig config,
+        final Map<String, Object> sourceIndexMappings,
+        boolean isDefaultMetricDeprecated
+    ) throws IOException {
 
         final String timestampField = config.getTimestampField();
         final String dateIntervalType = config.getIntervalType();
@@ -721,7 +740,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             if (timestampField.equals(fieldName)) {
                 updateTimestampField(sourceMapping, updatedMapping, dateIntervalType, dateInterval, timezone);
             } else if (TimeSeriesFields.isTimeSeriesMetric(sourceMapping)) {
-                processMetricField(sourceMapping, updatedMapping, config.getSamplingMethodOrDefault());
+                processMetricField(sourceMapping, updatedMapping, config.getSamplingMethodOrDefault(), isDefaultMetricDeprecated);
             } else {
                 copyMapping(sourceMapping, updatedMapping);
             }
@@ -736,7 +755,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     private static void processMetricField(
         Map<String, ?> sourceMapping,
         Map<String, Object> updatedMapping,
-        DownsampleConfig.SamplingMethod samplingMethod
+        DownsampleConfig.SamplingMethod samplingMethod,
+        boolean isDefaultMetricDeprecated
     ) {
         final TimeSeriesParams.MetricType metricType = TimeSeriesParams.MetricType.fromString(
             sourceMapping.get(TIME_SERIES_METRIC_PARAM).toString()
@@ -749,7 +769,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             updatedMapping.put(TIME_SERIES_METRIC_PARAM, metricType.toString());
             updatedMapping.put(FIELD_TYPE, AggregateMetricDoubleFieldMapper.CONTENT_TYPE);
             updatedMapping.put(AggregateMetricDoubleFieldMapper.Names.METRICS, supportedMetrics.supportedMetrics);
-            updatedMapping.put(AggregateMetricDoubleFieldMapper.Names.DEFAULT_METRIC, supportedMetrics.defaultMetric);
+            if (isDefaultMetricDeprecated == false) {
+                updatedMapping.put(AggregateMetricDoubleFieldMapper.Names.DEFAULT_METRIC, supportedMetrics.defaultMetric);
+            }
         } else {
             copyMapping(sourceMapping, updatedMapping);
         }

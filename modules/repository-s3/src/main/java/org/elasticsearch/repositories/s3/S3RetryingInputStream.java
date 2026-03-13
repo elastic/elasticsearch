@@ -19,6 +19,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.RetryingInputStream;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.repositories.s3.S3BlobStore.Operation;
 import org.elasticsearch.rest.RestStatus;
@@ -37,7 +38,7 @@ import static org.elasticsearch.repositories.s3.S3BlobStore.configureRequestForM
  *
  * See https://github.com/aws/aws-sdk-java/issues/856 for the related SDK issue
  */
-class S3RetryingInputStream extends RetryingInputStream<Void> {
+class S3RetryingInputStream extends RetryingInputStream<String> {
 
     private static final Logger logger = LogManager.getLogger(S3RetryingInputStream.class);
 
@@ -47,13 +48,15 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
 
     // both start and end are inclusive bounds, following the definition in GetObjectRequest.setRange
     S3RetryingInputStream(OperationPurpose purpose, S3BlobStore blobStore, String blobKey, long start, long end) throws IOException {
-        super(new S3BlobStoreServices(blobStore, blobKey, purpose), purpose, start, end);
+        super(blobStore.getS3RepositoriesMetrics().common(), new S3BlobStoreServices(blobStore, blobKey, purpose), purpose, start, end);
     }
 
-    private record S3BlobStoreServices(S3BlobStore blobStore, String blobKey, OperationPurpose purpose) implements BlobStoreServices<Void> {
+    private record S3BlobStoreServices(S3BlobStore blobStore, String blobKey, OperationPurpose purpose)
+        implements
+            BlobStoreServices<String> {
 
         @Override
-        public SingleAttemptInputStream<Void> getInputStream(Void version, long start, long end) throws IOException {
+        public SingleAttemptInputStream<String> getInputStream(@Nullable String version, long start, long end) throws IOException {
             try (AmazonS3Reference clientReference = blobStore.clientReference()) {
                 final var getObjectRequestBuilder = GetObjectRequest.builder().bucket(blobStore.bucket()).key(blobKey);
                 configureRequestForMetrics(getObjectRequestBuilder, blobStore, Operation.GET_OBJECT, purpose);
@@ -61,9 +64,17 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
                     assert start <= end : "requesting beyond end, start = " + start + " end=" + end;
                     getObjectRequestBuilder.range("bytes=" + start + "-" + end);
                 }
+                if (version != null) {
+                    // This is a second or subsequent request, ensure the object hasn't changed since the first request
+                    getObjectRequestBuilder.ifMatch(version);
+                }
                 final var getObjectRequest = getObjectRequestBuilder.build();
                 final var getObjectResponse = clientReference.client().getObject(getObjectRequest);
-                return new SingleAttemptInputStream<>(new S3ResponseWrapperInputStream(getObjectResponse, start, end), start, null);
+                return new SingleAttemptInputStream<>(
+                    new S3ResponseWrapperInputStream(getObjectResponse, start, end),
+                    start,
+                    getObjectResponse.response().eTag()
+                );
             } catch (SdkException e) {
                 if (e instanceof SdkServiceException sdkServiceException) {
                     if (sdkServiceException.statusCode() == RestStatus.NOT_FOUND.getStatus()) {
@@ -77,21 +88,19 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
                             sdkServiceException
                         );
                     }
+                    if (version != null && sdkServiceException.statusCode() == RestStatus.PRECONDITION_FAILED.getStatus()) {
+                        throw new NoSuchFileException(
+                            "Blob object ["
+                                + blobKey
+                                + "] with ETag ["
+                                + version
+                                + "] unavailable on resume: "
+                                + sdkServiceException.getMessage()
+                        );
+                    }
                 }
                 throw e;
             }
-        }
-
-        @Override
-        public void onRetryStarted(StreamAction action) {
-            blobStore.getS3RepositoriesMetrics().retryStartedCounter().incrementBy(1, metricAttributes(action));
-        }
-
-        @Override
-        public void onRetrySucceeded(StreamAction action, long numberOfRetries) {
-            final Map<String, Object> attributes = metricAttributes(action);
-            blobStore.getS3RepositoriesMetrics().retryCompletedCounter().incrementBy(1, attributes);
-            blobStore.getS3RepositoriesMetrics().retryHistogram().record(numberOfRetries, attributes);
         }
 
         @Override
@@ -112,12 +121,13 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
         @Override
         public boolean isRetryableException(StreamAction action, Exception e) {
             return switch (action) {
-                case OPEN -> e instanceof RuntimeException;
+                case OPEN -> e instanceof SdkException;
                 case READ -> e instanceof IOException;
             };
         }
 
-        private Map<String, Object> metricAttributes(StreamAction action) {
+        @Override
+        public Map<String, Object> getMetricsAttributes(StreamAction action) {
             return Map.of(
                 "repo_type",
                 S3Repository.TYPE,
@@ -127,7 +137,7 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
                 Operation.GET_OBJECT.getKey(),
                 "purpose",
                 purpose.getKey(),
-                "action",
+                "es_retry_action",
                 action.getPastTense()
             );
         }

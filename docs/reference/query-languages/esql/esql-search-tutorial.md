@@ -42,9 +42,9 @@ If you want to run these queries in the [Dev Tools Console](/reference/query-lan
 POST /_query?format=txt
 {
   "query": """
-    FROM cooking_blog 
-    | WHERE description:"fluffy pancakes"  
-    | LIMIT 1000 
+    FROM cooking_blog
+    | WHERE description:"fluffy pancakes"
+    | LIMIT 1000
   """
 }
 ```
@@ -146,12 +146,12 @@ Full-text search involves executing text-based queries across one or more docume
 
 {{esql}} provides multiple functions for full-text search, including `MATCH`, `MATCH_PHRASE`, and `QSTR`. For basic text matching, you can use either:
 
-1. Full [match function](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) syntax: `match(field, "search terms")`
+1. Full [match function](/reference/query-languages/esql/functions-operators/search-functions/match.md) syntax: `match(field, "search terms")`
 2. Compact syntax using the [match operator "`:`"](/reference/query-languages/esql/functions-operators/operators.md#esql-match-operator): `field:"search terms"`
 
 Both are equivalent for basic matching and can be used interchangeably. The compact syntax is more concise, while the function syntax allows for more configuration options. We use the compact syntax in most examples for brevity.
 
-Refer to the [`MATCH` function](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) reference docs for advanced parameters available with the function syntax.
+Refer to the [`MATCH` function](/reference/query-languages/esql/functions-operators/search-functions/match.md) reference docs for advanced parameters available with the function syntax.
 
 ### Perform your first search query
 
@@ -431,7 +431,7 @@ POST /cooking_blog/_doc
 
 ### Perform semantic search
 
-Once the document has been processed by the underlying model running on the inference endpoint, you can perform semantic searches. Use the [`MATCH` function](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) (or the ["`:`" operator](/reference/query-languages/esql/functions-operators/operators.md#esql-match-operator) shorthand) on `semantic_text` fields to perform semantic queries:
+Once the document has been processed by the underlying model running on the inference endpoint, you can perform semantic searches. Use the [`MATCH` function](/reference/query-languages/esql/functions-operators/search-functions/match.md) (or the ["`:`" operator](/reference/query-languages/esql/functions-operators/operators.md#esql-match-operator) shorthand) on `semantic_text` fields to perform semantic queries:
 
 ```esql
 FROM cooking_blog METADATA _score
@@ -571,13 +571,127 @@ This enables you to:
 - Translate or transform text using LLMs
 - Create dynamic content based on your data
 
-### Vector search with KNN and TEXT_EMBEDDING
+### Extract relevant snippets with `TOP_SNIPPETS`
+
+```{applies_to}
+stack: preview 9.3
+serverless: preview
+```
+
+The [`TOP_SNIPPETS` function](/reference/query-languages/esql/functions-operators/search-functions/top-snippets.md) is like the [`CHUNK` function](/reference/query-languages/esql/functions-operators/string-functions/chunk.md) with additional relevance ranking capabilities. `TOP_SNIPPETS` ranks chunks by relevance to your query and returns only the top matches.
+
+This is very useful for context engineering with LLMs: instead of sending entire field values, you send only the most relevant portions. This reduces token costs, helps you stay within context limits, and avoids the ["lost in the middle"](https://arxiv.org/abs/2307.03172) problem where important information is overlooked in large blocks of text.
+
+#### Basic snippet extraction
+
+Here's the basic syntax for extracting top snippets from a text field:
+
+```esql
+FROM cooking_blog
+| WHERE description:"vegetarian curry"
+| EVAL snippets = TOP_SNIPPETS(description, "vegetarian curry")
+| KEEP title, snippets
+| LIMIT 5
+```
+
+This query searches for "vegetarian curry" and extracts the top matching snippets from the `description` field.
+
+::::{dropdown} Example response
+:icon: code
+
+```text
+                    title                     |                                                                                                                snippets
+----------------------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Spicy Thai Green Curry: A Vegetarian Adventure|Dive into the flavors of Thailand with this vibrant green curry. Packed with vegetables and aromatic herbs, this dish is both healthy and satisfying. Don't worry about the heat - you can easily adjust the spice level to your liking.
+```
+
+Notice how `TOP_SNIPPETS` extracted the full description as the most relevant snippet for the query "vegetarian curry".
+::::
+
+#### Control snippet size and count
+
+You can fine-tune the snippet extraction using named parameters:
+
+```esql
+FROM cooking_blog
+| WHERE description:"healthy quick meals"
+| EVAL snippets = TOP_SNIPPETS(description, "healthy quick meals", {"num_snippets": 3, "num_words": 25})
+| KEEP title, snippets
+| LIMIT 5
+```
+
+The parameters control:
+- `num_snippets`: Maximum number of matching snippets to return (useful when a query matches multiple parts of a document)
+- `num_words`: Maximum number of words per snippet (helps control token usage for LLM inference). This parameter automatically configures sentence-based chunking; other custom chunking configurations are not currently supported.
+
+::::{dropdown} Example response
+:icon: code
+
+```text
+                    title                     |                                                                               snippets
+----------------------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Spicy Thai Green Curry: A Vegetarian Adventure|Dive into the flavors of Thailand with this vibrant green curry. Packed with vegetables and aromatic herbs, this dish is both healthy and satisfying.
+Vegan Chocolate Avocado Mousse                |Discover the magic of avocado in this rich, vegan chocolate mousse. Creamy, indulgent, and secretly healthy, it's the perfect guilt-free dessert for chocolate lovers.
+```
+
+Notice how the snippets are now limited to approximately 25 words each, compared to the basic example which returned the full description. The `num_words` parameter helps you control snippet length for more precise LLM context.
+
+Because `TOP_SNIPPETS` uses sentence-based chunking, it prioritizes breaking at the nearest sentence boundary rather than cutting off mid-sentence, which may result in a slightly lower word count than requested.
+::::
+
+#### Combine with `COMPLETION` for efficient LLM context
+
+The real power of `TOP_SNIPPETS` emerges when combined with `COMPLETION`. Instead of sending entire documents to an LLM, send only the most relevant snippets:
+
+```esql
+FROM cooking_blog METADATA _score
+| WHERE semantic_description:"vegetarian recipes" <1>
+| SORT _score DESC
+| LIMIT 10 <2>
+| EVAL snippets = TOP_SNIPPETS(semantic_description, "vegetarian recipes", {"num_snippets": 3, "num_words": 30}) <3>
+| EVAL prompt = CONCAT("Based on these recipe snippets, suggest quick meal ideas: ", snippets) <4>
+| COMPLETION answer = prompt WITH {"inference_id": "my_llm_endpoint"} <5>
+| KEEP title, answer
+```
+
+1. Perform initial semantic search
+2. Limit to top 10 most relevant documents
+3. Extract the 3 most relevant snippets (max 30 words each) from each document
+4. Build a prompt using the extracted snippets
+5. Send the snippet-based prompt to the LLM
+
+This approach significantly reduces token costs compared to sending full field values, while maintaining high-quality context for the LLM.
+
+#### Combine with `RERANK` for precision
+
+You can also use `TOP_SNIPPETS` with the `RERANK` command to rerank based on extracted snippets rather than entire field values:
+
+```esql
+FROM cooking_blog METADATA _score
+| WHERE description:"healthy meals"
+| SORT _score DESC
+| LIMIT 100
+| EVAL snippets = TOP_SNIPPETS(description, "quick healthy vegetarian", {"num_snippets": 3, "num_words": 25})
+| RERANK "quick healthy vegetarian" ON snippets <1>
+| LIMIT 5
+| KEEP title, description, snippets, _score
+```
+
+1. Rerank based on the extracted snippets instead of the full description field
+
+This can improve reranking precision for models that work better with focused text rather than long documents.
+
+:::{tip}
+To learn more about `TOP_SNIPPETS` refer to this [blog post](https://www.elastic.co/search-labs/blog/llm-chunking-snippet-extraction). You can also learn about the equivalent `chunk_rescorer` parameter in the [`text_similarity_reranker` retriever](/reference/elasticsearch/rest-apis/retrievers/text-similarity-reranker-retriever.md).
+:::
+
+### Vector search with KNN, similarity functions and TEXT_EMBEDDING
 
 :::{note}
 This subsection is for advanced users who want explicit control over vector search. For most use cases, the `semantic_text` field type covered in [Step 8](#step-8-semantic-search-and-hybrid-search) is recommended as it handles embeddings automatically.
 :::
 
-The [`KNN` function](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-knn) finds the k nearest vectors to a query vector through approximate search on indexed `dense_vector` fields.
+The [`KNN` function](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) finds the k nearest vectors to a query vector through approximate search on indexed `dense_vector` fields.
 
 #### `KNN` with pre-computed vectors
 
@@ -619,7 +733,7 @@ stack: preview 9.3
 serverless: preview
 ```
 
-The [`TEXT_EMBEDDING` function](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-text_embedding)  generates dense vector embeddings from text input at query time using an inference model.
+The [`TEXT_EMBEDDING` function](/reference/query-languages/esql/functions-operators/dense-vector-functions/text_embedding.md)  generates dense vector embeddings from text input at query time using an inference model.
 
 :::{tip}
 You'll need to set up an inference endpoint with an embedding model to use this feature. Refer to the [Inference API documentation](docs-content://explore-analyze/elastic-inference/inference-api.md) for setup instructions.
@@ -637,6 +751,57 @@ This approach gives you full control over vector embeddings, unlike `semantic_te
 :::{note}
 The vectors in your index must be generated by the same embedding model you specify in `TEXT_EMBEDDING`, otherwise the similarity calculations will be meaningless and you won't get relevant results.
 :::
+
+#### Exact vector search with similarity functions
+
+```{applies_to}
+stack: preview 9.3
+serverless: ga
+```
+
+While `KNN` performs approximate nearest neighbor search, {{esql}} also provides [vector similarity functions](/reference/query-languages/esql/functions-operators/dense-vector-functions.md) for exact vector search. These functions calculate similarity over all the query vectors, guaranteeing accurate results at the cost of slower performance.
+
+:::{tip}
+**When to use exact search instead of KNN**
+
+Use [vector similarity functions](/reference/query-languages/esql/functions-operators/dense-vector-functions.md) when:
+- Accuracy is more important than speed.
+- Your dataset is small enough for exhaustive search, or you are applying restrictive filters. 10,000 documents is a good rule of thumb for using exact search, but results depend on your vector [element type](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization) and use of [quantization](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization).
+- You want to provide custom scoring using vector similarity.
+
+To learn more, read this blog: [how to choose between exact and approximate kNN search in {{es}}](https://www.elastic.co/search-labs/blog/knn-exact-vs-approximate-search).
+:::
+
+**Example: Cosine similarity with threshold filtering**
+
+```esql
+FROM cooking_blog
+| EVAL similarity = V_COSINE(recipe_vector, TEXT_EMBEDDING("vegan recipe", "my_embedding_model"))
+| WHERE similarity > 0.8
+| SORT similarity DESC
+| LIMIT 10
+```
+
+This query:
+1. Calculates exact cosine similarity between each document's vector and the query vector (calculated via TEXT_EMBEDDING) using the [V_COSINE function](/reference/query-languages/esql/functions-operators/dense-vector-functions/v_cosine.md)
+2. Filters results to only include results with vector similarity above 0.8
+3. Sorts by similarity (highest first)
+
+**Example: Combining exact vector search with other filters**
+
+```esql
+FROM cooking_blog
+| WHERE category.keyword == "Main Course" AND rating >= 4.5
+| EVAL similarity = V_COSINE(recipe_vector, TEXT_EMBEDDING("vegan recipe", "my_embedding_model"))
+| EVAL combined_score = similarity + (rating / 5.0)
+| SORT combined_score DESC
+| LIMIT 10
+```
+
+This advanced query combines:
+1. Exact filters (category) and range filters (rating)
+2. Exact vector similarity using the [V_COSINE function](/reference/query-languages/esql/functions-operators/dense-vector-functions/v_dot_product.md)
+3. Custom scoring that blends vector similarity with rating
 
 ## Learn more
 

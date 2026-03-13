@@ -59,11 +59,6 @@ public class CommandDocsTests extends ESTestCase {
         }
 
         @Override
-        protected void renderSignature() throws IOException {
-            // Not implemented
-        }
-
-        @Override
         protected void renderDocs() throws IOException {
             // Not implemented
         }

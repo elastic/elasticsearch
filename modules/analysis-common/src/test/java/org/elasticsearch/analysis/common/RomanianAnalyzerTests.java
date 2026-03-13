@@ -32,7 +32,6 @@ public class RomanianAnalyzerTests extends ESTokenStreamTestCase {
 
     public void testRomanianAnalyzerPostLucene10() throws IOException {
         IndexVersion postLucene10Version = IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.UPGRADE_TO_LUCENE_10_0_0,
             IndexVersion.current()
         );
@@ -56,7 +55,6 @@ public class RomanianAnalyzerTests extends ESTokenStreamTestCase {
 
     public void testRomanianAnalyzerPreLucene10() throws IOException {
         IndexVersion preLucene10Version = IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersionUtils.getLowestReadCompatibleVersion(),
             IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
         );

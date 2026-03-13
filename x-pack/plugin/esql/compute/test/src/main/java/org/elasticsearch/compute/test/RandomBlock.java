@@ -19,18 +19,24 @@ import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.TDigestBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 
 /**
  * A block of random values.
@@ -51,6 +57,7 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                 || e == ElementType.NULL
                 || e == ElementType.DOC
                 || e == ElementType.COMPOSITE
+                || e == ElementType.LONG_RANGE
                 || type.contains(e),
             () -> ESTestCase.randomFrom(ElementType.values())
         );
@@ -146,7 +153,7 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                         }
                         case BYTES_REF -> {
                             BytesRef b = bytesRefFromPoints
-                                ? SpatialCoordinateTypes.GEO.asWkb(pointSupplier.get())
+                                ? new BytesRef(WellKnownBinary.toWKB(pointSupplier.get(), ByteOrder.LITTLE_ENDIAN))
                                 : new BytesRef(ESTestCase.randomRealisticUnicodeOfLength(4));
                             valuesAtPosition.add(b);
                             ((BytesRefBlock.Builder) builder).appendBytesRef(b);
@@ -179,6 +186,14 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                             TDigestHolder digest = BlockTestUtils.randomTDigest();
                             b.appendTDigest(digest);
                             valuesAtPosition.add(digest);
+                        }
+                        case LONG_RANGE -> {
+                            var b = (LongRangeBlockBuilder) builder;
+                            var from = randomMillisUpToYear9999();
+                            var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
+                            b.from().appendLong(from);
+                            b.to().appendLong(to);
+                            valuesAtPosition.add(new LongRangeBlockBuilder.LongRange(from, to));
                         }
                         default -> throw new IllegalArgumentException("unsupported element type [" + elementType + "]");
                     }

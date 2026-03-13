@@ -7,28 +7,41 @@
 
 package org.elasticsearch.xpack.inference.services.jinaai.rerank;
 
+import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIModel;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 import org.elasticsearch.xpack.inference.services.jinaai.action.JinaAIActionVisitor;
+import org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-import java.net.URI;
 import java.util.Map;
+import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 
 public class JinaAIRerankModel extends JinaAIModel {
+
+    private static final URIBuilder DEFAULT_URI_BUILDER = new URIBuilder().setScheme("https")
+        .setHost(JinaAIUtils.HOST)
+        .setPathSegments(JinaAIUtils.VERSION_1, JinaAIUtils.RERANK_PATH);
+
     public static JinaAIRerankModel of(JinaAIRerankModel model, Map<String, Object> taskSettings) {
         var requestTaskSettings = JinaAIRerankTaskSettings.fromMap(taskSettings);
+        if (requestTaskSettings.isEmpty() || requestTaskSettings.equals(model.getTaskSettings())) {
+            return model;
+        }
         return new JinaAIRerankModel(model, JinaAIRerankTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
     }
 
     public JinaAIRerankModel(
         String inferenceId,
-        String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
@@ -36,26 +49,36 @@ public class JinaAIRerankModel extends JinaAIModel {
     ) {
         this(
             inferenceId,
-            service,
             JinaAIRerankServiceSettings.fromMap(serviceSettings, context),
             JinaAIRerankTaskSettings.fromMap(taskSettings),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets),
+            null
         );
     }
 
-    // should only be used for testing
-    JinaAIRerankModel(
+    public JinaAIRerankModel(
         String modelId,
-        String service,
         JinaAIRerankServiceSettings serviceSettings,
         JinaAIRerankTaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secretSettings
+        @Nullable DefaultSecretSettings secretSettings,
+        @Nullable String uri
     ) {
         super(
-            new ModelConfigurations(modelId, TaskType.RERANK, service, serviceSettings, taskSettings),
+            new ModelConfigurations(modelId, TaskType.RERANK, JinaAIService.NAME, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
-            serviceSettings.getCommonSettings()
+            serviceSettings.getCommonSettings(),
+            Objects.requireNonNullElse(ServiceUtils.createOptionalUri(uri), buildUri("JinaAI", DEFAULT_URI_BUILDER::build))
+        );
+    }
+
+    public JinaAIRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
+            ((JinaAIRerankServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings(),
+            buildUri("JinaAI", DEFAULT_URI_BUILDER::build)
         );
     }
 
@@ -91,10 +114,5 @@ public class JinaAIRerankModel extends JinaAIModel {
     @Override
     public ExecutableAction accept(JinaAIActionVisitor visitor, Map<String, Object> taskSettings) {
         return visitor.create(this, taskSettings);
-    }
-
-    @Override
-    public URI uri() {
-        return getServiceSettings().getCommonSettings().uri();
     }
 }

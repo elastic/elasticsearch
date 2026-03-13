@@ -38,7 +38,10 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField REASON_FIELD = new ParseField("reason");
     public static final String STARTED_AT_READABLE_FIELD = "shutdown_started";
-    public static final ParseField STARTED_AT_MILLIS_FIELD = new ParseField(STARTED_AT_READABLE_FIELD + "millis");
+    public static final ParseField STARTED_AT_MILLIS_FIELD = new ParseField(
+        STARTED_AT_READABLE_FIELD + "_millis",
+        STARTED_AT_READABLE_FIELD + "millis"
+    );
     public static final ParseField ALLOCATION_DELAY_FIELD = new ParseField("allocation_delay");
     public static final ParseField NODE_SEEN_FIELD = new ParseField("node_seen");
     public static final ParseField TARGET_NODE_NAME_FIELD = new ParseField("target_node_name");

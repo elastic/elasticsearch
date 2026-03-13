@@ -71,7 +71,8 @@ public class EvaluatorImplementer {
         );
         this.processOutputsMultivalued = this.processFunction.hasBlockType;
         boolean anyParameterNotSupportingVectors = this.processFunction.args.stream().anyMatch(a -> a.supportsVectorReadAccess() == false);
-        vectorsUnsupported = processOutputsMultivalued || anyParameterNotSupportingVectors;
+        boolean returnTypeWithoutVectorSupport = vectorType(elementType(this.processFunction.resultDataType(true))) == null;
+        vectorsUnsupported = processOutputsMultivalued || anyParameterNotSupportingVectors || returnTypeWithoutVectorSupport;
         this.allNullsIsNull = allNullsIsNull;
     }
 
@@ -275,13 +276,7 @@ public class EvaluatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("warnings");
         builder.addModifiers(Modifier.PRIVATE).returns(WARNINGS);
         builder.beginControlFlow("if (warnings == null)");
-        builder.addStatement("""
-            this.warnings = Warnings.createWarnings(
-                driverContext.warningsMode(),
-                source.source().getLineNumber(),
-                source.source().getColumnNumber(),
-                source.text()
-            )""");
+        builder.addStatement("this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source)");
         builder.endControlFlow();
         builder.addStatement("return warnings");
         return builder.build();

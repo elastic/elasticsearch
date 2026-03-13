@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
@@ -28,6 +27,8 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
@@ -131,7 +132,7 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
         var analyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(inventory),
                 defaultLookupResolution(),
                 enrichResolution,
@@ -140,7 +141,7 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
             TEST_VERIFIER
         );
 
-        var analyzed = analyzer.analyze(parser.parseQuery(query));
+        var analyzed = analyzer.analyze(TEST_PARSER.parseQuery(query));
         return logicalOptimizer.optimize(analyzed);
     }
 

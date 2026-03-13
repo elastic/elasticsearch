@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCountErrorTests;
 import org.hamcrest.Matcher;
 
@@ -20,6 +21,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -71,7 +73,7 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
         int checked = 0;
         List<TestCaseSupplier> cases = cases();
         Set<List<DataType>> valid = cases.stream().map(TestCaseSupplier::types).collect(Collectors.toSet());
-        List<Set<DataType>> validPerPosition = AbstractFunctionTestCase.validPerPosition(valid);
+        List<Set<DataType>> validPerPosition = validPerPosition(valid);
         Set<List<DataType>> invalidSignatureSamples = new HashSet<>();
         Iterable<List<DataType>> testCandidates = testCandidates(cases, valid)::iterator;
         for (List<DataType> signature : testCandidates) {
@@ -85,6 +87,13 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
                 args.add(randomLiteral(type));
             }
             Expression expression = build(Source.synthetic(sourceForSignature(signature)), args);
+            // Aggs cannot receive NULL typed parameters in its aggregating field since
+            // https://github.com/elastic/elasticsearch/pull/139797,
+            // and until https://github.com/elastic/elasticsearch/issues/100634 is solved.
+            // TODO: This doesn't take into account aggs with multiple aggregating parameters
+            if (expression instanceof AggregateFunction af && af.field().dataType() == DataType.NULL) {
+                continue;
+            }
             assertTrue("expected unresolved " + expression, expression.typeResolved().unresolved());
             assertThat(expression.typeResolved().message(), expectedTypeErrorMatcher(validPerPosition, signature));
             checked++;
@@ -143,6 +152,23 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
         List<DataType> signature,
         AbstractFunctionTestCase.PositionalErrorMessageSupplier expectedTypeSupplier
     ) {
+        return typeErrorMessage(includeOrdinal, validPerPosition, signature, expectedTypeSupplier, () -> {
+            throw new IllegalStateException(
+                "Can't generate error message for these types, you probably need a custom error message function signature =" + signature
+            );
+        });
+    }
+
+    /**
+     * Build the expected error message for an invalid type signature.
+     */
+    protected static String typeErrorMessage(
+        boolean includeOrdinal,
+        List<Set<DataType>> validPerPosition,
+        List<DataType> signature,
+        AbstractFunctionTestCase.PositionalErrorMessageSupplier expectedTypeSupplier,
+        Supplier<String> cantFindError
+    ) {
         int badArgPosition = -1;
         for (int i = 0; i < signature.size(); i++) {
             if (validPerPosition.get(i).contains(signature.get(i)) == false) {
@@ -151,9 +177,7 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
             }
         }
         if (badArgPosition == -1) {
-            throw new IllegalStateException(
-                "Can't generate error message for these types, you probably need a custom error message function signature =" + signature
-            );
+            return cantFindError.get();
         }
         String ordinal = includeOrdinal ? TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT) + " " : "";
         String source = sourceForSignature(signature);
@@ -174,9 +198,7 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
         List<DataType> signature,
         AbstractFunctionTestCase.PositionalErrorMessageSupplier positionalErrorMessageSupplier
     ) {
-        try {
-            return typeErrorMessage(true, validPerPosition, signature, positionalErrorMessageSupplier);
-        } catch (IllegalStateException e) {
+        return typeErrorMessage(true, validPerPosition, signature, positionalErrorMessageSupplier, () -> {
             String source = sourceForSignature(signature);
             // This means all the positional args were okay, so the expected error is from the combination
             if (signature.get(0).equals(DataType.UNSIGNED_LONG)) {
@@ -203,7 +225,20 @@ public abstract class ErrorsForCasesWithoutExamplesTestCase extends ESTestCase {
                 + "] but was ["
                 + signature.get(1).typeName()
                 + "]";
+        });
+    }
 
+    private static List<Set<DataType>> validPerPosition(Set<List<DataType>> valid) {
+        int max = valid.stream().mapToInt(List::size).max().getAsInt();
+        List<Set<DataType>> result = new ArrayList<>(max);
+        for (int i = 0; i < max; i++) {
+            result.add(new HashSet<>());
         }
+        for (List<DataType> signature : valid) {
+            for (int i = 0; i < signature.size(); i++) {
+                result.get(i).add(signature.get(i));
+            }
+        }
+        return result;
     }
 }

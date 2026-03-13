@@ -18,7 +18,8 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ConstantExpressions;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -36,7 +37,6 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -166,14 +166,14 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return switch (PlannerUtils.toElementType(dataType())) {
             case BOOLEAN -> new MvAppendBooleanEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
             case BYTES_REF -> new MvAppendBytesRefEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
             case DOUBLE -> new MvAppendDoubleEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
             case INT -> new MvAppendIntEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
             case LONG -> new MvAppendLongEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
-            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
+            case NULL -> ConstantExpressions.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }
@@ -194,20 +194,6 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             resolveType();
         }
         return dataType;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(field1, field2);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        MvAppend other = (MvAppend) obj;
-        return Objects.equals(other.field1, field1) && Objects.equals(other.field2, field2);
     }
 
     @Evaluator(extraName = "Int")

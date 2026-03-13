@@ -81,7 +81,7 @@ public class ClusterFormationInfoAction extends ActionType<ClusterFormationInfoA
         private final ClusterFormationFailureHelper.ClusterFormationState clusterFormationState;
 
         public Response(StreamInput in) throws IOException {
-            clusterFormationState = new ClusterFormationFailureHelper.ClusterFormationState(in);
+            clusterFormationState = ClusterFormationFailureHelper.ClusterFormationState.readFrom(in);
         }
 
         public Response(ClusterFormationFailureHelper.ClusterFormationState clusterFormationState) {

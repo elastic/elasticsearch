@@ -35,6 +35,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.expression.Foldables.doubleValueOf;
 
@@ -143,7 +144,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
             sourceText(),
             SECOND,
             "numeric except unsigned_long"
-        ).and(isFoldable(percentile, sourceText(), SECOND));
+        ).and(isFoldable(percentile, sourceText(), SECOND)).and(isNotNull(percentile, sourceText(), SECOND));
     }
 
     @Override

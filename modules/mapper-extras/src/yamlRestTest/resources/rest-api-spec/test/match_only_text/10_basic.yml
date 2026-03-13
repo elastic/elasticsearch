@@ -477,7 +477,8 @@ synthetic_source match_only_text as multi-field with ignored keyword as parent:
 
   - match: { "hits.total.value": 1 }
   - match:
-      hits.hits.0._source.foo: [ "Apache", "Apache Lucene powers Elasticsearch", "Apache Lucene" ]
+      # ignore_above uses binary doc values, which are sorted, so we expect the output to be sorted as well
+      hits.hits.0._source.foo: [ "Apache", "Apache Lucene", "Apache Lucene powers Elasticsearch" ]
 
 ---
 synthetic_source match_only_text as multi-field with stored keyword as parent:

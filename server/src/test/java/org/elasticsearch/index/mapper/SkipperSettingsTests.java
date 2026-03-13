@@ -42,7 +42,7 @@ public class SkipperSettingsTests extends ESTestCase {
             assertTrue(indexSettings.useDocValuesSkipper());
         }
         {
-            IndexSettings indexSettings = settings(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT, b -> {
+            IndexSettings indexSettings = settings(IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB, b -> {
                 b.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName());
                 b.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "path");
             });
@@ -50,8 +50,7 @@ public class SkipperSettingsTests extends ESTestCase {
         }
         {
             IndexVersion nonSkipperVersion = IndexVersionUtils.randomPreviousCompatibleVersion(
-                random(),
-                IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT
+                IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB
             );
             IndexSettings indexSettings = settings(nonSkipperVersion, b -> {
                 b.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName());

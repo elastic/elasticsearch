@@ -1,0 +1,5 @@
+pr: 140662
+summary: Adding MV_INTERSECTS function
+area: ES|QL
+type: enhancement
+issues: []

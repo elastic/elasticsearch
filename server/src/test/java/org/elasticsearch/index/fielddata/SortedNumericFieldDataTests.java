@@ -156,4 +156,14 @@ public class SortedNumericFieldDataTests extends AbstractFieldDataImplTestCase {
     public void testSortMultiValuesFields() {
         assumeTrue("Does not apply for Numeric doc values", false);
     }
+
+    @Override
+    protected SortedBinaryDocValues.ValueMode expectedValueModeSingleValueWithMissing() {
+        return SortedBinaryDocValues.ValueMode.SINGLE_VALUED;
+    }
+
+    @Override
+    protected SortedBinaryDocValues.ValueMode expectedValueModeSingleValueAllSet() {
+        return SortedBinaryDocValues.ValueMode.SINGLE_VALUED;
+    }
 }

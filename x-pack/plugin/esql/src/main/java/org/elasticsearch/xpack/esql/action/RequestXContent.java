@@ -210,8 +210,8 @@ final class RequestXContent {
                         while ((p.nextToken()) != XContentParser.Token.END_ARRAY) {
                             ParamValueAndType valueAndDataType = parseSingleParamValue(p, errors);
                             DataType currentType = valueAndDataType.type;
-                            nullValueFound = nullValueFound | (currentType == DataType.NULL);
-                            mixedTypesFound = mixedTypesFound | (arrayType != DataType.NULL && arrayType != currentType);
+                            nullValueFound = nullValueFound || (currentType == DataType.NULL);
+                            mixedTypesFound = mixedTypesFound || (arrayType != DataType.NULL && arrayType != currentType);
                             if (currentType != DataType.NULL) {
                                 arrayType = currentType;
                             }

@@ -117,6 +117,11 @@ public class OffsetSourceFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public OffsetSourceFieldMapper build(MapperBuilderContext context) {
             return new OffsetSourceFieldMapper(
                 leafName(),

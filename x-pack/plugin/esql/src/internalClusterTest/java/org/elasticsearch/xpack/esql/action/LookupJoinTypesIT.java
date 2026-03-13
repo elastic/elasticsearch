@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
@@ -57,6 +56,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -113,7 +113,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
-            EsqlPlugin.class,
+            EsqlPluginWithEnterpriseOrTrialLicense.class,
             MapperExtrasPlugin.class,
             VersionFieldPlugin.class,
             UnsignedLongMapperPlugin.class,
@@ -251,6 +251,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                         || type == AGGREGATE_METRIC_DOUBLE  // need special handling for loads at the moment
                         || type == DENSE_VECTOR  // need special handling for loads at the moment
                         || type == EXPONENTIAL_HISTOGRAM
+                        || type == DATE_RANGE // need special handling for loads at the moment
                         || type == TDIGEST
                         || type == HISTOGRAM
                         || type == GEOHASH

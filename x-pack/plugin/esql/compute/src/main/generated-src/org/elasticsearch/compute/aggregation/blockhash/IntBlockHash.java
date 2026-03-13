@@ -7,22 +7,34 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+// begin generated imports
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.common.util.LongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.core.ReleasableIterator;
-
 import java.util.BitSet;
+// end generated imports
 
 /**
  * Maps a {@link IntBlock} column to group ids.
@@ -30,7 +42,7 @@ import java.util.BitSet;
  */
 final class IntBlockHash extends BlockHash {
     private final int channel;
-    final LongHash hash;
+    final LongHashTable hash;
 
     /**
      * Have we seen any {@code null} values?
@@ -44,7 +56,7 @@ final class IntBlockHash extends BlockHash {
     IntBlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
-        this.hash = new LongHash(1, blockFactory.bigArrays());
+        this.hash = HashImplFactory.newLongHash(blockFactory);
     }
 
     @Override
@@ -156,7 +168,16 @@ final class IntBlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1), blockFactory);
+        return blockFactory.newIntRangeVector(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1));
+    }
+
+    @Override
+    public int numKeys() {
+        if (seenNull) {
+            return Math.toIntExact(hash.size() + 1);
+        } else {
+            return Math.toIntExact(hash.size());
+        }
     }
 
     @Override

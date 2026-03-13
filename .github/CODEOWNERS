@@ -99,3 +99,28 @@ server/src/main/java/org/elasticsearch/common/xcontent @elastic/es-core-infra
 # Security
 x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/security/authz/privilege @elastic/es-security
 x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/security/authz/store/ReservedRolesStore.java @elastic/es-security
+
+# Docs team
+docs/README.md @elastic/core-docs
+docs/Versions.asciidoc @elastic/core-docs
+docs/*.yml @elastic/core-docs
+docs/community-clients @elastic/core-docs
+docs/release-notes @elastic/core-docs
+docs/extend @elastic/admin-docs
+docs/java-rest @elastic/developer-docs
+docs/reference @elastic/core-docs
+docs/reference/aggregations @elastic/developer-docs
+docs/reference/community-contributed @elastic/developer-docs
+docs/reference/elasticsearch/command-line-tools @elastic/admin-docs
+docs/reference/elasticsearch/index-lifecycle-actions @elastic/developer-docs
+docs/reference/elasticsearch/mapping-reference @elastic/developer-docs
+docs/reference/elasticsearch/rest-apis @elastic/developer-docs
+docs/reference/elasticsearch/elasticsearch-audit-events.md @elastic/admin-docs
+docs/reference/elasticsearch/jvm-settings.md @elastic/admin-docs
+docs/reference/elasticsearch/roles.md @elastic/admin-docs
+docs/reference/enrich-processor @elastic/admin-docs
+docs/reference/query-languages @elastic/developer-docs
+docs/reference/scripting-languages @elastic/admin-docs
+docs/reference/search-connectors @elastic/developer-docs
+docs/reference/setup/install/docker @elastic/admin-docs
+docs/reference/text-analysis @elastic/developer-docs

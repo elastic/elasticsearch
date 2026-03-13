@@ -274,7 +274,10 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             List<NameValue> nameValues = decode(value);
             List<MappedNameValue> mappedValues = new ArrayList<>(nameValues.size());
             for (var nameValue : nameValues) {
-                mappedValues.add(nameValueToMapped(nameValue));
+                MappedNameValue mappedNameValue = nameValueToMapped(nameValue);
+                if (mappedNameValue != null) {
+                    mappedValues.add(mappedNameValue);
+                }
             }
             return mappedValues;
         }
@@ -351,6 +354,9 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             public BytesRef filterValue(BytesRef value, Function<Map<String, Object>, Map<String, Object>> filter) throws IOException {
                 // for _ignored_source, parse, filter out the field and its contents, and serialize back downstream
                 IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = LegacyIgnoredSourceEncoding.decodeAsMap(value);
+                if (mappedNameValue == null) {
+                    return null;
+                }
                 Map<String, Object> transformedField = filter.apply(mappedNameValue.map());
                 if (transformedField.isEmpty()) {
                     // All values were filtered
@@ -554,6 +560,9 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     }
 
     private static MappedNameValue nameValueToMapped(NameValue nameValue) throws IOException {
+        if (nameValue.hasValue() == false) {
+            return null;
+        }
         XContentBuilder xContentBuilder = XContentBuilder.builder(XContentDataHelper.getXContentType(nameValue.value()).xContent());
         xContentBuilder.startObject().field(nameValue.name());
         XContentDataHelper.decodeAndWrite(xContentBuilder, nameValue.value());

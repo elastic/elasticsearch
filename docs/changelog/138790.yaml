@@ -1,0 +1,5 @@
+pr: 138790
+summary: Simple thread local store metric capture
+area: Store
+type: enhancement
+issues: []

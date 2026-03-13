@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -29,7 +30,7 @@ import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServic
  * Defines the task settings for the VoyageAI rerank service.
  *
  */
-public class VoyageAIRerankTaskSettings implements TaskSettings {
+public class VoyageAIRerankTaskSettings implements TaskSettings, TopNProvider {
 
     public static final String NAME = "voyageai_rerank_task_settings";
     public static final String RETURN_DOCUMENTS = "return_documents";
@@ -169,6 +170,11 @@ public class VoyageAIRerankTaskSettings implements TaskSettings {
 
     public Integer getTopKDocumentsOnly() {
         return topKDocumentsOnly;
+    }
+
+    @Override
+    public Integer getTopN() {
+        return getTopKDocumentsOnly();
     }
 
     public Boolean getDoesReturnDocuments() {

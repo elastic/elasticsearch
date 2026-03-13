@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -56,12 +57,21 @@ public class MetadataMappingService {
         Setting.Property.NodeScope
     );
 
+    // Deliberately not registered so it can only be set in tests/plugins.
+    public static final Setting<TimeValue> PUT_MAPPING_MAX_TIMEOUT_SETTING = Setting.timeSetting(
+        "cluster.service.put_mapping.max_timeout",
+        TimeValue.MINUS_ONE,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private static final Logger logger = LogManager.getLogger(MetadataMappingService.class);
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
 
     private final MasterServiceTaskQueue<PutMappingClusterStateUpdateTask> taskQueue;
+    private volatile TimeValue maxMasterNodeTimeout;
 
     @Inject
     public MetadataMappingService(
@@ -76,6 +86,13 @@ public class MetadataMappingService {
             PUT_MAPPING_PRIORITY_SETTING.get(clusterService.getSettings()),
             new PutMappingExecutor(indexSettingProviders)
         );
+
+        if (clusterService.getClusterSettings().isDynamicSetting(PUT_MAPPING_MAX_TIMEOUT_SETTING.getKey())) {
+            // setting only registered in some tests today
+            clusterService.getClusterSettings().initializeAndWatch(PUT_MAPPING_MAX_TIMEOUT_SETTING, v -> maxMasterNodeTimeout = v);
+        } else {
+            maxMasterNodeTimeout = PUT_MAPPING_MAX_TIMEOUT_SETTING.get(clusterService.getSettings());
+        }
     }
 
     record PutMappingClusterStateUpdateTask(PutMappingClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)
@@ -262,7 +279,7 @@ public class MetadataMappingService {
         taskQueue.submitTask(
             "put-mapping " + Strings.arrayToCommaDelimitedString(request.indices()),
             new PutMappingClusterStateUpdateTask(request, listener),
-            request.masterNodeTimeout()
+            MasterService.maybeLimitMasterNodeTimeout(request.masterNodeTimeout(), maxMasterNodeTimeout)
         );
     }
 

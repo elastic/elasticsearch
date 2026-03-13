@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.qa.single_node;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -31,6 +32,7 @@ abstract class AbstractEsqlClientYamlIT extends ESClientYamlSuiteTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
+        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
         .build();
 
     @Override

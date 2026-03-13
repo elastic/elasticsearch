@@ -8,12 +8,14 @@
 package org.elasticsearch.compute.test;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BreakingTDigestHolder;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocBlock;
@@ -25,9 +27,12 @@ import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongRangeBlock;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestBlock;
+import org.elasticsearch.compute.data.TDigestBlockBuilder;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -35,11 +40,11 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
 import org.elasticsearch.tdigest.Centroid;
+import org.elasticsearch.tdigest.TDigest;
 import org.hamcrest.Matcher;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -48,9 +53,9 @@ import java.util.Map;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.test.ESTestCase.between;
-import static org.elasticsearch.test.ESTestCase.fail;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
 import static org.elasticsearch.test.ESTestCase.randomFloat;
@@ -58,6 +63,8 @@ import static org.elasticsearch.test.ESTestCase.randomGaussianDouble;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLong;
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
 import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfCodepointLengthBetween;
 import static org.hamcrest.Matchers.equalTo;
@@ -81,6 +88,11 @@ public class BlockTestUtils {
                 randomDouble(),
                 randomNonNegativeInt()
             );
+            case LONG_RANGE -> {
+                var from = randomMillisUpToYear9999();
+                var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
+                yield new LongRangeBlockBuilder.LongRange(from, to);
+            }
             case DOC -> new BlockUtils.Doc(
                 randomIntBetween(0, 255), // Shard ID should be small and non-negative.
                 randomInt(),
@@ -223,6 +235,20 @@ public class BlockTestUtils {
                 return;
             }
         }
+        if (builder instanceof LongRangeBlockBuilder b) {
+            if (value instanceof LongRangeBlockBuilder.LongRange v) {
+                b.appendLongRange(v);
+                return;
+            }
+            if (value instanceof List<?> l) {
+                switch (l.size()) {
+                    case 0 -> b.appendNull();
+                    case 1 -> b.appendLongRange((LongRangeBlockBuilder.LongRange) l.get(0));
+                    default -> throw new IllegalArgumentException("LONG_RANGE does not support multi-valued positions");
+                }
+                return;
+            }
+        }
         if (builder instanceof AggregateMetricDoubleBlockBuilder b
             && value instanceof AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral aggMetric) {
             b.min().appendDouble(aggMetric.min());
@@ -237,6 +263,10 @@ public class BlockTestUtils {
         }
         if (builder instanceof ExponentialHistogramBlockBuilder b && value instanceof ExponentialHistogram histogram) {
             b.append(histogram);
+            return;
+        }
+        if (builder instanceof TDigestBlockBuilder b && value instanceof TDigestHolder histogram) {
+            b.appendTDigest(histogram);
             return;
         }
         if (value instanceof List<?> l && l.isEmpty()) {
@@ -293,48 +323,73 @@ public class BlockTestUtils {
         return pages.stream().map(page -> deepCopyOf(page, blockFactory)).toList();
     }
 
-    public static List<List<Object>> valuesAtPositions(Block block, int from, int to) {
-        List<List<Object>> result = new ArrayList<>(to - from);
-        for (int p = from; p < to; p++) {
-            if (block.isNull(p)) {
-                result.add(null);
-                continue;
-            }
-            int count = block.getValueCount(p);
-            List<Object> positionValues = new ArrayList<>(count);
-            int i = block.getFirstValueIndex(p);
-            for (int v = 0; v < count; v++) {
-                positionValues.add(switch (block.elementType()) {
-                    case INT -> ((IntBlock) block).getInt(i++);
-                    case LONG -> ((LongBlock) block).getLong(i++);
-                    case FLOAT -> ((FloatBlock) block).getFloat(i++);
-                    case DOUBLE -> ((DoubleBlock) block).getDouble(i++);
-                    case BYTES_REF -> ((BytesRefBlock) block).getBytesRef(i++, new BytesRef());
-                    case BOOLEAN -> ((BooleanBlock) block).getBoolean(i++);
-                    case AGGREGATE_METRIC_DOUBLE -> {
-                        AggregateMetricDoubleBlock b = (AggregateMetricDoubleBlock) block;
-                        AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral literal =
-                            new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
-                                b.minBlock().getDouble(i),
-                                b.maxBlock().getDouble(i),
-                                b.sumBlock().getDouble(i),
-                                b.countBlock().getInt(i)
-                            );
-                        i += 1;
-                        yield literal;
+    public static <T> List<List<T>> valuesAtPositions(Block block, int from, int to) {
+        return valuesAtPositions(block, from, to, false);
+    }
 
-                    }
-                    case EXPONENTIAL_HISTOGRAM -> ((ExponentialHistogramBlock) block).getExponentialHistogram(
-                        i++,
-                        new ExponentialHistogramScratch()
-                    );
-                    case TDIGEST -> ((TDigestBlock) block).getTDigestHolder(i++);
-                    default -> throw new IllegalArgumentException("unsupported element type [" + block.elementType() + "]");
-                });
-            }
+    public static <T> List<List<T>> valuesAtPositions(Block block, int from, int to, boolean emptyIfNull) {
+        List<List<T>> result = new ArrayList<>(to - from);
+        for (int p = from; p < to; p++) {
+            List<T> positionValues = valuesAtPosition(block, p, emptyIfNull);
             result.add(positionValues);
         }
         return result;
+    }
+
+    /**
+     * Extracts values from a block at a particular position.
+     *
+     * @param block The block to extract the values from
+     * @param position The position at which to extract values
+     * @param emptyIfNull Whether to return an empty list if there are no values at the position
+     *
+     * @return List of values
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> List<T> valuesAtPosition(Block block, int position, boolean emptyIfNull) {
+        if (block.isNull(position)) {
+            return emptyIfNull ? new ArrayList<>() : null;
+        }
+
+        int count = block.getValueCount(position);
+        List<Object> positionValues = new ArrayList<>(count);
+        int i = block.getFirstValueIndex(position);
+        for (int v = 0; v < count; v++) {
+            positionValues.add(switch (block.elementType()) {
+                case INT -> ((IntBlock) block).getInt(i++);
+                case LONG -> ((LongBlock) block).getLong(i++);
+                case FLOAT -> ((FloatBlock) block).getFloat(i++);
+                case DOUBLE -> ((DoubleBlock) block).getDouble(i++);
+                case BYTES_REF -> ((BytesRefBlock) block).getBytesRef(i++, new BytesRef());
+                case BOOLEAN -> ((BooleanBlock) block).getBoolean(i++);
+                case AGGREGATE_METRIC_DOUBLE -> {
+                    AggregateMetricDoubleBlock b = (AggregateMetricDoubleBlock) block;
+                    AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral literal =
+                        new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                            b.minBlock().getDouble(i),
+                            b.maxBlock().getDouble(i),
+                            b.sumBlock().getDouble(i),
+                            b.countBlock().getInt(i)
+                        );
+                    i += 1;
+                    yield literal;
+                }
+                case LONG_RANGE -> {
+                    var b = (LongRangeBlock) block;
+                    var lit = new LongRangeBlockBuilder.LongRange(b.getFromBlock().getLong(i), b.getToBlock().getLong(i));
+                    i++;
+                    yield lit;
+                }
+                case EXPONENTIAL_HISTOGRAM -> ((ExponentialHistogramBlock) block).getExponentialHistogram(
+                    i++,
+                    new ExponentialHistogramScratch()
+                );
+                case TDIGEST -> ((TDigestBlock) block).getTDigestHolder(i++, new TDigestHolder());
+                default -> throw new IllegalArgumentException("unsupported element type [" + block.elementType() + "]");
+            });
+        }
+
+        return (List<T>) positionValues;
     }
 
     /**
@@ -426,34 +481,29 @@ public class BlockTestUtils {
     public static TDigestHolder randomTDigest() {
         // TODO: This is mostly copied from TDigestFieldMapperTests and EsqlTestUtils; refactor it.
         int size = between(1, 100);
-        // Note - we use TDigestState to build an actual t-digest for realistic values here
-        TDigestState digest = TDigestState.createWithoutCircuitBreaking(100);
+        NoopCircuitBreaker noopBreaker = new NoopCircuitBreaker("test-breaker");
+        TDigest digest = TDigest.createMergingDigest(new MemoryTrackingTDigestArrays(noopBreaker), 100);
         for (int i = 0; i < size; i++) {
             double sample = randomGaussianDouble();
             int count = randomIntBetween(1, Integer.MAX_VALUE);
             digest.add(sample, count);
         }
-        List<Double> centroids = new ArrayList<>();
-        List<Long> counts = new ArrayList<>();
         double sum = 0.0;
-        long valueCount = 0L;
         for (Centroid c : digest.centroids()) {
-            centroids.add(c.mean());
-            counts.add(c.count());
             sum += c.mean() * c.count();
-            valueCount += c.count();
         }
-        double min = digest.getMin();
-        double max = digest.getMax();
+        BreakingTDigestHolder digestHolder = BreakingTDigestHolder.create(noopBreaker);
+        digestHolder.set(digest, sum, digest.getMin(), digest.getMax());
+        return digestHolder.accessor();
+    }
 
-        TDigestHolder returnValue = null;
-        try {
-            returnValue = new TDigestHolder(centroids, counts, min, max, sum, valueCount);
-        } catch (IOException e) {
-            // This is a test util, so we're just going to fail the test here
-            fail(e);
+    public static Block asBlock(BlockFactory blockFactory, ElementType elementType, List<Object> values) {
+        try (var wrapper = BlockUtils.wrapperFor(blockFactory, elementType, values.size())) {
+            for (Object value : values) {
+                wrapper.accept(value);
+            }
+            return wrapper.builder().build();
         }
-        return returnValue;
     }
 
     private static int dedupe(Map<BytesRef, Integer> dedupe, BytesRefVector.Builder bytes, BytesRef v) {

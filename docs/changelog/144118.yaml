@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 143351
+pr: 144118
+summary: Fix Decay cast to Double to be a cast to Number instead
+type: bug

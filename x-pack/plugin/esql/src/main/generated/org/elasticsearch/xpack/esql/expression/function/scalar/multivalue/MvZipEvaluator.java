@@ -12,34 +12,33 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvZip}.
+ * {@link ExpressionEvaluator} implementation for {@link MvZip}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class MvZipEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class MvZipEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvZipEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator leftField;
+  private final ExpressionEvaluator leftField;
 
-  private final EvalOperator.ExpressionEvaluator rightField;
+  private final ExpressionEvaluator rightField;
 
-  private final EvalOperator.ExpressionEvaluator delim;
+  private final ExpressionEvaluator delim;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public MvZipEvaluator(Source source, EvalOperator.ExpressionEvaluator leftField,
-      EvalOperator.ExpressionEvaluator rightField, EvalOperator.ExpressionEvaluator delim,
-      DriverContext driverContext) {
+  public MvZipEvaluator(Source source, ExpressionEvaluator leftField,
+      ExpressionEvaluator rightField, ExpressionEvaluator delim, DriverContext driverContext) {
     this.source = source;
     this.leftField = leftField;
     this.rightField = rightField;
@@ -113,28 +112,22 @@ public final class MvZipEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory leftField;
+    private final ExpressionEvaluator.Factory leftField;
 
-    private final EvalOperator.ExpressionEvaluator.Factory rightField;
+    private final ExpressionEvaluator.Factory rightField;
 
-    private final EvalOperator.ExpressionEvaluator.Factory delim;
+    private final ExpressionEvaluator.Factory delim;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory leftField,
-        EvalOperator.ExpressionEvaluator.Factory rightField,
-        EvalOperator.ExpressionEvaluator.Factory delim) {
+    public Factory(Source source, ExpressionEvaluator.Factory leftField,
+        ExpressionEvaluator.Factory rightField, ExpressionEvaluator.Factory delim) {
       this.source = source;
       this.leftField = leftField;
       this.rightField = rightField;

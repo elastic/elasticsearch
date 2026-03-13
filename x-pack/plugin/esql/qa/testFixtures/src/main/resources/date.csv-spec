@@ -432,6 +432,15 @@ b:datetime
 null
 ;
 
+evalDateParseInvalidDate
+required_capability: date_time_exceptions_handled
+row a = "2026-02-29 foo" | eval b = date_parse("yyyy-MM-dd", a) | keep b;
+warning:Line 1:37: evaluation of [date_parse(\"yyyy-MM-dd\", a)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:37: java.lang.IllegalArgumentException: failed to parse date field [2026-02-29 foo] with format [yyyy-MM-dd]
+b:datetime
+null
+;
+
 evalDateParseNotMatching
 row a = "2023-02-01" | eval b = date_parse("yyyy-MM", a) | keep b;
 warning:Line 1:33: evaluation of [date_parse(\"yyyy-MM\", a)] failed, treating result as null. Only first 20 failures recorded.
@@ -1058,7 +1067,7 @@ date:date                 | year:long
 ;
 
 dateExtractSetTimezoneFrom
-required_capability: global_timezone_parameter
+required_capability: global_timezone_parameter_with_output
 
 set time_zone="+07:00"\;
 from employees
@@ -1073,7 +1082,7 @@ emp_no:integer | hire_date:date           | hour:long
 ;
 
 dateExtractSetTimezoneRow
-required_capability: global_timezone_parameter
+required_capability: global_timezone_parameter_with_output
 
 set time_zone="+07:00"\;
 ROW hire_date = "2020-02-28T23:00:00.000Z"::date
@@ -1337,6 +1346,21 @@ a:datetime
 null
 ;
 
+dateMathWithTimezonesRow
+required_capability: add_sub_operator_timezone_support
+
+set time_zone="America/New_York"\;
+row
+  date_add = "2025-03-09T01:02:03.123-05:00" + 1d,
+  date_sub = "2025-03-10T01:02:03.123-04:00" - 1d,
+  nanos_add = "2025-03-09T01:02:03.123000001-05:00"::date_nanos + 1d,
+  nanos_sub = "2025-03-10T01:02:03.123000001-04:00"::date_nanos - 1d
+;
+
+date_add:datetime        | date_sub:datetime        | nanos_add:date_nanos           | nanos_sub:date_nanos
+2025-03-10T05:02:03.123Z | 2025-03-09T06:02:03.123Z | 2025-03-10T05:02:03.123000001Z | 2025-03-09T06:02:03.123000001Z
+;
+
 ImplicitCastingEqual
 required_capability: rangequery_for_datetime
 from employees
@@ -1431,6 +1455,33 @@ FROM employees
 | KEEP result;
 
 result:boolean
+null
+;
+
+evalInvalidDate
+required_capability: date_time_exceptions_handled
+ROW x = ["2026-04-31"]::DATE | KEEP x;
+warning:Line 1:9: evaluation of [[\"2026-04-31\"]::DATE] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.IllegalArgumentException: Invalid date 'APRIL 31'
+x:datetime
+null
+;
+
+evalInvalidDateNanos
+required_capability: date_time_exceptions_handled
+ROW x = ["2026-04-31"]::DATE_NANOS | KEEP x;
+warning:Line 1:9: evaluation of [[\"2026-04-31\"]::DATE_NANOS] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.IllegalArgumentException: Invalid date 'APRIL 31'
+x:date_nanos
+null
+;
+
+evalInvalidDateTime
+required_capability: date_time_exceptions_handled
+ROW x = ["2026-04-31"]::DATETIME | KEEP x;
+warning:Line 1:9: evaluation of [[\"2026-04-31\"]::DATETIME] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:9: java.lang.IllegalArgumentException: Invalid date 'APRIL 31'
+x:datetime
 null
 ;
 
@@ -1529,7 +1580,7 @@ emp_no:integer | birth_date:date                     | hire_date:date           
 ;
 
 dayNameSetTimezoneRow
-required_capability: global_timezone_parameter
+required_capability: global_timezone_parameter_with_output
 
 set time_zone="-02:00"\;
 row dt = to_datetime("1953-09-02T00:00:00.000Z")
@@ -1540,7 +1591,7 @@ dt:date   | weekday:keyword
 ;
 
 dayNameSetTimezoneFrom
-required_capability: global_timezone_parameter
+required_capability: global_timezone_parameter_with_output
 
 set time_zone="-02:00"\;
 from employees
@@ -1651,7 +1702,7 @@ emp_no:integer | birth_date:date                     | hire_date:date           
 ;
 
 monthNameSetTimezoneRow
-required_capability: global_timezone_parameter
+required_capability: global_timezone_parameter_with_output
 
 set time_zone="Europe/Paris"\;
 row dt = to_datetime("1996-01-31T23:00:00.000Z")
@@ -1662,7 +1713,7 @@ dt:date                  | monthName:keyword
 ;
 
 monthNameSetTimezoneFrom
-required_capability: global_timezone_parameter
+required_capability: global_timezone_parameter_with_output
 
 set time_zone="-10:00"\;
 from employees 
@@ -1673,4 +1724,49 @@ from employees
 
 emp_no:integer | hire_date:date             | monthName:keyword
 10004          | 1986-12-01T00:00:00.000Z   | November
+;
+
+dateRange
+required_capability: date_range_field_type
+FROM decades
+| SORT decade;
+
+date_range:date_range  | decade:integer | description:keyword
+1900-01-01..1910-01-01 | 1900           | Edwardian Era
+1910-01-01..1920-01-01 | 1910           | Ragtime Era
+1920-01-01..1930-01-01 | 1920           | Roaring Twenties
+1930-01-01..1940-01-01 | 1930           | Dirty Thirties
+1940-01-01..1950-01-01 | 1940           | Fabulous Forties
+1950-01-01..1960-01-01 | 1950           | Nifty Fifties
+1960-01-01..1970-01-01 | 1960           | Swinging Sixties
+1970-01-01..1980-01-01 | 1970           | Groovy Seventies
+1980-01-01..1990-01-01 | 1980           | Radical Eighties
+1990-01-01..2000-01-01 | 1990           | Nineties Nostalgia
+2000-01-01..2010-01-01 | 2000           | Innovation Explosion Decade
+2010-01-01..2020-01-01 | 2010           | Renaissance Decade
+2020-01-01..2030-01-01 | 2020           | Empowerment Era
+;
+
+dateRangeIdentity
+required_capability: date_range_field_type
+
+FROM decades
+| WHERE decade == 1900
+| EVAL range = TO_DATE_RANGE(date_range)
+;
+
+date_range:date_range  | decade:integer | description:keyword | range:date_range
+1900-01-01..1910-01-01 | 1900           | Edwardian Era       | 1900-01-01..1910-01-01
+;
+
+dateRangeToString
+required_capability: date_range_field_type
+
+FROM decades
+| WHERE decade == 1900
+| EVAL range = TO_STRING(date_range)
+;
+
+date_range:date_range  | decade:integer | description:keyword | range:keyword
+1900-01-01..1910-01-01 | 1900           | Edwardian Era       | 1900-01-01T00:00:00.000Z..1909-12-31T23:59:59.999Z
 ;

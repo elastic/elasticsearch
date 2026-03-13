@@ -16,13 +16,14 @@ import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
@@ -257,7 +258,7 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testTwoQueriesExecuted() {
-        Metrics metrics = new Metrics(new EsqlFunctionRegistry());
+        Metrics metrics = new Metrics(TEST_FUNCTION_REGISTRY, true, true);
         Verifier verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         esqlWithVerifier("""
                from employees
@@ -310,7 +311,7 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testMultipleFunctions() {
-        Metrics metrics = new Metrics(new EsqlFunctionRegistry());
+        Metrics metrics = new Metrics(TEST_FUNCTION_REGISTRY, true, true);
         Verifier verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         esqlWithVerifier("""
                from employees
@@ -343,7 +344,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1, function("max", c));
         assertEquals(1, function("min", c));
 
-        EsqlFunctionRegistry fr = new EsqlFunctionRegistry().snapshotRegistry();
+        EsqlFunctionRegistry fr = TEST_FUNCTION_REGISTRY.snapshotRegistry();
         Map<Class<?>, String> functions = new HashMap<>();
         for (FunctionDefinition func : fr.listFunctions()) {
             if (functions.containsKey(func.clazz()) == false) {
@@ -723,8 +724,8 @@ public class VerifierMetricsTests extends ESTestCase {
     public void testTimeSeriesAggregate() {
         assumeTrue("TS required", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
         Counters c = esql("""
-            TS metrics
-            | STATS sum(avg_over_time(salary))""");
+            TS k8s
+            | STATS sum(avg_over_time(network.cost))""");
         assertEquals(0, dissect(c));
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
@@ -812,11 +813,9 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, function("min", c));
     }
 
-    @AwaitsFix(bugUrl = "unresolved @timestamp field")
     public void testPromql() {
-        assumeTrue("PromQL required", EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V7.isEnabled());
         Counters c = esql("""
-            PROMQL metrics step 5m (sum(salary))""");
+            PROMQL index=k8s step=5m sum(network.cost)""");
         assertEquals(0, dissect(c));
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
@@ -949,12 +948,13 @@ public class VerifierMetricsTests extends ESTestCase {
         Verifier verifier = v;
         Metrics metrics = null;
         if (v == null) {
-            metrics = new Metrics(new EsqlFunctionRegistry());
+            metrics = new Metrics(TEST_FUNCTION_REGISTRY, true, true);
             verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         }
         IndexResolution metricsIndex = loadMapping("mapping-basic.json", "metrics", IndexMode.TIME_SERIES);
+        IndexResolution k8sIndex = loadMapping("k8s-mappings.json", "k8s", IndexMode.TIME_SERIES);
         IndexResolution employees = loadMapping("mapping-basic.json", "employees");
-        analyzer(indexResolutions(metricsIndex, employees), verifier).analyze(EsqlParser.INSTANCE.parseQuery(esql));
+        analyzer(indexResolutions(metricsIndex, k8sIndex, employees), verifier).analyze(TEST_PARSER.parseQuery(esql));
 
         return metrics == null ? null : metrics.stats();
     }

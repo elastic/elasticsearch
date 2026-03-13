@@ -56,8 +56,8 @@ public class VersionTests extends ESTestCase {
     public void testMin() {
         assertEquals(VersionUtils.getPreviousVersion(), Version.min(Version.CURRENT, VersionUtils.getPreviousVersion()));
         assertEquals(Version.fromString("1.0.1"), Version.min(Version.fromString("1.0.1"), Version.CURRENT));
-        Version version = VersionUtils.randomVersion(random());
-        Version version1 = VersionUtils.randomVersion(random());
+        Version version = randomVersion();
+        Version version1 = randomVersion();
         if (version.id <= version1.id) {
             assertEquals(version, Version.min(version1, version));
         } else {
@@ -68,8 +68,8 @@ public class VersionTests extends ESTestCase {
     public void testMax() {
         assertEquals(Version.CURRENT, Version.max(Version.CURRENT, VersionUtils.getPreviousVersion()));
         assertEquals(Version.CURRENT, Version.max(Version.fromString("1.0.1"), Version.CURRENT));
-        Version version = VersionUtils.randomVersion(random());
-        Version version1 = VersionUtils.randomVersion(random());
+        Version version = randomVersion();
+        Version version1 = randomVersion();
         if (version.id >= version1.id) {
             assertEquals(version, Version.max(version1, version));
         } else {
@@ -81,7 +81,7 @@ public class VersionTests extends ESTestCase {
         assertThat(Version.CURRENT, sameInstance(Version.fromId(Version.CURRENT.id)));
         final int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
-            Version version = randomVersion(random());
+            Version version = randomVersion();
             assertThat(version, sameInstance(Version.fromId(version.id)));
         }
     }
@@ -89,7 +89,7 @@ public class VersionTests extends ESTestCase {
     public void testCURRENTIsLatest() {
         final int iters = scaledRandomIntBetween(100, 1000);
         for (int i = 0; i < iters; i++) {
-            Version version = randomVersion(random());
+            Version version = randomVersion();
             if (version != Version.CURRENT) {
                 assertThat(
                     "Version: " + version + " should be before: " + Version.CURRENT + " but wasn't",
@@ -103,7 +103,7 @@ public class VersionTests extends ESTestCase {
     public void testVersionFromString() {
         final int iters = scaledRandomIntBetween(100, 1000);
         for (int i = 0; i < iters; i++) {
-            Version version = randomVersion(random());
+            Version version = randomVersion();
             assertThat(Version.fromString(version.toString()), sameInstance(version));
         }
     }
@@ -162,7 +162,7 @@ public class VersionTests extends ESTestCase {
     public void testParseVersion() {
         final int iters = scaledRandomIntBetween(100, 1000);
         for (int i = 0; i < iters; i++) {
-            Version version = randomVersion(random());
+            Version version = randomVersion();
             if (random().nextBoolean()) {
                 version = new Version(version.id);
             }
@@ -239,8 +239,8 @@ public class VersionTests extends ESTestCase {
         assertFalse(isCompatible(Version.fromId(5000099), Version.fromString("6.0.0")));
         assertFalse(isCompatible(Version.fromId(5000099), Version.fromString("7.0.0")));
 
-        Version a = randomVersion(random());
-        Version b = randomVersion(random());
+        Version a = randomVersion();
+        Version b = randomVersion();
         assertThat(a.isCompatible(b), equalTo(b.isCompatible(a)));
     }
 

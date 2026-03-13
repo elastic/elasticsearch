@@ -41,7 +41,6 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
@@ -60,6 +59,9 @@ public class HdfsFixture extends ExternalResource {
     private static final Logger LOGGER = LoggerFactory.getLogger(HdfsFixture.class);
     private static final Object STATIC_CONFIG_LOCK = new Object();
 
+    private static final String ES_USER_PATH = "/user/elasticsearch";
+    private static final String EXISTING_READONLY_REPO = "readonly-repository";
+
     private TemporaryFolder temporaryFolder = new TemporaryFolder();
     private MiniDFSCluster dfs;
     private String haNameService;
@@ -68,7 +70,6 @@ public class HdfsFixture extends ExternalResource {
     private Configuration cfg;
 
     private Configuration haConfiguration;
-    private int explicitPort = findAvailablePort();
 
     public HdfsFixture withHAService(String haNameService) {
         this.haNameService = haNameService;
@@ -285,7 +286,7 @@ public class HdfsFixture extends ExternalResource {
         UserGroupInformation.setConfiguration(cfg);
 
         MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(cfg);
-        builder.nameNodePort(explicitPort);
+        builder.nameNodePort(0);
         // Explicitly enable formatting and directory management for clean test environment
         builder.format(true);
         builder.manageNameDfsDirs(true);
@@ -299,7 +300,7 @@ public class HdfsFixture extends ExternalResource {
         dfs = builder.build();
         // dfs.waitClusterUp();
         // Configure contents of the filesystem
-        org.apache.hadoop.fs.Path esUserPath = new org.apache.hadoop.fs.Path("/user/elasticsearch");
+        org.apache.hadoop.fs.Path esUserPath = new org.apache.hadoop.fs.Path(ES_USER_PATH);
         FileSystem fs;
         if (isHA()) {
             dfs.transitionToActive(0);
@@ -318,8 +319,7 @@ public class HdfsFixture extends ExternalResource {
             }
 
             // Install a pre-existing repository into HDFS
-            String directoryName = "readonly-repository";
-            String archiveName = directoryName + ".tar.gz";
+            final String archiveName = EXISTING_READONLY_REPO + ".tar.gz";
             URL readOnlyRepositoryArchiveURL = getClass().getClassLoader().getResource(archiveName);
             if (readOnlyRepositoryArchiveURL != null) {
                 Path tempDirectory = Files.createTempDirectory(getClass().getName());
@@ -330,8 +330,8 @@ public class HdfsFixture extends ExternalResource {
                 fs.copyFromLocalFile(
                     true,
                     true,
-                    new org.apache.hadoop.fs.Path(tempDirectory.resolve(directoryName).toAbsolutePath().toUri()),
-                    esUserPath.suffix("/existing/" + directoryName)
+                    new org.apache.hadoop.fs.Path(tempDirectory.resolve(EXISTING_READONLY_REPO).toAbsolutePath().toUri()),
+                    esUserPath.suffix("/existing/" + EXISTING_READONLY_REPO)
                 );
 
                 FileUtils.deleteDirectory(tempDirectory.toFile());
@@ -339,6 +339,10 @@ public class HdfsFixture extends ExternalResource {
         } finally {
             fs.close();
         }
+    }
+
+    public String getExistingReadonlyRepoPath() {
+        return ES_USER_PATH + "/existing/" + EXISTING_READONLY_REPO;
     }
 
     private boolean isSecure() {
@@ -379,7 +383,7 @@ public class HdfsFixture extends ExternalResource {
     }
 
     public int getPort() {
-        return dfs == null ? explicitPort : dfs.getNameNodePort(0);
+        return dfs.getNameNodePort(0);
     }
 
     // fix port handling to allow parallel hdfs fixture runs
@@ -502,15 +506,6 @@ public class HdfsFixture extends ExternalResource {
 
         Method refreshMethod = classRef.getMethod("refresh");
         refreshMethod.invoke(classRef);
-    }
-
-    private static int findAvailablePort() {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            return socket.getLocalPort();
-        } catch (Exception ex) {
-            LOGGER.error("Failed to find available port", ex);
-        }
-        return -1;
     }
 
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -69,7 +70,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsAction.GET_INFERENCE_FIELDS_ACTION_TV;
+import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction.GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.elasticsearch.xpack.inference.queries.InterceptedInferenceQueryBuilder.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_SEARCH_CCS_SUPPORT;
@@ -163,13 +164,8 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
     }
 
     public void testBwCSerialization() throws Exception {
-        TransportVersion minTransportVersion = TransportVersion.max(getMinimalSupportedVersion(), TransportVersion.minimumCompatible());
         for (int i = 0; i < 100; i++) {
-            TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                minTransportVersion,
-                TransportVersionUtils.getPreviousVersion(TransportVersion.current())
-            );
+            TransportVersion transportVersion = TransportVersionUtils.randomVersionNotSupporting(TransportVersion.current());
             serializationTestCase(transportVersion);
         }
     }
@@ -242,11 +238,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             new MockInferenceRemoteClusterClient.RemoteClusterConfig(
                 remoteInferenceEndpoints,
                 remoteIndexConfigs,
-                TransportVersionUtils.randomVersionBetween(
-                    random(),
-                    SEMANTIC_SEARCH_CCS_SUPPORT,
-                    TransportVersionUtils.getPreviousVersion(GET_INFERENCE_FIELDS_ACTION_TV)
-                )
+                TransportVersionUtils.getPreviousVersion(GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV)
             );
 
         QueryRewriteContext preCcsRemoteClusterContext = createQueryRewriteContext(
@@ -263,7 +255,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
                     + queryName
                     + " query cross-cluster search when"
                     + " [ccs_minimize_roundtrips] is false. Please update all clusters to at least "
-                    + GET_INFERENCE_FIELDS_ACTION_TV.toReleaseVersion()
+                    + GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV.toReleaseVersion()
             ),
             null
         );
@@ -276,11 +268,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         final T nonInferenceFieldQuery = createQueryBuilder("non_inference_field");
 
         for (int i = 0; i < 100; i++) {
-            TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersion.minimumCompatible(),
-                TransportVersionUtils.getPreviousVersion(TransportVersion.current())
-            );
+            TransportVersion transportVersion = TransportVersionUtils.randomVersionNotSupporting(TransportVersion.current());
 
             QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
                 Map.of("local-index", Map.of(inferenceField, SPARSE_INFERENCE_ID)),
@@ -357,11 +345,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         assertThat(deserializedQuery, equalTo(interceptedQuery));
 
         // Test with a transport version prior to cluster alias support, which should fail
-        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            NEW_SEMANTIC_QUERY_INTERCEPTORS,
-            TransportVersionUtils.getPreviousVersion(INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)
-        );
+        TransportVersion transportVersion = TransportVersionUtils.getPreviousVersion(INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS);
         IllegalArgumentException e = assertThrows(
             IllegalArgumentException.class,
             () -> copyNamedWriteable(interceptedQuery, writableRegistry(), QueryBuilder.class, transportVersion)
@@ -435,6 +419,20 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         // Query a text field in both indices
         QueryBuilder originalText = createQueryBuilder(textField);
         assertRewriteAndSerializeOnNonInferenceField(originalText, queryRewriteContext);
+    }
+
+    protected QueryRewriteContext createQueryRewriteContext(
+        List<TestIndex> testIndices,
+        Map<String, String> remoteIndexNames,
+        TransportVersion minTransportVersion,
+        Boolean ccsMinimizeRoundTrips
+    ) {
+        Map<String, Map<String, String>> localIndexInferenceFields = new HashMap<>();
+        for (TestIndex testIndex : testIndices) {
+            localIndexInferenceFields.put(testIndex.name(), testIndex.semanticTextFields());
+        }
+
+        return createQueryRewriteContext(localIndexInferenceFields, remoteIndexNames, minTransportVersion, ccsMinimizeRoundTrips);
     }
 
     protected QueryRewriteContext createQueryRewriteContext(
@@ -679,10 +677,25 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
 
     protected static void disableQueryInterception(QueryRewriteContext queryRewriteContext, CheckedRunnable<Exception> runnable)
         throws Exception {
+        disableQueryInterception(queryRewriteContext, () -> {
+            runnable.run();
+            return null;
+        });
+    }
+
+    protected static <T> T disableQueryInterception(QueryRewriteContext queryRewriteContext, CheckedSupplier<T, Exception> supplier)
+        throws Exception {
+
+        T result;
         QueryRewriteInterceptor interceptor = queryRewriteContext.getQueryRewriteInterceptor();
-        queryRewriteContext.setQueryRewriteInterceptor(null);
-        runnable.run();
-        queryRewriteContext.setQueryRewriteInterceptor(interceptor);
+        try {
+            queryRewriteContext.setQueryRewriteInterceptor(null);
+            result = supplier.get();
+        } finally {
+            queryRewriteContext.setQueryRewriteInterceptor(interceptor);
+        }
+
+        return result;
     }
 
     private static ModelRegistry createModelRegistry(ThreadPool threadPool) {

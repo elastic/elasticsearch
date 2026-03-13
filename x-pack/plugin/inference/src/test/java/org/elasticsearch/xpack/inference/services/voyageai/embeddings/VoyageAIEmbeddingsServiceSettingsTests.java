@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
-import static org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS_SET_BY_USER;
 import static org.hamcrest.Matchers.is;
 
 public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<VoyageAIEmbeddingsServiceSettings> {
@@ -69,7 +69,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractWireSerializ
                     dims,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    VoyageAIServiceSettings.MODEL_ID,
+                    ServiceFields.MODEL_ID,
                     model
                 )
             ),
@@ -97,14 +97,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractWireSerializ
         var model = "model";
         var serviceSettings = VoyageAIEmbeddingsServiceSettings.fromMap(
             new HashMap<>(
-                Map.of(
-                    ServiceFields.SIMILARITY,
-                    similarity,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    VoyageAIServiceSettings.MODEL_ID,
-                    model
-                )
+                Map.of(ServiceFields.SIMILARITY, similarity, ServiceFields.MAX_INPUT_TOKENS, maxInputTokens, ServiceFields.MODEL_ID, model)
             ),
             ConfigurationParseContext.REQUEST
         );
@@ -138,7 +131,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractWireSerializ
                     dims,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    VoyageAIServiceSettings.MODEL_ID,
+                    ServiceFields.MODEL_ID,
                     model
                 )
             ),
@@ -173,7 +166,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractWireSerializ
                     true,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    VoyageAIServiceSettings.MODEL_ID,
+                    ServiceFields.MODEL_ID,
                     model
                 )
             ),
@@ -209,7 +202,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractWireSerializ
                     dimensionsSetByUser,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    VoyageAIServiceSettings.MODEL_ID,
+                    ServiceFields.MODEL_ID,
                     model
                 )
             ),
@@ -236,7 +229,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractWireSerializ
         var thrownException = expectThrows(
             ValidationException.class,
             () -> VoyageAIEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(Map.of(VoyageAIServiceSettings.MODEL_ID, "model", ServiceFields.SIMILARITY, similarity)),
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, "model", ServiceFields.SIMILARITY, similarity)),
                 ConfigurationParseContext.PERSISTENT
             )
         );

@@ -38,6 +38,7 @@ import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
@@ -486,8 +487,10 @@ public enum SearchResponseUtils {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
         String clusterName = clusterAlias;
-        if (clusterAlias.equals(SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION)) {
+        String originClusterLabel = null;
+        if (clusterAlias.equals(SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION) || clusterAlias.equals(ProjectRoutingResolver.ORIGIN)) {
             clusterName = "";
+            originClusterLabel = clusterAlias;
         }
         String indexExpression = null;
         String status = "running";
@@ -566,7 +569,8 @@ public enum SearchResponseUtils {
             failedShardsFinal,
             failures,
             tookTimeValue,
-            timedOut
+            timedOut,
+            originClusterLabel
         );
     }
 

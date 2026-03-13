@@ -718,7 +718,11 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                 WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
             )
             .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING.getKey(),
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING.getKey(),
+                utilizationThresholdPercent + "%"
+            )
+            .put(
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING.getKey(),
                 utilizationThresholdPercent + "%"
             )
             .put(
@@ -779,31 +783,36 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         // Randomly distribute shards' peak write-loads so that we can check later that shard movements are prioritized correctly
         final double writeLoadThreshold = maximumShardWriteLoad
             * BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator.THRESHOLD_RATIO;
-        final List<Double> shardPeakWriteLoads = new ArrayList<>();
+        final List<Double> shardRecentWriteLoads = new ArrayList<>();
         // Need at least one with the maximum write-load
-        shardPeakWriteLoads.add((double) maximumShardWriteLoad);
+        shardRecentWriteLoads.add((double) maximumShardWriteLoad);
         final int remainingShards = indexMetadata.getNumberOfShards() - 1;
         // Some over-threshold, some under
         for (int i = 0; i < remainingShards; ++i) {
             if (randomBoolean()) {
-                shardPeakWriteLoads.add(randomDoubleBetween(writeLoadThreshold, maximumShardWriteLoad, true));
+                shardRecentWriteLoads.add(randomDoubleBetween(writeLoadThreshold, maximumShardWriteLoad, true));
             } else {
-                shardPeakWriteLoads.add(randomDoubleBetween(0.0, writeLoadThreshold, true));
+                shardRecentWriteLoads.add(randomDoubleBetween(0.0, writeLoadThreshold, true));
             }
         }
-        assertThat(shardPeakWriteLoads, hasSize(indexMetadata.getNumberOfShards()));
-        Collections.shuffle(shardPeakWriteLoads, random());
+        assertThat(shardRecentWriteLoads, hasSize(indexMetadata.getNumberOfShards()));
+        Collections.shuffle(shardRecentWriteLoads, random());
         final List<ShardStats> shardStats = new ArrayList<>(indexMetadata.getNumberOfShards());
         for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
-            shardStats.add(createShardStats(indexMetadata, i, shardPeakWriteLoads.get(i), assignedShardNodeId));
+            shardStats.add(createShardStats(indexMetadata, i, shardRecentWriteLoads.get(i), assignedShardNodeId));
         }
         return shardStats;
     }
 
     /**
-     * Helper to create a dummy {@link ShardStats} for the given index shard with the supplied {@code peakWriteLoad} value.
+     * Helper to create a dummy {@link ShardStats} for the given index shard with the supplied {@code recentWriteLoad} value.
      */
-    private static ShardStats createShardStats(IndexMetadata indexMeta, int shardIndex, double peakWriteLoad, String assignedShardNodeId) {
+    private static ShardStats createShardStats(
+        IndexMetadata indexMeta,
+        int shardIndex,
+        double recentWriteLoad,
+        String assignedShardNodeId
+    ) {
         ShardId shardId = new ShardId(indexMeta.getIndex(), shardIndex);
         Path path = createTempDir().resolve("indices").resolve(indexMeta.getIndexUUID()).resolve(String.valueOf(shardIndex));
         ShardRouting shardRouting = ShardRouting.newUnassigned(
@@ -819,7 +828,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         stats.docs = new DocsStats(100, 0, randomByteSizeValue().getBytes());
         stats.store = new StoreStats();
         stats.indexing = new IndexingStats(
-            new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, false, 1, 234, 234, 1000, 0.123, peakWriteLoad)
+            new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, false, 1, 234, 234, 1000, recentWriteLoad, 0.123)
         );
         return new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0);
     }
@@ -850,10 +859,9 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         Settings settings = enabledWriteLoadDeciderSettings(randomUtilizationThresholdPercent, randomQueueLatencyThresholdMillis);
 
         internalCluster().startMasterOnlyNode(settings);
-        final var dataNodes = internalCluster().startDataOnlyNodes(3, settings);
-        final String firstDataNodeName = dataNodes.get(0);
-        final String secondDataNodeName = dataNodes.get(1);
-        final String thirdDataNodeName = dataNodes.get(2);
+        final String firstDataNodeName = internalCluster().startIndexOnlyNode(settings);
+        final String secondDataNodeName = internalCluster().startIndexOnlyNode(settings);
+        final String thirdDataNodeName = internalCluster().startIndexOnlyNode(settings);
         final String firstDataNodeId = getNodeId(firstDataNodeName);
         final String secondDataNodeId = getNodeId(secondDataNodeName);
         final String thirdDataNodeId = getNodeId(thirdDataNodeName);

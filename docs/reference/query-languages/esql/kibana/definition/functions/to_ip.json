@@ -20,7 +20,57 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        },
+        {
+          "name" : "options",
+          "type" : "function_named_parameters",
+          "mapParams" : "{name='leading_zeros', values=[reject, octal, decimal], description='What to do with leading 0s in IPv4 addresses.', type=[keyword]}",
+          "optional" : true,
+          "description" : "(Optional) Additional options."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "ip"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "keyword",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "ip"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        },
+        {
+          "name" : "options",
+          "type" : "function_named_parameters",
+          "mapParams" : "{name='leading_zeros', values=[reject, octal, decimal], description='What to do with leading 0s in IPv4 addresses.', type=[keyword]}",
+          "optional" : true,
+          "description" : "(Optional) Additional options."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "ip"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
           "optional" : false,
           "description" : "Input value. The input can be a single- or multi-valued column or an expression."
         }
@@ -35,6 +85,13 @@
           "type" : "text",
           "optional" : false,
           "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        },
+        {
+          "name" : "options",
+          "type" : "function_named_parameters",
+          "mapParams" : "{name='leading_zeros', values=[reject, octal, decimal], description='What to do with leading 0s in IPv4 addresses.', type=[keyword]}",
+          "optional" : true,
+          "description" : "(Optional) Additional options."
         }
       ],
       "variadic" : false,

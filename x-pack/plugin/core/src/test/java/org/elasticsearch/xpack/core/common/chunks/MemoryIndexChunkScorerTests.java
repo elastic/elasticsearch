@@ -32,12 +32,12 @@ public class MemoryIndexChunkScorerTests extends ESTestCase {
         String inferenceText = "dogs play walk";
         int maxResults = 3;
 
-        List<MemoryIndexChunkScorer.ScoredChunk> scoredChunks = scorer.scoreChunks(CHUNKS, inferenceText, maxResults, true);
+        List<ScoredChunk> scoredChunks = scorer.scoreChunks(CHUNKS, inferenceText, maxResults, true);
 
         assertEquals(maxResults, scoredChunks.size());
 
         // The chunks about dogs should score highest, followed by the chunk about cats
-        MemoryIndexChunkScorer.ScoredChunk chunk = scoredChunks.getFirst();
+        ScoredChunk chunk = scoredChunks.getFirst();
         assertTrue(chunk.content().equalsIgnoreCase("Dogs love to play with toys and go for walks"));
         assertThat(chunk.score(), greaterThan(0f));
 
@@ -62,11 +62,11 @@ public class MemoryIndexChunkScorerTests extends ESTestCase {
         MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
 
         // Zero results
-        List<MemoryIndexChunkScorer.ScoredChunk> scoredChunks = scorer.scoreChunks(CHUNKS, "puggles", maxResults, true);
+        List<ScoredChunk> scoredChunks = scorer.scoreChunks(CHUNKS, "puggles", maxResults, true);
         assertEquals(maxResults, scoredChunks.size());
 
         // There were no results so we return the first N chunks in order
-        MemoryIndexChunkScorer.ScoredChunk chunk = scoredChunks.getFirst();
+        ScoredChunk chunk = scoredChunks.getFirst();
         assertTrue(chunk.content().equalsIgnoreCase("Cats like to sleep all day and play with mice"));
         assertThat(chunk.score(), equalTo(0f));
 

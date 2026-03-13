@@ -38,7 +38,8 @@ public class MvContainsErrorTests extends ErrorsForCasesWithoutExamplesTestCase 
             DataType.DENSE_VECTOR,
             DataType.EXPONENTIAL_HISTOGRAM,
             DataType.HISTOGRAM,
-            DataType.TDIGEST
+            DataType.TDIGEST,
+            DataType.DATE_RANGE
         );
         if (unsupportedTypes.contains(signature.getFirst())
             || signature.getFirst() == DataType.NULL && unsupportedTypes.contains(signature.get(1))) {
@@ -48,7 +49,7 @@ public class MvContainsErrorTests extends ErrorsForCasesWithoutExamplesTestCase 
                     validPerPosition,
                     signature,
                     (v, p) -> "any type except counter types, dense_vector, "
-                        + "aggregate_metric_double, tdigest, histogram, or exponential_histogram"
+                        + "aggregate_metric_double, tdigest, histogram, exponential_histogram, or date_range"
                 )
             );
         } else {

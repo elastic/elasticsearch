@@ -7,7 +7,7 @@
 
 import org.apache.tools.ant.filters.ReplaceTokens
 
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 dependencies {
   yamlRestTestImplementation project(':x-pack:plugin:core')
@@ -21,72 +21,16 @@ def copyXPackPluginProps = tasks.register("copyXPackPluginProps", Copy) {
 }
 project.sourceSets.yamlRestTest.output.dir(outputDir, builtBy: copyXPackPluginProps)
 
-// location of generated keystores and certificates
-File keystoreDir = new File(project.buildDir, 'keystore')
-File nodeKeystore = file("$keystoreDir/testnode.jks")
-File nodeKey = file("$keystoreDir/testnode.pem")
-File nodeCert = file("$keystoreDir/testnode.crt")
-File clientKeyStore = file("$keystoreDir/testclient.jks")
-File clientKey = file("$keystoreDir/testclient.pem")
-File clientCert = file("$keystoreDir/testclient.crt")
-
-// Add keystores to test classpath: it expects it there
-def copyKeyCerts = tasks.register("copyKeyCerts", Copy) {
-  from('./') {
-    include '*.crt', '*.pem', '*.jks'
-  }
-  into keystoreDir
-}
-// Add keystores to test classpath: it expects it there
-sourceSets.yamlRestTest.resources.srcDir(keystoreDir)
-
-['processYamlRestTestResources', 'yamlRestTest', 'filepermissions', 'forbiddenPatterns'].each {
-  tasks.named(it).configure {
-    dependsOn(copyKeyCerts)
-  }
-}
-
 ext.pluginPaths = []
+ext.pluginNames = []
 project(':plugins').getChildProjects().each { pluginName, pluginProject ->
   pluginPaths << pluginProject.path
+  pluginNames << pluginName
 }
 
-testClusters.matching { it.name == "yamlRestTest" }.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.monitoring.collection.interval', '1s'
-  setting 'xpack.monitoring.collection.enabled', 'false' //will enable in test
-  setting 'xpack.monitoring.exporters._http.enabled', 'false'//will enable in test
-  setting 'xpack.monitoring.exporters._http.type', "http"
-  setting 'xpack.monitoring.exporters._http.host', "https://example.com" //will be replaced in test
-  setting 'xpack.monitoring.exporters._http.auth.username', 'monitoring_agent'
-  setting 'xpack.monitoring.exporters._http.ssl.verification_mode', 'full'
-  setting 'xpack.monitoring.exporters._http.ssl.certificate_authorities', 'testnode.crt'
-  keystore 'xpack.monitoring.exporters._http.auth.secure_password', 'x-pack-test-password'
-
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.security.http.ssl.enabled', 'true'
-  setting 'xpack.security.http.ssl.key', 'testnode.pem'
-  setting 'xpack.security.http.ssl.certificate', 'testnode.crt'
-  setting 'xpack.security.http.ssl.certificate_authorities', 'testnode.crt'
-  keystore 'xpack.security.http.ssl.secure_key_passphrase', 'testnode'
-
-  setting 'xpack.ml.enabled', 'false'
-  // copy keystores, keys and certificates into config/
-  extraConfigFile nodeKeystore.name, nodeKeystore
-  extraConfigFile nodeKey.name, nodeKey
-  extraConfigFile nodeCert.name, nodeCert
-  extraConfigFile clientKeyStore.name, clientKeyStore
-  extraConfigFile clientKey.name, clientKey
-  extraConfigFile clientCert.name, clientCert
-
-  user username: "test_user", password: "x-pack-test-password"
-  user username: "monitoring_agent", password: "x-pack-test-password", role: "remote_monitoring_agent"
-
-  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
-
+dependencies {
   pluginPaths.each { pluginPath ->
-    plugin pluginPath
+    clusterPlugins(project(pluginPath))
   }
 }
 
@@ -103,7 +47,7 @@ tasks.named("processYamlRestTestResources").configure {
   }
 }
 
-tasks.named('yamlRestTestTestingConventions').configure {
-  baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
-  baseClass 'org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase'
+tasks.named("yamlRestTest") {
+  usesDefaultDistribution("smoke test requires default distro with all plugins installed")
+  systemProperty('tests.plugin.names', pluginNames.join(','))
 }

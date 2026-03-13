@@ -1,0 +1,35 @@
+{
+  "properties": {
+    "text_body": {
+      "type": "text"
+    },
+    "keyword_field": {
+      "type": "keyword"
+    },
+    "text_vector": {
+      "type": "dense_vector",
+      "dims": 3
+    },
+    "byte_vector": {
+      "type": "dense_vector",
+      "similarity": "l2_norm",
+      "element_type": "byte",
+      "index_options": {
+        "type": "hnsw",
+        "m": 16,
+        "ef_construction": 100
+      }
+    },
+    "bit_vector": {
+      "type": "dense_vector",
+      "dims": 16,
+      "similarity": "l2_norm",
+      "element_type": "bit",
+      "index_options": {
+        "type": "hnsw",
+        "m": 16,
+        "ef_construction": 100
+      }
+    }
+  }
+}

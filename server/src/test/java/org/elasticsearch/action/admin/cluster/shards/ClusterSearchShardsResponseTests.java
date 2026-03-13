@@ -56,7 +56,7 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
             clusterSearchShardsGroups[i] = new ClusterSearchShardsGroup(shardId, new ShardRouting[] { shardRouting });
             DiscoveryNodeUtils.Builder node = DiscoveryNodeUtils.builder(shardRouting.currentNodeId())
                 .address(new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)))
-                .version(randomCompatibleVersion(random(), Version.CURRENT), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
+                .version(randomCompatibleVersion(Version.CURRENT), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
             nodes.add(node.build());
             AliasFilter aliasFilter;
             if (randomBoolean()) {
@@ -76,7 +76,7 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(searchModule.getNamedWriteables());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
-        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
             clusterSearchShardsResponse.writeTo(out);

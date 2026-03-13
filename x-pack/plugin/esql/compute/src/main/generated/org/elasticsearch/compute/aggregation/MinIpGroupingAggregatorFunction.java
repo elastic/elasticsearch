@@ -37,16 +37,10 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
 
   private final DriverContext driverContext;
 
-  public MinIpGroupingAggregatorFunction(List<Integer> channels,
-      MinIpAggregator.GroupingState state, DriverContext driverContext) {
+  MinIpGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = MinIpAggregator.initGrouping(driverContext.bigArrays());
     this.driverContext = driverContext;
-  }
-
-  public static MinIpGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new MinIpGroupingAggregatorFunction(channels, MinIpAggregator.initGrouping(driverContext.bigArrays()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

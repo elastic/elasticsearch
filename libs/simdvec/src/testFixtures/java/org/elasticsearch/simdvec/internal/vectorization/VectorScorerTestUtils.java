@@ -221,15 +221,15 @@ public class VectorScorerTestUtils {
      * Packs unpacked int4 values (one value per byte) into Lucene nibble-packed format (two values per byte)
      * written by {@code Lucene104ScalarQuantizedVectorsWriter} (ScalarEncoding#PACKED_NIBBLE format).
      * <p>
-     * The unpacked input comes from {@link OptimizedScalarQuantizer#scalarQuantize, which quantizes a float
+     * The unpacked input comes from {@link OptimizedScalarQuantizer#scalarQuantize}, which quantizes a float
      * vector into one byte per element in natural order: unpacked = [v0, v1, v2, ..., v_{N-1}] where N = dims.
      * <p>
      * The packed format pairs elements that are packedLength ({@param unpacked} length / 2) apart. For example,
      * with dims=8, unpacked.length is 8 and packedLength is 4:
-     *   - packed[0] = (v0 << 4) | v4
-     *   - packed[1] = (v1 << 4) | v5
-     *   - packed[2] = (v2 << 4) | v6
-     *   - packed[3] = (v3 << 4) | v7
+     *   - {@code packed[0] = (v0 << 4) | v4}
+     *   - {@code packed[1] = (v1 << 4) | v5}
+     *   - {@code packed[2] = (v2 << 4) | v6}
+     *   - {@code packed[3] = (v3 << 4) | v7}
      * <p>
      * Or, visually,
      * UNPACKED (8 bytes, natural vector order, one 4-bit value per byte):

@@ -25,6 +25,7 @@ import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -276,7 +277,8 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
 
     protected String getEndpointForServer(final HttpServer server) {
         final InetSocketAddress address = server.getAddress();
-        return "http://" + address.getHostString() + ":" + address.getPort();
+        String host = InetAddresses.toUriString(address.getAddress());
+        return "http://" + host + ":" + address.getPort();
     }
 
     private record ContainerAndBlobStore(GoogleCloudStorageBlobContainer blobContainer, GoogleCloudStorageBlobStore blobStore)

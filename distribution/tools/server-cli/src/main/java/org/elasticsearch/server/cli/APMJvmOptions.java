@@ -141,20 +141,23 @@ class APMJvmOptions {
      */
     static List<String> apmJvmOptions(Settings settings, @Nullable SecureSettings secrets, Path logsDir, Path tmpdir) throws UserException,
         IOException {
-        boolean tracingEnabled = settings.getAsBoolean("telemetry.tracing.enabled", false);
-        boolean metricsEnabled = settings.getAsBoolean("telemetry.metrics.enabled", false);
+        return apmJvmOptions(settings, secrets, logsDir, tmpdir, System.getProperty("user.dir"));
+    }
+
+    // for testing
+    static List<String> apmJvmOptions(Settings settings, @Nullable SecureSettings secrets, Path logsDir, Path tmpdir, String installDir)
+        throws UserException, IOException {
         boolean agentMetricsEnabled = Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false")) == false;
-        boolean attachAgent = tracingEnabled || (metricsEnabled && agentMetricsEnabled);
 
-        final Path agentJar = findAgentJar();
+        final Path agentJar = findAgentJar(installDir);
 
-        if (attachAgent == false || agentJar == null) {
+        if (agentJar == null) {
             return List.of();
         }
 
         final Map<String, String> propertiesMap = extractApmSettings(settings);
 
-        if (metricsEnabled == false || agentMetricsEnabled == false) {
+        if (agentMetricsEnabled == false) {
             propertiesMap.put("metrics_interval", "0s");
             propertiesMap.put("disable_metrics", "*");
         }
@@ -324,11 +327,6 @@ class APMJvmOptions {
      * @throws IOException if a problem occurs reading the filesystem
      */
     @Nullable
-    private static Path findAgentJar() throws IOException, UserException {
-        return findAgentJar(System.getProperty("user.dir"));
-    }
-
-    // package private for testing
     static Path findAgentJar(String installDir) throws IOException, UserException {
         final Path apmModule = Path.of(installDir).resolve("modules").resolve("apm");
 

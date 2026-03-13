@@ -276,13 +276,13 @@ public class NetworkInstrumentation implements InstrumentationConfig {
                 .elseThrow(IOException::new);
             rule.callingVoid(DatagramSocket::bind, SocketAddress.class)
                 .enforce(Policies::inboundNetworkAccess)
-                .elseThrow(e -> new SocketException(e.getMessage()));
+                .elseThrow(e -> new SocketException(e.getMessage(), e));
             rule.callingVoid(DatagramSocket::connect, InetAddress.class, Integer.class)
                 .enforce(Policies::allNetworkAccess)
                 .elseThrowNotEntitled();
             rule.callingVoid(DatagramSocket::connect, SocketAddress.class)
                 .enforce(Policies::allNetworkAccess)
-                .elseThrow(e -> new SocketException(e.getMessage()));
+                .elseThrow(e -> new SocketException(e.getMessage(), e));
             rule.callingVoid(DatagramSocket::receive, DatagramPacket.class)
                 .enforce(Policies::inboundNetworkAccess)
                 .elseThrow(IOException::new);

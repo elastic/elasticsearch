@@ -85,6 +85,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
+import org.elasticsearch.xpack.inference.heuristics.DefaultModelChoiceHeuristics;
 import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
@@ -182,7 +183,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
         },
         Setting.Property.IndexScope,
-        Setting.Property.Final,
+        Setting.Property.Dynamic,
         Setting.Property.ServerlessPublic
     );
 
@@ -200,8 +201,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
      * Resolution order:
      * <ol>
      *   <li>If {@link #INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID} is set on the index, that value is returned directly.</li>
-     *   <li>If the model registry is non-null and {@link #DEFAULT_EIS_ELSER_INFERENCE_ID} is a registered preconfigured endpoint,
-     *       that endpoint is returned.</li>
+     *   <li>If the model registry is non-null, applies the semantic_text model choice heuristics to select the best
+     *       endpoint based on task type, language properties, and release date.</li>
      *   <li>Otherwise, falls back to {@link #DEFAULT_FALLBACK_ELSER_INFERENCE_ID} (ML-node ELSER).</li>
      * </ol>
      */
@@ -209,8 +210,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         if (INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.exists(indexSettings.getSettings())) {
             return INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.get(indexSettings.getSettings());
         }
-        if (modelRegistry != null && modelRegistry.containsPreconfiguredInferenceEndpointId(DEFAULT_EIS_ELSER_INFERENCE_ID)) {
-            return DEFAULT_EIS_ELSER_INFERENCE_ID;
+        if (modelRegistry != null) {
+            var heuristicResult = DefaultModelChoiceHeuristics.selectSemanticTextEndpoint(modelRegistry);
+            if (heuristicResult.isPresent()) {
+                // TODO: find a correct place and way to set this value.
+                // INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.set(indexSettings.getSettings(), heuristicResult.get());
+                return heuristicResult.get();
+            }
         }
         return DEFAULT_FALLBACK_ELSER_INFERENCE_ID;
     }

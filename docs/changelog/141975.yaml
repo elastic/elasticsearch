@@ -1,0 +1,5 @@
+pr: 141323
+summary: Add MvDifference function
+area: ES|QL
+type: feature
+issues: [141699]

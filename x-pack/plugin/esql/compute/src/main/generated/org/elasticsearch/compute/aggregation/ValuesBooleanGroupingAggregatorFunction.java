@@ -33,16 +33,10 @@ public final class ValuesBooleanGroupingAggregatorFunction implements GroupingAg
 
   private final DriverContext driverContext;
 
-  public ValuesBooleanGroupingAggregatorFunction(List<Integer> channels,
-      ValuesBooleanAggregator.GroupingState state, DriverContext driverContext) {
+  ValuesBooleanGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = ValuesBooleanAggregator.initGrouping(driverContext.bigArrays());
     this.driverContext = driverContext;
-  }
-
-  public static ValuesBooleanGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new ValuesBooleanGroupingAggregatorFunction(channels, ValuesBooleanAggregator.initGrouping(driverContext.bigArrays()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

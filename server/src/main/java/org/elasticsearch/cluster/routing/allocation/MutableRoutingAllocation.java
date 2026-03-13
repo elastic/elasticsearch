@@ -128,7 +128,6 @@ public final class MutableRoutingAllocation extends RoutingAllocation {
     /**
      * Remove the allocation id of the provided shard from the set of in-sync shard copies
      */
-    @Override
     public void removeAllocationId(ShardRouting shardRouting) {
         indexMetadataUpdater.removeAllocationId(shardRouting);
     }

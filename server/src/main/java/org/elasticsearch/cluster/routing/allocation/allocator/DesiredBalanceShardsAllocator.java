@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStrategy;
+import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
@@ -319,7 +320,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     @Override
-    public RoutingExplanations execute(RoutingAllocation allocation, AllocationCommands commands, boolean explain, boolean retryFailed) {
+    public RoutingExplanations execute(
+        MutableRoutingAllocation allocation,
+        AllocationCommands commands,
+        boolean explain,
+        boolean retryFailed
+    ) {
         var explanations = ShardsAllocator.super.execute(allocation, commands, explain, retryFailed);
         var moves = getMoveCommands(commands);
         if (moves.isEmpty() == false) {

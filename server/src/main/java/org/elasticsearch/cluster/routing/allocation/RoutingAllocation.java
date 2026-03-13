@@ -273,11 +273,6 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
     }
 
     /**
-     * Remove the allocation id of the provided shard from the set of in-sync shard copies
-     */
-    public abstract void removeAllocationId(ShardRouting shardRouting);
-
-    /**
      * Returns observer to use for changes made to the routing nodes
      */
     public abstract RoutingChangesObserver changes();

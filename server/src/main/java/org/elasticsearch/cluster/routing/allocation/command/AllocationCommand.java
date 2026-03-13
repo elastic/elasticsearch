@@ -10,8 +10,8 @@
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -37,11 +37,11 @@ public interface AllocationCommand extends NamedWriteable, ToXContentObject {
     ProjectId projectId();
 
     /**
-     * Executes the command on a {@link RoutingAllocation} setup
-     * @param allocation {@link RoutingAllocation} to modify
+     * Executes the command on a {@link MutableRoutingAllocation} setup
+     * @param allocation {@link MutableRoutingAllocation} to modify
      * @throws org.elasticsearch.ElasticsearchException if something happens during reconfiguration
      */
-    RerouteExplanation execute(RoutingAllocation allocation, boolean explain);
+    RerouteExplanation execute(MutableRoutingAllocation allocation, boolean explain);
 
     @Override
     default String getWriteableName() {

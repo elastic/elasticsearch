@@ -12,7 +12,6 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
@@ -33,11 +32,6 @@ final class ImmutableRoutingAllocation extends RoutingAllocation {
         long currentNanoTime
     ) {
         super(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false);
-    }
-
-    @Override
-    public void removeAllocationId(ShardRouting shardRouting) {
-        assert false : "Should not be called";
     }
 
     @Override

@@ -17,8 +17,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -120,7 +120,7 @@ public class MoveAllocationCommand implements AllocationCommand {
     }
 
     @Override
-    public RerouteExplanation execute(RoutingAllocation allocation, boolean explain) {
+    public RerouteExplanation execute(MutableRoutingAllocation allocation, boolean explain) {
         DiscoveryNode fromDiscoNode = allocation.nodes().resolveNode(fromNode);
         DiscoveryNode toDiscoNode = allocation.nodes().resolveNode(toNode);
         Decision decision = null;

@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
+import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -56,7 +57,12 @@ public interface ShardsAllocator {
     /**
      * Execute allocation commands
      */
-    default RoutingExplanations execute(RoutingAllocation allocation, AllocationCommands commands, boolean explain, boolean retryFailed) {
+    default RoutingExplanations execute(
+        MutableRoutingAllocation allocation,
+        AllocationCommands commands,
+        boolean explain,
+        boolean retryFailed
+    ) {
         var originalDebugMode = allocation.getDebugMode();
         allocation.debugDecision(true);
         // we ignore disable allocation, because commands are explicit

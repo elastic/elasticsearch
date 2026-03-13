@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 144174
+summary: Fix false circular view reference bug
+type: bug

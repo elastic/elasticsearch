@@ -47,7 +47,12 @@ import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 
@@ -61,8 +66,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.PROJECT_TYPE;
+import static org.elasticsearch.monitor.metrics.IndicesMetrics.USER_INDEX_TOTAL_METRIC_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class CreateIndexLimitIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -71,7 +79,24 @@ public class CreateIndexLimitIT extends AbstractStatelessPluginIntegTestCase {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(DataStreamsPlugin.class);
         plugins.add(TestPlugin.class);
+        plugins.add(TestTelemetryPlugin.class);
         return plugins;
+    }
+
+    private static TestTelemetryPlugin testTelemetryPlugin() {
+        return internalCluster().getCurrentMasterNodeInstance(PluginsService.class)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .get();
+    }
+
+    private static List<Measurement> getClusterMeasurements(InstrumentType instrumentType, String metricName) {
+        return ((RecordingMeterRegistry) testTelemetryPlugin().getTelemetryProvider(Settings.EMPTY).getMeterRegistry()).getRecorder()
+            .getMeasurements(instrumentType, metricName);
+    }
+
+    private static void collectMetrics() {
+        testTelemetryPlugin().collect();
     }
 
     public static class TestPlugin extends Plugin implements SystemIndexPlugin {
@@ -287,6 +312,13 @@ public class CreateIndexLimitIT extends AbstractStatelessPluginIntegTestCase {
             testCreateIndex(randomFrom(systemIndexAndDataStreamsPatterns), String.valueOf(i), true);
         }
         systemIndicesCounter.addAndGet(systemIndices);
+        collectMetrics();
+        List<Measurement> measurements = getClusterMeasurements(InstrumentType.LONG_GAUGE, USER_INDEX_TOTAL_METRIC_NAME);
+
+        // All system indices, no user indices
+        assertThat(measurements, hasSize(1));
+        assertThat(measurements.get(0).getLong(), equalTo(0L));
+        testTelemetryPlugin().resetMeter();
 
         // Verify system indices backing data streams creation proceed unimpeded.
         verifySystemIndicesBackingDataStreams(".my-elasticsearch-data-stream");
@@ -295,6 +327,12 @@ public class CreateIndexLimitIT extends AbstractStatelessPluginIntegTestCase {
         for (int i = 0; i < userIndicesLimit; i++) {
             testCreateIndex(indexName, "-" + i, true);
         }
+
+        collectMetrics();
+        measurements = getClusterMeasurements(InstrumentType.LONG_GAUGE, USER_INDEX_TOTAL_METRIC_NAME);
+        List<Long> metrics = measurements.stream().map(Measurement::getLong).toList();
+        assertThat(metrics, hasSize(1));
+        assertThat(metrics.get(0), equalTo((long) userIndicesLimit));
 
         // Associated feature indices are not affected.
         for (int i = 0; i < randomIntBetween(2, 3); i++) {

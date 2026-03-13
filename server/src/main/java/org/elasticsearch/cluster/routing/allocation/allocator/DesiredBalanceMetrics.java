@@ -287,9 +287,8 @@ public class DesiredBalanceMetrics {
         }
         var stats = weightStatsPerNodeRef.get();
         List<DoubleWithAttributes> doubles = new ArrayList<>(stats.size());
-        for (var node : stats.keySet()) {
-            var stat = stats.get(node);
-            doubles.add(new DoubleWithAttributes(stat.nodeWeight(), getNodeAttributes(node)));
+        for (var e : stats.entrySet()) {
+            doubles.add(new DoubleWithAttributes(e.getValue().nodeWeight(), getNodeAttributes(e.getKey())));
         }
         return doubles;
     }
@@ -300,8 +299,8 @@ public class DesiredBalanceMetrics {
         }
         var stats = weightStatsPerNodeRef.get();
         List<DoubleWithAttributes> doubles = new ArrayList<>(stats.size());
-        for (var node : stats.keySet()) {
-            doubles.add(new DoubleWithAttributes(stats.get(node).writeLoad(), getNodeAttributes(node)));
+        for (var e : stats.entrySet()) {
+            doubles.add(new DoubleWithAttributes(e.getValue().writeLoad(), getNodeAttributes(e.getKey())));
         }
         return doubles;
     }
@@ -312,8 +311,8 @@ public class DesiredBalanceMetrics {
         }
         var stats = weightStatsPerNodeRef.get();
         List<DoubleWithAttributes> doubles = new ArrayList<>(stats.size());
-        for (var node : stats.keySet()) {
-            doubles.add(new DoubleWithAttributes(stats.get(node).diskUsageInBytes(), getNodeAttributes(node)));
+        for (var e : stats.entrySet()) {
+            doubles.add(new DoubleWithAttributes(e.getValue().diskUsageInBytes(), getNodeAttributes(e.getKey())));
         }
         return doubles;
     }
@@ -324,8 +323,8 @@ public class DesiredBalanceMetrics {
         }
         var stats = weightStatsPerNodeRef.get();
         List<LongWithAttributes> values = new ArrayList<>(stats.size());
-        for (var node : stats.keySet()) {
-            values.add(new LongWithAttributes(stats.get(node).shardCount(), getNodeAttributes(node)));
+        for (var e : stats.entrySet()) {
+            values.add(new LongWithAttributes(e.getValue().shardCount(), getNodeAttributes(e.getKey())));
         }
         return values;
     }
@@ -336,8 +335,8 @@ public class DesiredBalanceMetrics {
         }
         var stats = allocationStatsPerNodeRef.get();
         List<LongWithAttributes> values = new ArrayList<>(stats.size());
-        for (var node : stats.keySet()) {
-            values.add(new LongWithAttributes(stats.get(node).currentDiskUsage(), getNodeAttributes(node)));
+        for (var e : stats.entrySet()) {
+            values.add(new LongWithAttributes(e.getValue().currentDiskUsage(), getNodeAttributes(e.getKey())));
         }
         return values;
     }
@@ -348,8 +347,8 @@ public class DesiredBalanceMetrics {
         }
         var stats = allocationStatsPerNodeRef.get();
         List<DoubleWithAttributes> doubles = new ArrayList<>(stats.size());
-        for (var node : stats.keySet()) {
-            doubles.add(new DoubleWithAttributes(stats.get(node).forecastedIngestLoad(), getNodeAttributes(node)));
+        for (var e : stats.entrySet()) {
+            doubles.add(new DoubleWithAttributes(e.getValue().forecastedIngestLoad(), getNodeAttributes(e.getKey())));
         }
         return doubles;
     }
@@ -360,8 +359,8 @@ public class DesiredBalanceMetrics {
         }
         var stats = allocationStatsPerNodeRef.get();
         List<LongWithAttributes> values = new ArrayList<>(stats.size());
-        for (var node : stats.keySet()) {
-            values.add(new LongWithAttributes(stats.get(node).shards(), getNodeAttributes(node)));
+        for (var e : stats.entrySet()) {
+            values.add(new LongWithAttributes(e.getValue().shards(), getNodeAttributes(e.getKey())));
         }
         return values;
     }
@@ -372,8 +371,8 @@ public class DesiredBalanceMetrics {
         }
         var stats = allocationStatsPerNodeRef.get();
         List<LongWithAttributes> values = new ArrayList<>(stats.size());
-        for (var node : stats.keySet()) {
-            values.add(new LongWithAttributes(stats.get(node).forecastedDiskUsage(), getNodeAttributes(node)));
+        for (var e : stats.entrySet()) {
+            values.add(new LongWithAttributes(e.getValue().forecastedDiskUsage(), getNodeAttributes(e.getKey())));
         }
         return values;
     }
@@ -384,8 +383,8 @@ public class DesiredBalanceMetrics {
         }
         var stats = allocationStatsPerNodeRef.get();
         List<LongWithAttributes> values = new ArrayList<>(stats.size());
-        for (var node : stats.keySet()) {
-            values.add(new LongWithAttributes(stats.get(node).undesiredShards(), getNodeAttributes(node)));
+        for (var e : stats.entrySet()) {
+            values.add(new LongWithAttributes(e.getValue().undesiredShards(), getNodeAttributes(e.getKey())));
         }
         return values;
     }
@@ -396,8 +395,8 @@ public class DesiredBalanceMetrics {
         }
         var stats = allocationStatsPerNodeRef.get();
         List<DoubleWithAttributes> doubles = new ArrayList<>(stats.size());
-        for (var node : stats.keySet()) {
-            doubles.add(new DoubleWithAttributes(stats.get(node).currentNodeWeight(), getNodeAttributes(node)));
+        for (var e : stats.entrySet()) {
+            doubles.add(new DoubleWithAttributes(e.getValue().currentNodeWeight(), getNodeAttributes(e.getKey())));
         }
         return doubles;
     }

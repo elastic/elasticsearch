@@ -584,9 +584,9 @@ public class MetadataCreateIndexService {
                 currentState,
                 request,
                 silent,
-                rerouteBehavior,
                 sourceMetadata,
                 metadataTransformer,
+                rerouteBehavior,
                 rerouteListener
             );
         } else {
@@ -599,8 +599,8 @@ public class MetadataCreateIndexService {
                     currentState,
                     request,
                     silent,
-                    rerouteBehavior,
                     metadataTransformer,
+                    rerouteBehavior,
                     rerouteListener
                 );
             }
@@ -613,8 +613,8 @@ public class MetadataCreateIndexService {
                     currentState,
                     request,
                     silent,
-                    rerouteBehavior,
                     descriptor.getIndexPattern(),
+                    rerouteBehavior,
                     rerouteListener
                 );
             }
@@ -632,9 +632,9 @@ public class MetadataCreateIndexService {
                     currentState,
                     request,
                     silent,
-                    rerouteBehavior,
                     templateFromRequest,
                     metadataTransformer,
+                    rerouteBehavior,
                     rerouteListener
                 );
             }
@@ -653,9 +653,9 @@ public class MetadataCreateIndexService {
                     currentState,
                     request,
                     silent,
-                    rerouteBehavior,
                     v2Template,
                     metadataTransformer,
+                    rerouteBehavior,
                     rerouteListener
                 );
             } else {
@@ -681,9 +681,9 @@ public class MetadataCreateIndexService {
                     currentState,
                     request,
                     silent,
-                    rerouteBehavior,
                     v1Templates,
                     metadataTransformer,
+                    rerouteBehavior,
                     rerouteListener
                 );
             }
@@ -722,13 +722,13 @@ public class MetadataCreateIndexService {
         final ClusterState currentState,
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
-        final RerouteBehavior rerouteBehavior,
         final IndexMetadata sourceMetadata,
         final IndexMetadata temporaryIndexMeta,
         final List<CompressedXContent> mappings,
         final Function<IndexService, List<AliasMetadata>> aliasSupplier,
         final List<String> templatesApplied,
         final BiConsumer<ProjectMetadata.Builder, IndexMetadata> metadataTransformer,
+        final RerouteBehavior rerouteBehavior,
         final ActionListener<Void> rerouteListener
     ) throws Exception {
         // create the index here (on the master) to validate it can be created, as well as adding the mapping
@@ -838,9 +838,9 @@ public class MetadataCreateIndexService {
         final ClusterState currentState,
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
-        final RerouteBehavior rerouteBehavior,
         final List<IndexTemplateMetadata> templates,
         final BiConsumer<ProjectMetadata.Builder, IndexMetadata> projectMetadataTransformer,
+        final RerouteBehavior rerouteBehavior,
         final ActionListener<Void> rerouteListener
     ) throws Exception {
         logger.debug(
@@ -887,7 +887,6 @@ public class MetadataCreateIndexService {
             currentState,
             request,
             silent,
-            rerouteBehavior,
             null,
             tmpImd,
             mappings == null ? List.of() : List.of(mappings),
@@ -905,6 +904,7 @@ public class MetadataCreateIndexService {
             ),
             templates.stream().map(IndexTemplateMetadata::getName).collect(toList()),
             projectMetadataTransformer,
+            rerouteBehavior,
             rerouteListener
         );
     }
@@ -913,9 +913,9 @@ public class MetadataCreateIndexService {
         final ClusterState currentState,
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
-        final RerouteBehavior rerouteBehavior,
         final String templateName,
         final BiConsumer<ProjectMetadata.Builder, IndexMetadata> projectMetadataTransformer,
+        final RerouteBehavior rerouteBehavior,
         final ActionListener<Void> rerouteListener
     ) throws Exception {
         logger.debug("applying create index request using composable template [{}]", templateName);
@@ -939,9 +939,9 @@ public class MetadataCreateIndexService {
             currentState,
             request,
             silent,
-            rerouteBehavior,
             template,
             projectMetadataTransformer,
+            rerouteBehavior,
             rerouteListener
         );
     }
@@ -950,9 +950,9 @@ public class MetadataCreateIndexService {
         final ClusterState currentState,
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
-        final RerouteBehavior rerouteBehavior,
         final ComposableIndexTemplate template,
         final BiConsumer<ProjectMetadata.Builder, IndexMetadata> projectMetadataTransformer,
+        final RerouteBehavior rerouteBehavior,
         final ActionListener<Void> rerouteListener
     ) throws Exception {
 
@@ -991,7 +991,6 @@ public class MetadataCreateIndexService {
             currentState,
             request,
             silent,
-            rerouteBehavior,
             null,
             tmpImd,
             mappings,
@@ -1009,6 +1008,7 @@ public class MetadataCreateIndexService {
             ),
             Collections.singletonList("provided in request"),
             projectMetadataTransformer,
+            rerouteBehavior,
             rerouteListener
         );
     }
@@ -1017,8 +1017,8 @@ public class MetadataCreateIndexService {
         final ClusterState currentState,
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
-        final RerouteBehavior rerouteBehavior,
         final String indexPattern,
+        final RerouteBehavior rerouteBehavior,
         final ActionListener<Void> rerouteListener
     ) throws Exception {
         logger.debug("applying create index request for system index [{}] matching pattern [{}]", request.index(), indexPattern);
@@ -1048,7 +1048,6 @@ public class MetadataCreateIndexService {
             currentState,
             request,
             silent,
-            rerouteBehavior,
             null,
             tmpImd,
             List.of(new CompressedXContent(MapperService.parseMapping(xContentRegistry, request.mappings()))),
@@ -1066,6 +1065,7 @@ public class MetadataCreateIndexService {
             ),
             List.of(),
             null,
+            rerouteBehavior,
             rerouteListener
         );
     }
@@ -1074,8 +1074,8 @@ public class MetadataCreateIndexService {
         final ClusterState currentState,
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
-        final RerouteBehavior rerouteBehavior,
         final BiConsumer<ProjectMetadata.Builder, IndexMetadata> projectMetadataTransformer,
+        final RerouteBehavior rerouteBehavior,
         final ActionListener<Void> rerouteListener
     ) throws Exception {
         Objects.requireNonNull(request.systemDataStreamDescriptor());
@@ -1117,7 +1117,6 @@ public class MetadataCreateIndexService {
             currentState,
             request,
             silent,
-            rerouteBehavior,
             null,
             tmpImd,
             mappings,
@@ -1135,6 +1134,7 @@ public class MetadataCreateIndexService {
             ),
             List.of(),
             projectMetadataTransformer,
+            rerouteBehavior,
             rerouteListener
         );
     }
@@ -1188,9 +1188,9 @@ public class MetadataCreateIndexService {
         final ClusterState currentState,
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
-        final RerouteBehavior rerouteBehavior,
         final IndexMetadata sourceMetadata,
         final BiConsumer<ProjectMetadata.Builder, IndexMetadata> projectMetadataTransformer,
+        final RerouteBehavior rerouteBehavior,
         final ActionListener<Void> rerouteListener
     ) throws Exception {
         logger.info("applying create index request using existing index [{}] metadata", sourceMetadata.getIndex().getName());
@@ -1228,7 +1228,6 @@ public class MetadataCreateIndexService {
             currentState,
             request,
             silent,
-            rerouteBehavior,
             sourceMetadata,
             tmpImd,
             List.of(),
@@ -1246,6 +1245,7 @@ public class MetadataCreateIndexService {
             ),
             List.of(),
             projectMetadataTransformer,
+            rerouteBehavior,
             rerouteListener
         );
     }

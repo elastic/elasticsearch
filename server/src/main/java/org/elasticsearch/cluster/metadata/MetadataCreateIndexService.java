@@ -518,6 +518,7 @@ public class MetadataCreateIndexService {
                         state,
                         task.request,
                         false,
+                        // Wait until all indices in the batch have been processed before doing a reroute
                         RerouteBehavior.SKIP_REROUTE,
                         rerouteCompletionIsNotRequired()
                     );

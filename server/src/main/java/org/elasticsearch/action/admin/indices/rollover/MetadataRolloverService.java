@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.RerouteBehavior;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -265,12 +266,11 @@ public class MetadataRolloverService {
             rolloverIndexName,
             createIndexRequest
         );
-        assert createIndexClusterStateRequest.performReroute() == false
-            : "rerouteCompletionIsNotRequired() assumes reroute is not called by underlying service";
         ClusterState newState = createIndexService.applyCreateIndexRequest(
             projectState.cluster(),
             createIndexClusterStateRequest,
             silent,
+            RerouteBehavior.SKIP_REROUTE,
             rerouteCompletionIsNotRequired()
         );
 
@@ -419,13 +419,11 @@ public class MetadataRolloverService {
                 now
             );
             createIndexClusterStateRequest.setMatchingTemplate(templateV2);
-            assert createIndexClusterStateRequest.performReroute() == false
-                : "rerouteCompletionIsNotRequired() assumes reroute is not called by underlying service";
-
             newState = createIndexService.applyCreateIndexRequest(
                 projectState.cluster(),
                 createIndexClusterStateRequest,
                 silent,
+                RerouteBehavior.SKIP_REROUTE,
                 (builder, indexMetadata) -> {
                     downgradeBrokenTsdbBackingIndices(dataStream, builder);
                     builder.put(
@@ -581,8 +579,7 @@ public class MetadataRolloverService {
         return new CreateIndexClusterStateUpdateRequest(cause, projectId, targetIndexName, providedIndexName).settings(b.build())
             .aliases(createIndexRequest.aliases())
             .waitForActiveShards(ActiveShardCount.NONE) // not waiting for shards here, will wait on the alias switch operation
-            .mappings(createIndexRequest.mappings())
-            .performReroute(false);
+            .mappings(createIndexRequest.mappings());
     }
 
     /**

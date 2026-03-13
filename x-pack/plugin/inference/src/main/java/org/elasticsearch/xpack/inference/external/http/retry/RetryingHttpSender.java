@@ -131,23 +131,13 @@ public class RetryingHttpSender implements RequestSender {
                 return;
             }
 
-            var logFailureListener = listener.delegateResponse((delegateListener, e) -> {
-                var exceptionToUse = e;
-                if (e instanceof AlreadyLoggedException alreadyLoggedException) {
-                    exceptionToUse = alreadyLoggedException.getOriginalException();
-                } else {
-                    logException(logger, request, responseHandler.getRequestType(), exceptionToUse);
-                }
+            SubscribableListener.<HttpRequest>newForked(createHttpRequestListener -> {
+                var loggingAndTransformListener = logAndTransformExceptionListener(createHttpRequestListener);
 
-                delegateListener.onFailure(exceptionToUse);
-            });
-
-            SubscribableListener.<HttpRequest>newForked(
-                httpRequestActionListener -> wrapThrownException(
-                    () -> request.createHttpRequest(httpRequestActionListener),
-                    httpRequestActionListener
-                )
-            ).<InferenceServiceResults>andThen((inferenceServiceResultsActionListener, httpRequest) -> {
+                // We don't need the loggingAndTransformListener for the wrapThrownException() call
+                // because that method does its own logging
+                wrapThrownException(() -> request.createHttpRequest(loggingAndTransformListener), createHttpRequestListener);
+            }).<InferenceServiceResults>andThen((inferenceServiceResultsActionListener, httpRequest) -> {
                 if (hasRequestCompletedFunction.get()) {
                     // TimedListener will drop this, just being safe to avoid a hanging listener
                     inferenceServiceResultsActionListener.onFailure(
@@ -160,7 +150,7 @@ public class RetryingHttpSender implements RequestSender {
                     () -> sendRequest(httpRequest, inferenceServiceResultsActionListener),
                     inferenceServiceResultsActionListener
                 );
-            }).addListener(logFailureListener);
+            }).addListener(listener);
         }
 
         private static String timeoutString(String inferenceId) {
@@ -176,8 +166,22 @@ public class RetryingHttpSender implements RequestSender {
             try {
                 runnable.run();
             } catch (Exception e) {
+                logException(logger, request, responseHandler.getRequestType(), e);
                 listener.onFailure(wrapWithElasticsearchException(e, request.getInferenceEntityId()));
             }
+        }
+
+        private <T> ActionListener<T> logAndTransformExceptionListener(ActionListener<T> listener) {
+            return listener.delegateResponse((l, e) -> {
+                var exceptionToUse = e;
+                if (e instanceof AlreadyLoggedException alreadyLoggedException) {
+                    exceptionToUse = alreadyLoggedException.getOriginalException();
+                } else {
+                    logException(logger, request, responseHandler.getRequestType(), exceptionToUse);
+                }
+
+                l.onFailure(transformIfRetryable(exceptionToUse));
+            });
         }
 
         private void sendRequest(HttpRequest httpRequest, ActionListener<InferenceServiceResults> listener) throws IOException {
@@ -186,10 +190,7 @@ public class RetryingHttpSender implements RequestSender {
              * to determine if the exception is retryable and if so wrap it in a RetryException so that when we pass the failure to the
              * tryAction original listener it will get passed to shouldRetry() and be retried.
              */
-            var httpClientFailureListener = listener.delegateResponse((l, e) -> {
-                logException(logger, request, responseHandler.getRequestType(), e);
-                l.onFailure(transformIfRetryable(e));
-            });
+            var httpClientFailureListener = logAndTransformExceptionListener(listener);
 
             if (request.isStreaming() && responseHandler.canHandleStreamingResponses()) {
                 httpClient.stream(httpRequest, context, httpClientFailureListener.delegateFailureAndWrap((l, r) -> {

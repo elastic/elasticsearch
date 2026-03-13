@@ -297,6 +297,52 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    public void testNullsInArray() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        String ndjson = """
+            {"tags": ["a", null, "b"], "id": 1}
+            {"tags": ["c", "d"], "id": 2}
+            """;
+
+        var reader = new NdJsonFormatReader(blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        try (var iterator = reader.read(object, List.of("tags", "id"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+
+            assertPage(page, """
+                   BYTES_REF   |      INT     \s
+                ---------------+---------------
+                [a, b]         |1             \s
+                [c, d]         |2             \s
+                """);
+
+            assertEquals(page.getBlock(0).getPositionCount(), page.getBlock(1).getPositionCount());
+            assertEquals(2, page.getPositionCount());
+        }
+    }
+
+    public void testNestedArraysMisalignment() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        String ndjson = """
+            {"matrix": [[1,2],[3,4]], "id": 1}
+            {"matrix": [[5,6]], "id": 2}
+            """;
+
+        var reader = new NdJsonFormatReader(blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        try (var iterator = reader.read(object, List.of("matrix", "id"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(page.getBlock(0).getPositionCount(), page.getBlock(1).getPositionCount());
+            assertEquals(2, page.getPositionCount());
+        }
+    }
+
     // --- findNextRecordBoundary tests ---
 
     public void testFindNextRecordBoundaryNewline() throws IOException {

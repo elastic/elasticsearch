@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -173,7 +174,11 @@ public class OrcFormatReader implements FormatReader {
     }
 
     @Override
-    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
+    public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+        List<String> projectedColumns = context.projectedColumns();
+        int batchSize = context.batchSize();
+        int rowLimit = context.rowLimit();
+
         OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
         Path path = new Path(object.path().toString());
         OrcFile.ReaderOptions readerOptions = OrcFile.readerOptions(new Configuration(false)).filesystem(fs);
@@ -221,7 +226,8 @@ public class OrcFormatReader implements FormatReader {
         }
         RecordReader rows = reader.rows(readOptions);
 
-        return new OrcPageIterator(reader, rows, schema, projectedAttributes, batchSize, blockFactory);
+        CloseableIterator<Page> iter = new OrcPageIterator(reader, rows, schema, projectedAttributes, batchSize, blockFactory);
+        return rowLimit != NO_LIMIT ? new RowLimitingIterator(iter, rowLimit) : iter;
     }
 
     @Override
@@ -502,4 +508,56 @@ public class OrcFormatReader implements FormatReader {
             }
         }
     }
+
+    private static class RowLimitingIterator implements CloseableIterator<Page> {
+        private final CloseableIterator<Page> delegate;
+        private int remaining;
+
+        RowLimitingIterator(CloseableIterator<Page> delegate, int rowLimit) {
+            if (rowLimit <= 0) {
+                throw new IllegalArgumentException("rowLimit must be positive, got: " + rowLimit);
+            }
+            this.delegate = delegate;
+            this.remaining = rowLimit;
+        }
+
+        @Override
+        public boolean hasNext() {
+            if (remaining <= 0) {
+                return false;
+            }
+            return delegate.hasNext();
+        }
+
+        @Override
+        public Page next() {
+            if (hasNext() == false) {
+                throw new NoSuchElementException();
+            }
+            Page page = delegate.next();
+            int rows = page.getPositionCount();
+            if (rows > remaining) {
+                int[] positions = new int[remaining];
+                for (int i = 0; i < remaining; i++) {
+                    positions[i] = i;
+                }
+                page = page.filter(false, positions);
+                remaining = 0;
+                try {
+                    delegate.close();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            } else {
+                remaining -= rows;
+            }
+            return page;
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+    }
+
 }

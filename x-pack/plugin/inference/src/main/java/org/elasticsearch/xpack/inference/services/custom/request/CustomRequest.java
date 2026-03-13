@@ -93,16 +93,12 @@ public class CustomRequest implements Request {
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        try {
-            HttpPost httpRequest = new HttpPost(uri);
+        HttpPost httpRequest = new HttpPost(uri);
 
-            setHeaders(httpRequest);
-            setRequestContent(httpRequest);
+        setHeaders(httpRequest);
+        setRequestContent(httpRequest);
 
-            listener.onResponse(new HttpRequest(httpRequest, getInferenceEntityId()));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        listener.onResponse(new HttpRequest(httpRequest, getInferenceEntityId()));
     }
 
     private void setHeaders(HttpRequestBase httpRequest) {

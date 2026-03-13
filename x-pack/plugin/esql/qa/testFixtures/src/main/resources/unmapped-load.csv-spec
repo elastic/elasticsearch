@@ -78,7 +78,8 @@ FROM partial_mapping_sample_data
 2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 1                     | English
 ;
 
-doesNotLoadUnmappedFieldsLookupJoin
+doesNotLoadUnmappedFieldsLookupJoin-Ignore
+// temporarily forbidding "load" with LOOKUP JOIN
 required_capability: optional_fields_v2
 required_capability: join_lookup_v12
 FROM partial_mapping_sample_data

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import java.util.Locale;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.ignoreIds;
 
@@ -69,8 +70,8 @@ public class InsertDefaultInnerTimeSeriesAggregateTests extends AbstractLogicalP
             | SORT s
             | LIMIT 10
             """;
-        var plan1 = metricsAnalyzer.analyze(parser.parseQuery(String.format(Locale.ROOT, baseQuery, stats1)));
-        var plan2 = metricsAnalyzer.analyze(parser.parseQuery(String.format(Locale.ROOT, baseQuery, stats2)));
+        var plan1 = metricsAnalyzer.analyze(TEST_PARSER.parseQuery(String.format(Locale.ROOT, baseQuery, stats1)));
+        var plan2 = metricsAnalyzer.analyze(TEST_PARSER.parseQuery(String.format(Locale.ROOT, baseQuery, stats2)));
         Function<Alias, Expression> ignoreAliasName = (Alias a) -> new Alias(a.source(), "dummy", a.child(), a.id());
         plan1 = plan1.transformExpressionsDown(Alias.class, ignoreAliasName);
         plan2 = plan2.transformExpressionsDown(Alias.class, ignoreAliasName);

@@ -37,16 +37,10 @@ public final class AllLastLongByIntGroupingAggregatorFunction implements Groupin
 
   private final DriverContext driverContext;
 
-  public AllLastLongByIntGroupingAggregatorFunction(List<Integer> channels,
-      AllLastLongByIntAggregator.GroupingState state, DriverContext driverContext) {
+  AllLastLongByIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = AllLastLongByIntAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static AllLastLongByIntGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new AllLastLongByIntGroupingAggregatorFunction(channels, AllLastLongByIntAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

@@ -35,16 +35,10 @@ public final class AllLastIntByLongAggregatorFunction implements AggregatorFunct
 
   private final List<Integer> channels;
 
-  public AllLastIntByLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      AllLongIntState state) {
+  AllLastIntByLongAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static AllLastIntByLongAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new AllLastIntByLongAggregatorFunction(driverContext, channels, AllLastIntByLongAggregator.initSingle(driverContext));
+    this.state = AllLastIntByLongAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

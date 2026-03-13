@@ -36,16 +36,10 @@ public final class LastFloatByTimestampAggregatorFunction implements AggregatorF
 
   private final List<Integer> channels;
 
-  public LastFloatByTimestampAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      LongFloatState state) {
+  LastFloatByTimestampAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static LastFloatByTimestampAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new LastFloatByTimestampAggregatorFunction(driverContext, channels, LastFloatByTimestampAggregator.initSingle(driverContext));
+    this.state = LastFloatByTimestampAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

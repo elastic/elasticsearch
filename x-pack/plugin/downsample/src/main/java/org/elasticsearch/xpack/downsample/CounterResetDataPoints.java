@@ -1,0 +1,53 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.downsample;
+
+import org.elasticsearch.core.Tuple;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.BiConsumer;
+
+/**
+ * Helper class that stores counter measurements necessary to detect a reset during downsampling. These measurements are
+ * the last measurement before a reset and the next measurement.
+ *
+ * Note: this code is used sequentially, and therefore there is no thread-safety built-in.
+ */
+class CounterResetDataPoints {
+
+    /**
+     * Tracks timestamp measurements and the counter values at that moment.
+     */
+    private final Map<Long, List<Tuple<String, Double>>> dataPoints = new HashMap<>();
+
+    void addDataPoint(String counterName, ResetPoint resetPoint) {
+        dataPoints.computeIfAbsent(resetPoint.timestamp, k -> new ArrayList<>()).add(Tuple.tuple(counterName, resetPoint.value));
+    }
+
+    public boolean isEmpty() {
+        return dataPoints.isEmpty();
+    }
+
+    /**
+     * Apply the processor consumer on each tracked measurement.
+     */
+    public void processDataPoints(BiConsumer<Long, List<Tuple<String, Double>>> processor) {
+        if (isEmpty() == false) {
+            dataPoints.forEach(processor);
+        }
+    }
+
+    public int countResetDocuments() {
+        return dataPoints.size();
+    }
+
+    record ResetPoint(long timestamp, double value) {}
+}

@@ -39,16 +39,11 @@ public final class FirstTDigestByTimestampGroupingAggregatorFunction implements 
 
   private final DriverContext driverContext;
 
-  public FirstTDigestByTimestampGroupingAggregatorFunction(List<Integer> channels,
-      TDigestStates.WithLongGroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static FirstTDigestByTimestampGroupingAggregatorFunction create(List<Integer> channels,
+  FirstTDigestByTimestampGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new FirstTDigestByTimestampGroupingAggregatorFunction(channels, FirstTDigestByTimestampAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = FirstTDigestByTimestampAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

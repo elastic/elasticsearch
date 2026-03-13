@@ -46,6 +46,7 @@ public final class TSDBDocValuesFormatFactory {
         if (indexCreatedVersion.onOrAfter(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3)) {
             if (useLargeBinaryBlockSize) {
                 // At this stage, we don't need large numeric blocks if large binary block is requested:
+                assert useLargeNumericBlockSize == false;
                 return ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK;
             }
             return useLargeNumericBlockSize ? ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK : ES_819_3_TSDB_DOC_VALUES_FORMAT;

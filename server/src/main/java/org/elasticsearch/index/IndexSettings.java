@@ -891,7 +891,7 @@ public final class IndexSettings {
     public static final FeatureFlag ALLOW_LARGE_BINARY_BLOCK_SIZE = new FeatureFlag("allow_large_binary_block_size");
     public static final Setting<Boolean> USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE = Setting.boolSetting(
         "index.use_time_series_doc_values_format_large_binary_block_size",
-        true,
+        false,
         Property.IndexScope,
         Property.Final
     );

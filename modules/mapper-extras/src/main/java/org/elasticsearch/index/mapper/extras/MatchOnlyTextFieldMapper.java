@@ -900,8 +900,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         final var utfBytes = value.bytes();
-        Field field = new Field(fieldType().name(), new UTF8DecodingReader(utfBytes), fieldType);
-        context.doc().add(field);
+        if (context.indexSettings().isIndexDisabledByDefault() == false) {
+            Field field = new Field(fieldType().name(), new UTF8DecodingReader(utfBytes), fieldType);
+            context.doc().add(field);
+        }
 
         // Add doc_values if enabled
         if (docValuesParameters.enabled()) {

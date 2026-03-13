@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Node;
@@ -96,6 +97,10 @@ public class Verifier {
     Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics, UnmappedResolution unmappedResolution) {
         assert partialMetrics != null;
         Failures failures = new Failures();
+
+        if (unmappedResolution != UnmappedResolution.FAIL) {
+            checkUnmappedTimestamp(plan, failures);
+        }
 
         // quick verification for unresolved attributes
         checkUnresolvedAttributes(plan, failures);
@@ -352,6 +357,38 @@ public class Verifier {
         if (plan instanceof LimitBy) {
             failures.add(fail(plan, "LIMIT BY is not yet supported"));
         }
+    }
+
+    /**
+     * Functions that implicitly reference {@code @timestamp} (like TBUCKET) require the field to be present in the index mapping.
+     * The {@code unmapped_fields} setting does not apply to the implicit {@code @timestamp} reference.
+     * Only emits the specific message when {@code @timestamp} is truly absent from all source index mappings;
+     * if the field was present but dropped/renamed by the query, the generic unresolved-attribute message is more appropriate.
+     * See https://github.com/elastic/elasticsearch/issues/142127
+     */
+    private static void checkUnmappedTimestamp(LogicalPlan plan, Failures failures) {
+        boolean timestampInIndex = plan.collect(EsRelation.class, r -> r.indexMode() != IndexMode.LOOKUP)
+            .stream()
+            .anyMatch(r -> r.output().stream().anyMatch(a -> MetadataAttribute.TIMESTAMP_FIELD.equals(a.name())));
+        if (timestampInIndex) {
+            return;
+        }
+        plan.forEachDown(p -> {
+            if (p.childrenResolved() == false) {
+                return;
+            }
+            p.forEachExpression(UnresolvedTimestamp.class, ut -> {
+                failures.add(
+                    fail(
+                        ut,
+                        "[{}] "
+                            + UnresolvedTimestamp.UNRESOLVED_SUFFIX
+                            + "; the [unmapped_fields] setting does not apply to the implicit @timestamp reference",
+                        ut.sourceText()
+                    )
+                );
+            });
+        });
     }
 
     /**

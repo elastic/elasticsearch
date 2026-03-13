@@ -31,16 +31,10 @@ public final class ValuesIntAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public ValuesIntAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      ValuesIntAggregator.SingleState state) {
+  ValuesIntAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static ValuesIntAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new ValuesIntAggregatorFunction(driverContext, channels, ValuesIntAggregator.initSingle(driverContext.bigArrays()));
+    this.state = ValuesIntAggregator.initSingle(driverContext.bigArrays());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

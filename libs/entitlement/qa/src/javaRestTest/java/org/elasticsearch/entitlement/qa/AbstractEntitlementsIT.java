@@ -75,18 +75,41 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
         if (expectAllowed) {
             Response result = executeCheck();
             assertThat(result.getStatusLine().getStatusCode(), equalTo(200));
+            String noOpChanged = result.getHeader("noOpChanged");
+            if (noOpChanged != null) {
+                assertTrue("Action [" + actionName + "] expected state to change when allowed but it did not", "true".equals(noOpChanged));
+            }
         } else {
             try {
                 Response result = executeCheck();
-                // If the call succeeded in a denied context, a default value strategy must be in play.
-                // Verify the returned default matches the expected value.
-                String expectedDefault = result.getHeader("expectedDefaultIfDenied");
-                assertNotNull(
-                    "Action [" + actionName + "] succeeded in denied context but has no expectedDefaultIfDenied",
-                    expectedDefault
-                );
-                String actualValue = result.getHeader("resultValue");
-                assertThat("Action [" + actionName + "] returned unexpected default value", actualValue, equalTo(expectedDefault));
+                assertThat(result.getStatusLine().getStatusCode(), equalTo(200));
+                if (result.getHeader("noOpChanged") != null) {
+                    assertFalse(
+                        "Action [" + actionName + "] expected no-op when denied but state changed",
+                        "true".equals(result.getHeader("noOpChanged"))
+                    );
+                } else if ("true".equals(result.getHeader("isExpectedDefaultNull"))) {
+                    assertTrue(
+                        "Action [" + actionName + "] expected null default but got a non-null result",
+                        "true".equals(result.getHeader("resultIsNull"))
+                    );
+                } else if (result.getHeader("expectedDefaultIfDenied") != null) {
+                    String actualValue = result.getHeader("resultValue");
+                    assertThat(
+                        "Action [" + actionName + "] returned unexpected default value",
+                        actualValue,
+                        equalTo(result.getHeader("expectedDefaultIfDenied"))
+                    );
+                    String defaultTypeMatch = result.getHeader("defaultTypeMatch");
+                    if (defaultTypeMatch != null) {
+                        assertTrue(
+                            "Action [" + actionName + "] returned result not matching expected default type",
+                            "true".equals(defaultTypeMatch)
+                        );
+                    }
+                } else {
+                    fail("Action [" + actionName + "] was expected to be denied but succeeded");
+                }
             } catch (ResponseException exception) {
                 assertThat(exception, statusCodeMatcher(403));
             }
@@ -103,6 +126,11 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
                 Response resp = item.getResponse();
                 expectedException = resp.getHeader("expectedException");
                 if (resp.getStatusLine().getStatusCode() != statusCode || expectedException == null) {
+                    return false;
+                }
+                String actualException = resp.getHeader("actualException");
+                if (expectedException.equals(actualException) == false) {
+                    mismatchDetail = "expected exception [" + expectedException + "] but got [" + actualException + "]";
                     return false;
                 }
                 String notEntitledCause = resp.getHeader("notEntitledCause");

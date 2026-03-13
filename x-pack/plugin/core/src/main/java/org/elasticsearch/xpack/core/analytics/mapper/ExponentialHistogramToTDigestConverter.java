@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.analytics.mapper;
 
 import org.elasticsearch.exponentialhistogram.BucketIterator;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialScaleUtils;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
 
@@ -15,16 +16,32 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Utility class for converting {@link ExponentialHistogram} instances to t-digests represented as {@link EncodedTDigest.CentroidIterator}.
+ */
 public class ExponentialHistogramToTDigestConverter {
 
-    public static EncodedTDigest.CentroidIterator convert(int scale, BucketIterator negative, ZeroBucket zeroBucket, BucketIterator positive) {
+    /**
+     * Converts exponential histograms to t-digests.
+     * This algorithm computes the arithmetic bucket centers
+     * (midpoint between lower and upper bounds) and uses them as centroids for the resulting T-Digest.
+     * <br>
+     * Note that the conversion is partially lazy, so the {@link BucketIterator}s must remain
+     * valid until the return {@link EncodedTDigest.CentroidIterator} is fully consumed.
+     *
+     * @param negative the negative buckets of the exponential histogram
+     * @param zeroBucket the zero bucket of the exponential histogram
+     * @param positive the positive buckets of the exponential histogram
+     * @return the resulting t-digest histogram
+     */
+    public static EncodedTDigest.CentroidIterator convert(BucketIterator negative, ZeroBucket zeroBucket, BucketIterator positive) {
         List<Double> negativeBucketCenters;
         List<Long> negativeBucketCounts;
         if (negative.hasNext()) {
             negativeBucketCenters = new ArrayList<>();
             negativeBucketCounts = new ArrayList<>();
             while (negative.hasNext()) {
-                negativeBucketCenters.add(-getBucketCenter(negative.peekIndex(), scale));
+                negativeBucketCenters.add(-getBucketCenter(negative.peekIndex(), negative.scale()));
                 negativeBucketCounts.add(negative.peekCount());
                 negative.advance();
             }
@@ -62,7 +79,7 @@ public class ExponentialHistogramToTDigestConverter {
                     }
                 }
                 while (positive.hasNext()) {
-                    double center = getBucketCenter(positive.peekIndex(), scale);
+                    double center = getBucketCenter(positive.peekIndex(), positive.scale());
                     if (currentCount > 0 && currentMean != center) {
                         break;
                     }

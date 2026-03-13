@@ -25,7 +25,6 @@ public class ParsedHistogramConverter {
      */
     public static HistogramParser.ParsedHistogram exponentialToTDigest(ExponentialHistogramParser.ParsedExponentialHistogram expHisto) {
         EncodedTDigest.CentroidIterator centroidIterator = ExponentialHistogramToTDigestConverter.convert(
-            expHisto.scale(),
             IndexWithCount.asBuckets(expHisto.scale(), expHisto.negativeBuckets()).iterator(),
             ZeroBucket.create(expHisto.zeroThreshold(), expHisto.zeroCount()),
             IndexWithCount.asBuckets(expHisto.scale(), expHisto.positiveBuckets()).iterator()

@@ -11,7 +11,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardsGroup;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
@@ -91,7 +91,6 @@ abstract class DataNodeRequestSender {
     private final CancellableTask rootTask;
 
     private final String clusterAlias;
-    private final OriginalIndices originalIndices;
     private final QueryBuilder requestFilter;
 
     private final boolean allowPartialResults;
@@ -111,7 +110,6 @@ abstract class DataNodeRequestSender {
         TransportService transportService,
         Executor esqlExecutor,
         CancellableTask rootTask,
-        OriginalIndices originalIndices,
         QueryBuilder requestFilter,
         String clusterAlias,
         boolean allowPartialResults,
@@ -123,7 +121,6 @@ abstract class DataNodeRequestSender {
         this.transportService = transportService;
         this.esqlExecutor = esqlExecutor;
         this.rootTask = rootTask;
-        this.originalIndices = originalIndices;
         this.requestFilter = requestFilter;
         this.clusterAlias = clusterAlias;
         this.allowPartialResults = allowPartialResults;
@@ -133,7 +130,12 @@ abstract class DataNodeRequestSender {
         );
     }
 
-    final void startComputeOnDataNodes(Set<String> concreteIndices, Runnable runOnTaskFailure, ActionListener<ComputeResponse> listener) {
+    final void startComputeOnDataNodes(
+        String[] originalIndices,
+        Set<String> concreteIndices,
+        Runnable runOnTaskFailure,
+        ActionListener<ComputeResponse> listener
+    ) {
         assert ThreadPool.assertCurrentThreadPool(
             EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
             ThreadPool.Names.SYSTEM_READ,
@@ -141,7 +143,7 @@ abstract class DataNodeRequestSender {
             ThreadPool.Names.SEARCH_COORDINATION
         );
         final long startTimeInNanos = System.nanoTime();
-        searchShards(concreteIndices, ActionListener.wrap(targetShards -> {
+        searchShards(originalIndices, concreteIndices, ActionListener.wrap(targetShards -> {
             try (
                 var computeListener = new ComputeListener(
                     transportService.getThreadPool(),
@@ -397,7 +399,7 @@ abstract class DataNodeRequestSender {
     }
 
     /**
-     * Result from {@link #searchShards(Set, ActionListener)} where can_match is performed to
+     * Result from {@link #searchShards(String[], Set, ActionListener)} where can_match is performed to
      * determine what shards can be skipped and which target nodes are needed for running the ES|QL query
      *
      * @param shards        List of target shards to perform the ES|QL query on
@@ -497,7 +499,7 @@ abstract class DataNodeRequestSender {
      * Ideally, the search_shards API should be called before the field-caps API; however, this can lead
      * to a situation where the column structure (i.e., matched data types) differs depending on the query.
      */
-    void searchShards(Set<String> concreteIndices, ActionListener<TargetShards> listener) {
+    void searchShards(String[] originalIndices, Set<String> concreteIndices, ActionListener<TargetShards> listener) {
         ActionListener<SearchShardsResponse> searchShardsListener = listener.map(resp -> {
             Map<String, DiscoveryNode> nodes = newHashMap(resp.getNodes().size());
             for (DiscoveryNode node : resp.getNodes()) {
@@ -526,8 +528,8 @@ abstract class DataNodeRequestSender {
             return new TargetShards(shards, totalShards, skippedShards);
         });
         var searchShardsRequest = new SearchShardsRequest(
-            originalIndices.indices(),
-            originalIndices.indicesOptions(),
+            originalIndices,
+            SearchRequest.DEFAULT_INDICES_OPTIONS,
             requestFilter,
             null,
             null,

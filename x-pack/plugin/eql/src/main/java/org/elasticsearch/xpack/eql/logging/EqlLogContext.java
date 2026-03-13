@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.logging;
 
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
 import org.elasticsearch.tasks.Task;
@@ -67,7 +68,7 @@ public class EqlLogContext extends ActivityLoggerContext {
 
     // CCS stuff
     public long remoteClusterCount() {
-        var resolved = request.getResolvedIndexExpressions();
+        ResolvedIndexExpressions resolved = request.getResolvedIndexExpressions();
         if (resolved != null) {
             return resolved.getRemoteIndicesList()
                 .stream()
@@ -75,6 +76,11 @@ public class EqlLogContext extends ActivityLoggerContext {
                 .map(i -> RemoteClusterAware.splitIndexName(i)[0])
                 .distinct()
                 .count();
+        } else {
+            String[] indices = request.indices();
+            if (indices != null) {
+                return Arrays.stream(indices).filter(RemoteClusterAware::isRemoteIndexName).count();
+            }
         }
         return 0;
     }

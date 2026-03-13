@@ -17,12 +17,10 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -37,6 +35,8 @@ import org.junit.BeforeClass;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
@@ -61,7 +61,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
         analyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(test),
                 defaultLookupResolution(),
                 new EnrichResolution(),
@@ -413,7 +413,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
     }
 
     private LogicalPlan plan(String query, LogicalPlanOptimizer optimizer) {
-        return optimizer.optimize(analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query)));
+        return optimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query)));
     }
 
     @Override

@@ -629,7 +629,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT,
             MappingParser.convertToMap(update)
         );
-        Mapping mapping = mergeBuilders(updateBuilder, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT);
+        Mapping mapping = mergeBuilders(mappingParser, indexSettings, updateBuilder, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, existing);
         return mapping.toCompressedXContent().equals(existing.mappingSource());
     }
 
@@ -653,8 +653,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private Mapping mergeBuilders(MappingBuilder incomingBuilder, MergeReason reason) {
-        long newFieldsBudget = getMaxFieldsToAddDuringMerge(this.mapper, indexSettings, reason);
-        if (this.mapper == null) {
+        return mergeBuilders(mappingParser, indexSettings, incomingBuilder, reason, this.mapper);
+    }
+
+    private static Mapping mergeBuilders(
+        MappingParser mappingParser,
+        IndexSettings indexSettings,
+        MappingBuilder incomingBuilder,
+        MergeReason reason,
+        DocumentMapper currentMapper
+    ) {
+        long newFieldsBudget = getMaxFieldsToAddDuringMerge(currentMapper, indexSettings, reason);
+        if (currentMapper == null) {
             try {
                 return buildMapping(applyFieldsBudget(incomingBuilder, newFieldsBudget, reason), reason);
             } catch (MapperParsingException e) {
@@ -663,7 +673,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
             }
         }
-        MappingBuilder existingBuilder = mappingParser.parseToBuilder(this.mapper.type(), reason, this.mapper.mappingSource());
+        MappingBuilder existingBuilder = mappingParser.parseToBuilder(currentMapper.type(), reason, currentMapper.mappingSource());
         existingBuilder.merge(incomingBuilder, reason, newFieldsBudget);
         return buildMapping(existingBuilder, reason);
     }

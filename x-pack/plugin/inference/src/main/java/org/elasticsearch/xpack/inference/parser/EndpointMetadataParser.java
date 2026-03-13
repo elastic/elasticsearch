@@ -18,6 +18,7 @@ import java.util.EnumSet;
 import java.util.Map;
 
 import static org.elasticsearch.inference.metadata.EndpointMetadata.DISPLAY_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Display.MODEL_CREATOR_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Display.NAME_FIELD;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.HEURISTICS_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Heuristics.END_OF_LIFE_DATE_FIELD_NAME;
@@ -120,12 +121,13 @@ public final class EndpointMetadataParser {
             return EndpointMetadata.Display.EMPTY_INSTANCE;
         }
         var name = ObjectParserUtils.removeAsType(map, NAME_FIELD, root, String.class);
+        var modelCreator = ObjectParserUtils.removeAsType(map, MODEL_CREATOR_FIELD, root, String.class);
 
-        if (name == null) {
+        if (name == null && modelCreator == null) {
             return EndpointMetadata.Display.EMPTY_INSTANCE;
         }
 
-        return new EndpointMetadata.Display(name);
+        return new EndpointMetadata.Display(name, modelCreator);
     }
 
     private EndpointMetadataParser() {}

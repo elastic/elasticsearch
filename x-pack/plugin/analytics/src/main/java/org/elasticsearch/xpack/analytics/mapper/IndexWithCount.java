@@ -27,12 +27,12 @@ public record IndexWithCount(long index, long count) {
 
             @Override
             public CopyableBucketIterator iterator() {
-                return new Iterator(bucketIndices, scale, 0, true);
+                return Iterator.create(bucketIndices, scale);
             }
 
             @Override
             public CopyableBucketIterator reverseIterator() {
-                return new Iterator(bucketIndices, scale, bucketCount() - 1, false);
+                return Iterator.createReversed(bucketIndices, scale);
             }
 
             @Override
@@ -70,7 +70,15 @@ public record IndexWithCount(long index, long count) {
         private int position;
         private final boolean iterateForwards;
 
-        Iterator(List<IndexWithCount> buckets, int scale, int position, boolean iterateForwards) {
+        static Iterator create(List<IndexWithCount> buckets, int scale) {
+            return new Iterator(buckets, scale, 0, true);
+        }
+
+        static Iterator createReversed(List<IndexWithCount> buckets, int scale) {
+            return new Iterator(buckets, scale, buckets.size() - 1, false);
+        }
+
+        private Iterator(List<IndexWithCount> buckets, int scale, int position, boolean iterateForwards) {
             this.buckets = buckets;
             this.scale = scale;
             this.position = position;

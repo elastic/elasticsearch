@@ -182,7 +182,7 @@ public interface ExponentialHistogram extends Accountable {
                 ascendingIt.advance();
             }
             assert ascendingIt.hasNext() == false : "bucketCount() must be consistent with the number of buckets returned by iterator()";
-            return BucketArrayIterator.createReverseIterator(scale, counts, indices, 0, bucketCount);
+            return BucketArrayIterator.createReversed(scale, counts, indices, 0, bucketCount);
         }
 
     }

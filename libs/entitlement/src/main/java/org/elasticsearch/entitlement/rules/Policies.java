@@ -18,6 +18,7 @@ import java.io.File;
 import java.net.JarURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
+import java.nio.channels.FileChannel;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -223,6 +224,20 @@ public class Policies {
      */
     public static CheckMethod fileWrite(Path path) {
         return (callingClass, policyChecker) -> policyChecker.checkFileWrite(callingClass, path);
+    }
+
+    /**
+     * Returns a check method for memory-mapping a file channel.
+     * Uses {@link FileChannel.MapMode} to determine whether to check read or write entitlements.
+     *
+     * @param mode the map mode
+     * @return a check method that verifies the appropriate file descriptor entitlement
+     */
+    public static CheckMethod mapFileChannel(FileChannel.MapMode mode) {
+        if (mode == FileChannel.MapMode.READ_WRITE) {
+            return fileDescriptorWrite();
+        }
+        return fileDescriptorRead();
     }
 
     /**

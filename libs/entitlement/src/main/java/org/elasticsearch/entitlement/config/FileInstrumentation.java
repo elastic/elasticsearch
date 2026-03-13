@@ -30,6 +30,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.RandomAccessFile;
+import java.lang.foreign.Arena;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.net.http.HttpResponse.BodySubscribers;
@@ -288,6 +289,15 @@ public class FileInstrumentation implements InstrumentationConfig {
                 new TypeToken<Set<? extends OpenOption>>() {},
                 TypeToken.of(FileAttribute[].class)
             ).enforce(Policies::fileReadOrWrite).elseThrowNotEntitled();
+        });
+
+        builder.on("sun.nio.ch.FileChannelImpl", FileChannel.class, rule -> {
+            rule.calling(FileChannel::map, FileChannel.MapMode.class, Long.class, Long.class)
+                .enforce((channel, mode) -> Policies.mapFileChannel(mode))
+                .elseThrowNotEntitled();
+            rule.calling(FileChannel::map, FileChannel.MapMode.class, Long.class, Long.class, Arena.class)
+                .enforce((channel, mode) -> Policies.mapFileChannel(mode))
+                .elseThrowNotEntitled();
         });
 
         builder.on(AsynchronousFileChannel.class, rule -> {

@@ -1696,7 +1696,8 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         )
                     )
                 )
-            )
+            ),
+            Map.of()
         );
         assertNotNull(localNotFound);
         assertThat(localNotFound.getMessage(), equalTo("no such index [_origin:logs]"));
@@ -1733,7 +1734,8 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                         )
                     )
                 )
-            )
+            ),
+            Map.of()
         );
         assertNotNull(remoteNotFound);
         assertThat(remoteNotFound.getMessage(), equalTo("no such index [linked-1:logs]"));

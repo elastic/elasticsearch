@@ -25,7 +25,10 @@ import static org.hamcrest.Matchers.equalTo;
 public class ExponentialHistogramToTDigestConverterTests extends ESTestCase {
 
     public void testExponentialHistogramRoundTrip() {
-        double[] values = randomValues();
+        double[] values = randomDoubles().limit(randomIntBetween(1, 500))
+            .map(val -> randomDouble() < 0.05 ? 0 : val)
+            .map(val -> val * 10_000)
+            .toArray();
         try (
             ReleasableExponentialHistogram input = ExponentialHistogram.create(
                 randomIntBetween(20, 200),
@@ -103,16 +106,4 @@ public class ExponentialHistogramToTDigestConverterTests extends ESTestCase {
         assertThat(originalBuckets.hasNext(), equalTo(false));
     }
 
-    private double[] randomValues() {
-        int valueCount = randomIntBetween(1, 500);
-        double[] values = new double[valueCount];
-        for (int i = 0; i < valueCount; i++) {
-            if (rarely()) {
-                values[i] = 0.0;
-            } else {
-                values[i] = random().nextGaussian() * 500 + randomDoubleBetween(-100, 100, true);
-            }
-        }
-        return values;
-    }
 }

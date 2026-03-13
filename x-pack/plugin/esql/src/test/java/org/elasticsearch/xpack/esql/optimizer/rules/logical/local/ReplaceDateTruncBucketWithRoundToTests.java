@@ -292,12 +292,8 @@ public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogical
 
     private void verifySubstitution(Alias a, int roundToPointsSize, boolean loaderConfigSupported) {
         Expression e = a.child();
-        if (loaderConfigSupported && roundToPointsSize > 0) {
-            // RoundTo was created and then fused into field loading by PushExpressionsToFieldLoad
-            FieldAttribute fa = as(e, FieldAttribute.class);
-            assertEquals(DATETIME, fa.dataType());
-        } else if (roundToPointsSize > 0) {
-            // RoundTo replaced the DateTrunc/Bucket but was not pushed to field loading
+        if (roundToPointsSize > 0) {
+            // RoundTo replaced the DateTrunc/Bucket; block loader push is deferred to the physical optimizer
             RoundTo roundTo = as(e, RoundTo.class);
             FieldAttribute fa = as(roundTo.field(), FieldAttribute.class);
             assertEquals(roundToPointsSize, roundTo.points().size());

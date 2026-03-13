@@ -360,16 +360,8 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var esqlProject = as(evalX.child(), Project.class);
         assertThat(Expressions.names(esqlProject.output()), is(List.of("emp_no", "emp_does_not_exist_field")));
 
-        // The child is Eval introducing emp_does_not_exist_field as null
-        var evalNull = as(esqlProject.child(), Eval.class);
-        assertThat(evalNull.fields(), hasSize(1));
-        var alias = as(evalNull.fields().get(0), Alias.class);
-        assertThat(alias.name(), is("emp_does_not_exist_field"));
-        var lit = as(alias.child(), Literal.class);
-        assertThat(lit.dataType(), is(DataType.NULL));
-
         // The child is EsRelation
-        var relation = as(evalNull.child(), EsRelation.class);
+        var relation = as(esqlProject.child(), EsRelation.class);
         assertThat(relation.indexPattern(), is("test"));
     }
 
@@ -1057,13 +1049,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(agg_language_code.id(), is(group_language_code.id()));
 
         var filter = as(agg.child(), Filter.class);
-        var eval = as(filter.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(1));
-        var alias0 = as(eval.fields().getFirst(), Alias.class);
-        assertThat(alias0.name(), is("does_not_exist"));
-        assertThat(as(alias0.child(), Literal.class).dataType(), is(DataType.NULL));
-
-        var relation = as(eval.child(), EsRelation.class);
+        var relation = as(filter.child(), EsRelation.class);
         assertThat(relation.indexPattern(), is("languages"));
     }
 
@@ -1102,16 +1088,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(Expressions.name(alias.child()), is("COUNT(*) + language_code"));
 
         var filter = as(agg.child(), Filter.class);
-        var eval = as(filter.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(2));
-        var alias0 = as(eval.fields().get(0), Alias.class);
-        assertThat(alias0.name(), is("does_not_exist1"));
-        assertThat(as(alias0.child(), Literal.class).dataType(), is(DataType.NULL));
-        var alias1 = as(eval.fields().get(1), Alias.class);
-        assertThat(alias1.name(), is("does_not_exist2"));
-        assertThat(as(alias1.child(), Literal.class).dataType(), is(DataType.NULL));
-
-        var relation = as(eval.child(), EsRelation.class);
+        var relation = as(filter.child(), EsRelation.class);
         assertThat(relation.indexPattern(), is("languages"));
     }
 
@@ -1838,7 +1815,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         // Left branch: EsRelation[test] with Project + Eval nulls
         var leftLimit = as(union.children().get(0), Limit.class);
         var leftProject = as(leftLimit.child(), Project.class);
-        var leftProject_does_not_exist2 = as(leftProject.output().get(14), ReferenceAttribute.class);
+        var leftProject_does_not_exist2 = as(leftProject.output().get(14), FieldAttribute.class);
         assertThat(leftProject_does_not_exist2.name(), is("does_not_exist2"));
         var leftEval = as(leftProject.child(), Eval.class);
         assertThat(Expressions.names(leftEval.fields()), is(List.of("$$does_not_exist2$converted_to$long")));
@@ -1853,8 +1830,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var leftRel = as(leftEvalEval.child(), EsRelation.class);
         assertThat(leftRel.indexPattern(), is("test"));
 
-        // Right branch: Project + Eval many nulls, Subquery -> Filter -> EsRelation[languages]
-        var rightProject = as(union.children().get(1), Project.class);
+        // Right branch: Project + Eval many nulls, Subquery -> Filter -> Eval -> EsRelation[languages]
+        var rightLimit = as(union.children().get(1), Limit.class);
+        var rightProject = as(rightLimit.child(), Project.class);
+        var rightProject_does_not_exist2 = as(rightProject.output().get(14), FieldAttribute.class);
+        assertThat(rightProject_does_not_exist2.name(), is("does_not_exist2"));
+        assertThat(rightProject_does_not_exist2.id(), not(leftProject_does_not_exist2.id()));
         var rightEval = as(rightProject.child(), Eval.class);
         assertThat(Expressions.names(rightEval.fields()), is(List.of("$$does_not_exist2$converted_to$long")));
         var rightEvalEval = as(rightEval.child(), Eval.class);

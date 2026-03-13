@@ -580,7 +580,6 @@ x:integer      |does_not_exist:null |y:keyword | language_name:keyword
 1              |null                |null      |null
 ;
 
-<<<<<<< HEAD
 tsWithAggsAndMissing
 required_capability: ts_command_v0
 required_capability: optional_fields_nullify_skip_group_aliases
@@ -605,7 +604,9 @@ TS "k8s" | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster = doe
 
 max_bytes:long | cluster:null
 10797          | null
-=======
+;
+
+
 kqlWithUnmappedField
 required_capability: optional_fields_nullify_tech_preview
 required_capability: kql_function
@@ -648,5 +649,4 @@ book_no:keyword | author:text                                        | does_not_
 2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | null                      | null
 2713            | William Faulkner                                   | null                      | null
 2847            | Colleen Faulkner                                   | null                      | null
->>>>>>> d22c50a5bf1 (ES|QL: Fix KQL/QSTR with unmapped fields in NULLIFY mode (#143399))
 ;

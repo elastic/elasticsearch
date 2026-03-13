@@ -38,16 +38,11 @@ public final class AllLastBytesRefByLongGroupingAggregatorFunction implements Gr
 
   private final DriverContext driverContext;
 
-  public AllLastBytesRefByLongGroupingAggregatorFunction(List<Integer> channels,
-      AllLastBytesRefByLongAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static AllLastBytesRefByLongGroupingAggregatorFunction create(List<Integer> channels,
+  AllLastBytesRefByLongGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new AllLastBytesRefByLongGroupingAggregatorFunction(channels, AllLastBytesRefByLongAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = AllLastBytesRefByLongAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

@@ -1,7 +1,5 @@
 setup:
   - requires:
-      cluster_features: ["gte_v8.5.0"]
-      reason: "rollup renamed to downsample in 8.5.0"
       test_runner_features: allowed_warnings
 
   - do:
@@ -87,7 +85,7 @@ setup:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T19:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.37", "multi-counter" : [1000, 1001, 1002], "scaled-counter": 1000.0, "multi-gauge": [99, 100, 110], "scaled-gauge": 99.0, "network": {"tx": 1434587694, "rx": 530604797}, "created_at": "2021-04-28T19:44:00.000Z", "running": true, "number_of_containers": 1, "tags": ["backend", "test", "us-west1"], "values": [4, 5, 2]}}}'
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T19:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.120", "multi-counter" : [76, 77, 78], "scaled-counter": 70.0, "multi-gauge": [95, 98, 100], "scaled-gauge": 95.0, "network": {"tx": 1434595272, "rx": 530605511}, "created_at": "2021-04-28T19:45:00.000Z", "running": true, "number_of_containers": 1, "tags": ["backend", "test", "us-west1"], "values": [3, 2, 1]}}}'
+          - '{"@timestamp": "2021-04-28T19:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.120", "multi-counter" : [76, 77, 78], "scaled-counter": 1070.0, "multi-gauge": [95, 98, 100], "scaled-gauge": 95.0, "network": {"tx": 1434595272, "rx": 530605511}, "created_at": "2021-04-28T19:45:00.000Z", "running": true, "number_of_containers": 1, "tags": ["backend", "test", "us-west1"], "values": [3, 2, 1]}}}'
 
   - do:
       indices.put_settings:
@@ -302,8 +300,12 @@ setup:
 ---
 "Downsample index":
   - requires:
-      cluster_features: ["gte_v8.13.0"]
-      reason: _tsid hashing introduced in 8.13
+      capabilities:
+        - method: POST
+          path: /{index}/_downsample/{target_index}
+          capabilities: [ "downsampling.store_reset_counters" ]
+      test_runner_features: [ "capabilities" ]
+      reason: Storing counter resets when downsampling was added in 9.4
 
   - do:
       allowed_warnings:
@@ -323,14 +325,17 @@ setup:
         body:
           sort: [ "_tsid", "@timestamp" ]
 
-  - length: { hits.hits: 4 }
-  - match:  { hits.hits.0._source._doc_count: 2 }
+  - length: { hits.hits: 7 }
+
+  # Downsampled doc
+  - match:  { hits.hits.0._source._doc_count: 1 }
+  - match:  { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
+  # Dimensions
   - match:  { hits.hits.0._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
   - match:  { hits.hits.0._source.metricset: pod }
-
-  - match:  { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
-  - match:  { hits.hits.0._source.k8s\.pod\.multi-counter: 0 }
-  - match:  { hits.hits.0._source.k8s\.pod\.scaled-counter: 0.00 }
+  # Metrics
+  - match:  { hits.hits.0._source.k8s\.pod\.multi-counter: 7 }
+  - match:  { hits.hits.0._source.k8s\.pod\.scaled-counter: 7.0 }
   - match:  { hits.hits.0._source.k8s\.pod\.multi-gauge.min: 100 }
   - match:  { hits.hits.0._source.k8s\.pod\.multi-gauge.max: 102 }
   - match:  { hits.hits.0._source.k8s\.pod\.multi-gauge.sum: 607 }
@@ -342,12 +347,48 @@ setup:
   - match:  { hits.hits.0._source.k8s\.pod\.network\.tx.min: 1434521831 }
   - match:  { hits.hits.0._source.k8s\.pod\.network\.tx.max: 1434577921 }
   - match:  { hits.hits.0._source.k8s\.pod\.network\.tx.value_count: 2 }
+  # Labels
   - match:  { hits.hits.0._source.k8s\.pod\.ip: "10.10.55.56" }
   - match:  { hits.hits.0._source.k8s\.pod\.created_at: "2021-04-28T19:43:00.000Z" }
   - match:  { hits.hits.0._source.k8s\.pod\.number_of_containers: 1 }
   - match:  { hits.hits.0._source.k8s\.pod\.tags: ["backend", "test", "us-west2"] }
   - match:  { hits.hits.0._source.k8s\.pod\.values: [1, 1, 2] }
   - is_false: hits.hits.0._source.k8s\.pod\.running
+
+  # Doc with counter resets
+  - is_false: hits.hits.1._source._doc_count
+  - match: { hits.hits.1._source.@timestamp: 2021-04-28T18:50:23.142Z }
+  # Dimensions
+  - match: { hits.hits.1._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match: { hits.hits.1._source.metricset: pod }
+  # Metrics
+  - match: { hits.hits.1._source.k8s\.pod\.multi-counter: 0 }
+  - match: { hits.hits.1._source.k8s\.pod\.scaled-counter: 0.0 }
+  # Only dimensions and counters that have been reset are in this doc
+  - is_false: hits.hits.1._source.k8s\.pod\.multi-gauge
+
+  # Next downsampled doc
+  - match:  { hits.hits.2._source._doc_count: 1 }
+  - match:  { hits.hits.2._source.@timestamp: 2021-04-28T19:00:00.000Z }
+  # Dimensions
+  - match:  { hits.hits.2._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match:  { hits.hits.2._source.metricset: pod }
+  # Metrics
+  - match:  { hits.hits.2._source.k8s\.pod\.multi-counter: 1000 }
+  - match:  { hits.hits.2._source.k8s\.pod\.scaled-counter: 1000.0 }
+  - match:  { hits.hits.2._source.k8s\.pod\.multi-gauge.min: 95 }
+
+  # Doc with counter resets
+  - is_false: hits.hits.3._source._doc_count
+  - match: { hits.hits.3._source.@timestamp: 2021-04-28T19:51:03.142Z }
+  # Dimensions
+  - match: { hits.hits.3._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match: { hits.hits.3._source.metricset: pod }
+  # Metrics
+  - match: { hits.hits.3._source.k8s\.pod\.multi-counter: 76 }
+  # Only dimensions and counters that have been reset are in this doc
+  - is_false: hits.hits.3._source.k8s\.pod\.scaled-counter
+  - is_false: hits.hits.3._source.k8s\.pod\.multi-gauge
 
   # Assert downsample index settings
   - do:
@@ -815,8 +856,12 @@ setup:
 ---
 "Downsample a downsampled index":
   - requires:
-      cluster_features: ["gte_v8.13.0"]
-      reason: _tsid hashing introduced in 8.13
+      capabilities:
+        - method: POST
+          path: /{index}/_downsample/{target_index}
+          capabilities: [ "downsampling.store_reset_counters" ]
+      test_runner_features: [ "capabilities" ]
+      reason: Storing counter resets when downsampling was added in 9.4
 
   - do:
       allowed_warnings:
@@ -868,12 +913,12 @@ setup:
         body:
           sort: [ "_tsid", "@timestamp" ]
 
-  - length: { hits.hits: 3 }
-  - match: { hits.hits.0._source._doc_count: 4 }
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0._source._doc_count: 1 }
   - match: { hits.hits.0._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
   - match: { hits.hits.0._source.metricset: pod }
   - match: { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
-  - match: { hits.hits.0._source.k8s\.pod\.multi-counter: 76 }
+  - match: { hits.hits.0._source.k8s\.pod\.multi-counter: 7 }
   - match: { hits.hits.0._source.k8s\.pod\.multi-gauge.min: 95.0 }
   - match: { hits.hits.0._source.k8s\.pod\.multi-gauge.max: 110.0 }
   - match: { hits.hits.0._source.k8s\.pod\.multi-gauge.sum: 1209.0 }
@@ -887,15 +932,34 @@ setup:
   - match: { hits.hits.0._source.k8s\.pod\.tags: [ "backend", "test", "us-west1" ] }
   - match: { hits.hits.0._source.k8s\.pod\.values: [ 1, 2, 3 ] }
 
-  - match: { hits.hits.1._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.1._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
   - match: { hits.hits.1._source.metricset: pod }
-  - match: { hits.hits.1._source.@timestamp: 2021-04-28T18:00:00.000Z }
-  - match: { hits.hits.1._source._doc_count: 2 }
+  - match: { hits.hits.1._source.@timestamp: 2021-04-28T18:50:23.142Z }
+  - match: { hits.hits.1._source.k8s\.pod\.multi-counter: 0 }
 
-  - match: { hits.hits.2._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.2._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
   - match: { hits.hits.2._source.metricset: pod }
-  - match: { hits.hits.2._source.@timestamp: 2021-04-28T20:00:00.000Z }
-  - match: { hits.hits.2._source._doc_count: 2 }
+  - match: { hits.hits.2._source.@timestamp: 2021-04-28T19:00:00.000Z }
+  - match: { hits.hits.2._source.k8s\.pod\.multi-counter: 1000 }
+
+  - match: { hits.hits.3._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match: { hits.hits.3._source.metricset: pod }
+  - match: { hits.hits.3._source.@timestamp: 2021-04-28T19:51:03.142Z }
+  - match: { hits.hits.3._source.k8s\.pod\.multi-counter: 76 }
+
+  - match: { hits.hits.4._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.4._source.metricset: pod }
+  - match: { hits.hits.4._source.@timestamp: 2021-04-28T18:00:00.000Z }
+  - match: { hits.hits.4._source._doc_count: 1 }
+
+  - match: { hits.hits.5._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.5._source.metricset: pod }
+  - match: { hits.hits.5._source.@timestamp: 2021-04-28T18:50:24.467Z }
+
+  - match: { hits.hits.6._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+  - match: { hits.hits.6._source.metricset: pod }
+  - match: { hits.hits.6._source.@timestamp: 2021-04-28T20:00:00.000Z }
+  - match: { hits.hits.6._source._doc_count: 2 }
 
   - do:
       allowed_warnings:

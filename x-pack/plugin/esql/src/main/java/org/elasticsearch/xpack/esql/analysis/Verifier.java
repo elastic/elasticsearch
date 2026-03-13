@@ -122,6 +122,7 @@ public class Verifier {
             checkUnsupportedAttributeRenaming(p, failures);
             checkInsist(p, failures);
             checkLimitBeforeInlineStats(p, failures);
+            checkLimitBy(p, failures);
         });
 
         if (failures.hasFailures() == false) {

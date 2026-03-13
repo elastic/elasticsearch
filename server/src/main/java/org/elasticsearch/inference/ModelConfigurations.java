@@ -183,9 +183,14 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         return chunkingSettings;
     }
 
-    public EndpointMetadata getEndpointMetadata() {
+    public EndpointMetadata getEndpointMetadataOrEmpty() {
         // Outside of this class, we'll use the empty instance so callers can avoid the null check
         return Objects.requireNonNullElse(endpointMetadata, EndpointMetadata.EMPTY_INSTANCE);
+    }
+
+    @Nullable
+    public EndpointMetadata getEndpointMetadata() {
+        return endpointMetadata;
     }
 
     @Override

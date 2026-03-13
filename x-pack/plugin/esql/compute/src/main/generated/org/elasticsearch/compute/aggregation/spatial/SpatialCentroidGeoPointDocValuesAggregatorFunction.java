@@ -39,16 +39,11 @@ public final class SpatialCentroidGeoPointDocValuesAggregatorFunction implements
 
   private final List<Integer> channels;
 
-  public SpatialCentroidGeoPointDocValuesAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, CentroidPointAggregator.CentroidState state) {
+  SpatialCentroidGeoPointDocValuesAggregatorFunction(DriverContext driverContext,
+      List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static SpatialCentroidGeoPointDocValuesAggregatorFunction create(
-      DriverContext driverContext, List<Integer> channels) {
-    return new SpatialCentroidGeoPointDocValuesAggregatorFunction(driverContext, channels, SpatialCentroidGeoPointDocValuesAggregator.initSingle());
+    this.state = SpatialCentroidGeoPointDocValuesAggregator.initSingle();
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

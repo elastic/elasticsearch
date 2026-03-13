@@ -43,16 +43,11 @@ public final class SpatialCentroidShapeSourceValuesAggregatorFunction implements
 
   private final List<Integer> channels;
 
-  public SpatialCentroidShapeSourceValuesAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, CentroidShapeAggregator.ShapeCentroidState state) {
+  SpatialCentroidShapeSourceValuesAggregatorFunction(DriverContext driverContext,
+      List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static SpatialCentroidShapeSourceValuesAggregatorFunction create(
-      DriverContext driverContext, List<Integer> channels) {
-    return new SpatialCentroidShapeSourceValuesAggregatorFunction(driverContext, channels, SpatialCentroidShapeSourceValuesAggregator.initSingle());
+    this.state = SpatialCentroidShapeSourceValuesAggregator.initSingle();
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

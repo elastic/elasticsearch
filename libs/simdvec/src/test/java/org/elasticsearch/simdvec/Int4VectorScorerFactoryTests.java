@@ -9,7 +9,7 @@
 
 package org.elasticsearch.simdvec;
 
-import com.carrotsearch.randomizedtesting.annotations.Nightly;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
 import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorScorer;
@@ -22,6 +22,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
@@ -53,6 +54,12 @@ import static org.hamcrest.Matchers.equalTo;
 public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     private static final float LIMIT_SCALE = 1f / ((1 << 4) - 1);
 
+    private final VectorSimilarityType similarityType;
+
+    public Int4VectorScorerFactoryTests(VectorSimilarityType similarityType) {
+        this.similarityType = similarityType;
+    }
+
     @SuppressForbidden(reason = "require usage of OptimizedScalarQuantizer")
     private static OptimizedScalarQuantizer scalarQuantizer(VectorSimilarityFunction sim) {
         return new OptimizedScalarQuantizer(sim);
@@ -82,215 +89,232 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         var factory = AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testSimpleImpl"), maxChunkSize)) {
-            for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
-                var scalarQuantizer = scalarQuantizer(sim.function());
-                var encoding = Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.PACKED_NIBBLE;
-                for (int dims : List.of(30, 32, 34)) {
-                    float[] query1 = new float[dims];
-                    float[] query2 = new float[dims];
-                    float[] centroid = new float[dims];
-                    float centroidDP = 0f;
-                    byte[] scratch = new byte[encoding.getDiscreteDimensions(dims)];
-                    OptimizedScalarQuantizer.QuantizationResult vec1Correction, vec2Correction;
-                    byte[] packed1, packed2;
-                    String fileName = "testSimpleImpl-" + sim + "-" + dims + ".vex";
-                    try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
-                        for (int i = 0; i < dims; i++) {
-                            query1[i] = (float) i;
-                            query2[i] = (float) (dims - i);
-                            centroid[i] = (query1[i] + query2[i]) / 2f;
-                            centroidDP += centroid[i] * centroid[i];
-                        }
-                        vec1Correction = scalarQuantizer.scalarQuantize(query1, scratch, (byte) 4, centroid);
-                        packed1 = packNibbles(Arrays.copyOf(scratch, dims));
-                        vec2Correction = scalarQuantizer.scalarQuantize(query2, scratch, (byte) 4, centroid);
-                        packed2 = packNibbles(Arrays.copyOf(scratch, dims));
-                        writePackedVectorWithCorrection(out, packed1, vec1Correction);
-                        writePackedVectorWithCorrection(out, packed2, vec2Correction);
+            var scalarQuantizer = scalarQuantizer(similarityType.function());
+            var encoding = Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.PACKED_NIBBLE;
+            for (int dims : List.of(30, 32, 34)) {
+                float[] query1 = new float[dims];
+                float[] query2 = new float[dims];
+                float[] centroid = new float[dims];
+                float centroidDP = 0f;
+                byte[] scratch = new byte[encoding.getDiscreteDimensions(dims)];
+                OptimizedScalarQuantizer.QuantizationResult vec1Correction, vec2Correction;
+                byte[] packed1, packed2;
+                String fileName = "testSimpleImpl-" + similarityType + "-" + dims + ".vex";
+                try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
+                    for (int i = 0; i < dims; i++) {
+                        query1[i] = (float) i;
+                        query2[i] = (float) (dims - i);
+                        centroid[i] = (query1[i] + query2[i]) / 2f;
+                        centroidDP += centroid[i] * centroid[i];
                     }
-                    try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
-                        var values = vectorValues(dims, 2, centroid, centroidDP, in, sim.function());
-                        float expected = luceneScore(sim, packed1, packed2, dims, centroidDP, vec1Correction, vec2Correction);
+                    vec1Correction = scalarQuantizer.scalarQuantize(query1, scratch, (byte) 4, centroid);
+                    packed1 = packNibbles(Arrays.copyOf(scratch, dims));
+                    vec2Correction = scalarQuantizer.scalarQuantize(query2, scratch, (byte) 4, centroid);
+                    packed2 = packNibbles(Arrays.copyOf(scratch, dims));
+                    writePackedVectorWithCorrection(out, packed1, vec1Correction);
+                    writePackedVectorWithCorrection(out, packed2, vec2Correction);
+                }
+                try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+                    var values = vectorValues(dims, 2, centroid, centroidDP, in, similarityType.function());
+                    float expected = luceneScore(similarityType, packed1, packed2, dims, centroidDP, vec1Correction, vec2Correction);
 
-                        var luceneSupplier = luceneScoreSupplier(values, sim.function()).scorer();
-                        luceneSupplier.setScoringOrdinal(1);
-                        assertFloatEquals(expected, luceneSupplier.score(0), 1e-6f);
-                        var supplier = factory.getInt4VectorScorerSupplier(sim, in, values).get();
-                        var scorer = supplier.scorer();
-                        scorer.setScoringOrdinal(1);
-                        assertFloatEquals(expected, scorer.score(0), 1e-6f);
+                    var luceneSupplier = luceneScoreSupplier(values, similarityType.function()).scorer();
+                    luceneSupplier.setScoringOrdinal(1);
+                    assertFloatEquals(expected, luceneSupplier.score(0), 1e-6f);
+                    var supplier = factory.getInt4VectorScorerSupplier(similarityType, in, values).get();
+                    var scorer = supplier.scorer();
+                    scorer.setScoringOrdinal(1);
+                    assertFloatEquals(expected, scorer.score(0), 1e-6f);
 
-                        if (supportsHeapSegments()) {
-                            byte[] unpackedQuery = unpackNibbles(packed2, dims);
-                            var qScorer = factory.getInt4VectorScorer(
-                                sim.function(),
-                                values,
-                                unpackedQuery,
-                                vec2Correction.lowerInterval(),
-                                vec2Correction.upperInterval(),
-                                vec2Correction.additionalCorrection(),
-                                vec2Correction.quantizedComponentSum()
-                            ).get();
-                            assertFloatEquals(expected, qScorer.score(0), 1e-6f);
-                        }
+                    if (supportsHeapSegments()) {
+                        byte[] unpackedQuery = unpackNibbles(packed2, dims);
+                        var qScorer = factory.getInt4VectorScorer(
+                            similarityType.function(),
+                            values,
+                            unpackedQuery,
+                            vec2Correction.lowerInterval(),
+                            vec2Correction.upperInterval(),
+                            vec2Correction.additionalCorrection(),
+                            vec2Correction.quantizedComponentSum()
+                        ).get();
+                        assertFloatEquals(expected, qScorer.score(0), 1e-6f);
                     }
                 }
             }
         }
     }
 
-    public void testRandom() throws IOException {
+    public void testRandomMMap() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
-        testRandomSupplier(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, BYTE_ARRAY_RANDOM_INT4_FUNC);
+        try (Directory dir = new MMapDirectory(createTempDir("testRandomMMap"))) {
+            testRandomSupplier(dir, BYTE_ARRAY_RANDOM_INT4_FUNC);
+        }
+    }
+
+    public void testRandomNIO() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
+        try (Directory dir = new NIOFSDirectory(createTempDir("testRandomNIO"))) {
+            testRandomSupplier(dir, BYTE_ARRAY_RANDOM_INT4_FUNC);
+        }
     }
 
     public void testRandomMaxChunkSizeSmall() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
-        testRandomSupplier(maxChunkSize, BYTE_ARRAY_RANDOM_INT4_FUNC);
+        try (Directory dir = new MMapDirectory(createTempDir("testRandomMaxChunkSizeSmall"), maxChunkSize)) {
+            testRandomSupplier(dir, BYTE_ARRAY_RANDOM_INT4_FUNC);
+        }
     }
 
     public void testRandomMax() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
-        testRandomSupplier(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, BYTE_ARRAY_MAX_INT4_FUNC);
+        try (Directory dir = new MMapDirectory(createTempDir("testRandomMax"))) {
+            testRandomSupplier(dir, BYTE_ARRAY_MAX_INT4_FUNC);
+        }
     }
 
     public void testRandomMin() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
-        testRandomSupplier(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, BYTE_ARRAY_MIN_INT4_FUNC);
+        try (Directory dir = new MMapDirectory(createTempDir("testRandomMin"))) {
+            testRandomSupplier(dir, BYTE_ARRAY_MIN_INT4_FUNC);
+        }
     }
 
-    void testRandomSupplier(long maxChunkSize, IntFunction<byte[]> packedByteArraySupplier) throws IOException {
+    void testRandomSupplier(Directory dir, IntFunction<byte[]> packedByteArraySupplier) throws IOException {
         var factory = AbstractVectorTestCase.factory.get();
 
-        try (Directory dir = new MMapDirectory(createTempDir("testRandom"), maxChunkSize)) {
-            final int dims = randomIntBetween(1, 2048) * 2;
-            final int size = randomIntBetween(2, 100);
-            final byte[][] packedVectors = new byte[size][];
-            final OptimizedScalarQuantizer.QuantizationResult[] quantizationResults = new OptimizedScalarQuantizer.QuantizationResult[size];
-            final float[] centroid = new float[dims];
+        final int dims = randomIntBetween(1, 2048) * 2;
+        final int size = randomIntBetween(2, 100);
+        final byte[][] packedVectors = new byte[size][];
+        final OptimizedScalarQuantizer.QuantizationResult[] quantizationResults = new OptimizedScalarQuantizer.QuantizationResult[size];
+        final float[] centroid = new float[dims];
 
-            String fileName = "testRandom-" + dims;
-            logger.info("Testing " + fileName);
-            try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
-                for (int i = 0; i < size; i++) {
-                    var packed = packedByteArraySupplier.apply(dims);
-                    int componentSum = componentSumUnpacked(packed);
-                    float lowerInterval = randomFloat();
-                    float upperInterval = randomFloat() + lowerInterval;
-                    quantizationResults[i] = new OptimizedScalarQuantizer.QuantizationResult(
-                        lowerInterval,
-                        upperInterval,
-                        randomFloat(),
-                        componentSum
-                    );
-                    writePackedVectorWithCorrection(out, packed, quantizationResults[i]);
-                    packedVectors[i] = packed;
-                }
+        String fileName = "testRandom-" + dims;
+        logger.info("Testing " + fileName);
+        try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
+            for (int i = 0; i < size; i++) {
+                var packed = packedByteArraySupplier.apply(dims);
+                int componentSum = componentSumUnpacked(packed);
+                float lowerInterval = randomFloat();
+                float upperInterval = randomFloat() + lowerInterval;
+                quantizationResults[i] = new OptimizedScalarQuantizer.QuantizationResult(
+                    lowerInterval,
+                    upperInterval,
+                    randomFloat(),
+                    componentSum
+                );
+                writePackedVectorWithCorrection(out, packed, quantizationResults[i]);
+                packedVectors[i] = packed;
             }
-            for (int i = 0; i < dims; i++) {
-                centroid[i] = randomFloat();
-            }
-            float centroidDP = VectorUtil.dotProduct(centroid, centroid);
-            try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
-                for (int times = 0; times < TIMES; times++) {
-                    int idx0 = randomIntBetween(0, size - 1);
-                    int idx1 = randomIntBetween(0, size - 1);
-                    for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
-                        var values = vectorValues(dims, size, centroid, centroidDP, in, sim.function());
-                        float expected = luceneScore(
-                            sim,
-                            packedVectors[idx0],
-                            packedVectors[idx1],
-                            dims,
-                            centroidDP,
-                            quantizationResults[idx0],
-                            quantizationResults[idx1]
-                        );
-                        var supplier = factory.getInt4VectorScorerSupplier(sim, in, values).get();
-                        var scorer = supplier.scorer();
-                        scorer.setScoringOrdinal(idx1);
-                        assertFloatEquals(expected, scorer.score(idx0), 1e-6f);
-                    }
-                }
+        }
+        for (int i = 0; i < dims; i++) {
+            centroid[i] = randomFloat();
+        }
+        float centroidDP = VectorUtil.dotProduct(centroid, centroid);
+        try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+            for (int times = 0; times < TIMES; times++) {
+                int idx0 = randomIntBetween(0, size - 1);
+                int idx1 = randomIntBetween(0, size - 1);
+                var values = vectorValues(dims, size, centroid, centroidDP, in, similarityType.function());
+                float expected = luceneScore(
+                    similarityType,
+                    packedVectors[idx0],
+                    packedVectors[idx1],
+                    dims,
+                    centroidDP,
+                    quantizationResults[idx0],
+                    quantizationResults[idx1]
+                );
+                var supplier = factory.getInt4VectorScorerSupplier(similarityType, in, values).get();
+                var scorer = supplier.scorer();
+                scorer.setScoringOrdinal(idx1);
+                assertFloatEquals(expected, scorer.score(idx0), 1e-6f);
             }
         }
     }
 
-    public void testRandomScorer() throws IOException {
-        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, Int7SQVectorScorerFactoryTests.FLOAT_ARRAY_RANDOM_FUNC);
+    public void testRandomScorerMMap() throws IOException {
+        try (Directory dir = new MMapDirectory(createTempDir("testRandomScorerMMap"))) {
+            testRandomScorerImpl(dir, FLOAT_ARRAY_RANDOM_FUNC);
+        }
+    }
+
+    public void testRandomScorerNIO() throws IOException {
+        try (Directory dir = new NIOFSDirectory(createTempDir("testRandomScorerNIO"))) {
+            testRandomScorerImpl(dir, FLOAT_ARRAY_RANDOM_FUNC);
+        }
     }
 
     public void testRandomScorerMax() throws IOException {
-        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, Int7SQVectorScorerFactoryTests.FLOAT_ARRAY_MAX_FUNC);
+        try (Directory dir = new MMapDirectory(createTempDir("testRandomScorerMax"))) {
+            testRandomScorerImpl(dir, FLOAT_ARRAY_MAX_FUNC);
+        }
     }
 
     public void testRandomScorerChunkSizeSmall() throws IOException {
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
-        testRandomScorerImpl(maxChunkSize, FLOAT_ARRAY_RANDOM_FUNC);
+        try (Directory dir = new MMapDirectory(createTempDir("testRandomScorerChunkSizeSmall"), maxChunkSize)) {
+            testRandomScorerImpl(dir, FLOAT_ARRAY_RANDOM_FUNC);
+        }
     }
 
-    void testRandomScorerImpl(long maxChunkSize, IntFunction<float[]> floatArraySupplier) throws IOException {
+    void testRandomScorerImpl(Directory dir, IntFunction<float[]> floatArraySupplier) throws IOException {
         assumeTrue("scorer only supported on JDK 22+", Runtime.version().feature() >= 22);
         assumeTrue(notSupportedMsg(), supported());
         var factory = AbstractVectorTestCase.factory.get();
 
-        try (Directory dir = new MMapDirectory(createTempDir("testRandom"), maxChunkSize)) {
-            for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
-                var scalarQuantizer = scalarQuantizer(sim.function());
-                var encoding = Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.PACKED_NIBBLE;
-                final int dims = randomIntBetween(1, 2048) * 2;
-                final int size = randomIntBetween(2, 100);
-                final float[] centroid = new float[dims];
-                for (int i = 0; i < dims; i++) {
-                    centroid[i] = randomFloat();
-                }
-                final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
-                final float[][] vectors = new float[size][];
-                final byte[][] packedVectors = new byte[size][];
-                final OptimizedScalarQuantizer.QuantizationResult[] corrections = new OptimizedScalarQuantizer.QuantizationResult[size];
-                byte[] scratch = new byte[encoding.getDiscreteDimensions(dims)];
+        var scalarQuantizer = scalarQuantizer(similarityType.function());
+        var encoding = Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.PACKED_NIBBLE;
+        final int dims = randomIntBetween(1, 2048) * 2;
+        final int size = randomIntBetween(2, 100);
+        final float[] centroid = new float[dims];
+        for (int i = 0; i < dims; i++) {
+            centroid[i] = randomFloat();
+        }
+        final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
+        final float[][] vectors = new float[size][];
+        final byte[][] packedVectors = new byte[size][];
+        final OptimizedScalarQuantizer.QuantizationResult[] corrections = new OptimizedScalarQuantizer.QuantizationResult[size];
+        byte[] scratch = new byte[encoding.getDiscreteDimensions(dims)];
 
-                String fileName = "testRandom-" + sim + "-" + dims + ".vex";
-                logger.info("Testing " + fileName);
-                try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
-                    for (int i = 0; i < size; i++) {
-                        vectors[i] = floatArraySupplier.apply(dims);
-                        corrections[i] = scalarQuantizer.scalarQuantize(vectors[i], scratch, (byte) 4, centroid);
-                        packedVectors[i] = packNibbles(Arrays.copyOf(scratch, dims));
-                        writePackedVectorWithCorrection(out, packedVectors[i], corrections[i]);
-                    }
-                }
-                try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
-                    for (int times = 0; times < TIMES; times++) {
-                        int idx0 = randomIntBetween(0, size - 1);
-                        int idx1 = randomIntBetween(0, size - 1);
-                        var values = vectorValues(dims, size, centroid, centroidDP, in, sim.function());
+        String fileName = "testRandom-" + similarityType + "-" + dims + ".vex";
+        logger.info("Testing " + fileName);
+        try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
+            for (int i = 0; i < size; i++) {
+                vectors[i] = floatArraySupplier.apply(dims);
+                corrections[i] = scalarQuantizer.scalarQuantize(vectors[i], scratch, (byte) 4, centroid);
+                packedVectors[i] = packNibbles(Arrays.copyOf(scratch, dims));
+                writePackedVectorWithCorrection(out, packedVectors[i], corrections[i]);
+            }
+        }
+        try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+            for (int times = 0; times < TIMES; times++) {
+                int idx0 = randomIntBetween(0, size - 1);
+                int idx1 = randomIntBetween(0, size - 1);
+                var values = vectorValues(dims, size, centroid, centroidDP, in, similarityType.function());
 
-                        var expected = luceneScore(
-                            sim,
-                            packedVectors[idx0],
-                            packedVectors[idx1],
-                            dims,
-                            centroidDP,
-                            corrections[idx0],
-                            corrections[idx1]
-                        );
-                        byte[] unpackedQuery = unpackNibbles(packedVectors[idx0], dims);
-                        var scorer = factory.getInt4VectorScorer(
-                            sim.function(),
-                            values,
-                            unpackedQuery,
-                            corrections[idx0].lowerInterval(),
-                            corrections[idx0].upperInterval(),
-                            corrections[idx0].additionalCorrection(),
-                            corrections[idx0].quantizedComponentSum()
-                        ).get();
-                        assertFloatEquals(expected, scorer.score(idx1), 1e-6f);
-                    }
-                }
+                var expected = luceneScore(
+                    similarityType,
+                    packedVectors[idx0],
+                    packedVectors[idx1],
+                    dims,
+                    centroidDP,
+                    corrections[idx0],
+                    corrections[idx1]
+                );
+                byte[] unpackedQuery = unpackNibbles(packedVectors[idx0], dims);
+                var scorer = factory.getInt4VectorScorer(
+                    similarityType.function(),
+                    values,
+                    unpackedQuery,
+                    corrections[idx0].lowerInterval(),
+                    corrections[idx0].upperInterval(),
+                    corrections[idx0].additionalCorrection(),
+                    corrections[idx0].quantizedComponentSum()
+                ).get();
+                assertFloatEquals(expected, scorer.score(idx1), 1e-6f);
             }
         }
     }
@@ -332,22 +356,20 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                     for (int itrs = 0; itrs < TIMES / 10; itrs++) {
                         int idx0 = randomIntBetween(0, size - 1);
                         int idx1 = randomIntBetween(0, size - 1);
-                        for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
-                            var values = vectorValues(dims, size, centroid, centroidDP, in, sim.function());
-                            float expected = luceneScore(
-                                sim,
-                                packedVectors[idx0],
-                                packedVectors[idx1],
-                                dims,
-                                centroidDP,
-                                corrections[idx0],
-                                corrections[idx1]
-                            );
-                            var supplier = factory.getInt4VectorScorerSupplier(sim, in, values).get();
-                            var scorer = supplier.scorer();
-                            scorer.setScoringOrdinal(idx1);
-                            assertFloatEquals(expected, scorer.score(idx0), 1e-6f);
-                        }
+                        var values = vectorValues(dims, size, centroid, centroidDP, in, similarityType.function());
+                        float expected = luceneScore(
+                            similarityType,
+                            packedVectors[idx0],
+                            packedVectors[idx1],
+                            dims,
+                            centroidDP,
+                            corrections[idx0],
+                            corrections[idx1]
+                        );
+                        var supplier = factory.getInt4VectorScorerSupplier(similarityType, in, values).get();
+                        var scorer = supplier.scorer();
+                        scorer.setScoringOrdinal(idx1);
+                        assertFloatEquals(expected, scorer.score(idx0), 1e-6f);
                     }
                 }
             }
@@ -380,22 +402,20 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                 for (int times = 0; times < TIMES; times++) {
                     int idx0 = randomIntBetween(0, size - 1);
                     int idx1 = size - 1;
-                    for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
-                        var values = vectorValues(dims, size, centroid, centroidDP, in, sim.function());
-                        float expected = luceneScore(
-                            sim,
-                            vector(idx0, dims),
-                            vector(idx1, dims),
-                            dims,
-                            centroidDP,
-                            corrections[idx0],
-                            corrections[idx1]
-                        );
-                        var supplier = factory.getInt4VectorScorerSupplier(sim, in, values).get();
-                        var scorer = supplier.scorer();
-                        scorer.setScoringOrdinal(idx1);
-                        assertFloatEquals(expected, scorer.score(idx0), 1e-6f);
-                    }
+                    var values = vectorValues(dims, size, centroid, centroidDP, in, similarityType.function());
+                    float expected = luceneScore(
+                        similarityType,
+                        vector(idx0, dims),
+                        vector(idx1, dims),
+                        dims,
+                        centroidDP,
+                        corrections[idx0],
+                        corrections[idx1]
+                    );
+                    var supplier = factory.getInt4VectorScorerSupplier(similarityType, in, values).get();
+                    var scorer = supplier.scorer();
+                    scorer.setScoringOrdinal(idx1);
+                    assertFloatEquals(expected, scorer.score(idx0), 1e-6f);
                 }
             }
         }
@@ -428,29 +448,40 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                 for (int times = 0; times < TIMES; times++) {
                     int idx0 = randomIntBetween(0, size - 1);
                     int idx1 = size - 1;
-                    for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
-                        var values = vectorValues(dims, size, centroid, centroidDP, in, sim.function());
-                        float expected = luceneScore(
-                            sim,
-                            packedVectors[idx0],
-                            packedVectors[idx1],
-                            dims,
-                            centroidDP,
-                            corrections[idx0],
-                            corrections[idx1]
-                        );
-                        var supplier = factory.getInt4VectorScorerSupplier(sim, in, values).get();
-                        var scorer = supplier.scorer();
-                        scorer.setScoringOrdinal(idx1);
-                        assertFloatEquals(expected, scorer.score(idx0), 1e-6f);
-                    }
+                    var values = vectorValues(dims, size, centroid, centroidDP, in, similarityType.function());
+                    float expected = luceneScore(
+                        similarityType,
+                        packedVectors[idx0],
+                        packedVectors[idx1],
+                        dims,
+                        centroidDP,
+                        corrections[idx0],
+                        corrections[idx1]
+                    );
+                    var supplier = factory.getInt4VectorScorerSupplier(similarityType, in, values).get();
+                    var scorer = supplier.scorer();
+                    scorer.setScoringOrdinal(idx1);
+                    assertFloatEquals(expected, scorer.score(idx0), 1e-6f);
                 }
             }
         }
     }
 
-    public void testBulk() throws IOException {
+    public void testBulkMMap() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
+        try (Directory dir = new MMapDirectory(createTempDir("testBulkMMap"))) {
+            testBulkImpl(dir);
+        }
+    }
+
+    public void testBulkNIO() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
+        try (Directory dir = new NIOFSDirectory(createTempDir("testBulkNIO"))) {
+            testBulkImpl(dir);
+        }
+    }
+
+    void testBulkImpl(Directory dir) throws IOException {
         var factory = AbstractVectorTestCase.factory.get();
 
         final int dims = 1024;
@@ -459,38 +490,34 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
         final byte[][] packedVectors = new byte[size][];
         final OptimizedScalarQuantizer.QuantizationResult[] corrections = new OptimizedScalarQuantizer.QuantizationResult[size];
-        try (Directory dir = new MMapDirectory(createTempDir("testBulk"))) {
-            String fileName = "testBulk-" + dims;
-            logger.info("Testing " + fileName);
-            try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
-                for (int i = 0; i < size; i++) {
-                    var packed = vector(i, dims);
-                    var correction = randomCorrectionPacked(packed);
-                    writePackedVectorWithCorrection(out, packed, correction);
-                    packedVectors[i] = packed;
-                    corrections[i] = correction;
-                }
+        String fileName = "testBulk-" + dims;
+        logger.info("Testing " + fileName);
+        try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
+            for (int i = 0; i < size; i++) {
+                var packed = vector(i, dims);
+                var correction = randomCorrectionPacked(packed);
+                writePackedVectorWithCorrection(out, packed, correction);
+                packedVectors[i] = packed;
+                corrections[i] = correction;
             }
+        }
 
-            List<Integer> ids = IntStream.range(0, size).boxed().collect(Collectors.toList());
-            try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
-                for (int times = 0; times < TIMES; times++) {
-                    int idx0 = randomIntBetween(0, size - 1);
-                    int[] nodes = shuffledList(ids).stream().mapToInt(i -> i).toArray();
-                    for (var sim : List.of(EUCLIDEAN)) {
-                        QuantizedByteVectorValues values = vectorValues(dims, size, centroid, centroidDP, in, sim.function());
-                        float[] expected = new float[nodes.length];
-                        float[] scores = new float[nodes.length];
-                        var referenceScorer = luceneScoreSupplier(values, sim.function()).scorer();
-                        referenceScorer.setScoringOrdinal(idx0);
-                        referenceScorer.bulkScore(nodes, expected, nodes.length);
-                        var supplier = factory.getInt4VectorScorerSupplier(sim, in, values).orElseThrow();
-                        var testScorer = supplier.scorer();
-                        testScorer.setScoringOrdinal(idx0);
-                        testScorer.bulkScore(nodes, scores, nodes.length);
-                        assertFloatArrayEquals(expected, scores, 2e-5f);
-                    }
-                }
+        List<Integer> ids = IntStream.range(0, size).boxed().collect(Collectors.toList());
+        try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+            for (int times = 0; times < TIMES; times++) {
+                int idx0 = randomIntBetween(0, size - 1);
+                int[] nodes = shuffledList(ids).stream().mapToInt(i -> i).toArray();
+                QuantizedByteVectorValues values = vectorValues(dims, size, centroid, centroidDP, in, similarityType.function());
+                float[] expected = new float[nodes.length];
+                float[] scores = new float[nodes.length];
+                var referenceScorer = luceneScoreSupplier(values, similarityType.function()).scorer();
+                referenceScorer.setScoringOrdinal(idx0);
+                referenceScorer.bulkScore(nodes, expected, nodes.length);
+                var supplier = factory.getInt4VectorScorerSupplier(similarityType, in, values).orElseThrow();
+                var testScorer = supplier.scorer();
+                testScorer.setScoringOrdinal(idx0);
+                testScorer.bulkScore(nodes, scores, nodes.length);
+                assertFloatArrayEquals(expected, scores, 2e-5f);
             }
         }
     }
@@ -523,31 +550,200 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                 for (int times = 0; times < TIMES; times++) {
                     int idx0 = randomIntBetween(0, size - 1);
                     int[] nodes = shuffledList(ids).stream().mapToInt(i -> i).toArray();
-                    for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
-                        QuantizedByteVectorValues values = vectorValues(dims, size, centroid, centroidDP, in, sim.function());
-                        float[] expected = new float[nodes.length];
-                        float[] scores = new float[nodes.length];
-                        var referenceScorer = luceneScoreSupplier(values, sim.function()).scorer();
-                        referenceScorer.setScoringOrdinal(idx0);
-                        referenceScorer.bulkScore(nodes, expected, nodes.length);
-                        var supplier = factory.getInt4VectorScorerSupplier(sim, in, values).orElseThrow();
-                        var testScorer = supplier.scorer();
-                        testScorer.setScoringOrdinal(idx0);
-                        testScorer.bulkScore(nodes, scores, nodes.length);
-                        assertFloatArrayEquals(expected, scores, 1e-6f);
+                    QuantizedByteVectorValues values = vectorValues(dims, size, centroid, centroidDP, in, similarityType.function());
+                    float[] expected = new float[nodes.length];
+                    float[] scores = new float[nodes.length];
+                    var referenceScorer = luceneScoreSupplier(values, similarityType.function()).scorer();
+                    referenceScorer.setScoringOrdinal(idx0);
+                    referenceScorer.bulkScore(nodes, expected, nodes.length);
+                    var supplier = factory.getInt4VectorScorerSupplier(similarityType, in, values).orElseThrow();
+                    var testScorer = supplier.scorer();
+                    testScorer.setScoringOrdinal(idx0);
+                    testScorer.bulkScore(nodes, scores, nodes.length);
+                    assertFloatArrayEquals(expected, scores, 2e-5f);
+                }
+            }
+        }
+    }
+
+    public void testBulkScorerMMap() throws IOException {
+        assumeTrue("scorer only supported on JDK 22+", Runtime.version().feature() >= 22);
+        assumeTrue(notSupportedMsg(), supported());
+        try (Directory dir = new MMapDirectory(createTempDir("testBulkScorerMMap"))) {
+            testBulkScorerImpl(dir);
+        }
+    }
+
+    public void testBulkScorerNIO() throws IOException {
+        assumeTrue("scorer only supported on JDK 22+", Runtime.version().feature() >= 22);
+        assumeTrue(notSupportedMsg(), supported());
+        try (Directory dir = new NIOFSDirectory(createTempDir("testBulkScorerNIO"))) {
+            testBulkScorerImpl(dir);
+        }
+    }
+
+    void testBulkScorerImpl(Directory dir) throws IOException {
+        var factory = AbstractVectorTestCase.factory.get();
+
+        final int dims = 1024;
+        final int size = randomIntBetween(2, 100);
+        final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
+        final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
+        final byte[][] packedVectors = new byte[size][];
+        final OptimizedScalarQuantizer.QuantizationResult[] corrections = new OptimizedScalarQuantizer.QuantizationResult[size];
+        String fileName = "testBulkScorer-" + dims;
+        logger.info("Testing " + fileName);
+        try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
+            for (int i = 0; i < size; i++) {
+                var packed = vector(i, dims);
+                var correction = randomCorrectionPacked(packed);
+                writePackedVectorWithCorrection(out, packed, correction);
+                packedVectors[i] = packed;
+                corrections[i] = correction;
+            }
+        }
+
+        List<Integer> ids = IntStream.range(0, size).boxed().collect(Collectors.toList());
+        try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+            for (int times = 0; times < TIMES; times++) {
+                int queryIdx = randomIntBetween(0, size - 1);
+                int[] nodes = shuffledList(ids).stream().mapToInt(i -> i).toArray();
+                QuantizedByteVectorValues values = vectorValues(dims, size, centroid, centroidDP, in, similarityType.function());
+                float[] expected = new float[nodes.length];
+                float[] scores = new float[nodes.length];
+                var referenceScorer = luceneScoreSupplier(values, similarityType.function()).scorer();
+                referenceScorer.setScoringOrdinal(queryIdx);
+                referenceScorer.bulkScore(nodes, expected, nodes.length);
+
+                byte[] unpackedQuery = unpackNibbles(packedVectors[queryIdx], dims);
+                var scorer = factory.getInt4VectorScorer(
+                    similarityType.function(),
+                    values,
+                    unpackedQuery,
+                    corrections[queryIdx].lowerInterval(),
+                    corrections[queryIdx].upperInterval(),
+                    corrections[queryIdx].additionalCorrection(),
+                    corrections[queryIdx].quantizedComponentSum()
+                ).get();
+                scorer.bulkScore(nodes, scores, nodes.length);
+                assertFloatArrayEquals(expected, scores, 2e-5f);
+            }
+        }
+    }
+
+    public void testScorerSupplierSequentialOrdinals() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
+        var factory = AbstractVectorTestCase.factory.get();
+
+        final int dims = 128;
+        final int size = 10;
+        final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
+        final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
+        final byte[][] packedVectors = new byte[size][];
+        final OptimizedScalarQuantizer.QuantizationResult[] corrections = new OptimizedScalarQuantizer.QuantizationResult[size];
+        try (Directory dir = new MMapDirectory(createTempDir("testSequentialOrdinals"))) {
+            String fileName = "testSequentialOrdinals-" + dims;
+            try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
+                for (int i = 0; i < size; i++) {
+                    var packed = vector(i, dims);
+                    var correction = randomCorrectionPacked(packed);
+                    writePackedVectorWithCorrection(out, packed, correction);
+                    packedVectors[i] = packed;
+                    corrections[i] = correction;
+                }
+            }
+            try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+                var values = vectorValues(dims, size, centroid, centroidDP, in, similarityType.function());
+                var supplier = factory.getInt4VectorScorerSupplier(similarityType, in, values).get();
+                var scorer = supplier.scorer();
+                for (int queryOrd = 0; queryOrd < size; queryOrd++) {
+                    scorer.setScoringOrdinal(queryOrd);
+                    for (int targetOrd = 0; targetOrd < size; targetOrd++) {
+                        float expected = luceneScore(
+                            similarityType,
+                            packedVectors[queryOrd],
+                            packedVectors[targetOrd],
+                            dims,
+                            centroidDP,
+                            corrections[queryOrd],
+                            corrections[targetOrd]
+                        );
+                        assertFloatEquals(expected, scorer.score(targetOrd), 1e-6f);
                     }
                 }
             }
         }
     }
 
-    public void testRace() throws Exception {
-        testRaceImpl(DOT_PRODUCT);
-        testRaceImpl(EUCLIDEAN);
-        testRaceImpl(MAXIMUM_INNER_PRODUCT);
+    public void testInvalidOrdinal() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
+        var factory = AbstractVectorTestCase.factory.get();
+
+        final int dims = 32;
+        final int size = 2;
+        final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
+        final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
+        try (Directory dir = new MMapDirectory(createTempDir("testInvalidOrdinal"))) {
+            String fileName = "testInvalidOrdinal-" + dims;
+            try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
+                for (int i = 0; i < size; i++) {
+                    var packed = vector(i, dims);
+                    writePackedVectorWithCorrection(out, packed, randomCorrectionPacked(packed));
+                }
+            }
+            try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+                var values = vectorValues(dims, size, centroid, centroidDP, in, similarityType.function());
+                var supplier = factory.getInt4VectorScorerSupplier(similarityType, in, values).get();
+                var scorer = supplier.scorer();
+                expectThrows(IllegalArgumentException.class, () -> scorer.setScoringOrdinal(-1));
+                expectThrows(IllegalArgumentException.class, () -> scorer.setScoringOrdinal(size));
+
+                if (supportsHeapSegments()) {
+                    byte[] packed0 = vector(0, dims);
+                    byte[] unpackedQuery = unpackNibbles(packed0, dims);
+                    var correction = randomCorrectionPacked(packed0);
+                    var qScorer = factory.getInt4VectorScorer(
+                        similarityType.function(),
+                        values,
+                        unpackedQuery,
+                        correction.lowerInterval(),
+                        correction.upperInterval(),
+                        correction.additionalCorrection(),
+                        correction.quantizedComponentSum()
+                    ).get();
+                    expectThrows(IllegalArgumentException.class, () -> qScorer.score(-1));
+                    expectThrows(IllegalArgumentException.class, () -> qScorer.score(size));
+                }
+            }
+        }
     }
 
-    void testRaceImpl(VectorSimilarityType sim) throws Exception {
+    public void testScoreBeforeSetOrdinal() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
+        var factory = AbstractVectorTestCase.factory.get();
+
+        final int dims = 32;
+        final int size = 2;
+        final float[] centroid = FLOAT_ARRAY_RANDOM_FUNC.apply(dims);
+        final float centroidDP = VectorUtil.dotProduct(centroid, centroid);
+        try (Directory dir = new MMapDirectory(createTempDir("testScoreBeforeSetOrdinal"))) {
+            String fileName = "testScoreBeforeSetOrdinal-" + dims;
+            try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
+                for (int i = 0; i < size; i++) {
+                    var packed = vector(i, dims);
+                    writePackedVectorWithCorrection(out, packed, randomCorrectionPacked(packed));
+                }
+            }
+            try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+                var values = vectorValues(dims, size, centroid, centroidDP, in, similarityType.function());
+                var supplier = factory.getInt4VectorScorerSupplier(similarityType, in, values).get();
+                var scorer = supplier.scorer();
+                expectThrows(IllegalStateException.class, () -> scorer.score(0));
+            }
+        }
+    }
+
+    public void testRace() throws Exception {
         assumeTrue(notSupportedMsg(), supported());
         var factory = AbstractVectorTestCase.factory.get();
 
@@ -571,12 +767,12 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                 writePackedVectorWithCorrection(out, packed2, correction2);
                 writePackedVectorWithCorrection(out, packed2, correction2);
             }
-            var expectedScore1 = luceneScore(sim, packed1, packed1, dims, centroidDP, correction1, correction1);
-            var expectedScore2 = luceneScore(sim, packed2, packed2, dims, centroidDP, correction2, correction2);
+            var expectedScore1 = luceneScore(similarityType, packed1, packed1, dims, centroidDP, correction1, correction1);
+            var expectedScore2 = luceneScore(similarityType, packed2, packed2, dims, centroidDP, correction2, correction2);
 
             try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
-                var values = vectorValues(dims, 4, centroid, centroidDP, in, sim.function());
-                var scoreSupplier = factory.getInt4VectorScorerSupplier(sim, in, values).get();
+                var values = vectorValues(dims, 4, centroid, centroidDP, in, similarityType.function());
+                var scoreSupplier = factory.getInt4VectorScorerSupplier(similarityType, in, values).get();
                 var tasks = List.<Callable<Optional<Throwable>>>of(
                     new ScoreCallable(scoreSupplier.copy().scorer(), 0, 1, expectedScore1),
                     new ScoreCallable(scoreSupplier.copy().scorer(), 2, 3, expectedScore2)
@@ -775,14 +971,6 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         return packNibbles(unpacked);
     }
 
-    static IntFunction<float[]> FLOAT_ARRAY_RANDOM_FUNC = size -> {
-        float[] fa = new float[size];
-        for (int i = 0; i < size; i++) {
-            fa[i] = randomFloat();
-        }
-        return fa;
-    };
-
     static IntFunction<byte[]> BYTE_ARRAY_RANDOM_INT4_FUNC = dims -> {
         byte[] unpacked = new byte[dims];
         for (int i = 0; i < dims; i++) {
@@ -915,5 +1103,10 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         public QuantizedByteVectorValues copy() throws IOException {
             return new DenseOffHeapInt4VectorValues(dimension, size, similarityFunction, slice.clone(), centroid, centroidDp);
         }
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parametersFactory() {
+        return List.of(new Object[] { DOT_PRODUCT }, new Object[] { EUCLIDEAN }, new Object[] { MAXIMUM_INNER_PRODUCT });
     }
 }

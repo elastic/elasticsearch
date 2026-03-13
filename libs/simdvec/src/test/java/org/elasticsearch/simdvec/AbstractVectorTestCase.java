@@ -16,7 +16,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 import java.util.Optional;
+import java.util.function.IntFunction;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.Matchers.not;
@@ -80,4 +82,18 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
             return baos.toByteArray();
         }
     }
+
+    static IntFunction<float[]> FLOAT_ARRAY_RANDOM_FUNC = size -> {
+        float[] fa = new float[size];
+        for (int i = 0; i < size; i++) {
+            fa[i] = randomFloat();
+        }
+        return fa;
+    };
+
+    static IntFunction<float[]> FLOAT_ARRAY_MAX_FUNC = size -> {
+        float[] fa = new float[size];
+        Arrays.fill(fa, Float.MAX_VALUE);
+        return fa;
+    };
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.readiness.ReadinessService;
 
 import java.io.IOException;
 import java.net.ConnectException;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.StandardProtocolFamily;
@@ -45,9 +46,11 @@ public interface ReadinessClientProbe {
 
     @SuppressForbidden(reason = "Intentional socket open")
     default void tcpReadinessProbeTrue(Integer port) throws Exception {
-        InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), port);
+        InetAddress loopback = InetAddress.getLoopbackAddress();
+        InetSocketAddress socketAddress = new InetSocketAddress(loopback, port);
+        StandardProtocolFamily family = loopback instanceof Inet6Address ? StandardProtocolFamily.INET6 : StandardProtocolFamily.INET;
 
-        try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.INET)) {
+        try (SocketChannel channel = SocketChannel.open(family)) {
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                 try {
                     channelConnect(channel, socketAddress);
@@ -66,9 +69,11 @@ public interface ReadinessClientProbe {
 
     @SuppressForbidden(reason = "Intentional socket open")
     default void tcpReadinessProbeFalse(Integer port) throws Exception {
-        InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), port);
+        InetAddress loopback = InetAddress.getLoopbackAddress();
+        InetSocketAddress socketAddress = new InetSocketAddress(loopback, port);
+        StandardProtocolFamily family = loopback instanceof Inet6Address ? StandardProtocolFamily.INET6 : StandardProtocolFamily.INET;
 
-        try (SocketChannel channel = SocketChannel.open(StandardProtocolFamily.INET)) {
+        try (SocketChannel channel = SocketChannel.open(family)) {
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                 expectThrows(ConnectException.class, () -> {
                     var result = channelConnect(channel, socketAddress);

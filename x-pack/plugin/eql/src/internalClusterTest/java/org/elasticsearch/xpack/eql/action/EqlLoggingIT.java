@@ -11,7 +11,10 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.activity.QueryLogging;
@@ -19,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ActivityLoggingUtils;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.eql.logging.EqlLogContext;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -37,8 +41,10 @@ import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
+@ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class EqlLoggingIT extends AbstractEqlIntegTestCase {
     static AccumulatingMockAppender appender;
     static Logger queryLog = LogManager.getLogger(QueryLogging.QUERY_LOGGER_NAME);
@@ -110,9 +116,17 @@ public class EqlLoggingIT extends AbstractEqlIntegTestCase {
      */
     public void testEqlLoggingPartialShardFailure() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        prepareIndex(2);
-
+        int numberOfShards = cluster().numDataNodes() + 2;
+        prepareIndex(numberOfShards);
         internalCluster().stopRandomDataNode();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForStatus(ClusterHealthStatus.RED).get();
+        assertBusy(() -> {
+            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            assertFalse(
+                "expected some unassigned shards",
+                RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.UNASSIGNED).isEmpty()
+            );
+        });
 
         EqlSearchRequest request = new EqlSearchRequest().indices("test")
             .query("my_event where i >= 0")
@@ -121,14 +135,14 @@ public class EqlLoggingIT extends AbstractEqlIntegTestCase {
             .waitForCompletionTimeout(TimeValue.THIRTY_SECONDS);
         EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
         assertThat(response.isRunning(), is(false));
-        assertThat(response.shardFailures().length, equalTo(1));
+        assertThat(response.shardFailures().length, greaterThanOrEqualTo(1));
 
         var event = appender.getLastEventAndReset();
         assertNotNull(event);
         var message = getMessageData(event);
         assertMessageSuccess(message, "eql", "my_event where i >= 0");
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
-        assertThat(message.get(QUERY_FIELD_SHARDS + "failed"), equalTo("1"));
+        assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "failed")), greaterThanOrEqualTo(1));
     }
 
     private void prepareIndex() throws Exception {

@@ -27,9 +27,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Node;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -66,6 +64,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomMinimumVersion;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
@@ -202,7 +202,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
-            EsqlStatement statement = EsqlParser.INSTANCE.createStatement(esqlQuery);
+            EsqlStatement statement = TEST_PARSER.createStatement(esqlQuery);
             LogicalPlan parsedPlan = statement.plan();
             String[] queryPathParts = new String[nestedPath.length + 2];
             queryPathParts[0] = testName;
@@ -214,7 +214,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             var analyzer = new Analyzer(
                 new AnalyzerContext(
                     EsqlTestUtils.TEST_CFG,
-                    new EsqlFunctionRegistry(),
+                    TEST_FUNCTION_REGISTRY,
                     CsvTests.loadIndexResolution(CsvTests.testDatasets(parsedPlan)),
                     defaultLookupResolution(),
                     new EnrichResolution(),
@@ -467,10 +467,9 @@ public abstract class GoldenTestCase extends ESTestCase {
         if (System.getProperty("golden.noactual") != null) {
             logger.debug("Skipping actual file creation because golden.noactual property is set");
         } else {
-            List<String> actualLines = testString.lines().map(GoldenTestCase::normalize).toList();
             Path actualPath = actualPath(output);
             logger.info("Creating actual file at " + actualPath.toAbsolutePath());
-            Files.write(actualPath, actualLines);
+            Files.writeString(actualPath, normalizeNameIds(normalizeSyntheticNames(full)), StandardCharsets.UTF_8);
         }
         return Test.TestResult.FAILURE;
     }

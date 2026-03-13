@@ -30,6 +30,88 @@ dummy-zero_count_only     | "{""scale"":2,""sum"":0.0,""min"":0.0,""max"":0.0,""
 dummy-zero_threshold_only | "{""scale"":0,""zero"":{""threshold"":2.0E-5}}"
 ;
 
+// -------------------------------------------------------------------------------
+
+to_exponential_histogram from histogram
+required_capability: to_exponential_histogram
+
+// tag::to_exponential_histogram[]
+FROM histogram_standard_index
+ | WHERE STARTS_WITH(instance, "hand-rolled")
+ | EVAL converted = to_exponential_histogram(responseTime)
+ | SORT instance
+ | KEEP responseTime, converted
+;
+// end::to_exponential_histogram[]
+
+// tag::to_exponential_histogram-result[]
+responseTime:histogram                                         | converted:exponential_histogram
+"{""values"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}" | "{""scale"":38,""sum"":16.4,""min"":0.1,""max"":0.5,""positive"":{""indices"":[-913124641742,-638246734798,-477453466959,-363368827854,-274877906945],""counts"":[3,7,23,12,6]}}"
+"{""values"":[], ""counts"":[]}"                               | "{""scale"":38}"
+;
+// end::to_exponential_histogram-result[]
+
+// -------------------------------------------------------------------------------
+
+timeseries to_exponential_histogram from histogram
+required_capability: to_exponential_histogram
+required_capability: ts_command_v0
+
+TS histogram_timeseries_index
+ | WHERE STARTS_WITH(instance, "hand-rolled")
+ | EVAL converted = to_exponential_histogram(responseTime)
+ | STATS min = MIN(converted),
+         max = MAX(converted),
+         p50 = MEDIAN(converted),
+         p95 = PERCENTILE(converted,95),
+         sum = SUM(converted),
+         cnt = COUNT(converted)
+ | KEEP min, max, p50, p95, sum, cnt
+;
+
+min:double | max:double | p50:double  | p95:double | sum:double     | cnt:long
+0.1        | 0.5        | 0.24..0.36  | 0.4..0.6   | 16.399..16.401 | 51
+;
+
+// -------------------------------------------------------------------------------
+
+to_exponential_histogram from tdigest
+required_capability: to_exponential_histogram
+
+FROM tdigest_standard_index
+ | WHERE STARTS_WITH(instance, "hand-rolled")
+ | EVAL converted = to_exponential_histogram(responseTime)
+ | SORT instance
+ | KEEP responseTime, converted
+;
+
+responseTime:tdigest                                                                                | converted:exponential_histogram
+"{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}" | "{""scale"":38,""sum"":16.4,""min"":0.1,""max"":0.5,""positive"":{""indices"":[-913124641742,-638246734798,-477453466959,-363368827854,-274877906945],""counts"":[3,7,23,12,6]}}"
+"{""centroids"":[], ""counts"":[]}"                                                                  | "{""scale"":38}"
+;
+
+// -------------------------------------------------------------------------------
+
+timeseries to_exponential_histogram from tdigest
+required_capability: to_exponential_histogram
+required_capability: ts_command_v0
+
+TS tdigest_timeseries_index
+ | WHERE STARTS_WITH(instance, "hand-rolled")
+ | EVAL converted = to_exponential_histogram(responseTime)
+ | STATS min = MIN(converted),
+         max = MAX(converted),
+         p50 = MEDIAN(converted),
+         p95 = PERCENTILE(converted,95),
+         sum = SUM(converted),
+         cnt = COUNT(converted)
+ | KEEP min, max, p50, p95, sum, cnt
+;
+
+min:double | max:double | p50:double  | p95:double | sum:double     | cnt:long
+0.1        | 0.5        | 0.24..0.36  | 0.4..0.6   | 16.399..16.401 | 51
+;
+
 allAggsGrouped
 required_capability: exponential_histogram_tech_preview
 

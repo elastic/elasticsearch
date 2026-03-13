@@ -12,12 +12,17 @@ null
 null
 ;
 
+// Reproducer for https://github.com/elastic/elasticsearch/issues/141870
 keepMapped
-required_capability: date_nanos_type
-required_capability: optional_fields_nullify_tech_preview
 required_capability: optional_fields_fix_unmapped_field_detection
 
-SET unmapped_fields="nullify"; FROM date_nanos | SORT millis ASC | WHERE millis < "2000-01-01" | EVAL nanos = MV_MIN(nanos) | KEEP nanos; 
+SET unmapped_fields="nullify"\;
+FROM date_nanos
+| SORT millis ASC
+| WHERE millis < "2000-01-01"
+| EVAL nanos = MV_MIN(nanos)
+| KEEP nanos
+;
 
 nanos:date_nanos
 2023-03-23T12:15:03.360103847Z
@@ -664,4 +669,117 @@ TS "k8s" | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster = doe
 
 max_bytes:long | cluster:null
 10797          | null
+;
+
+// https://github.com/elastic/elasticsearch/issues/143991
+statsFilteredAggAfterEvalWithDottedUnmappedField
+required_capability: optional_fields_detect_unmapped_fields_in_agg_filters
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| EVAL entity.id = "foo"
+| STATS host.entity.id = VALUES(host.entity.id) WHERE host.entity.id IS NOT NULL BY entity.id
+;
+
+host.entity.id:null | entity.id:keyword
+null                | foo
+;
+
+// https://github.com/elastic/elasticsearch/issues/143991
+statsFilteredAggAfterEvalWithDottedUnmappedFieldFromIndex
+required_capability: optional_fields_detect_unmapped_fields_in_agg_filters
+
+SET unmapped_fields="nullify"\;
+FROM languages
+| EVAL entity.id = "foo"
+| STATS host.entity.id = VALUES(host.entity.id) WHERE host.entity.id IS NOT NULL BY entity.id
+;
+
+host.entity.id:null | entity.id:keyword
+null                | foo
+;
+
+
+forkWithRowAndUnmappedKeep
+required_capability: fork_v9
+required_capability: fix_fork_unmapped_nullify
+
+SET unmapped_fields="nullify"\;
+ROW a = 1
+| FORK  (where true)
+| WHERE a == 1
+| KEEP bar
+;
+
+bar:null
+null
+;
+
+
+forkWithFromAndUnmappedCoalesce
+required_capability: fork_v9
+required_capability: fix_fork_unmapped_nullify
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| FORK  (where foo != 84) (where true)
+| WHERE _fork == "fork1"
+| DROP _fork
+| EVAL y = coalesce(bar, baz)
+;
+
+avg_worked_seconds:long	| birth_date:date	| emp_no:integer	| first_name:keyword	| gender:keyword	| height:double	| height.float:double	| height.half_float:double	| height.scaled_float:double	| hire_date:date	| is_rehired:boolean	| job_positions:keyword	| languages:integer	| languages.byte:integer	| languages.long:long	| languages.short:integer	| last_name:keyword	| salary:integer	| salary_change:double	| salary_change.int:integer	| salary_change.keyword:keyword	| salary_change.long:long	| still_hired:boolean   | foo:null  | bar:null	| baz:null	| y:null 
+;
+
+
+forkWithUnmappedStatsEvalKeep
+required_capability: fork_v9
+required_capability: fix_fork_unmapped_nullify
+
+SET unmapped_fields="nullify"\;
+FROM alerts
+| KEEP kibana.alert.risk_score
+| FORK (WHERE true | MV_EXPAND kibana.alert.risk_score)
+| STATS kibana.alert.risk_score = COUNT(*)
+| EVAL x = LEAST(kibana.alert.risk_score, 52, 60)
+| KEEP kibana.alert.risk_score
+;
+
+kibana.alert.risk_score:long
+10
+;
+
+
+forkWithUnmappedStatsEvalKeepTwoBranches
+required_capability: fork_v9
+required_capability: fix_fork_unmapped_nullify
+required_capability: sample_v3
+
+SET unmapped_fields="nullify"\;
+FROM alerts
+| KEEP kibana.alert.risk_score
+| FORK (WHERE true | MV_EXPAND kibana.alert.risk_score) (WHERE true | SAMPLE 0.5) 
+| STATS kibana.alert.risk_score = COUNT(*)
+| EVAL x = LEAST(kibana.alert.risk_score, 52, 60)
+| KEEP kibana.alert.risk_score
+;
+
+kibana.alert.risk_score:long
+10..20                           
+;
+
+
+forkWithRowCoalesceAndDrop
+required_capability: fork_v9
+required_capability: fix_fork_unmapped_nullify
+
+SET unmapped_fields="nullify"\;
+ROW a = 12::long
+| FORK (WHERE true)
+| EVAL x = COALESCE(a, 5)
+| DROP a
+;
+
+_fork:keyword	| x:long
+fork1        	| 12     
 ;

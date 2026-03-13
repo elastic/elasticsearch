@@ -26,6 +26,10 @@ import org.elasticsearch.inference.completion.ContentObject.ContentObjectText;
 import org.elasticsearch.inference.completion.ContentObjects;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Reasoning;
+import org.elasticsearch.inference.completion.ReasoningDetail;
+import org.elasticsearch.inference.completion.ReasoningDetailTests;
+import org.elasticsearch.inference.completion.ReasoningTests;
 import org.elasticsearch.inference.completion.Tool;
 import org.elasticsearch.inference.completion.ToolCall;
 import org.elasticsearch.inference.completion.ToolChoice;
@@ -44,7 +48,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_REASONING_SUPPORT_ADDED;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
 import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
 import static org.hamcrest.Matchers.is;
 
@@ -86,6 +91,31 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                             },
                             "type": "function"
                         }
+                    ],
+                    "reasoning": "some reasoning",
+                    "reasoning_details": [
+                        {
+                            "type": "reasoning.encrypted",
+                            "format": "some encrypted reasoning detail format",
+                            "id": "some id 0",
+                            "index": 0,
+                            "data": "some encrypted data"
+                        },
+                        {
+                            "type": "reasoning.summary",
+                            "format": "some summary reasoning detail format",
+                            "id": "some id 1",
+                            "index": 1,
+                            "summary": "some summary"
+                        },
+                        {
+                            "type": "reasoning.text",
+                            "format": "some text reasoning detail format",
+                            "id": "some id 2",
+                            "index": 2,
+                            "text": "some text",
+                            "signature": "some signature"
+                        }
                     ]
                   }
                 ],
@@ -111,7 +141,13 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                 ],
                 "top_p": 0.2,
                 "max_completion_tokens": 100,
-                "model": "gpt-4o"
+                "model": "gpt-4o",
+                "reasoning": {
+                    "effort": "medium",
+                    "summary": "detailed",
+                    "exclude": false,
+                    "enabled": false
+                }
             }
             """;
 
@@ -135,6 +171,28 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                                 new ToolCall.FunctionField("{'order_id': 'order_12345'}", "get_delivery_date"),
                                 "function"
                             )
+                        ),
+                        "some reasoning",
+                        List.of(
+                            new ReasoningDetail.EncryptedReasoningDetail(
+                                "some encrypted reasoning detail format",
+                                "some id 0",
+                                0L,
+                                "some encrypted data"
+                            ),
+                            new ReasoningDetail.SummaryReasoningDetail(
+                                "some summary reasoning detail format",
+                                "some id 1",
+                                1L,
+                                "some summary"
+                            ),
+                            new ReasoningDetail.TextReasoningDetail(
+                                "some text reasoning detail format",
+                                "some id 2",
+                                2L,
+                                "some text",
+                                "some signature"
+                            )
                         )
                     )
                 ),
@@ -154,7 +212,8 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                         )
                     )
                 ),
-                0.2F
+                0.2F,
+                new Reasoning(Reasoning.ReasoningEffort.MEDIUM, null, Reasoning.ReasoningSummary.DETAILED, false, false)
             );
 
             assertThat(request, is(expected));
@@ -479,7 +538,8 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             randomFloatOrNull(),
             randomToolChoiceOrNull(),
             randomToolListOrNull(),
-            randomFloatOrNull()
+            randomFloatOrNull(),
+            randomReasoningOrNull()
         );
     }
 
@@ -492,7 +552,8 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             randomFloatOrNull(),
             randomToolChoiceOrNull(),
             randomToolListOrNull(),
-            randomFloatOrNull()
+            randomFloatOrNull(),
+            randomReasoningOrNull()
         );
     }
 
@@ -505,7 +566,9 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             randomContent(allowMultimodal),
             randomAlphaOfLength(10),
             randomAlphaOfLengthOrNull(10),
-            randomToolCallListOrNull()
+            randomToolCallListOrNull(),
+            randomAlphaOfLengthOrNull(10),
+            randomReasoningDetailListOrNull()
         );
     }
 
@@ -557,6 +620,10 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         return new ToolCall.FunctionField(randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
+    public static List<ReasoningDetail> randomReasoningDetailListOrNull() {
+        return randomBoolean() ? randomList(10, ReasoningDetailTests::randomReasoningDetail) : null;
+    }
+
     public static List<String> randomStopOrNull() {
         return randomBoolean() ? randomStop() : null;
     }
@@ -591,10 +658,35 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         return new Tool.FunctionField(randomAlphaOfLengthOrNull(10), randomAlphaOfLength(10), null, randomOptionalBoolean());
     }
 
+    public static Reasoning randomReasoningOrNull() {
+        return randomBoolean() ? ReasoningTests.randomReasoning() : null;
+    }
+
     @Override
     protected UnifiedCompletionRequest mutateInstanceForVersion(UnifiedCompletionRequest instance, TransportVersion version) {
-        // No need to mutate the instance for backwards compatibility, because unsupported content types cause an exception to be thrown
-        // when serializing to older nodes
+        return mutateInstanceForTransportVersion(instance, version);
+    }
+
+    public static UnifiedCompletionRequest mutateInstanceForTransportVersion(UnifiedCompletionRequest instance, TransportVersion version) {
+        // Unsupported content types cause an exception to be thrown when serializing to older nodes,
+        // so there is no need to mutate the instance for backwards compatibility for versions that don't support multimodal content.
+        // This is tested in testMultimodalContentIsNotBackwardsCompatible
+
+        if (version.supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED) == false) {
+            instance = new UnifiedCompletionRequest(
+                instance.messages()
+                    .stream()
+                    .map(message -> new Message(message.content(), message.role(), message.toolCallId(), message.toolCalls()))
+                    .toList(),
+                instance.model(),
+                instance.maxCompletionTokens(),
+                instance.stop(),
+                instance.temperature(),
+                instance.toolChoice(),
+                instance.tools(),
+                instance.topP()
+            );
+        }
         return instance;
     }
 
@@ -618,7 +710,8 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         ToolChoice toolChoice = instance.toolChoice();
         List<Tool> tools = instance.tools();
         Float topP = instance.topP();
-        switch (between(0, 7)) {
+        Reasoning reasoning = instance.reasoning();
+        switch (between(0, 8)) {
             case 0 -> messages = randomValueOtherThan(messages, () -> randomList(5, UnifiedCompletionRequestTests::randomMessage));
             case 1 -> model = randomValueOtherThan(model, () -> randomAlphaOfLength(10));
             case 2 -> maxCompletionTokens = randomValueOtherThan(maxCompletionTokens, ESTestCase::randomNonNegativeLongOrNull);
@@ -627,9 +720,10 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             case 5 -> toolChoice = randomValueOtherThan(toolChoice, UnifiedCompletionRequestTests::randomToolChoiceOrNull);
             case 6 -> tools = randomValueOtherThan(tools, UnifiedCompletionRequestTests::randomToolListOrNull);
             case 7 -> topP = randomValueOtherThan(topP, ESTestCase::randomFloatOrNull);
+            case 8 -> reasoning = randomValueOtherThan(reasoning, UnifiedCompletionRequestTests::randomReasoningOrNull);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new UnifiedCompletionRequest(messages, model, maxCompletionTokens, stop, temperature, toolChoice, tools, topP);
+        return new UnifiedCompletionRequest(messages, model, maxCompletionTokens, stop, temperature, toolChoice, tools, topP, reasoning);
     }
 
     @Override

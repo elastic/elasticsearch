@@ -500,7 +500,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     public void testFetchManyBigFields() throws IOException {
-        initManyBigFieldsIndex(100, "keyword", false);
+        initManyBigFieldsIndex(100, "keyword", false, 1000);
         Map<?, ?> response = fetchManyBigFields(100);
         ListMatcher columns = matchesList();
         for (int f = 0; f < 1000; f++) {
@@ -510,7 +510,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     public void testFetchTooManyBigFields() throws IOException {
-        initManyBigFieldsIndex(500, "keyword", false);
+        initManyBigFieldsIndex(500, "keyword", false, 1000);
         // 500 docs is plenty to circuit break on most nodes
         assertCircuitBreaks(attempt -> fetchManyBigFields(attempt * 500));
     }
@@ -527,7 +527,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     public void testAggManyBigTextFields() throws IOException {
         int docs = 100;
         int fields = 100;
-        initManyBigFieldsIndex(docs, "text", false);
+        initManyBigFieldsIndex(docs, "text", false, 1000);
         Map<?, ?> response = aggManyBigFields(fields);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
         assertMap(
@@ -725,10 +725,9 @@ public class HeapAttackIT extends HeapAttackTestCase {
             """);
     }
 
-    void initManyBigFieldsIndex(int docs, String type, boolean random) throws IOException {
+    void initManyBigFieldsIndex(int docs, String type, boolean random, int fields) throws IOException {
         logger.info("loading many documents with many big fields");
         int docsPerBulk = 5;
-        int fields = 1000;
         int fieldSize = Math.toIntExact(ByteSizeValue.ofKb(1).getBytes());
         boolean numeric = type.equalsIgnoreCase("integer") || type.equalsIgnoreCase("long") || type.equalsIgnoreCase("double");
 

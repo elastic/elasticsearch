@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.search.SearchFeatures.DFS_KNN_RESCORE_ON_SHARDS;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -51,7 +52,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     private static final String FLAT_QUANTIZED_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.13.0";
     private static final String BBQ_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.18.0";
     private static final String BIT_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.15.0";
-    private static final String DFS_KNN_RESCORE_TEST_FEATURE = "gte_v9.4.0";
+    private static final String DFS_KNN_RESCORE_TEST_FEATURE = "dfs_knn_rescore_test_feature";
 
     public void testBitVectors() throws Exception {
         assumeTrue("Bit vector search is not supported on this version", oldClusterHasFeature(BIT_VECTOR_SEARCH_TEST_FEATURE));
@@ -745,7 +746,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         );
         assumeFalse(
             "testing compatibility between upgrades, so old clusters shouldn't have the current feature",
-            oldClusterHasFeature(DFS_KNN_RESCORE_TEST_FEATURE)
+            oldClusterHasFeature(DFS_KNN_RESCORE_ON_SHARDS)
         );
         if (isOldCluster()) {
             String mapping = """

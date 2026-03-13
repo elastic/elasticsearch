@@ -57,6 +57,7 @@ public final class SearchFeatures implements FeatureSpecification {
         "search.exponential_histogram_querydsl_boxplot"
     );
     public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE = new NodeFeature("search.exponential_histogram_querydsl_range");
+    public static final NodeFeature DFS_KNN_RESCORE_ON_SHARDS = new NodeFeature("search.dfs.knn_rescore_on_shards");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -83,7 +84,8 @@ public final class SearchFeatures implements FeatureSpecification {
             FUNCTION_SCORE_NAMED_QUERIES,
             LUCENE_10_4_0_UPGRADE_TEST,
             EXPONENTIAL_HISTOGRAM_QUERYDSL_BOXPLOT,
-            EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE
+            EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE,
+            DFS_KNN_RESCORE_ON_SHARDS
         );
     }
 }

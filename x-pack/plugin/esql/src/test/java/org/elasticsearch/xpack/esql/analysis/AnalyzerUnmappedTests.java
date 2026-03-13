@@ -3853,24 +3853,18 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testLoadModeDisallowsForkAndLookupJoin() {
-        verificationFailure(
-            setUnmappedLoad("""
-                FROM test
-                | EVAL language_code = languages
-                | LOOKUP JOIN languages_lookup ON language_code
-                | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
-                """),
-            "FORK is not supported with unmapped_fields=\"load\""
-        );
-        verificationFailure(
-            setUnmappedLoad("""
-                FROM test
-                | EVAL language_code = languages
-                | LOOKUP JOIN languages_lookup ON language_code
-                | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
-                """),
-            "LOOKUP JOIN is not supported with unmapped_fields=\"load\""
-        );
+        verificationFailure(setUnmappedLoad("""
+            FROM test
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
+            """), "FORK is not supported with unmapped_fields=\"load\"");
+        verificationFailure(setUnmappedLoad("""
+            FROM test
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
+            """), "LOOKUP JOIN is not supported with unmapped_fields=\"load\"");
     }
 
     public void testLoadModeDisallowsSubqueryAndFork() {

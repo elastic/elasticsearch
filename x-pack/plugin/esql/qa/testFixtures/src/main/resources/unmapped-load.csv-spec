@@ -227,6 +227,7 @@ FROM partial_mapping_sample_data
 
 unmappedFieldNonExistentTsIndex
 required_capability: optional_fields_v2
+required_capability: ts_command_v0
 
 SET unmapped_fields="load"\;
 FROM k8s_unmapped
@@ -245,6 +246,7 @@ FROM k8s_unmapped
 
 statsImplicitLastOverTimeUnmappedTsIndex
 required_capability: optional_fields_v2
+required_capability: ts_command_v0
 
 SET unmapped_fields="load"\;
 TS k8s_unmapped
@@ -262,6 +264,7 @@ time_bucket:datetime     | x:keyword
 
 statsByUnmappedFieldTsIndex
 required_capability: optional_fields_v2
+required_capability: ts_command_v0
 
 SET unmapped_fields="load"\;
 TS k8s_unmapped
@@ -286,6 +289,7 @@ s:long | c:long | event_log:keyword
 
 explicitLastOverTimeUnmappedTsIndex
 required_capability: optional_fields_v2
+required_capability: ts_command_v0
 
 SET unmapped_fields="load"\;
 TS k8s_unmapped
@@ -862,6 +866,7 @@ FROM partial_mapping_sample_data
 
 maxOverTimeOfKeyword
 required_capability: optional_fields_v2
+required_capability: ts_command_v0
 
 SET unmapped_fields="load"\;
 TS k8s,k8s_unmapped METADATA _index

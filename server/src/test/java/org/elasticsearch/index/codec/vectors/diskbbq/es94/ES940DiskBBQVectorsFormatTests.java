@@ -406,7 +406,7 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
                     collector = new TopKnnCollector(
                         random().nextInt(2 * matchingDocs, 3 * matchingDocs),
                         Integer.MAX_VALUE,
-                        new IVFKnnSearchStrategy(0.25f, null)
+                        new IVFKnnSearchStrategy(0.25f, 10, 10, null)
                     );
                 }
                 leafReader.searchNearestVectors(

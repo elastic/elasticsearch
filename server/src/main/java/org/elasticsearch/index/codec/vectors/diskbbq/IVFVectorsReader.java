@@ -303,7 +303,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             : esAcceptDocs instanceof ESAcceptDocs.ESAcceptDocsAll ? numVectors
             : esAcceptDocs.approximateCost());
         float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / numVectors));
-        float visitRatio = DYNAMIC_VISIT_RATIO;
         int numCands = 0;
         int k = knnCollector.k();
         float visitRatio = dynamicVisitRatio;
@@ -315,7 +314,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
 
         FieldEntry entry = fields.get(fieldInfo.number);
-        if (visitRatio == DYNAMIC_VISIT_RATIO) {
         if (visitRatio == dynamicVisitRatio) {
             // empirically based, and a good dynamic to get decent recall while scaling a la "efSearch"
             // scaling by the number of vectors vs. the nearest neighbors requested

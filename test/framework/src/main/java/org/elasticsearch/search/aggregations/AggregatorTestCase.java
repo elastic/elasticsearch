@@ -102,6 +102,7 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.MetricTemporalityFieldMapper;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -1212,7 +1213,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
             source.put("type", mappedType.getKey());
 
             // Text is the only field that doesn't support DVs, instead FD
-            if (mappedType.getKey().equals(TextFieldMapper.CONTENT_TYPE) == false) {
+            // For metric_temporality, doc values are always enabled and it doesn't have the parameter
+            if (
+                mappedType.getKey().equals(TextFieldMapper.CONTENT_TYPE) == false
+            && mappedType.getKey().equals(MetricTemporalityFieldMapper.CONTENT_TYPE) == false) {
                 source.put("doc_values", "true");
             }
 

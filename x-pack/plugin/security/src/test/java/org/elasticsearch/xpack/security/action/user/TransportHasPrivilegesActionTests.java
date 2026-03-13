@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -43,10 +44,19 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class TransportHasPrivilegesActionTests extends ESTestCase {
+
+    private static AuthorizationService mockAuthorizationService() {
+        final var mock = mock(AuthorizationService.class);
+        when(mock.getAuthorizationExecutor()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        return mock;
+    }
 
     public void testHasPrivilegesRequestDoesNotAllowDLSRoleQueryBasedIndicesPrivileges() {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -63,7 +73,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         final TransportHasPrivilegesAction transportHasPrivilegesAction = new TransportHasPrivilegesAction(
             transportService,
             new ActionFilters(Set.of()),
-            mock(AuthorizationService.class),
+            mockAuthorizationService(),
             mock(NativePrivilegeStore.class),
             context
         );
@@ -105,7 +115,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         final TransportHasPrivilegesAction transportHasPrivilegesAction = new TransportHasPrivilegesAction(
             transportService,
             new ActionFilters(Set.of()),
-            mock(AuthorizationService.class),
+            mockAuthorizationService(),
             mock(NativePrivilegeStore.class),
             context
         );
@@ -141,7 +151,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
             listener.onResponse(List.of());
             return null;
         }).when(privilegeStore).getPrivileges(any(), any(), anyActionListener());
-        final AuthorizationService authorizationService = mock(AuthorizationService.class);
+        final AuthorizationService authorizationService = mockAuthorizationService();
         final boolean isCompleteMatch = randomBoolean();
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
@@ -163,6 +173,8 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
             privilegeStore,
             context
         );
+        verify(authorizationService, times(1)).getAuthorizationExecutor();
+        verifyNoMoreInteractions(authorizationService);
 
         final String username = randomAlphaOfLengthBetween(5, 10);
         final User user = new User(username);
@@ -179,7 +191,8 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         action.execute(mock(Task.class), request1, future1);
         final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, future1::actionGet);
         assertThat(e1.getMessage(), containsString("users may only check the privileges of their own account"));
-        verifyNoInteractions(privilegeStore, authorizationService);
+        verifyNoMoreInteractions(authorizationService);
+        verifyNoInteractions(privilegeStore);
 
         // Scenario 2 - cross cluster access authentication with right name on the API key but wrong name on the inner authentication
         final String requestedUsername = randomValueOtherThan(username, () -> randomAlphaOfLengthBetween(5, 10));
@@ -198,7 +211,8 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         action.execute(mock(Task.class), request2, future2);
         final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, future2::actionGet);
         assertThat(e2.getMessage(), containsString("users may only check the privileges of their own account"));
-        verifyNoInteractions(privilegeStore, authorizationService);
+        verifyNoMoreInteractions(authorizationService);
+        verifyNoInteractions(privilegeStore);
 
         // Scenario 3 (success) - cross cluster access authentication with right name on the inner authentication
         final Authentication authentication3 = AuthenticationTestHelper.builder()

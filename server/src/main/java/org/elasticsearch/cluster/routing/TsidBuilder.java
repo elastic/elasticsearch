@@ -221,8 +221,6 @@ public class TsidBuilder {
     }
 
     public final BytesRef buildTsid(IndexVersion indexVersion) {
-        throwIfEmpty();
-        Collections.sort(dimensions);
         if (indexVersion.onOrAfter(IndexVersions.CLUSTERING_TSID)) {
             return buildClusteringTsid();
         } else {
@@ -253,6 +251,9 @@ public class TsidBuilder {
      * @throws IllegalArgumentException if no dimensions have been added
      */
     public BytesRef buildLegacyTsid() {
+        throwIfEmpty();
+        Collections.sort(dimensions);
+
         int numberOfValues = Math.min(MAX_TSID_VALUE_SIMILARITY_FIELDS, dimensions.size());
         byte[] hash = new byte[1 + numberOfValues + 16];
         int index = 0;
@@ -293,6 +294,9 @@ public class TsidBuilder {
     }
 
     private BytesRef buildClusteringTsid() {
+        throwIfEmpty();
+        Collections.sort(dimensions);
+
         final byte[] tsid = new byte[16];
         murmur3Hasher.reset();
         MurmurHash3.Hash128 hashBuffer = new MurmurHash3.Hash128();

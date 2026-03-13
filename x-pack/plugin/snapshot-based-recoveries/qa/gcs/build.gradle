@@ -10,6 +10,7 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 dependencies {
   clusterModules project(':modules:repository-gcs')
   clusterModules project(xpackModule('snapshot-based-recoveries'))
+  clusterModules project(':modules:codecs-common')
   javaRestTestImplementation(testArtifact(project(xpackModule('snapshot-based-recoveries'))))
   javaRestTestImplementation(project(':test:fixtures:gcs-fixture'))
 }

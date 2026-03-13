@@ -10,5 +10,6 @@
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
+  clusterModules project(':modules:codecs-common')
   clusterModules project(':modules:ingest-geoip')
 }

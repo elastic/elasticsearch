@@ -36,6 +36,8 @@ final class SoftDeletesPolicy {
     private long minRetainedSeqNo;
     // provides the retention leases used to calculate the minimum sequence number to retain
     private final Supplier<RetentionLeases> retentionLeasesSupplier;
+    // whether to retain operations for peer recovery based on the local checkpoint of the safe commit
+    private final boolean retainForPeerRecovery;
 
     SoftDeletesPolicy(
         final LongSupplier globalCheckpointSupplier,
@@ -43,12 +45,23 @@ final class SoftDeletesPolicy {
         final long retentionOperations,
         final Supplier<RetentionLeases> retentionLeasesSupplier
     ) {
+        this(globalCheckpointSupplier, minRetainedSeqNo, retentionOperations, retentionLeasesSupplier, true);
+    }
+
+    SoftDeletesPolicy(
+        final LongSupplier globalCheckpointSupplier,
+        final long minRetainedSeqNo,
+        final long retentionOperations,
+        final Supplier<RetentionLeases> retentionLeasesSupplier,
+        final boolean retainForPeerRecovery
+    ) {
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.retentionOperations = retentionOperations;
         this.minRetainedSeqNo = minRetainedSeqNo;
         this.retentionLeasesSupplier = Objects.requireNonNull(retentionLeasesSupplier);
         this.localCheckpointOfSafeCommit = SequenceNumbers.NO_OPS_PERFORMED;
         this.retentionLockCount = 0;
+        this.retainForPeerRecovery = retainForPeerRecovery;
     }
 
     /**
@@ -131,7 +144,9 @@ final class SoftDeletesPolicy {
                 1 + globalCheckpointSupplier.getAsLong() - retentionOperations,
                 minimumRetainingSequenceNumber
             );
-            final long minSeqNoToRetain = Math.min(minSeqNoForQueryingChanges, 1 + localCheckpointOfSafeCommit);
+            final long minSeqNoToRetain = retainForPeerRecovery
+                ? Math.min(minSeqNoForQueryingChanges, 1 + localCheckpointOfSafeCommit)
+                : minSeqNoForQueryingChanges;
 
             /*
              * We take the maximum as minSeqNoToRetain can go backward as the retention operations value can be changed in settings, or from

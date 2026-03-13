@@ -15,11 +15,13 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
@@ -37,6 +39,7 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.createDefaultRetrySettings;
 import static org.hamcrest.Matchers.instanceOf;
@@ -48,6 +51,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -308,6 +312,42 @@ public class RetryingHttpSenderTests extends ESTestCase {
         assertThat(thrownException.getMessage(), is("Invalid host [null], please check that the URL is correct."));
         verify(httpClient, times(1)).send(any(), any(), any());
         verifyNoMoreInteractions(httpClient);
+    }
+
+    public void testSend_CallsListenerWithRequestTimeout_WhenRequestAlreadyCompletedAtStart() {
+        var httpClient = mock(HttpClient.class);
+        var handler = mock(ResponseHandler.class);
+
+        var retrier = createRetrier(httpClient);
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        var inferenceEntityId = "test-entity-id";
+        executeTasks(() -> retrier.send(mock(Logger.class), mockRequest(inferenceEntityId), () -> true, handler, listener), 0);
+
+        var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(thrownException.status(), is(RestStatus.REQUEST_TIMEOUT));
+        assertThat(thrownException.getMessage(), is(Strings.format("Inference endpoint id [%s]: request timed out", inferenceEntityId)));
+        verifyNoInteractions(httpClient);
+    }
+
+    public void testSend_CallsListenerWithRequestTimeout_WhenRequestCompletesAfterHttpRequestCreated() {
+        var httpClient = mock(HttpClient.class);
+        var handler = mock(ResponseHandler.class);
+        var completedCheckCount = new AtomicInteger(0);
+        // First get() (at start of tryAction) returns false; second get() (in andThen after createHttpRequest) returns true
+        var hasRequestCompletedFunction = (Supplier<Boolean>) () -> completedCheckCount.incrementAndGet() > 1;
+
+        var retrier = createRetrier(httpClient);
+        var listener = new PlainActionFuture<InferenceServiceResults>();
+        var inferenceEntityId = "test-entity-id";
+        executeTasks(
+            () -> retrier.send(mock(Logger.class), mockRequest(inferenceEntityId), hasRequestCompletedFunction, handler, listener),
+            0
+        );
+
+        var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(thrownException.status(), is(RestStatus.REQUEST_TIMEOUT));
+        assertThat(thrownException.getMessage(), is(Strings.format("Inference endpoint id [%s]: request timed out", inferenceEntityId)));
+        verifyNoInteractions(httpClient);
     }
 
     public void testSend_ReturnsElasticsearchExceptionFailure_WhenTheHttpClientThrowsAnIllegalStateException() throws IOException {

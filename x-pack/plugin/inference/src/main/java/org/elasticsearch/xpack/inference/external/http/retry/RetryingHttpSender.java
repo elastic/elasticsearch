@@ -15,6 +15,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
@@ -123,6 +124,10 @@ public class RetryingHttpSender implements RequestSender {
             retryCount.incrementAndGet();
             // A timeout likely occurred so let's stop attempting to execute the request
             if (hasRequestCompletedFunction.get()) {
+                // TimedListener will drop this, just being safe to avoid a hanging listener
+                listener.onFailure(
+                    new ElasticsearchStatusException(timeoutString(request.getInferenceEntityId()), RestStatus.REQUEST_TIMEOUT)
+                );
                 return;
             }
 
@@ -142,14 +147,24 @@ public class RetryingHttpSender implements RequestSender {
                     () -> request.createHttpRequest(httpRequestActionListener),
                     httpRequestActionListener
                 )
-            )
-                .<InferenceServiceResults>andThen(
-                    (inferenceServiceResultsActionListener, httpRequest) -> wrapThrownException(
-                        () -> sendRequest(httpRequest, inferenceServiceResultsActionListener),
-                        inferenceServiceResultsActionListener
-                    )
-                )
-                .addListener(logFailureListener);
+            ).<InferenceServiceResults>andThen((inferenceServiceResultsActionListener, httpRequest) -> {
+                if (hasRequestCompletedFunction.get()) {
+                    // TimedListener will drop this, just being safe to avoid a hanging listener
+                    inferenceServiceResultsActionListener.onFailure(
+                        new ElasticsearchStatusException(timeoutString(request.getInferenceEntityId()), RestStatus.REQUEST_TIMEOUT)
+                    );
+                    return;
+                }
+
+                wrapThrownException(
+                    () -> sendRequest(httpRequest, inferenceServiceResultsActionListener),
+                    inferenceServiceResultsActionListener
+                );
+            }).addListener(logFailureListener);
+        }
+
+        private static String timeoutString(String inferenceId) {
+            return Strings.format("Inference endpoint id [%s]: request timed out", inferenceId);
         }
 
         /**

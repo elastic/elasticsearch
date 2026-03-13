@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
-import static org.hamcrest.Matchers.containsString;
+
 import static org.hamcrest.Matchers.equalTo;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
@@ -1046,17 +1046,6 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
                 profile.drivers().stream().map(DriverProfile::description).collect(Collectors.toSet())
             );
         }
-    }
-
-    public void testForkDisallowedWithUnmappedFieldsLoad() {
-        assumeTrue("Requires OPTIONAL_FIELDS_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
-        var query = """
-            SET unmapped_fields="load";
-            FROM test
-            | FORK (WHERE id > 1) (WHERE id < 5)
-            """;
-        var e = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(e.getMessage(), containsString("FORK is not supported with unmapped_fields=\"load\""));
     }
 
     public void testWithTooManySubqueries() {

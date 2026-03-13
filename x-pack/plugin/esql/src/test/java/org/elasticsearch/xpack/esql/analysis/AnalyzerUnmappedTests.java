@@ -2470,11 +2470,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(Expressions.names(plan.output()), is(List.of("COUNT(*)", "empNo", "languageCode", "does_not_exist2")));
     }
 
-    // unmapped_fields="load" disallows subqueries and LOOKUP JOIN (see #142367)
+    // unmapped_fields="load" disallows subqueries and LOOKUP JOIN (see #142033)
     public void testSubquerysMixAndLookupJoinLoad() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
 
-        verificationFailure(setUnmappedLoad("""
+        var e = expectThrows(VerificationException.class, () -> analyzeStatement(setUnmappedLoad("""
             FROM test,
                 (FROM languages
                  | WHERE language_code > 10
@@ -2488,7 +2488,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | STATS COUNT(*) BY emp_no, language_code, does_not_exist2
             | RENAME emp_no AS empNo, language_code AS languageCode
             | MV_EXPAND languageCode
-            """), "Subqueries and views are not supported with unmapped_fields=\"load\"");
+            """)));
+        String msg = e.getMessage();
+        assertThat(msg, containsString("Found 4 problems"));
+        assertThat(msg, containsString("Subqueries and views are not supported with unmapped_fields=\"load\""));
+        assertThat(msg, containsString("LOOKUP JOIN is not supported with unmapped_fields=\"load\""));
+        assertThat(msg, not(containsString("FORK is not supported")));
     }
 
     public void testFailSubquerysWithNoMainAndStatsOnlyNullify() {
@@ -3819,7 +3824,13 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
         // A single subquery without a main index is merged into the main query during analysis,
         // so there is no Subquery node in the plan and no branching — this is allowed.
-        analyzeStatement(setUnmappedLoad("FROM (FROM languages | WHERE language_code > 1)"));
+        var plan = analyzeStatement(setUnmappedLoad("FROM (FROM languages | WHERE language_code > 1)"));
+
+        // TODO: golden testing
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var relation = as(filter.child(), EsRelation.class);
+        assertThat(relation.indexPattern(), is("languages"));
     }
 
     public void testLoadModeDisallowsMultipleSubqueries() {
@@ -3853,18 +3864,14 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testLoadModeDisallowsForkAndLookupJoin() {
-        verificationFailure(setUnmappedLoad("""
+        var query = setUnmappedLoad("""
             FROM test
             | EVAL language_code = languages
             | LOOKUP JOIN languages_lookup ON language_code
             | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
-            """), "FORK is not supported with unmapped_fields=\"load\"");
-        verificationFailure(setUnmappedLoad("""
-            FROM test
-            | EVAL language_code = languages
-            | LOOKUP JOIN languages_lookup ON language_code
-            | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
-            """), "LOOKUP JOIN is not supported with unmapped_fields=\"load\"");
+            """);
+        verificationFailure(query, "FORK is not supported with unmapped_fields=\"load\"");
+        verificationFailure(query, "LOOKUP JOIN is not supported with unmapped_fields=\"load\"");
     }
 
     public void testLoadModeDisallowsSubqueryAndFork() {
@@ -3879,35 +3886,45 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testLoadModeAllowsInlineStats() {
-        analyzeStatement(setUnmappedLoad("""
+        var plan = analyzeStatement(setUnmappedLoad("""
             FROM test
             | INLINE STATS c = COUNT(*) BY emp_no
             """));
+
+        // TODO: golden testing
+        var limit = as(plan, Limit.class);
+        var inlineStats = as(limit.child(), InlineStats.class);
+        var agg = as(inlineStats.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), is(List.of("emp_no")));
+        var relation = as(agg.child(), EsRelation.class);
+        assertThat(relation.indexPattern(), is("test"));
     }
 
     public void testLoadModeAllowsInlineStatsWithUnmappedFields() {
-        analyzeStatement(setUnmappedLoad("""
+        var plan = analyzeStatement(setUnmappedLoad("""
             FROM test
             | INLINE STATS s = COUNT(does_not_exist1), c = COUNT(*) BY does_not_exist2, emp_no
             """));
+
+        // TODO: golden testing
+        var limit = as(plan, Limit.class);
+        var inlineStats = as(limit.child(), InlineStats.class);
+        var agg = as(inlineStats.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), is(List.of("does_not_exist2", "emp_no")));
+        assertThat(Expressions.names(agg.aggregates()), is(List.of("s", "c", "does_not_exist2", "emp_no")));
+        var relation = as(agg.child(), EsRelation.class);
+        assertThat(relation.indexPattern(), is("test"));
+        var dneAttrs = relation.output().stream().filter(a -> a.name().startsWith("does_not_exist")).toList();
+        assertThat(dneAttrs, hasSize(2));
     }
 
     public void testNullifyModeAllowsFork() {
-        analyzeStatement(setUnmappedNullify("FROM test | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"));
-    }
+        var plan = analyzeStatement(setUnmappedNullify("FROM test | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"));
 
-    public void testNullifyModeAllowsForkWithStats() {
-        analyzeStatement(setUnmappedNullify("FROM test | FORK (STATS c = COUNT(*)) (STATS d = AVG(salary))"));
-    }
-
-    public void testNullifyModeAllowsLookupJoin() {
-        analyzeStatement(setUnmappedNullify("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code"));
-    }
-
-    public void testNullifyModeAllowsSubquery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-
-        analyzeStatement(setUnmappedNullify("FROM test, (FROM languages | WHERE language_code > 1)"));
+        // TODO: golden testing
+        var limit = as(plan, Limit.class);
+        var fork = as(limit.child(), Fork.class);
+        assertThat(fork.children(), hasSize(2));
     }
 
     private void verificationFailure(String statement, String expectedFailure) {

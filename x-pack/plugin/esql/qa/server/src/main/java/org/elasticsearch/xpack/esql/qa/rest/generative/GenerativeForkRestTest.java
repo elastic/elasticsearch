@@ -63,6 +63,7 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
             testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName())
         );
 
+        // FORK is not supported with unmapped_fields="load", see https://github.com/elastic/elasticsearch/issues/142033
         assumeFalse(
             "FORK is not supported with unmapped_fields=\"load\"",
             testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_V2.capabilityName())

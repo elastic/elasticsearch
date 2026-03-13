@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
@@ -42,7 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
@@ -352,28 +351,20 @@ public class Verifier {
 
     /**
      * {@code unmapped_fields="load"} does not yet support branching commands (FORK, LOOKUP JOIN, subqueries/views).
-     * See https://github.com/elastic/elasticsearch/issues/142367
+     * See https://github.com/elastic/elasticsearch/issues/142033
      */
     private static void checkLoadModeDisallowedCommands(LogicalPlan plan, Failures failures) {
         plan.forEachDown(p -> {
-            if (p instanceof Fork) {
+            if (p instanceof Fork && p instanceof UnionAll == false) {
                 failures.add(fail(p, "FORK is not supported with unmapped_fields=\"load\""));
-            }
-            if (p instanceof Join join && isLookupJoin(join)) {
-                failures.add(fail(p, "LOOKUP JOIN is not supported with unmapped_fields=\"load\""));
             }
             if (p instanceof Subquery) {
                 failures.add(fail(p, "Subqueries and views are not supported with unmapped_fields=\"load\""));
             }
+            if (p instanceof EsRelation esRelation && esRelation.indexMode() == IndexMode.LOOKUP) {
+                failures.add(fail(p, "LOOKUP JOIN is not supported with unmapped_fields=\"load\""));
+            }
         });
-    }
-
-    private static boolean isLookupJoin(Join join) {
-        LogicalPlan right = join.right();
-        if (right instanceof Filter filter) {
-            right = filter.child();
-        }
-        return right instanceof EsRelation relation && relation.indexMode() == IndexMode.LOOKUP;
     }
 
     private void licenseCheck(LogicalPlan plan, Failures failures) {

@@ -331,6 +331,10 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.ENRICH_LOAD.capabilityName())
             );
             assumeFalseLogging(
+                "can't load flattened field values in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.LOAD_FLATTENED_FIELD.capabilityName())
+            );
+            assumeFalseLogging(
                 "can't use rereank in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.RERANK.capabilityName())
             );

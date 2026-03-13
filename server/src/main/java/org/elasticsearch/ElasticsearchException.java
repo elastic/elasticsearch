@@ -2075,6 +2075,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             UpdateNotSupportedException::new,
             190,
             OCC_NOT_SUPPORTED_EXCEPTION_VERSION
+        ),
+        REMOTE_VIEW_NOT_SUPPORTED_EXCEPTION(
+            org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException.class,
+            org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException::new,
+            191,
+            org.elasticsearch.action.support.IndicesOptions.INDICES_OPTIONS_RESOLVE_VIEWS
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

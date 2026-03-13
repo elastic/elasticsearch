@@ -324,7 +324,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.status(), is(RestStatus.REQUEST_TIMEOUT));
-        assertThat(thrownException.getMessage(), is(Strings.format("Inference endpoint id [%s]: request timed out", inferenceEntityId)));
+        assertThat(thrownException.getMessage(), is(Strings.format("Inference endpoint [%s]: request timed out", inferenceEntityId)));
         verifyNoInteractions(httpClient);
     }
 
@@ -345,7 +345,7 @@ public class RetryingHttpSenderTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.status(), is(RestStatus.REQUEST_TIMEOUT));
-        assertThat(thrownException.getMessage(), is(Strings.format("Inference endpoint id [%s]: request timed out", inferenceEntityId)));
+        assertThat(thrownException.getMessage(), is(Strings.format("Inference endpoint [%s]: request timed out", inferenceEntityId)));
         verifyNoInteractions(httpClient);
     }
 

@@ -174,7 +174,7 @@ public class RetryingHttpSender implements RequestSender {
         }
 
         private static String timeoutString(String inferenceId) {
-            return Strings.format("Inference endpoint id [%s]: request timed out", inferenceId);
+            return Strings.format("Inference endpoint [%s]: request timed out", inferenceId);
         }
 
         private void sendRequest(HttpRequest httpRequest, ActionListener<InferenceServiceResults> listener) throws IOException {

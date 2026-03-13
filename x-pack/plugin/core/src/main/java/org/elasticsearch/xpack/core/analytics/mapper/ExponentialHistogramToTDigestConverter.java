@@ -12,10 +12,6 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialScaleUtils;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
 /**
  * Utility class for converting {@link ExponentialHistogram} instances to t-digests represented as {@link EncodedTDigest.CentroidIterator}.
  */
@@ -28,48 +24,41 @@ public class ExponentialHistogramToTDigestConverter {
      * <br>
      * Note that the conversion is partially lazy, so the {@link BucketIterator}s must remain
      * valid until the return {@link EncodedTDigest.CentroidIterator} is fully consumed.
+     * The implementation will be fully lazy if either
+     * <ul>
+     *     <li>The histogram to convert does not have negative buckets</li>
+     *     <li>The implementation of the histogram supports a copy-free {@link ExponentialHistogram.Buckets#reverseIterator()}</li>
+     * </ul>
      *
-     * @param negative the negative buckets of the exponential histogram
+     * @param negativeBuckets the negative buckets of the exponential histogram
      * @param zeroBucket the zero bucket of the exponential histogram
-     * @param positive the positive buckets of the exponential histogram
+     * @param positiveBuckets the positive buckets of the exponential histogram
      * @return the resulting t-digest histogram
      */
-    public static EncodedTDigest.CentroidIterator convert(BucketIterator negative, ZeroBucket zeroBucket, BucketIterator positive) {
-        List<Double> negativeBucketCenters;
-        List<Long> negativeBucketCounts;
-        if (negative.hasNext()) {
-            negativeBucketCenters = new ArrayList<>();
-            negativeBucketCounts = new ArrayList<>();
-            while (negative.hasNext()) {
-                negativeBucketCenters.add(-getBucketCenter(negative.peekIndex(), negative.scale()));
-                negativeBucketCounts.add(negative.peekCount());
-                negative.advance();
-            }
-            // negative buckets are now sorted from 0 to -INF, we want them to be sorted in ascending order instead
-            Collections.reverse(negativeBucketCenters);
-            Collections.reverse(negativeBucketCounts);
-        } else {
-            negativeBucketCenters = Collections.emptyList();
-            negativeBucketCounts = Collections.emptyList();
-        }
-
+    public static EncodedTDigest.CentroidIterator convert(
+        ExponentialHistogram.Buckets negativeBuckets,
+        ZeroBucket zeroBucket,
+        ExponentialHistogram.Buckets positiveBuckets
+    ) {
+        // Use a reverse iterator for the negative buckets, so that we iterate from -INF to zero
+        BucketIterator negative = negativeBuckets.reverseIterator();
+        BucketIterator positive = positiveBuckets.iterator();
         return new EncodedTDigest.CentroidIterator() {
 
             double currentMean;
             long currentCount;
-
-            int nextNegativeBucketIndex = 0;
             boolean zeroBucketConsumed = false;
 
             private void moveToNextCentroid() {
                 currentCount = 0;
-                while (nextNegativeBucketIndex < negativeBucketCenters.size()) {
-                    if (currentCount > 0 && currentMean != negativeBucketCenters.get(nextNegativeBucketIndex)) {
+                while (negative.hasNext()) {
+                    double center = -getBucketCenter(negative.peekIndex(), negative.scale());
+                    if (currentCount > 0 && currentMean != center) {
                         break;
                     }
-                    currentMean = negativeBucketCenters.get(nextNegativeBucketIndex);
-                    currentCount += negativeBucketCounts.get(nextNegativeBucketIndex);
-                    nextNegativeBucketIndex++;
+                    currentMean = center;
+                    currentCount += negative.peekCount();
+                    negative.advance();
                 }
                 if (zeroBucketConsumed == false && zeroBucket.count() > 0) {
                     if (currentCount == 0 || currentMean == 0.0d) {
@@ -113,9 +102,7 @@ public class ExponentialHistogramToTDigestConverter {
 
             @Override
             public boolean hasNext() {
-                return nextNegativeBucketIndex < negativeBucketCenters.size()
-                    || (zeroBucketConsumed == false && zeroBucket.count() > 0)
-                    || positive.hasNext();
+                return negative.hasNext() || (zeroBucketConsumed == false && zeroBucket.count() > 0) || positive.hasNext();
             }
         };
     }

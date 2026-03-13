@@ -34,9 +34,9 @@ public class ExponentialHistogramToTDigestConverterTests extends ESTestCase {
             )
         ) {
             EncodedTDigest.CentroidIterator tDigest = ExponentialHistogramToTDigestConverter.convert(
-                input.negativeBuckets().iterator(),
+                input.negativeBuckets(),
                 input.zeroBucket(),
-                input.positiveBuckets().iterator()
+                input.positiveBuckets()
             );
 
             List<Double> centroidValues = new ArrayList<>();
@@ -69,9 +69,9 @@ public class ExponentialHistogramToTDigestConverterTests extends ESTestCase {
             .build();
 
         EncodedTDigest.CentroidIterator converted = ExponentialHistogramToTDigestConverter.convert(
-            input.negativeBuckets().iterator(),
+            input.negativeBuckets(),
             input.zeroBucket(),
-            input.positiveBuckets().iterator()
+            input.positiveBuckets()
         );
 
         assertThat(converted.next(), equalTo(true));

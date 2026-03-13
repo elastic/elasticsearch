@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.jinaai.embeddings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
@@ -37,13 +38,13 @@ public class JinaAITextEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServ
     private JinaAITextEmbeddingServiceSettings(
         JinaAIServiceSettings commonServiceSettings,
         @Nullable SimilarityMeasure similarity,
-        @Nullable Integer dims,
+        @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
         @Nullable JinaAIEmbeddingType embeddingTypes,
         boolean dimensionsSetByUser,
         boolean multimodalModel
     ) {
-        super(commonServiceSettings, similarity, dims, maxInputTokens, embeddingTypes, dimensionsSetByUser, DEFAULT_MULTIMODAL_MODEL);
+        super(commonServiceSettings, similarity, dimensions, maxInputTokens, embeddingTypes, dimensionsSetByUser, DEFAULT_MULTIMODAL_MODEL);
     }
 
     public JinaAITextEmbeddingServiceSettings(
@@ -59,6 +60,16 @@ public class JinaAITextEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServ
 
     public JinaAITextEmbeddingServiceSettings(StreamInput in) throws IOException {
         super(in);
+    }
+
+    @Override
+    public JinaAITextEmbeddingServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        return super.updateServiceSettings(
+            serviceSettings,
+            taskType,
+            (m, v) -> DEFAULT_MULTIMODAL_MODEL,
+            JinaAITextEmbeddingServiceSettings::new
+        );
     }
 
     @Override

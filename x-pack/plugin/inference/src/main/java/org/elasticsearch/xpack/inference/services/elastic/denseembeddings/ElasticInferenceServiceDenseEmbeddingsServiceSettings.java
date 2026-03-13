@@ -32,9 +32,10 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSION
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
 public class ElasticInferenceServiceDenseEmbeddingsServiceSettings extends FilteredXContentObject
     implements
@@ -61,12 +62,17 @@ public class ElasticInferenceServiceDenseEmbeddingsServiceSettings extends Filte
         Map<String, Object> map,
         ConfigurationParseContext context
     ) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
-        Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
+        var modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var maxInputTokens = extractOptionalPositiveInteger(
+            map,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
 
         RateLimitSettings.rejectRateLimitFieldForRequestContext(
             map,
@@ -77,11 +83,50 @@ public class ElasticInferenceServiceDenseEmbeddingsServiceSettings extends Filte
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
-        return new ElasticInferenceServiceDenseEmbeddingsServiceSettings(modelId, similarity, dims, maxInputTokens);
+        return new ElasticInferenceServiceDenseEmbeddingsServiceSettings(modelId, similarity, dimensions, maxInputTokens);
+    }
+
+    @Override
+    public ElasticInferenceServiceDenseEmbeddingsServiceSettings updateServiceSettings(
+        Map<String, Object> serviceSettings,
+        TaskType taskType
+    ) {
+        var validationException = new ValidationException();
+
+        var extractedModelId = extractOptionalString(serviceSettings, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var extractedSimilarity = extractSimilarity(serviceSettings, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var extractedDimensions = extractOptionalPositiveInteger(
+            serviceSettings,
+            DIMENSIONS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+
+        RateLimitSettings.rejectRateLimitFieldForRequestContext(
+            serviceSettings,
+            ModelConfigurations.SERVICE_SETTINGS,
+            ElasticInferenceService.NAME,
+            TaskType.TEXT_EMBEDDING,
+            ConfigurationParseContext.REQUEST,
+            validationException
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new ElasticInferenceServiceDenseEmbeddingsServiceSettings(
+            extractedModelId != null ? extractedModelId : this.modelId,
+            extractedSimilarity != null ? extractedSimilarity : similarity,
+            extractedDimensions != null ? extractedDimensions : this.dimensions,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : maxInputTokens
+        );
     }
 
     public ElasticInferenceServiceDenseEmbeddingsServiceSettings(

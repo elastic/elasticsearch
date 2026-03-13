@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.inference.services.jinaai.rerank;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIRateLimitServiceSettings;
@@ -27,15 +27,16 @@ public class JinaAIRerankServiceSettings extends FilteredXContentObject implemen
     public static final String NAME = "jinaai_rerank_service_settings";
 
     public static JinaAIRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
         var commonServiceSettings = JinaAIServiceSettings.fromMap(map, context);
 
         return new JinaAIRerankServiceSettings(commonServiceSettings);
+    }
+
+    @Override
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        var updatedCommonServiceSettings = commonSettings.updateServiceSettings(serviceSettings, taskType);
+
+        return new JinaAIRerankServiceSettings(updatedCommonServiceSettings);
     }
 
     private final JinaAIServiceSettings commonSettings;

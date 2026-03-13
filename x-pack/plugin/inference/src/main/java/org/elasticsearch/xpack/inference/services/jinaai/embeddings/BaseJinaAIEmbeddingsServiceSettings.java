@@ -16,6 +16,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -26,7 +27,7 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
 
 import static org.elasticsearch.inference.EmbeddingRequest.JINA_AI_EMBEDDING_TASK_ADDED;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
@@ -34,11 +35,15 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSION
 import static org.elasticsearch.xpack.inference.services.ServiceFields.EMBEDDING_TYPE;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
+/**
+ * Base class for JinaAI embedding service settings, containing common fields and logic for embedding services.
+ * This class is abstract and should be extended by specific embedding service settings classes.
+ */
 public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
 
     static final TransportVersion JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED = TransportVersion.fromName("jina_ai_embedding_type_support_added");
@@ -63,20 +68,25 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXConte
     static <T extends BaseJinaAIEmbeddingsServiceSettings> T fromMap(
         Map<String, Object> map,
         ConfigurationParseContext context,
-        BiFunction<Map<String, Object>, ValidationException, Boolean> handleMultimodalModelField,
+        BiPredicate<Map<String, Object>, ValidationException> multimodalModelPredicate,
         ConstructorInvoker<T> constructor
     ) {
-        ValidationException validationException = new ValidationException();
-        var commonServiceSettings = JinaAIServiceSettings.fromMap(map, context);
-        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class, validationException);
+        var validationException = new ValidationException();
 
-        JinaAIEmbeddingType embeddingType = parseEmbeddingType(map, validationException);
+        var commonServiceSettings = JinaAIServiceSettings.fromMap(map, context);
+        var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var maxInputTokens = extractOptionalPositiveInteger(
+            map,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var embeddingType = parseEmbeddingType(map, validationException);
 
         Boolean dimensionsSetByUser;
         if (context == ConfigurationParseContext.PERSISTENT) {
-            dimensionsSetByUser = removeAsType(map, DIMENSIONS_SET_BY_USER, Boolean.class, validationException);
+            dimensionsSetByUser = extractOptionalBoolean(map, DIMENSIONS_SET_BY_USER, validationException);
             if (dimensionsSetByUser == null) {
                 dimensionsSetByUser = Boolean.FALSE;
             }
@@ -84,11 +94,9 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXConte
             dimensionsSetByUser = dimensions != null;
         }
 
-        boolean multimodalModel = handleMultimodalModelField.apply(map, validationException);
+        boolean multimodalModel = multimodalModelPredicate.test(map, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return constructor.construct(
             commonServiceSettings,
@@ -98,6 +106,51 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXConte
             embeddingType,
             dimensionsSetByUser,
             multimodalModel
+        );
+    }
+
+    public <T extends BaseJinaAIEmbeddingsServiceSettings> T updateServiceSettings(
+        Map<String, Object> serviceSettings,
+        TaskType taskType,
+        BiPredicate<Map<String, Object>, ValidationException> multimodalModelPredicate,
+        ConstructorInvoker<T> constructor
+    ) {
+        var validationException = new ValidationException();
+
+        var updatedCommonServiceSettings = commonSettings.updateServiceSettings(serviceSettings, taskType);
+        var extractedSimilarity = extractSimilarity(serviceSettings, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var extractedDimensions = extractOptionalPositiveInteger(
+            serviceSettings,
+            DIMENSIONS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedEmbeddingType = extractOptionalEnum(
+            serviceSettings,
+            EMBEDDING_TYPE,
+            ModelConfigurations.SERVICE_SETTINGS,
+            JinaAIEmbeddingType::fromString,
+            EnumSet.allOf(JinaAIEmbeddingType.class),
+            validationException
+        );
+        var extractedMultimodalModel = multimodalModelPredicate.test(serviceSettings, validationException);
+
+        validationException.throwIfValidationErrorsExist();
+
+        return constructor.construct(
+            updatedCommonServiceSettings,
+            extractedSimilarity != null ? extractedSimilarity : this.similarity,
+            extractedDimensions != null ? extractedDimensions : this.dimensions,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
+            extractedEmbeddingType != null ? extractedEmbeddingType : this.embeddingType,
+            (extractedDimensions != null) || this.dimensionsSetByUser,
+            extractedMultimodalModel
         );
     }
 
@@ -134,7 +187,7 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXConte
     private final boolean dimensionsSetByUser;
     private final boolean multimodalModel;
 
-    public BaseJinaAIEmbeddingsServiceSettings(
+    protected BaseJinaAIEmbeddingsServiceSettings(
         JinaAIServiceSettings commonSettings,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
@@ -152,7 +205,7 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXConte
         this.multimodalModel = multimodalModel;
     }
 
-    public BaseJinaAIEmbeddingsServiceSettings(StreamInput in) throws IOException {
+    protected BaseJinaAIEmbeddingsServiceSettings(StreamInput in) throws IOException {
         this.commonSettings = new JinaAIServiceSettings(in);
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.dimensions = in.readOptionalVInt();

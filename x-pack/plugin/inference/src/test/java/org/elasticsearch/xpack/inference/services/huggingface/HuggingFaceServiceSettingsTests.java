@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -30,9 +32,68 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class HuggingFaceServiceSettingsTests extends AbstractWireSerializingTestCase<HuggingFaceServiceSettings> {
+    private static final URI TEST_URI = ServiceUtils.createUri("https://test-uri.com");
+    private static final URI INITIAL_TEST_URI = ServiceUtils.createUri("https://initial-test-uri.com");
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+    private static final int TEST_DIMENSIONS = 1536;
+    private static final int INITIAL_TEST_DIMENSIONS = 3072;
+    private static final int TEST_MAX_INPUT_TOKENS = 512;
+    private static final int INITIAL_TEST_MAX_INPUT_TOKENS = 1024;
+    private static final SimilarityMeasure TEST_SIMILARITY_MEASURE = SimilarityMeasure.COSINE;
+    private static final SimilarityMeasure INITIAL_TEST_SIMILARITY_MEASURE = SimilarityMeasure.DOT_PRODUCT;
 
     public static HuggingFaceServiceSettings createRandom() {
         return createRandom(randomAlphaOfLength(15));
+    }
+
+    public void testUpdateServiceSettings_AllFields_Success() {
+        HashMap<String, Object> settingsMap = new HashMap<>(
+            Map.of(
+                ServiceFields.URL,
+                TEST_URI.toString(),
+                ServiceFields.SIMILARITY,
+                TEST_SIMILARITY_MEASURE.toString(),
+                ServiceFields.DIMENSIONS,
+                TEST_DIMENSIONS,
+                ServiceFields.MAX_INPUT_TOKENS,
+                TEST_MAX_INPUT_TOKENS,
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
+            )
+        );
+
+        var serviceSettings = createInitialServiceSettings().updateServiceSettings(settingsMap, TaskType.TEXT_EMBEDDING);
+
+        assertThat(
+            serviceSettings,
+            is(
+                new HuggingFaceServiceSettings(
+                    TEST_URI,
+                    TEST_SIMILARITY_MEASURE,
+                    TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_Success() {
+        var initialServiceSettings = createInitialServiceSettings();
+        var updatedServiceSettings = initialServiceSettings.updateServiceSettings(new HashMap<>(), TaskType.TEXT_EMBEDDING);
+
+        assertThat(updatedServiceSettings, is(initialServiceSettings));
+    }
+
+    private static HuggingFaceServiceSettings createInitialServiceSettings() {
+        return new HuggingFaceServiceSettings(
+            INITIAL_TEST_URI,
+            INITIAL_TEST_SIMILARITY_MEASURE,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
     }
 
     private static HuggingFaceServiceSettings createRandom(String url) {

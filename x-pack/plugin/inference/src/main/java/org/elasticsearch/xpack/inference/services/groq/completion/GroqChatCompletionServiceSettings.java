@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -44,34 +45,32 @@ public class GroqChatCompletionServiceSettings extends FilteredXContentObject im
     // To find this information you need to access your account's limits https://console.groq.com/docs/rate-limits.
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_000);
 
+    /**
+     * Creates {@link GroqChatCompletionServiceSettings} instance from a map of settings.
+     * Validates required fields and applies defaults for optional fields.
+     * @param map the map of settings to create the instance from
+     * @param context the context in which the settings are being parsed, used for validation error messages
+     * @return the created {@link GroqChatCompletionServiceSettings} instance
+     */
     public static GroqChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        String modelId = ServiceUtils.extractRequiredString(
+        var modelId = ServiceUtils.extractRequiredString(
             map,
             ServiceFields.MODEL_ID,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        String organizationId = ServiceUtils.extractOptionalString(
+        var organizationId = ServiceUtils.extractOptionalString(
             map,
             OpenAiServiceFields.ORGANIZATION,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        String url = ServiceUtils.extractOptionalString(map, ServiceFields.URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        URI uri = ServiceUtils.convertToUri(url, ServiceFields.URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            GroqService.NAME,
-            context
-        );
+        var uri = ServiceUtils.extractOptionalUri(map, ServiceFields.URL, validationException);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, GroqService.NAME, context);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GroqChatCompletionServiceSettings(modelId, uri, organizationId, rateLimitSettings);
     }
@@ -93,15 +92,6 @@ public class GroqChatCompletionServiceSettings extends FilteredXContentObject im
         this.uri = uri;
         this.organizationId = organizationId;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
-    }
-
-    GroqChatCompletionServiceSettings(
-        String modelId,
-        @Nullable String uri,
-        @Nullable String organizationId,
-        @Nullable RateLimitSettings rateLimitSettings
-    ) {
-        this(modelId, ServiceUtils.createOptionalUri(uri), organizationId, rateLimitSettings);
     }
 
     public GroqChatCompletionServiceSettings(StreamInput in) throws IOException {
@@ -129,6 +119,41 @@ public class GroqChatCompletionServiceSettings extends FilteredXContentObject im
     @Override
     public String organizationId() {
         return organizationId;
+    }
+
+    @Override
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        var validationException = new ValidationException();
+
+        var extractedModelId = ServiceUtils.extractOptionalString(
+            serviceSettings,
+            ServiceFields.MODEL_ID,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedOrganizationId = ServiceUtils.extractOptionalString(
+            serviceSettings,
+            OpenAiServiceFields.ORGANIZATION,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedUri = ServiceUtils.extractOptionalUri(serviceSettings, ServiceFields.URL, validationException);
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            GroqService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new GroqChatCompletionServiceSettings(
+            extractedModelId != null ? extractedModelId : this.modelId,
+            extractedUri != null ? extractedUri : this.uri,
+            extractedOrganizationId != null ? extractedOrganizationId : this.organizationId,
+            extractedRateLimitSettings
+        );
     }
 
     @Override

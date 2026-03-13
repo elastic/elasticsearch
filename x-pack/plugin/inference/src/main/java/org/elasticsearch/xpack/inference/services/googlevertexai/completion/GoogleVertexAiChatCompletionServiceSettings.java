@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -157,9 +158,7 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
 
         validateServiceSettings(provider, uri, streamingUri, projectId, location, modelId, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiChatCompletionServiceSettings(
             projectId,
@@ -169,6 +168,74 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
             streamingUri,
             provider,
             rateLimitSettings
+        );
+    }
+
+    @Override
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        ValidationException validationException = new ValidationException();
+
+        // Extract Google Vertex AI fields
+        String extractedProjectId = ServiceUtils.extractOptionalString(
+            serviceSettings,
+            PROJECT_ID,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        String extractedLocation = ServiceUtils.extractOptionalString(
+            serviceSettings,
+            LOCATION,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        String extractedModelId = ServiceUtils.extractOptionalString(
+            serviceSettings,
+            MODEL_ID,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+
+        // Extract Google Model Garden fields
+        URI extractedUri = ServiceUtils.extractOptionalUri(serviceSettings, URL, validationException);
+        URI extractedStreamingUri = ServiceUtils.extractOptionalUri(serviceSettings, STREAMING_URL_SETTING_NAME, validationException);
+        GoogleModelGardenProvider extractedProvider = ServiceUtils.extractOptionalEnum(
+            serviceSettings,
+            PROVIDER_SETTING_NAME,
+            ModelConfigurations.SERVICE_SETTINGS,
+            GoogleModelGardenProvider::fromString,
+            EnumSet.allOf(GoogleModelGardenProvider.class),
+            validationException
+        );
+
+        // Extract rate limit settings
+        RateLimitSettings extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            GoogleVertexAiService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validateServiceSettings(
+            extractedProvider != null ? extractedProvider : this.provider,
+            extractedUri != null ? extractedUri : this.uri,
+            extractedStreamingUri != null ? extractedStreamingUri : this.streamingUri,
+            extractedProjectId != null ? extractedProjectId : this.projectId,
+            extractedLocation != null ? extractedLocation : this.location,
+            extractedModelId != null ? extractedModelId : this.modelId,
+            validationException
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new GoogleVertexAiChatCompletionServiceSettings(
+            extractedProjectId != null ? extractedProjectId : this.projectId,
+            extractedLocation != null ? extractedLocation : this.location,
+            extractedModelId != null ? extractedModelId : this.modelId,
+            extractedUri != null ? extractedUri : this.uri,
+            extractedStreamingUri != null ? extractedStreamingUri : this.streamingUri,
+            extractedProvider != null ? extractedProvider : this.provider,
+            extractedRateLimitSettings
         );
     }
 

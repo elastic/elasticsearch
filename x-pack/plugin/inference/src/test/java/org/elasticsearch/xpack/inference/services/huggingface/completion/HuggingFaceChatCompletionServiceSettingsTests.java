@@ -12,16 +12,19 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -32,57 +35,69 @@ import static org.hamcrest.Matchers.is;
 public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
     HuggingFaceChatCompletionServiceSettings> {
 
-    private static final String MODEL_ID = "some model";
-    private static final String CORRECT_URL = "https://www.elastic.co";
-    private static final int RATE_LIMIT = 2;
+    private static final String TEST_MODEL_ID = "test-model-id";
+    private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
+    private static final URI TEST_URI = ServiceUtils.createUri("https://test-uri.com");
+    private static final URI INITIAL_TEST_URI = ServiceUtils.createUri("https://initial-test-uri.com");
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+
+    public void testUpdateServiceSettings_AllFields_Success() {
+        HashMap<String, Object> settingsMap = getServiceSettingsMap(TEST_MODEL_ID, TEST_URI.toString(), TEST_RATE_LIMIT);
+
+        var serviceSettings = createInitialServiceSettings().updateServiceSettings(settingsMap, TaskType.COMPLETION);
+
+        assertThat(
+            serviceSettings,
+            is(new HuggingFaceChatCompletionServiceSettings(TEST_MODEL_ID, TEST_URI, new RateLimitSettings(TEST_RATE_LIMIT)))
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_Success() {
+        var serviceSettings = createInitialServiceSettings().updateServiceSettings(new HashMap<>(), TaskType.COMPLETION);
+
+        assertThat(serviceSettings, is(createInitialServiceSettings()));
+    }
+
+    private static HuggingFaceChatCompletionServiceSettings createInitialServiceSettings() {
+        return new HuggingFaceChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_URI,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+    }
 
     public void testFromMap_AllFields_Success() {
         var serviceSettings = HuggingFaceChatCompletionServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    MODEL_ID,
-                    ServiceFields.URL,
-                    CORRECT_URL,
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
-                )
-            ),
+            getServiceSettingsMap(TEST_MODEL_ID, TEST_URI.toString(), TEST_RATE_LIMIT),
             ConfigurationParseContext.PERSISTENT
         );
 
         assertThat(
             serviceSettings,
-            is(new HuggingFaceChatCompletionServiceSettings(MODEL_ID, createUri(CORRECT_URL), new RateLimitSettings(RATE_LIMIT)))
+            is(new HuggingFaceChatCompletionServiceSettings(TEST_MODEL_ID, TEST_URI, new RateLimitSettings(TEST_RATE_LIMIT)))
         );
     }
 
     public void testFromMap_MissingModelId_Success() {
         var serviceSettings = HuggingFaceChatCompletionServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.URL,
-                    CORRECT_URL,
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
-                )
-            ),
+            getServiceSettingsMap(null, TEST_URI.toString(), TEST_RATE_LIMIT),
             ConfigurationParseContext.PERSISTENT
         );
 
         assertThat(
             serviceSettings,
-            is(new HuggingFaceChatCompletionServiceSettings(null, createUri(CORRECT_URL), new RateLimitSettings(RATE_LIMIT)))
+            is(new HuggingFaceChatCompletionServiceSettings(null, TEST_URI, new RateLimitSettings(TEST_RATE_LIMIT)))
         );
     }
 
     public void testFromMap_MissingRateLimit_Success() {
         var serviceSettings = HuggingFaceChatCompletionServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID, ServiceFields.URL, CORRECT_URL)),
+            getServiceSettingsMap(TEST_MODEL_ID, TEST_URI.toString(), null),
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(serviceSettings, is(new HuggingFaceChatCompletionServiceSettings(MODEL_ID, createUri(CORRECT_URL), null)));
+        assertThat(serviceSettings, is(new HuggingFaceChatCompletionServiceSettings(TEST_MODEL_ID, TEST_URI, null)));
     }
 
     public void testFromMap_MissingUrl_ThrowsException() {
@@ -92,9 +107,9 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractBWCWi
                 new HashMap<>(
                     Map.of(
                         ServiceFields.MODEL_ID,
-                        MODEL_ID,
+                        TEST_MODEL_ID,
                         RateLimitSettings.FIELD_NAME,
-                        new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                        new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
                     )
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -110,19 +125,11 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractBWCWi
     }
 
     public void testFromMap_EmptyUrl_ThrowsException() {
+        String emptyUrl = "";
         var thrownException = expectThrows(
             ValidationException.class,
             () -> HuggingFaceChatCompletionServiceSettings.fromMap(
-                new HashMap<>(
-                    Map.of(
-                        ServiceFields.MODEL_ID,
-                        MODEL_ID,
-                        ServiceFields.URL,
-                        "",
-                        RateLimitSettings.FIELD_NAME,
-                        new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
-                    )
-                ),
+                getServiceSettingsMap(TEST_MODEL_ID, emptyUrl, TEST_RATE_LIMIT),
                 ConfigurationParseContext.PERSISTENT
             )
         );
@@ -143,16 +150,7 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractBWCWi
         var thrownException = expectThrows(
             ValidationException.class,
             () -> HuggingFaceChatCompletionServiceSettings.fromMap(
-                new HashMap<>(
-                    Map.of(
-                        ServiceFields.MODEL_ID,
-                        MODEL_ID,
-                        ServiceFields.URL,
-                        invalidUrl,
-                        RateLimitSettings.FIELD_NAME,
-                        new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
-                    )
-                ),
+                getServiceSettingsMap(TEST_MODEL_ID, invalidUrl, TEST_RATE_LIMIT),
                 ConfigurationParseContext.PERSISTENT
             )
         );
@@ -170,53 +168,38 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractBWCWi
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var serviceSettings = HuggingFaceChatCompletionServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    MODEL_ID,
-                    ServiceFields.URL,
-                    CORRECT_URL,
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
-                )
-            ),
-            ConfigurationParseContext.PERSISTENT
-        );
+        var serviceSettings = new HuggingFaceChatCompletionServiceSettings(TEST_MODEL_ID, TEST_URI, new RateLimitSettings(TEST_RATE_LIMIT));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
-        var expected = XContentHelper.stripWhitespace("""
+        var expected = XContentHelper.stripWhitespace(Strings.format("""
             {
-                "model_id": "some model",
-                "url": "https://www.elastic.co",
+                "model_id": "%s",
+                "url": "%s",
                 "rate_limit": {
-                    "requests_per_minute": 2
+                    "requests_per_minute": %d
                 }
             }
-            """);
+            """, TEST_MODEL_ID, TEST_URI, TEST_RATE_LIMIT));
 
         assertThat(xContentResult, is(expected));
     }
 
     public void testToXContent_DoesNotWriteOptionalValues_DefaultRateLimit() throws IOException {
-        var serviceSettings = HuggingFaceChatCompletionServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.URL, CORRECT_URL)),
-            ConfigurationParseContext.PERSISTENT
-        );
+        var serviceSettings = new HuggingFaceChatCompletionServiceSettings(null, TEST_URI, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
-        var expected = XContentHelper.stripWhitespace("""
+        var expected = XContentHelper.stripWhitespace(Strings.format("""
             {
-                "url": "https://www.elastic.co",
+                "url": "%s",
                 "rate_limit": {
                     "requests_per_minute": 3000
                 }
             }
-            """);
+            """, TEST_URI));
         assertThat(xContentResult, is(expected));
     }
 
@@ -264,11 +247,18 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractBWCWi
         return new HuggingFaceChatCompletionServiceSettings(modelId, createUri(url), RateLimitSettingsTests.createRandom());
     }
 
-    public static Map<String, Object> getServiceSettingsMap(String url, String model) {
+    public static HashMap<String, Object> getServiceSettingsMap(String modelId, String url, Integer rateLimit) {
         var map = new HashMap<String, Object>();
 
-        map.put(ServiceFields.URL, url);
-        map.put(ServiceFields.MODEL_ID, model);
+        if (url != null) {
+            map.put(ServiceFields.URL, url);
+        }
+        if (modelId != null) {
+            map.put(ServiceFields.MODEL_ID, modelId);
+        }
+        if (rateLimit != null) {
+            map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
+        }
 
         return map;
     }

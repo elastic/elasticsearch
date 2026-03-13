@@ -13,6 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -20,8 +21,8 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -34,6 +35,90 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class ElasticInferenceServiceDenseEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
     ElasticInferenceServiceDenseEmbeddingsServiceSettings> {
+    private static final String TEST_MODEL_ID = "test-model-id";
+    private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int TEST_DIMENSIONS = 1536;
+    private static final int INITIAL_TEST_DIMENSIONS = 3072;
+    private static final int TEST_MAX_INPUT_TOKENS = 512;
+    private static final int INITIAL_TEST_MAX_INPUT_TOKENS = 1024;
+    private static final SimilarityMeasure TEST_SIMILARITY_MEASURE = SimilarityMeasure.COSINE;
+    private static final SimilarityMeasure INITIAL_TEST_SIMILARITY_MEASURE = SimilarityMeasure.DOT_PRODUCT;
+
+    public void testUpdateServiceSettings_AllFields_Success() {
+        HashMap<String, Object> settingsMap = createSettingsMap();
+
+        var serviceSettings = createInitialServiceSettings().updateServiceSettings(settingsMap, TaskType.TEXT_EMBEDDING);
+
+        MatcherAssert.assertThat(
+            serviceSettings,
+            is(
+                new ElasticInferenceServiceDenseEmbeddingsServiceSettings(
+                    TEST_MODEL_ID,
+                    TEST_SIMILARITY_MEASURE,
+                    TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS
+                )
+            )
+        );
+    }
+
+    private static HashMap<String, Object> createSettingsMap() {
+        return new HashMap<>(
+            Map.of(
+                ServiceFields.MODEL_ID,
+                TEST_MODEL_ID,
+                ServiceFields.SIMILARITY,
+                TEST_SIMILARITY_MEASURE.toString(),
+                ServiceFields.DIMENSIONS,
+                TEST_DIMENSIONS,
+                ServiceFields.MAX_INPUT_TOKENS,
+                TEST_MAX_INPUT_TOKENS
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_WithRateLimit_ThrowsException() {
+        HashMap<String, Object> settingsMap = new HashMap<>(
+            Map.of(
+                ServiceFields.MODEL_ID,
+                TEST_MODEL_ID,
+                ServiceFields.SIMILARITY,
+                TEST_SIMILARITY_MEASURE.toString(),
+                ServiceFields.DIMENSIONS,
+                TEST_DIMENSIONS,
+                ServiceFields.MAX_INPUT_TOKENS,
+                TEST_MAX_INPUT_TOKENS,
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
+            )
+        );
+
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> createInitialServiceSettings().updateServiceSettings(settingsMap, TaskType.TEXT_EMBEDDING)
+        );
+
+        assertThat(
+            exception.getMessage(),
+            containsString("[service_settings] rate limit settings are not permitted for service [elastic] and task type [text_embedding]")
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_Success() {
+        var serviceSettings = createInitialServiceSettings().updateServiceSettings(new HashMap<>(), TaskType.TEXT_EMBEDDING);
+
+        MatcherAssert.assertThat(serviceSettings, is(createInitialServiceSettings()));
+    }
+
+    private static ElasticInferenceServiceDenseEmbeddingsServiceSettings createInitialServiceSettings() {
+        return new ElasticInferenceServiceDenseEmbeddingsServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_SIMILARITY_MEASURE,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_MAX_INPUT_TOKENS
+        );
+    }
 
     @Override
     protected Writeable.Reader<ElasticInferenceServiceDenseEmbeddingsServiceSettings> instanceReader() {
@@ -65,90 +150,39 @@ public class ElasticInferenceServiceDenseEmbeddingsServiceSettingsTests extends 
     }
 
     public void testFromMap_Request_WithAllSettings() {
-        var modelId = "my-dense-model-id";
-        var similarity = SimilarityMeasure.COSINE;
-        var dimensions = 384;
-        var maxInputTokens = 512;
-        var maxBatchSize = randomIntBetween(1, ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND);
-
         var serviceSettings = ElasticInferenceServiceDenseEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    modelId,
-                    ServiceFields.SIMILARITY,
-                    similarity.toString(),
-                    ServiceFields.DIMENSIONS,
-                    dimensions,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens
-                )
-            ),
+            createSettingsMap(),
             ConfigurationParseContext.REQUEST
         );
 
-        assertThat(serviceSettings.modelId(), is(modelId));
-        assertThat(serviceSettings.similarity(), is(similarity));
-        assertThat(serviceSettings.dimensions(), is(dimensions));
-        assertThat(serviceSettings.maxInputTokens(), is(maxInputTokens));
+        assertThat(serviceSettings.modelId(), is(TEST_MODEL_ID));
+        assertThat(serviceSettings.similarity(), is(TEST_SIMILARITY_MEASURE));
+        assertThat(serviceSettings.dimensions(), is(TEST_DIMENSIONS));
+        assertThat(serviceSettings.maxInputTokens(), is(TEST_MAX_INPUT_TOKENS));
     }
 
     public void testFromMap_WithAllSettings_DoesNotRemoveRateLimitField_DoesNotThrowValidationException_PersistentContext() {
-        var modelId = "my-dense-model-id";
-        var similarity = SimilarityMeasure.COSINE;
-        var dimensions = 384;
-        var maxInputTokens = 512;
-
-        var map = new HashMap<String, Object>(
-            Map.of(
-                ServiceFields.MODEL_ID,
-                modelId,
-                ServiceFields.SIMILARITY,
-                similarity.toString(),
-                ServiceFields.DIMENSIONS,
-                dimensions,
-                ServiceFields.MAX_INPUT_TOKENS,
-                maxInputTokens,
-                RateLimitSettings.FIELD_NAME,
-                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
-            )
-        );
+        var map = createSettingsMap();
+        map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT)));
         var serviceSettings = ElasticInferenceServiceDenseEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.PERSISTENT);
 
-        assertThat(map, is(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))));
-        assertThat(serviceSettings.modelId(), is(modelId));
-        assertThat(serviceSettings.similarity(), is(similarity));
-        assertThat(serviceSettings.dimensions(), is(dimensions));
-        assertThat(serviceSettings.maxInputTokens(), is(maxInputTokens));
+        assertThat(map, is(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))));
+        assertThat(serviceSettings.modelId(), is(TEST_MODEL_ID));
+        assertThat(serviceSettings.similarity(), is(TEST_SIMILARITY_MEASURE));
+        assertThat(serviceSettings.dimensions(), is(TEST_DIMENSIONS));
+        assertThat(serviceSettings.maxInputTokens(), is(TEST_MAX_INPUT_TOKENS));
         assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
     }
 
     public void testFromMap_WithAllSettings_DoesNotRemoveRateLimitField_ThrowsValidationException_RequestContext() {
-        var modelId = "my-dense-model-id";
-        var similarity = SimilarityMeasure.COSINE;
-        var dimensions = 384;
-        var maxInputTokens = 512;
-
-        var map = new HashMap<String, Object>(
-            Map.of(
-                ServiceFields.MODEL_ID,
-                modelId,
-                ServiceFields.SIMILARITY,
-                similarity.toString(),
-                ServiceFields.DIMENSIONS,
-                dimensions,
-                ServiceFields.MAX_INPUT_TOKENS,
-                maxInputTokens,
-                RateLimitSettings.FIELD_NAME,
-                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
-            )
-        );
+        var map = createSettingsMap();
+        map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT)));
         var exception = expectThrows(
             ValidationException.class,
             () -> ElasticInferenceServiceDenseEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST)
         );
 
-        assertThat(map, is(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))));
+        assertThat(map, is(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))));
         assertThat(
             exception.getMessage(),
             containsString("[service_settings] rate limit settings are not permitted for service [elastic] and task type [text_embedding]")
@@ -156,56 +190,44 @@ public class ElasticInferenceServiceDenseEmbeddingsServiceSettingsTests extends 
     }
 
     public void testFromMap_WithAllSettings_DoesNotThrowValidationException_WhenRateLimitFieldDoesNotExist_RequestContext() {
-        var modelId = "my-dense-model-id";
-        var similarity = SimilarityMeasure.COSINE;
-        var dimensions = 384;
-        var maxInputTokens = 512;
-
-        var map = new HashMap<String, Object>(
-            Map.of(
-                ServiceFields.MODEL_ID,
-                modelId,
-                ServiceFields.SIMILARITY,
-                similarity.toString(),
-                ServiceFields.DIMENSIONS,
-                dimensions,
-                ServiceFields.MAX_INPUT_TOKENS,
-                maxInputTokens
-            )
-        );
+        var map = createSettingsMap();
         var serviceSettings = ElasticInferenceServiceDenseEmbeddingsServiceSettings.fromMap(map, ConfigurationParseContext.REQUEST);
 
         assertThat(map, anEmptyMap());
-        assertThat(serviceSettings.modelId(), is(modelId));
-        assertThat(serviceSettings.similarity(), is(similarity));
-        assertThat(serviceSettings.dimensions(), is(dimensions));
-        assertThat(serviceSettings.maxInputTokens(), is(maxInputTokens));
+        assertThat(serviceSettings.modelId(), is(TEST_MODEL_ID));
+        assertThat(serviceSettings.similarity(), is(TEST_SIMILARITY_MEASURE));
+        assertThat(serviceSettings.dimensions(), is(TEST_DIMENSIONS));
+        assertThat(serviceSettings.maxInputTokens(), is(TEST_MAX_INPUT_TOKENS));
         assertThat(serviceSettings.rateLimitSettings(), sameInstance(RateLimitSettings.DISABLED_INSTANCE));
     }
 
     public void testToXContent_WritesAllFields() throws IOException {
-        var modelId = "my-dense-model";
-        var similarity = SimilarityMeasure.DOT_PRODUCT;
-        var dimensions = 1024;
-        var maxInputTokens = 256;
-
-        var serviceSettings = new ElasticInferenceServiceDenseEmbeddingsServiceSettings(modelId, similarity, dimensions, maxInputTokens);
+        var serviceSettings = new ElasticInferenceServiceDenseEmbeddingsServiceSettings(
+            TEST_MODEL_ID,
+            TEST_SIMILARITY_MEASURE,
+            TEST_DIMENSIONS,
+            TEST_MAX_INPUT_TOKENS
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        String expectedResult = Strings.format("""
-            {"model_id":"%s","similarity":"%s","dimensions":%d,"max_input_tokens":%d}""", modelId, similarity, dimensions, maxInputTokens);
+        String expectedResult = Strings.format(
+            """
+                {"model_id":"%s","similarity":"%s","dimensions":%d,"max_input_tokens":%d}""",
+            TEST_MODEL_ID,
+            TEST_SIMILARITY_MEASURE,
+            TEST_DIMENSIONS,
+            TEST_MAX_INPUT_TOKENS
+        );
 
         assertThat(xContentResult, is(expectedResult));
     }
 
     public void testToXContent_WritesOnlyNonNullFields() throws IOException {
-        var modelId = "my-dense-model";
-
         var serviceSettings = new ElasticInferenceServiceDenseEmbeddingsServiceSettings(
-            modelId,
+            TEST_MODEL_ID,
             null, // similarity
             null, // dimensions
             null // maxInputTokens
@@ -216,13 +238,16 @@ public class ElasticInferenceServiceDenseEmbeddingsServiceSettingsTests extends 
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is(Strings.format("""
-            {"model_id":"%s"}""", modelId)));
+            {"model_id":"%s"}""", TEST_MODEL_ID)));
     }
 
     public void testToXContentFragmentOfExposedFields() throws IOException {
-        var modelId = "my-dense-model";
-
-        var serviceSettings = new ElasticInferenceServiceDenseEmbeddingsServiceSettings(modelId, SimilarityMeasure.COSINE, 512, 128);
+        var serviceSettings = new ElasticInferenceServiceDenseEmbeddingsServiceSettings(
+            TEST_MODEL_ID,
+            TEST_SIMILARITY_MEASURE,
+            TEST_DIMENSIONS,
+            TEST_MAX_INPUT_TOKENS
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject();
@@ -237,10 +262,10 @@ public class ElasticInferenceServiceDenseEmbeddingsServiceSettingsTests extends 
                     Strings.format(
                         """
                             {"model_id":"%s","similarity":"%s","dimensions":%d,"max_input_tokens":%d}""",
-                        modelId,
-                        serviceSettings.similarity(),
-                        serviceSettings.dimensions(),
-                        serviceSettings.maxInputTokens()
+                        TEST_MODEL_ID,
+                        TEST_SIMILARITY_MEASURE,
+                        TEST_DIMENSIONS,
+                        TEST_MAX_INPUT_TOKENS
                     )
                 )
             )

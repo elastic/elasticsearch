@@ -45,7 +45,7 @@ public class EntitledPlugin extends Plugin implements ExtensiblePlugin {
     private static void selfTestNotEntitled() {
         logger.debug("selfTestNotEntitled");
         try {
-            Thread.setDefaultUncaughtExceptionHandler(Thread.getDefaultUncaughtExceptionHandler());
+            System.setIn(System.in);
         } catch (Exception e) {
             if (e.getClass().getName().equals("org.elasticsearch.entitlement.bridge.NotEntitledException")) {
                 // All is well

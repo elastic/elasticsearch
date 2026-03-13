@@ -15,9 +15,10 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V2;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V3;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING;
@@ -62,6 +63,12 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
             testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName())
         );
 
+        // FORK is not supported with unmapped_fields="load", see https://github.com/elastic/elasticsearch/issues/142033
+        assumeFalse(
+            "FORK is not supported with unmapped_fields=\"load\"",
+            testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_V2.capabilityName())
+        );
+
         assumeFalse(
             "Tests using subqueries are skipped since we don't support nested subqueries",
             testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())
@@ -79,7 +86,7 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
 
         assumeFalse(
             "Tests using query approximation are skipped since query approximation is not supported with FORK",
-            testCase.requiredCapabilities.contains(APPROXIMATION_V2.capabilityName())
+            testCase.requiredCapabilities.contains(APPROXIMATION_V3.capabilityName())
         );
 
         assumeFalse(

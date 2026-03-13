@@ -9,9 +9,11 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.index.IndexingPressure;
@@ -21,6 +23,7 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.junit.After;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -161,6 +164,53 @@ public class IndexingPressureAwareContentAggregatorTests extends ESTestCase {
         assertEquals(0, indexingPressure.stats().getCurrentCoordinatingBytes());
     }
 
+    public void testRejectsWhenIndexingPressureLimitExceeded() {
+        long limitBytes = 1024;
+        var tightPressure = new IndexingPressure(
+            Settings.builder().put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), ByteSizeValue.ofBytes(limitBytes)).build()
+        );
+        var request = newStreamedRequest(stream);
+        channel = new FakeRestChannel(request, true, 1);
+        var failureRef = new AtomicReference<Exception>();
+        aggregator = new IndexingPressureAwareContentAggregator(
+            request,
+            tightPressure,
+            limitBytes + 1,
+            new IndexingPressureAwareContentAggregator.CompletionHandler() {
+                @Override
+                public void onComplete(RestChannel ch, ReleasableBytesReference content, Releasable pressure) {
+                    fail("should not complete");
+                }
+
+                @Override
+                public void onFailure(RestChannel ch, Exception e) {
+                    failureRef.set(e);
+                }
+            },
+            IndexingPressureAwareContentAggregator.BodyPostProcessor.NOOP
+        );
+        stream.setHandler(new HttpBody.ChunkHandler() {
+            @Override
+            public void onNext(ReleasableBytesReference chunk, boolean isLast) {
+                aggregator.handleChunk(channel, chunk, isLast);
+            }
+
+            @Override
+            public void close() {
+                aggregator.streamClose();
+            }
+        });
+        try {
+            aggregator.accept(channel);
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+
+        assertNotNull("onFailure should have been called", failureRef.get());
+        assertNull(contentRef.get());
+        assertEquals(0, tightPressure.stats().getCurrentCoordinatingBytes());
+    }
+
     public void testReducesPressureToActualSize() {
         long maxSize = 1024;
         int actualSize = 100;
@@ -174,6 +224,60 @@ public class IndexingPressureAwareContentAggregatorTests extends ESTestCase {
         assertEquals(actualSize, indexingPressure.stats().getCurrentCoordinatingBytes());
 
         pressureRef.get().close();
+        assertEquals(0, indexingPressure.stats().getCurrentCoordinatingBytes());
+    }
+
+    public void testPostProcessorExpandsContent() {
+        long maxSize = 1024;
+        int compressedSize = 50;
+        int expandedSize = 200;
+        byte[] expanded = randomByteArrayOfLength(expandedSize);
+
+        initAggregator(maxSize, (body, max) -> {
+            body.close();
+            return new ReleasableBytesReference(new BytesArray(expanded), () -> {});
+        });
+
+        assertEquals(maxSize, indexingPressure.stats().getCurrentCoordinatingBytes());
+
+        var chunk = randomReleasableBytesReference(compressedSize);
+        stream.sendNext(chunk, true);
+
+        assertNotNull(contentRef.get());
+        assertEquals(expandedSize, contentRef.get().length());
+        assertEquals(expandedSize, indexingPressure.stats().getCurrentCoordinatingBytes());
+
+        pressureRef.get().close();
+        assertEquals(0, indexingPressure.stats().getCurrentCoordinatingBytes());
+    }
+
+    public void testPostProcessorResultExceedsMaxSize() {
+        long maxSize = 100;
+        int compressedSize = 50;
+        int expandedSize = 200;
+        byte[] expanded = randomByteArrayOfLength(expandedSize);
+
+        initAggregator(maxSize, (body, max) -> {
+            body.close();
+            return new ReleasableBytesReference(new BytesArray(expanded), () -> {});
+        });
+
+        var chunk = randomReleasableBytesReference(compressedSize);
+        stream.sendNext(chunk, true);
+
+        assertTooLargeRejected();
+    }
+
+    public void testPostProcessorThrowsReleasesResources() {
+        long maxSize = 1024;
+        initAggregator(maxSize, (body, max) -> { throw new IOException("decompression failed"); });
+
+        var chunk = randomReleasableBytesReference(64);
+        stream.sendNext(chunk, true);
+
+        assertNull(contentRef.get());
+        assertNotNull(channel.capturedResponse());
+        assertFalse(chunk.hasReferences());
         assertEquals(0, indexingPressure.stats().getCurrentCoordinatingBytes());
     }
 
@@ -195,12 +299,15 @@ public class IndexingPressureAwareContentAggregatorTests extends ESTestCase {
     }
 
     private void initAggregator(long maxSize) {
+        initAggregator(maxSize, IndexingPressureAwareContentAggregator.BodyPostProcessor.NOOP);
+    }
+
+    private void initAggregator(long maxSize, IndexingPressureAwareContentAggregator.BodyPostProcessor postProcessor) {
         var request = newStreamedRequest(stream);
         channel = new FakeRestChannel(request, true, 1);
-        var coordinating = indexingPressure.markCoordinatingOperationStarted(1, maxSize, false);
         aggregator = new IndexingPressureAwareContentAggregator(
             request,
-            coordinating,
+            indexingPressure,
             maxSize,
             new IndexingPressureAwareContentAggregator.CompletionHandler() {
                 @Override
@@ -213,7 +320,8 @@ public class IndexingPressureAwareContentAggregatorTests extends ESTestCase {
                 public void onFailure(RestChannel ch, Exception e) {
                     ch.sendResponse(new RestResponse(RestStatus.REQUEST_ENTITY_TOO_LARGE, e.getMessage()));
                 }
-            }
+            },
+            postProcessor
         );
         stream.setHandler(new HttpBody.ChunkHandler() {
             @Override

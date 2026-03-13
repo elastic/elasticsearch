@@ -435,7 +435,7 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
-    protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
+    protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) throws EngineException {
         // A regular flush, i.e. not converted from refresh, must trigger to a commit generation to be uploaded
         // (by increase maxGenerationToUploadDueToFlush).
         // We set ongoingFlushMustUpload to true so that if this thread does not flush on its own (because the

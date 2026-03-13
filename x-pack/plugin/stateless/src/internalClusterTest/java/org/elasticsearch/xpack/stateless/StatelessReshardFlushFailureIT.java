@@ -17,7 +17,6 @@
 
 package org.elasticsearch.xpack.stateless;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -138,7 +137,7 @@ public class StatelessReshardFlushFailureIT extends AbstractStatelessPluginInteg
                 statelessCommitService.getShardLocalCommitsTracker(engineConfig.getShardId()).shardLocalReadersTracker()
             ) {
                 @Override
-                protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) {
+                protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) {
                     final ShardId shardId = engineConfig.getShardId();
                     // Fail if countdown goes to 0
                     if (flushFailureCountdown.getAndUpdate(val -> val == 0 ? 0 : val - 1) == 1) {

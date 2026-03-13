@@ -51,11 +51,6 @@ final class ImmutableRoutingAllocation extends RoutingAllocation {
     }
 
     @Override
-    public void setSimulatedClusterInfo(ClusterInfo clusterInfo) {
-        assert false : "Should not be called";
-    }
-
-    @Override
     public RoutingAllocation immutableClone() {
         return this;
     }

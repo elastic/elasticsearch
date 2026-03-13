@@ -357,11 +357,9 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
         return () -> isReconciling = false;
     }
 
-    public abstract void setSimulatedClusterInfo(ClusterInfo clusterInfo);
-
     public abstract RoutingAllocation immutableClone();
 
-    public RoutingAllocation mutableCloneForSimulation() {
+    public MutableRoutingAllocation mutableCloneForSimulation() {
         return new MutableRoutingAllocation(
             deciders,
             clusterState.mutableRoutingNodes(),

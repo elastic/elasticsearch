@@ -101,17 +101,7 @@ public final class MutableRoutingAllocation extends RoutingAllocation {
         return super.routingNodes();
     }
 
-    public RoutingAllocation mutableCloneForSimulation() {
-        return new MutableRoutingAllocation(
-            deciders,
-            clusterState.mutableRoutingNodes(),
-            clusterState,
-            clusterInfo,
-            shardSizeInfo,
-            currentNanoTime,
-            true
-        );
-    }
+
 
     @Override
     public RoutingChangesObserver changes() {
@@ -132,7 +122,6 @@ public final class MutableRoutingAllocation extends RoutingAllocation {
         );
     }
 
-    @Override
     public void setSimulatedClusterInfo(ClusterInfo clusterInfo) {
         assert isSimulating : "Should be called only while simulating";
         this.clusterInfo = clusterInfo;

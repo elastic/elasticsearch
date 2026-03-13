@@ -1693,7 +1693,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
     }
 
-   /**
+    /**
     * Equivalent to {@link #loadIntoContext(ShardSearchRequest, SearchContext, Consumer)} with
     * {@code cancellationRegistrar == null}.
     */
@@ -1701,7 +1701,7 @@ public class IndicesService extends AbstractLifecycleComponent
         loadIntoContext(request, context, null);
     }
 
-   /**
+    /**
     * Loads the cache result, computing it if needed by executing the query phase and otherwise deserializing the cached
     * value into the {@link SearchContext#queryResult() context's query result}. The combination of load + compute allows
     * to have a single load operation that will cause other requests with the same key to wait till its loaded an reuse

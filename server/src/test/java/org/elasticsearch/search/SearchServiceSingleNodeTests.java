@@ -2956,7 +2956,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         searchRequest.requestCache(true);
 
         long nowInMillis = System.currentTimeMillis();
-        OriginalIndices originalIndices = new OriginalIndices(new String[]{"index"}, IndicesOptions.strictExpandOpenAndForbidClosed());
+        OriginalIndices originalIndices = new OriginalIndices(new String[] { "index" }, IndicesOptions.strictExpandOpenAndForbidClosed());
         ShardSearchRequest request = new ShardSearchRequest(
             originalIndices,
             searchRequest,

@@ -20,9 +20,6 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductI4;
-import static org.elasticsearch.simdvec.internal.Similarities.dotProductI4BulkWithOffsets;
-
 /**
  * Int4 packed-nibble scorer supplier.
  * Each stored vector is {@code dims/2} packed bytes (two 4-bit values per byte), followed by
@@ -30,139 +27,49 @@ import static org.elasticsearch.simdvec.internal.Similarities.dotProductI4BulkWi
  */
 public final class Int4VectorScorerSupplier implements RandomVectorScorerSupplier {
 
-    private static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
-
     private final IndexInput input;
     private final QuantizedByteVectorValues values;
     private final VectorSimilarityType similarityType;
-    private final int dims;
     private final int packedDims;
-    private final int maxOrd;
     private final long vectorPitch;
-    private final Int4Corrections.SingleCorrection correction;
-    private final Int4Corrections.BulkCorrection bulkCorrection;
-
-    private byte[] scratch;
+    private final Int4VectorScorer.ScorerImpl scorerImpl;
+    private final MemorySegment unpackedQuerySegment;
 
     public Int4VectorScorerSupplier(IndexInput input, QuantizedByteVectorValues values, VectorSimilarityType similarityType) {
         IndexInputUtils.checkInputType(input);
+        int dims = values.dimension();
+
         this.input = input;
         this.values = values;
         this.similarityType = similarityType;
-        this.dims = values.dimension();
         this.packedDims = dims / 2;
-        this.maxOrd = values.size();
         this.vectorPitch = packedDims + 3L * Float.BYTES + Integer.BYTES;
-        this.correction = Int4Corrections.singleCorrectionFor(similarityType);
-        this.bulkCorrection = Int4Corrections.bulkCorrectionFor(similarityType);
+        this.unpackedQuerySegment = Arena.ofAuto().allocate(dims, 32);
+        this.scorerImpl = new Int4VectorScorer.ScorerImpl(
+            input,
+            values,
+            dims,
+            packedDims,
+            vectorPitch,
+            Int4Corrections.singleCorrectionFor(similarityType),
+            Int4Corrections.bulkCorrectionFor(similarityType)
+        );
     }
 
-    private record QueryContext(
-        int ord,
-        float lowerInterval,
-        float upperInterval,
-        float additionalCorrection,
-        int quantizedComponentSum,
-        MemorySegment unpackedQuery
-    ) {}
-
-    private QueryContext createQueryContext(int ord) throws IOException {
+    private Int4VectorScorer.QueryContext createQueryContext(int ord) throws IOException {
         var correctiveTerms = values.getCorrectiveTerms(ord);
         long offset = (long) ord * vectorPitch;
         input.seek(offset);
         byte[] packed = new byte[packedDims];
         input.readBytes(packed, 0, packedDims);
-        byte[] unpacked = unpackNibbles(packed);
-        return new QueryContext(
-            ord,
+        unpackNibbles(packed);
+        return new Int4VectorScorer.QueryContext(
             correctiveTerms.lowerInterval(),
             correctiveTerms.upperInterval(),
             correctiveTerms.additionalCorrection(),
             correctiveTerms.quantizedComponentSum(),
-            MemorySegment.ofArray(unpacked)
+            unpackedQuerySegment
         );
-    }
-
-    private void checkOrdinal(int ord) {
-        if (ord < 0 || ord >= maxOrd) {
-            throw new IllegalArgumentException("illegal ordinal: " + ord);
-        }
-    }
-
-    private byte[] getScratch(int len) {
-        if (scratch == null || scratch.length < len) {
-            scratch = new byte[len];
-        }
-        return scratch;
-    }
-
-    private float applyCorrections(float rawScore, int ord, QueryContext query) throws IOException {
-        return correction.apply(
-            values,
-            dims,
-            rawScore,
-            ord,
-            query.lowerInterval,
-            query.upperInterval,
-            query.additionalCorrection,
-            query.quantizedComponentSum
-        );
-    }
-
-    private float applyCorrectionsBulk(MemorySegment scores, MemorySegment ordinals, int numNodes, QueryContext query) throws IOException {
-        return bulkCorrection.apply(
-            values,
-            dims,
-            scores,
-            ordinals,
-            numNodes,
-            query.lowerInterval,
-            query.upperInterval,
-            query.additionalCorrection,
-            query.quantizedComponentSum
-        );
-    }
-
-    private float scoreFromOrds(QueryContext query, int secondOrd) throws IOException {
-        checkOrdinal(query.ord);
-        checkOrdinal(secondOrd);
-        long secondVectorOffset = secondOrd * vectorPitch;
-        input.seek(secondVectorOffset);
-        return IndexInputUtils.withSlice(input, packedDims, this::getScratch, packedTarget -> {
-            int rawScore = dotProductI4(query.unpackedQuery, packedTarget, packedDims);
-            return applyCorrections(rawScore, secondOrd, query);
-        });
-    }
-
-    private float bulkScoreFromOrds(QueryContext query, int[] ordinals, float[] scores, int numNodes) throws IOException {
-        checkOrdinal(query.ord);
-        input.seek(0);
-        return IndexInputUtils.withSlice(input, input.length(), this::getScratch, vectors -> {
-            if (SUPPORTS_HEAP_SEGMENTS) {
-                var ordinalsSeg = MemorySegment.ofArray(ordinals);
-                var scoresSeg = MemorySegment.ofArray(scores);
-                dotProductI4BulkWithOffsets(vectors, query.unpackedQuery, packedDims, (int) vectorPitch, ordinalsSeg, numNodes, scoresSeg);
-                return applyCorrectionsBulk(scoresSeg, ordinalsSeg, numNodes, query);
-            } else {
-                try (Arena arena = Arena.ofConfined()) {
-                    MemorySegment ordinalsSeg = arena.allocate((long) numNodes * Integer.BYTES, Integer.BYTES);
-                    MemorySegment scoresSeg = arena.allocate((long) numNodes * Float.BYTES, Float.BYTES);
-                    MemorySegment.copy(ordinals, 0, ordinalsSeg, ValueLayout.JAVA_INT, 0, numNodes);
-                    dotProductI4BulkWithOffsets(
-                        vectors,
-                        query.unpackedQuery,
-                        packedDims,
-                        (int) vectorPitch,
-                        ordinalsSeg,
-                        numNodes,
-                        scoresSeg
-                    );
-                    float max = applyCorrectionsBulk(scoresSeg, ordinalsSeg, numNodes, query);
-                    MemorySegment.copy(scoresSeg, ValueLayout.JAVA_FLOAT, 0, scores, 0, numNodes);
-                    return max;
-                }
-            }
-        });
     }
 
     @Override
@@ -173,14 +80,19 @@ public final class Int4VectorScorerSupplier implements RandomVectorScorerSupplie
     @Override
     public UpdateableRandomVectorScorer scorer() {
         return new UpdateableRandomVectorScorer.AbstractUpdateableRandomVectorScorer(values) {
-            private QueryContext query;
+            /** QueryContext instances used by this scorer are all backed by the same pre-allocated segment
+             * (see {@link Int4VectorScorerSupplier#createQueryContext}).
+             * The segment is reused across setScoringOrdinal calls; only the most recent one is valid.
+             * This makes this scorer and supplier not thread-safe.
+             */
+            private Int4VectorScorer.QueryContext query;
 
             @Override
             public float score(int node) throws IOException {
                 if (query == null) {
                     throw new IllegalStateException("scoring ordinal is not set");
                 }
-                return scoreFromOrds(query, node);
+                return scorerImpl.scoreWithQuery(query, node);
             }
 
             @Override
@@ -188,12 +100,12 @@ public final class Int4VectorScorerSupplier implements RandomVectorScorerSupplie
                 if (query == null) {
                     throw new IllegalStateException("scoring ordinal is not set");
                 }
-                return bulkScoreFromOrds(query, nodes, scores, numNodes);
+                return scorerImpl.bulkScoreWithQuery(query, nodes, scores, numNodes);
             }
 
             @Override
             public void setScoringOrdinal(int node) throws IOException {
-                checkOrdinal(node);
+                scorerImpl.checkOrdinal(node);
                 query = createQueryContext(node);
             }
         };
@@ -203,13 +115,11 @@ public final class Int4VectorScorerSupplier implements RandomVectorScorerSupplie
         return values;
     }
 
-    static byte[] unpackNibbles(byte[] packed) {
+    private void unpackNibbles(byte[] packed) {
         int packedLen = packed.length;
-        byte[] unpacked = new byte[packedLen * 2];
         for (int i = 0; i < packedLen; i++) {
-            unpacked[i] = (byte) ((packed[i] & 0xFF) >>> 4);
-            unpacked[i + packedLen] = (byte) (packed[i] & 0x0F);
+            unpackedQuerySegment.setAtIndex(ValueLayout.JAVA_BYTE, i, (byte) ((packed[i] & 0xFF) >>> 4));
+            unpackedQuerySegment.setAtIndex(ValueLayout.JAVA_BYTE, i + packedLen, (byte) (packed[i] & 0x0F));
         }
-        return unpacked;
     }
 }

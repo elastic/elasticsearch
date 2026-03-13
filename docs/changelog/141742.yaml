@@ -1,0 +1,6 @@
+area: Vector Search
+issues:
+ - 139445
+pr: 141742
+summary: Delay rescoring vectors in DFS knn search
+type: enhancement

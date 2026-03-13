@@ -408,6 +408,9 @@ tests:
 - class: org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilderTests
   method: testRandomScoreWithoutFieldRequiresFieldWhenSeqNoDisabled
   issue: https://github.com/elastic/elasticsearch/issues/144157
+- class: org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilderTests
+  method: testRandomScoreWithoutSeedFallsBackToDocIdWhenSeqNoDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/144158
 
 # Examples:
 #

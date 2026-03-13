@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.querydsl.query;
 
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -18,6 +19,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -28,6 +30,7 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.index.EsDocValueSkipper;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
@@ -145,7 +148,20 @@ public final class SingleValueMatchQuery extends Query {
                     ndv = DocValues.unwrapSingleton(DocValues.getSortedNumeric(context.reader(), fieldData.getFieldName()));
                     return new DocIdSetIteratorScorerSupplier(boost, scoreMode, ndv);
                 }
+                DocValuesSkipper dvs = context.reader().getDocValuesSkipper(fieldData.getFieldName());
                 final CheckedIntPredicate predicate = doc -> {
+                    if (dvs instanceof EsDocValueSkipper skipper) {
+                        // We need to check the implementation to get access to the value count, for now
+                        if (doc > skipper.maxDocID(0)) {
+                            // NOCOMMIT - to discuss - I think it's correct to advance the skipper here, but I'd like confirmation
+                            skipper.advance(doc);
+                        }
+                        // NOCOMMIT TODO: DO we need to check for empty docs here?
+                        if (skipper.valueCount(0) == skipper.docCount(0)) {
+                            return true;
+                        }
+                    }
+
                     if (false == sortedNumerics.advanceExact(doc)) {
                         return false;
                     }
@@ -155,7 +171,14 @@ public final class SingleValueMatchQuery extends Query {
                     }
                     return true;
                 };
-                return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate);
+                return new PredicateScorerSupplier(
+                    boost,
+                    scoreMode,
+                    maxDoc,
+                    MULTI_VALUE_MATCH_COST,
+                    predicate,
+                    dvs instanceof EsDocValueSkipper esds ? esds : null
+                );
             }
 
             private ScorerSupplier scorerSupplier(
@@ -180,7 +203,7 @@ public final class SingleValueMatchQuery extends Query {
                     }
                     return true;
                 };
-                return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate);
+                return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate, null);
             }
 
             private ScorerSupplier scorerSupplier(
@@ -197,7 +220,8 @@ public final class SingleValueMatchQuery extends Query {
                         scoreMode,
                         maxDoc,
                         MULTI_VALUE_MATCH_COST,
-                        sortedBinaryDocValues::advanceExact
+                        sortedBinaryDocValues::advanceExact,
+                        null
                     );
                 }
                 final CheckedIntPredicate predicate = doc -> {
@@ -210,7 +234,7 @@ public final class SingleValueMatchQuery extends Query {
                     }
                     return true;
                 };
-                return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate);
+                return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate, null);
             }
         };
     }
@@ -220,10 +244,20 @@ public final class SingleValueMatchQuery extends Query {
         if (fieldData instanceof ConstantIndexFieldData cfd && cfd.getValue() != null) {
             return Queries.ALL_DOCS_INSTANCE;
         }
+        boolean canUseMatchAll = true;
         for (LeafReaderContext context : indexSearcher.getIndexReader().leaves()) {
             final LeafReader reader = context.reader();
             final int maxDoc = reader.maxDoc();
             final LeafFieldData lfd = fieldData.load(context);
+            // TODO: check doc values skippers
+            DocValuesSkipper s = reader.getDocValuesSkipper(fieldData.getFieldName());
+            if (s instanceof EsDocValueSkipper skipper) {
+                if (skipper.valueCount() == skipper.docCount()) {
+                    // we don't need to check every value, but we need to rewrite to an exists query, not a match all
+                    canUseMatchAll = false;
+                    continue;
+                }
+            }
             if (lfd instanceof LeafNumericFieldData) {
                 NumericDocValues singleton = DocValues.unwrapSingleton(reader.getSortedNumericDocValues(fieldData.getFieldName()));
                 if (singleton != null) {
@@ -232,7 +266,6 @@ public final class SingleValueMatchQuery extends Query {
                         continue;
                     }
                 }
-                // TODO: check doc values skippers
                 final PointValues points = reader.getPointValues(fieldData.getFieldName());
                 if (points != null && points.getDocCount() == maxDoc && points.size() == points.getDocCount()) {
                     continue;
@@ -246,7 +279,6 @@ public final class SingleValueMatchQuery extends Query {
                         continue;
                     }
                 }
-                // TODO: check doc values skippers
                 Terms terms = reader.terms(fieldData.getFieldName());
                 if (terms != null && terms.getDocCount() == maxDoc && terms.getSumDocFreq() == terms.getDocCount()) {
                     continue;
@@ -261,7 +293,11 @@ public final class SingleValueMatchQuery extends Query {
                 return super.rewrite(indexSearcher);
             }
         }
-        return Queries.ALL_DOCS_INSTANCE;
+        if (canUseMatchAll) {
+            return Queries.ALL_DOCS_INSTANCE;
+        } else {
+            return new FieldExistsQuery(fieldData.getFieldName());
+        }
     }
 
     @Override
@@ -320,13 +356,22 @@ public final class SingleValueMatchQuery extends Query {
         private final ScoreMode scoreMode;
         private final int maxDoc;
         private final int matchCost;
+        private final EsDocValueSkipper skipper;
         private final CheckedIntPredicate predicate;
 
-        private PredicateScorerSupplier(float score, ScoreMode scoreMode, int maxDoc, int matchCost, CheckedIntPredicate predicate) {
+        private PredicateScorerSupplier(
+            float score,
+            ScoreMode scoreMode,
+            int maxDoc,
+            int matchCost,
+            CheckedIntPredicate predicate,
+            EsDocValueSkipper skipper
+        ) {
             this.score = score;
             this.scoreMode = scoreMode;
             this.maxDoc = maxDoc;
             this.matchCost = matchCost;
+            this.skipper = skipper;
             this.predicate = predicate;
         }
 
@@ -341,6 +386,31 @@ public final class SingleValueMatchQuery extends Query {
                 @Override
                 public float matchCost() {
                     return matchCost;
+                }
+
+                @Override
+                public int docIDRunEnd() throws IOException {
+                    if (skipper == null) {
+                        return super.docIDRunEnd();
+                    }
+                    // NOCOMMIT - it seems wrong to advance the skipper here, but I don't see where else to do it
+                    if (approximation.docID() > skipper.maxDocID(0)) {
+                        skipper.advance(approximation.docID());
+                    }
+
+                    // Skipper is correctly positioned, we can try to use it
+                    if (skipper.valueCount(0) != skipper.docCount(0)) {
+                        // this block has multi-values, we need to look at each doc
+                        return super.docIDRunEnd();
+                    }
+                    // current block is all single valued, check how many levels up we can go
+                    int maxDocID = skipper.maxDocID(0);
+                    int nextLevel = 1;
+                    while (nextLevel < skipper.numLevels() && skipper.valueCount(nextLevel) == skipper.docCount(nextLevel)) {
+                        maxDocID = skipper.maxDocID(nextLevel);
+                        nextLevel++;
+                    }
+                    return maxDocID + 1;
                 }
             };
             return new ConstantScoreScorer(score, scoreMode, iterator);

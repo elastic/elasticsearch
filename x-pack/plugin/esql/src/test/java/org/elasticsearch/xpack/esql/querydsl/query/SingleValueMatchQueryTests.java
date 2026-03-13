@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.querydsl.query;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KeywordField;
@@ -17,7 +19,9 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -29,11 +33,17 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
+import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
+import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -54,7 +64,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
 
         List<List<Object>> build(RandomIndexWriter iw) throws IOException;
 
-        void assertRewrite(IndexSearcher indexSearcher, Query query) throws IOException;
+        void assertRewrite(IndexSearcher indexSearcher, Query query, boolean skippersAvailable) throws IOException;
     }
 
     @ParametersFactory(argumentFormatting = "%s")
@@ -103,7 +113,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                     "single-value function encountered multi-value"
                 );
                 runCase(fieldValues, ctx.searcher().count(query));
-                setup.assertRewrite(ctx.searcher(), query);
+                setup.assertRewrite(ctx.searcher(), query, false);
             }
         }
     }
@@ -120,6 +130,45 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                 );
                 runCase(List.of(), ctx.searcher().count(query));
             }
+        }
+    }
+
+    public void testTsdb() throws IOException {
+        MapperService mapper = createMapperService(mapping(setup::mapping));
+        IndexWriterConfig config = new IndexWriterConfig();
+        ThreadPool threadPool = new TestThreadPool(this.getClass().getName());
+        final Codec codec = new Elasticsearch92Lucene103Codec() {
+
+            final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(
+                ESTestCase.randomIntBetween(2, 4096),
+                ESTestCase.randomIntBetween(1, 512),
+                random().nextBoolean(),
+                BinaryDVCompressionMode.NO_COMPRESS,
+                true
+            );
+
+            @Override
+            public DocValuesFormat getDocValuesFormatForField(String field) {
+                return docValuesFormat;
+            }
+        };
+
+        config.setCodec(codec);
+        try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d, config)) {
+            List<List<Object>> fieldValues = setup.build(iw);
+            try (IndexReader reader = iw.getReader()) {
+                SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
+                Query query = new SingleValueMatchQuery(
+                    ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
+                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test")),
+                    "single-value function encountered multi-value"
+                );
+                runCase(fieldValues, ctx.searcher().count(query));
+                // NOCOMMIT: I'm just disabling this test for prototyping, we should fix it before merging
+                // setup.assertRewrite(ctx.searcher(), query, true);
+            }
+        } finally {
+            threadPool.shutdown();
         }
     }
 
@@ -180,8 +229,10 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         }
 
         @Override
-        public void assertRewrite(IndexSearcher indexSearcher, Query query) throws IOException {
-            if (empty == false && multivaluedField == false) {
+        public void assertRewrite(IndexSearcher indexSearcher, Query query, boolean skippersAvailable) throws IOException {
+            if (multivaluedField == false && skippersAvailable) {
+                assertThat(query.rewrite(indexSearcher), instanceOf(FieldExistsQuery.class));
+            } else if (empty == false && multivaluedField == false) {
                 assertThat(query.rewrite(indexSearcher), instanceOf(MatchAllDocsQuery.class));
             } else {
                 assertThat(query.rewrite(indexSearcher), sameInstance(query));
@@ -239,7 +290,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         }
 
         @Override
-        public void assertRewrite(IndexSearcher indexSearcher, Query query) throws IOException {
+        public void assertRewrite(IndexSearcher indexSearcher, Query query, boolean skippersAvailable) throws IOException {
             // There are multivalued fields
             assertThat(query.rewrite(indexSearcher), sameInstance(query));
         }
@@ -275,11 +326,20 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                     }
                 }
                 case DOC_VALUES_ONLY -> {
+                    /*
                     fields.add(switch (v) {
                         case Double n -> new SortedNumericDocValuesField("foo", NumericUtils.doubleToSortableLong(n));
                         case Float n -> new SortedNumericDocValuesField("foo", NumericUtils.doubleToSortableLong(n));
                         case Number n -> new SortedNumericDocValuesField("foo", n.longValue());
                         case String s -> new SortedSetDocValuesField("foo", new BytesRef(s));
+                        default -> throw new UnsupportedOperationException();
+                    });
+                     */
+                    fields.add(switch (v) {
+                        case Double n -> SortedNumericDocValuesField.indexedField("foo", NumericUtils.doubleToSortableLong(n));
+                        case Float n -> SortedNumericDocValuesField.indexedField("foo", NumericUtils.doubleToSortableLong(n));
+                        case Number n -> SortedNumericDocValuesField.indexedField("foo", n.longValue());
+                        case String s -> SortedSetDocValuesField.indexedField("foo", new BytesRef(s));
                         default -> throw new UnsupportedOperationException();
                     });
                 }

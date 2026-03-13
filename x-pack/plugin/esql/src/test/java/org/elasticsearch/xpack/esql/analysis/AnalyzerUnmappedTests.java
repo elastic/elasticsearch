@@ -3751,17 +3751,23 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(Expressions.name(agg.groupings().getFirst()), is("entity.id"));
 
         var eval = as(agg.child(), Eval.class);
-        assertThat(Expressions.names(eval.fields()), is(List.of("entity.id")));
+        if (load) {
+            assertThat(Expressions.names(eval.fields()), is(List.of("entity.id")));
+        } else {
+            assertThat(Expressions.names(eval.fields()), is(List.of("entity.id", "host.entity.id")));
+            var dneAlias = as(eval.fields().stream().filter(a -> a.name().equals("host.entity.id")).findFirst().orElseThrow(), Alias.class);
+            assertThat(dneAlias.dataType(), is(DataType.NULL));
+        }
 
         var relation = as(eval.child(), EsRelation.class);
-        var dneAttr = as(
-            relation.output().stream().filter(a -> a.name().equals("host.entity.id")).findFirst().orElseThrow(),
-            FieldAttribute.class
-        );
         if (load) {
+            var dneAttr = as(
+                relation.output().stream().filter(a -> a.name().equals("host.entity.id")).findFirst().orElseThrow(),
+                FieldAttribute.class
+            );
             as(dneAttr.field(), PotentiallyUnmappedKeywordEsField.class);
         } else {
-            assertThat(dneAttr.dataType(), is(DataType.NULL));
+            assertTrue(relation.output().stream().filter(a -> a.name().equals("host.entity.id")).findFirst().isEmpty());
         }
     }
 

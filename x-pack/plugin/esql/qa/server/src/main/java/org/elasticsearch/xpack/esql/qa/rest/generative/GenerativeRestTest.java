@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.AfterClass;
@@ -97,9 +98,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "found value \\[.*\\] type \\[unsupported\\]", // https://github.com/elastic/elasticsearch/issues/142761
         "change point value \\[.*\\] must be numeric", // https://github.com/elastic/elasticsearch/issues/142858
         "illegal query_string option \\[boost\\]", // https://github.com/elastic/elasticsearch/issues/142758
-        // https://github.com/elastic/elasticsearch/issues/142543
-        "Column \\[.*\\] has conflicting data types in FORK branches: \\[NULL\\] and \\[.*\\]",
-        "Column \\[.*\\] has conflicting data types in FORK branches: \\[.*\\] and \\[NULL\\]",
         "Field \\[.*\\] of type \\[.*\\] does not support match.* queries",
         "JOIN left field \\[.*\\] of type \\[NULL\\] is incompatible with right", // https://github.com/elastic/elasticsearch/issues/141827
         // https://github.com/elastic/elasticsearch/issues/141827
@@ -312,7 +310,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     },
         ctx -> isUnmappedFieldError(ctx.errorMessage, ctx.query),
         ctx -> isScalarTypeMismatchError(ctx.errorMessage),
-        ctx -> isForkOptimizationBugWithUnmappedFields(ctx.errorMessage, ctx.query),
         ctx -> isFieldFullTextError(ctx.errorMessage, ctx.query, ctx.previousCommands, ctx.currentSchema),
         ctx -> isFullTextAfterSampleBug(ctx.errorMessage, ctx.query),
         ctx -> isFullTextAfterWhereBugs(ctx.errorMessage),
@@ -447,20 +444,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return SCALAR_TYPE_MISMATCH_PATTERN.matcher(errorWithoutLineBreaks).matches();
     }
 
-    private static final Pattern FORK_OPTIMIZED_INCORRECTLY_PATTERN = Pattern.compile(
-        ".*Plan \\[.*\\] optimized incorrectly due to missing references \\[_fork.*",
-        Pattern.DOTALL
-    );
-
-    /**
-     * When {@code SET unmapped_fields="nullify"} is used, the _fork reference can go missing during plan optimization.
-     * https://github.com/elastic/elasticsearch/issues/142762
-     */
-    static boolean isForkOptimizationBugWithUnmappedFields(String errorMessage, String query) {
-        String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
-        return query.startsWith(SET_UNMAPPED_FIELDS_PREFIX) && FORK_OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorWithoutLineBreaks).matches();
-    }
-
     private static final Pattern NOT_A_FIELD_FROM_INDEX_PATTERN = Pattern.compile(
         ".*cannot operate on \\[([^]]+)\\], which is not a field from an index mapping.*",
         Pattern.DOTALL
@@ -480,6 +463,16 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * Group 1 is the source (possibly back-tick quoted), group 2 is the target.
      */
     private static final Pattern RENAME_PAIR_PATTERN = Pattern.compile("\\s*(`[^`]+`|[^,\\s]+)\\s+[Aa][Ss]\\s+(`[^`]+`|[^,\\s]+)\\s*");
+
+    /**
+     * Matches {@code | rename X as Y} segments embedded in a LOOKUP JOIN command string.
+     * {@link LookupJoinGenerator} prepends rename commands to align the left-side key columns
+     * with the lookup index key names; these renames are part of a single {@link CommandGenerator.CommandDescription}
+     * and must be accounted for when propagating {@link Column#indexMapped()} flags.
+     */
+    private static final Pattern EMBEDDED_RENAME_PATTERN = Pattern.compile(
+        "(?i)\\|\\s*rename\\s+(`[^`]+`|[^\\s|]+)\\s+as\\s+(`[^`]+`|[^\\s|]+)"
+    );
 
     /**
      * Propagates the {@link Column#indexMapped()} flag through the pipeline after a command executes.
@@ -575,6 +568,20 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 Object enrichFieldsObj = command.context().get(EnrichGenerator.ENRICH_FIELDS);
                 if (enrichFieldsObj instanceof List<?> enrichFieldsList) {
                     enrichFieldsList.forEach(name -> createdColumns.add((String) name));
+                }
+            }
+            case "lookup join" -> {
+                // LookupJoinGenerator embeds RENAME commands before the actual LOOKUP JOIN to align
+                // left-side key columns with lookup index key names. Process these renames so that
+                // fields renamed from non-index-mapped sources correctly inherit indexMapped=false
+                // instead of picking up the old indexMapped status of a same-named existing field.
+                Matcher rm = EMBEDDED_RENAME_PATTERN.matcher(command.commandString());
+                while (rm.find()) {
+                    String oldName = unquote(rm.group(1).trim());
+                    String newName = unquote(rm.group(2).trim());
+                    boolean wasMapped = prevMapped.getOrDefault(oldName, false);
+                    prevMapped.remove(oldName);
+                    prevMapped.put(newName, wasMapped);
                 }
             }
             default -> {

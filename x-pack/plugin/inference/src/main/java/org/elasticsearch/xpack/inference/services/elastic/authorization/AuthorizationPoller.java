@@ -364,7 +364,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         }
 
         EndpointMetadata existingMetadata = existingEndpoint.endpointMetadata();
-        if (existingMetadata.fingerprintMatches(newEndpoint.getConfigurations().getEndpointMetadata()) == false) {
+        if (existingMetadata.fingerprintMatches(newEndpoint.getConfigurations().getEndpointMetadataOrEmpty()) == false) {
             logger.debug(
                 () -> Strings.format(
                     "[%s] selected for persistence, because its fingerprint has changed",
@@ -373,7 +373,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             );
             return true;
         }
-        if (newEndpoint.getConfigurations().getEndpointMetadata().hasNewerVersionThan(existingMetadata)) {
+        if (newEndpoint.getConfigurations().getEndpointMetadataOrEmpty().hasNewerVersionThan(existingMetadata)) {
             logger.debug(
                 () -> Strings.format("[%s] selected for persistence, because its version is higher", newEndpoint.getInferenceEntityId())
             );

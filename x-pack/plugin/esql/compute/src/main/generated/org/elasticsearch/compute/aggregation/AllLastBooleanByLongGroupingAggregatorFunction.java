@@ -36,16 +36,11 @@ public final class AllLastBooleanByLongGroupingAggregatorFunction implements Gro
 
   private final DriverContext driverContext;
 
-  public AllLastBooleanByLongGroupingAggregatorFunction(List<Integer> channels,
-      AllLastBooleanByLongAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static AllLastBooleanByLongGroupingAggregatorFunction create(List<Integer> channels,
+  AllLastBooleanByLongGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new AllLastBooleanByLongGroupingAggregatorFunction(channels, AllLastBooleanByLongAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = AllLastBooleanByLongAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

@@ -16,7 +16,6 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
@@ -71,10 +70,14 @@ public class RestSearchAction extends BaseRestHandler {
     private final Predicate<NodeFeature> clusterSupportsFeature;
     private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public RestSearchAction(SearchUsageHolder searchUsageHolder, Predicate<NodeFeature> clusterSupportsFeature, Settings settings) {
+    public RestSearchAction(
+        SearchUsageHolder searchUsageHolder,
+        Predicate<NodeFeature> clusterSupportsFeature,
+        CrossProjectModeDecider crossProjectModeDecider
+    ) {
         this.searchUsageHolder = searchUsageHolder;
         this.clusterSupportsFeature = clusterSupportsFeature;
-        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     @Override

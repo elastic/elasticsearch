@@ -21,6 +21,18 @@
 // which would make the tests flaky.
 
 
+No approximation
+required_capability: approximation_v3
+
+SET approximation=false\;
+FROM many_numbers | STATS count=COUNT(*)
+;
+
+count:long
+125250
+;
+
+
 Exact total row count
 required_capability: approximation_v3
 

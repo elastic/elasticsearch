@@ -178,6 +178,23 @@ FROM cooking_blog
 
 This helps reduce the amount of data returned and focuses on the information you need.
 
+Another option is to retrieve the original document source via the `_source` metadata field:
+
+```esql
+FROM cooking_blog METADATA _source
+| WHERE description:"fluffy pancakes"
+| KEEP _source
+| LIMIT 1000
+```
+
+Using `_source` is useful when you want to retrieve most or all fields from a document.
+The original document is stored together in `_source`, so fetching it can be more efficient than retrieving many individual fields separately.
+It also returns the document exactly as indexed, preserving nested objects and arrays.
+
+Selecting individual fields may be more efficient when you only need a small number of fields from each document.
+To learn more, refer to [retrieving _source](/reference/query-languages/esql/esql-metadata-fields.md#retrieving-_source).
+
+
 ### Understand relevance scoring
 
 Search results can be ranked based on how well they match your query. To calculate and use relevance scores, you need to explicitly request the `_score` metadata:

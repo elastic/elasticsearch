@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
@@ -137,20 +138,32 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private final CsvFormatOptions options;
     private final String format;
     private final List<String> extensions;
+    private final List<Attribute> resolvedSchema;
 
     public CsvFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, CsvFormatOptions.DEFAULT, "csv", List.of(".csv", ".tsv"));
+        this(blockFactory, CsvFormatOptions.DEFAULT, "csv", List.of(".csv", ".tsv"), null);
     }
 
     public CsvFormatReader(BlockFactory blockFactory, String format, List<String> extensions) {
-        this(blockFactory, CsvFormatOptions.DEFAULT, format, extensions);
+        this(blockFactory, CsvFormatOptions.DEFAULT, format, extensions, null);
     }
 
     public CsvFormatReader(BlockFactory blockFactory, CsvFormatOptions options, String format, List<String> extensions) {
+        this(blockFactory, options, format, extensions, null);
+    }
+
+    private CsvFormatReader(
+        BlockFactory blockFactory,
+        CsvFormatOptions options,
+        String format,
+        List<String> extensions,
+        List<Attribute> resolvedSchema
+    ) {
         this.blockFactory = blockFactory;
         this.options = options;
         this.format = format;
         this.extensions = extensions;
+        this.resolvedSchema = resolvedSchema;
         this.sharedCsvMapper = createMapper(options);
     }
 
@@ -281,7 +294,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     public CsvFormatReader withOptions(CsvFormatOptions newOptions) {
-        return new CsvFormatReader(blockFactory, newOptions, format, extensions);
+        return new CsvFormatReader(blockFactory, newOptions, format, extensions, resolvedSchema);
+    }
+
+    @Override
+    public CsvFormatReader withSchema(List<Attribute> schema) {
+        return new CsvFormatReader(blockFactory, options, format, extensions, schema);
     }
 
     @Override
@@ -362,48 +380,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     @Override
-    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
-        return read(object, projectedColumns, batchSize, defaultErrorPolicy());
-    }
-
-    @Override
-    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, ErrorPolicy errorPolicy)
-        throws IOException {
+    public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
         InputStream stream = object.newStream();
         BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
-        ErrorPolicy effective = errorPolicy != null ? errorPolicy : defaultErrorPolicy();
-        return new CsvBatchIterator(reader, stream, projectedColumns, batchSize, null, effective);
-    }
-
-    @Override
-    public CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        boolean lastSplit,
-        List<Attribute> resolvedAttributes
-    ) throws IOException {
-        return readSplit(object, projectedColumns, batchSize, skipFirstLine, lastSplit, resolvedAttributes, defaultErrorPolicy());
-    }
-
-    @Override
-    public CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        boolean lastSplit,
-        List<Attribute> resolvedAttributes,
-        ErrorPolicy errorPolicy
-    ) throws IOException {
-        InputStream stream = object.newStream();
-        BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
-        if (skipFirstLine) {
+        List<Attribute> effectiveSchema;
+        if (context.firstSplit()) {
+            effectiveSchema = null;
+        } else {
             reader.readLine();
+            effectiveSchema = resolvedSchema;
         }
-        ErrorPolicy effective = errorPolicy != null ? errorPolicy : defaultErrorPolicy();
-        return new CsvBatchIterator(reader, stream, projectedColumns, batchSize, resolvedAttributes, effective);
+        ErrorPolicy effective = context.errorPolicy() != null ? context.errorPolicy() : defaultErrorPolicy();
+        return new CsvBatchIterator(reader, stream, context.projectedColumns(), context.batchSize(), effectiveSchema, effective);
     }
 
     @Override

@@ -3927,6 +3927,216 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(fork.children(), hasSize(2));
     }
 
+    private static final String UNMAPPED_TIMESTAMP_SUFFIX = UnresolvedTimestamp.UNRESOLVED_SUFFIX + Verifier.UNMAPPED_TIMESTAMP_SUFFIX;
+
+    public void testTbucketWithUnmappedTimestamp() {
+        unmappedTimestampFailure(
+            "FROM test | STATS c = COUNT(*) BY tbucket(1 hour)",
+            "[tbucket(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX
+        );
+    }
+
+    public void testTrangeWithUnmappedTimestamp() {
+        unmappedTimestampFailure("FROM test | WHERE trange(1 hour)", "[trange(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX);
+    }
+
+    public void testTbucketAndTrangeWithUnmappedTimestamp() {
+        unmappedTimestampFailure(
+            "FROM test | WHERE trange(1 hour) | STATS c = COUNT(*) BY tbucket(1 hour)",
+            "[tbucket(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX,
+            "[trange(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX
+        );
+    }
+
+    public void testRateWithUnmappedTimestamp() {
+        unmappedTimestampFailure("FROM test | STATS rate(salary)", "[rate(salary)] " + UNMAPPED_TIMESTAMP_SUFFIX);
+    }
+
+    public void testIrateWithUnmappedTimestamp() {
+        unmappedTimestampFailure("FROM test | STATS irate(salary)", "[irate(salary)] " + UNMAPPED_TIMESTAMP_SUFFIX);
+    }
+
+    public void testDeltaWithUnmappedTimestamp() {
+        unmappedTimestampFailure("FROM test | STATS delta(salary)", "[delta(salary)] " + UNMAPPED_TIMESTAMP_SUFFIX);
+    }
+
+    public void testIdeltaWithUnmappedTimestamp() {
+        unmappedTimestampFailure("FROM test | STATS idelta(salary)", "[idelta(salary)] " + UNMAPPED_TIMESTAMP_SUFFIX);
+    }
+
+    public void testIncreaseWithUnmappedTimestamp() {
+        unmappedTimestampFailure("FROM test | STATS increase(salary)", "[increase(salary)] " + UNMAPPED_TIMESTAMP_SUFFIX);
+    }
+
+    public void testDerivWithUnmappedTimestamp() {
+        unmappedTimestampFailure("FROM test | STATS deriv(salary)", "[deriv(salary)] " + UNMAPPED_TIMESTAMP_SUFFIX);
+    }
+
+    public void testFirstOverTimeWithUnmappedTimestamp() {
+        unmappedTimestampFailure(
+            "FROM test | STATS first_over_time(salary)",
+            "[first_over_time(salary)] " + UNMAPPED_TIMESTAMP_SUFFIX
+        );
+    }
+
+    public void testLastOverTimeWithUnmappedTimestamp() {
+        unmappedTimestampFailure(
+            "FROM test | STATS last_over_time(salary)",
+            "[last_over_time(salary)] " + UNMAPPED_TIMESTAMP_SUFFIX
+        );
+    }
+
+    public void testRateAndTbucketWithUnmappedTimestamp() {
+        unmappedTimestampFailure(
+            "FROM test | STATS rate(salary) BY tbucket(1 hour)",
+            "[rate(salary)] " + UNMAPPED_TIMESTAMP_SUFFIX,
+            "[tbucket(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX
+        );
+    }
+
+    public void testTbucketWithUnmappedTimestampAfterWhere() {
+        unmappedTimestampFailure(
+            "FROM test | WHERE emp_no > 10 | STATS c = COUNT(*) BY tbucket(1 hour)",
+            "[tbucket(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX
+        );
+    }
+
+    public void testTbucketWithUnmappedTimestampAfterEval() {
+        unmappedTimestampFailure(
+            "FROM test | EVAL x = salary + 1 | STATS c = COUNT(*) BY tbucket(1 hour)",
+            "[tbucket(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX
+        );
+    }
+
+    public void testTbucketWithUnmappedTimestampMultipleGroupings() {
+        unmappedTimestampFailure(
+            "FROM test | STATS c = COUNT(*) BY tbucket(1 hour), emp_no",
+            "[tbucket(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX
+        );
+    }
+
+    public void testTbucketWithUnmappedTimestampAfterRename() {
+        unmappedTimestampFailure(
+            "FROM test | RENAME emp_no AS e | STATS c = COUNT(*) BY tbucket(1 hour)",
+            "[tbucket(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX
+        );
+    }
+
+    public void testTbucketWithUnmappedTimestampAfterDrop() {
+        unmappedTimestampFailure(
+            "FROM test | DROP emp_no | STATS c = COUNT(*) BY tbucket(1 hour)",
+            "[tbucket(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX
+        );
+    }
+
+    public void testTrangeWithUnmappedTimestampCompoundWhere() {
+        unmappedTimestampFailure(
+            "FROM test | WHERE trange(1 hour) AND emp_no > 10",
+            "[trange(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX
+        );
+    }
+
+    public void testTrangeWithUnmappedTimestampAfterEval() {
+        unmappedTimestampFailure(
+            "FROM test | EVAL x = salary + 1 | WHERE trange(1 hour)",
+            "[trange(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX
+        );
+    }
+
+    public void testTbucketWithUnmappedTimestampInInlineStats() {
+        unmappedTimestampFailure(
+            "FROM test | INLINE STATS c = COUNT(*) BY tbucket(1 hour)",
+            "[tbucket(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX
+        );
+    }
+
+    public void testTbucketWithUnmappedTimestampWithFork() {
+        var query = "FROM test | FORK (STATS c = COUNT(*) BY tbucket(1 hour)) (STATS d = COUNT(*) BY emp_no)";
+        for (var statement : List.of(setUnmappedNullify(query), setUnmappedLoad(query))) {
+            var e = expectThrows(VerificationException.class, () -> analyzeStatement(statement));
+            assertThat(e.getMessage(), containsString("[tbucket(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX));
+            assertThat(e.getMessage(), not(containsString("FORK is not supported")));
+        }
+    }
+
+    public void testTbucketWithUnmappedTimestampWithLookupJoin() {
+        var query = """
+            FROM test
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | STATS c = COUNT(*) BY tbucket(1 hour)
+            """;
+        for (var statement : List.of(setUnmappedNullify(query), setUnmappedLoad(query))) {
+            var e = expectThrows(VerificationException.class, () -> analyzeStatement(statement));
+            assertThat(e.getMessage(), containsString("[tbucket(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX));
+            assertThat(e.getMessage(), not(containsString("LOOKUP JOIN is not supported")));
+        }
+    }
+
+    public void testTbucketWithTimestampPresent() {
+        for (var statement : List.of(
+            setUnmappedNullify("FROM sample_data | STATS c = COUNT(*) BY tbucket(1 hour)"),
+            setUnmappedLoad("FROM sample_data | STATS c = COUNT(*) BY tbucket(1 hour)")
+        )) {
+            var plan = analyzeStatement(statement);
+            var limit = as(plan, Limit.class);
+            var aggregate = as(limit.child(), Aggregate.class);
+            var relation = as(aggregate.child(), EsRelation.class);
+            assertThat(relation.indexPattern(), is("sample_data"));
+            assertTimestampInOutput(relation);
+        }
+    }
+
+    public void testTrangeWithTimestampPresent() {
+        for (var statement : List.of(
+            setUnmappedNullify("FROM sample_data | WHERE trange(1 hour)"),
+            setUnmappedLoad("FROM sample_data | WHERE trange(1 hour)")
+        )) {
+            var plan = analyzeStatement(statement);
+            var limit = as(plan, Limit.class);
+            var filter = as(limit.child(), Filter.class);
+            var relation = as(filter.child(), EsRelation.class);
+            assertThat(relation.indexPattern(), is("sample_data"));
+            assertTimestampInOutput(relation);
+        }
+    }
+
+    public void testTbucketTimestampPresentButDroppedNullify() {
+        var e = expectThrows(
+            VerificationException.class,
+            () -> analyzeStatement(setUnmappedNullify("FROM sample_data | DROP @timestamp | STATS c = COUNT(*) BY tbucket(1 hour)"))
+        );
+        assertThat(e.getMessage(), containsString(UnresolvedTimestamp.UNRESOLVED_SUFFIX));
+        assertThat(e.getMessage(), not(containsString(Verifier.UNMAPPED_TIMESTAMP_SUFFIX)));
+    }
+
+    public void testTbucketTimestampPresentButRenamedNullify() {
+        var e = expectThrows(
+            VerificationException.class,
+            () -> analyzeStatement(
+                setUnmappedNullify("FROM sample_data | RENAME @timestamp AS ts | STATS c = COUNT(*) BY tbucket(1 hour)")
+            )
+        );
+        assertThat(e.getMessage(), containsString(UnresolvedTimestamp.UNRESOLVED_SUFFIX));
+        assertThat(e.getMessage(), not(containsString(Verifier.UNMAPPED_TIMESTAMP_SUFFIX)));
+    }
+
+    private static void assertTimestampInOutput(EsRelation relation) {
+        assertTrue(
+            "@timestamp field should be present in the EsRelation output",
+            relation.output().stream().anyMatch(a -> MetadataAttribute.TIMESTAMP_FIELD.equals(a.name()))
+        );
+    }
+
+    private void unmappedTimestampFailure(String query, String... expectedFailures) {
+        for (var statement : List.of(setUnmappedNullify(query), setUnmappedLoad(query))) {
+            var e = expectThrows(VerificationException.class, () -> analyzeStatement(statement));
+            for (String expected : expectedFailures) {
+                assertThat(e.getMessage(), containsString(expected));
+            }
+        }
+    }
+
     private void verificationFailure(String statement, String expectedFailure) {
         var e = expectThrows(VerificationException.class, () -> analyzeStatement(statement));
         assertThat(e.getMessage(), containsString(expectedFailure));

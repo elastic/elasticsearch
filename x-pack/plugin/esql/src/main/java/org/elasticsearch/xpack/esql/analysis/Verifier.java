@@ -20,11 +20,13 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -68,6 +70,8 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
  */
 public class Verifier {
 
+    static final String UNMAPPED_TIMESTAMP_SUFFIX = "; the [unmapped_fields] setting does not apply to the implicit @timestamp reference";
+
     /**
      * Extra plan verification checks defined in plugins.
      */
@@ -97,8 +101,13 @@ public class Verifier {
         assert partialMetrics != null;
         Failures failures = new Failures();
 
+        boolean unmappedTimestampHandled = false;
+        if (unmappedResolution != UnmappedResolution.FAIL) {
+            unmappedTimestampHandled = checkUnmappedTimestamp(plan, failures);
+        }
+
         // quick verification for unresolved attributes
-        checkUnresolvedAttributes(plan, failures);
+        checkUnresolvedAttributes(plan, failures, unmappedTimestampHandled);
 
         ConfigurationAware.verifyNoMarkerConfiguration(plan, failures);
 
@@ -149,7 +158,7 @@ public class Verifier {
         return failures.failures();
     }
 
-    private static void checkUnresolvedAttributes(LogicalPlan plan, Failures failures) {
+    private static void checkUnresolvedAttributes(LogicalPlan plan, Failures failures, boolean skipUnresolvedTimestamp) {
         plan.forEachUp(p -> {
             // if the children are unresolved, so will this node; counting it will only add noise
             if (p.childrenResolved() == false) {
@@ -182,6 +191,9 @@ public class Verifier {
                         return;
                     }
 
+                    if (skipUnresolvedTimestamp && ae instanceof UnresolvedTimestamp) {
+                        return;
+                    }
                     if (ae instanceof Unresolvable u) {
                         failures.add(fail(ae, u.unresolvedMessage()));
                     }
@@ -352,6 +364,34 @@ public class Verifier {
         if (plan instanceof LimitBy) {
             failures.add(fail(plan, "LIMIT BY is not yet supported"));
         }
+    }
+
+    /**
+     * {@link TimestampAware} functions implicitly reference {@code @timestamp} and require the field to be present in the index mapping.
+     * The {@code unmapped_fields} setting does not apply to the implicit {@code @timestamp} reference.
+     * Only emits the specific message when {@code @timestamp} is truly absent from all source index mappings;
+     * if the field was present but dropped/renamed by the query, the generic unresolved-attribute message is more appropriate.
+     * See https://github.com/elastic/elasticsearch/issues/142127
+     */
+    private static boolean checkUnmappedTimestamp(LogicalPlan plan, Failures failures) {
+        boolean timestampInIndex = plan.collect(EsRelation.class, r -> r.indexMode() != IndexMode.LOOKUP).stream()
+            .anyMatch(r -> r.output().stream().anyMatch(a -> MetadataAttribute.TIMESTAMP_FIELD.equals(a.name())));
+        if (timestampInIndex) {
+            return false;
+        }
+        plan.forEachDown(p -> {
+            if (p instanceof TimestampAware ta && ta.timestamp() instanceof UnresolvedTimestamp) {
+                failures.add(fail(p, "[{}] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX + UNMAPPED_TIMESTAMP_SUFFIX, p.sourceText()));
+            }
+            p.forEachExpression(Expression.class, e -> {
+                if (e instanceof TimestampAware ta && ta.timestamp() instanceof UnresolvedTimestamp) {
+                    failures.add(
+                        fail(e, "[{}] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX + UNMAPPED_TIMESTAMP_SUFFIX, e.sourceText())
+                    );
+                }
+            });
+        });
+        return true;
     }
 
     /**

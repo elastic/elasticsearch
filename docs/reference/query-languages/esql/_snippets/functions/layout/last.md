@@ -2,6 +2,7 @@
 
 ```{applies_to}
 stack: ga 9.4.0
+serverless: preview
 ```
 
 ## Syntax

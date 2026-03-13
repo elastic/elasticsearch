@@ -1,0 +1,127 @@
+---
+setup:
+  - requires:
+      cluster_features: ["synonyms_set.max_token_count_setting"]
+      reason: "synonyms.set.max_token_count dynamic setting"
+
+  - do:
+      synonyms.put_synonym:
+        id: token_limit_set
+        body:
+          synonyms_set:
+            - synonyms: "foo, bar, baz"
+            - synonyms: "one, two, three"
+            - synonyms: "alpha, beta, gamma"
+
+  - do:
+      indices.create:
+        index: token_limit_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+            analysis:
+              filter:
+                my_syn_filter:
+                  type: synonym_graph
+                  synonyms_set: token_limit_set
+                  updateable: true
+                  lenient: false
+              analyzer:
+                my_analyzer:
+                  type: custom
+                  tokenizer: standard
+                  filter: [ lowercase, my_syn_filter ]
+          mappings:
+            properties:
+              my_field:
+                type: text
+                search_analyzer: my_analyzer
+
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            synonyms.set.max_token_count: null
+
+  - do:
+      indices.delete:
+        index: token_limit_index
+        ignore_unavailable: true
+
+  - do:
+      synonyms.delete_synonym:
+        id: token_limit_set
+        ignore: 404
+
+---
+"Dynamic token limit blocks reload when exceeded then succeeds when raised":
+
+  # Verify synonyms load with default limit
+  - do:
+      synonyms.put_synonym:
+        id: token_limit_set
+        body:
+          synonyms_set:
+            - synonyms: "foo, bar, baz"
+            - synonyms: "one, two, three"
+  - match: { result: "updated" }
+  - match: { reload_analyzers_details._shards.failed: 0 }
+
+  - do:
+      indices.analyze:
+        index: token_limit_index
+        body:
+          analyzer: my_analyzer
+          text: "foo"
+  - length: { tokens: 3 }
+
+  # Set the limit very low
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            synonyms.set.max_token_count: 2
+
+  # Update synonym set — reload should fail because token count exceeds limit
+  - do:
+      synonyms.put_synonym:
+        id: token_limit_set
+        body:
+          synonyms_set:
+            - synonyms: "foo, bar, baz"
+            - synonyms: "one, two, three"
+            - synonyms: "alpha, beta, gamma"
+  - match: { result: "updated" }
+  - gt: { reload_analyzers_details._shards.failed: 0 }
+
+  # Raise the limit
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            synonyms.set.max_token_count: 1000000
+
+  # Update synonym set again — reload should succeed
+  - do:
+      synonyms.put_synonym:
+        id: token_limit_set
+        body:
+          synonyms_set:
+            - synonyms: "foo, bar, baz"
+            - synonyms: "one, two, three"
+            - synonyms: "alpha, beta, gamma"
+  - match: { result: "updated" }
+  - match: { reload_analyzers_details._shards.failed: 0 }
+
+  # Verify synonyms are active
+  - do:
+      indices.analyze:
+        index: token_limit_index
+        body:
+          analyzer: my_analyzer
+          text: "foo"
+  - length: { tokens: 3 }

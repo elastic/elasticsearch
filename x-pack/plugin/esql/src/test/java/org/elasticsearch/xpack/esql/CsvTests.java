@@ -774,8 +774,7 @@ public class CsvTests extends ESTestCase {
 
     private static TestPhysicalOperationProviders testOperationProviders(
         FoldContext foldCtx,
-        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> allDatasets,
-        UnmappedResolution unmappedResolution
+        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> allDatasets
     ) throws Exception {
         var indexPages = new ArrayList<TestPhysicalOperationProviders.IndexPage>();
         for (CsvTestsDataLoader.MultiIndexTestDataset datasets : allDatasets.values()) {
@@ -787,7 +786,7 @@ public class CsvTests extends ESTestCase {
                 );
             }
         }
-        return TestPhysicalOperationProviders.create(foldCtx, indexPages, unmappedResolution);
+        return TestPhysicalOperationProviders.create(foldCtx, indexPages);
     }
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
@@ -869,7 +868,7 @@ public class CsvTests extends ESTestCase {
             PlannerSettings.DEFAULTS,
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES
         );
-        TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(foldCtx, testDatasets, unmappedResolution);
+        TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(foldCtx, testDatasets);
 
         PlainActionFuture<ActualResults> listener = new PlainActionFuture<>();
         var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(

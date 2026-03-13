@@ -43,7 +43,6 @@ import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -78,25 +77,14 @@ import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPrefere
 
 public class TestPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
     private final List<IndexPage> indexPages;
-    private final UnmappedResolution unmappedResolution;
 
-    private TestPhysicalOperationProviders(
-        FoldContext foldContext,
-        List<IndexPage> indexPages,
-        UnmappedResolution unmappedResolution,
-        AnalysisRegistry analysisRegistry
-    ) {
+    private TestPhysicalOperationProviders(FoldContext foldContext, List<IndexPage> indexPages, AnalysisRegistry analysisRegistry) {
         super(foldContext, analysisRegistry);
         this.indexPages = indexPages;
-        this.unmappedResolution = unmappedResolution;
     }
 
-    public static TestPhysicalOperationProviders create(
-        FoldContext foldContext,
-        List<IndexPage> indexPages,
-        UnmappedResolution unmappedResolution
-    ) throws IOException {
-        return new TestPhysicalOperationProviders(foldContext, indexPages, unmappedResolution, createAnalysisRegistry());
+    public static TestPhysicalOperationProviders create(FoldContext foldContext, List<IndexPage> indexPages) throws IOException {
+        return new TestPhysicalOperationProviders(foldContext, indexPages, createAnalysisRegistry());
     }
 
     public record IndexPage(String index, Page page, List<String> columnNames, Set<String> mappedFields) {
@@ -104,7 +92,6 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             var result = IntStream.range(0, columnNames.size()).filter(i -> columnNames.get(i).equals(columnName)).findFirst();
             return result.isPresent() ? Optional.of(result.getAsInt()) : Optional.empty();
         }
-
     }
 
     private static AnalysisRegistry createAnalysisRegistry() throws IOException {
@@ -309,12 +296,11 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             }
         }
         return (indexDoc, blockCopier) -> switch (extractBlockForSingleDoc(indexDoc, attribute.name(), blockCopier)) {
-            case BlockResultMissing missing -> {
-                if (unmappedResolution == UnmappedResolution.NULLIFY) {
-                    yield getNullsBlock(indexDoc);
-                }
-                throw new EsqlIllegalArgumentException("Cannot find column named [{}] in {}", missing.columnName, missing.columnNames);
-            }
+            case BlockResultMissing missing -> throw new EsqlIllegalArgumentException(
+                "Cannot find column named [{}] in {}",
+                missing.columnName,
+                missing.columnNames
+            );
             case BlockResultSuccess success -> success.block;
         };
     }
@@ -365,11 +351,9 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 docBlock.blockFactory()
                     .newConstantBytesRefBlockWith(new BytesRef("data_content"), blockCopier.docIndices.getPositionCount())
             );
-            default -> unmappedResolution == UnmappedResolution.NULLIFY && indexPage.mappedFields().contains(columnName) == false
-                ? new BlockResultMissing(columnName, indexPage.columnNames())
-                : indexPage.columnIndex(columnName)
-                    .<BlockResult>map(columnIndex -> new BlockResultSuccess(blockCopier.copyBlock(indexPage.page.getBlock(columnIndex))))
-                    .orElseGet(() -> new BlockResultMissing(columnName, indexPage.columnNames()));
+            default -> indexPage.columnIndex(columnName)
+                .<BlockResult>map(columnIndex -> new BlockResultSuccess(blockCopier.copyBlock(indexPage.page.getBlock(columnIndex))))
+                .orElseGet(() -> new BlockResultMissing(columnName, indexPage.columnNames()));
         };
     }
 

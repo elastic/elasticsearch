@@ -557,6 +557,7 @@ client_ip:ip   |foo:null       |bar:keyword    |baz:null
 
 forkBranchesWithDifferentSchemas
 required_capability: optional_fields_nullify_tech_preview
+required_capability: fork_v9
 
 SET unmapped_fields="nullify"\;
 FROM employees
@@ -592,6 +593,7 @@ x:integer      | does_not_exist:null | c:long         | s:double       | d:null
 
 lookupJoin
 required_capability: optional_fields_nullify_tech_preview
+required_capability: join_lookup_v12
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -621,6 +623,7 @@ language_code:integer | language_name:keyword | foobar:null
 
 enrich
 required_capability: optional_fields_nullify_tech_preview
+required_capability: enrich_load
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -634,6 +637,7 @@ x:integer      | does_not_exist:null | y:keyword | language_name:keyword
 
 partiallyUnmappedKeywordMultiIndex
 required_capability: optional_fields_nullify_tech_preview
+required_capability: source_field_mapping
 
 SET unmapped_fields="nullify"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -660,6 +664,7 @@ sample_data            | 2023-10-23T12:15:03.360Z  | Connected to 10.1.0.3
 
 partiallyUnmappedNonKeywordMultiIndexCast
 required_capability: optional_fields_nullify_tech_preview
+required_capability: source_field_mapping
 
 SET unmapped_fields="nullify"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
@@ -687,6 +692,7 @@ sample_data            | 2023-10-23T12:15:03.360Z  | 3450233.0
 
 partiallyUnmappedMixedTypesMultiIndexCast
 required_capability: optional_fields_nullify_tech_preview
+required_capability: source_field_mapping
 
 SET unmapped_fields="nullify"\;
 FROM sample_data, logs, no_mapping_sample_data METADATA _index
@@ -721,6 +727,7 @@ sample_data            | 2023-10-23T12:15:03.360Z  | Connected to 10.1.0.3
 
 fieldIsPartiallyUnmappedPartiallySourceIsDisabledMultiIndex
 required_capability: optional_fields_nullify_tech_preview
+required_capability: source_field_mapping
 
 SET unmapped_fields="nullify"\;
 FROM sample_data,partial_mapping_no_source_sample_data METADATA _index
@@ -747,6 +754,7 @@ sample_data                           | 2023-10-23T13:55:01.543Z | Connected to 
 
 fieldIsPartiallyUnmappedPartiallySourceExcludedMultiIndex
 required_capability: optional_fields_nullify_tech_preview
+required_capability: source_field_mapping
 
 SET unmapped_fields="nullify"\;
 FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data METADATA _index

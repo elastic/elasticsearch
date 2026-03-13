@@ -67,6 +67,7 @@ FROM partial_mapping_sample_data
 
 doesNotLoadUnmappedFieldsEnrich
 required_capability: optional_fields_v2
+required_capability: enrich_load
 
 FROM partial_mapping_sample_data
 | EVAL language_code = 1
@@ -83,6 +84,7 @@ FROM partial_mapping_sample_data
 
 doesNotLoadUnmappedFieldsLookupJoin
 required_capability: optional_fields_v2
+required_capability: join_lookup_v12
 
 FROM partial_mapping_sample_data
 | EVAL language_code = 1
@@ -154,6 +156,7 @@ FROM partial_mapping_sample_data
 
 fieldUnmappedInSourceButExcludedSingleIndex
 required_capability: optional_fields_v2
+required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_excluded_source_sample_data
@@ -173,6 +176,7 @@ FROM partial_mapping_excluded_source_sample_data
 
 fieldUnmappedInSourceButSourceDisabledSingleIndex
 required_capability: optional_fields_v2
+required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_no_source_sample_data
@@ -524,6 +528,7 @@ Connected to 10.1.0.1
 
 fieldIsPartiallyUnmappedPartiallySourceIsDisabledMultiIndex
 required_capability: optional_fields_v2
+required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data,partial_mapping_no_source_sample_data METADATA _index
@@ -550,6 +555,7 @@ partial_mapping_sample_data           | 2024-10-23T13:55:01.543Z | Connected to 
 
 partialMappingStats
 required_capability: optional_fields_v2
+required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data METADATA _index
@@ -568,6 +574,7 @@ max(@timestamp):date     | count(*):long | message:keyword
 
 partialMappingCoalesce
 required_capability: optional_fields_v2
+required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data METADATA _index
@@ -596,6 +603,7 @@ FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data MET
 
 partialMappingKeywordCast
 required_capability: optional_fields_v2
+required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data METADATA _index
@@ -623,6 +631,7 @@ FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data MET
 
 partialMappingStatsAfterCast
 required_capability: optional_fields_v2
+required_capability: source_field_mapping
 
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data

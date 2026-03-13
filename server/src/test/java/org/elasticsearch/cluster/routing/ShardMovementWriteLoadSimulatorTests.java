@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -279,7 +278,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
             .shardWriteLoads(shardWriteLoads)
             .build();
 
-        return TestRoutingAllocationFactory.immutable(AllocationDeciders.EMPTY, clusterState, clusterInfo).mutableCloneForSimulation();
+        return TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).immutable().mutableCloneForSimulation();
     }
 
     private ClusterState createClusterState() {

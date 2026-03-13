@@ -338,7 +338,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     private ClusterState randomAllocate(ClusterState state) {
-        MutableRoutingAllocation allocation = TestRoutingAllocationFactory.mutable(state);
+        MutableRoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(state).mutable();
         randomAllocate(allocation);
         return ReactiveStorageDeciderServiceTests.updateClusterState(state, allocation);
     }
@@ -362,7 +362,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     private ClusterState startAll(ClusterState state) {
-        MutableRoutingAllocation allocation = TestRoutingAllocationFactory.mutable(state);
+        MutableRoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(state).mutable();
         startAll(allocation);
         return ReactiveStorageDeciderServiceTests.updateClusterState(state, allocation);
     }

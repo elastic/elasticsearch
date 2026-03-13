@@ -1270,7 +1270,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         assertThat(desiredBalanceShardsAllocator.getDesiredBalance(), sameInstance(DesiredBalance.NOT_MASTER));
         try {
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            desiredBalanceShardsAllocator.allocate(TestRoutingAllocationFactory.mutable(clusterService.state()), future);
+            desiredBalanceShardsAllocator.allocate(TestRoutingAllocationFactory.forClusterState(clusterService.state()).mutable(), future);
             safeGet(future);
             assertThat(desiredBalanceShardsAllocator.getStats().computationSubmitted(), equalTo(1L));
             assertThat(desiredBalanceShardsAllocator.getStats().computationExecuted(), equalTo(1L));

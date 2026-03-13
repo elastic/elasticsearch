@@ -927,13 +927,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(baseClusterState)
             .routingTable(GlobalRoutingTable.builder().put(projectId, builder.build()).build())
             .build();
-        RoutingAllocation routingAllocation = TestRoutingAllocationFactory.immutable(
-            null,
-            clusterState,
-            clusterInfo,
-            null,
-            System.nanoTime()
-        );
+        RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build();
         routingAllocation.debugDecision(true);
         Decision decision = diskThresholdDecider.canRemain(
             routingAllocation.metadata().getProject(projectId).getIndexSafe(firstRouting.index()),
@@ -991,7 +985,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(baseClusterState)
             .routingTable(GlobalRoutingTable.builder().put(projectId, builder.build()).build())
             .build();
-        routingAllocation = TestRoutingAllocationFactory.immutable(null, clusterState, clusterInfo, null, System.nanoTime());
+        routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build();
         routingAllocation.debugDecision(true);
         decision = diskThresholdDecider.canRemain(
             routingAllocation.metadata().getProject(projectId).getIndexSafe(firstRouting.index()),
@@ -1012,7 +1006,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 builder1.addAsNew(indexMetadata);
             }, (ignore1, ignore2) -> {}))
             .build();
-        routingAllocation = TestRoutingAllocationFactory.immutable(null, clusterState, clusterInfo, null, System.nanoTime());
+        routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build();
         routingAllocation.debugDecision(true);
 
         decision = diskThresholdDecider.canAllocate(fooRouting, firstRoutingNode, routingAllocation);
@@ -1182,13 +1176,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             .routingTable(GlobalRoutingTable.builder().put(projectId, forceAssignedRoutingTable).build())
             .build();
 
-        RoutingAllocation routingAllocation = TestRoutingAllocationFactory.immutable(
-            null,
-            clusterState,
-            clusterInfo,
-            null,
-            System.nanoTime()
-        );
+        RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build();
         routingAllocation.debugDecision(true);
         Decision decision = diskThresholdDecider.canRemain(
             routingAllocation.metadata().getProject(projectId).getIndexSafe(startedShard.index()),
@@ -1389,7 +1377,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
 
-        final var routingAllocation = TestRoutingAllocationFactory.immutable(clusterState);
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).build();
         final Index idx = clusterState.metadata().getProject(projectId).index(targetIndexName).getIndex();
         final int shardId = randomIntBetween(0, 3);
         final var shardRouting = shardRoutingBuilder(new ShardId(idx, shardId), null, true, ShardRoutingState.UNASSIGNED)

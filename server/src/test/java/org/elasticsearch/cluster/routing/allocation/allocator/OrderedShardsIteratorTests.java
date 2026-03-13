@@ -255,15 +255,15 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
     }
 
     protected static RoutingAllocation createRoutingAllocation(DiscoveryNodes nodes, Metadata metadata, RoutingTable routing) {
-        return TestRoutingAllocationFactory.immutable(
+        return TestRoutingAllocationFactory.forClusterState(
             ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).routingTable(routing).build()
-        );
+        ).build();
     }
 
     private static RoutingAllocation createRoutingAllocation(DiscoveryNodes nodes, Metadata metadata, GlobalRoutingTable routing) {
-        return TestRoutingAllocationFactory.immutable(
+        return TestRoutingAllocationFactory.forClusterState(
             ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).routingTable(routing).build()
-        );
+        ).build();
     }
 
     private static IndexRoutingTable index(String indexName, String nodeId) {

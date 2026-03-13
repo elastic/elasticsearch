@@ -59,7 +59,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -813,7 +812,11 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             .shardSizes(Map.of(shardIdentifierFromRouting(new ShardId(index.getIndex(), 0), true), ByteSizeValue.ofGb(8).getBytes()))
             .build();
         allocator.allocate(
-            TestRoutingAllocationFactory.mutable(new AllocationDeciders(List.of()), clusterState, clusterInfo, null, 0L)
+            TestRoutingAllocationFactory.forClusterState(clusterState)
+                .allocationDeciders(new AllocationDeciders(List.of()))
+                .clusterInfo(clusterInfo)
+                .currentNanoTime(0L)
+                .mutable()
                 .mutableCloneForSimulation()
         );
 
@@ -1077,8 +1080,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT)
         );
 
-        final var allocation = TestRoutingAllocationFactory.mutable(
-            new AllocationDeciders(List.<AllocationDecider>of(new AllocationDecider() {
+        final var allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .allocationDeciders(new AllocationDeciders(List.<AllocationDecider>of(new AllocationDecider() {
                 @Override
                 public Decision canRemain(
                     IndexMetadata indexMetadata,
@@ -1088,12 +1091,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 ) {
                     return allocation.decision(Decision.NOT_PREFERRED, "test_decider", "Always NOT_PREFERRED");
                 }
-            })),
-            clusterState,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            0L
-        );
+            })))
+            .currentNanoTime(0L)
+            .mutable();
 
         final var notPreferredLoggerName = BalancedShardsAllocator.class.getName() + ".not_preferred";
         MockLog.assertThatLogger(
@@ -1148,13 +1148,10 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         );
         assertThat(allShards, hasSize(numberOfShardsWithNoWriteLoad));
 
-        final var allocation = TestRoutingAllocationFactory.immutable(
-            AllocationDeciders.EMPTY,
-            clusterState,
-            ClusterInfo.builder().shardWriteLoads(shardWriteLoads).build(),
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES.snapshotShardSizes(),
-            System.nanoTime()
-        );
+        final var allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .clusterInfo(ClusterInfo.builder().shardWriteLoads(shardWriteLoads).build())
+            .shardSizeInfo(SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES.snapshotShardSizes())
+            .build();
 
         // Assign all shards to node
         final var allocatedRoutingNodes = allocation.routingNodes().mutableCopy();
@@ -1316,13 +1313,10 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             .putRoutingTable(ProjectId.DEFAULT, routingTableBuilder.build())
             .build();
 
-        RoutingAllocation allocation = TestRoutingAllocationFactory.mutable(
-            new AllocationDeciders(List.of(notPreferredDecider)),
-            clusterState,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            randomNonNegativeLong()
-        );
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .allocationDeciders(new AllocationDeciders(List.of(notPreferredDecider)))
+            .currentNanoTime(randomNonNegativeLong())
+            .mutable();
 
         // This would throw an assertion error when the bug was present
         new BalancedShardsAllocator(BalancerSettings.DEFAULT, WriteLoadForecaster.DEFAULT, new NodeNameDrivenBalancingWeightsFactory())
@@ -1375,13 +1369,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         BalancingWeightsFactory balancingWeightsFactory,
         ClusterState clusterState
     ) {
-        final var routingAllocation = TestRoutingAllocationFactory.mutable(
-            allocationDeciders,
-            clusterState,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
-        );
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .allocationDeciders(allocationDeciders)
+            .mutable();
 
         // Debug mode should not change the outcome
         routingAllocation.setDebugMode(randomFrom(RoutingAllocation.DebugMode.values()));
@@ -1505,7 +1495,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     }
 
     private RoutingAllocation createRoutingAllocation(ClusterState clusterState) {
-        return TestRoutingAllocationFactory.mutable(clusterState);
+        return TestRoutingAllocationFactory.forClusterState(clusterState).mutable();
     }
 
     private static ClusterInfo createClusterInfo(Map<String, Long> indexSizes) {

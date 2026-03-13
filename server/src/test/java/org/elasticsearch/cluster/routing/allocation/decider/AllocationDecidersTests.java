@@ -191,7 +191,10 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
                 return decision;
             })).toList());
 
-            RoutingAllocation allocation = TestRoutingAllocationFactory.immutable(deciders, clusterState, null, null, 0L);
+            RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+                .allocationDeciders(deciders)
+                .currentNanoTime(0L)
+                .build();
             allocation.setDebugMode(debugMode);
 
             var decision = operation.apply(allocation, deciders);
@@ -268,7 +271,10 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
     }
 
     private static RoutingAllocation createRoutingAllocation(AllocationDeciders deciders) {
-        return TestRoutingAllocationFactory.immutable(deciders, ClusterState.builder(new ClusterName("test")).build(), null, null, 0L);
+        return TestRoutingAllocationFactory.forClusterState(ClusterState.builder(new ClusterName("test")).build())
+            .allocationDeciders(deciders)
+            .currentNanoTime(0L)
+            .build();
     }
 
     private static final class AnyNodeInitialShardAllocationDecider extends AllocationDecider {

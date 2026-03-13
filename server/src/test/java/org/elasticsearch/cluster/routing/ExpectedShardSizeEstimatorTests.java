@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -183,7 +182,11 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo snapshotShardSizeInfo
     ) {
-        return TestRoutingAllocationFactory.immutable(AllocationDeciders.EMPTY, state, clusterInfo, snapshotShardSizeInfo, 0);
+        return TestRoutingAllocationFactory.forClusterState(state)
+            .clusterInfo(clusterInfo)
+            .shardSizeInfo(snapshotShardSizeInfo)
+            .currentNanoTime(0)
+            .build();
     }
 
     private static IndexMetadata.Builder index(String name) {

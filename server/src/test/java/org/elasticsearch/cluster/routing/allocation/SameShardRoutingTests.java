@@ -187,13 +187,10 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                 .findFirst()
                 .orElseThrow(AssertionError::new);
 
-            final RoutingAllocation routingAllocation = TestRoutingAllocationFactory.immutable(
-                new AllocationDeciders(singletonList(decider)),
-                clusterState,
-                null,
-                null,
-                0L
-            );
+            final RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+                .allocationDeciders(new AllocationDeciders(singletonList(decider)))
+                .currentNanoTime(0L)
+                .build();
             routingAllocation.debugDecision(true);
 
             final Decision decision = decider.canAllocate(unassignedShard, emptyNode, routingAllocation);
@@ -265,7 +262,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         Index index = clusterState.getMetadata().getProject().index("idx").getIndex();
         ShardRouting primaryShard = clusterState.routingTable().index(index).shard(0).primaryShard();
         RoutingNode routingNode = clusterState.getRoutingNodes().node(primaryShard.currentNodeId());
-        RoutingAllocation routingAllocation = TestRoutingAllocationFactory.mutable(clusterState);
+        RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).mutable();
 
         // can't force allocate same shard copy to the same node
         ShardRouting newPrimary = TestShardRouting.newShardRouting(primaryShard.shardId(), null, true, ShardRoutingState.UNASSIGNED);

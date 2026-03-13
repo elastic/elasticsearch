@@ -158,14 +158,10 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             }
         }
 
-        final var routingAllocation = TestRoutingAllocationFactory.mutable(
-            AllocationDeciders.EMPTY,
-            routingNodes,
-            clusterState,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            0L
-        );
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .routingNodes(routingNodes)
+            .currentNanoTime(0L)
+            .mutable();
 
         for (ShardRouting shardRouting : routingAllocation.routingNodes().unassigned()) {
             assertTrue(shardRouting.toString(), shardRouting.unassigned());
@@ -1667,13 +1663,10 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
     }
 
     private static RoutingAllocation createRoutingAllocationFrom(ClusterState clusterState, AllocationDecider... deciders) {
-        return TestRoutingAllocationFactory.mutable(
-            new AllocationDeciders(List.of(deciders)),
-            clusterState,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            0L
-        );
+        return TestRoutingAllocationFactory.forClusterState(clusterState)
+            .allocationDeciders(new AllocationDeciders(List.of(deciders)))
+            .currentNanoTime(0L)
+            .mutable();
     }
 
     private static AllocationService createTestAllocationService(

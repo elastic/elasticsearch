@@ -694,13 +694,12 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         SnapshotShardSizeInfo snapshotShardSizeInfo,
         AllocationDecider... deciders
     ) {
-        return TestRoutingAllocationFactory.immutable(
-            new AllocationDeciders(List.of(deciders)),
-            state,
-            clusterInfo,
-            snapshotShardSizeInfo,
-            0
-        );
+        return TestRoutingAllocationFactory.forClusterState(state)
+            .allocationDeciders(new AllocationDeciders(List.of(deciders)))
+            .clusterInfo(clusterInfo)
+            .shardSizeInfo(snapshotShardSizeInfo)
+            .currentNanoTime(0)
+            .build();
     }
 
     private static class SnapshotShardSizeInfoTestBuilder {

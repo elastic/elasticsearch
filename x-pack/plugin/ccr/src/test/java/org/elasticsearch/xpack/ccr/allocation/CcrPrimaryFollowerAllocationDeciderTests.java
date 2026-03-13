@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ccr.allocation;
 
-import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -35,7 +34,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.junit.Before;
 
@@ -214,13 +212,9 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
 
     static Decision executeAllocation(ClusterState clusterState, ShardRouting shardRouting, DiscoveryNode node) {
         final AllocationDecider decider = new CcrPrimaryFollowerAllocationDecider();
-        final RoutingAllocation routingAllocation = TestRoutingAllocationFactory.immutable(
-            new AllocationDeciders(List.of(decider)),
-            clusterState,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
-        );
+        final RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .allocationDeciders(new AllocationDeciders(List.of(decider)))
+            .build();
         routingAllocation.debugDecision(true);
         return decider.canAllocate(shardRouting, RoutingNodesHelper.routingNode(node.getId(), node), routingAllocation);
     }

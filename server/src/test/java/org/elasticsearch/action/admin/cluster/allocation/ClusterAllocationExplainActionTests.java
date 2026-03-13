@@ -121,13 +121,10 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         AllocationDeciders allocationDeciders = new AllocationDeciders(
             List.of(new CanRemainNoAllocationDecider(), new CanAllocateNotPreferredAllocationDecider())
         );
-        RoutingAllocation allocation = TestRoutingAllocationFactory.immutable(
-            allocationDeciders,
-            clusterState,
-            clusterInfo,
-            null,
-            System.nanoTime()
-        );
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .allocationDeciders(allocationDeciders)
+            .clusterInfo(clusterInfo)
+            .build();
 
         ClusterAllocationExplanation allocationExplanation = TransportClusterAllocationExplainAction.explainShard(
             shardRouting,
@@ -186,13 +183,10 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         AllocationDeciders allocationDeciders = new AllocationDeciders(
             List.of(new CanRemainNotPreferredAllocationDecider(), new CanAllocateNotPreferredAllocationDecider())
         );
-        RoutingAllocation allocation = TestRoutingAllocationFactory.immutable(
-            allocationDeciders,
-            clusterState,
-            clusterInfo,
-            null,
-            System.nanoTime()
-        );
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .allocationDeciders(allocationDeciders)
+            .clusterInfo(clusterInfo)
+            .build();
 
         ClusterAllocationExplanation allocationExplanation = TransportClusterAllocationExplainAction.explainShard(
             shardRouting,
@@ -249,13 +243,10 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         // Set up allocation deciders that will say: 1) shard not-preferred to remain where it is and 2) shard can be allocated elsewhere
         // (the default without a decider to say no). Relocation should proceed, there should be a target node for the MoveDecision.
         AllocationDeciders allocationDeciders = new AllocationDeciders(List.of(new CanRemainNotPreferredAllocationDecider()));
-        RoutingAllocation allocation = TestRoutingAllocationFactory.immutable(
-            allocationDeciders,
-            clusterState,
-            clusterInfo,
-            null,
-            System.nanoTime()
-        );
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .allocationDeciders(allocationDeciders)
+            .clusterInfo(clusterInfo)
+            .build();
 
         ClusterAllocationExplanation allocationExplanation = TransportClusterAllocationExplainAction.explainShard(
             shardRouting,
@@ -310,13 +301,10 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         AllocationDeciders allocationDeciders = new AllocationDeciders(
             List.of(new CanRemainNotPreferredAllocationDecider(), new CanAllocateThrottledAllocationDecider())
         );
-        RoutingAllocation allocation = TestRoutingAllocationFactory.immutable(
-            allocationDeciders,
-            clusterState,
-            clusterInfo,
-            null,
-            System.nanoTime()
-        );
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .allocationDeciders(allocationDeciders)
+            .clusterInfo(clusterInfo)
+            .build();
 
         ClusterAllocationExplanation allocationExplanation = TransportClusterAllocationExplainAction.explainShard(
             shardRouting,
@@ -372,13 +360,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         final ProjectId projectId = clusterState.metadata().projects().keySet().iterator().next();
 
         ShardRouting shard = clusterState.globalRoutingTable().routingTable(projectId).index("idx").shard(0).primaryShard();
-        RoutingAllocation allocation = TestRoutingAllocationFactory.immutable(
-            AllocationDeciders.EMPTY,
-            clusterState,
-            null,
-            null,
-            System.nanoTime()
-        );
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState).build();
         ClusterAllocationExplanation cae = TransportClusterAllocationExplainAction.explainShard(
             shard,
             allocation,
@@ -605,6 +587,6 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
     }
 
     private static RoutingAllocation routingAllocation(ClusterState clusterState) {
-        return TestRoutingAllocationFactory.immutable(clusterState);
+        return TestRoutingAllocationFactory.forClusterState(clusterState).build();
     }
 }

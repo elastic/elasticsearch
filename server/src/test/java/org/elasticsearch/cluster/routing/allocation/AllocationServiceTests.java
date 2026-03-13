@@ -297,7 +297,7 @@ public class AllocationServiceTests extends ESTestCase {
 
         assertThat(clusterState.metadata().projects(), aMapWithSize(1));
 
-        final RoutingAllocation allocation = TestRoutingAllocationFactory.immutable(clusterState);
+        final RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState).build();
         allocation.setDebugMode(randomBoolean() ? RoutingAllocation.DebugMode.ON : RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
 
         final ShardAllocationDecision shardAllocationDecision = allocationService.explainShardAllocation(

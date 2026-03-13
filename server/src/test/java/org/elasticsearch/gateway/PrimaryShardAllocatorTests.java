@@ -10,7 +10,6 @@
 package org.elasticsearch.gateway;
 
 import org.apache.lucene.index.CorruptIndexException;
-import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -607,12 +606,15 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
             .build();
-        return TestRoutingAllocationFactory.mutable(allocationDeciders, state, null, new SnapshotShardSizeInfo(Map.of()) {
-            @Override
-            public Long getShardSize(ShardRouting shardRouting) {
-                return shardSize;
-            }
-        }, System.nanoTime());
+        return TestRoutingAllocationFactory.forClusterState(state)
+            .allocationDeciders(allocationDeciders)
+            .shardSizeInfo(new SnapshotShardSizeInfo(Map.of()) {
+                @Override
+                public Long getShardSize(ShardRouting shardRouting) {
+                    return shardSize;
+                }
+            })
+            .mutable();
     }
 
     private RoutingAllocation routingAllocationWithOnePrimaryNoReplicas(
@@ -641,7 +643,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             .routingTable(routingTableBuilder.build())
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
             .build();
-        return TestRoutingAllocationFactory.mutable(deciders, state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, System.nanoTime());
+        return TestRoutingAllocationFactory.forClusterState(state).allocationDeciders(deciders).mutable();
     }
 
     private void assertClusterHealthStatus(RoutingAllocation allocation, ClusterHealthStatus expectedStatus) {

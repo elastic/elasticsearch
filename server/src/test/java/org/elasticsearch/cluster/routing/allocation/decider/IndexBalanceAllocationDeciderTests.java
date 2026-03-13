@@ -181,7 +181,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
      * A lot of the test setup is derived from the cluster state, regenerate it any time we change the cluster state
      */
     private void refreshDerivedState() {
-        routingAllocation = TestRoutingAllocationFactory.immutable(clusterState);
+        routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).build();
         routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
 
         indexTierShardRouting = randomFrom(

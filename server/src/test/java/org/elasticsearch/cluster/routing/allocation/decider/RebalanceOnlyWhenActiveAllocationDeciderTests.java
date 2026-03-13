@@ -181,6 +181,6 @@ public class RebalanceOnlyWhenActiveAllocationDeciderTests extends ESAllocationT
     }
 
     private static RoutingAllocation createRoutingAllocation(ClusterState state) {
-        return TestRoutingAllocationFactory.immutable(state);
+        return TestRoutingAllocationFactory.forClusterState(state).build();
     }
 }

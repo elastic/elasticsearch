@@ -17,112 +17,10 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.Arrays;
-import java.util.List;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 
 public class TestRoutingAllocationFactory {
-
-    /**
-     * Create a mutable routing allocation
-     * <p>
-     * Only for use in tests
-     */
-    public static MutableRoutingAllocation mutable(
-        AllocationDeciders deciders,
-        RoutingNodes routingNodes,
-        ClusterState clusterState,
-        ClusterInfo clusterInfo,
-        SnapshotShardSizeInfo shardSizeInfo,
-        long currentNanoTime
-    ) {
-        return new MutableRoutingAllocation(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false);
-    }
-
-    /**
-     * Create a mutable routing allocation
-     * <p>
-     * Only for use in tests
-     */
-    public static MutableRoutingAllocation mutable(
-        AllocationDeciders deciders,
-        ClusterState clusterState,
-        ClusterInfo clusterInfo,
-        SnapshotShardSizeInfo shardSizeInfo,
-        long currentNanoTime
-    ) {
-        return new MutableRoutingAllocation(
-            deciders,
-            clusterState.mutableRoutingNodes(),
-            clusterState,
-            clusterInfo,
-            shardSizeInfo,
-            currentNanoTime,
-            false
-        );
-    }
-
-    /**
-     * Create a mutable routing allocation
-     * <p>
-     * Only for use in tests
-     */
-    public static MutableRoutingAllocation mutable(ClusterState clusterState) {
-        return new MutableRoutingAllocation(
-            AllocationDeciders.EMPTY,
-            clusterState.mutableRoutingNodes(),
-            clusterState,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime(),
-            false
-        );
-    }
-
-    /**
-     * Create an immutable routing allocation
-     * <p>
-     * Only for use in tests
-     */
-    public static RoutingAllocation immutable(ClusterState clusterState) {
-        return new ImmutableRoutingAllocation(
-            new AllocationDeciders(List.of()),
-            clusterState,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
-        );
-    }
-
-    /**
-     * Create an immutable routing allocation
-     * <p>
-     * Only for use in tests
-     */
-    public static RoutingAllocation immutable(AllocationDeciders allocationDeciders, ClusterState clusterState, ClusterInfo clusterInfo) {
-        return new ImmutableRoutingAllocation(
-            allocationDeciders,
-            clusterState,
-            clusterInfo,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
-        );
-    }
-
-    /**
-     * Create an immutable routing allocation
-     * <p>
-     * Only for use in tests
-     */
-    public static RoutingAllocation immutable(
-        AllocationDeciders allocationDeciders,
-        ClusterState clusterState,
-        ClusterInfo clusterInfo,
-        SnapshotShardSizeInfo shardSizeInfo,
-        long currentNanoTime
-    ) {
-        return new ImmutableRoutingAllocation(allocationDeciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
-    }
 
     /**
      * Build a {@link RoutingAllocation} for the given cluster state.
@@ -184,7 +82,7 @@ public class TestRoutingAllocationFactory {
         public MutableRoutingAllocation mutable() {
             return new MutableRoutingAllocation(
                 allocationDeciders,
-                routingNodes,
+                routingNodes != null ? routingNodes : clusterState.mutableRoutingNodes(),
                 clusterState,
                 clusterInfo,
                 shardSizeInfo,

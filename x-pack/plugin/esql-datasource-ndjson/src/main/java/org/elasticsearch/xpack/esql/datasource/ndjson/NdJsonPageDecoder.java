@@ -64,7 +64,7 @@ public class NdJsonPageDecoder implements Closeable {
         this.input = input;
 
         var projectedAttributes = attributes;
-        if (projectedColumns.isEmpty() == false) {
+        if (projectedColumns != null && projectedColumns.isEmpty() == false) {
             // Keep projected columns in order, adding NULL for missing columns
             projectedAttributes = projectedColumns.stream()
                 .map(
@@ -112,7 +112,7 @@ public class NdJsonPageDecoder implements Closeable {
                 this.blockTracker.clear();
 
                 try {
-                    decoder.decodeObject(parser);
+                    decoder.decodeObject(parser, false);
                 } catch (JsonParseException e) {
                     if (e instanceof JsonEOFException) {
                         LOGGER.debug("Truncated NDJSON at line {} (expected at split boundaries): {}", lineCount, e.getOriginalMessage());
@@ -219,7 +219,7 @@ public class NdJsonPageDecoder implements Closeable {
             }
         }
 
-        private void decodeObject(JsonParser parser) throws IOException {
+        private void decodeObject(JsonParser parser, boolean inArray) throws IOException {
             JsonToken token = parser.currentToken();
             if (token != JsonToken.START_OBJECT) {
                 throw new NdJsonParseException(parser, "Expected JSON object");
@@ -234,24 +234,59 @@ public class NdJsonPageDecoder implements Closeable {
                     // Unknown field, skip it
                     parser.skipChildren();
                 } else {
-                    childDecoder.decodeValue(parser);
+                    childDecoder.decodeValue(parser, inArray);
                 }
             }
         }
 
-        private void decodeValue(JsonParser parser) throws IOException {
-            JsonToken token = parser.currentToken();
-            blockTracker.set(blockIdx);
-            if (token == JsonToken.START_ARRAY) {
-                this.blockBuilder.beginPositionEntry();
-                while (parser.nextToken() != JsonToken.END_ARRAY) {
-                    decodeValue(parser);
+        private void beginPositionEntry() {
+            if (blockBuilder != null) {
+                blockBuilder.beginPositionEntry();
+            }
+            if (children != null) {
+                for (var child : children.values()) {
+                    child.beginPositionEntry();
                 }
-                this.blockBuilder.endPositionEntry();
+            }
+        }
+
+        private void endPositionEntry() {
+            if (blockBuilder != null) {
+                blockBuilder.endPositionEntry();
+            }
+            if (children != null) {
+                for (var child : children.values()) {
+                    child.endPositionEntry();
+                }
+            }
+        }
+
+        private void decodeValue(JsonParser parser, boolean inArray) throws IOException {
+            JsonToken token = parser.currentToken();
+            if (token == JsonToken.START_ARRAY) {
+                // Start a multi-value entry on this decoder and all its children (nested arrays are flattened).
+                // Note: the `inArray` flag is needed because blockBuilder.beginPositionEntry() is not idempotent.
+                // Calling it twice implicitly calls endPositionEntry().
+                if (!inArray) {
+                    beginPositionEntry();
+                }
+                while (parser.nextToken() != JsonToken.END_ARRAY) {
+                    decodeValue(parser, true);
+                }
+                if (!inArray) {
+                    endPositionEntry();
+                }
                 return;
             }
 
-            if (token == JsonToken.VALUE_NULL) {
+            if (token == JsonToken.START_OBJECT) {
+                decodeObject(parser, inArray);
+                return;
+            }
+
+            blockTracker.set(blockIdx);
+            if (token == JsonToken.VALUE_NULL && inArray == false) {
+                // Nulls in arrays aren't supported. Furthermore, appendNull will implicitly call endPositionEntry()
                 blockBuilder.appendNull();
                 return;
             }
@@ -263,32 +298,32 @@ public class NdJsonPageDecoder implements Closeable {
                     } else if (token == JsonToken.VALUE_FALSE) {
                         ((BooleanBlock.Builder) blockBuilder).appendBoolean(false);
                     } else {
-                        unexpectedValue(blockBuilder, parser);
+                        unexpectedValue(blockBuilder, parser, inArray);
                     }
                 }
                 case NULL -> {
                     // NULL handled above
-                    unexpectedValue(blockBuilder, parser);
+                    unexpectedValue(blockBuilder, parser, inArray);
                 }
                 case INTEGER -> {
                     if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {
                         ((IntBlock.Builder) blockBuilder).appendInt(parser.getIntValue());
                     } else {
-                        unexpectedValue(blockBuilder, parser);
+                        unexpectedValue(blockBuilder, parser, inArray);
                     }
                 }
                 case LONG -> {
                     if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {
                         ((LongBlock.Builder) blockBuilder).appendLong(parser.getLongValue());
                     } else {
-                        unexpectedValue(blockBuilder, parser);
+                        unexpectedValue(blockBuilder, parser, inArray);
                     }
                 }
                 case DOUBLE -> {
                     if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {
                         ((DoubleBlock.Builder) blockBuilder).appendDouble(parser.getDoubleValue());
                     } else {
-                        unexpectedValue(blockBuilder, parser);
+                        unexpectedValue(blockBuilder, parser, inArray);
                     }
                 }
                 case DATETIME -> {
@@ -296,7 +331,7 @@ public class NdJsonPageDecoder implements Closeable {
                         var millis = Instant.parse(parser.getValueAsString()).toEpochMilli();
                         ((LongBlock.Builder) blockBuilder).appendLong(millis);
                     } catch (Exception e) {
-                        unexpectedValue(blockBuilder, parser);
+                        unexpectedValue(blockBuilder, parser, inArray);
                     }
                 }
                 case KEYWORD -> {
@@ -305,16 +340,19 @@ public class NdJsonPageDecoder implements Closeable {
                     if (str != null) {
                         ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(new BytesRef(str));
                     } else {
-                        unexpectedValue(blockBuilder, parser);
+                        unexpectedValue(blockBuilder, parser, inArray);
                     }
                 }
                 default -> throw new IllegalArgumentException("Unsupported data type: " + attribute.dataType());
             }
         }
 
-        private void unexpectedValue(Block.Builder builder, JsonParser parser) throws IOException {
+        private void unexpectedValue(Block.Builder builder, JsonParser parser, boolean inArray) throws IOException {
             // Append a null and log the problem
-            builder.appendNull();
+            if (inArray == false) {
+                // See previous comment about nulls and arrays
+                builder.appendNull();
+            }
 
             LOGGER.warn(
                 "Unexpected token type: {} for attribute: {} at {}",

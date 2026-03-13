@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -38,6 +40,8 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
@@ -86,9 +90,10 @@ public class Verifier {
      *
      * @param plan The logical plan to be verified
      * @param partialMetrics a bitset indicating a certain command (or "telemetry feature") is present in the query
+     * @param unmappedResolution the active unmapped-field resolution strategy; used to gate commands unsupported in certain modes
      * @return a collection of verification failures; empty if and only if the plan is valid
      */
-    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics) {
+    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics, UnmappedResolution unmappedResolution) {
         assert partialMetrics != null;
         Failures failures = new Failures();
 
@@ -100,6 +105,10 @@ public class Verifier {
         // in case of failures bail-out as all other checks will be redundant
         if (failures.hasFailures()) {
             return failures.failures();
+        }
+
+        if (unmappedResolution == UnmappedResolution.LOAD) {
+            checkLoadModeDisallowedCommands(plan, failures);
         }
 
         // collect plan checkers
@@ -114,6 +123,11 @@ public class Verifier {
             }
 
             planCheckers.forEach(c -> c.accept(p, failures));
+            p.forEachExpression(e -> {
+                if (e instanceof PostAnalysisVerificationAware va) {
+                    va.postAnalysisVerification(failures);
+                }
+            });
 
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
@@ -338,6 +352,24 @@ public class Verifier {
         if (plan instanceof LimitBy) {
             failures.add(fail(plan, "LIMIT BY is not yet supported"));
         }
+    }
+
+    /**
+     * {@code unmapped_fields="load"} does not yet support branching commands (FORK, LOOKUP JOIN, subqueries/views).
+     * See https://github.com/elastic/elasticsearch/issues/142033
+     */
+    private static void checkLoadModeDisallowedCommands(LogicalPlan plan, Failures failures) {
+        plan.forEachDown(p -> {
+            if (p instanceof Fork && p instanceof UnionAll == false) {
+                failures.add(fail(p, "FORK is not supported with unmapped_fields=\"load\""));
+            }
+            if (p instanceof Subquery) {
+                failures.add(fail(p, "Subqueries and views are not supported with unmapped_fields=\"load\""));
+            }
+            if (p instanceof EsRelation esRelation && esRelation.indexMode() == IndexMode.LOOKUP) {
+                failures.add(fail(p, "LOOKUP JOIN is not supported with unmapped_fields=\"load\""));
+            }
+        });
     }
 
     private void licenseCheck(LogicalPlan plan, Failures failures) {

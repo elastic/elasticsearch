@@ -677,7 +677,14 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """, STAGES);
     }
 
+    /**
+     * Reproducer for https://github.com/elastic/elasticsearch/issues/142968
+     * KQL (and QSTR) functions should be allowed in WHERE immediately after FROM,
+     * even when an unmapped field is referenced later in the query.
+     */
     public void testKqlWithUnmappedFieldInEval() throws Exception {
+        // This should NOT throw a verification exception.
+        // The KQL function is correctly placed in a WHERE directly after FROM.
         runTestsNullifyOnly("""
             FROM employees
             | WHERE kql("first_name: test")
@@ -685,6 +692,10 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """, STAGES);
     }
 
+    /**
+     * Reproducer for https://github.com/elastic/elasticsearch/issues/142959
+     * QSTR functions should be allowed after SORT, even when an unmapped field is used later.
+     */
     public void testQstrAfterSortWithUnmappedField() throws Exception {
         runTestsNullifyOnly("""
             FROM employees
@@ -745,8 +756,14 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """, STAGES);
     }
 
+    /**
+     * Reproducer for https://github.com/elastic/elasticsearch/issues/141870
+     * ResolveRefs processes the EVAL only after ImplicitCasting processes the implicit cast in the WHERE.
+     * This means that ResolveUnmapped will see the EVAL with a yet-to-be-resolved reference to nanos.
+     * It should not treat it as unmapped, because there is clearly a nanos attribute in the EVAL's input.
+     */
     public void testDoNotResolveUnmappedFieldPresentInChildren() throws Exception {
-        runTestsNullifyOnly("""
+        runTests("""
             ROW millis = "1970-01-01T00:00:00Z"::date, nanos = "1970-01-01T00:00:00Z"::date_nanos
             | SORT millis ASC
             | WHERE millis < "2000-01-01"
@@ -754,6 +771,11 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """, STAGES);
     }
 
+    /**
+     * Reproducer for https://github.com/elastic/elasticsearch/issues/143991
+     * Unmapped fields with dotted names (e.g. host.entity.id) should be nullified in STATS WHERE, even when an EVAL before the STATS
+     * creates a field whose name is a suffix of the unmapped field name (e.g. entity.id).
+     */
     public void testStatsFilteredAggAfterEvalWithDottedUnmappedField() throws Exception {
         runTestsNullifyOnly("""
             ROW x = 1
@@ -762,12 +784,24 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """, STAGES);
     }
 
+    /**
+     * Reproducer for https://github.com/elastic/elasticsearch/issues/143991
+     * Same as {@link #testStatsFilteredAggAfterEvalWithDottedUnmappedField()} but with FROM instead of ROW.
+     * Tests both nullify and load modes: the plan shape is the same, only the field type in the EsRelation differs.
+     */
     public void testStatsFilteredAggAfterEvalWithDottedUnmappedFieldFromIndex() throws Exception {
         runTests("""
             FROM employees
             | EVAL entity.id = "foo"
             | STATS host.entity.id = VALUES(host.entity.id) WHERE host.entity.id IS NOT NULL BY entity.id
             """);
+    }
+
+    public void testSingleSubquery() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // A single subquery without a main index is merged into the main query during analysis,
+        // so there is no Subquery node in the plan and no branching — this is allowed in load.
+        runTests("FROM (FROM languages | WHERE language_code > 1)");
     }
 
     private void runTests(String query) {

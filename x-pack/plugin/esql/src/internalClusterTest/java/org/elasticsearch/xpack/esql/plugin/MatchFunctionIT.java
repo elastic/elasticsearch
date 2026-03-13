@@ -343,6 +343,22 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    public void testMatchOnJoinFieldWithLookupJoin() {
+        var query = """
+            FROM test
+            | EVAL x = 123
+            | RENAME x AS id
+            | LOOKUP JOIN test_lookup ON id
+            | WHERE id > 0 AND MATCH(id, "fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(
+            error.getMessage(),
+            containsString("line 5:26: [MATCH] function cannot operate on [id], which is not a field from an index mapping")
+        );
+    }
+
     public void testMatchWithLookupJoinOnMatch() {
         var query = """
             FROM test

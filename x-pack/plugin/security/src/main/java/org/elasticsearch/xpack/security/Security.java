@@ -1042,6 +1042,7 @@ public class Security extends Plugin
             customRoleProviders,
             getLicenseState()
         );
+        final Executor authorizationExecutor = buildRoleBuildingExecutor(threadPool, settings);
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(
             settings,
             clusterService,
@@ -1055,7 +1056,7 @@ public class Security extends Plugin
             projectResolver,
             dlsBitsetCache.get(),
             restrictedIndices,
-            buildRoleBuildingExecutor(threadPool, settings),
+            authorizationExecutor,
             new DeprecationRoleDescriptorConsumer(clusterService, projectResolver, threadPool)
         );
         systemIndices.getMainIndexManager().addStateListener(allRolesStore::onSecurityIndexStateChange);
@@ -1164,6 +1165,7 @@ public class Security extends Plugin
             auditTrailService,
             failureHandler,
             threadPool,
+            authorizationExecutor,
             anonymousUser,
             getAuthorizationEngine(),
             requestInterceptors,

@@ -49,6 +49,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.eql.EqlAsyncActionNames;
 import org.elasticsearch.xpack.core.esql.EsqlAsyncActionNames;
@@ -608,6 +609,8 @@ public class RBACEngine implements AuthorizationEngine {
         Collection<ApplicationPrivilegeDescriptor> applicationPrivileges,
         ActionListener<PrivilegesCheckResult> originalListener
     ) {
+        assert Transports.assertNotTransportThread("check-privileges is sometimes expensive and is not latency-sensitive");
+
         if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
             originalListener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())

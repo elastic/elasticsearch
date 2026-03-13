@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -313,7 +314,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     @Override
     public SourceOperator get(DriverContext driverContext) {
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferSize);
+        long maxBufferBytes = (long) maxBufferSize * Operator.TARGET_PAGE_SIZE;
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
         driverContext.addAsyncAction();
 
         if (sliceQueue != null) {
@@ -664,8 +666,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             + path
             + ", batchSize="
             + batchSize
-            + ", maxBufferSize="
-            + maxBufferSize
+            + ", maxBufferBytes="
+            + ((long) maxBufferSize * Operator.TARGET_PAGE_SIZE)
             + "]";
     }
 

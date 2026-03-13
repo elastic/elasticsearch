@@ -1,5 +1,6 @@
 ```yaml {applies_to}
-serverless: preview 9.3.0
+serverless: preview
+stack: preview 9.3
 ```
 
 The `SET` directive can be used to specify query settings that modify the behavior of an {{esql}} query.

@@ -7651,7 +7651,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS avg(last_over_time(network.bytes_in, %s minute)) BY tbucket(5 minute)
                 | LIMIT 10
                 """, window);
-            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
+            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(TEST_PARSER.parseQuery(query)));
             Holder<LastOverTime> holder = new Holder<>();
             plan.forEachExpressionDown(LastOverTime.class, holder::set);
             assertNotNull(holder.get());
@@ -7691,7 +7691,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS avg(last_over_time(network.bytes_in, 7 minute)) BY tbucket(5 minute)
                 | LIMIT 10
                 """;
-            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
+            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(TEST_PARSER.parseQuery(query)));
             Holder<TimeSeriesAggregate> tsHolder = new Holder<>();
             plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
             assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
@@ -7710,7 +7710,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS avg(last_over_time(network.bytes_in, 12 minute)) BY tbucket(8 minute)
                 | LIMIT 10
                 """;
-            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
+            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(TEST_PARSER.parseQuery(query)));
             Holder<TimeSeriesAggregate> tsHolder = new Holder<>();
             plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
             assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
@@ -7725,7 +7725,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS avg(last_over_time(network.bytes_in, 10 minute)) BY tbucket(5 minute)
                 | LIMIT 10
                 """;
-            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
+            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(TEST_PARSER.parseQuery(query)));
             Holder<TimeSeriesAggregate> tsHolder = new Holder<>();
             plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
             assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());

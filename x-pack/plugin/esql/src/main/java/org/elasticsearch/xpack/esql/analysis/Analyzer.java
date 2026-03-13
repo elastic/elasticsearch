@@ -347,6 +347,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(metadata.stream().map(NamedExpression::toAttribute).toList());
+            if (context.unmappedResolution() == UnmappedResolution.LOAD && plan.indexMode() != IndexMode.LOOKUP) {
+                for (int i = 0; i < attributes.size(); i++) {
+                    if (attributes.get(i) instanceof FieldAttribute fa
+                        && fa.dataType() == KEYWORD
+                        && esIndex.isPartiallyUnmappedField(fa.name())) {
+                        attributes.set(i, ResolveRefs.insistKeyword(fa));
+                    }
+                }
+            }
             return new EsRelation(
                 plan.source(),
                 esIndex.name(),

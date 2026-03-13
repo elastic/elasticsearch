@@ -938,33 +938,32 @@ FROM partial_mapping_sample_data
 
 // https://github.com/elastic/elasticsearch/issues/141994
 // A partially-mapped keyword field (message, mapped in sample_data but not in no_mapping_sample_data) should be loaded
-// from _source even when not explicitly referenced in a downstream expression (no KEEP, no SORT on message, etc.).
+// from _source even when not explicitly referenced in a downstream expression like KEEP.
 fieldIsPartiallyUnmappedMultiIndexWithoutKeep
+required_capability: index_metadata_field
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
+| DROP @timestamp, client_ip, event_duration
+| SORT _index, message DESC
 ;
-ignoreOrder:true
 
-// no_mapping_sample_data also has values for @timestamp, client_ip, and event_duration,
-// but we cannot load them because they're not partially mapped as KEYWORD, but as other types.
-// TODO: This is inconsistent, how do we resolve this?
-@timestamp:date          | client_ip:ip   | event_duration:long | message:keyword        | _index:keyword
-2023-10-23T13:55:01.543Z | 172.21.3.15    | 1756467             | Connected to 10.1.0.1  | sample_data
-2023-10-23T13:53:55.832Z | 172.21.3.15    | 5033755             | Connection error       | sample_data
-2023-10-23T13:52:55.015Z | 172.21.3.15    | 8268153             | Connection error       | sample_data
-2023-10-23T13:51:54.732Z | 172.21.3.15    | 725448              | Connection error       | sample_data
-2023-10-23T13:33:34.937Z | 172.21.0.5     | 1232382             | Disconnected           | sample_data
-2023-10-23T12:27:28.948Z | 172.21.2.113   | 2764889             | Connected to 10.1.0.2  | sample_data
-2023-10-23T12:15:03.360Z | 172.21.2.162   | 3450233             | Connected to 10.1.0.3  | sample_data
-null                     | null           | null                | Connected to 10.1.0.1! | no_mapping_sample_data
-null                     | null           | null                | Connection error?      | no_mapping_sample_data
-null                     | null           | null                | Connection error?      | no_mapping_sample_data
-null                     | null           | null                | Connection error?      | no_mapping_sample_data
-null                     | null           | null                | 42                     | no_mapping_sample_data
-null                     | null           | null                | Connected to 10.1.0.2! | no_mapping_sample_data
-null                     | null           | null                | Connected to 10.1.0.3! | no_mapping_sample_data
+message:keyword        | _index:keyword
+Connection error?      | no_mapping_sample_data
+Connection error?      | no_mapping_sample_data
+Connection error?      | no_mapping_sample_data
+Connected to 10.1.0.3! | no_mapping_sample_data
+Connected to 10.1.0.2! | no_mapping_sample_data
+Connected to 10.1.0.1! | no_mapping_sample_data
+42                     | no_mapping_sample_data
+Disconnected           | sample_data
+Connection error       | sample_data
+Connection error       | sample_data
+Connection error       | sample_data
+Connected to 10.1.0.3  | sample_data
+Connected to 10.1.0.2  | sample_data
+Connected to 10.1.0.1  | sample_data
 ;
 
 // https://github.com/elastic/elasticsearch/issues/143991

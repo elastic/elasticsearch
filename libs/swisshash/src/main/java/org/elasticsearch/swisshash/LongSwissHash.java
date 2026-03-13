@@ -541,6 +541,7 @@ public final class LongSwissHash extends SwissHash implements LongHashTable {
 
         private void grow() {
             growTracking();
+            bigCore = null;
             try {
                 var newBigCore = new BigCore();
                 rehash(newBigCore);

@@ -24,10 +24,12 @@ import org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageStats;
 import org.elasticsearch.action.admin.indices.diskusage.TransportAnalyzeIndexDiskUsageAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -44,6 +46,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdStoredFieldsReader;
@@ -77,6 +81,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -137,7 +142,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testInvalidIndexMode() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final var indexName = randomIdentifier();
         var randomNonTsdbIndexMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.values()));
 
@@ -163,7 +167,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testInvalidCodec() {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final var indexName = randomIdentifier();
         internalCluster().startDataOnlyNode();
         var randomNonDefaultCodec = randomFrom(
@@ -197,7 +200,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testSyntheticId() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final boolean useNestedDocs = rarely();
         final var dataStreamName = randomIdentifier();
         putDataStreamTemplate(dataStreamName, randomIntBetween(1, 5), 0, useNestedDocs);
@@ -443,7 +445,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testGetFromTranslogBySyntheticId() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final boolean useNestedDocs = rarely();
         final var dataStreamName = randomIdentifier();
         putDataStreamTemplate(dataStreamName, 1, 0, useNestedDocs);
@@ -570,7 +571,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testRecoveredOperations() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final boolean useNestedDocs = rarely();
 
         // ensure a couple of nodes to have some operations coordinated
@@ -815,7 +815,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testRecoverOperationsFromLocalTranslog() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final boolean useNestedDocs = rarely();
 
         final var dataStreamName = randomIdentifier();
@@ -1123,7 +1122,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
      * Assert that we can still search by synthetic _id after restoring index from snapshot
      */
     public void testCreateSnapshot() throws IOException {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final boolean useNestedDocs = rarely();
 
         // create index
@@ -1243,7 +1241,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testMerge() throws Exception {
-        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
 
         final var dataStreamName = randomIdentifier();
         putDataStreamTemplate(dataStreamName, 1, 0, rarely());
@@ -1289,6 +1286,69 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat("index [" + index + "] has " + segmentsCount + " segments", segmentsCount, equalTo(1L));
         }
 
+        assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
+    }
+
+    public void testDefaultSetting() throws Exception {
+
+        String indexName = randomIndexName();
+
+        // Don't set IndexSettings.SYNTHETIC_ID to test default behavior.
+        // Use default codec so the SYNTHETIC_ID default is true
+        // (codec will be randomised by ESIntegTestCase.randomIndexTemplate if not explicitly set)
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.DEFAULT_CODEC);
+        final var mapping = """
+            {
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "hostname": {
+                        "type": "keyword",
+                        "time_series_dimension": true
+                    },
+                    "metric": {
+                        "properties": {
+                            "field": {
+                                "type": "keyword"
+                            },
+                            "value": {
+                                "type": "integer",
+                                "time_series_metric": "counter"
+                            }
+                        }
+                    }
+                }
+            }
+            """;
+        assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(settingsBuilder).setMapping(mapping).get());
+
+        var timestamp = Instant.now();
+        createDocuments(
+            indexName,
+            document(timestamp, "vm-dev01", "cpu-load", 0),
+            document(timestamp.plus(1, ChronoUnit.SECONDS), "vm-dev02", "cpu-load", 1)
+        );
+        ensureGreen(indexName);
+        flushAndRefresh(indexName);
+
+        GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName).get();
+        String versionSetting = getSettingsResponse.getSetting(indexName, IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey());
+        IndexVersion version = IndexVersion.fromId(Integer.parseInt(versionSetting));
+        assertTrue(version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT));
+        String syntheticIdSetting = getSettingsResponse.getSetting(indexName, IndexSettings.SYNTHETIC_ID.getKey());
+        assertThat(syntheticIdSetting, Matchers.nullValue());
+
+        var diskUsage = diskUsage(indexName);
+        var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
+        assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
+        assertThat("_id field should have bloom filter usage", diskUsageIdField.getBloomFilterBytes(), greaterThan(0L));
+
+        var indices = new HashSet<String>();
+        indices.add(indexName);
         assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
     }
 

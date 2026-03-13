@@ -681,22 +681,43 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final boolean TSDB_SYNTHETIC_ID_FEATURE_FLAG = new FeatureFlag("tsdb_synthetic_id").isEnabled();
-    public static final Setting<Boolean> SYNTHETIC_ID = Setting.boolSetting("index.mapping.synthetic_id", false, new Setting.Validator<>() {
-        @Override
-        public void validate(Boolean enabled) {
-            if (enabled) {
-                if (TSDB_SYNTHETIC_ID_FEATURE_FLAG == false) {
-                    throw new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "The setting [%s] is only permitted when the feature flag is enabled.",
-                            SYNTHETIC_ID.getKey()
-                        )
-                    );
-                }
+    /**
+    * The {@link IndexMode "mode"} of the index.
+    */
+    public static final Setting<IndexMode> MODE = Setting.enumSetting(
+        IndexMode.class,
+        "index.mode",
+        IndexMode.STANDARD,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(IndexMode value) {}
+
+            @Override
+            public void validate(IndexMode value, Map<Setting<?>, Object> settings) {
+                value.validateWithOtherSettings(settings);
             }
-        }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return IndexMode.VALIDATE_WITH_SETTINGS.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
+    public static final Setting<Boolean> SYNTHETIC_ID = Setting.boolSetting("index.mapping.synthetic_id", settings -> {
+        IndexVersion indexVersion = SETTING_INDEX_VERSION_CREATED.get(settings);
+        IndexMode indexMode = MODE.get(settings);
+        String codec = INDEX_CODEC_SETTING.get(settings);
+        boolean onByDefault = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT);
+        return IndexMode.TIME_SERIES.equals(indexMode) && CodecService.DEFAULT_CODEC.equalsIgnoreCase(codec) && onByDefault
+            ? Boolean.TRUE.toString()
+            : Boolean.FALSE.toString();
+    }, new Setting.Validator<>() {
+        @Override
+        public void validate(Boolean enabled) {}
 
         @Override
         public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
@@ -717,7 +738,7 @@ public final class IndexSettings {
                 }
 
                 var codecName = (String) settings.get(INDEX_CODEC_SETTING);
-                if (codecName.equals(CodecService.DEFAULT_CODEC) == false) {
+                if (codecName.equalsIgnoreCase(CodecService.DEFAULT_CODEC) == false) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,
@@ -756,32 +777,6 @@ public final class IndexSettings {
             return list.iterator();
         }
     }, Property.IndexScope, Property.Final);
-
-    /**
-     * The {@link IndexMode "mode"} of the index.
-     */
-    public static final Setting<IndexMode> MODE = Setting.enumSetting(
-        IndexMode.class,
-        "index.mode",
-        IndexMode.STANDARD,
-        new Setting.Validator<>() {
-            @Override
-            public void validate(IndexMode value) {}
-
-            @Override
-            public void validate(IndexMode value, Map<Setting<?>, Object> settings) {
-                value.validateWithOtherSettings(settings);
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                return IndexMode.VALIDATE_WITH_SETTINGS.iterator();
-            }
-        },
-        Property.IndexScope,
-        Property.Final,
-        Property.ServerlessPublic
-    );
 
     public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting("index.mapping.use_doc_values_skipper", s -> {
         IndexVersion iv = SETTING_INDEX_VERSION_CREATED.get(s);
@@ -1370,7 +1365,7 @@ public final class IndexSettings {
             && scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
-        useTimeSeriesSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(SYNTHETIC_ID);
+        useTimeSeriesSyntheticId = scopedSettings.get(SYNTHETIC_ID);
         if (indexMetadata.useTimeSeriesSyntheticId() != useTimeSeriesSyntheticId) {
             throw new IllegalArgumentException(
                 String.format(

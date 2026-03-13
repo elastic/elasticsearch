@@ -239,6 +239,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.TIME_SERIES_START_TIME,
                 IndexSettings.TIME_SERIES_END_TIME,
                 IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING,
+                IndexSettings.SYNTHETIC_ID,
 
                 // Legacy index settings we must keep around for BWC from 7.x
                 EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
@@ -251,9 +252,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             )
         );
 
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
-            settings.add(IndexSettings.SYNTHETIC_ID);
-        }
         if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG) {
             settings.add(IndexSettings.DISABLE_SEQUENCE_NUMBERS);
         }

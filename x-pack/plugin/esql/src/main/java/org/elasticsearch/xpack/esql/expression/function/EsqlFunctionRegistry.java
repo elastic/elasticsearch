@@ -321,7 +321,6 @@ public class EsqlFunctionRegistry {
 
     @SuppressWarnings("this-escape")
     public EsqlFunctionRegistry() {
-        // TODO build this one time in plugin construction and pass it in
         register(functions());
         buildDataTypesForStringLiteralConversion(functions());
         nameSurrogates();
@@ -1473,6 +1472,26 @@ public class EsqlFunctionRegistry {
                 children.get(0),
                 children.size() == 2 ? children.get(1) : null,
                 UnresolvedTimestamp.withSource(source)
+            );
+        };
+        return def(function, builder, names);
+    }
+
+    protected static <T extends Function> FunctionDefinition defTS(
+        Class<T> function,
+        QuaternaryConfigurationAwareBuilder<T> ctorRef,
+        String... names
+    ) {
+        checkIsTimestampAware(function);
+        FunctionBuilder builder = (source, children, cfg) -> {
+            checkIsOptionalTriFunction(function, children.size());
+            return ctorRef.build(
+                source,
+                children.get(0),
+                children.size() > 1 ? children.get(1) : null,
+                children.size() > 2 ? children.get(2) : null,
+                UnresolvedTimestamp.withSource(source),
+                cfg
             );
         };
         return def(function, builder, names);

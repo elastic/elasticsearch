@@ -37,16 +37,10 @@ public final class DeltaDoubleGroupingAggregatorFunction implements GroupingAggr
 
   private final DriverContext driverContext;
 
-  public DeltaDoubleGroupingAggregatorFunction(List<Integer> channels,
-      DeltaDoubleAggregator.DoubleDeltaGroupingState state, DriverContext driverContext) {
+  DeltaDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = DeltaDoubleAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static DeltaDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new DeltaDoubleGroupingAggregatorFunction(channels, DeltaDoubleAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

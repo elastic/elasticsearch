@@ -103,7 +103,8 @@ public abstract class AbstractOTLPRestAction extends BaseRestHandler {
                     logger.debug("OTLP request failed during content aggregation", e);
                     channel.sendResponse(new RestResponse(ExceptionsHelper.status(e), CONTENT_TYPE_PROTOBUF, BytesArray.EMPTY));
                 }
-            }
+            },
+            IndexingPressureAwareContentAggregator.BodyPostProcessor.NOOP
         );
     }
 

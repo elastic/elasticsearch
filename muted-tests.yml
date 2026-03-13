@@ -438,6 +438,9 @@ tests:
 - class: org.elasticsearch.test.apmintegration.MetricsApmIT
   method: testJvmMetrics {withOTel=true}
   issue: https://github.com/elastic/elasticsearch/issues/144166
+- class: org.elasticsearch.test.apmintegration.MetricsApmIT
+  method: testJvmMetrics {withOTel=false}
+  issue: https://github.com/elastic/elasticsearch/issues/144167
 
 # Examples:
 #

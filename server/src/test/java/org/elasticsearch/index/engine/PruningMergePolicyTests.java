@@ -91,7 +91,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
+public class PruningMergePolicyTests extends ESTestCase {
 
     public void testPruneAll() throws IOException {
         for (boolean pruneIdField : List.of(true, false)) {

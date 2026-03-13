@@ -38,6 +38,7 @@ import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -45,7 +46,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyList;
 
@@ -565,6 +571,141 @@ public class IndicesRequestCacheTests extends ESTestCase {
         );
         assertEquals(key1, key2);
         assertEquals(key1.hashCode(), key2.hashCode());
+    }
+
+    public void testComputingThreadDoesNotRegisterForCancellation() throws Exception {
+        ShardRequestCache requestCacheStats = new ShardRequestCache();
+        IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+
+        writer.addDocument(newDoc(0, "foo"));
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+        MappingLookup.CacheKey mappingKey = MappingLookup.EMPTY.cacheKey();
+        TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
+        BytesReference termBytes = XContentHelper.toXContent(termQuery, XContentType.JSON, false);
+        AtomicBoolean indexShard = new AtomicBoolean(true);
+
+        TestEntity entity = new TestEntity(requestCacheStats, indexShard);
+        AtomicBoolean loaderExecuted = new AtomicBoolean(false);
+        AtomicReference<Runnable> capturedCallback = new AtomicReference<>();
+        CheckedSupplier<BytesReference, IOException> loader = () -> {
+            loaderExecuted.set(true);
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.writeString("computed_value");
+                return out.bytes();
+            }
+        };
+
+        BytesReference value = cache.getOrCompute(entity, loader, mappingKey, reader, termBytes, capturedCallback::set);
+
+        assertEquals("computed_value", value.streamInput().readString());
+        assertTrue("Loader should have been executed", loaderExecuted.get());
+        assertEquals(1, cache.count());
+        assertNull("Callback should NOT be registered for computing thread", capturedCallback.get());
+
+        IOUtils.close(reader, writer, dir, cache);
+    }
+
+    public void testMultipleWaitingThreadsCanBeCancelledIndependently() throws Exception {
+        ShardRequestCache requestCacheStats = new ShardRequestCache();
+        IndicesRequestCache cache = new IndicesRequestCache(Settings.EMPTY);
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+
+        writer.addDocument(newDoc(0, "foo"));
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
+        MappingLookup.CacheKey mappingKey = MappingLookup.EMPTY.cacheKey();
+        TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
+        BytesReference termBytes = XContentHelper.toXContent(termQuery, XContentType.JSON, false);
+        AtomicBoolean indexShard = new AtomicBoolean(true);
+
+        ExecutorService executor = Executors.newFixedThreadPool(3);
+        try {
+            // Computing thread
+            CountDownLatch loaderStarted = new CountDownLatch(1);
+            CountDownLatch allowLoaderToComplete = new CountDownLatch(1);
+            CheckedSupplier<BytesReference, IOException> slowLoader = () -> {
+                loaderStarted.countDown();
+                try {
+                    allowLoaderToComplete.await(30, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                try (BytesStreamOutput out = new BytesStreamOutput()) {
+                    out.writeString("result");
+                    return out.bytes();
+                }
+            };
+
+            executor.submit(() -> {
+                try {
+                    TestEntity entity = new TestEntity(requestCacheStats, indexShard);
+                    cache.getOrCompute(entity, slowLoader, mappingKey, reader, termBytes, callback -> {});
+                } catch (Exception e) {
+                    // ignore
+                }
+            });
+            assertTrue("Thread should have started", loaderStarted.await(10, TimeUnit.SECONDS));
+
+            // Waiting thread - cancelled
+            AtomicBoolean threadCancelled = new AtomicBoolean(false);
+            AtomicReference<Runnable> cancelCallback = new AtomicReference<>();
+            CountDownLatch waiter1Ready = new CountDownLatch(1);
+            executor.submit(() -> {
+                try {
+                    TestEntity entity = new TestEntity(requestCacheStats, indexShard);
+                    cache.getOrCompute(entity, () -> {
+                        fail("Should not call loader");
+                        return null;
+                    }, mappingKey, reader, termBytes, callback -> {
+                        cancelCallback.set(callback);
+                        waiter1Ready.countDown();
+                    });
+                } catch (TaskCancelledException e) {
+                    threadCancelled.set(true);
+                } catch (Exception e) {
+                    // ignore
+                }
+            });
+
+            // Waiting thread - completed
+            AtomicBoolean threadCompleted = new AtomicBoolean(false);
+            CountDownLatch waiter2Ready = new CountDownLatch(1);
+            executor.submit(() -> {
+                try {
+                    TestEntity entity = new TestEntity(requestCacheStats, indexShard);
+                    BytesReference value = cache.getOrCompute(entity, () -> {
+                        fail("Should not call loader");
+                        return null;
+                    }, mappingKey, reader, termBytes, callback -> { waiter2Ready.countDown(); });
+                    if (value != null) {
+                        threadCompleted.set(true);
+                    }
+                } catch (Exception e) {
+                    // ignore
+                }
+            });
+
+            assertTrue("Thread should have started", waiter1Ready.await(10, TimeUnit.SECONDS));
+            assertTrue("Thread should have started", waiter2Ready.await(10, TimeUnit.SECONDS));
+
+            Runnable callback = cancelCallback.get();
+            assertNotNull(callback);
+            callback.run();
+
+            allowLoaderToComplete.countDown();
+
+            assertBusy(() -> assertTrue("Waiter 1 should have been cancelled", threadCancelled.get()));
+            assertBusy(() -> assertTrue("Waiter 2 should have completed successfully", threadCompleted.get()));
+        } finally {
+            executor.shutdown();
+            boolean done = executor.awaitTermination(10, TimeUnit.SECONDS);
+            if (done == false) {
+                executor.shutdownNow();
+            }
+            IOUtils.close(reader, writer, dir, cache);
+        }
     }
 
     private static class TestBytesReference extends AbstractBytesReference {

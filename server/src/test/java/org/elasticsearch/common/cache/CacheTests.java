@@ -10,6 +10,7 @@
 package org.elasticsearch.common.cache;
 
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -32,10 +33,12 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
@@ -749,7 +752,7 @@ public class CacheTests extends ESTestCase {
                     } catch (ExecutionException e) {
                         assertNotNull(e.getCause());
                         assertThat(e.getCause(), instanceOf(Exception.class));
-                        assertEquals(e.getCause().getMessage(), "testCachePollution");
+                        assertEquals("testCachePollution", e.getCause().getMessage());
                     }
                 } else if (second) {
                     cache.invalidate(key);
@@ -818,6 +821,208 @@ public class CacheTests extends ESTestCase {
         for (int i = 0; i < expectedRemovals.size(); i++) {
             assertEquals(expectedRemovals.get(i), removalNotifications.get(i).getValue());
             assertEquals(RemovalNotification.RemovalReason.INVALIDATED, removalNotifications.get(i).getRemovalReason());
+        }
+    }
+
+    public void testComputeIfAbsentWithoutCancellationRegistrar() throws ExecutionException {
+        final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
+
+        String result = cache.computeIfAbsent(1, k -> "value-" + k, null);
+        assertEquals("value-1", result);
+        assertEquals("value-1", cache.get(1));
+    }
+
+    public void testComputeIfAbsentCancellationOnAlreadyCompletedFuture() throws Exception {
+        final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
+        cache.put(1, "existing-value");
+
+        AtomicBoolean callbackCalled = new AtomicBoolean(false);
+        String result = cache.computeIfAbsent(1, k -> "new-value", callback -> {
+            callbackCalled.set(true);
+            // Even if we call the callback, it shouldn't matter since value exists
+            callback.run();
+        });
+
+        assertEquals("existing-value", result);
+        assertFalse("Cancellation callback should not be registered on already-completed future", callbackCalled.get());
+    }
+
+    public void testComputeIfAbsentWithCancellationDuringInitialLookupWait() throws Exception {
+        final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
+
+        CountDownLatch computeStarted = new CountDownLatch(1);
+        CountDownLatch cancelTriggered = new CountDownLatch(1);
+        CountDownLatch computeComplete = new CountDownLatch(1);
+
+        // Thread 1: Start computing a value but block
+        AtomicReference<Exception> threadException = new AtomicReference<>();
+        Thread computingThread = new Thread(() -> {
+            try {
+                cache.computeIfAbsent(1, k -> {
+                    computeStarted.countDown();
+                    safeAwait(cancelTriggered);
+                    return "computed-value";
+                });
+            } catch (ExecutionException e) {
+                threadException.set(e);
+            } finally {
+                computeComplete.countDown();
+            }
+        });
+        computingThread.start();
+        safeAwait(computeStarted);
+
+        // Thread 2: Get the same key with cancellation
+        AtomicBoolean wasCancelled = new AtomicBoolean(false);
+        AtomicBoolean waitingLoaderInvoked = new AtomicBoolean(false);
+        Thread waitingThread = new Thread(() -> {
+            try {
+                AtomicBoolean cancelled = new AtomicBoolean(false);
+                cache.computeIfAbsent(1, k -> {
+                    waitingLoaderInvoked.set(true);
+                    return "should-not-be-called";
+                }, cancellationCallback -> {
+                    new Thread(() -> {
+                        try {
+                            Thread.sleep(50);
+                            cancelled.set(true);
+                            cancellationCallback.run();
+                        } catch (InterruptedException e) {
+                            // ignore
+                        }
+                    }).start();
+                });
+                fail("Expected TaskCancelledException");
+            } catch (TaskCancelledException e) {
+                assertThat(e.getMessage(), containsString("future="));
+                wasCancelled.set(true);
+            } catch (ExecutionException e) {
+                threadException.set(e);
+            }
+        });
+        waitingThread.start();
+        waitingThread.join(5000);
+
+        assertFalse("Waiting thread should have completed", waitingThread.isAlive());
+        assertTrue("Waiting thread should have been cancelled", wasCancelled.get());
+        assertFalse("Waiting thread must not invoke loader when waiting on existing in-flight computation", waitingLoaderInvoked.get());
+
+        cancelTriggered.countDown();
+        safeAwait(computeComplete);
+        computingThread.join(5000);
+
+        assertEquals("computed-value", cache.get(1));
+        assertNull("No exception should have been thrown by computing thread", threadException.get());
+    }
+
+    public void testComputeIfAbsentPropagatesLoaderExceptionToWaitingThreadWithCancellationRegistrar() throws Exception {
+        final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
+
+        CountDownLatch computeStarted = new CountDownLatch(1);
+        CountDownLatch allowFailure = new CountDownLatch(1);
+        CountDownLatch cancellationRegistered = new CountDownLatch(1);
+
+        AtomicReference<Throwable> computingThreadResult = new AtomicReference<>();
+        Thread computingThread = new Thread(() -> {
+            try {
+                cache.computeIfAbsent(1, k -> {
+                    computeStarted.countDown();
+                    safeAwait(allowFailure);
+                    throw new IllegalStateException("failed to load");
+                });
+                computingThreadResult.set(new AssertionError("expected ExecutionException"));
+            } catch (ExecutionException e) {
+                computingThreadResult.set(e);
+            }
+        });
+        computingThread.start();
+        safeAwait(computeStarted);
+
+        AtomicReference<Throwable> waitingThreadResult = new AtomicReference<>();
+        Thread waitingThread = new Thread(() -> {
+            try {
+                cache.computeIfAbsent(
+                    1,
+                    k -> { throw new IllegalStateException("failed to load"); },
+                    cancellationCallback -> cancellationRegistered.countDown()
+                );
+                waitingThreadResult.set(new AssertionError("expected ExecutionException"));
+            } catch (ExecutionException | TaskCancelledException e) {
+                waitingThreadResult.set(e);
+            }
+        });
+        waitingThread.start();
+
+        safeAwait(cancellationRegistered);
+        allowFailure.countDown();
+
+        computingThread.join(5000);
+        waitingThread.join(5000);
+
+        assertFalse("Computing thread should have completed", computingThread.isAlive());
+        assertFalse("Waiting thread should have completed", waitingThread.isAlive());
+        assertThat(computingThreadResult.get(), instanceOf(ExecutionException.class));
+        assertThat(computingThreadResult.get().getCause(), instanceOf(IllegalStateException.class));
+        assertEquals("failed to load", computingThreadResult.get().getCause().getMessage());
+
+        assertThat(waitingThreadResult.get(), instanceOf(ExecutionException.class));
+        assertThat(waitingThreadResult.get().getCause(), instanceOf(IllegalStateException.class));
+        assertEquals("failed to load", waitingThreadResult.get().getCause().getMessage());
+    }
+
+    public void testConcurrentComputeIfAbsentWithCancellation() throws InterruptedException {
+        final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
+        int numberOfThreads = randomIntBetween(4, 16);
+        int keysToCompute = randomIntBetween(10, 50);
+
+        CopyOnWriteArrayList<Exception> failures = new CopyOnWriteArrayList<>();
+        AtomicLong cancellations = new AtomicLong();
+        AtomicLong successes = new AtomicLong();
+
+        startInParallel(numberOfThreads, threadIndex -> {
+            Random random = new Random(random().nextLong());
+            for (int j = 0; j < keysToCompute; j++) {
+                int key = random.nextInt(keysToCompute);
+                try {
+                    AtomicBoolean shouldCancel = new AtomicBoolean(random.nextInt(10) == 0); // 10% chance
+                    cache.computeIfAbsent(key, k -> {
+                        if (random.nextBoolean()) {
+                            try {
+                                Thread.sleep(random.nextInt(5));
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                            }
+                        }
+                        return "value-" + k;
+                    }, callback -> {
+                        if (shouldCancel.get()) {
+                            new Thread(() -> {
+                                try {
+                                    Thread.sleep(random.nextInt(10));
+                                    callback.run();
+                                } catch (InterruptedException e) {
+                                    // ignore
+                                }
+                            }).start();
+                        }
+                    });
+                    successes.incrementAndGet();
+                } catch (TaskCancelledException e) {
+                    cancellations.incrementAndGet();
+                } catch (ExecutionException e) {
+                    failures.add(e);
+                }
+            }
+        });
+
+        assertThat("No unexpected failures", failures, is(empty()));
+
+        // Verify cache
+        for (int key = 0; key < keysToCompute; key++) {
+            String value = cache.get(key);
+            if (value != null) {
+                assertEquals("value-" + key, value);
+            }
         }
     }
 }

@@ -101,7 +101,7 @@ public class MvUnion extends MvSetOperationFunction {
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression. Null values are treated as empty sets."
+            description = "Expression that can be null, a single value, or multiple values. Null values are treated as empty sets."
         ) Expression field1,
         @Param(
             name = "field2",
@@ -124,7 +124,7 @@ public class MvUnion extends MvSetOperationFunction {
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression. Null values are treated as empty sets."
+            description = "Expression that can be null, a single value, or multiple values. Null values are treated as empty sets."
         ) Expression field2
     ) {
         super(source, field1, field2);

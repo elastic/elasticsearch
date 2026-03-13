@@ -10,7 +10,7 @@
           "name" : "string",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "delim",
@@ -28,7 +28,7 @@
           "name" : "string",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "delim",
@@ -46,7 +46,7 @@
           "name" : "string",
           "type" : "text",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "delim",
@@ -64,7 +64,7 @@
           "name" : "string",
           "type" : "text",
           "optional" : false,
-          "description" : "Multivalue expression."
+          "description" : "Expression that can be null, a single value, or multiple values."
         },
         {
           "name" : "delim",

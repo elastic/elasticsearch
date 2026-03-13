@@ -3,7 +3,7 @@
 ## Parameters
 
 `field`
-:   Multivalue expression. If `null`, the function returns `null`.
+:   Expression that can be null, a single value, or multiple values. If `null`, the function returns `null`.
 
 `start`
 :   Start position. If `null`, the function returns `null`. The start argument can be negative. An index of -1 is used to specify the last value in the list.

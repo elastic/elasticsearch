@@ -43,7 +43,7 @@ public class MvMedian extends AbstractMultivalueFunction {
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
-        description = "Converts a multivalued field into a single valued field containing the median value.",
+        description = "Converts a multivalued field into a single valued field containing the {wikipedia}/Median[median] value.",
         examples = {
             @Example(file = "math", tag = "mv_median"),
             @Example(
@@ -59,7 +59,7 @@ public class MvMedian extends AbstractMultivalueFunction {
         @Param(
             name = "number",
             type = { "double", "integer", "long", "unsigned_long" },
-            description = "Multivalue expression."
+            description = "Expression that can be null, a single value, or multiple values."
         ) Expression field
     ) {
         super(source, field);

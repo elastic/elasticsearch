@@ -56,8 +56,16 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
     )
     public MvZip(
         Source source,
-        @Param(name = "string1", type = { "keyword", "text" }, description = "Multivalue expression.") Expression mvLeft,
-        @Param(name = "string2", type = { "keyword", "text" }, description = "Multivalue expression.") Expression mvRight,
+        @Param(
+            name = "string1",
+            type = { "keyword", "text" },
+            description = "Expression that can be null, a single value, or multiple values."
+        ) Expression mvLeft,
+        @Param(
+            name = "string2",
+            type = { "keyword", "text" },
+            description = "Expression that can be null, a single value, or multiple values."
+        ) Expression mvRight,
         @Param(
             name = "delim",
             type = { "keyword", "text" },

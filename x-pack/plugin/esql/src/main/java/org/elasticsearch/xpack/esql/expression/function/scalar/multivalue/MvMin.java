@@ -55,7 +55,7 @@ public class MvMin extends AbstractMultivalueFunction implements BlockLoaderExpr
         @Param(
             name = "field",
             type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
-            description = "Multivalue expression."
+            description = "Expression that can be null, a single value, or multiple values."
         ) Expression field
     ) {
         super(source, field);

@@ -120,7 +120,6 @@ public class Verifier {
             checkUnsupportedAttributeRenaming(p, failures);
             checkInsist(p, failures);
             checkLimitBeforeInlineStats(p, failures);
-            checkLimitBy(p, failures);
         });
 
         if (failures.hasFailures() == false) {
@@ -331,12 +330,6 @@ public class Verifier {
                     )
                 );
             }
-        }
-    }
-
-    private static void checkLimitBy(LogicalPlan plan, Failures failures) {
-        if (plan instanceof LimitBy) {
-            failures.add(fail(plan, "LIMIT BY is not yet supported"));
         }
     }
 

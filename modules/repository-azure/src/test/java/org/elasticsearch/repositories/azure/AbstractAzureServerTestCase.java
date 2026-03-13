@@ -218,7 +218,9 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
 
     protected String getEndpointForServer(HttpServer server, String accountName) {
         InetSocketAddress address = server.getAddress();
-        return "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort() + "/" + accountName;
+        // Use "localhost" for loopback addresses to work around Azure SDK's inability to parse bracketed IPv6 addresses
+        String host = address.getAddress().isLoopbackAddress() ? "localhost" : InetAddresses.toUriString(address.getAddress());
+        return "http://" + host + ":" + address.getPort() + "/" + accountName;
     }
 
     public static void readFromInputStream(InputStream inputStream, long bytesToRead) {

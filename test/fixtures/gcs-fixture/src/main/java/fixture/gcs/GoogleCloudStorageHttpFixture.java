@@ -10,6 +10,7 @@ package fixture.gcs;
 
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.common.network.InetAddresses;
 import org.junit.rules.ExternalResource;
 
 import java.net.InetAddress;
@@ -30,7 +31,8 @@ public class GoogleCloudStorageHttpFixture extends ExternalResource {
     }
 
     public String getAddress() {
-        return "http://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort();
+        String host = InetAddresses.toUriString(server.getAddress().getAddress());
+        return "http://" + host + ":" + server.getAddress().getPort();
     }
 
     /**

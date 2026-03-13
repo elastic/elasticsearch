@@ -233,18 +233,30 @@ public class WellKnownText {
         byteBuffer.order(byteBuffer.get() == 0 ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN);
         final int type = byteBuffer.getInt();
         switch (type) {
-            case 1 -> parsePoint(byteBuffer, false, sb);
-            case 1001 -> parsePoint(byteBuffer, true, sb);
-            case 2 -> parseLine(byteBuffer, false, sb);
-            case 1002 -> parseLine(byteBuffer, true, sb);
-            case 3 -> parsePolygon(byteBuffer, false, sb);
-            case 1003 -> parsePolygon(byteBuffer, true, sb);
-            case 4 -> parseMultiPoint(byteBuffer, false, sb);
-            case 1004 -> parseMultiPoint(byteBuffer, true, sb);
-            case 5 -> parseMultiLine(byteBuffer, false, sb);
-            case 1005 -> parseMultiLine(byteBuffer, true, sb);
-            case 6 -> parseMultiPolygon(byteBuffer, false, sb);
-            case 1006 -> parseMultiPolygon(byteBuffer, true, sb);
+            case 1 -> parsePoint(byteBuffer, false, false, sb);
+            case 1001 -> parsePoint(byteBuffer, true, false, sb);
+            case 2001 -> parsePoint(byteBuffer, false, true, sb);
+            case 3001 -> parsePoint(byteBuffer, true, true, sb);
+            case 2 -> parseLine(byteBuffer, false, false, sb);
+            case 1002 -> parseLine(byteBuffer, true, false, sb);
+            case 2002 -> parseLine(byteBuffer, false, true, sb);
+            case 3002 -> parseLine(byteBuffer, true, true, sb);
+            case 3 -> parsePolygon(byteBuffer, false, false, sb);
+            case 1003 -> parsePolygon(byteBuffer, true, false, sb);
+            case 2003 -> parsePolygon(byteBuffer, false, true, sb);
+            case 3003 -> parsePolygon(byteBuffer, true, true, sb);
+            case 4 -> parseMultiPoint(byteBuffer, false, false, sb);
+            case 1004 -> parseMultiPoint(byteBuffer, true, false, sb);
+            case 2004 -> parseMultiPoint(byteBuffer, false, true, sb);
+            case 3004 -> parseMultiPoint(byteBuffer, true, true, sb);
+            case 5 -> parseMultiLine(byteBuffer, false, false, sb);
+            case 1005 -> parseMultiLine(byteBuffer, true, false, sb);
+            case 2005 -> parseMultiLine(byteBuffer, false, true, sb);
+            case 3005 -> parseMultiLine(byteBuffer, true, true, sb);
+            case 6 -> parseMultiPolygon(byteBuffer, false, false, sb);
+            case 1006 -> parseMultiPolygon(byteBuffer, true, false, sb);
+            case 2006 -> parseMultiPolygon(byteBuffer, false, true, sb);
+            case 3006 -> parseMultiPolygon(byteBuffer, true, true, sb);
             case 7, 1007 -> parseGeometryCollection(byteBuffer, sb);
             case 17 -> parseCircle(byteBuffer, false, sb);
             case 1017 -> parseCircle(byteBuffer, true, sb);
@@ -255,21 +267,33 @@ public class WellKnownText {
         ;
     }
 
-    private static void writeCoordinate(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+    private static void writeCoordinate(ByteBuffer byteBuffer, boolean hasZ, boolean hasM, StringBuilder sb) {
         sb.append(byteBuffer.getDouble()).append(SPACE).append(byteBuffer.getDouble());
         if (hasZ) {
             sb.append(SPACE).append(byteBuffer.getDouble());
         }
+        if (hasM) {
+            sb.append(SPACE).append(byteBuffer.getDouble());
+        }
     }
 
-    private static void parsePoint(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
-        sb.append("POINT").append(SPACE);
-        sb.append(LPAREN);
-        writeCoordinate(byteBuffer, hasZ, sb);
+    private static void parsePoint(ByteBuffer byteBuffer, boolean hasZ, boolean hasM, StringBuilder sb) {
+        sb.append("POINT");
+
+        if (hasZ && hasM) {
+            sb.append(" ZM");
+        } else if (hasZ) {
+            sb.append(" Z");
+        } else if (hasM) {
+            sb.append(" M");
+        }
+
+        sb.append(SPACE).append(LPAREN);
+        writeCoordinate(byteBuffer, hasZ, hasM, sb);
         sb.append(RPAREN);
     }
 
-    private static void parseMultiPoint(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+    private static void parseMultiPoint(ByteBuffer byteBuffer, boolean hasZ, boolean hasM,StringBuilder sb) {
         sb.append("MULTIPOINT").append(SPACE);
         final int numPoints = byteBuffer.getInt();
         if (numPoints == 0) {
@@ -280,7 +304,7 @@ public class WellKnownText {
         for (int i = 0; i < numPoints; i++) {
             byteBuffer.order(byteBuffer.get() == 0 ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN);
             byteBuffer.getInt();
-            writeCoordinate(byteBuffer, hasZ, sb);
+            writeCoordinate(byteBuffer, hasZ, hasM, sb);
             if (i != numPoints - 1) {
                 sb.append(COMMA);
                 sb.append(SPACE);
@@ -289,12 +313,12 @@ public class WellKnownText {
         sb.append(RPAREN);
     }
 
-    private static void parseLine(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+    private static void parseLine(ByteBuffer byteBuffer, boolean hasZ, boolean hasM, StringBuilder sb) {
         sb.append("LINESTRING").append(SPACE);
-        parseLineString(byteBuffer, hasZ, sb);
+        parseLineString(byteBuffer, hasZ, hasM, sb);
     }
 
-    private static void parseMultiLine(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+    private static void parseMultiLine(ByteBuffer byteBuffer, boolean hasZ, boolean hasM, StringBuilder sb) {
         sb.append("MULTILINESTRING").append(SPACE);
         final int numLines = byteBuffer.getInt();
         if (numLines == 0) {
@@ -305,7 +329,7 @@ public class WellKnownText {
         for (int i = 0; i < numLines; i++) {
             byteBuffer.order(byteBuffer.get() == 0 ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN);
             byteBuffer.getInt();
-            parseLineString(byteBuffer, hasZ, sb);
+            parseLineString(byteBuffer, hasZ, hasM, sb);
             if (i != numLines - 1) {
                 sb.append(COMMA);
             }
@@ -313,28 +337,28 @@ public class WellKnownText {
         sb.append(RPAREN);
     }
 
-    private static void parsePolygon(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+    private static void parsePolygon(ByteBuffer byteBuffer, boolean hasZ, boolean hasM, StringBuilder sb) {
         sb.append("POLYGON").append(SPACE);
-        parseRings(byteBuffer, hasZ, sb, byteBuffer.getInt());
+        parseRings(byteBuffer, hasZ, hasM, sb, byteBuffer.getInt());
 
     }
 
-    private static void parseRings(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb, int numRings) {
+    private static void parseRings(ByteBuffer byteBuffer, boolean hasZ, boolean hasM, StringBuilder sb, int numRings) {
         if (numRings == 0) {
             sb.append(EMPTY);
             return;
         }
         sb.append(LPAREN);
-        parseLineString(byteBuffer, hasZ, sb);
+        parseLineString(byteBuffer, hasZ, hasM, sb);
         for (int i = 1; i < numRings; i++) {
             sb.append(COMMA);
             sb.append(SPACE);
-            parseLineString(byteBuffer, hasZ, sb);
+            parseLineString(byteBuffer, hasZ, hasM, sb);
         }
         sb.append(RPAREN);
     }
 
-    private static void parseMultiPolygon(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+    private static void parseMultiPolygon(ByteBuffer byteBuffer, boolean hasZ, boolean hasM, StringBuilder sb) {
         sb.append("MULTIPOLYGON").append(SPACE);
         final int numPolygons = byteBuffer.getInt();
         if (numPolygons == 0) {
@@ -345,7 +369,7 @@ public class WellKnownText {
         for (int i = 0; i < numPolygons; i++) {
             byteBuffer.order(byteBuffer.get() == 0 ? ByteOrder.BIG_ENDIAN : ByteOrder.LITTLE_ENDIAN);
             byteBuffer.getInt();
-            parseRings(byteBuffer, hasZ, sb, byteBuffer.getInt());
+            parseRings(byteBuffer, hasZ, hasM, sb, byteBuffer.getInt());
             if (i != numPolygons - 1) {
                 sb.append(COMMA);
             }
@@ -353,7 +377,7 @@ public class WellKnownText {
         sb.append(RPAREN);
     }
 
-    private static void parseLineString(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
+    private static void parseLineString(ByteBuffer byteBuffer, boolean hasZ, boolean hasM, StringBuilder sb) {
         final int length = byteBuffer.getInt();
         if (length == 0) {
             sb.append(EMPTY);
@@ -361,7 +385,7 @@ public class WellKnownText {
         }
         sb.append(LPAREN);
         for (int i = 0; i < length; i++) {
-            writeCoordinate(byteBuffer, hasZ, sb);
+            writeCoordinate(byteBuffer, hasZ, hasM, sb);
             if (i != length - 1) {
                 sb.append(COMMA);
                 sb.append(SPACE);

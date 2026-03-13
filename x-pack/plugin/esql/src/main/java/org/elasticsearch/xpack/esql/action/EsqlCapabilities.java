@@ -2278,6 +2278,12 @@ public class EsqlCapabilities {
         FIX_FULL_TEXT_FUNCTIONS_ON_RENAMED_FIELDS,
 
         /**
+         * Fix for union types when fields have conflicting types between subqueries.
+         * https://github.com/elastic/elasticsearch/issues/142499
+         */
+        UNION_TYPES_CONFLICT_RESOLUTION,
+
+        /**
          * TOP_SNIPPETS checks that the query is foldable
          */
         TOP_SNIPPETS_FOLDABLE_QUERY_CHECK,

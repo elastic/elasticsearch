@@ -186,6 +186,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
@@ -5910,6 +5911,68 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(INTEGER, literal.dataType());
         subqueryIndex = as(subqueryFilter.child(), EsRelation.class);
         assertEquals("test_mixed_types", subqueryIndex.indexPattern());
+    }
+
+    public void testUnionAllWithConflictingTypesFromSubqueries() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        LogicalPlan plan = analyze("""
+            FROM (FROM sample_data), (FROM sample_data | EVAL client_ip = 1) | keep client_ip
+            """);
+
+        // Limit[1000]
+        Limit limit = as(plan, Limit.class);
+
+        // Project[[!client_ip]] — client_ip is UnsupportedAttribute due to type conflict (ip vs integer)
+        Project project = as(limit.child(), Project.class);
+        var projections = project.projections();
+        assertThat(projections, hasSize(1));
+        UnsupportedAttribute ua = as(projections.getFirst(), UnsupportedAttribute.class);
+        assertEquals(UNSUPPORTED, ua.dataType());
+        List<String> originalTypes = ua.originalTypes();
+        assertThat(originalTypes, hasSize(2));
+        assertThat(originalTypes, is(List.of(IP.esType(), INTEGER.esType())));
+        assertEquals("client_ip", ua.name());
+
+        // UnionAll[[@timestamp, !client_ip, event_duration, message]]
+        UnionAll unionAll = as(project.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        // Left leg: Project → Eval[null[KEYWORD] AS client_ip] → Subquery → EsRelation[sample_data]
+        Project leftProject = as(unionAll.children().get(0), Project.class);
+        Eval leftEval = as(leftProject.child(), Eval.class);
+        List<Alias> leftAliases = leftEval.fields();
+        assertThat(leftAliases, hasSize(1));
+        Alias leftAlias = leftAliases.getFirst();
+        assertEquals("client_ip", leftAlias.name());
+        Literal leftNull = as(leftAlias.child(), Literal.class);
+        assertNull(leftNull.value());
+        assertEquals(KEYWORD, leftNull.dataType());
+
+        Subquery leftSubquery = as(leftEval.child(), Subquery.class);
+        EsRelation leftRelation = as(leftSubquery.child(), EsRelation.class);
+
+        // Right leg: Project → Eval[null[KEYWORD] AS client_ip] → Subquery → Eval[1[INTEGER] AS client_ip] → EsRelation[sample_data]
+        Project rightProject = as(unionAll.children().get(1), Project.class);
+        Eval rightEval = as(rightProject.child(), Eval.class);
+        List<Alias> rightAliases = rightEval.fields();
+        assertThat(rightAliases, hasSize(1));
+        Alias rightAlias = rightAliases.getFirst();
+        assertEquals("client_ip", rightAlias.name());
+        Literal rightNull = as(rightAlias.child(), Literal.class);
+        assertNull(rightNull.value());
+        assertEquals(KEYWORD, rightNull.dataType());
+
+        Subquery rightSubquery = as(rightEval.child(), Subquery.class);
+        Eval innerEval = as(rightSubquery.child(), Eval.class);
+        List<Alias> innerAliases = innerEval.fields();
+        assertThat(innerAliases, hasSize(1));
+        Alias innerAlias = innerAliases.getFirst();
+        assertEquals("client_ip", innerAlias.name());
+        Literal one = as(innerAlias.child(), Literal.class);
+        assertEquals(1, one.value());
+        assertEquals(INTEGER, one.dataType());
+        EsRelation rightRelation = as(innerEval.child(), EsRelation.class);
     }
 
     public void testSubqueryWithTimeSeriesIndexInMainQuery() {

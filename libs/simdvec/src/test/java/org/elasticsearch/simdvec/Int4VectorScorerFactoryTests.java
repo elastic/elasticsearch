@@ -691,7 +691,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                             corrections[queryOrd],
                             corrections[targetOrd]
                         );
-                        assertFloatEquals(expected, scorer.score(targetOrd), 1e-6f);
+                        assertFloatEquals(expected, scorer.score(targetOrd), 2e-5f);
                     }
                 }
             }

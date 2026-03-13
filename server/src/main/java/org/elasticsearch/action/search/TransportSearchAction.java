@@ -1236,14 +1236,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         if (ex != null) {
             listener.onFailure(ex);
         } else {
-            ResolvedIndices resolvedIndicesForCps = ResolvedIndices.resolveWithIndexExpressions(
-                originalResolvedIndices.getLocalIndices(),
-                originalResolvedIndices.getConcreteLocalIndicesMetadata(),
-                resolvedExpressions,
-                resolutionIdxOpts
-            );
-
-            HashMap<String, OriginalIndices> participatingLinkedProjects = new HashMap<>(resolvedIndicesForCps.getRemoteClusterIndices());
+            HashMap<String, OriginalIndices> participatingLinkedProjects = new HashMap<>();
+            for (var entry : resolvedExpressions.entrySet()) {
+                boolean hasAnyResolvedIndices = entry.getValue().expressions().stream().anyMatch(expression -> {
+                    var localExpressions = expression.localExpressions();
+                    return localExpressions.localIndexResolutionResult() == ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
+                        && localExpressions.indices().isEmpty() == false;
+                });
+                if (hasAnyResolvedIndices) {
+                    participatingLinkedProjects.put(entry.getKey(), originalResolvedIndices.getRemoteClusterIndices().get(entry.getKey()));
+                }
+            }
 
             /*
              * Because we're considering unresponsive projects as participating and instantiating a `Clusters` object based
@@ -1261,7 +1264,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 new ResolvedIndices(
                     participatingLinkedProjects,
                     includeOriginProjectInMetadata ? originalResolvedIndices.getLocalIndices() : null,
-                    resolvedIndicesForCps.getConcreteLocalIndicesMetadata()
+                    originalResolvedIndices.getConcreteLocalIndicesMetadata()
                 )
             );
         }

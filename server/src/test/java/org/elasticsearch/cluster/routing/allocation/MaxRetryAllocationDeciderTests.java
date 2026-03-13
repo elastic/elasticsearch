@@ -315,7 +315,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     private static ClusterState withRoutingAllocation(ClusterState clusterState, Consumer<MutableRoutingAllocation> block) {
-        MutableRoutingAllocation allocation = TestRoutingAllocationFactory.mutable(clusterState);
+        MutableRoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState).mutable();
         block.accept(allocation);
         return updateClusterState(clusterState, allocation);
     }

@@ -24,7 +24,6 @@ import org.hamcrest.Matchers;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -280,8 +279,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
             .shardWriteLoads(shardWriteLoads)
             .build();
 
-        return TestRoutingAllocationFactory.immutable(new AllocationDeciders(List.of()), clusterState, clusterInfo)
-            .mutableCloneForSimulation();
+        return TestRoutingAllocationFactory.immutable(AllocationDeciders.EMPTY, clusterState, clusterInfo).mutableCloneForSimulation();
     }
 
     private ClusterState createClusterState() {

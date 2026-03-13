@@ -19,6 +19,8 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
+
 public class TestRoutingAllocationFactory {
 
     /**
@@ -67,7 +69,7 @@ public class TestRoutingAllocationFactory {
      */
     public static MutableRoutingAllocation mutable(ClusterState clusterState) {
         return new MutableRoutingAllocation(
-            new AllocationDeciders(List.of()),
+            AllocationDeciders.EMPTY,
             clusterState.mutableRoutingNodes(),
             clusterState,
             ClusterInfo.EMPTY,
@@ -123,32 +125,72 @@ public class TestRoutingAllocationFactory {
     }
 
     /**
-     * Create an immutable routing allocation
-     * <p>
-     * Only for use in tests
+     * Build a {@link RoutingAllocation} for the given cluster state.
      */
-    public static RoutingAllocation immutable(ClusterState clusterState, AllocationDecider... allocationDeciders) {
-        return new ImmutableRoutingAllocation(
-            new AllocationDeciders(Arrays.asList(allocationDeciders)),
-            clusterState,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
-        );
+    public static Builder forClusterState(ClusterState clusterState) {
+        return new Builder(clusterState);
     }
 
-    /**
-     * Create an immutable routing allocation
-     * <p>
-     * Only for use in tests
-     */
-    public static RoutingAllocation immutable(AllocationDeciders allocationDeciders, ClusterState clusterState) {
-        return new ImmutableRoutingAllocation(
-            allocationDeciders,
-            clusterState,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
-        );
+    public static final class Builder {
+        private final ClusterState clusterState;
+        private AllocationDeciders allocationDeciders = AllocationDeciders.EMPTY;
+        private RoutingNodes routingNodes;
+        private ClusterInfo clusterInfo = ClusterInfo.EMPTY;
+        private SnapshotShardSizeInfo shardSizeInfo = SnapshotShardSizeInfo.EMPTY;
+        private long currentNanoTime = System.nanoTime();
+
+        private Builder(ClusterState clusterState) {
+            this.clusterState = clusterState;
+        }
+
+        public Builder allocationDeciders(AllocationDeciders allocationDeciders) {
+            this.allocationDeciders = allocationDeciders;
+            return this;
+        }
+
+        public Builder allocationDeciders(AllocationDecider... allocationDeciders) {
+            this.allocationDeciders = new AllocationDeciders(Arrays.asList(allocationDeciders));
+            return this;
+        }
+
+        public Builder clusterInfo(ClusterInfo clusterInfo) {
+            this.clusterInfo = clusterInfo;
+            return this;
+        }
+
+        public Builder shardSizeInfo(SnapshotShardSizeInfo shardSizeInfo) {
+            this.shardSizeInfo = shardSizeInfo;
+            return this;
+        }
+
+        public Builder routingNodes(RoutingNodes routingNodes) {
+            this.routingNodes = routingNodes;
+            return this;
+        }
+
+        public Builder currentNanoTime(long currentNanoTime) {
+            this.currentNanoTime = currentNanoTime;
+            return this;
+        }
+
+        public RoutingAllocation build() {
+            return randomBoolean() ? mutable() : immutable();
+        }
+
+        public RoutingAllocation immutable() {
+            return new ImmutableRoutingAllocation(allocationDeciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
+        }
+
+        public MutableRoutingAllocation mutable() {
+            return new MutableRoutingAllocation(
+                allocationDeciders,
+                routingNodes,
+                clusterState,
+                clusterInfo,
+                shardSizeInfo,
+                currentNanoTime,
+                false
+            );
+        }
     }
 }

@@ -969,7 +969,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         Decision.Type decisionType,
         String explanationMessage
     ) {
-        final var allocation = TestRoutingAllocationFactory.immutable(state, allocationDeciders);
+        final var allocation = TestRoutingAllocationFactory.forClusterState(state).allocationDeciders(allocationDeciders).build();
         allocation.debugDecision(true);
 
         final var routingNode = RoutingNodesHelper.routingNode(node.getId(), node, shard);

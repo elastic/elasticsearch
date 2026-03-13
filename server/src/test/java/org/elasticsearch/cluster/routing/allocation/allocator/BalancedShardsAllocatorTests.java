@@ -1149,7 +1149,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertThat(allShards, hasSize(numberOfShardsWithNoWriteLoad));
 
         final var allocation = TestRoutingAllocationFactory.immutable(
-            new AllocationDeciders(List.of()),
+            AllocationDeciders.EMPTY,
             clusterState,
             ClusterInfo.builder().shardWriteLoads(shardWriteLoads).build(),
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES.snapshotShardSizes(),
@@ -1505,14 +1505,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     }
 
     private RoutingAllocation createRoutingAllocation(ClusterState clusterState) {
-        return TestRoutingAllocationFactory.mutable(
-            new AllocationDeciders(List.of()),
-            RoutingNodes.mutable(clusterState.globalRoutingTable(), clusterState.nodes()),
-            clusterState,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
-        );
+        return TestRoutingAllocationFactory.mutable(clusterState);
     }
 
     private static ClusterInfo createClusterInfo(Map<String, Long> indexSizes) {

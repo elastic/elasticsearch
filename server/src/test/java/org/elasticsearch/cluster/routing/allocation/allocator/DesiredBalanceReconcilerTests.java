@@ -159,7 +159,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         }
 
         final var routingAllocation = TestRoutingAllocationFactory.mutable(
-            new AllocationDeciders(List.of()),
+            AllocationDeciders.EMPTY,
             routingNodes,
             clusterState,
             ClusterInfo.EMPTY,

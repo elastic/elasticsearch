@@ -184,7 +184,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo snapshotShardSizeInfo
     ) {
-        return TestRoutingAllocationFactory.immutable(new AllocationDeciders(List.of()), state, clusterInfo, snapshotShardSizeInfo, 0);
+        return TestRoutingAllocationFactory.immutable(AllocationDeciders.EMPTY, state, clusterInfo, snapshotShardSizeInfo, 0);
     }
 
     private static IndexMetadata.Builder index(String name) {

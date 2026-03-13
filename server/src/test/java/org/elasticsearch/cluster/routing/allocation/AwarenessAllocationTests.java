@@ -1149,7 +1149,9 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             .findFirst()
             .orElseThrow(AssertionError::new);
 
-        final RoutingAllocation routingAllocation = TestRoutingAllocationFactory.immutable(clusterState, decider);
+        final RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .allocationDeciders(decider)
+            .build();
         routingAllocation.debugDecision(true);
 
         final Decision decision = decider.canAllocate(unassignedShard, emptyNode, routingAllocation);

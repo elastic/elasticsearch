@@ -72,7 +72,7 @@ public class ArchiveAllocationDeciderTests extends ESTestCase {
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataBuilder).build();
 
         final ArchiveAllocationDecider decider = new ArchiveAllocationDecider(() -> validLicense);
-        final RoutingAllocation allocation = TestRoutingAllocationFactory.immutable(clusterState, decider);
+        final RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(decider).build();
         assertThat(decider.canAllocate(shard, allocation).type(), is(expectedType));
     }
 

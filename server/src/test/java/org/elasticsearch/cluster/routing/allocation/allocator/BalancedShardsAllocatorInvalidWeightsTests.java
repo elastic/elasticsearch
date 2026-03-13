@@ -65,13 +65,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             final var originalState = ClusterStateCreationUtils.state(numberOfNodes, new String[] { "one", "two", "three" }, 1);
             final var nodeToPutAllShardsOn = randomFrom(originalState.nodes().getAllNodes());
             final var unbalancedClusterState = moveAllShardsToNode(originalState, nodeToPutAllShardsOn);
-            final var allocation = TestRoutingAllocationFactory.mutable(
-                new AllocationDeciders(List.of()),
-                unbalancedClusterState,
-                ClusterInfo.EMPTY,
-                null,
-                System.nanoTime()
-            );
+            final var allocation = TestRoutingAllocationFactory.mutable(unbalancedClusterState);
             balancingWeightsFactory.returnInvalidWeightsForRandomNodes(unbalancedClusterState);
             assertInvalidWeightsMessageIsLogged(() -> allocator.allocate(allocation));
 
@@ -164,13 +158,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             final ClusterState clusterState = failAllShards(ClusterStateCreationUtils.state(3, new String[] { "one", "two", "three" }, 1));
 
             balancingWeightsFactory.returnInvalidWeightsForRandomNodes(clusterState);
-            final var allocation = TestRoutingAllocationFactory.mutable(
-                new AllocationDeciders(List.of()),
-                clusterState,
-                ClusterInfo.EMPTY,
-                null,
-                System.nanoTime()
-            );
+            final var allocation = TestRoutingAllocationFactory.mutable(clusterState);
             balancingWeightsFactory.returnInvalidWeightsForRandomNodes(clusterState);
             assertInvalidWeightsMessageIsLogged(() -> allocator.allocate(allocation));
             // No shards should be left unassigned
@@ -191,13 +179,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
             final var clusterState = ClusterStateCreationUtils.state(numberOfNodes, new String[] { "one", "two", "three" }, 1);
             balancingWeightsFactory.returnInvalidWeightsForRandomNodes(clusterState);
 
-            final var allocation = TestRoutingAllocationFactory.mutable(
-                new AllocationDeciders(List.of()),
-                clusterState,
-                ClusterInfo.EMPTY,
-                null,
-                System.nanoTime()
-            );
+            final var allocation = TestRoutingAllocationFactory.mutable(clusterState);
 
             assertInvalidWeightsMessageIsLogged(() -> {
                 final var shard = randomFrom(clusterState.routingTable(ProjectId.DEFAULT).allShards().collect(Collectors.toSet()));

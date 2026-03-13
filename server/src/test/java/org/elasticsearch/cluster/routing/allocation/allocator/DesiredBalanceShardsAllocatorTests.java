@@ -65,7 +65,6 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -322,7 +321,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             new ShardRelocationOrder.DefaultOrder()
         );
         var allocationService = new AllocationService(
-            new AllocationDeciders(List.of()),
+            AllocationDeciders.EMPTY,
             createGatewayAllocator(
                 (shardRouting, allocation, unassignedAllocationHandler) -> unassignedAllocationHandler.removeAndIgnore(
                     UnassignedInfo.AllocationStatus.NO_ATTEMPT,
@@ -912,7 +911,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         );
 
         var service = new AllocationService(
-            new AllocationDeciders(List.of()),
+            AllocationDeciders.EMPTY,
             createGatewayAllocator(),
             desiredBalanceShardsAllocator,
             clusterInfoRef::get,
@@ -1271,16 +1270,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         assertThat(desiredBalanceShardsAllocator.getDesiredBalance(), sameInstance(DesiredBalance.NOT_MASTER));
         try {
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            desiredBalanceShardsAllocator.allocate(
-                TestRoutingAllocationFactory.mutable(
-                    new AllocationDeciders(Collections.emptyList()),
-                    clusterService.state(),
-                    null,
-                    null,
-                    randomNonNegativeLong()
-                ),
-                future
-            );
+            desiredBalanceShardsAllocator.allocate(TestRoutingAllocationFactory.mutable(clusterService.state()), future);
             safeGet(future);
             assertThat(desiredBalanceShardsAllocator.getStats().computationSubmitted(), equalTo(1L));
             assertThat(desiredBalanceShardsAllocator.getStats().computationExecuted(), equalTo(1L));
@@ -1301,7 +1291,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         GatewayAllocator gatewayAllocator
     ) {
         return new AllocationService(
-            new AllocationDeciders(List.of()),
+            AllocationDeciders.EMPTY,
             gatewayAllocator,
             desiredBalanceShardsAllocator,
             () -> ClusterInfo.EMPTY,

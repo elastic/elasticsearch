@@ -448,13 +448,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         var clusterState = createInitialClusterState(3);
         var index = clusterState.metadata().getProject().index(TEST_INDEX).getIndex();
 
-        final var routingAllocation = TestRoutingAllocationFactory.mutable(
-            new AllocationDeciders(List.of()),
-            clusterState,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            0L
-        );
+        final var routingAllocation = TestRoutingAllocationFactory.mutable(clusterState);
         for (var iterator = routingAllocation.routingNodes().unassigned().iterator(); iterator.hasNext();) {
             var shardRouting = iterator.next();
             if (shardRouting.shardId().id() == 0 && shardRouting.primary()) {
@@ -2121,13 +2115,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     }
 
     private static RoutingAllocation routingAllocationOf(ClusterState clusterState) {
-        return TestRoutingAllocationFactory.immutable(
-            new AllocationDeciders(List.of()),
-            clusterState,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            0L
-        );
+        return TestRoutingAllocationFactory.immutable(clusterState);
     }
 
     private static RoutingAllocation routingAllocationWithDecidersOf(

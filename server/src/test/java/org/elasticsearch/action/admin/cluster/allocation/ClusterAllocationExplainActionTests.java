@@ -46,7 +46,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.time.Instant;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -62,8 +61,6 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests for the {@link TransportClusterAllocationExplainAction} class.
  */
 public class ClusterAllocationExplainActionTests extends ESTestCase {
-
-    private static final AllocationDeciders NOOP_DECIDERS = new AllocationDeciders(Collections.emptyList());
 
     private class CanAllocateNotPreferredAllocationDecider extends AllocationDecider {
         @Override
@@ -376,7 +373,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
 
         ShardRouting shard = clusterState.globalRoutingTable().routingTable(projectId).index("idx").shard(0).primaryShard();
         RoutingAllocation allocation = TestRoutingAllocationFactory.immutable(
-            new AllocationDeciders(Collections.emptyList()),
+            AllocationDeciders.EMPTY,
             clusterState,
             null,
             null,
@@ -608,6 +605,6 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
     }
 
     private static RoutingAllocation routingAllocation(ClusterState clusterState) {
-        return TestRoutingAllocationFactory.immutable(NOOP_DECIDERS, clusterState, null, null, System.nanoTime());
+        return TestRoutingAllocationFactory.immutable(clusterState);
     }
 }

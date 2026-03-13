@@ -2295,7 +2295,7 @@ public class EsqlCapabilities {
          * Fix for the STATS BY ALL with LIMIT 0.
          * https://github.com/elastic/elasticsearch/issues/144024
          */
-        FIX_LIMIT_ZERO_IN_STATS_BY_ALL
+        FIX_LIMIT_ZERO_IN_STATS_BY_ALL,
 
         /**
          * Support window durations that are larger than but not exact multiples of the time bucket

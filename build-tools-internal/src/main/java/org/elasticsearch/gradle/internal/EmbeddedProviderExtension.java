@@ -57,7 +57,10 @@ public class EmbeddedProviderExtension {
         generateProviderImpl.configure(t -> {
             t.into(generatedResourcesRoot.map(d -> d.dir(implTaskName)));
             t.into("IMPL-JARS/" + implName, spec -> {
-                spec.from(extractedImplConfig);
+                spec.from(extractedImplConfig, fromSpec -> {
+                    // Exclude impl-jar MANIFEST.MF to avoid embedding non-reproducible metadata into the "fat" output jar.
+                    fromSpec.exclude("**/META-INF/MANIFEST.MF");
+                });
                 spec.from(generateProviderManifest);
             });
         });

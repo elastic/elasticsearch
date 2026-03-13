@@ -12,8 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.format.DateTimeFormatter;
 
 /**
- * Configurable options for CSV/TSV parsing. Maps to common options found in
- * DuckDB, ClickHouse, Spark, and Trino.
+ * Configurable options for CSV/TSV parsing.
  *
  * @param delimiter          field separator character (default: comma)
  * @param quoteChar          character used to quote fields (default: double-quote)
@@ -23,8 +22,7 @@ import java.time.format.DateTimeFormatter;
  * @param encoding           character encoding of the input (default: UTF-8)
  * @param datetimeFormatter  custom datetime format pattern, or null for ISO-8601/epoch
  * @param maxFieldSize       maximum size in bytes for a single field value; 0 means no limit
- *                           (default: 10MB). Maps to DuckDB's max_line_size and provides
- *                           OOM protection against malformed files.
+ *                           (default: 10MB). Provides OOM protection against malformed files.
  * @param multiValueSyntax   syntax for multi-value fields: BRACKETS (default, [a,b,c]) or NONE
  */
 public record CsvFormatOptions(

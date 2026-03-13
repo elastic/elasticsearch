@@ -35,16 +35,10 @@ public final class AllLastDoubleByIntAggregatorFunction implements AggregatorFun
 
   private final List<Integer> channels;
 
-  public AllLastDoubleByIntAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      AllIntDoubleState state) {
+  AllLastDoubleByIntAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static AllLastDoubleByIntAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new AllLastDoubleByIntAggregatorFunction(driverContext, channels, AllLastDoubleByIntAggregator.initSingle(driverContext));
+    this.state = AllLastDoubleByIntAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

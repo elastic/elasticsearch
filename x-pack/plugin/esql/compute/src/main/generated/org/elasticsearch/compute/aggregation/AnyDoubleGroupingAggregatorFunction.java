@@ -35,16 +35,10 @@ public final class AnyDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   private final DriverContext driverContext;
 
-  public AnyDoubleGroupingAggregatorFunction(List<Integer> channels,
-      AnyDoubleAggregator.GroupingState state, DriverContext driverContext) {
+  AnyDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = AnyDoubleAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static AnyDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new AnyDoubleGroupingAggregatorFunction(channels, AnyDoubleAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

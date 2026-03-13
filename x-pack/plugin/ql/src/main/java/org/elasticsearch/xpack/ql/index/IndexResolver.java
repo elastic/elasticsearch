@@ -387,7 +387,8 @@ public class IndexResolver {
                     iOpts,
                     projectRouting,
                     resolvedIndexExpressions,
-                    resolvedRemotely
+                    resolvedRemotely,
+                    Map.of()
                 );
                 if (ex != null) {
                     l.onFailure(ex);

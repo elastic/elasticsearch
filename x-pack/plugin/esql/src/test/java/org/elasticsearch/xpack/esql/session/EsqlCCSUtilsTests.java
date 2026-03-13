@@ -599,17 +599,35 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
     public void testCheckForViewErrors() {
         {
-            var viewEx = new RemoteViewNotSupportedException(
-                "ES|QL does not support views in cross-cluster search. Found view [v] on [r1]."
-            );
+            var viewEx = new RemoteViewNotSupportedException(List.of("r1:v"));
             var wrapped = new RemoteTransportException("test failure", viewEx);
             List<FieldCapabilitiesFailure> failures = List.of(new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped));
+            var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
+            expectThrows(
+                RemoteViewNotSupportedException.class,
+                containsString(
+                    "ES|QL queries with remote views are not supported. Matched [r1:v]."
+                        + " Remove them from the query pattern or exclude them with [r1:-v] if matched by a wildcard."
+                ),
+                () -> EsqlCCSUtils.checkForViewErrors(grouped)
+            );
+        }
+        {
+            var viewEx1 = new RemoteViewNotSupportedException(List.of("r1:v1"));
+            var viewEx2 = new RemoteViewNotSupportedException(List.of("r2:v2"));
+            var wrapped1 = new RemoteTransportException("test failure", viewEx1);
+            var wrapped2 = new RemoteTransportException("test failure", viewEx2);
+            List<FieldCapabilitiesFailure> failures = List.of(
+                new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped1),
+                new FieldCapabilitiesFailure(new String[] { "r2:logs-*" }, wrapped2)
+            );
             var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
             RemoteViewNotSupportedException ex = expectThrows(
                 RemoteViewNotSupportedException.class,
                 () -> EsqlCCSUtils.checkForViewErrors(grouped)
             );
-            assertThat(ex.getMessage(), containsString("ES|QL does not support views in cross-cluster search. Found view [v] on [r1]."));
+            assertThat(ex.getMessage(), containsString("ES|QL queries with remote views are not supported."));
+            assertThat(ex.getMetadata("es.esql.view.names"), containsInAnyOrder("r1:v1", "r2:v2"));
         }
         {
             List<FieldCapabilitiesFailure> failures = List.of(

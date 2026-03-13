@@ -201,15 +201,20 @@ public class EsqlCCSUtils {
     /**
      * Check per-cluster failures for view detection errors thrown by remote clusters. Views are never supported in CCS,
      * so any such error must fail the entire query regardless of whether other clusters succeeded.
+     * Collects all view errors across all clusters and merges them into a single exception.
      */
     static void checkForViewErrors(Map<String, List<FieldCapabilitiesFailure>> failures) {
+        RemoteViewNotSupportedException merged = null;
         for (var entry : failures.entrySet()) {
             for (FieldCapabilitiesFailure failure : entry.getValue()) {
                 Throwable cause = ExceptionsHelper.unwrapCause(failure.getException());
                 if (cause instanceof RemoteViewNotSupportedException viewEx) {
-                    throw viewEx;
+                    merged = merged == null ? viewEx : RemoteViewNotSupportedException.merge(merged, viewEx);
                 }
             }
+        }
+        if (merged != null) {
+            throw merged;
         }
     }
 

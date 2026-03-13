@@ -33,9 +33,9 @@ public class CrossClusterViewIT extends AbstractCrossClusterTestCase {
         assertThat(
             cause.getMessage(),
             containsString(
-                "ES|QL does not support views in cross-cluster search. "
-                    + "Found views [logs-mobile, logs-web] on [cluster-a]. "
-                    + "To exclude, use [cluster-a:-logs-mobile,cluster-a:-logs-web] in the index expression."
+                "ES|QL queries with remote views are not supported. Matched [cluster-a:logs-mobile, cluster-a:logs-web]."
+                    + " Remove them from the query pattern or exclude them with"
+                    + " [cluster-a:-logs-mobile,cluster-a:-logs-web] if matched by a wildcard."
             )
         );
     }
@@ -46,9 +46,8 @@ public class CrossClusterViewIT extends AbstractCrossClusterTestCase {
         assertThat(
             cause.getMessage(),
             containsString(
-                "ES|QL does not support views in cross-cluster search. "
-                    + "Found view [logs-web] on [cluster-a]. "
-                    + "To exclude, use [cluster-a:-logs-web] in the index expression."
+                "ES|QL queries with remote views are not supported. Matched [cluster-a:logs-web]."
+                    + " Remove them from the query pattern or exclude them with [cluster-a:-logs-web] if matched by a wildcard."
             )
         );
     }
@@ -71,9 +70,9 @@ public class CrossClusterViewIT extends AbstractCrossClusterTestCase {
         assertThat(
             cause.getMessage(),
             containsString(
-                "ES|QL does not support views in cross-cluster search. "
-                    + "Found views [logs-mobile, logs-web] on [cluster-a]. "
-                    + "To exclude, use [cluster-a:-logs-mobile,cluster-a:-logs-web] in the index expression."
+                "ES|QL queries with remote views are not supported. Matched [cluster-a:logs-mobile, cluster-a:logs-web]."
+                    + " Remove them from the query pattern or exclude them with"
+                    + " [cluster-a:-logs-mobile,cluster-a:-logs-web] if matched by a wildcard."
             )
         );
     }

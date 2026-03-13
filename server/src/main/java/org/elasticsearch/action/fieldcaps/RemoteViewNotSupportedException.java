@@ -14,6 +14,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Thrown when ES|QL detects views during cross-cluster search field resolution.
@@ -21,12 +24,37 @@ import java.io.IOException;
  */
 public class RemoteViewNotSupportedException extends ElasticsearchException {
 
-    public RemoteViewNotSupportedException(String message) {
-        super(message);
+    private static final String VIEW_NAMES_KEY = "es.esql.view.names";
+
+    @SuppressWarnings("this-escape")
+    public RemoteViewNotSupportedException(List<String> views) {
+        super(message(views));
+        addMetadata(VIEW_NAMES_KEY, views);
     }
 
     public RemoteViewNotSupportedException(StreamInput in) throws IOException {
         super(in);
+    }
+
+    /**
+     * Merge two exceptions into one that reports all matched views.
+     */
+    public static RemoteViewNotSupportedException merge(RemoteViewNotSupportedException a, RemoteViewNotSupportedException b) {
+        return new RemoteViewNotSupportedException(
+            Stream.concat(a.getMetadata(VIEW_NAMES_KEY).stream(), b.getMetadata(VIEW_NAMES_KEY).stream()).toList()
+        );
+    }
+
+    private static String message(List<String> views) {
+        String exclusions = views.stream().map(v -> {
+            int colon = v.indexOf(':');
+            return v.substring(0, colon + 1) + "-" + v.substring(colon + 1);
+        }).collect(Collectors.joining(","));
+        return "ES|QL queries with remote views are not supported. Matched "
+            + views
+            + ". Remove them from the query pattern or exclude them with ["
+            + exclusions
+            + "] if matched by a wildcard.";
     }
 
     @Override

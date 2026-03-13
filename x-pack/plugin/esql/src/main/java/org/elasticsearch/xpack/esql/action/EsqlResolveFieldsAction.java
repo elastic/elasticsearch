@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -34,6 +33,7 @@ import org.elasticsearch.xpack.esql.view.ViewResolutionService;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -76,9 +76,13 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<EsqlResolveFieldsResponse> listener) {
         // During CCS, resolveViews is only set on a request from the originating cluster and is therefore only true on a remote cluster
         if (request.indicesOptions().indexAbstractionOptions().resolveViews()) {
-            Set<String> localViews = getViews(request.indices(), request.indicesOptions(), request.getResolvedIndexExpressions());
-            if (localViews.isEmpty() == false) {
-                listener.onFailure(remoteViewDetectedException(request.clusterAlias(), localViews));
+            Set<String> viewsLocalToRemoteCluster = getViews(
+                request.indices(),
+                request.indicesOptions(),
+                request.getResolvedIndexExpressions()
+            );
+            if (viewsLocalToRemoteCluster.isEmpty() == false) {
+                listener.onFailure(remoteViewDetectedException(request.clusterAlias(), viewsLocalToRemoteCluster));
                 return;
             }
         }
@@ -132,17 +136,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
     }
 
     private RemoteViewNotSupportedException remoteViewDetectedException(String clusterAlias, Set<String> detectedViews) {
-        String viewNames = detectedViews.stream().sorted().collect(Collectors.joining(", "));
-        String exclusions = detectedViews.stream().sorted().map(v -> clusterAlias + ":-" + v).collect(Collectors.joining(","));
-        return new RemoteViewNotSupportedException(
-            Strings.format(
-                "ES|QL does not support views in cross-cluster search. Found %s [%s] on [%s]. To exclude, use [%s] in the index "
-                    + "expression.",
-                detectedViews.size() == 1 ? "view" : "views",
-                viewNames,
-                clusterAlias,
-                exclusions
-            )
-        );
+        List<String> qualifiedViews = detectedViews.stream().sorted().map(v -> clusterAlias + ":" + v).toList();
+        return new RemoteViewNotSupportedException(qualifiedViews);
     }
 }

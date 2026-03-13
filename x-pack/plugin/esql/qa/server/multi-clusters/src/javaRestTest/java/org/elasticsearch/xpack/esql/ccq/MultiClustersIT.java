@@ -785,9 +785,9 @@ public class MultiClustersIT extends ESRestTestCase {
             assertThat(
                 (String) error.get("reason"),
                 equalTo(
-                    "ES|QL does not support views in cross-cluster search. "
-                        + "Found view [test-remote-view] on [remote_cluster]. "
-                        + "To exclude, use [remote_cluster:-test-remote-view] in the index expression."
+                    "ES|QL queries with remote views are not supported. Matched [remote_cluster:test-remote-view]."
+                        + " Remove them from the query pattern or exclude them with"
+                        + " [remote_cluster:-test-remote-view] if matched by a wildcard."
                 )
             );
         } finally {

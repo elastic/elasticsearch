@@ -67,6 +67,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -83,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
@@ -230,6 +232,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
         final FragmentExec finalRightPlan = rightPlanWithOptionalPreJoinFilter;
         final Expression finalJoinOnExpression = joinOnExpression;
         final int exchangeBufferSize = QueryPragmas.EXCHANGE_BUFFER_SIZE.getDefault(Settings.EMPTY);
+        final Configuration finalConfiguration = randomBoolean() ? EsqlTestUtils.TEST_CFG : null;
 
         // Create a factory that produces StreamingLookupFromIndexOperator
         return new Operator.OperatorFactory() {
@@ -250,7 +253,8 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
                     finalRightPlan,
                     finalJoinOnExpression,
                     exchangeBufferSize,
-                    true // profile - enables plan tracking for mode verification
+                    true, // profile - enables plan tracking for mode verification
+                    finalConfiguration
                 );
             }
 

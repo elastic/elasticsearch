@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -815,6 +816,41 @@ public class TransformTaskTests extends ESTestCase {
 
         verify(indexer, indexerVerificationMode).maybeTriggerAsyncJob(anyLong());
         verifyNoInteractions(auditor, threadPool);
+    }
+
+    public void testContextProjectIdDefaultsToDefaultWhenNoHeader() {
+        var transformTask = new TransformTask(
+            42,
+            "some_type",
+            "some_action",
+            TaskId.EMPTY_TASK_ID,
+            createTransformTaskParams("transform-1"),
+            null,
+            new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+            MockTransformAuditor.createMockAuditor(),
+            mock(ThreadPool.class),
+            Collections.emptyMap(),
+            mockTransformNode()
+        );
+        assertThat(transformTask.getContext().projectId(), is(equalTo(ProjectId.DEFAULT)));
+    }
+
+    public void testContextProjectIdReadsFromHeader() {
+        var projectId = ProjectId.fromId("myproject123");
+        var transformTask = new TransformTask(
+            42,
+            "some_type",
+            "some_action",
+            TaskId.EMPTY_TASK_ID,
+            createTransformTaskParams("transform-1"),
+            null,
+            new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+            MockTransformAuditor.createMockAuditor(),
+            mock(ThreadPool.class),
+            Collections.singletonMap(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id()),
+            mockTransformNode()
+        );
+        assertThat(transformTask.getContext().projectId(), is(equalTo(projectId)));
     }
 
     private static TransformTaskParams createTransformTaskParams(String transformId) {

@@ -111,14 +111,22 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
                 }
 
                 for (Sample sample : timeSeries.getSamplesList()) {
+                    if (Double.isFinite(sample.getValue()) == false) {
+                        continue;
+                    }
                     IndexRequest indexRequest = buildIndexRequest(timeSeries, sample, metricName, request.dataset, request.namespace);
                     bulkRequestBuilder.add(indexRequest);
                 }
             }
 
             if (bulkRequestBuilder.numberOfActions() == 0) {
-                String message = buildFailureSummary(totalSamples, droppedMissingName, droppedMissingName, Map.of());
-                listener.onFailure(new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST));
+                if (droppedMissingName > 0) {
+                    String message = buildFailureSummary(totalSamples, droppedMissingName, droppedMissingName, Map.of());
+                    listener.onFailure(new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST));
+                } else {
+                    // All samples were non-finite (NaN/Infinity) and silently dropped — not a client error
+                    listener.onResponse(new RemoteWriteResponse());
+                }
                 return;
             }
 

@@ -9,15 +9,18 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.example.data.Group;
+import org.apache.parquet.example.data.simple.NanoTime;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
+import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
@@ -42,9 +45,12 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class ParquetFormatReaderTests extends ESTestCase {
 
@@ -604,6 +610,475 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    // --- DECIMAL tests ---
+
+    public void testReadDecimalInt32Column() throws Exception {
+        // DECIMAL(9, 2) backed by INT32: value 12345 represents 123.45
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.decimalType(2, 9))
+            .named("price")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("price", 12345); // 123.45
+            Group g2 = factory.newGroup();
+            g2.add("price", -9900); // -99.00
+            Group g3 = factory.newGroup();
+            g3.add("price", 0);
+            return List.of(g1, g2, g3);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.DOUBLE, metadata.schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            DoubleBlock block = (DoubleBlock) page.getBlock(0);
+            assertEquals(123.45, block.getDouble(0), 0.001);
+            assertEquals(-99.00, block.getDouble(1), 0.001);
+            assertEquals(0.0, block.getDouble(2), 0.001);
+        }
+    }
+
+    public void testReadDecimalInt64Column() throws Exception {
+        // DECIMAL(18, 4) backed by INT64: value 123456789 represents 12345.6789
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.decimalType(4, 18))
+            .named("amount")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("amount", 123456789L); // 12345.6789
+            Group g2 = factory.newGroup();
+            g2.add("amount", -50000L); // -5.0000
+            return List.of(g1, g2);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.DOUBLE, metadata.schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            DoubleBlock block = (DoubleBlock) page.getBlock(0);
+            assertEquals(12345.6789, block.getDouble(0), 0.0001);
+            assertEquals(-5.0, block.getDouble(1), 0.0001);
+        }
+    }
+
+    public void testReadDecimalFixedLenColumn() throws Exception {
+        // DECIMAL(10, 2) backed by FIXED_LEN_BYTE_ARRAY(8)
+        int fixedLen = 8;
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(fixedLen)
+            .as(LogicalTypeAnnotation.decimalType(2, 10))
+            .named("total")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("total", Binary.fromConstantByteArray(toFixedLenDecimal(1234567, fixedLen))); // 12345.67
+            Group g2 = factory.newGroup();
+            g2.add("total", Binary.fromConstantByteArray(toFixedLenDecimal(-100, fixedLen))); // -1.00
+            return List.of(g1, g2);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            DoubleBlock block = (DoubleBlock) page.getBlock(0);
+            assertEquals(12345.67, block.getDouble(0), 0.01);
+            assertEquals(-1.00, block.getDouble(1), 0.01);
+        }
+    }
+
+    public void testReadDecimalBinaryColumn() throws Exception {
+        // DECIMAL(10, 2) backed by BINARY
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.decimalType(2, 10))
+            .named("value")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("value", Binary.fromConstantByteArray(BigInteger.valueOf(9999).toByteArray())); // 99.99
+            return List.of(g1);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            DoubleBlock block = (DoubleBlock) page.getBlock(0);
+            assertEquals(99.99, block.getDouble(0), 0.01);
+        }
+    }
+
+    // --- TIMESTAMP MICROS/NANOS tests ---
+
+    public void testReadTimestampMicrosColumn() throws Exception {
+        // TIMESTAMP(MICROS, adjustedToUTC=true)
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("ts")
+            .named("test_schema");
+
+        long epochMillis = 946728000000L; // 2000-01-01T12:00:00Z
+        long epochMicros = epochMillis * 1000;
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("ts", epochMicros);
+            return List.of(g1);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.DATETIME, metadata.schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            LongBlock block = (LongBlock) page.getBlock(0);
+            assertEquals(epochMillis, block.getLong(0));
+        }
+    }
+
+    public void testReadTimestampNanosColumn() throws Exception {
+        // TIMESTAMP(NANOS, adjustedToUTC=true)
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .named("ts")
+            .named("test_schema");
+
+        long epochMillis = 946728000000L; // 2000-01-01T12:00:00Z
+        long epochNanos = epochMillis * 1_000_000;
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("ts", epochNanos);
+            return List.of(g1);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            LongBlock block = (LongBlock) page.getBlock(0);
+            assertEquals(epochMillis, block.getLong(0));
+        }
+    }
+
+    public void testReadTimestampMillisColumn() throws Exception {
+        // TIMESTAMP(MILLIS, adjustedToUTC=true) — existing behavior, verifying it still works
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("ts")
+            .named("test_schema");
+
+        long epochMillis = 946728000000L;
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("ts", epochMillis);
+            return List.of(g1);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            LongBlock block = (LongBlock) page.getBlock(0);
+            assertEquals(epochMillis, block.getLong(0));
+        }
+    }
+
+    // --- INT96 timestamp tests ---
+
+    public void testReadInt96TimestampColumn() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT96).named("ts").named("test_schema");
+
+        // 2000-01-01T12:00:00Z → Julian day 2451545, nanos = 12h = 43_200_000_000_000
+        int julianDay = 2_451_545;
+        long nanosOfDay = 43_200_000_000_000L;
+        long expectedMillis = 946728000000L;
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("ts", new NanoTime(julianDay, nanosOfDay));
+            return List.of(g1);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.DATETIME, metadata.schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            LongBlock block = (LongBlock) page.getBlock(0);
+            assertEquals(expectedMillis, block.getLong(0));
+        }
+    }
+
+    // --- FLOAT16 tests ---
+
+    public void testReadFloat16Column() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(2)
+            .as(LogicalTypeAnnotation.float16Type())
+            .named("val")
+            .named("test_schema");
+
+        float value1 = 3.14f;
+        float value2 = -1.0f;
+        float value3 = 0.0f;
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("val", Binary.fromConstantByteArray(toFloat16Bytes(value1)));
+            Group g2 = factory.newGroup();
+            g2.add("val", Binary.fromConstantByteArray(toFloat16Bytes(value2)));
+            Group g3 = factory.newGroup();
+            g3.add("val", Binary.fromConstantByteArray(toFloat16Bytes(value3)));
+            return List.of(g1, g2, g3);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.DOUBLE, metadata.schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            DoubleBlock block = (DoubleBlock) page.getBlock(0);
+            assertEquals(Float.float16ToFloat(Float.floatToFloat16(value1)), block.getDouble(0), 0.01);
+            assertEquals(Float.float16ToFloat(Float.floatToFloat16(value2)), block.getDouble(1), 0.001);
+            assertEquals(0.0, block.getDouble(2), 0.001);
+        }
+    }
+
+    // --- UUID tests ---
+
+    public void testReadUuidColumn() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(16)
+            .as(LogicalTypeAnnotation.uuidType())
+            .named("id")
+            .named("test_schema");
+
+        UUID uuid1 = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
+        UUID uuid2 = UUID.fromString("00000000-0000-0000-0000-000000000000");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            g1.add("id", Binary.fromConstantByteArray(toUuidBytes(uuid1)));
+            Group g2 = factory.newGroup();
+            g2.add("id", Binary.fromConstantByteArray(toUuidBytes(uuid2)));
+            return List.of(g1, g2);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.KEYWORD, metadata.schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            BytesRefBlock block = (BytesRefBlock) page.getBlock(0);
+            assertEquals(uuid1.toString(), block.getBytesRef(0, new BytesRef()).utf8ToString());
+            assertEquals(uuid2.toString(), block.getBytesRef(1, new BytesRef()).utf8ToString());
+        }
+    }
+
+    // --- LIST tests ---
+
+    public void testReadListOfIntegersColumn() throws Exception {
+        Type listType = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("numbers");
+        MessageType schema = new MessageType("test_schema", listType);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            // Row 0: [1, 2, 3]
+            Group g1 = factory.newGroup();
+            Group list1 = g1.addGroup("numbers");
+            list1.addGroup("list").append("element", 1);
+            list1.addGroup("list").append("element", 2);
+            list1.addGroup("list").append("element", 3);
+
+            // Row 1: [10]
+            Group g2 = factory.newGroup();
+            Group list2 = g2.addGroup("numbers");
+            list2.addGroup("list").append("element", 10);
+
+            return List.of(g1, g2);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.INTEGER, metadata.schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+
+            IntBlock block = (IntBlock) page.getBlock(0);
+            // Row 0: [1, 2, 3]
+            assertEquals(3, block.getValueCount(0));
+            int start0 = block.getFirstValueIndex(0);
+            assertEquals(1, block.getInt(start0));
+            assertEquals(2, block.getInt(start0 + 1));
+            assertEquals(3, block.getInt(start0 + 2));
+
+            // Row 1: [10]
+            assertEquals(1, block.getValueCount(1));
+            assertEquals(10, block.getInt(block.getFirstValueIndex(1)));
+        }
+    }
+
+    public void testReadListOfStringsColumn() throws Exception {
+        Type listType = Types.optionalList()
+            .optionalElement(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("tags");
+        MessageType schema = new MessageType("test_schema", listType);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup();
+            Group list1 = g1.addGroup("tags");
+            list1.addGroup("list").append("element", "red");
+            list1.addGroup("list").append("element", "blue");
+
+            Group g2 = factory.newGroup();
+            Group list2 = g2.addGroup("tags");
+            list2.addGroup("list").append("element", "green");
+
+            return List.of(g1, g2);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertEquals(DataType.KEYWORD, metadata.schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+
+            BytesRefBlock block = (BytesRefBlock) page.getBlock(0);
+            // Row 0: ["red", "blue"]
+            assertEquals(2, block.getValueCount(0));
+            int start0 = block.getFirstValueIndex(0);
+            assertEquals(new BytesRef("red"), block.getBytesRef(start0, new BytesRef()));
+            assertEquals(new BytesRef("blue"), block.getBytesRef(start0 + 1, new BytesRef()));
+
+            // Row 1: ["green"]
+            assertEquals(1, block.getValueCount(1));
+            assertEquals(new BytesRef("green"), block.getBytesRef(block.getFirstValueIndex(1), new BytesRef()));
+        }
+    }
+
+    public void testReadListWithNullList() throws Exception {
+        Type listType = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT64).named("values");
+        MessageType schema = new MessageType("test_schema", listType);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            // Row 0: [100, 200]
+            Group g1 = factory.newGroup();
+            Group list1 = g1.addGroup("values");
+            list1.addGroup("list").append("element", 100L);
+            list1.addGroup("list").append("element", 200L);
+
+            // Row 1: null (no addGroup call)
+            Group g2 = factory.newGroup();
+
+            // Row 2: [300]
+            Group g3 = factory.newGroup();
+            Group list3 = g3.addGroup("values");
+            list3.addGroup("list").append("element", 300L);
+
+            return List.of(g1, g2, g3);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+
+            LongBlock block = (LongBlock) page.getBlock(0);
+            // Row 0: [100, 200]
+            assertFalse(block.isNull(0));
+            assertEquals(2, block.getValueCount(0));
+            int start0 = block.getFirstValueIndex(0);
+            assertEquals(100L, block.getLong(start0));
+            assertEquals(200L, block.getLong(start0 + 1));
+
+            // Row 1: null
+            assertTrue(block.isNull(1));
+
+            // Row 2: [300]
+            assertFalse(block.isNull(2));
+            assertEquals(1, block.getValueCount(2));
+            assertEquals(300L, block.getLong(block.getFirstValueIndex(2)));
+        }
+    }
+
+    // --- UUID formatting unit test ---
+
+    public void testFormatUuid() {
+        UUID uuid = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
+        byte[] bytes = toUuidBytes(uuid);
+        String formatted = ParquetFormatReader.formatUuid(bytes);
+        assertEquals("550e8400-e29b-41d4-a716-446655440000", formatted);
+    }
+
     public void testMetadataReturnsCorrectSourceType() throws Exception {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
 
@@ -689,6 +1164,32 @@ public class ParquetFormatReaderTests extends ESTestCase {
             }
         }
         assertEquals("Reading all ranges should produce the same total as a full read", totalRowsDirect, totalRowsFromRanges);
+    }
+
+    // --- Test helpers ---
+
+    private static byte[] toFloat16Bytes(float value) {
+        short float16 = Float.floatToFloat16(value);
+        byte[] bytes = new byte[2];
+        bytes[0] = (byte) (float16 & 0xFF);
+        bytes[1] = (byte) ((float16 >> 8) & 0xFF);
+        return bytes;
+    }
+
+    private static byte[] toUuidBytes(UUID uuid) {
+        ByteBuffer buf = ByteBuffer.allocate(16);
+        buf.putLong(uuid.getMostSignificantBits());
+        buf.putLong(uuid.getLeastSignificantBits());
+        return buf.array();
+    }
+
+    private static byte[] toFixedLenDecimal(long unscaledValue, int fixedLen) {
+        byte[] unscaledBytes = BigInteger.valueOf(unscaledValue).toByteArray();
+        byte[] padded = new byte[fixedLen];
+        byte fill = unscaledValue < 0 ? (byte) 0xFF : (byte) 0x00;
+        java.util.Arrays.fill(padded, fill);
+        System.arraycopy(unscaledBytes, 0, padded, fixedLen - unscaledBytes.length, unscaledBytes.length);
+        return padded;
     }
 
     @FunctionalInterface

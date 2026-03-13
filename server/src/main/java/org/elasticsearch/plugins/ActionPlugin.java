@@ -23,6 +23,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -141,5 +142,10 @@ public interface ActionPlugin {
         return Collections.emptyList();
     }
 
-    record RestHandlersServices(Settings settings, RestController restController, ProjectResolver projectResolver) {}
+    record RestHandlersServices(
+        Settings settings,
+        RestController restController,
+        ProjectResolver projectResolver,
+        CrossProjectModeDecider crossProjectModeDecider
+    ) {}
 }

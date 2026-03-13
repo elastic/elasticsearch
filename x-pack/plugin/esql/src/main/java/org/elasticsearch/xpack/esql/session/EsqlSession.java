@@ -157,6 +157,7 @@ public class EsqlSession {
     private final ViewResolver viewResolver;
     private final ExternalSourceResolver externalSourceResolver;
 
+    private final EsqlParser parser;
     private final PreAnalyzer preAnalyzer;
     private final Verifier verifier;
     private final Metrics metrics;
@@ -187,6 +188,7 @@ public class EsqlSession {
         EnrichPolicyResolver enrichPolicyResolver,
         ViewResolver viewResolver,
         ExternalSourceResolver externalSourceResolver,
+        EsqlParser parser,
         PreAnalyzer preAnalyzer,
         EsqlFunctionRegistry functionRegistry,
         Mapper mapper,
@@ -205,6 +207,7 @@ public class EsqlSession {
         this.enrichPolicyResolver = enrichPolicyResolver;
         this.viewResolver = viewResolver;
         this.externalSourceResolver = externalSourceResolver;
+        this.parser = parser;
         this.preAnalyzer = preAnalyzer;
         this.verifier = verifier;
         this.metrics = metrics;
@@ -247,7 +250,7 @@ public class EsqlSession {
         parsingProfile.stop();
         viewResolver.replaceViews(
             statement.plan(),
-            (query, viewName) -> EsqlParser.INSTANCE.parseView(
+            (query, viewName) -> parser.parseView(
                 query,
                 request.params(),
                 SettingsValidationContext.from(remoteClusterService),
@@ -695,7 +698,7 @@ public class EsqlSession {
     }
 
     private EsqlStatement parse(EsqlQueryRequest request) {
-        return EsqlParser.INSTANCE.parse(
+        return parser.parse(
             request.query(),
             request.params(),
             SettingsValidationContext.from(remoteClusterService),
@@ -1244,6 +1247,7 @@ public class EsqlSession {
                 indicesExpressionGrouper,
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+                    EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
                     l.onResponse(
                         result.withIndices(indexPattern, indexResolution.inner())
                             .withMinimumTransportVersion(indexResolution.minimumVersion())
@@ -1278,6 +1282,7 @@ public class EsqlSession {
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+                EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
                 EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
                 planTelemetry.linkedProjectsCount(executionInfo.clusterInfo.size());
                 l.onResponse(

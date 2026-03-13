@@ -36,16 +36,10 @@ public final class SumFloatAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public SumFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      SumDoubleAggregator.SumState state) {
+  SumFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static SumFloatAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new SumFloatAggregatorFunction(driverContext, channels, SumFloatAggregator.initSingle());
+    this.state = SumFloatAggregator.initSingle();
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

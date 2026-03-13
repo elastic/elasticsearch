@@ -9,17 +9,17 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.LoadMapping;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.parser.StatementParserTests;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
@@ -41,7 +41,7 @@ public class AnalyzerParsingTests extends ESTestCase {
     private final Analyzer defaultAnalyzer = new Analyzer(
         testAnalyzerContext(
             TEST_CFG,
-            new EsqlFunctionRegistry(),
+            TEST_FUNCTION_REGISTRY,
             indexResolutions(defaultIndex),
             emptyPolicyResolution(),
             emptyInferenceResolution()
@@ -81,7 +81,7 @@ public class AnalyzerParsingTests extends ESTestCase {
     }
 
     private EsqlStatement parse(String query, QueryParams params) {
-        return EsqlParser.INSTANCE.createStatement(query, params);
+        return TEST_PARSER.createStatement(query, params);
     }
 
     private String error(String query) {

@@ -91,10 +91,10 @@ public class MetricsApmIT extends ESRestTestCase {
             if (withOTel) {
                 clusterSettings.get(null).put("telemetry.otel.metrics.interval", "1s");
                 clusterSettings.get(null)
-                    .put("telemetry.otel.metrics.endpoint", "http://127.0.0.1:" + recordingApmServer.getPort() + "/v1/metrics");
+                    .put("telemetry.otel.metrics.endpoint", "http://" + recordingApmServer.getHttpAddress() + "/v1/metrics");
             } else {
                 clusterSettings.get(null).put("telemetry.agent.metrics_interval", "1s");
-                clusterSettings.get(null).put("telemetry.agent.server_url", "http://127.0.0.1:" + recordingApmServer.getPort());
+                clusterSettings.get(null).put("telemetry.agent.server_url", "http://" + recordingApmServer.getHttpAddress());
             }
             cluster.restart(false);
             closeClients();
@@ -106,12 +106,12 @@ public class MetricsApmIT extends ESRestTestCase {
     public void testApmIntegration() throws Exception {
         Map<String, Predicate<Map<String, Object>>> valueAssertions = new HashMap<>(
             Map.ofEntries(
-                assertion("es.test.long_counter.total", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("es.test.double_counter.total", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("es.test.async_double_counter.total", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("es.test.async_long_counter.total", m -> (Integer) m.get("value"), equalTo(1)),
-                assertion("es.test.double_gauge.current", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("es.test.long_gauge.current", m -> (Integer) m.get("value"), equalTo(1))
+                assertion("es.test.long_counter.total", m -> ((Number) m.get("value")).doubleValue(), closeTo(1.0, 0.001)),
+                assertion("es.test.double_counter.total", m -> ((Number) m.get("value")).doubleValue(), closeTo(1.0, 0.001)),
+                assertion("es.test.async_double_counter.total", m -> ((Number) m.get("value")).doubleValue(), closeTo(1.0, 0.001)),
+                assertion("es.test.async_long_counter.total", m -> ((Number) m.get("value")).intValue(), equalTo(1)),
+                assertion("es.test.double_gauge.current", m -> ((Number) m.get("value")).doubleValue(), closeTo(1.0, 0.001)),
+                assertion("es.test.long_gauge.current", m -> ((Number) m.get("value")).intValue(), equalTo(1))
             )
         );
 
@@ -146,9 +146,9 @@ public class MetricsApmIT extends ESRestTestCase {
                     if (histogramAssertion != null) {
                         logger.info("Matched {}:{}", key, value);
                         var samplesObject = (Map<String, Object>) value;
-                        var counts = ((Collection<Integer>) samplesObject.get("counts")).stream().mapToInt(Integer::intValue).sum();
+                        var counts = ((Collection<? extends Number>) samplesObject.get("counts")).stream().mapToInt(Number::intValue).sum();
                         var remaining = histogramAssertion - counts;
-                        if (remaining == 0) {
+                        if (remaining <= 0) {
                             logger.info("{} assertion PASSED", key);
                             histogramAssertions.remove(key);
                         } else {
@@ -166,12 +166,23 @@ public class MetricsApmIT extends ESRestTestCase {
 
         recordingApmServer.addMessageConsumer(messageConsumer);
 
-        client().performRequest(new Request("GET", "/_use_apm_metrics"));
+        if (withOTel) {
+            // Re-trigger periodically to produce fresh non-zero deltas for async counters
+            for (int i = 0; i < 15 && finished.getCount() > 0; i++) {
+                client().performRequest(new Request("GET", "/_use_apm_metrics"));
+                finished.await(2, TimeUnit.SECONDS);
+            }
+        } else {
+            client().performRequest(new Request("GET", "/_use_apm_metrics"));
+            finished.await(30, TimeUnit.SECONDS);
+        }
 
-        var completed = finished.await(30, TimeUnit.SECONDS);
         var remainingAssertions = Stream.concat(valueAssertions.keySet().stream(), histogramAssertions.keySet().stream())
             .collect(Collectors.joining(","));
-        assertTrue("Timeout when waiting for assertions to complete. Remaining assertions to match: " + remainingAssertions, completed);
+        assertTrue(
+            "Timeout when waiting for assertions to complete. Remaining assertions to match: " + remainingAssertions,
+            finished.getCount() == 0
+        );
     }
 
     @SuppressWarnings("unchecked")

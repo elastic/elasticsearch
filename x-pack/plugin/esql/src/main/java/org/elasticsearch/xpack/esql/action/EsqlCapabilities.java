@@ -357,6 +357,12 @@ public class EsqlCapabilities {
         ENRICH_LOAD,
 
         /**
+         * Test-only capability since loading a value from a flattened field is possible using the unmapped field infrastructure, but
+         * is only supported by full integration tests. So this capability is used to disable some tests in CsvTests.
+         */
+        LOAD_FLATTENED_FIELD,
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,
@@ -781,7 +787,10 @@ public class EsqlCapabilities {
          * QSTR function
          */
         QSTR_FUNCTION,
-
+        /**
+         * Guards a fix for the boost parameter in QueryString queries
+         */
+        QSTR_FUNCTION_BOOST_FIX,
         /**
          * MATCH function
          */
@@ -2096,7 +2105,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation.
          */
-        APPROXIMATION_V2(Build.current().isSnapshot()),
+        APPROXIMATION_V3(Build.current().isSnapshot()),
 
         /**
          * Create a ScoreOperator only when shard contexts are available
@@ -2281,6 +2290,12 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/142762
          */
         FIX_FORK_UNMAPPED_NULLIFY,
+
+        /**
+         * Fix for the STATS BY ALL with LIMIT 0.
+         * https://github.com/elastic/elasticsearch/issues/144024
+         */
+        FIX_LIMIT_ZERO_IN_STATS_BY_ALL
 
         /**
          * Support window durations that are larger than but not exact multiples of the time bucket

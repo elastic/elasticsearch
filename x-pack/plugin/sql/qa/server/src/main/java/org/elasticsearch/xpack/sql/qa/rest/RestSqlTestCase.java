@@ -283,7 +283,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         deleteIndexWithProvisioningClient("test_date_timezone");
     }
 
-    @AwaitsFix(bugUrl = "Unclear status, https://github.com/elastic/x-pack-elasticsearch/issues/2074")
     public void testTimeZone() throws IOException {
         String mode = randomMode();
         boolean columnar = randomBoolean();

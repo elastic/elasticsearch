@@ -92,7 +92,7 @@ Using _`source` is useful when you want to retrieve most or all fields from a do
 
 You should consider retrieving `_source` instead of individual fields when:
 - You need several fields from a document, and most of them are text fields.
-- You have long text fields in your documents.
+- You have long text fields or geoshape fields in your documents.
 - You want the original document instead of the indexed values for your fields.
 - You have nested objects or arrays that you want to preserve in their original structure.
 

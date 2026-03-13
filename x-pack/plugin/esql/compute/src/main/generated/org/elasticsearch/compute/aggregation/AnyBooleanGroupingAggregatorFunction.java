@@ -34,16 +34,10 @@ public final class AnyBooleanGroupingAggregatorFunction implements GroupingAggre
 
   private final DriverContext driverContext;
 
-  public AnyBooleanGroupingAggregatorFunction(List<Integer> channels,
-      AnyBooleanAggregator.GroupingState state, DriverContext driverContext) {
+  AnyBooleanGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = AnyBooleanAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static AnyBooleanGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new AnyBooleanGroupingAggregatorFunction(channels, AnyBooleanAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

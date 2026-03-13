@@ -62,14 +62,13 @@ class NetworkAccessCheckActions {
             try {
                 socket.accept();
             } catch (IOException e) {
-                if (e.getCause() != null && e.getCause().getClass().getSimpleName().equals("NotEntitledException")) {
-                    throw e;
-                }
                 // Our dummy socket cannot accept connections unless we tell the JDK how to create a socket for it.
                 // But Socket.setSocketImplFactory(); is one of the methods we always forbid, so we cannot use it.
                 // Still, we can check accept is called (allowed/denied), we don't care if it fails later for this
-                // known reason.
-                assert e.getMessage().contains("client socket implementation factory not set");
+                // known reason. Any other IOException (including entitlement denials) should propagate.
+                if (e.getMessage() == null || e.getMessage().contains("client socket implementation factory not set") == false) {
+                    throw e;
+                }
             }
         }
     }

@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Locale;
-import java.util.Properties;
 import java.util.TimeZone;
 
 import javax.xml.parsers.SAXParserFactory;
@@ -46,12 +45,7 @@ class JvmActions {
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
     static void setSystemProperties() {
-        Properties original = System.getProperties();
-        System.setProperties(new Properties(original));
-        boolean unchanged = System.getProperties() == original;
-        if (unchanged == false) {
-            System.setProperties(original);
-        }
+        System.setProperties(System.getProperties());
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)

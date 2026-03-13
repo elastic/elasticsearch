@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.analysis;
+package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -14,21 +14,22 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
-import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ApplyWindowFilter extends Rule<LogicalPlan, LogicalPlan> {
-    @Override
-    public LogicalPlan apply(LogicalPlan logicalPlan) {
-        return logicalPlan.transformUp(node -> node instanceof TimeSeriesAggregate, this::rule);
+public class ApplyWindowFilter extends OptimizerRules.ParameterizedOptimizerRule<TimeSeriesAggregate, LogicalOptimizerContext> {
+
+    public ApplyWindowFilter() {
+        super(OptimizerRules.TransformDirection.UP);
     }
 
-    public LogicalPlan rule(TimeSeriesAggregate aggregate) {
+    @Override
+    protected LogicalPlan rule(TimeSeriesAggregate aggregate, LogicalOptimizerContext context) {
         List<NamedExpression> aggs = new ArrayList<>();
         for (var agg : aggregate.aggregates()) {
             if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af && af.hasWindow()) {

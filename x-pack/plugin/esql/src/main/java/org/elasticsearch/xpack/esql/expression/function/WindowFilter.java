@@ -91,20 +91,8 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware, 
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        return isType(
-            window,
-            DataType::isDateTimeOrNanosOrTemporal,
-            sourceText(),
-            FIRST,
-            "date_nanos, datetime, date_period, or time duration"
-        ).and(
-            isType(
-                bucket,
-                DataType::isDateTimeOrNanosOrTemporal,
-                sourceText(),
-                SECOND,
-                "date_nanos, datetime, date_period, or time duration"
-            )
+        return isType(window, DataType::isTimeDuration, sourceText(), FIRST, "time duration only").and(
+            isType(bucket, dt -> dt == DataType.DATETIME || dt == DataType.DATE_NANOS, sourceText(), SECOND, "date_nanos or datetime")
         ).and(isType(timestamp, dt -> dt == DataType.DATETIME || dt == DataType.DATE_NANOS, sourceText(), THIRD, "date_nanos or datetime"));
     }
 
@@ -139,6 +127,14 @@ public class WindowFilter extends EsqlScalarFunction implements TimestampAware, 
     @Override
     public Expression timestamp() {
         return timestamp;
+    }
+
+    public Expression window() {
+        return window;
+    }
+
+    protected Expression bucket() {
+        return bucket;
     }
 
     @Evaluator

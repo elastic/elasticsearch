@@ -80,6 +80,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.search.SearchAsyncActionTests.getShardsIter;
 import static org.elasticsearch.core.Types.forciblyCast;
+import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -103,6 +104,15 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
     public void tearDown() throws Exception {
         terminate(threadPool);
         super.tearDown();
+    }
+
+    private static void assertSkippedByClusterAliasLocalOnly(Map<String, Integer> map, int expectedTotal) {
+        assertEquals(expectedTotal, CollectionUtils.sumIntValues(map));
+        if (expectedTotal == 0) {
+            assertEquals(Collections.emptyMap(), map);
+        } else {
+            assertEquals(Map.of(LOCAL_CLUSTER_GROUP_KEY, expectedTotal), map);
+        }
     }
 
     public void testFilterShards() throws InterruptedException {
@@ -180,12 +190,13 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             for (SearchShardIterator i : result.get().iterators()) {
                 assertFalse(i.skip());
             }
+            assertEquals(Collections.emptyMap(), result.get().skippedByClusterAlias());
         } else if (shard1 == false && shard2 == false) {
-            assertEquals(2, CollectionUtils.sumIntValues(result.get().skippedByClusterAlias()));
+            assertEquals(Map.of(LOCAL_CLUSTER_GROUP_KEY, 2), result.get().skippedByClusterAlias());
             assertEquals(0, result.get().iterators().size());
         } else {
             assertEquals(shard1 ? 0 : 1, result.get().iterators().get(0).shardId().id());
-            assertEquals(1, CollectionUtils.sumIntValues(result.get().skippedByClusterAlias()));
+            assertEquals(Map.of(LOCAL_CLUSTER_GROUP_KEY, 1), result.get().skippedByClusterAlias());
         }
     }
 
@@ -274,10 +285,14 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             assertFalse(result.get().iterators().get(1).skip()); // never skip the failure
             assertEquals(0, result.get().iterators().get(0).shardId().id());
             assertEquals(1, result.get().iterators().get(1).shardId().id());
-            assertEquals(0, CollectionUtils.sumIntValues(result.get().skippedByClusterAlias()));
+            assertEquals(Collections.emptyMap(), result.get().skippedByClusterAlias());
         } else {
             assertEquals(shard1 ? 2 : 1, result.get().iterators().size());
-            assertEquals(shard1 ? 0 : 1, CollectionUtils.sumIntValues(result.get().skippedByClusterAlias()));
+            int expectedSkipped = shard1 ? 0 : 1;
+            assertEquals(
+                expectedSkipped == 0 ? Collections.emptyMap() : Map.of(LOCAL_CLUSTER_GROUP_KEY, expectedSkipped),
+                result.get().skippedByClusterAlias()
+            );
         }
         assertFalse(result.get().iterators().get(0).skip()); // never skip the failure
     }
@@ -385,6 +400,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 }
                 assertEquals(expected[pos++], i.shardId());
             }
+            assertSkippedByClusterAliasLocalOnly(result.get().skippedByClusterAlias(), shardIds.size() - result.get().iterators().size());
         }
     }
 
@@ -484,6 +500,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             }
             int numSkipped = CollectionUtils.sumIntValues(result.get().skippedByClusterAlias());
             assertThat(result.get().iterators().size() + numSkipped, equalTo(numShards));
+            assertEquals(
+                numSkipped > 0 ? Map.of(LOCAL_CLUSTER_GROUP_KEY, numSkipped) : Collections.emptyMap(),
+                result.get().skippedByClusterAlias()
+            );
         }
     }
 
@@ -589,6 +609,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                         prevShardId = shardIt.shardId().id();
                     }
                 }
+                assertSkippedByClusterAliasLocalOnly(
+                    canMatchResult.skippedByClusterAlias(),
+                    CollectionUtils.sumIntValues(canMatchResult.skippedByClusterAlias())
+                );
             }
         );
     }
@@ -651,6 +675,12 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 boolean allRequestsWereTriggeredAgainstRegularIndices = requests.stream()
                     .allMatch(request -> regularIndices.contains(request.shardId().getIndex()));
                 assertThat(allRequestsWereTriggeredAgainstRegularIndices, equalTo(true));
+                int skipped = CollectionUtils.sumIntValues(canMatchResult.skippedByClusterAlias());
+                if (skipped > 0) {
+                    assertEquals(Map.of(LOCAL_CLUSTER_GROUP_KEY, skipped), canMatchResult.skippedByClusterAlias());
+                } else {
+                    assertEquals(Collections.emptyMap(), canMatchResult.skippedByClusterAlias());
+                }
             }
         );
     }
@@ -716,6 +746,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
                 if (timestampQueryOutOfRange || eventIngestedQueryOutOfRange) {
                     assertThat(numSkippedShards, greaterThan(0));
+                    assertEquals(Map.of(LOCAL_CLUSTER_GROUP_KEY, numSkippedShards), canMatchResult.skippedByClusterAlias());
                     boolean allNonSkippedShardsAreFromRegularIndices = nonSkippedShards.stream()
                         .allMatch(shardIterator -> regularIndices.contains(shardIterator.shardId().getIndex()));
                     assertThat(allNonSkippedShardsAreFromRegularIndices, equalTo(true));
@@ -726,6 +757,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
                 } else {
                     assertThat(numSkippedShards, equalTo(0));
+                    assertEquals(Collections.emptyMap(), canMatchResult.skippedByClusterAlias());
                     long countSkippedShardsFromDatastream = nonSkippedShards.stream()
                         .filter(iter -> dataStream.getIndices().contains(iter.shardId().getIndex()))
                         .count();
@@ -958,6 +990,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                         assertFalse(shard.skip());
                     }
                 }
+                assertSkippedByClusterAliasLocalOnly(
+                    canMatchResult.skippedByClusterAlias(),
+                    CollectionUtils.sumIntValues(canMatchResult.skippedByClusterAlias())
+                );
             }
         );
     }
@@ -1091,6 +1127,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 boolean allRequestMadeToDataStream2 = requests.stream()
                     .allMatch(request -> dataStream2.getIndices().contains(request.shardId().getIndex()));
                 assertThat(allRequestMadeToDataStream2, equalTo(true));
+                assertSkippedByClusterAliasLocalOnly(
+                    canMatchResult.skippedByClusterAlias(),
+                    CollectionUtils.sumIntValues(canMatchResult.skippedByClusterAlias())
+                );
             }
         );
     }
@@ -1186,6 +1226,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     boolean allRequestMadeToHotIndices = requests.stream()
                         .allMatch(request -> hotIndices.contains(request.shardId().getIndex()));
                     assertThat(allRequestMadeToHotIndices, equalTo(true));
+                    assertSkippedByClusterAliasLocalOnly(
+                        canMatchResult.skippedByClusterAlias(),
+                        CollectionUtils.sumIntValues(canMatchResult.skippedByClusterAlias())
+                    );
                 }
             );
         }
@@ -1224,9 +1268,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
     }
 
     private void assertAllShardsAreQueried(CanMatchPreFilterSearchPhase.CanMatchResult canMatchResult, List<ShardSearchRequest> requests) {
-        int skippedShards = CollectionUtils.sumIntValues(canMatchResult.skippedByClusterAlias());
-
-        assertThat(skippedShards, equalTo(0));
+        assertEquals(Collections.emptyMap(), canMatchResult.skippedByClusterAlias());
 
         int nonSkippedShards = (int) canMatchResult.iterators()
             .stream()

@@ -30,7 +30,11 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.TransportClearScrollAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -49,13 +53,13 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -63,6 +67,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.security.InvalidParameterException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -95,6 +100,8 @@ public class SynonymsManagementAPIService {
     private static final String SYNONYM_SET_OBJECT_TYPE = "synonym_set";
     private static final String SYNONYM_RULE_ID_SEPARATOR = "|";
     private static final int MAX_SYNONYMS_SETS = 10_000;
+    private static final int SCROLL_KEEP_ALIVE_SECONDS = 60;
+    static final int SCROLL_BATCH_SIZE = 10_000;
     private static final String SYNONYM_RULE_ID_FIELD = SynonymRule.ID_FIELD.getPreferredName();
     private static final String SYNONYM_SETS_AGG_NAME = "synonym_sets_aggr";
     private static final String RULE_COUNT_AGG_NAME = "rule_count";
@@ -102,6 +109,7 @@ public class SynonymsManagementAPIService {
     private static final int SYNONYMS_INDEX_MAPPINGS_VERSION = 1;
     public static final int INDEX_SEARCHABLE_TIMEOUT_SECONDS = 30;
     private final int maxSynonymsSets;
+    private final int scrollBatchSize;
 
     // Package private for testing
     static Logger logger = LogManager.getLogger(SynonymsManagementAPIService.class);
@@ -121,13 +129,19 @@ public class SynonymsManagementAPIService {
         .build();
 
     public SynonymsManagementAPIService(Client client) {
-        this(client, MAX_SYNONYMS_SETS);
+        this(client, MAX_SYNONYMS_SETS, SCROLL_BATCH_SIZE);
     }
 
     // Used for testing, so we don't need to test for MAX_SYNONYMS_SETS and put unnecessary memory pressure on the test cluster
     SynonymsManagementAPIService(Client client, int maxSynonymsSets) {
+        this(client, maxSynonymsSets, SCROLL_BATCH_SIZE);
+    }
+
+    // Used for testing scroll behavior with a small batch size to force multiple scroll iterations
+    SynonymsManagementAPIService(Client client, int maxSynonymsSets, int scrollBatchSize) {
         this.client = new OriginSettingClient(client, SYNONYMS_ORIGIN);
         this.maxSynonymsSets = maxSynonymsSets;
+        this.scrollBatchSize = scrollBatchSize;
     }
 
     /* The synonym index stores two object types:
@@ -248,26 +262,82 @@ public class SynonymsManagementAPIService {
     }
 
     /**
-     * Retrieves all synonym rules for a synonym set.
+     * Retrieves all synonym rules for a synonym set using scroll, removing the 10k search result limit.
+     * Results are fetched iteratively in batches of {@value SCROLL_BATCH_SIZE} until exhausted.
      *
-     * @param synonymSetId
-     * @param listener
+     * @param synonymSetId the synonym set to load
+     * @param listener     receives the complete set of rules
      */
     public void getSynonymSetRules(String synonymSetId, ActionListener<PagedResult<SynonymRule>> listener) {
-        // Check the number of synonym sets, and issue a warning in case there are more than the maximum allowed
+        TimeValue scrollTimeout = TimeValue.timeValueSeconds(SCROLL_KEEP_ALIVE_SECONDS);
         client.prepareSearch(SYNONYMS_ALIAS_NAME)
-            .setSource(new SearchSourceBuilder().size(0).trackTotalHits(true))
-            .execute(listener.delegateFailureAndWrap((searchListener, countResponse) -> {
-                long totalSynonymRules = countResponse.getHits().getTotalHits().value();
-                if (totalSynonymRules > maxSynonymsSets) {
-                    logger.warn(
-                        "The number of synonym rules in the synonym set [{}] exceeds the maximum allowed."
-                            + " Inconsistent synonyms results may occur",
-                        synonymSetId
-                    );
+            .setQuery(
+                QueryBuilders.boolQuery()
+                    .must(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId))
+                    .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
+            )
+            .setSize(scrollBatchSize)
+            .setScroll(scrollTimeout)
+            .addSort("id", SortOrder.ASC)
+            .setPreference(Preference.LOCAL.type())
+            .setTrackTotalHits(true)
+            .execute(new DelegatingIndexNotFoundActionListener<>(synonymSetId, listener, (l, initialResponse) -> {
+                long totalHits = initialResponse.getHits().getTotalHits().value();
+                if (totalHits == 0) {
+                    clearScrollSilently(initialResponse.getScrollId());
+                    checkSynonymSetExists(synonymSetId, l.delegateFailure((existsListener, ignored) -> {
+                        l.onResponse(new PagedResult<>(0, new SynonymRule[0]));
+                    }));
+                    return;
                 }
-                getSynonymSetRules(synonymSetId, 0, MAX_SYNONYMS_SETS, listener);
+                scrollAllRules(initialResponse.getScrollId(), scrollTimeout, totalHits, new ArrayList<>(), initialResponse, l);
             }));
+    }
+
+    // Each call dispatches asynchronously via client.execute, so the previous frame is gone before
+    // the next iteration begins. No stack growth occurs despite the self-referential callback shape.
+    private void scrollAllRules(
+        String scrollId,
+        TimeValue scrollTimeout,
+        long totalHits,
+        List<SynonymRule> accumulated,
+        SearchResponse searchResponse,
+        ActionListener<PagedResult<SynonymRule>> listener
+    ) {
+        for (SearchHit hit : searchResponse.getHits().getHits()) {
+            accumulated.add(sourceMapToSynonymRule(hit.getSourceAsMap()));
+        }
+
+        if (searchResponse.getHits().getHits().length == 0) {
+            clearScrollSilently(scrollId);
+            listener.onResponse(new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0])));
+            return;
+        }
+
+        SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId).scroll(scrollTimeout);
+        client.execute(TransportSearchScrollAction.TYPE, scrollRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(SearchResponse nextResponse) {
+                scrollAllRules(nextResponse.getScrollId(), scrollTimeout, totalHits, accumulated, nextResponse, listener);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                clearScrollSilently(scrollId);
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    private void clearScrollSilently(String scrollId) {
+        if (scrollId == null) {
+            return;
+        }
+        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+        clearScrollRequest.addScrollId(scrollId);
+        client.execute(TransportClearScrollAction.TYPE, clearScrollRequest, ActionListener.wrap(r -> {}, e -> {
+            logger.warn(() -> org.elasticsearch.common.Strings.format("Failed to clear scroll context [%s]", scrollId), e);
+        }));
     }
 
     /**

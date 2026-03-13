@@ -24,7 +24,7 @@ public class FirstTests extends AbstractFirstLastTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameters(true, true);
+        return parameters(true);
     }
 
     @Override

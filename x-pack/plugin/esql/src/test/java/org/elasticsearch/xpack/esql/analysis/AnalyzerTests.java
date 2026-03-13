@@ -19,6 +19,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -46,9 +47,13 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
+import org.elasticsearch.xpack.esql.datasources.FileSet;
+import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
@@ -62,6 +67,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
+import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Random;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
@@ -88,11 +94,13 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -103,10 +111,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -116,6 +126,7 @@ import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -130,6 +141,18 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.web.UriParts.DOMAIN;
+import static org.elasticsearch.web.UriParts.EXTENSION;
+import static org.elasticsearch.web.UriParts.FRAGMENT;
+import static org.elasticsearch.web.UriParts.PASSWORD;
+import static org.elasticsearch.web.UriParts.PATH;
+import static org.elasticsearch.web.UriParts.PORT;
+import static org.elasticsearch.web.UriParts.QUERY;
+import static org.elasticsearch.web.UriParts.SCHEME;
+import static org.elasticsearch.web.UriParts.USERNAME;
+import static org.elasticsearch.web.UriParts.USER_INFO;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
@@ -318,6 +341,148 @@ public class AnalyzerTests extends ESTestCase {
         Row row = (Row) eval.child();
         ReferenceAttribute rowEmpNo = (ReferenceAttribute) row.output().get(0);
         assertEquals(rowEmpNo.id(), empNo.id());
+    }
+
+    public void testRowWithForwardReferences() {
+        EsIndex idx = EsIndexGenerator.esIndex("idx");
+        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
+
+        var plan = analyzer.analyze(
+            new Row(
+                EMPTY,
+                List.of(
+                    new Alias(EMPTY, "x", new Literal(EMPTY, 4, INTEGER)),
+                    new Alias(EMPTY, "y", new Literal(EMPTY, 2, INTEGER)),
+                    new Alias(
+                        EMPTY,
+                        "z",
+                        new Add(EMPTY, new UnresolvedAttribute(EMPTY, "x"), new UnresolvedAttribute(EMPTY, "y"), EsqlTestUtils.TEST_CFG)
+                    )
+                )
+            )
+        );
+
+        var limit = as(plan, Limit.class);
+        var row = as(limit.child(), Row.class);
+
+        assertEquals(3, row.fields().size());
+
+        Alias xField = row.fields().get(0);
+        assertEquals("x", xField.name());
+        assertThat(xField.child(), instanceOf(Literal.class));
+        assertEquals(4, ((Literal) xField.child()).value());
+
+        Alias yField = row.fields().get(1);
+        assertEquals("y", yField.name());
+        assertThat(yField.child(), instanceOf(Literal.class));
+        assertEquals(2, ((Literal) yField.child()).value());
+
+        Alias zField = row.fields().get(2);
+        assertEquals("z", zField.name());
+        assertThat(zField.child(), instanceOf(Add.class));
+        Add addExpr = (Add) zField.child();
+        assertThat(addExpr.left(), instanceOf(ReferenceAttribute.class));
+        assertThat(addExpr.right(), instanceOf(ReferenceAttribute.class));
+        assertEquals("x", ((ReferenceAttribute) addExpr.left()).name());
+        assertEquals("y", ((ReferenceAttribute) addExpr.right()).name());
+        assertEquals(xField.id(), ((ReferenceAttribute) addExpr.left()).id());
+        assertEquals(yField.id(), ((ReferenceAttribute) addExpr.right()).id());
+    }
+
+    public void testRowWithNonDeterministicReference() {
+        EsIndex idx = EsIndexGenerator.esIndex("idx");
+        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
+
+        // row a = random(5), b = a
+        // (yes, random() is an internal command, thus why the test builds one "manually")
+        var plan = analyzer.analyze(
+            new Row(
+                EMPTY,
+                List.of(
+                    new Alias(EMPTY, "a", new Random(EMPTY, new Literal(EMPTY, 5, INTEGER))),
+                    new Alias(EMPTY, "b", new UnresolvedAttribute(EMPTY, "a"))
+                )
+            )
+        );
+
+        var limit = as(plan, Limit.class);
+        var row = as(limit.child(), Row.class);
+
+        assertEquals(2, row.fields().size());
+
+        Alias aField = row.fields().get(0);
+        assertEquals("a", aField.name());
+        assertThat(aField.child(), instanceOf(Random.class));
+
+        Alias bField = row.fields().get(1);
+        assertEquals("b", bField.name());
+        assertThat(bField.child(), instanceOf(ReferenceAttribute.class));
+        assertEquals("a", ((ReferenceAttribute) bField.child()).name());
+        assertEquals(aField.id(), ((ReferenceAttribute) bField.child()).id());
+    }
+
+    public void testRowAndEvalWithNonDeterministicReference() {
+        EsIndex idx = EsIndexGenerator.esIndex("idx");
+        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
+
+        // row a = random(100), b = a | eval x = random(100), y = x
+        // (yes, random() is an internal command, thus why the test builds one "manually")
+        var plan = analyzer.analyze(
+            new Eval(
+                EMPTY,
+                new Row(
+                    EMPTY,
+                    List.of(
+                        new Alias(EMPTY, "a", new Random(EMPTY, new Literal(EMPTY, 100, INTEGER))),
+                        new Alias(EMPTY, "b", new UnresolvedAttribute(EMPTY, "a"))
+                    )
+                ),
+                List.of(
+                    new Alias(EMPTY, "x", new Random(EMPTY, new Literal(EMPTY, 100, INTEGER))),
+                    new Alias(EMPTY, "y", new UnresolvedAttribute(EMPTY, "x"))
+                )
+            )
+        );
+
+        var limit = as(plan, Limit.class);
+        var eval = as(limit.child(), Eval.class);
+        var row = as(eval.child(), Row.class);
+
+        // ROW part: b must reference a (same id guarantees same value at runtime)
+        Alias aField = row.fields().get(0);
+        assertEquals("a", aField.name());
+        assertThat(aField.child(), instanceOf(Random.class));
+
+        Alias bField = row.fields().get(1);
+        assertEquals("b", bField.name());
+        assertThat(bField.child(), instanceOf(ReferenceAttribute.class));
+        assertEquals(aField.id(), ((ReferenceAttribute) bField.child()).id());
+
+        // EVAL part: y must reference x (same id guarantees same value at runtime)
+        Alias xField = eval.fields().get(0);
+        assertEquals("x", xField.name());
+        assertThat(xField.child(), instanceOf(Random.class));
+
+        Alias yField = eval.fields().get(1);
+        assertEquals("y", yField.name());
+        assertThat(yField.child(), instanceOf(ReferenceAttribute.class));
+        assertEquals(xField.id(), ((ReferenceAttribute) yField.child()).id());
+    }
+
+    public void testRowWithUnresolvableForwardReferences() {
+        verifyUnsupported("""
+            ROW a = b + c, b = 1, c = 2
+            """, """
+            Found 2 problems
+            line 1:9: Unknown column [b]
+            line 1:13: Unknown column [c]""");
+    }
+
+    public void testRowWithSelfReference() {
+        verifyUnsupported("""
+            ROW a = a
+            """, """
+            line 1:9: Unknown column [a]""");
     }
 
     public void testUnresolvableAttribute() {
@@ -1654,6 +1819,24 @@ public class AnalyzerTests extends ESTestCase {
             """, errorMsg);
     }
 
+    public void testUnsupportedFieldsInUriParts() {
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
+        verifyUnsupported("""
+            from test
+            | uri_parts p = unsupported
+            """, errorMsg);
+    }
+
+    public void testUnsupportedFieldsInRegisteredDomain() {
+        assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+        var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
+        verifyUnsupported("""
+            from test
+            | registered_domain rd = unsupported
+            """, errorMsg);
+    }
+
     public void testRegexOnInt() {
         for (String op : new String[] { "like", "rlike" }) {
             var e = expectThrows(VerificationException.class, () -> analyze("""
@@ -1714,7 +1897,7 @@ public class AnalyzerTests extends ESTestCase {
 
         AnalyzerContext context = testAnalyzerContext(
             configuration("from test"),
-            new EsqlFunctionRegistry(),
+            TEST_FUNCTION_REGISTRY,
             indexResolutions(testIndex),
             enrichResolution,
             emptyInferenceResolution()
@@ -1870,7 +2053,7 @@ public class AnalyzerTests extends ESTestCase {
         );
         AnalyzerContext context = testAnalyzerContext(
             configuration(query),
-            new EsqlFunctionRegistry(),
+            TEST_FUNCTION_REGISTRY,
             indexResolutions(testIndex),
             enrichResolution,
             emptyInferenceResolution()
@@ -2067,7 +2250,7 @@ public class AnalyzerTests extends ESTestCase {
              found value [x] type [unsigned_long]
             line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long, _source, or counter types],\
              found value [x] type [unsigned_long]
-            line 2:47: argument of [median(x)] must be [exponential_histogram or numeric except unsigned_long or counter types],\
+            line 2:47: argument of [median(x)] must be [exponential_histogram, tdigest or numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
             line 2:58: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
@@ -2085,7 +2268,7 @@ public class AnalyzerTests extends ESTestCase {
             line 2:10: argument of [avg(x)] must be [aggregate_metric_double,\
              exponential_histogram, tdigest or numeric except unsigned_long or counter types],\
              found value [x] type [version]
-            line 2:18: argument of [median(x)] must be [exponential_histogram or numeric except unsigned_long or counter types],\
+            line 2:18: argument of [median(x)] must be [exponential_histogram, tdigest or numeric except unsigned_long or counter types],\
              found value [x] type [version]
             line 2:29: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [version]
@@ -2266,7 +2449,7 @@ public class AnalyzerTests extends ESTestCase {
         Analyzer analyzerMissingLookupIndex = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 analyzerDefaultMapping(),
                 Map.of("foobar", missingLookupIndex),
                 defaultEnrichResolution(),
@@ -2605,6 +2788,99 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyze(query, analyzer);
         var limit = as(plan, Limit.class);
         assertThat(query, as(limit.limit(), Literal.class).value(), equalTo(expectedLimit));
+    }
+
+    public void testImplicitTimestampSortForTsQuery() {
+        // TS query without STATS or SORT should have implicit sort
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test", analyzer);
+
+        var limit = as(plan, Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        var orders = orderBy.order();
+        assertThat(orders, hasSize(1));
+
+        var order = orders.get(0);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        var orderChild = as(order.child(), FieldAttribute.class);
+        assertThat(orderChild.name(), equalTo("@timestamp"));
+    }
+
+    public void testImplicitTimestampSortWithKeep() {
+        // TS query with KEEP should have implicit sort
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test | KEEP @timestamp, host", analyzer);
+
+        var limit = as(plan, Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        var orders = orderBy.order();
+        assertThat(orders, hasSize(1));
+
+        var order = orders.get(0);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        var orderChild = as(order.child(), FieldAttribute.class);
+        assertThat(orderChild.name(), equalTo("@timestamp"));
+    }
+
+    public void testImplicitTimestampSortWithExplicitLimit() {
+        // TS query with explicit LIMIT should still have implicit sort below the user's limit
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test | KEEP @timestamp, host | LIMIT 5", analyzer);
+
+        // AddImplicitLimit wraps the user's Limit in a cap Limit
+        var outerLimit = as(plan, Limit.class);
+        var innerLimit = as(outerLimit.child(), Limit.class);
+        // The OrderBy should be injected below the innermost Limit
+        var orderBy = as(innerLimit.child(), OrderBy.class);
+        var orders = orderBy.order();
+        assertThat(orders, hasSize(1));
+
+        var order = orders.get(0);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        var orderChild = as(order.child(), FieldAttribute.class);
+        assertThat(orderChild.name(), equalTo("@timestamp"));
+    }
+
+    public void testNoImplicitTimestampSortWithStats() {
+        // TS query with STATS should NOT have implicit sort
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test | STATS avg(rate(network.bytes_in))", analyzer);
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.child(), not(instanceOf(OrderBy.class)));
+    }
+
+    public void testNoImplicitTimestampSortWithExplicitSort() {
+        // TS query with explicit sort should keep it
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test | SORT host", analyzer);
+
+        var limit = as(plan, Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        var orders = orderBy.order();
+        assertThat(orders, hasSize(1));
+
+        var orderChild = as(orders.get(0).child(), FieldAttribute.class);
+        assertThat(orderChild.name(), equalTo("host"));
+    }
+
+    public void testNoImplicitTimestampSortWhenTimestampDropped() {
+        // TS query with @timestamp dropped
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test | DROP @timestamp", analyzer);
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.child(), not(instanceOf(OrderBy.class)));
+    }
+
+    public void testNoImplicitTimestampSortForNotTsQuery() {
+        // Not TS query should NOT have implicit sort
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("FROM test", analyzer);
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.child(), not(instanceOf(OrderBy.class)));
     }
 
     public void testRateRequiresCounterTypes() {
@@ -3344,7 +3620,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false),
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
@@ -3355,7 +3631,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false, false),
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
@@ -3379,7 +3655,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false),
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
@@ -3393,13 +3669,108 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true, false),
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(UNSUPPORTED));
         }
+    }
+
+    /**
+     * A field that is a dimension in one index and a metric in another does not prevent a FROM query from succeeding,
+     * because the time series merge is only enforced when a time series aggregation (TS + STATS) is present.
+     */
+    public void testFromQueryWithConflictingTsTypesSucceeds() {
+        FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "test",
+            false,
+            fieldsInfoOnCurrentVersion(caps, false),
+            (p, r) -> Map.of()
+        );
+        var plan = analyze("FROM test | KEEP status", analyzer(resolution, TEST_VERIFIER));
+        assertThat(plan.output(), hasSize(1));
+        assertThat(plan.output().getFirst().name(), equalTo("status"));
+        assertThat(plan.output().getFirst().dataType(), equalTo(KEYWORD));
+    }
+
+    /**
+     * When a TS source is followed by STATS, the time series merge is enforced and conflicting
+     * dimension/metric types across indices produce an {@link InvalidMappedField}. The field
+     * resolves as {@link DataType#UNSUPPORTED} rather than the original KEYWORD type.
+     */
+    public void testTsStatsQueryWithConflictingTsTypesMarksFieldUnsupported() {
+        FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "test",
+            false,
+            fieldsInfoOnCurrentVersion(caps, true),
+            (p, r) -> Map.of()
+        );
+        assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedField.class));
+        var plan = analyze("TS test | STATS avg(rate(bytes_in)) BY status", analyzer(resolution, TEST_VERIFIER));
+        var statusAttr = plan.output().stream().filter(a -> a.name().equals("status")).findFirst().orElseThrow();
+        assertThat(statusAttr.dataType(), equalTo(UNSUPPORTED));
+    }
+
+    /**
+     * TS without STATS does not produce a TimeSeriesAggregate, so conflicting
+     * dimension/metric types are ignored and the field resolves as KEYWORD.
+     */
+    public void testTsWithoutStatsAndConflictingTsTypesSucceeds() {
+        FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "test",
+            false,
+            fieldsInfoOnCurrentVersion(caps, false),
+            (p, r) -> Map.of()
+        );
+        var plan = analyze("TS test | KEEP status", analyzer(resolution, TEST_VERIFIER));
+        assertThat(plan.output(), hasSize(1));
+        assertThat(plan.output().getFirst().name(), equalTo("status"));
+        assertThat(plan.output().getFirst().dataType(), equalTo(KEYWORD));
+    }
+
+    /**
+     * PROMQL queries operate on time series data and should enforce time series field type merging,
+     * just like TS + STATS.
+     */
+    public void testPromqlQueryWithConflictingTsTypesMarksFieldUnsupported() {
+        FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "test",
+            false,
+            fieldsInfoOnCurrentVersion(caps, true),
+            (p, r) -> Map.of()
+        );
+        assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedField.class));
+        var plan = analyze("""
+            PROMQL index=test
+                step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z"
+                avg(rate(bytes_in[5m]))""", analyzer(resolution, TEST_VERIFIER));
+        assertThat(resolution.get().mapping().get("status").getDataType(), equalTo(UNSUPPORTED));
+    }
+
+    private static FieldCapabilitiesResponse buildCapsWithConflictingTsTypes() {
+        IndexFieldCapabilities timestamp = new IndexFieldCapabilitiesBuilder("@timestamp", "date").build();
+        IndexFieldCapabilities dimensionField = new IndexFieldCapabilitiesBuilder("status", "keyword").isDimension(true).build();
+        IndexFieldCapabilities metricField = new IndexFieldCapabilitiesBuilder("status", "keyword").metricType(
+            TimeSeriesParams.MetricType.GAUGE
+        ).build();
+        IndexFieldCapabilities counter = new IndexFieldCapabilitiesBuilder("bytes_in", "long").metricType(
+            TimeSeriesParams.MetricType.COUNTER
+        ).build();
+        Map<String, IndexFieldCapabilities> tsFields = Map.of("@timestamp", timestamp, "status", dimensionField, "bytes_in", counter);
+        Map<String, IndexFieldCapabilities> stdFields = Map.of("@timestamp", timestamp, "status", metricField, "bytes_in", counter);
+        return new FieldCapabilitiesResponse(
+            List.of(
+                new FieldCapabilitiesIndexResponse("ts_index", "hash_a", tsFields, false, IndexMode.TIME_SERIES),
+                new FieldCapabilitiesIndexResponse("std_index", "hash_b", stdFields, false, IndexMode.STANDARD)
+            ),
+            List.of()
+        );
     }
 
     public void testBasicFork() {
@@ -3744,16 +4115,18 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | fuse
             """));
-        assertThat(e.getMessage(), containsString("Unknown column [_score]"));
-        assertThat(e.getMessage(), containsString("Unknown column [_fork]"));
+        assertThat(e.getMessage(), containsString("FUSE requires a score column, default [_score] column not found."));
+        assertThat(e.getMessage(), containsString("FUSE requires a column to group by, default [_fork] column not found."));
+        assertThat(e.getMessage(), containsString("FUSE requires a key column, default [_index] column not found"));
+        assertThat(e.getMessage(), containsString("FUSE requires a key column, default [_id] column not found"));
 
         e = expectThrows(VerificationException.class, () -> analyze("""
-            from test
+            from test metadata _id, _index
             | FORK ( WHERE emp_no == 1 )
                    ( WHERE emp_no > 1 )
             | FUSE
             """));
-        assertThat(e.getMessage(), containsString("Unknown column [_score]"));
+        assertThat(e.getMessage(), containsString("FUSE requires a score column, default [_score] column not found."));
 
         e = expectThrows(VerificationException.class, () -> analyze("""
             from test metadata _score, _id
@@ -3761,7 +4134,7 @@ public class AnalyzerTests extends ESTestCase {
                    ( WHERE emp_no > 1 )
             | FUSE
             """));
-        assertThat(e.getMessage(), containsString("Unknown column [_index]"));
+        assertThat(e.getMessage(), containsString("FUSE requires a key column, default [_index] column not found"));
 
         e = expectThrows(VerificationException.class, () -> analyze("""
             from test metadata _score, _index
@@ -3769,7 +4142,7 @@ public class AnalyzerTests extends ESTestCase {
                    ( WHERE emp_no > 1 )
             | FUSE
             """));
-        assertThat(e.getMessage(), containsString("Unknown column [_id]"));
+        assertThat(e.getMessage(), containsString("FUSE requires a key column, default [_id] column not found"));
     }
 
     // TODO There's too much boilerplate involved here! We need a better way of creating FieldCapabilitiesResponses from a mapping or index.
@@ -4824,7 +5197,7 @@ public class AnalyzerTests extends ESTestCase {
         var analyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(esIndex),
                 defaultEnrichResolution(),
                 defaultInferenceResolution()
@@ -6081,6 +6454,63 @@ public class AnalyzerTests extends ESTestCase {
         verifyNameAndType(metadata.get(1).name(), metadata.get(1).dataType(), "_index_mode", DataType.KEYWORD);
     }
 
+    public void testUriParts() {
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        LogicalPlan plan = analyze("ROW uri=\"http://user:pass@host.com:8080/path/file.ext?query=1#frag\" | uri_parts p = uri");
+
+        Limit limit = as(plan, Limit.class);
+        UriParts parts = as(limit.child(), UriParts.class);
+
+        final List<Attribute> attributes = parts.generatedAttributes();
+
+        // verify that the attributes list is unmodifiable
+        assertThrows(UnsupportedOperationException.class, () -> attributes.add(new UnresolvedAttribute(EMPTY, "test")));
+
+        // detect output schema changes by matching attributes explicitly to known fields
+        assertContainsAttribute(attributes, "p." + DOMAIN, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + FRAGMENT, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + PATH, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + EXTENSION, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + PORT, DataType.INTEGER);
+        assertContainsAttribute(attributes, "p." + QUERY, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + SCHEME, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + USER_INFO, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + USERNAME, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + PASSWORD, DataType.KEYWORD);
+        assertEquals(10, attributes.size());
+
+        // Test invalid input type
+        VerificationException e = expectThrows(VerificationException.class, () -> analyze("ROW uri=123 | uri_parts p = uri"));
+        assertThat(e.getMessage(), containsString("Input for URI_PARTS must be of type [string] but is [integer]"));
+    }
+
+    public void testRegisteredDomain() {
+        assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+        LogicalPlan plan = analyze("ROW fqdn=\"www.example.co.uk\" | registered_domain rd = fqdn");
+
+        Limit limit = as(plan, Limit.class);
+        RegisteredDomain parts = as(limit.child(), RegisteredDomain.class);
+
+        final List<Attribute> attributes = parts.generatedAttributes();
+
+        assertThrows(UnsupportedOperationException.class, () -> attributes.add(new UnresolvedAttribute(EMPTY, "test")));
+
+        assertContainsAttribute(attributes, "rd.domain", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "rd.registered_domain", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "rd.top_level_domain", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "rd.subdomain", DataType.KEYWORD);
+        assertEquals(4, attributes.size());
+
+        VerificationException e = expectThrows(VerificationException.class, () -> analyze("ROW fqdn=123 | registered_domain rd = fqdn"));
+        assertThat(e.getMessage(), containsString("Input for REGISTERED_DOMAIN must be of type [string] but is [integer]"));
+    }
+
+    private void assertContainsAttribute(List<Attribute> attributes, String expectedName, DataType expectedType) {
+        Attribute attr = attributes.stream().filter(a -> a.name().equals(expectedName)).findFirst().orElse(null);
+        assertNotNull("Expected attribute " + expectedName + " not found", attr);
+        assertEquals("Data type mismatch for attribute " + expectedName, expectedType, attr.dataType());
+    }
+
     private void verifyNameAndTypeAndMultiTypeEsField(
         String actualName,
         DataType actualType,
@@ -6115,6 +6545,127 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps) {
-        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false);
+        return fieldsInfoOnCurrentVersion(caps, false);
+    }
+
+    static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps, boolean hasTimeSeriesAggregation) {
+        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, hasTimeSeriesAggregation);
+    }
+
+    // ===== ResolveExternalRelations + FileSet tests =====
+
+    public void testResolveExternalRelationPassesFileSet() {
+        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+        var entries = List.of(
+            new StorageEntry(StoragePath.of("s3://bucket/data/f1.parquet"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/data/f2.parquet"), 200, Instant.EPOCH)
+        );
+        var fileSet = new FileSet(entries, "s3://bucket/data/*.parquet");
+
+        List<Attribute> schema = List.of(
+            new FieldAttribute(EMPTY, "id", new EsField("id", LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE)),
+            new FieldAttribute(EMPTY, "name", new EsField("name", KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+        );
+
+        var metadata = new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return "s3://bucket/data/*.parquet";
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return schema;
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+        };
+
+        var resolvedSource = new ExternalSourceResolution.ResolvedSource(metadata, fileSet);
+        var externalResolution = new ExternalSourceResolution(Map.of("s3://bucket/data/*.parquet", resolvedSource));
+
+        var context = new AnalyzerContext(
+            EsqlTestUtils.TEST_CFG,
+            TEST_FUNCTION_REGISTRY,
+            null,
+            Map.of(),
+            Map.of(),
+            defaultEnrichResolution(),
+            defaultInferenceResolution(),
+            externalResolution,
+            TransportVersion.current(),
+            QuerySettings.UNMAPPED_FIELDS.defaultValue()
+        );
+        var testAnalyzer = new Analyzer(context, TEST_VERIFIER);
+
+        var plan = TEST_PARSER.parseQuery("EXTERNAL \"s3://bucket/data/*.parquet\" | STATS count = COUNT(*)");
+        var analyzed = testAnalyzer.analyze(plan);
+
+        var externalRelations = new ArrayList<ExternalRelation>();
+        analyzed.forEachDown(ExternalRelation.class, externalRelations::add);
+
+        assertThat("Should have one ExternalRelation", externalRelations, hasSize(1));
+        var externalRelation = externalRelations.get(0);
+
+        assertSame(fileSet, externalRelation.fileSet());
+        assertTrue(externalRelation.fileSet().isResolved());
+        assertEquals(2, externalRelation.fileSet().size());
+        assertEquals("s3://bucket/data/*.parquet", externalRelation.fileSet().originalPattern());
+    }
+
+    public void testResolveExternalRelationUnresolvedFileSet() {
+        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+        List<Attribute> schema = List.of(
+            new FieldAttribute(EMPTY, "id", new EsField("id", LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+        );
+
+        var metadata = new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return "s3://bucket/data/single.parquet";
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return schema;
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+        };
+
+        var resolvedSource = new ExternalSourceResolution.ResolvedSource(metadata, FileSet.UNRESOLVED);
+        var externalResolution = new ExternalSourceResolution(Map.of("s3://bucket/data/single.parquet", resolvedSource));
+
+        var context = new AnalyzerContext(
+            EsqlTestUtils.TEST_CFG,
+            TEST_FUNCTION_REGISTRY,
+            null,
+            Map.of(),
+            Map.of(),
+            defaultEnrichResolution(),
+            defaultInferenceResolution(),
+            externalResolution,
+            TransportVersion.current(),
+            QuerySettings.UNMAPPED_FIELDS.defaultValue()
+        );
+        var testAnalyzer = new Analyzer(context, TEST_VERIFIER);
+
+        var plan = TEST_PARSER.parseQuery("EXTERNAL \"s3://bucket/data/single.parquet\" | STATS count = COUNT(*)");
+        var analyzed = testAnalyzer.analyze(plan);
+
+        var externalRelations = new ArrayList<ExternalRelation>();
+        analyzed.forEachDown(ExternalRelation.class, externalRelations::add);
+
+        assertThat("Should have one ExternalRelation", externalRelations, hasSize(1));
+        var externalRelation = externalRelations.get(0);
+
+        assertTrue(externalRelation.fileSet().isUnresolved());
+        assertSame(FileSet.UNRESOLVED, externalRelation.fileSet());
     }
 }

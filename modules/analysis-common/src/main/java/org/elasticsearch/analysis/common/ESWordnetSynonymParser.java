@@ -15,6 +15,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.synonym.WordnetSynonymParser;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 
 import java.io.IOException;
 
@@ -22,10 +23,14 @@ public class ESWordnetSynonymParser extends WordnetSynonymParser {
     private static final Logger logger = LogManager.getLogger(ESWordnetSynonymParser.class);
 
     private final boolean lenient;
+    private final CircuitBreaker circuitBreaker;
 
-    public ESWordnetSynonymParser(boolean dedup, boolean expand, boolean lenient, Analyzer analyzer) {
+    private int ruleCount = 0;
+
+    public ESWordnetSynonymParser(boolean dedup, boolean expand, boolean lenient, Analyzer analyzer, CircuitBreaker circuitBreaker) {
         super(dedup, expand, analyzer);
         this.lenient = lenient;
+        this.circuitBreaker = circuitBreaker;
     }
 
     @Override
@@ -37,6 +42,11 @@ public class ESWordnetSynonymParser extends WordnetSynonymParser {
         // else would happen only in the case when the input or output is empty and lenient is set, in which case we
         // quietly ignore it. For more details on the control-flow see SolrSynonymParser::addInternal.
         if (lenient == false || (input.length > 0 && output.length > 0)) {
+            if ((ruleCount++ & 0x3FF) == 0) {
+                // Check the real memory usage via the parent circuit breaker every 1024 synonym rules
+                circuitBreaker.addEstimateBytesAndMaybeBreak(0L, "Synonyms");
+            }
+
             super.add(input, output, includeOrig);
         }
     }

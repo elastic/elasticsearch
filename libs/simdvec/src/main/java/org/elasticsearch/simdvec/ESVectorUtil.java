@@ -62,12 +62,51 @@ public class ESVectorUtil {
             .newESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize);
     }
 
-    public static ES91Int4VectorsScorer getES91Int4VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
-        return ESVectorizationProvider.getInstance().newES91Int4VectorsScorer(input, dimension, bulkSize);
-    }
-
     public static ES92Int7VectorsScorer getES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
         return ESVectorizationProvider.getInstance().newES92Int7VectorsScorer(input, dimension, bulkSize);
+    }
+
+    public static ES93BinaryQuantizedVectorScorer getES93BinaryQuantizedVectorScorer(
+        IndexInput input,
+        int dimension,
+        int vectorLengthInBytes
+    ) throws IOException {
+        return ESVectorizationProvider.getInstance().newES93BinaryQuantizedVectorScorer(input, dimension, vectorLengthInBytes);
+    }
+
+    public static float dotProduct(float[] a, float[] b) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        return IMPL.dotProduct(a, b);
+    }
+
+    public static float squareDistance(float[] a, float[] b) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        return IMPL.squareDistance(a, b);
+    }
+
+    public static float cosine(byte[] a, byte[] b) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        return IMPL.cosine(a, b);
+    }
+
+    public static float dotProduct(byte[] a, byte[] b) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        return IMPL.dotProduct(a, b);
+    }
+
+    public static float squareDistance(byte[] a, byte[] b) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        return IMPL.squareDistance(a, b);
     }
 
     public static long ipByteBinByte(byte[] q, byte[] d) {
@@ -195,7 +234,8 @@ public class ESVectorUtil {
         float lambda,
         int[] quantize
     ) {
-        assert upperInterval >= lowerInterval;
+        assert upperInterval >= lowerInterval
+            : "upperInterval must be greater than or equal to lowerInterval, but was: " + upperInterval + " < " + lowerInterval;
         float step = ((upperInterval - lowerInterval) / (points - 1.0F));
         float invStep = 1f / step;
         return IMPL.calculateOSQLoss(target, lowerInterval, upperInterval, step, invStep, norm2, lambda, quantize);

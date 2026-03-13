@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -317,9 +318,9 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     @Override
     protected TransformConfig doParseInstance(XContentParser parser) throws IOException {
         if (randomBoolean()) {
-            return TransformConfig.fromXContent(parser, transformId, runWithHeaders);
+            return TransformConfig.fromXContent(parser, transformId, runWithHeaders, new TransformParsingContext(false));
         } else {
-            return TransformConfig.fromXContent(parser, null, runWithHeaders);
+            return TransformConfig.fromXContent(parser, null, runWithHeaders, new TransformParsingContext(false));
         }
     }
 
@@ -331,6 +332,30 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     @Override
     protected TransformConfig mutateInstance(TransformConfig instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected TransformConfig mutateInstanceForVersion(TransformConfig instance, TransportVersion version) {
+        return mutateForVersion(instance, version);
+    }
+
+    public static TransformConfig mutateForVersion(TransformConfig instance, TransportVersion version) {
+        return new TransformConfig(
+            instance.getId(),
+            SourceConfigTests.mutateForVersion(instance.getSource(), version),
+            instance.getDestination(),
+            instance.getFrequency(),
+            instance.getSyncConfig(),
+            instance.getHeaders(),
+            instance.getPivotConfig(),
+            instance.getLatestConfig(),
+            instance.getDescription(),
+            instance.getSettings(),
+            instance.getMetadata(),
+            instance.getRetentionPolicyConfig(),
+            instance.getCreateTime(),
+            instance.getVersion() == null ? null : instance.getVersion().toString()
+        );
     }
 
     @Override
@@ -1055,7 +1080,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         var transformConfig = createTransformConfigFromString("""
             {
               "source": {
-                "index": "project-1:src"
+                "index": "project-1:src",
+                "project_routing": "_alias:_origin"
               },
               "dest": {
                 "index": "dest"
@@ -1084,7 +1110,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         var transformConfig = createTransformConfigFromString("""
             {
               "source": {
-                "index": "project-1:src"
+                "index": "project-1:src",
+                "project_routing": "_alias:_origin"
               },
               "dest": {
                 "index": "dest"
@@ -1118,7 +1145,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         var transformConfig = createTransformConfigFromString("""
             {
               "source": {
-                "index": "remote-1:src"
+                "index": "remote-1:src",
+                "project_routing": "_alias:_origin"
               },
               "dest": {
                 "index": "dest"
@@ -1150,6 +1178,6 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     private TransformConfig createTransformConfigFromString(String json, String id, boolean lenient) throws IOException {
         final XContentParser parser = XContentType.JSON.xContent()
             .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), json);
-        return TransformConfig.fromXContent(parser, id, lenient);
+        return TransformConfig.fromXContent(parser, id, lenient, new TransformParsingContext(false));
     }
 }

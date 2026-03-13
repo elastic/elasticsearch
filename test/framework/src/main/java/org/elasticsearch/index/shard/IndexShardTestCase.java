@@ -127,8 +127,7 @@ import static org.mockito.Mockito.doAnswer;
  */
 public abstract class IndexShardTestCase extends ESTestCase {
 
-    public static final IndexEventListener EMPTY_EVENT_LISTENER = new IndexEventListener() {
-    };
+    public static final IndexEventListener EMPTY_EVENT_LISTENER = new IndexEventListener() {};
 
     public static final GlobalCheckpointSyncer NOOP_GCP_SYNCER = shardId -> {};
 
@@ -1281,7 +1280,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(
             ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository)
                 .shardGenerations()
-                .getShardGen(indexId, shard.shardId().getId())
+                .getShardGen(indexId, shard.shardId().getId()),
+            randomLongBetween(1, Long.MAX_VALUE)
         );
         final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
         final ShardGeneration shardGen;

@@ -24,7 +24,30 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         }
     }
 
-    DefaultESVectorUtilSupport() {}
+    @Override
+    public float dotProduct(float[] a, float[] b) {
+        return VectorUtil.dotProduct(a, b);
+    }
+
+    @Override
+    public float squareDistance(float[] a, float[] b) {
+        return VectorUtil.squareDistance(a, b);
+    }
+
+    @Override
+    public float cosine(byte[] a, byte[] b) {
+        return VectorUtil.cosine(a, b);
+    }
+
+    @Override
+    public float dotProduct(byte[] a, byte[] b) {
+        return VectorUtil.dotProduct(a, b);
+    }
+
+    @Override
+    public float squareDistance(byte[] a, byte[] b) {
+        return VectorUtil.squareDistance(a, b);
+    }
 
     @Override
     public long ipByteBinByte(byte[] q, byte[] d) {

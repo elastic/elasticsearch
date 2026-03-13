@@ -29,8 +29,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -45,7 +45,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestHolder;
-import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
@@ -79,6 +79,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -97,6 +98,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -121,6 +123,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -305,6 +308,7 @@ public final class EsqlTestUtils {
         return fieldAttribute(randomAlphaOfLength(10), randomFrom(DataType.types()));
     }
 
+    // TODO: deduplicate some of the `FieldAttribute field(String name, DataType type)` methods in the ESQL tests (currently 6)
     public static FieldAttribute fieldAttribute(String name, DataType type) {
         return new FieldAttribute(EMPTY, name, new EsField(name, type, emptyMap(), randomBoolean(), EsField.TimeSeriesFieldType.NONE));
     }
@@ -571,6 +575,28 @@ public final class EsqlTestUtils {
         InferenceResolution inferenceResolution,
         UnmappedResolution unmappedResolution
     ) {
+        return testAnalyzerContext(
+            configuration,
+            functionRegistry,
+            indexResolutions,
+            lookupResolution,
+            enrichResolution,
+            inferenceResolution,
+            unmappedResolution,
+            null
+        );
+    }
+
+    public static MutableAnalyzerContext testAnalyzerContext(
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry,
+        Map<IndexPattern, IndexResolution> indexResolutions,
+        Map<String, IndexResolution> lookupResolution,
+        EnrichResolution enrichResolution,
+        InferenceResolution inferenceResolution,
+        UnmappedResolution unmappedResolution,
+        @Nullable TimestampBounds timestampBounds
+    ) {
         return new MutableAnalyzerContext(
             configuration,
             functionRegistry,
@@ -579,7 +605,8 @@ public final class EsqlTestUtils {
             enrichResolution,
             inferenceResolution,
             randomMinimumVersion(),
-            unmappedResolution
+            unmappedResolution,
+            timestampBounds
         );
     }
 
@@ -587,30 +614,32 @@ public final class EsqlTestUtils {
         return new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), randomMinimumVersion());
     }
 
-    public static final Verifier TEST_VERIFIER = new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L));
+    public static final EsqlFunctionRegistry TEST_FUNCTION_REGISTRY = new EsqlFunctionRegistry();
 
-    public static final PlannerSettings TEST_PLANNER_SETTINGS = new PlannerSettings(
-        DataPartitioning.AUTO,
-        ByteSizeValue.ofMb(1),
-        10_000,
-        ByteSizeValue.ofMb(1),
-        1000,
-        0.1
+    public static final EsqlParser TEST_PARSER = new EsqlParser(new EsqlConfig(TEST_FUNCTION_REGISTRY));
+
+    public static final Verifier TEST_VERIFIER = new Verifier(
+        new Metrics(TEST_FUNCTION_REGISTRY, true, true),
+        new XPackLicenseState(() -> 0L)
     );
 
-    public static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES = new TransportActionServices(
-        createMockTransportService(),
-        mock(SearchService.class),
-        null,
-        createMockClusterService(),
-        mock(ProjectResolver.class),
-        mock(IndexNameExpressionResolver.class),
-        null,
-        new InferenceService(mock(Client.class), createMockClusterService()),
-        new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
-        TEST_PLANNER_SETTINGS,
-        new CrossProjectModeDecider(Settings.EMPTY)
-    );
+    public static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES;
+    static {
+        ClusterService clusterService = createMockClusterService();
+        MOCK_TRANSPORT_ACTION_SERVICES = new TransportActionServices(
+            createMockTransportService(),
+            mock(SearchService.class),
+            null,
+            clusterService,
+            mock(ProjectResolver.class),
+            mock(IndexNameExpressionResolver.class),
+            null,
+            new InferenceService(mock(Client.class), clusterService),
+            new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
+            new PlannerSettings.Holder(clusterService),
+            CrossProjectModeDecider.NOOP
+        );
+    }
 
     private static ClusterService createMockClusterService() {
         var service = mock(ClusterService.class);
@@ -618,9 +647,11 @@ public final class EsqlTestUtils {
         doReturn(Settings.EMPTY).when(service).getSettings();
 
         // Create ClusterSettings with the required inference settings
-        var clusterSettings = new ClusterSettings(Settings.EMPTY, new java.util.HashSet<>(InferenceSettings.getSettings()));
+        Set<Setting<?>> settings = new HashSet<>();
+        settings.addAll(InferenceSettings.getSettings());
+        settings.addAll(PlannerSettings.settings());
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, settings);
         doReturn(clusterSettings).when(service).getClusterSettings();
-
         return service;
     }
 
@@ -656,6 +687,7 @@ public final class EsqlTestUtils {
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             null,
+            statement.setting(QuerySettings.APPROXIMATION),
             Map.of()
         );
     }
@@ -846,7 +878,9 @@ public final class EsqlTestUtils {
      * add to this, you must also add to {@code EsqlSpecTestCase#tables};
      */
     public static Map<String, Map<String, Column>> tables() {
-        BlockFactory factory = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE);
+        BlockFactory factory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+            .breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST))
+            .build();
         Map<String, Map<String, Column>> tables = new TreeMap<>();
         try (
             IntBlock.Builder ints = factory.newIntBlockBuilder(10);
@@ -974,7 +1008,11 @@ public final class EsqlTestUtils {
     }
 
     public static BufferedReader reader(URL resource) throws IOException {
-        return new BufferedReader(new InputStreamReader(inputStream(resource), StandardCharsets.UTF_8));
+        return reader(inputStream(resource));
+    }
+
+    public static BufferedReader reader(InputStream is) throws IOException {
+        return new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
     }
 
     /**
@@ -1182,13 +1220,8 @@ public final class EsqlTestUtils {
         double min = digest.getMin();
         double max = digest.getMax();
 
-        TDigestHolder returnValue = null;
-        try {
-            returnValue = new TDigestHolder(centroids, counts, min, max, sum, valueCount);
-        } catch (IOException e) {
-            // This is a test util, so we're just going to fail the test here
-            fail(e);
-        }
+        TDigestHolder returnValue = new TDigestHolder();
+        returnValue.reset(EncodedTDigest.encodeCentroids(centroids, counts), min, max, sum, valueCount);
         return returnValue;
     }
 
@@ -1454,7 +1487,7 @@ public final class EsqlTestUtils {
         String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
         String command = commandParts[0].trim();
         if (SourceCommand.isSourceCommand(command) && commandParts.length > 1) {
-            String[] indices = EsqlParser.INSTANCE.parseQuery(afterSetStatements)
+            String[] indices = TEST_PARSER.parseQuery(afterSetStatements)
                 .collect(UnresolvedRelation.class)
                 .getFirst()
                 .indexPattern()
@@ -1491,7 +1524,7 @@ public final class EsqlTestUtils {
         assert command.equalsIgnoreCase("set") == false : "didn't correctly extract the SET statement from the query";
         if (SourceCommand.isSourceCommand(command)) {
             String commandArgs = commandParts[1].trim();
-            String[] indices = EsqlParser.INSTANCE.parseQuery(afterSetStatements)
+            String[] indices = TEST_PARSER.parseQuery(afterSetStatements)
                 .collect(UnresolvedRelation.class)
                 .getFirst()
                 .indexPattern()

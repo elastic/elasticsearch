@@ -45,6 +45,7 @@ sourceCommand
     | promqlCommand
     // in development
     | {this.isDevVersion()}? explainCommand
+    | {this.isDevVersion()}? externalCommand
     ;
 
 processingCommand
@@ -68,10 +69,14 @@ processingCommand
     | rerankCommand
     | inlineStatsCommand
     | fuseCommand
+    | uriPartsCommand
+    | metricsInfoCommand
+    | registeredDomainCommand
+    | tsInfoCommand
+    | mmrCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
-    | {this.isDevVersion()}? mmrCommand
     ;
 
 whereCommand
@@ -100,6 +105,10 @@ fromCommand
 
 timeSeriesCommand
     : TS indexPatternAndMetadataFields
+    ;
+
+externalCommand
+    : DEV_EXTERNAL stringOrParameter commandNamedParameters
     ;
 
 indexPatternAndMetadataFields
@@ -212,7 +221,11 @@ stringOrParameter
     ;
 
 limitCommand
-    : LIMIT constant
+    : LIMIT constant limitByGroupKey?
+    ;
+
+limitByGroupKey:
+    {this.isDevVersion()}? BY grouping=fields
     ;
 
 sortCommand
@@ -348,6 +361,14 @@ fuseKeyByFields
    : qualifiedName (COMMA qualifiedName)*
    ;
 
+metricsInfoCommand
+    : METRICS_INFO
+    ;
+
+tsInfoCommand
+    : TS_INFO
+    ;
+
 //
 // In development
 //
@@ -359,6 +380,14 @@ insistCommand
     : DEV_INSIST qualifiedNamePatterns
     ;
 
+uriPartsCommand
+    : URI_PARTS qualifiedName ASSIGN primaryExpression
+    ;
+
+registeredDomainCommand
+    : REGISTERED_DOMAIN qualifiedName ASSIGN primaryExpression
+    ;
+
 setCommand
     : SET setField SEMICOLON
     ;
@@ -368,7 +397,7 @@ setField
     ;
 
 mmrCommand
-    :  DEV_MMR (queryVector=mmrQueryVectorParams)? ON diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
+    :  MMR (queryVector=mmrQueryVectorParams)? ON diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
     ;
 
 mmrQueryVectorParams

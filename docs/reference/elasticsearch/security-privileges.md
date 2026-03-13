@@ -34,7 +34,7 @@ When creating roles, refer to this page for a complete list of available privile
 :   All cluster administration operations, like snapshotting, node shutdown/restart, settings update, rerouting, or managing users and roles.
 
 `cancel_task`
-:   Privileges to cancel tasks and delete async searches. See [delete async search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-async-search-submit) API for more informations.
+:   Privileges to cancel tasks and delete async searches. See [delete async search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-async-search-submit) API for more information.
 
 `create_snapshot` {applies_to}`serverless: unavailable`
 :   Privileges to create snapshots for existing repositories. Can also list and view details on existing repositories and snapshots.
@@ -58,6 +58,10 @@ When creating roles, refer to this page for a complete list of available privile
 
 `grant_api_key` {applies_to}`serverless: unavailable`
 :   Privileges to create {{es}} API keys on behalf of other users.
+
+
+`clone_api_key` {applies_to}`stack: ga 9.4+` {applies_to}`serverless: unavailable`
+:   Privileges to clone an API key. Creates a new API key with the same permissions as an existing key, with a new name, ID, and optional expiration and metadata.
 
 
 `manage`

@@ -40,4 +40,6 @@ module org.elasticsearch.compute {
     exports org.elasticsearch.compute.querydsl.query;
     exports org.elasticsearch.compute.lucene.read;
     exports org.elasticsearch.compute.operator.fuse;
+    exports org.elasticsearch.compute.lucene.query;
+    exports org.elasticsearch.compute.expression;
 }

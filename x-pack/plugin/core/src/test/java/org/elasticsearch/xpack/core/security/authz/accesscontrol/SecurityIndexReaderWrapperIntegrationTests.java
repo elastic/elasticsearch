@@ -30,6 +30,7 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
@@ -42,6 +43,7 @@ import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.MockLicenseState;
@@ -111,7 +113,9 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             () -> true,
             null,
             Map.of(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
@@ -270,7 +274,9 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             () -> true,
             null,
             Map.of(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
@@ -516,6 +522,6 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
     private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields) {
         List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
-        return MappingLookup.fromMappers(Mapping.EMPTY, mappers, List.of());
+        return MappingLookup.fromMappers(Mapping.EMPTY, mappers, List.of(), randomFrom(IndexMode.values()));
     }
 }

@@ -10,9 +10,13 @@ package org.elasticsearch.xpack.esql.analysis.promql;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.VerifierTests.error;
 import static org.hamcrest.Matchers.containsString;
@@ -37,10 +41,7 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testPromqlIllegalNameLabelMatcher() {
-        assertThat(
-            error("PROMQL index=test step=5m (avg({__name__=~\"*.foo.*\"}))", tsdb),
-            equalTo("1:32: regex label selectors on __name__ are not supported at this time [{__name__=~\"*.foo.*\"}]")
-        );
+        assertThat(error("PROMQL index=test step=5m (avg({__name__=~\"*.foo.*\"}))", tsdb), containsString("Unknown column [__name__]"));
     }
 
     public void testPromqlSubquery() {
@@ -98,8 +99,30 @@ public class PromqlVerifierTests extends ESTestCase {
     public void testPromqlInstantQuery() {
         assertThat(
             error("PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))", tsdb),
-            equalTo("1:48: instant queries are not supported at this time [PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))]")
+            containsString("unable to create a bucket; provide either [step] or all of [start], [end], and [buckets]")
         );
+    }
+
+    public void testPromqlMissingBucketParameters() {
+        assertThat(
+            error("PROMQL index=test avg(foo)", tsdb),
+            containsString("unable to create a bucket; provide either [step] or all of [start], [end], and [buckets]")
+        );
+    }
+
+    public void testPromqlBucketsWithoutRange() {
+        assertThat(
+            error("PROMQL index=test buckets=10 avg(foo)", tsdb),
+            containsString("unable to create a bucket; provide either [step] or all of [start], [end], and [buckets]")
+        );
+    }
+
+    public void testPromqlBucketsWithTimestampBoundsFromContext() {
+        var now = Instant.now();
+        var bounds = new TimestampBounds(now.minus(1, ChronoUnit.HOURS), now);
+        var analyzer = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution(), bounds);
+        var plan = analyzer.analyze(TEST_PARSER.parseQuery("PROMQL index=test buckets=10 avg(network.bytes_in)"));
+        assertTrue("Plan should be resolved after timestamp bounds injection", plan.resolved());
     }
 
     public void testNoMetricNameMatcherNotSupported() {

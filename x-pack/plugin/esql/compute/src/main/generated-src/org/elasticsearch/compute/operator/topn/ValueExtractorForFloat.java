@@ -27,7 +27,7 @@ abstract class ValueExtractorForFloat implements ValueExtractor {
     protected final boolean inKey;
 
     ValueExtractorForFloat(TopNEncoder encoder, boolean inKey) {
-        assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
+        assert encoder.toUnsortable() == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
         this.inKey = inKey;
     }
 

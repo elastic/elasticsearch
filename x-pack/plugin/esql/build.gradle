@@ -16,6 +16,7 @@ import static org.elasticsearch.gradle.util.PlatformUtils.normalize
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
 
@@ -42,13 +43,13 @@ dependencies {
   implementation project('compute:ann')
   implementation project(':libs:dissect')
   implementation project(':libs:grok')
+  implementation project(':libs:web-utils')
   implementation project(':libs:exponential-histogram')
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.antlr:antlr4-runtime:${versions.antlr4}"
   api project(":libs:h3")
   implementation project('arrow')
   implementation "org.apache.commons:commons-math3:${versions.commons_math3}"
-
   // Also contains a dummy processor to allow compilation with unused annotations.
   annotationProcessor project('compute:gen')
 
@@ -64,6 +65,13 @@ dependencies {
   testImplementation project(path: xpackModule('kql'))
   testImplementation project(path: xpackModule('mapper-unsigned-long'))
 
+  testImplementation project(path: xpackModule('esql-datasource-csv'))
+  testImplementation project(path: xpackModule('esql-datasource-http'))
+  testImplementation project(path: xpackModule('esql-datasource-gzip'))
+  testImplementation project(path: xpackModule('esql-datasource-zstd'))
+  testImplementation project(path: xpackModule('esql-datasource-bzip2'))
+  testImplementation "com.github.luben:zstd-jni:${versions.zstdJni}"
+  testImplementation "org.apache.commons:commons-compress:${versions.esql_commons_compress}"
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')
@@ -72,6 +80,7 @@ dependencies {
   testImplementation project(path: ':modules:data-streams')
   testImplementation project(path: ':modules:mapper-extras')
   testImplementation project(xpackModule('esql:compute:test'))
+  testImplementation('ch.obermuhlner:big-math:2.3.2')
   testImplementation('net.nextencia:rrdiagram:0.9.4')
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
 
@@ -79,6 +88,13 @@ dependencies {
   internalClusterTestImplementation project(":plugins:mapper-size")
   internalClusterTestImplementation project(xpackModule('inference:qa:test-service-plugin'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('inference'))))
+  internalClusterTestImplementation project(path: xpackModule('mapper-constant-keyword'))
+  internalClusterTestImplementation project(xpackModule('analytics'))
+  internalClusterTestImplementation project(xpackModule('spatial'))
+  internalClusterTestImplementation project(xpackModule('mapper-unsigned-long'))
+  internalClusterTestImplementation project(xpackModule('wildcard'))
+  internalClusterTestImplementation project(xpackModule('mapper-version'))
+  internalClusterTestImplementation project(xpackModule('mapper-aggregate-metric'))
 }
 
 tasks.named('splitPackagesAudit').configure {
@@ -93,6 +109,13 @@ tasks.named('splitPackagesAudit').configure {
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.parquet'
+  exclude '**/*.avro'
+  exclude '**/.*.crc'
+}
+
 
 def generatedPath = "src/main/generated"
 def projectDirectory = project.layout.projectDirectory
@@ -277,6 +300,10 @@ tasks.named("test").configure {
   }
 }
 
+tasks.named('internalClusterTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.test.ESTestCase'
+}
+
 // This is similar to the test task above, but needed for the LookupJoinTypesIT which runs in the internalClusterTest task
 // and generates a types table for the LOOKUP JOIN command. It is possible in future we might have move tests that do this.
 tasks.named("internalClusterTest").configure {
@@ -404,7 +431,6 @@ tasks.register("regenParser", JavaExec) {
     '-package', 'org.elasticsearch.xpack.esql.parser',
     '-listener',
     '-visitor',
-    '-lib', outputPath,
     '-lib', "${file(grammarPath)}/parser",
     '-o', outputPath,
     "${file(grammarPath)}/EsqlBaseParser.g4"
@@ -520,6 +546,7 @@ def prop(Name, Type, type, TYPE, BYTES, Array) {
     "int"        : type == "int" ? "true" : "",
     "long"       : type == "long" ? "true" : "",
     "double"     : type == "double" ? "true" : "",
+    "float"      : type == "float" ? "true" : "",
     "BytesRef"   : type == "BytesRef" ? "true" : "",
     "boolean"    : type == "boolean" ? "true" : "",
     "nanosMillis": Name == "NanosMillis" ? "true" : "",
@@ -533,6 +560,7 @@ tasks.named('stringTemplates').configure {
   var nanosMillisProperties = prop("NanosMillis", "Long", "long", "LONG", "Long.BYTES", "LongArray")
   var millisNanosProperties = prop("MillisNanos", "Long", "long", "LONG", "Long.BYTES", "LongArray")
   var doubleProperties = prop("Double", "Double", "double", "DOUBLE", "Double.BYTES", "DoubleArray")
+  var floatProperties = prop("Float", "Float", "float", "FLOAT", "Float.BYTES", "FloatArray")
   var bytesRefProperties = prop("BytesRef", "BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF", "")
   var booleanProperties = prop("Boolean", "Boolean", "boolean", "BOOLEAN", "Byte.BYTES", "BitArray")
   var expHistoProperties = prop("ExponentialHistogram", "ExponentialHistogram", "ExponentialHistogram", "EXPONENTIAL_HISTOGRAM", "", "")
@@ -597,6 +625,11 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceDoubleEvaluator.java"
   }
   template {
+    it.properties = floatProperties
+    it.inputFile = coalesceInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceFloatEvaluator.java"
+  }
+  template {
     it.properties = bytesRefProperties
     it.inputFile = coalesceInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceBytesRefEvaluator.java"
@@ -641,6 +674,7 @@ tasks.named("test").configure {
   if (System.getProperty("golden.overwrite") != null || project.hasProperty("golden.overwrite")) {
     systemProperty "golden.overwrite", "true"
   }
+
   systemProperty "policy.directory", file("${projectDir}").absolutePath
   systemProperty "java.security.policy", file("${projectDir}/test.policy").absolutePath
 }
@@ -648,5 +682,16 @@ tasks.named("test").configure {
 tasks.register("analyzePromqlQueries", JavaExec) {
   mainClass = 'org.elasticsearch.xpack.esql.optimizer.promql.PromqlCoverageAnalyzer'
   classpath = sourceSets.test.runtimeClasspath
-  args project.findProperty("queriesFile") ?: "", project.findProperty("outputFile") ?: ""
+  def arguments = [
+    "--input", project.findProperty("queriesFile") ?: "",
+    "--output", project.findProperty("outputFile") ?: ""
+  ]
+  if (project.hasProperty("outputFormat")) {
+    arguments += ["--format", project.findProperty("outputFormat")]
+  }
+  if (project.hasProperty("verbose")) {
+    arguments += ["--verbose", project.findProperty("verbose")]
+  }
+  args arguments as List<String>
 }
+

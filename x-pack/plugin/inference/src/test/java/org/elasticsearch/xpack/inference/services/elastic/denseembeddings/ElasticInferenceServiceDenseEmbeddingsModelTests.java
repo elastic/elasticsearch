@@ -8,14 +8,40 @@
 package org.elasticsearch.xpack.inference.services.elastic.denseembeddings;
 
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EmptySecretSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 
-public class ElasticInferenceServiceDenseEmbeddingsModelTests {
+import static org.elasticsearch.test.ESTestCase.assertThat;
+import static org.hamcrest.Matchers.is;
+
+public class ElasticInferenceServiceDenseEmbeddingsModelTests extends ESTestCase {
+
+    public void testUriCreation_TextEmbedding() {
+        var model = createTextEmbeddingModel("http://eis-gateway.com", "my-model-id");
+
+        assertThat(model.uri().toString(), is("http://eis-gateway.com/api/v1/embed/text/dense"));
+    }
+
+    public void testUriCreation_Embedding() {
+        var model = createEmbeddingModel("http://eis-gateway.com", "my-model-id");
+
+        assertThat(model.uri().toString(), is("http://eis-gateway.com/api/v1/embed/dense"));
+    }
+
+    public void testUriCreation_WithTrailingSlash_TextEmbedding() {
+        var model = createTextEmbeddingModel("http://eis-gateway.com/", "my-model-id");
+
+        assertThat(model.uri().toString(), is("http://eis-gateway.com/api/v1/embed/text/dense"));
+    }
+
+    public void testUriCreation_WithTrailingSlash_Embedding() {
+        var model = createEmbeddingModel("http://eis-gateway.com/", "my-model-id");
+
+        assertThat(model.uri().toString(), is("http://eis-gateway.com/api/v1/embed/dense"));
+    }
 
     public static ElasticInferenceServiceDenseEmbeddingsModel createTextEmbeddingModel(String url, String modelId) {
         return createModel(TaskType.TEXT_EMBEDDING, url, modelId);
@@ -29,10 +55,7 @@ public class ElasticInferenceServiceDenseEmbeddingsModelTests {
         return new ElasticInferenceServiceDenseEmbeddingsModel(
             "id",
             taskType,
-            "elastic",
             new ElasticInferenceServiceDenseEmbeddingsServiceSettings(modelId, SimilarityMeasure.COSINE, null, null),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             ElasticInferenceServiceComponents.of(url),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
@@ -63,10 +86,7 @@ public class ElasticInferenceServiceDenseEmbeddingsModelTests {
         return new ElasticInferenceServiceDenseEmbeddingsModel(
             "id",
             taskType,
-            "elastic",
             serviceSettings,
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             ElasticInferenceServiceComponents.of(url),
             chunkingSettings
         );

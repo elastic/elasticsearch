@@ -131,4 +131,18 @@ public class BoundedDelimitedStringCollectorTests extends ESTestCase {
         assertThat(testHarness.getResult(strings, delimiter, limit), equalTo(fullDescription));
     }
 
+    public void testLimitOverflow() {
+        final var stringBuilder = new StringBuilder("nonempty prefix");
+        final var collector = new Strings.BoundedDelimitedStringCollector(
+            stringBuilder,
+            "",
+            Integer.MAX_VALUE - between(0, stringBuilder.length() - 1)
+        );
+
+        collector.appendItem(", item");
+        collector.finish();
+
+        assertEquals("nonempty prefix, item", stringBuilder.toString());
+    }
+
 }

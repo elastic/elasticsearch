@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.search.SearchTaskWatchdog;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.client.internal.Client;
@@ -59,12 +60,12 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.store.IndicesStore;
-import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.injection.guice.Injector;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.metrics.IndicesMetrics;
 import org.elasticsearch.monitor.metrics.NodeMetrics;
+import org.elasticsearch.monitor.metrics.SystemMetrics;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -285,11 +286,12 @@ public class Node implements Closeable {
         injector.getInstance(SnapshotShardsService.class).start();
         injector.getInstance(RepositoriesService.class).start();
         injector.getInstance(SearchService.class).start();
+        injector.getInstance(SearchTaskWatchdog.class).start();
         injector.getInstance(FsHealthService.class).start();
         injector.getInstance(NodeMetrics.class).start();
         injector.getInstance(IndicesMetrics.class).start();
+        injector.getInstance(SystemMetrics.class).start();
         injector.getInstance(HealthPeriodicLogger.class).start();
-        injector.getInstance(SamplingService.class).start();
         nodeService.getMonitorService().start();
 
         final ClusterService clusterService = injector.getInstance(ClusterService.class);
@@ -464,7 +466,6 @@ public class Node implements Closeable {
         }
         // We stop the health periodic logger first since certain checks won't be possible anyway
         stopIfStarted(HealthPeriodicLogger.class);
-        stopIfStarted(SamplingService.class);
         stopIfStarted(FileSettingsService.class);
         injector.getInstance(ResourceWatcherService.class).close();
         stopIfStarted(HttpServerTransport.class);
@@ -484,9 +485,11 @@ public class Node implements Closeable {
         stopIfStarted(nodeService.getMonitorService());
         stopIfStarted(GatewayService.class);
         stopIfStarted(SearchService.class);
+        stopIfStarted(SearchTaskWatchdog.class);
         stopIfStarted(TransportService.class);
         stopIfStarted(NodeMetrics.class);
         stopIfStarted(IndicesMetrics.class);
+        stopIfStarted(SystemMetrics.class);
 
         pluginLifecycleComponents.forEach(Node::stopIfStarted);
         // we should stop this last since it waits for resources to get released
@@ -553,16 +556,17 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(GatewayService.class));
         toClose.add(() -> stopWatch.stop().start("search"));
         toClose.add(injector.getInstance(SearchService.class));
+        toClose.add(injector.getInstance(SearchTaskWatchdog.class));
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
         toClose.add(injector.getInstance(NodeMetrics.class));
         toClose.add(injector.getInstance(IndicesMetrics.class));
+        toClose.add(injector.getInstance(SystemMetrics.class));
         if (ReadinessService.enabled(environment)) {
             toClose.add(injector.getInstance(ReadinessService.class));
         }
         toClose.add(injector.getInstance(FileSettingsService.class));
         toClose.add(injector.getInstance(HealthPeriodicLogger.class));
-        toClose.add(injector.getInstance(SamplingService.class));
 
         for (LifecycleComponent plugin : pluginLifecycleComponents) {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));

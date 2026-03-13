@@ -28,6 +28,22 @@ If security is enabled on your cluster, you can pass the username and password i
 $ ./bin/elasticsearch-sql-cli https://sql_user:strongpassword@some.server:9200
 ```
 
+### API Key Authentication [sql-cli-apikey]
+
+As an alternative to basic authentication, you can use API key authentication with the `--apikey` option. API keys can be created using the [Create API key API](docs-content://deploy-manage/api-keys/elasticsearch-api-keys.md). The API key should be provided in its encoded form (the `encoded` value returned by the Create API key API):
+
+```bash
+$ ./bin/elasticsearch-sql-cli --apikey <encoded-api-key> https://some.server:9200
+```
+
+::::{note}
+When using API key authentication, do not include username and password in the URL. The CLI will return an error if both API key and basic authentication credentials are provided.
+::::
+
+::::{warning}
+Command line arguments are visible to other users on the system through process listing commands like `ps aux` or by inspecting `/proc/<pid>/cmdline`. Avoid using this method on shared systems where other users might be able to view your credentials.
+::::
+
 Once the CLI is running you can use any [query](elasticsearch://reference/query-languages/sql/sql-spec.md) that Elasticsearch supports:
 
 ```sql

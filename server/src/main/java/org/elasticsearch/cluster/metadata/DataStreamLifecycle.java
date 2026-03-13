@@ -191,7 +191,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         if (lifecycleType == LifecycleType.FAILURES && downsamplingRounds != null) {
             throw new IllegalArgumentException(DOWNSAMPLING_NOT_SUPPORTED_ERROR_MESSAGE);
         }
-        DownsamplingRound.validateRounds(downsamplingRounds);
+        // Validate incorrectly because this may be constructed from state where an invalid configuration exists.
+        DownsamplingRound.validateRoundsIncorrectly(downsamplingRounds);
         this.downsamplingRounds = downsamplingRounds;
         if (downsamplingMethod != null && downsamplingRounds == null) {
             throw new IllegalArgumentException(DOWNSAMPLING_METHOD_WITHOUT_ROUNDS_ERROR);
@@ -579,7 +580,17 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             );
         }
 
-        static void validateRounds(List<DownsamplingRound> rounds) {
+        /**
+         * Validates the downsampling rounds, but incorrectly. By "incorrectly" we mean that it
+         * only checks that the rounds are multiples of the _first_ downsampling round's interval,
+         * instead of being a multiple of the _previous_ downsampling round's interval. However,
+         * there may be instances of an invalid configuration already stored on disk in cluster
+         * state in the template or data stream metadata. This method remains as the "old" version
+         * of the validation. Use {@link #validateRounds(List)} to validate with the correct
+         * behavior.
+         */
+        @Deprecated(since = "8.19.12,9.3.1,9.4.0")
+        public static void validateRoundsIncorrectly(List<DownsamplingRound> rounds) {
             if (rounds == null) {
                 return;
             }
@@ -607,6 +618,40 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                     }
                     DownsampleConfig.validateSourceAndTargetIntervals(previous.fixedInterval(), round.fixedInterval());
                 }
+            }
+        }
+
+        /**
+         * Validates that the downsampling rounds are non-empty, there are fewer than 10 present,
+         * and that each round's `fixed_interval` is a multiple of the previous round's interval.
+         */
+        public static void validateRounds(List<DownsamplingRound> rounds) {
+            if (rounds == null) {
+                return;
+            }
+            if (rounds.isEmpty()) {
+                throw new IllegalArgumentException("Downsampling configuration should have at least one round configured.");
+            }
+            if (rounds.size() > 10) {
+                throw new IllegalArgumentException(
+                    "Downsampling configuration supports maximum 10 configured rounds. Found: " + rounds.size()
+                );
+            }
+            DownsamplingRound previous = null;
+            for (DownsamplingRound round : rounds) {
+                if (previous != null) {
+                    if (round.after.compareTo(previous.after) < 0) {
+                        throw new IllegalArgumentException(
+                            "A downsampling round must have a later 'after' value than the proceeding, "
+                                + round.after.getStringRep()
+                                + " is not after "
+                                + previous.after.getStringRep()
+                                + "."
+                        );
+                    }
+                    DownsampleConfig.validateSourceAndTargetIntervals(previous.fixedInterval(), round.fixedInterval());
+                }
+                previous = round;
             }
         }
 
@@ -673,7 +718,9 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 throw new IllegalArgumentException(DOWNSAMPLING_NOT_SUPPORTED_ERROR_MESSAGE);
             }
             if (downsamplingRounds.isDefined() && downsamplingRounds.get() != null) {
-                DownsamplingRound.validateRounds(downsamplingRounds.get());
+                // Validate incorrectly because the Template object may be constructed by
+                // state on disk which cannot be validated correctly without breaking.
+                DownsamplingRound.validateRoundsIncorrectly(downsamplingRounds.get());
             } else if (downsamplingMethod.isDefined() && downsamplingMethod.get() != null) {
                 throw new IllegalArgumentException(DOWNSAMPLING_METHOD_WITHOUT_ROUNDS_ERROR);
             }

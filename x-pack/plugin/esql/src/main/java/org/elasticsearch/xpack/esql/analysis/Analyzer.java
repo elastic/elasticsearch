@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
@@ -59,10 +60,12 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
@@ -124,6 +127,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
@@ -132,10 +136,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
@@ -181,7 +188,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
-import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributes;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -222,7 +229,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             "Initialize",
             Limiter.ONCE,
             new ResolveConfigurationAware(),
+            new ResolveTimestampBoundsAware(),
             new ResolveTable(),
+            new ResolveExternalRelations(),
             new PruneEmptyUnionAllBranch(),
             new ResolveEnrich(),
             new ResolveLookupTables(),
@@ -247,6 +256,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Limiter.ONCE,
             new ResolvedProjects(),
             new AddImplicitLimit(),
+            new AddImplicitTimestampSort(),
             new AddImplicitForkLimit(),
             new UnionTypesCleanup()
         )
@@ -439,6 +449,48 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
+    /**
+     * Resolves UnresolvedExternalRelation nodes using pre-resolved metadata from ExternalSourceResolver.
+     * This rule mirrors the ResolveTable pattern but uses ExternalSourceResolution instead of IndexResolution.
+     * <p>
+     * This rule creates {@link ExternalRelation} nodes from any SourceMetadata,
+     * avoiding the need for source-specific logical plan nodes in core ESQL code.
+     */
+    private static class ResolveExternalRelations extends ParameterizedAnalyzerRule<UnresolvedExternalRelation, AnalyzerContext> {
+
+        @Override
+        protected LogicalPlan rule(UnresolvedExternalRelation plan, AnalyzerContext context) {
+            // Extract the table path from the expression
+            String tablePath = extractTablePath(plan.tablePath());
+            if (tablePath == null) {
+                // Path is not a simple literal (e.g., it's a parameter reference)
+                // Return the plan as-is for now
+                return plan;
+            }
+
+            // Get pre-resolved source (metadata + file set) from context
+            var resolvedSource = context.externalSourceResolution().resolvedSource(tablePath);
+            if (resolvedSource == null) {
+                // Still unresolved - return as-is to keep the error message
+                return plan;
+            }
+
+            var metadata = resolvedSource.metadata();
+            return new ExternalRelation(plan.source(), tablePath, metadata, metadata.schema(), resolvedSource.fileSet());
+        }
+
+        private String extractTablePath(Expression tablePath) {
+            if (tablePath instanceof Literal literal && literal.value() != null) {
+                Object value = literal.value();
+                if (value instanceof org.apache.lucene.util.BytesRef) {
+                    return BytesRefs.toString((org.apache.lucene.util.BytesRef) value);
+                }
+                return value.toString();
+            }
+            return null;
+        }
+    }
+
     private static class ResolveEnrich extends ParameterizedAnalyzerRule<Enrich, AnalyzerContext> {
 
         @Override
@@ -605,6 +657,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
+                case Row row -> resolveRow(row);
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             };
 
@@ -624,7 +677,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return maybeNewAggregate instanceof TimeSeriesAggregate ts && ts.timestamp() instanceof UnresolvedAttribute unresolvedTimestamp
                 ? ts.withTimestamp(maybeResolveAttribute(unresolvedTimestamp, childrenOutput))
                 : maybeNewAggregate;
-
         }
 
         private List<Expression> maybeResolveGroupings(Aggregate aggregate, List<Attribute> childrenOutput) {
@@ -659,17 +711,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<? extends NamedExpression> aggregates = aggregate.aggregates();
 
             ArrayList<Attribute> resolvedGroupings = new ArrayList<>(newGroupings.size());
+            Set<String> unresolvedGroupingNames = new HashSet<>(newGroupings.size());
             for (Expression e : newGroupings) {
                 Attribute attr = Expressions.attribute(e);
-                if (attr != null && attr.resolved()) {
-                    resolvedGroupings.add(attr);
+                if (attr != null) {
+                    if (attr.resolved()) {
+                        resolvedGroupings.add(attr);
+                    } else {
+                        unresolvedGroupingNames.add(attr.name());
+                    }
                 }
             }
 
             boolean allGroupingsResolved = groupings.size() == resolvedGroupings.size();
             if (allGroupingsResolved == false || Resolvables.resolved(aggregates) == false) {
                 Holder<Boolean> changed = new Holder<>(false);
-                List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(resolvedGroupings, childrenOutput);
+                var inputAttributes = new ArrayList<>(childrenOutput);
+                // Remove input attributes with the same name as unresolved groupings: could be shadowed by not yet resolved renamed groups.
+                // E.g. for
+                // SET unmapped_fields="nullify"; ROW x = 1, language_code = 2
+                // | STATS c = max(language_code) BY language_code = does_not_exist
+                // max(language_code) should not be resolved to the input attribute language_code.
+                inputAttributes.removeIf(a -> unresolvedGroupingNames.contains(a.name()));
+                List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(resolvedGroupings, inputAttributes);
 
                 List<NamedExpression> newAggregates = new ArrayList<>(aggregates.size());
                 // If no groupings are resolved, skip the resolution of the references to groupings in the aggregates, resolve the
@@ -1032,7 +1096,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return fork;
             }
 
-            return fork.replaceSubPlansAndOutput(newSubPlans, toReferenceAttributes(outputUnion));
+            return fork.replaceSubPlansAndOutput(newSubPlans, toReferenceAttributesPreservingIds(outputUnion, fork.output()));
         }
 
         /*
@@ -1227,16 +1291,40 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (score instanceof UnresolvedAttribute) {
                 score = maybeResolveAttribute((UnresolvedAttribute) score, childrenOutput);
             }
+            if (score instanceof UnresolvedAttribute ua && score.name().equals(MetadataAttribute.SCORE)) {
+                score = ua.withUnresolvedMessage(
+                    "FUSE requires a score column, default [" + MetadataAttribute.SCORE + "] column not found."
+                );
+            }
 
             Attribute discriminator = fuse.discriminator();
             if (discriminator instanceof UnresolvedAttribute) {
                 discriminator = maybeResolveAttribute((UnresolvedAttribute) discriminator, childrenOutput);
             }
+            if (discriminator instanceof UnresolvedAttribute ua && discriminator.name().equals(Fork.FORK_FIELD)) {
+                discriminator = ua.withUnresolvedMessage(
+                    "FUSE requires a column to group by, default [" + Fork.FORK_FIELD + "] column not found."
+                );
+            }
 
-            List<NamedExpression> keys = fuse.keys()
-                .stream()
-                .map(attr -> attr instanceof UnresolvedAttribute ? maybeResolveAttribute((UnresolvedAttribute) attr, childrenOutput) : attr)
-                .toList();
+            List<NamedExpression> keys = fuse.keys().stream().map(attr -> {
+                if (attr.resolved()) {
+                    return attr;
+                }
+                attr = maybeResolveAttribute((UnresolvedAttribute) attr, childrenOutput);
+
+                if (attr instanceof UnresolvedAttribute ua && ua.name().equals(IdFieldMapper.NAME)) {
+                    return ua.withUnresolvedMessage("FUSE requires a key column, default [" + IdFieldMapper.NAME + "] column not found");
+                }
+
+                if (attr instanceof UnresolvedAttribute ua && ua.name().equals(MetadataAttribute.INDEX)) {
+                    return ua.withUnresolvedMessage(
+                        "FUSE requires a key column, default [" + MetadataAttribute.INDEX + "] column not found"
+                    );
+                }
+
+                return attr;
+            }).toList();
 
             // some attributes were unresolved or the wrong type
             // we return Fuse here so that the Verifier can raise an error message
@@ -1321,10 +1409,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveEval(Eval eval, List<Attribute> childOutput) {
-            List<Attribute> allResolvedInputs = new ArrayList<>(childOutput);
+            var resolved = resolveFields(eval.fields(), childOutput);
+            return resolved != null ? new Eval(eval.source(), eval.child(), resolved) : eval;
+        }
+
+        /**
+         * Resolve Row fields, allowing later fields to reference earlier ones using attribute references.
+         * Field deduplication (shadowing) is handled by {@link Row#output()} via mergeOutputAttributes.
+         */
+        private LogicalPlan resolveRow(Row row) {
+            var resolved = resolveFields(row.fields(), List.of());
+            return resolved != null ? new Row(row.source(), resolved) : row;
+        }
+
+        private List<Alias> resolveFields(List<Alias> fields, List<Attribute> initialInputs) {
+            List<Attribute> allResolvedInputs = new ArrayList<>(initialInputs);
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
-            for (Alias field : eval.fields()) {
+            for (Alias field : fields) {
                 Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, allResolvedInputs));
 
                 changed |= result != field;
@@ -1342,7 +1444,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     allResolvedInputs.add(result.toAttribute());
                 }
             }
-            return changed ? new Eval(eval.source(), eval.child(), newFields) : eval;
+            return changed ? newFields : null;
         }
 
         /**
@@ -1649,6 +1751,37 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
+    private static class ResolveTimestampBoundsAware extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
+            var bounds = context.timestampBounds();
+            if (bounds == null) {
+                return plan;
+            }
+            if (plan instanceof TimestampBoundsAware.OfLogicalPlan tba && tba.needsTimestampBounds()) {
+                plan = tba.withTimestampBounds(
+                    Literal.dateTime(plan.source(), bounds.start()),
+                    Literal.dateTime(plan.source(), bounds.end())
+                );
+            }
+            return plan.transformExpressionsUp(Expression.class, expression -> {
+                if (expression instanceof TimestampBoundsAware.OfExpression tba && tba.needsTimestampBounds()) {
+                    return tba.withTimestampBounds(
+                        Literal.dateTime(expression.source(), bounds.start()),
+                        Literal.dateTime(expression.source(), bounds.end())
+                    );
+                }
+                return expression;
+            });
+        }
+    }
+
     private static class ResolveFunctions extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
 
         @Override
@@ -1822,6 +1955,57 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 newSubPlans.add(addImplicitLimit.apply(subPlan, ctx));
             }
             return fork.replaceSubPlans(newSubPlans);
+        }
+    }
+
+    /**
+     * For TS queries without explicit SORT or STATS, inject an implicit SORT by @timestamp DESC
+     * so that the most recent points are returned first, instead of physical index order.
+     */
+    private static class AddImplicitTimestampSort extends Rule<LogicalPlan, LogicalPlan> {
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            if (plan instanceof Limit limit) {
+                return injectTimestampSort(limit);
+            }
+            throw new IllegalStateException(
+                "Rule " + AddImplicitTimestampSort.class.getName() + " should run after " + AddImplicitLimit.class.getName()
+            );
+        }
+
+        private LogicalPlan injectTimestampSort(Limit limit) {
+            LogicalPlan child = limit.child();
+
+            boolean hasExplicitSortOrAggregate = child.collectFirstChildren(lp -> lp instanceof OrderBy || lp instanceof Aggregate)
+                .isEmpty() == false;
+
+            if (hasExplicitSortOrAggregate) {
+                return limit;
+            }
+
+            boolean hasTimeSeries = child.collect(EsRelation.class, r -> r.indexMode() == IndexMode.TIME_SERIES).isEmpty() == false;
+            if (hasTimeSeries == false) {
+                return limit;
+            }
+
+            // Inject the OrderBy below each (to handle FORK) innermost Limit.
+            return limit.transformDown(Limit.class, l -> {
+                if (l.child().collect(Limit.class).isEmpty()) {
+                    var localChild = l.child();
+                    var localTimestampAttr = localChild.collect(EsRelation.class, r -> r.indexMode() == IndexMode.TIME_SERIES)
+                        .stream()
+                        .findFirst()
+                        .flatMap(r -> r.output().stream().filter(a -> MetadataAttribute.TIMESTAMP_FIELD.equals(a.name())).findFirst())
+                        .flatMap(ts -> localChild.output().stream().filter(a -> a.id().equals(ts.id())).findFirst());
+
+                    if (localTimestampAttr.isPresent()) {
+                        var source = l.source();
+                        Order order = new Order(source, localTimestampAttr.get(), Order.OrderDirection.DESC, Order.NullsPosition.LAST);
+                        return l.replaceChild(new OrderBy(source, localChild, List.of(order)));
+                    }
+                }
+                return l;
+            });
         }
     }
 

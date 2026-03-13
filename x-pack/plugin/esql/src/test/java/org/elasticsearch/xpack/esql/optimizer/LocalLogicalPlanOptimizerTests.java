@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -26,8 +27,10 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -36,7 +39,6 @@ import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -63,7 +65,6 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -110,6 +111,8 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
@@ -381,9 +384,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         // Expects
         // MockFieldAttributeCommand[last_name{f}#7]
-        // \_Project[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
-        // ages{f}#6, last_name{r}#7, long_noidx{f}#13, salary{f}#8]]
-        // \_Eval[[null[KEYWORD] AS last_name]]
+        // \_Project[[last_name{r}#7]]
+        // \_Eval[[null[KEYWORD] AS last_name#7]]
         // \_Limit[1000[INTEGER],false]
         // \_EsRelation[test][_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
         LogicalPlan localPlan = localPlan(new MockFieldAttributeCommand(EMPTY, plan, lastName), testStats);
@@ -399,7 +401,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         assertEquals(literal.child(), new Literal(EMPTY, null, KEYWORD));
         assertThat(Expressions.names(relation.output()), not(contains("last_name")));
 
-        assertEquals(Expressions.names(initialRelation.output()), Expressions.names(project.output()));
+        assertThat(Expressions.names(project.output()), contains("last_name"));
     }
 
     /**
@@ -506,6 +508,98 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         );
     }
 
+    /**
+     * Test that fields with DataType.NULL from NULLIFY mode are replaced with constant null literals.
+     * When unmapped_fields="nullify", the analyzer adds fields with DataType.NULL to EsRelation.
+     * The local optimizer's ReplaceFieldWithConstantOrNull rule should replace these with Literal.NULL.
+     *
+     * Expects:
+     * Project[[does_not_exist_field{r}#X]]
+     * \_Eval[[null[NULL] AS does_not_exist_field]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_EsRelation[test][...]
+     */
+    public void testNullifyModeFieldReplacedWithNull() {
+        assumeTrue("Requires FIX_UNMAPPED_FIELDS_IN_ESRELATION", EsqlCapabilities.Cap.FIX_UNMAPPED_FIELDS_IN_ESRELATION.isEnabled());
+
+        var plan = planWithNullify("from test | keep does_not_exist_field");
+        var testStats = statsForMissingField("does_not_exist_field");
+        var localPlan = localPlan(plan, testStats);
+
+        var project = as(localPlan, Project.class);
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("does_not_exist_field"));
+        as(projections.get(0), ReferenceAttribute.class);
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("does_not_exist_field"));
+        var alias = as(eval.fields().get(0), Alias.class);
+        var literal = as(alias.child(), Literal.class);
+        assertThat(literal.value(), is(nullValue()));
+        assertThat(literal.dataType(), is(DataType.NULL));
+
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * Test that fields with DataType.NULL from NULLIFY mode used in EVAL are correctly replaced.
+     *
+     * Expects:
+     * Project[[x{r}#X]]
+     * \_Eval[[null[INTEGER] AS x]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_EsRelation[test][...]
+     */
+    public void testNullifyModeFieldInEvalReplacedWithNull() {
+        assumeTrue("Requires FIX_UNMAPPED_FIELDS_IN_ESRELATION", EsqlCapabilities.Cap.FIX_UNMAPPED_FIELDS_IN_ESRELATION.isEnabled());
+
+        var plan = planWithNullify("""
+              from test
+            | eval x = does_not_exist_field + 1
+            | keep x
+            """);
+
+        var testStats = statsForMissingField("does_not_exist_field");
+        var localPlan = localPlan(plan, testStats);
+
+        var project = as(localPlan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("x"));
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("x"));
+
+        var alias = as(eval.fields().get(0), Alias.class);
+        var literal = as(alias.child(), Literal.class);
+        assertThat(literal.value(), is(nullValue()));
+        assertThat(literal.dataType(), is(INTEGER));
+
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * Test that multiple fields with DataType.NULL are all replaced.
+     */
+    public void testNullifyModeMultipleFieldsReplacedWithNull() {
+        assumeTrue("Requires FIX_UNMAPPED_FIELDS_IN_ESRELATION", EsqlCapabilities.Cap.FIX_UNMAPPED_FIELDS_IN_ESRELATION.isEnabled());
+
+        var plan = planWithNullify("""
+              from test
+            | eval x = field_a + field_b
+            | keep x
+            """);
+
+        var testStats = statsForMissingField("field_a", "field_b");
+        var localPlan = localPlan(plan, testStats);
+
+        var project = as(localPlan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("x"));
+        var eval = as(project.child(), Eval.class);
+
+        var alias = as(eval.fields().get(0), Alias.class);
+        var literal = as(alias.child(), Literal.class);
+        assertThat(literal.value(), is(nullValue()));
+    }
+
     public void testSparseDocument() throws Exception {
         var query = """
             from large
@@ -528,7 +622,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var analyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(index),
                 emptyPolicyResolution(),
                 emptyInferenceResolution()
@@ -536,7 +630,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             TEST_VERIFIER
         );
 
-        var analyzed = analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query));
+        var analyzed = analyzer.analyze(TEST_PARSER.parseQuery(query));
         var optimized = logicalOptimizer.optimize(analyzed);
         var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), searchStats);
         var plan = new LocalLogicalPlanOptimizer(localContext).localOptimize(optimized);
@@ -2381,7 +2475,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         return new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(test),
                 emptyPolicyResolution(),
                 emptyInferenceResolution()
@@ -2392,5 +2486,236 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     public static EsRelation relation() {
         return EsqlTestUtils.relation(randomFrom(IndexMode.values()));
+    }
+
+    private static Analyzer analyzerWithNullifyMode() {
+        EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
+        return new Analyzer(
+            testAnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                TEST_FUNCTION_REGISTRY,
+                indexResolutions(test),
+                Map.of(),
+                emptyPolicyResolution(),
+                emptyInferenceResolution(),
+                UnmappedResolution.NULLIFY
+            ),
+            TEST_VERIFIER
+        );
+    }
+
+    private LogicalPlan planWithNullify(String query) {
+        return plan(query, analyzerWithNullifyMode());
+    }
+
+    // Tests for project metadata field optimization (ReplaceFieldWithConstantOrNull)
+
+    /**
+     * Test that project metadata fields like _project.my_tag are replaced with their constant values in a Filter.
+     * When the SearchStats returns a constant value for the project metadata field, the MetadataAttribute
+     * should be replaced with a Literal containing that constant value.
+     *
+     * When the constant value matches the comparison value (e.g., "foo" == "foo"), subsequent optimizations
+     * will fold this to true and potentially simplify the entire plan further.
+     */
+    public void testProjectMetadataFieldReplacedWithConstantInFilter() {
+        // Create an EsRelation with a project metadata attribute
+        var projectTagAttr = new MetadataAttribute(EMPTY, "_project.my_tag", KEYWORD, false);
+        var fieldAttr = getFieldAttribute("name");
+        var relation = new EsRelation(
+            EMPTY,
+            "test",
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of("test", IndexMode.STANDARD),
+            List.of(fieldAttr, projectTagAttr)
+        );
+
+        // Create a filter that uses the project metadata attribute: WHERE _project.my_tag == "bar"
+        // (different value so constant folding doesn't eliminate the filter)
+        var filter = new Filter(
+            EMPTY,
+            new Limit(EMPTY, L(1000), relation),
+            new org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals(EMPTY, projectTagAttr, L("bar"))
+        );
+
+        // Create SearchStats that returns a constant value for _project.my_tag
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public String constantValue(FieldAttribute.FieldName name) {
+                if (name.string().equals("_project.my_tag")) {
+                    return "foo";
+                }
+                return null;
+            }
+        };
+
+        // Run the local optimizer
+        var localContext = new LocalLogicalOptimizerContext(TEST_CFG, FoldContext.small(), searchStats);
+        var optimizedPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(filter);
+
+        // When _project.my_tag is replaced with "foo" and compared to "bar", the result is false,
+        // which causes the optimizer to turn this into an empty LocalRelation
+        var localRelation = as(optimizedPlan, org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation.class);
+        assertThat(localRelation.supplier(), instanceOf(EmptyLocalSupplier.class));
+    }
+
+    /**
+     * Test that project metadata fields are NOT replaced with null when constantValue returns null.
+     * When we can't get the constant value (either because the tag doesn't exist OR because we
+     * couldn't access project metadata during optimization), we leave the attribute as is and
+     * let the normal ES|QL execution path handle it via block loaders.
+     */
+    public void testProjectMetadataFieldNotReplacedWhenConstantValueReturnsNull() {
+        // Create an EsRelation with a project metadata attribute
+        var projectTagAttr = new MetadataAttribute(EMPTY, "_project.custom_tag", KEYWORD, false);
+        var fieldAttr = getFieldAttribute("name");
+        var relation = new EsRelation(
+            EMPTY,
+            "test",
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of("test", IndexMode.STANDARD),
+            List.of(fieldAttr, projectTagAttr)
+        );
+
+        // Create a filter that uses the project metadata attribute
+        var filter = new Filter(
+            EMPTY,
+            new Limit(EMPTY, L(1000), relation),
+            new org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals(EMPTY, projectTagAttr, L("bar"))
+        );
+
+        // Create SearchStats that returns null for the project tag (simulating inability to get constant)
+        // The default implementation of constantValue already returns null, but we override for clarity
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public String constantValue(FieldAttribute.FieldName name) {
+                // Return null for all fields (no constant values available)
+                return null;
+            }
+        };
+
+        // Run the local optimizer
+        var localContext = new LocalLogicalOptimizerContext(TEST_CFG, FoldContext.small(), searchStats);
+        var optimizedPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(filter);
+
+        // When constantValue returns null, we do NOT replace the attribute with null.
+        // Instead, we leave the filter as is and let execution handle it.
+        // The plan should still be a Filter (not an empty LocalRelation)
+        var filterResult = as(optimizedPlan, Filter.class);
+        // The filter condition should still reference the original MetadataAttribute
+        var equals = as(filterResult.condition(), org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals.class);
+        assertThat(equals.left(), instanceOf(MetadataAttribute.class));
+        assertThat(((MetadataAttribute) equals.left()).name(), equalTo("_project.custom_tag"));
+    }
+
+    /**
+     * Test that project metadata fields are replaced with constant values in an Eval.
+     */
+    public void testProjectMetadataFieldReplacedWithConstantInEval() {
+        // Create an EsRelation with a project metadata attribute
+        var projectTagAttr = new MetadataAttribute(EMPTY, "_project._alias", KEYWORD, false);
+        var fieldAttr = getFieldAttribute("name");
+        var relation = new EsRelation(
+            EMPTY,
+            "test",
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of("test", IndexMode.STANDARD),
+            List.of(fieldAttr, projectTagAttr)
+        );
+
+        // Create an eval that uses the project metadata attribute: EVAL project_alias = _project._alias
+        var eval = new Eval(EMPTY, new Limit(EMPTY, L(1000), relation), List.of(new Alias(EMPTY, "project_alias", projectTagAttr)));
+
+        // Create SearchStats that returns a constant value for _project._alias
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public String constantValue(FieldAttribute.FieldName name) {
+                if (name.string().equals("_project._alias")) {
+                    return "my_project";
+                }
+                return null;
+            }
+        };
+
+        // Run the local optimizer
+        var localContext = new LocalLogicalOptimizerContext(TEST_CFG, FoldContext.small(), searchStats);
+        var optimizedPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(eval);
+
+        // Verify the MetadataAttribute was replaced with a Literal
+        var optimizedEval = as(optimizedPlan, Eval.class);
+        var alias = as(optimizedEval.fields().get(0), Alias.class);
+        var literal = as(alias.child(), Literal.class);
+        assertThat(literal.value(), equalTo(new BytesRef("my_project")));
+    }
+
+    /**
+     * Test that non-project metadata fields (like _index) are NOT replaced by this optimization.
+     * Standard metadata fields should remain unchanged.
+     */
+    public void testNonProjectMetadataFieldsNotReplaced() {
+        // Create an EsRelation with a standard metadata attribute (_index)
+        var indexAttr = new MetadataAttribute(EMPTY, MetadataAttribute.INDEX, KEYWORD, true);
+        var fieldAttr = getFieldAttribute("name");
+        var relation = new EsRelation(
+            EMPTY,
+            "test",
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of("test", IndexMode.STANDARD),
+            List.of(fieldAttr, indexAttr)
+        );
+
+        // Create a filter that uses the _index metadata attribute
+        var filter = new Filter(
+            EMPTY,
+            new Limit(EMPTY, L(1000), relation),
+            new org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals(EMPTY, indexAttr, L("test"))
+        );
+
+        // Create SearchStats (doesn't matter what it returns, _index shouldn't be processed)
+        var searchStats = TEST_SEARCH_STATS;
+
+        // Run the local optimizer
+        var localContext = new LocalLogicalOptimizerContext(TEST_CFG, FoldContext.small(), searchStats);
+        var optimizedPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(filter);
+
+        // Verify the _index MetadataAttribute was NOT replaced
+        var optimizedFilter = as(optimizedPlan, Filter.class);
+        var equals = as(optimizedFilter.condition(), org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals.class);
+
+        // The left side should still be a MetadataAttribute
+        var metadataAttr = as(equals.left(), MetadataAttribute.class);
+        assertThat(metadataAttr.name(), equalTo("_index"));
+    }
+
+    public void testTimeSeriesMetadataAttributeNotReplaced() {
+        var timeSeriesAttr = new TimeSeriesMetadataAttribute(EMPTY, Set.of());
+        var fieldAttr = getFieldAttribute("name");
+        var relation = new EsRelation(
+            EMPTY,
+            "test",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("test", IndexMode.TIME_SERIES),
+            List.of(fieldAttr, timeSeriesAttr)
+        );
+        var eval = new Eval(EMPTY, new Limit(EMPTY, L(1000), relation), List.of(new Alias(EMPTY, "ts", timeSeriesAttr)));
+
+        var localContext = new LocalLogicalOptimizerContext(TEST_CFG, FoldContext.small(), TEST_SEARCH_STATS);
+        var optimizedPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(eval);
+
+        var optimizedEval = as(optimizedPlan, Eval.class);
+        var alias = as(optimizedEval.fields().get(0), Alias.class);
+        var optimizedAttr = as(alias.child(), TimeSeriesMetadataAttribute.class);
+        assertThat(MetadataAttribute.isTimeSeriesAttribute(optimizedAttr), is(true));
+        assertThat(optimizedAttr.withoutFields(), equalTo(Set.of()));
     }
 }

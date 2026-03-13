@@ -47,9 +47,7 @@ import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.junit.After;
@@ -413,9 +411,9 @@ public class AbstractAuditorTests extends ESTestCase {
                     NotificationsIndex.mapping()
                 )
             );
-            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, templateConfig.loadBytes())) {
+            try {
                 return new TransportPutComposableIndexTemplateAction.Request(templateConfig.getTemplateName()).indexTemplate(
-                    ComposableIndexTemplate.parse(parser)
+                    templateConfig.load(ComposableIndexTemplate::parse)
                 ).masterNodeTimeout(MASTER_TIMEOUT);
             } catch (IOException e) {
                 throw new ElasticsearchParseException("unable to parse composable template " + templateConfig.getTemplateName(), e);

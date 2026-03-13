@@ -59,6 +59,9 @@ public class RestFindStructureArgumentsParser {
         request.setDelimiter(restRequest.param(FindStructureAction.Request.DELIMITER.getPreferredName()));
         request.setQuote(restRequest.param(FindStructureAction.Request.QUOTE.getPreferredName()));
         request.setShouldTrimFields(restRequest.paramAsBoolean(FindStructureAction.Request.SHOULD_TRIM_FIELDS.getPreferredName(), null));
+        request.setShouldParseRecursively(
+            restRequest.paramAsBoolean(FindStructureAction.Request.SHOULD_PARSE_RECURSIVELY.getPreferredName(), false)
+        );
         request.setGrokPattern(restRequest.param(FindStructureAction.Request.GROK_PATTERN.getPreferredName()));
         request.setEcsCompatibility(restRequest.param(FindStructureAction.Request.ECS_COMPATIBILITY.getPreferredName()));
         request.setTimestampFormat(restRequest.param(FindStructureAction.Request.TIMESTAMP_FORMAT.getPreferredName()));

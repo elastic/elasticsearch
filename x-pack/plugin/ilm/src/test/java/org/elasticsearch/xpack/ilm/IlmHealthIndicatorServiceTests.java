@@ -11,11 +11,14 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -294,7 +297,11 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
     private static ClusterState createClusterStateWith(IndexLifecycleMetadata metadata) {
         var builder = new ClusterState.Builder(new ClusterName("test-cluster"));
         if (metadata != null) {
-            builder.metadata(new Metadata.Builder().putCustom(IndexLifecycleMetadata.TYPE, metadata));
+            @FixForMultiProject(description = "ilm is not project aware")
+            final ProjectId projectId = ProjectId.DEFAULT;
+            builder.metadata(
+                new Metadata.Builder().put(ProjectMetadata.builder(projectId).putCustom(IndexLifecycleMetadata.TYPE, metadata))
+            );
         }
         return builder.build();
     }

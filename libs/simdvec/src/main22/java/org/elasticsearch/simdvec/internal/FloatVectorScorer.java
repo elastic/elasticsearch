@@ -17,6 +17,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -42,6 +43,7 @@ public abstract sealed class FloatVectorScorer extends RandomVectorScorer.Abstra
             return Optional.empty();
         }
         input = FilterIndexInput.unwrapOnlyTest(input);
+        input = MemorySegmentAccessInputAccess.unwrap(input);
         if (input instanceof MemorySegmentAccessInput msInput) {
             checkInvariants(values.size(), values.dimension(), input);
 
@@ -102,19 +104,22 @@ public abstract sealed class FloatVectorScorer extends RandomVectorScorer.Abstra
         }
 
         @Override
-        public void bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
+        public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
             MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
             if (vectorsSeg == null) {
-                super.bulkScore(nodes, scores, numNodes);
+                return super.bulkScore(nodes, scores, numNodes);
             } else {
                 var ordinalsSeg = MemorySegment.ofArray(nodes);
                 var scoresSeg = MemorySegment.ofArray(scores);
 
                 dotProductF32BulkWithOffsets(vectorsSeg, query, dimensions, vectorByteSize, ordinalsSeg, numNodes, scoresSeg);
 
+                float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
                     scores[i] = VectorUtil.normalizeToUnitInterval(scores[i]);
+                    max = Math.max(max, scores[i]);
                 }
+                return max;
             }
         }
     }
@@ -132,19 +137,22 @@ public abstract sealed class FloatVectorScorer extends RandomVectorScorer.Abstra
         }
 
         @Override
-        public void bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
+        public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
             MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
             if (vectorsSeg == null) {
-                super.bulkScore(nodes, scores, numNodes);
+                return super.bulkScore(nodes, scores, numNodes);
             } else {
                 var ordinalsSeg = MemorySegment.ofArray(nodes);
                 var scoresSeg = MemorySegment.ofArray(scores);
 
                 squareDistanceF32BulkWithOffsets(vectorsSeg, query, dimensions, vectorByteSize, ordinalsSeg, numNodes, scoresSeg);
 
+                float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
                     scores[i] = VectorUtil.normalizeDistanceToUnitInterval(scores[i]);
+                    max = Math.max(max, scores[i]);
                 }
+                return max;
             }
         }
     }
@@ -162,19 +170,22 @@ public abstract sealed class FloatVectorScorer extends RandomVectorScorer.Abstra
         }
 
         @Override
-        public void bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
+        public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
             MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
             if (vectorsSeg == null) {
-                super.bulkScore(nodes, scores, numNodes);
+                return super.bulkScore(nodes, scores, numNodes);
             } else {
                 var ordinalsSeg = MemorySegment.ofArray(nodes);
                 var scoresSeg = MemorySegment.ofArray(scores);
 
                 dotProductF32BulkWithOffsets(vectorsSeg, query, dimensions, vectorByteSize, ordinalsSeg, numNodes, scoresSeg);
 
+                float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
                     scores[i] = VectorUtil.scaleMaxInnerProductScore(scores[i]);
+                    max = Math.max(max, scores[i]);
                 }
+                return max;
             }
         }
     }

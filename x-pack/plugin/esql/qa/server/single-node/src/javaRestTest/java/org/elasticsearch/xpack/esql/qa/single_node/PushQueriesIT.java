@@ -14,6 +14,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -188,7 +189,7 @@ public class PushQueriesIT extends ESRestTestCase {
                  * that don't have the `foo` field. "*:*" is because sometimes we end up on
                  * a shard where all `foo = 1`.
                  */
-                List.of("#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]", "foo:[1 TO 1]");
+                List.of("#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]", "foo:[1 TO 1]", "FieldExistsQuery [field=_primary_term]");
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
@@ -383,10 +384,7 @@ public class PushQueriesIT extends ESRestTestCase {
             equalTo(found ? List.of(List.of(value)) : List.of())
         );
         Matcher<String> luceneQueryMatcher = anyOf(
-            () -> Iterators.map(
-                luceneQueryOptions.iterator(),
-                (String s) -> equalTo(s.replaceAll("%value", value).replaceAll("%different_value", differentValue))
-            )
+            () -> Iterators.map(luceneQueryOptions.iterator(), (String s) -> queryMatcher(s, value, differentValue))
         );
 
         @SuppressWarnings("unchecked")
@@ -420,6 +418,14 @@ public class PushQueriesIT extends ESRestTestCase {
                 default -> throw new IllegalArgumentException("can't match " + description);
             }
         }
+    }
+
+    private Matcher<String> queryMatcher(String queryString, String value, String differentValue) {
+        queryString = queryString.replaceAll("%value", value).replaceAll("%different_value", differentValue);
+        if (queryString.length() <= LuceneOperator.Status.QUERY_STRING_TRUNCATION) {
+            return equalTo(queryString);
+        }
+        return startsWith(queryString.substring(0, LuceneOperator.Status.QUERY_STRING_TRUNCATION));
     }
 
     private void indexValue(String value) throws IOException {

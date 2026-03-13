@@ -16,6 +16,7 @@
 
 package org.elasticsearch.injection.guice.internal;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.logging.Logger;
@@ -25,7 +26,9 @@ import java.util.logging.Logger;
  *
  * @author crazybob@google.com (Bob Lee)
  */
+@SuppressForbidden(reason = "Allowed to use java.util.logging in Guice")
 public class Stopwatch {
+
     private static final Logger logger = Logger.getLogger(Stopwatch.class.getName());
 
     private long startNS = System.nanoTime();

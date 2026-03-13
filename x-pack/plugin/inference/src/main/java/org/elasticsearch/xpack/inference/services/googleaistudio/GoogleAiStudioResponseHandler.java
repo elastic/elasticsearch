@@ -23,8 +23,6 @@ import org.elasticsearch.xpack.inference.services.googleaistudio.response.Google
 import java.io.IOException;
 import java.util.concurrent.Flow;
 
-import static org.elasticsearch.core.Strings.format;
-
 public class GoogleAiStudioResponseHandler extends BaseResponseHandler {
 
     static final String GOOGLE_AI_STUDIO_UNAVAILABLE = "The Google AI Studio service may be temporarily overloaded or down";
@@ -82,10 +80,6 @@ public class GoogleAiStudioResponseHandler extends BaseResponseHandler {
         }
     }
 
-    private static String resourceNotFoundError(Request request) {
-        return format("Resource not found at [%s]", request.getURI());
-    }
-
     @Override
     public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
         var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
@@ -94,5 +88,4 @@ public class GoogleAiStudioResponseHandler extends BaseResponseHandler {
         serverSentEventProcessor.subscribe(googleAiProcessor);
         return new StreamingChatCompletionResults(googleAiProcessor);
     }
-
 }

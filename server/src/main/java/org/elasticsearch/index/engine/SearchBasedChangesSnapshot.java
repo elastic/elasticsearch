@@ -99,7 +99,7 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
         this.toSeqNo = toSeqNo;
         this.lastSeenSeqNo = fromSeqNo - 1;
         this.requiredFullRange = requiredFullRange;
-        this.indexSearcher = createIndexSearcher(engineSearcher);
+        this.indexSearcher = newIndexSearcher(engineSearcher);
         this.indexSearcher.setQueryCache(null);
 
         long requestingSize = (toSeqNo - fromSeqNo == Long.MAX_VALUE) ? Long.MAX_VALUE : (toSeqNo - fromSeqNo + 1L);
@@ -108,18 +108,6 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
         this.accessStats = accessStats;
         this.totalHits = accessStats ? indexSearcher.count(rangeQuery(indexSettings, fromSeqNo, toSeqNo)) : -1;
         this.sourceMetadataFetcher = createSourceMetadataValueFetcher(mapperService, indexSearcher);
-    }
-
-    /**
-     * Creates the {@link IndexSearcher} used to list the documents to include in the snapshot. By default, all documents are returned
-     * including the non-live ones. This method can be overridden in test to only return live documents.
-     *
-     * @param engineSearcher the {@link Engine.Searcher} to create the {@link IndexSearcher} from
-     * @return an {@link IndexSearcher}
-     * @throws IOException if something goes wrong
-     */
-    protected IndexSearcher createIndexSearcher(Engine.Searcher engineSearcher) throws IOException {
-        return newIndexSearcher(engineSearcher);
     }
 
     private ValueFetcher createSourceMetadataValueFetcher(MapperService mapperService, IndexSearcher searcher) {
@@ -132,24 +120,6 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
         return mapper != null
             ? mapper.fieldType().valueFetcher(mapperService.mappingLookup(), mapperService.getBitSetProducer(), searcher)
             : null;
-    }
-
-    /**
-     * @return if true, documents with _source disabled are also returned. This shouldn't be the case in peer-recoveries where the source is
-     * retained but this method exist to allow tests classes to also list documents without source.
-     */
-    protected boolean skipDocsWithNullSource() {
-        return true;
-    }
-
-    /**
-     * Allows test classes to return documents with a null _id field.
-     *
-     * @param id the document id
-     * @return a non-null value for the document id
-     */
-    protected String overrideId(String id) {
-        return id;
     }
 
     /**
@@ -258,8 +228,7 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
         if (values.isEmpty()) {
             return originalSource;
         }
-        originalSource.source().put(InferenceMetadataFieldsMapper.NAME, values.get(0));
-        return Source.fromMap(originalSource.source(), originalSource.sourceContentType());
+        return originalSource.withMutations(map -> map.put(InferenceMetadataFieldsMapper.NAME, values.get(0)));
     }
 
     static IndexSearcher newIndexSearcher(Engine.Searcher engineSearcher) throws IOException {

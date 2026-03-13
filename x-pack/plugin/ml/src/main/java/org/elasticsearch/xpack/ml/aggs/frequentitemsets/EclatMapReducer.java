@@ -272,6 +272,7 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
             }
 
             // swap items
+            transactionStore.getTransactions().incRef();
             ImmutableTransactionStore rewrittenStore = new ImmutableTransactionStore(
                 transactionStore.getBigArrays(),
                 rewrittenItems,
@@ -282,8 +283,7 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
                 transactionStore.getTotalTransactionCount(),
                 transactionStore.getFilteredTransactionCount()
             );
-
-            rewrittenItems = items;
+            rewrittenItems = null; // passed to rewrittenStore
             return rewrittenStore;
         } finally {
             Releasables.close(rewrittenItems);

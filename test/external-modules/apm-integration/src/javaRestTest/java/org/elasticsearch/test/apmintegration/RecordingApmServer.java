@@ -110,6 +110,18 @@ public class RecordingApmServer extends ExternalResource {
         return server.getAddress().getPort();
     }
 
+    /**
+     * Returns the HTTP address in the format "host:port", properly handling IPv6 addresses with brackets.
+     */
+    public String getHttpAddress() {
+        String host = server.getAddress().getHostString();
+        if (host.contains(":")) {
+            // IPv6 address needs brackets
+            host = "[" + host + "]";
+        }
+        return host + ":" + getPort();
+    }
+
     public void addMessageConsumer(Consumer<String> messageConsumer) {
         this.consumer = messageConsumer;
     }

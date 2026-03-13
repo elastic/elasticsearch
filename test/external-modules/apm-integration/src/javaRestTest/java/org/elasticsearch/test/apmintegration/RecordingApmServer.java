@@ -73,6 +73,8 @@ public class RecordingApmServer extends ExternalResource {
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                         return;
+                    } catch (Exception e) {
+                        logger.warn("failed to process message", e);
                     }
                 }
             }

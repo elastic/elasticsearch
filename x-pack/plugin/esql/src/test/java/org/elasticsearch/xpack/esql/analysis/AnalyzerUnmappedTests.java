@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -52,10 +54,15 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
@@ -3793,6 +3800,48 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         } else {
             assertThat(dneAttr.dataType(), is(DataType.NULL));
         }
+    }
+
+    /**
+     * Reproducer for https://github.com/elastic/elasticsearch/issues/141994
+     * When unmapped_fields="load" and a keyword field is partially unmapped (mapped in some concrete indices but not in others),
+     * the field should be resolved as {@link PotentiallyUnmappedKeywordEsField} in the EsRelation output, even if the field is
+     * not explicitly referenced in any downstream expression (e.g. KEEP, SORT, WHERE).
+     */
+    public void testPartiallyMappedKeywordFieldLoadedWithoutExplicitReference() {
+        String query = setUnmappedLoad("""
+            FROM test*
+            | SORT emp_no
+            """);
+
+        var statement = EsqlTestUtils.TEST_PARSER.createStatement(query);
+        var mapping = EsqlTestUtils.loadMapping("mapping-basic.json");
+        var indexResolution = IndexResolution.valid(
+            new EsIndex(
+                "test*",
+                mapping,
+                Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
+                Map.of(),
+                Map.of(),
+                Set.of("first_name")
+            )
+        );
+        var indexResolutions = Map.of(new IndexPattern(Source.EMPTY, "test*"), indexResolution);
+        var analyzer = AnalyzerTestUtils.analyzer(
+            indexResolutions,
+            EsqlTestUtils.TEST_VERIFIER,
+            EsqlTestUtils.configuration(query),
+            statement
+        );
+        var plan = analyzer.analyze(statement.plan());
+
+        var limit = as(plan, Limit.class);
+        var order = as(limit.child(), OrderBy.class);
+        var relation = as(order.child(), EsRelation.class);
+
+        var firstNameAttr = relation.output().stream().filter(a -> a.name().equals("first_name")).findFirst().orElseThrow();
+        var fieldAttr = as(firstNameAttr, FieldAttribute.class);
+        as(fieldAttr.field(), PotentiallyUnmappedKeywordEsField.class);
     }
 
     private void verificationFailure(String statement, String expectedFailure) {

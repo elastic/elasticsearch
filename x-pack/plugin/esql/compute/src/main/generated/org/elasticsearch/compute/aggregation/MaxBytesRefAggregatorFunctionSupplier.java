@@ -31,13 +31,13 @@ public final class MaxBytesRefAggregatorFunctionSupplier implements AggregatorFu
   @Override
   public MaxBytesRefAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return MaxBytesRefAggregatorFunction.create(driverContext, channels);
+    return new MaxBytesRefAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public MaxBytesRefGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return MaxBytesRefGroupingAggregatorFunction.create(channels, driverContext);
+    return new MaxBytesRefGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

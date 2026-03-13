@@ -33,6 +33,18 @@ count:long
 ;
 
 
+No confidence intervals
+required_capability: approximation_v3
+
+SET approximation={"rows":10000, "confidence_level":null}\;
+FROM many_numbers | STATS count=COUNT(), sum=SUM(sv)
+;
+
+count:long     | sum:long
+110000..140000 | 35000000..50000000
+;
+
+
 Exact total row count
 required_capability: approximation_v3
 

@@ -34,21 +34,37 @@ public record ApproximationSettings(boolean enabled, Integer rows, Double confid
     public static final ApproximationSettings DISABLED = new ApproximationSettings(false, null, null);
 
     /**
+     * The default confidence level to use for query approximation if none is specified.
+     */
+    private static final double DEFAULT_CONFIDENCE_LEVEL = 0.90;
+
+    /**
      * Sentinel value representing an explicit NULL for a field,
      * meaning "revert to null" during merge.
      */
-    static final int EXPLICIT_NULL = -1;
+    private static final int EXPLICIT_NULL = -1;
 
-    /** Returns the number of rows, or {@code null} if the default should be used. */
+    /**
+     * Returns the number of rows to be used for query approximation.
+     * If null, the framework tries to pick a suitable number for the query.
+     */
     @Override
     public Integer rows() {
         return rows != null && rows == EXPLICIT_NULL ? null : rows;
     }
 
-    /** Returns the confidence level, or {@code null} if the default should be used. */
+    /**
+     * Returns the request confidence level.
+     * If none is set, the default level is returned.
+     * If null is set, no confidence intervals should be computed.
+     */
     @Override
     public Double confidenceLevel() {
-        return confidenceLevel != null && confidenceLevel == EXPLICIT_NULL ? null : confidenceLevel;
+        if (confidenceLevel == null) {
+            return DEFAULT_CONFIDENCE_LEVEL;
+        } else {
+            return confidenceLevel == EXPLICIT_NULL ? null : confidenceLevel;
+        }
     }
 
     private static final ObjectParser<ApproximationSettingsBuilder, Void> X_CONTENT_PARSER = new ObjectParser<>(
@@ -57,8 +73,8 @@ public record ApproximationSettings(boolean enabled, Integer rows, Double confid
     );
 
     static {
-        X_CONTENT_PARSER.declareInt(ApproximationSettingsBuilder::rows, new ParseField("rows"));
-        X_CONTENT_PARSER.declareDouble(ApproximationSettingsBuilder::confidenceLevel, new ParseField("confidence_level"));
+        X_CONTENT_PARSER.declareIntOrNull(ApproximationSettingsBuilder::rows, EXPLICIT_NULL, new ParseField("rows"));
+        X_CONTENT_PARSER.declareDoubleOrNull(ApproximationSettingsBuilder::confidenceLevel, EXPLICIT_NULL, new ParseField("confidence_level"));
     }
 
     public static ApproximationSettings fromXContent(XContentParser parser) throws IOException {
@@ -139,7 +155,7 @@ public record ApproximationSettings(boolean enabled, Integer rows, Double confid
         private Double confidenceLevel;
 
         void rows(Integer rows) {
-            if (rows == null) {
+            if (rows == null || rows == EXPLICIT_NULL) {
                 this.rows = EXPLICIT_NULL;
                 return;
             }
@@ -150,7 +166,7 @@ public record ApproximationSettings(boolean enabled, Integer rows, Double confid
         }
 
         void confidenceLevel(Double confidenceLevel) {
-            if (confidenceLevel == null) {
+            if (confidenceLevel == null || confidenceLevel == EXPLICIT_NULL) {
                 this.confidenceLevel = (double) EXPLICIT_NULL;
                 return;
             }

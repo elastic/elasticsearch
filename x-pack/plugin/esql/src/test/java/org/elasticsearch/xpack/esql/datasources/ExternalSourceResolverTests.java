@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
@@ -571,7 +572,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             throw new UnsupportedOperationException();
         }
 

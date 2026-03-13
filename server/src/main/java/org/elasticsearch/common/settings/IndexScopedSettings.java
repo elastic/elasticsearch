@@ -253,6 +253,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
         if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
             settings.add(IndexSettings.SYNTHETIC_ID);
+            settings.add(IndexSettings.BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED);
         }
         if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG) {
             settings.add(IndexSettings.DISABLE_SEQUENCE_NUMBERS);

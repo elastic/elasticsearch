@@ -533,7 +533,8 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING,
         DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC,
         DenseVectorFieldMapper.HNSW_EARLY_TERMINATION,
-        IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING
+        IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING,
+        IndexSettings.BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED
     );
 
     public static Settings filter(Settings originalSettings) {

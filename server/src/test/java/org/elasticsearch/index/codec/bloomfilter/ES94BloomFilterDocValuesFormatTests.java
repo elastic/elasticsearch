@@ -76,7 +76,7 @@ public class ES94BloomFilterDocValuesFormatTests extends ESTestCase {
             final boolean optimizedMergeEnabled = randomBoolean();
             conf.setCodec(
                 new TestCodec(
-                    new ES94BloomFilterDocValuesFormat(BigArrays.NON_RECYCLING_INSTANCE, IdFieldMapper.NAME, optimizedMergeEnabled) {
+                    new ES94BloomFilterDocValuesFormat(BigArrays.NON_RECYCLING_INSTANCE, IdFieldMapper.NAME, () -> optimizedMergeEnabled) {
                         @Override
                         public int bloomFilterSizeInBytesForNewSegment(int numDocs) {
                             if (randomBloomFilterSizes) {
@@ -163,12 +163,14 @@ public class ES94BloomFilterDocValuesFormatTests extends ESTestCase {
             final int smallSize = 128;
             final int largeSize = 4096;
             final AtomicInteger flushCount = new AtomicInteger();
-            conf.setCodec(new TestCodec(new ES94BloomFilterDocValuesFormat(BigArrays.NON_RECYCLING_INSTANCE, IdFieldMapper.NAME, true) {
-                @Override
-                public int bloomFilterSizeInBytesForNewSegment(int numDocs) {
-                    return (flushCount.getAndIncrement() % 2 == 0) ? smallSize : largeSize;
-                }
-            }));
+            conf.setCodec(
+                new TestCodec(new ES94BloomFilterDocValuesFormat(BigArrays.NON_RECYCLING_INSTANCE, IdFieldMapper.NAME, () -> true) {
+                    @Override
+                    public int bloomFilterSizeInBytesForNewSegment(int numDocs) {
+                        return (flushCount.getAndIncrement() % 2 == 0) ? smallSize : largeSize;
+                    }
+                })
+            );
             conf.setMergePolicy(newLogMergePolicy());
             conf.setMaxBufferedDocs(10);
             conf.setUseCompoundFile(false);

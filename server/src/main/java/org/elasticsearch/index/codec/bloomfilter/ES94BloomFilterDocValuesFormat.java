@@ -58,6 +58,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.common.Numbers.isPowerOfTwo;
 import static org.elasticsearch.index.codec.bloomfilter.BloomFilterHashFunctions.MurmurHash3.hash64;
@@ -104,7 +105,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
 
     private final BigArrays bigArrays;
     private final String bloomFilterFieldName;
-    private final boolean optimizedMergeEnabled;
+    private final BooleanSupplier optimizedMergeEnabled;
     private final int numHashFunctions;
 
     // Public constructor SPI use for reads only
@@ -113,14 +114,14 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         bigArrays = null;
         bloomFilterFieldName = null;
         numHashFunctions = 0;
-        optimizedMergeEnabled = true;
+        optimizedMergeEnabled = () -> true;
     }
 
     public ES94BloomFilterDocValuesFormat(BigArrays bigArrays, String bloomFilterFieldName) {
-        this(bigArrays, bloomFilterFieldName, true);
+        this(bigArrays, bloomFilterFieldName, () -> true);
     }
 
-    public ES94BloomFilterDocValuesFormat(BigArrays bigArrays, String bloomFilterFieldName, boolean optimizedMergeEnabled) {
+    public ES94BloomFilterDocValuesFormat(BigArrays bigArrays, String bloomFilterFieldName, BooleanSupplier optimizedMergeEnabled) {
         super(FORMAT_NAME);
         this.bigArrays = bigArrays;
         this.bloomFilterFieldName = bloomFilterFieldName;
@@ -255,7 +256,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         @Override
         public void merge(MergeState mergeState) throws IOException {
             BloomFilterReaders bloomFilterReaders = new BloomFilterReaders(mergeState, bloomFilterFieldName);
-            if (optimizedMergeEnabled && bloomFilterReaders.supportsOptimizedMerge()) {
+            if (optimizedMergeEnabled.getAsBoolean() && bloomFilterReaders.supportsOptimizedMerge()) {
                 mergeOptimized(bloomFilterReaders);
             } else {
                 rebuildBloomFilterFromSegments(mergeState);

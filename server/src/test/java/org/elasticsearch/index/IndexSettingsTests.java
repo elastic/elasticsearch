@@ -1077,6 +1077,79 @@ public class IndexSettingsTests extends ESTestCase {
         );
     }
 
+    public void testBloomFilterOptimizedMergeSettingRequiresSyntheticId() {
+        assumeTrue("Only when synthetic id feature flag is enabled", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+
+        // Setting it to false without SYNTHETIC_ID should fail
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> newIndexSettings(
+                newIndexMeta(
+                    "test",
+                    Settings.builder().put(IndexSettings.BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED.getKey(), false).build()
+                ),
+                Settings.EMPTY
+            )
+        );
+        assertThat(ex.getMessage(), containsString("is only permitted when [index.mapping.synthetic_id] is set to [true]"));
+    }
+
+    public void testBloomFilterOptimizedMergeSettingAcceptedWithSyntheticId() {
+        assumeTrue("Only when synthetic id feature flag is enabled", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+
+        boolean optimizedMerge = randomBoolean();
+        IndexSettings settings = newIndexSettings(
+            newIndexMeta(
+                "test",
+                Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
+                    .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+                    .put(IndexSettings.BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED.getKey(), optimizedMerge)
+                    .build()
+            ),
+            Settings.EMPTY
+        );
+        assertThat(settings.isBloomFilterDocValuesOptimizedMergeEnabled(), is(optimizedMerge));
+    }
+
+    public void testBloomFilterOptimizedMergeSettingDynamicUpdate() {
+        assumeTrue("Only when synthetic id feature flag is enabled", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+
+        Settings initialSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(IndexSettings.BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED.getKey(), true)
+            .build();
+        IndexSettings settings = newIndexSettings(newIndexMeta("test", initialSettings), Settings.EMPTY);
+        assertThat(settings.isBloomFilterDocValuesOptimizedMergeEnabled(), is(true));
+
+        // Dynamic update to false
+        settings.updateIndexMetadata(
+            newIndexMeta(
+                "test",
+                Settings.builder()
+                    .put(initialSettings)
+                    .put(IndexSettings.BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED.getKey(), false)
+                    .build()
+            )
+        );
+        assertThat(settings.isBloomFilterDocValuesOptimizedMergeEnabled(), is(false));
+
+        // Dynamic update back to true
+        settings.updateIndexMetadata(
+            newIndexMeta(
+                "test",
+                Settings.builder()
+                    .put(initialSettings)
+                    .put(IndexSettings.BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED.getKey(), true)
+                    .build()
+            )
+        );
+        assertThat(settings.isBloomFilterDocValuesOptimizedMergeEnabled(), is(true));
+    }
+
     public void testDisableSequenceNumbersSetting() {
         assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToS
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToExternalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceRoundToWithBlockLoader;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceRoundToWithQueryAndTags;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSampledStatsByExactStats;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSampledStatsBySampleAndStats;
@@ -102,6 +103,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             "Substitute RoundTo with QueryAndTags",
             Limiter.ONCE,
             new ReplaceRoundToWithQueryAndTags(),
+            new ReplaceRoundToWithBlockLoader(),
             new PushCountQueryAndTagsToSource()
         );
 

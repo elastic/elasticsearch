@@ -224,9 +224,7 @@ public class ConcurrentRebalanceAllocationDeciderTests extends ESAllocationTestC
 
         ConcurrentRebalanceAllocationDecider decider = new ConcurrentRebalanceAllocationDecider(clusterSettings);
 
-        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
-            .allocationDeciders(decider)
-            .build();
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(decider).build();
         allocation.debugDecision(true);
 
         ShardRouting shardRouting = findStartedShard(clusterState);

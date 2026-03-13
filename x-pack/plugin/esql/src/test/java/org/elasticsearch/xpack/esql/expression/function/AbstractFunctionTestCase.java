@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatePeriodTests;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
@@ -637,6 +638,31 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     public void testSerializationOfSimple() {
         assumeTrue("can't serialize function", canSerialize());
         assertSerialization(buildFieldExpression(testCase), testCase.getConfiguration());
+    }
+
+    /**
+     * Shallow test to ensure functions using DATE_PERIOD do have a configuration.
+     * <p>
+     *     The configuration holds the timezone, and most functions using date_period will need it for calculations.
+     * </p>
+     * <p>
+     *     If a function is safe, but still detected by this test, add the test class to the whitelist below.
+     * </p>
+     */
+    public void testDatePeriodParameterRequiresConfiguration() {
+        assumeTrue("not using date periods", testCase.getData().stream().anyMatch(td -> td.type() == DataType.DATE_PERIOD));
+        assumeFalse(
+            "function is allowed to not be a ConfigurationFunction",
+            Set.of(
+                // Whitelisted functions
+                ToDatePeriodTests.class
+            ).contains(this.getClass())
+        );
+        Expression expression = buildFieldExpression(testCase);
+        if (testCase.getExpectedTypeError() != null) {
+            return;
+        }
+        assertThat(expression, instanceOf(ConfigurationFunction.class));
     }
 
     /**

@@ -123,16 +123,18 @@ public final class JdkVectorLibrary implements VectorLibrary {
                             // Only byte vectors have cosine
                             // as floats are normalized to unit length to use dot_product instead
                             if (f == Function.COSINE && type != DataType.INT8) continue;
+                            if (f == Function.SQUARE_DISTANCE && type == DataType.INT4) continue;
 
                             String typeName = switch (type) {
                                 case INT7U -> "i7u";
+                                case INT4 -> "i4";
                                 case INT8 -> "i8";
                                 case FLOAT32 -> "f32";
                             };
 
                             FunctionDescriptor descriptor = switch (op) {
                                 case SINGLE -> switch (type) {
-                                    case INT7U -> intSingle;
+                                    case INT7U, INT4 -> intSingle;
                                     case INT8, FLOAT32 -> floatSingle;
                                 };
                                 case BULK -> bulk;
@@ -343,6 +345,16 @@ public final class JdkVectorLibrary implements VectorLibrary {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0L, length, a.byteSize());
             return callSingleDistanceInt(squareI7uHandle, a, b, length);
+        }
+
+        private static final MethodHandle dotI4Handle = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT4, Operation.SINGLE)
+        );
+
+        static int dotProductI4(MemorySegment a, MemorySegment b, int elementCount) {
+            Objects.checkFromIndexSize(0L, 2L * elementCount, a.byteSize());
+            Objects.checkFromIndexSize(0L, elementCount, b.byteSize());
+            return callSingleDistanceInt(dotI4Handle, a, b, elementCount);
         }
 
         private static final MethodHandle cosI8Handle = HANDLES.get(
@@ -560,6 +572,10 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                         case INT7U:
                                             type = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
                                             checkMethod += "I7u";
+                                            break;
+                                        case INT4:
+                                            type = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
+                                            checkMethod += "I4";
                                             break;
                                         case INT8:
                                             type = MethodType.methodType(float.class, MemorySegment.class, MemorySegment.class, int.class);

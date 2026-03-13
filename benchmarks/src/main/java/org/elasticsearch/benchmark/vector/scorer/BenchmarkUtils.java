@@ -11,6 +11,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.backward_codecs.lucene99.OffHeapQuantizedByteVectorValues;
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
+import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorScorer;
 import org.apache.lucene.codecs.lucene95.OffHeapByteVectorValues;
 import org.apache.lucene.codecs.lucene95.OffHeapFloatVectorValues;
 import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorScorer;
@@ -132,6 +133,21 @@ class BenchmarkUtils {
     static RandomVectorScorer luceneScorer(QuantizedByteVectorValues values, VectorSimilarityFunction sim, float[] queryVec)
         throws IOException {
         return new Lucene99ScalarQuantizedVectorScorer(null).getRandomVectorScorer(sim, values, queryVec);
+    }
+
+    static RandomVectorScorerSupplier lucene104ScoreSupplier(
+        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values,
+        VectorSimilarityFunction sim
+    ) throws IOException {
+        return new Lucene104ScalarQuantizedVectorScorer(null).getRandomVectorScorerSupplier(sim, values);
+    }
+
+    static RandomVectorScorer lucene104Scorer(
+        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values,
+        VectorSimilarityFunction sim,
+        float[] queryVec
+    ) throws IOException {
+        return new Lucene104ScalarQuantizedVectorScorer(null).getRandomVectorScorer(sim, values, queryVec);
     }
 
     static RuntimeException rethrow(Throwable t) {

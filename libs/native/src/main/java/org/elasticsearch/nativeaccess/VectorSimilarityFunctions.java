@@ -41,6 +41,10 @@ public interface VectorSimilarityFunctions {
          */
         INT7U(Byte.BYTES),
         /**
+         * 4-bit packed nibble. Two values per byte; single vector score returns results as an int.
+         */
+        INT4(Byte.BYTES),
+        /**
          * 1-byte int. Single vector score returns results as an int.
          */
         INT8(Byte.BYTES),

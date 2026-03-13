@@ -229,17 +229,11 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
     }
 
     public void testRandomScorer() throws IOException {
-        testRandomScorerImpl(
-            MMapDirectory.DEFAULT_MAX_CHUNK_SIZE,
-            org.elasticsearch.simdvec.Int7SQVectorScorerFactoryTests.FLOAT_ARRAY_RANDOM_FUNC
-        );
+        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, FLOAT_ARRAY_RANDOM_FUNC);
     }
 
     public void testRandomScorerMax() throws IOException {
-        testRandomScorerImpl(
-            MMapDirectory.DEFAULT_MAX_CHUNK_SIZE,
-            org.elasticsearch.simdvec.Int7SQVectorScorerFactoryTests.FLOAT_ARRAY_MAX_FUNC
-        );
+        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, FLOAT_ARRAY_MAX_FUNC);
     }
 
     public void testRandomScorerChunkSizeSmall() throws IOException {

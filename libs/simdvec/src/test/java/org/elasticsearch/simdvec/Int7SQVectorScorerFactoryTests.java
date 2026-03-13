@@ -230,11 +230,11 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testRandomScorer() throws IOException {
-        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, Int7SQVectorScorerFactoryTests.FLOAT_ARRAY_RANDOM_FUNC);
+        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, FLOAT_ARRAY_RANDOM_FUNC);
     }
 
     public void testRandomScorerMax() throws IOException {
-        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, Int7SQVectorScorerFactoryTests.FLOAT_ARRAY_MAX_FUNC);
+        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, FLOAT_ARRAY_MAX_FUNC);
     }
 
     public void testRandomScorerChunkSizeSmall() throws IOException {
@@ -624,20 +624,6 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
         }
         return ba;
     }
-
-    static IntFunction<float[]> FLOAT_ARRAY_RANDOM_FUNC = size -> {
-        float[] fa = new float[size];
-        for (int i = 0; i < size; i++) {
-            fa[i] = randomFloat();
-        }
-        return fa;
-    };
-
-    static IntFunction<float[]> FLOAT_ARRAY_MAX_FUNC = size -> {
-        float[] fa = new float[size];
-        Arrays.fill(fa, Float.MAX_VALUE);
-        return fa;
-    };
 
     static IntFunction<byte[]> BYTE_ARRAY_RANDOM_INT7_FUNC = size -> {
         byte[] ba = new byte[size];

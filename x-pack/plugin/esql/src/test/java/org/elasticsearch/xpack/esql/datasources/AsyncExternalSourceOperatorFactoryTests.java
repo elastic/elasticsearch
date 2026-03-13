@@ -151,7 +151,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertTrue(description.contains("sync-wrapper"));
         assertTrue(description.contains("file:///data/test.csv"));
         assertTrue(description.contains("500"));
-        assertTrue(description.contains("10"));
+        assertTrue(description.contains("maxBufferBytes="));
     }
 
     public void testDescribeNativeAsyncMode() {
@@ -1258,6 +1258,59 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         String description = factory.describe();
         assertTrue("describe should show sync-wrapper when parallelism is 1", description.contains("sync-wrapper"));
+    }
+
+    // ===== Byte-based backpressure tests =====
+
+    public void testByteBasedBackpressureEndToEnd() throws Exception {
+        AtomicInteger readCount = new AtomicInteger(0);
+        FormatReader formatReader = new PageCountingFormatReader(readCount);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("file:///test.csv");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            2,
+            (Runnable r) -> r.run()
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        assertNotNull(operator);
+
+        AsyncExternalSourceOperator.Status status = (AsyncExternalSourceOperator.Status) operator.status();
+        assertNotNull(status);
+        assertTrue("bytesBuffered should be reported in status", status.bytesBuffered() >= 0);
+
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
     }
 
     // ===== Helpers =====

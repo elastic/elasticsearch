@@ -31,6 +31,10 @@ class BucketArrayIterator implements CopyableBucketIterator {
     private int currentSlot;
     private final int limit;
 
+    static BucketArrayIterator createReverseIterator(int scale, long[] bucketCounts, long[] bucketIndices, int rangeStart, int rangeEnd) {
+        return new BucketArrayIterator(scale, bucketCounts, bucketIndices, rangeEnd - 1, rangeStart - 1);
+    }
+
     BucketArrayIterator(int scale, long[] bucketCounts, long[] bucketIndices, int startSlot, int limit) {
         this.scale = scale;
         this.bucketCounts = bucketCounts;

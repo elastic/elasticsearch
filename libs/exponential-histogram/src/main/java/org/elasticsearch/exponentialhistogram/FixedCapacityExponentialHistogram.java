@@ -294,9 +294,9 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
 
         @Override
         public CopyableBucketIterator reverseIterator() {
-            int start = startSlot() + numBuckets - 1;
-            int limit = start - numBuckets;
-            return new BucketArrayIterator(bucketScale, bucketCounts, bucketIndices, start, limit);
+            int start = startSlot();
+            int limit = start + numBuckets;
+            return BucketArrayIterator.createReverseIterator(bucketScale, bucketCounts, bucketIndices, start, limit);
         }
 
         @Override

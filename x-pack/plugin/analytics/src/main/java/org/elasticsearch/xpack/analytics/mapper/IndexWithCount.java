@@ -27,12 +27,12 @@ public record IndexWithCount(long index, long count) {
 
             @Override
             public CopyableBucketIterator iterator() {
-                return new Iterator(bucketIndices, scale, 0, 1);
+                return new Iterator(bucketIndices, scale, 0, true);
             }
 
             @Override
             public CopyableBucketIterator reverseIterator() {
-                return new Iterator(bucketIndices, scale, bucketCount() - 1, -1);
+                return new Iterator(bucketIndices, scale, bucketCount() - 1, false);
             }
 
             @Override
@@ -68,18 +68,18 @@ public record IndexWithCount(long index, long count) {
         private final List<IndexWithCount> buckets;
         private final int scale;
         private int position;
-        private final int direction;
+        private final boolean iterateForwards;
 
-        Iterator(List<IndexWithCount> buckets, int scale, int position, int direction) {
+        Iterator(List<IndexWithCount> buckets, int scale, int position, boolean iterateForwards) {
             this.buckets = buckets;
             this.scale = scale;
             this.position = position;
-            this.direction = direction;
+            this.iterateForwards = iterateForwards;
         }
 
         @Override
         public boolean hasNext() {
-            return direction == 1 ? position < buckets.size() : position >= 0;
+            return iterateForwards ? position < buckets.size() : position >= 0;
         }
 
         @Override
@@ -94,7 +94,11 @@ public record IndexWithCount(long index, long count) {
 
         @Override
         public void advance() {
-            position += direction;
+            if (iterateForwards) {
+                position++;
+            } else {
+                position--;
+            }
         }
 
         @Override
@@ -104,7 +108,7 @@ public record IndexWithCount(long index, long count) {
 
         @Override
         public CopyableBucketIterator copy() {
-            return new Iterator(buckets, scale, position, direction);
+            return new Iterator(buckets, scale, position, iterateForwards);
         }
     }
 }

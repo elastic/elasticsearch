@@ -189,7 +189,7 @@ public class IndicesMetrics extends AbstractLifecycleComponent {
             );
         }
         metrics.add(registry.registerLongGauge(USER_INDEX_TOTAL_METRIC_NAME, "Total number of user indices", "index", () -> {
-            if (clusterService.lifecycleState() != Lifecycle.State.STARTED || clusterService.localNode().isMasterNode() == false) {
+            if (clusterService.state().clusterRecovered() == false || clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
                 return null;
             }
             return new LongWithAttributes(

@@ -7,7 +7,6 @@ setup:
             properties:
               temporality:
                 type: metric_temporality
-                time_series_dimension: true
                 ignore_malformed: true
               other:
                 type: keyword
@@ -22,7 +21,6 @@ setup:
                 properties:
                   temporality:
                     type: metric_temporality
-                    time_series_dimension: true
                     ignore_malformed: true
 
 ---

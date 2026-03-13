@@ -37,7 +37,6 @@ public class MetricTemporalityFieldMapperTests extends MapperTestCase {
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", MetricTemporalityFieldMapper.CONTENT_TYPE);
-        b.field("time_series_dimension", true);
     }
 
     @Override
@@ -108,7 +107,6 @@ public class MetricTemporalityFieldMapperTests extends MapperTestCase {
 
             private void mapping(XContentBuilder b) throws IOException {
                 b.field("type", MetricTemporalityFieldMapper.CONTENT_TYPE);
-                b.field("time_series_dimension", true);
                 if (ignoreMalformed) {
                     b.field("ignore_malformed", true);
                 }
@@ -139,15 +137,11 @@ public class MetricTemporalityFieldMapperTests extends MapperTestCase {
         throw new AssumptionViolatedException("not supported");
     }
 
-    public void testDimensionMustBeExplicitlyTrue() {
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> createMapperService(fieldMapping(b -> b.field("type", MetricTemporalityFieldMapper.CONTENT_TYPE)))
-        );
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("Field type [metric_temporality] requires [time_series_dimension] to be [true]")
-        );
+    public void testDimensionDefaultsToTrue() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", MetricTemporalityFieldMapper.CONTENT_TYPE)));
+        Mapper mapper = mapperService.mappingLookup().getMapper("field");
+        assertTrue(mapper instanceof MetricTemporalityFieldMapper);
+        assertTrue(((MetricTemporalityFieldMapper) mapper).fieldType().isDimension());
     }
 
     public void testDisallowNonDimension() {
@@ -161,12 +155,12 @@ public class MetricTemporalityFieldMapperTests extends MapperTestCase {
         );
     }
 
-    public void testInheritsDimensionFromPassThroughObject() throws IOException {
+    public void testInPassThroughObject() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {
             b.startObject("labels")
                 .field("type", "passthrough")
                 .field("priority", "0")
-                .field("time_series_dimension", true)
+                .field("time_series_dimension", false)
                 .startObject("properties")
                 .startObject("temporality")
                 .field("type", MetricTemporalityFieldMapper.CONTENT_TYPE)

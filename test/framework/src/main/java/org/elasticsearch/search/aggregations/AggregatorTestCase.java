@@ -1214,9 +1214,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
             // Text is the only field that doesn't support DVs, instead FD
             // For metric_temporality, doc values are always enabled and it doesn't have the parameter
-            if (
-                mappedType.getKey().equals(TextFieldMapper.CONTENT_TYPE) == false
-            && mappedType.getKey().equals(MetricTemporalityFieldMapper.CONTENT_TYPE) == false) {
+            if (mappedType.getKey().equals(TextFieldMapper.CONTENT_TYPE) == false
+                && mappedType.getKey().equals(MetricTemporalityFieldMapper.CONTENT_TYPE) == false) {
                 source.put("doc_values", "true");
             }
 

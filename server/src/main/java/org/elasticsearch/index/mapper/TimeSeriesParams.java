@@ -91,7 +91,15 @@ public final class TimeSeriesParams {
     }
 
     public static FieldMapper.Parameter<Boolean> dimensionParam(Function<FieldMapper, Boolean> initializer, BooleanSupplier hasDocValues) {
-        return FieldMapper.Parameter.boolParam(TIME_SERIES_DIMENSION_PARAM, false, initializer, false).addValidator(v -> {
+        return dimensionParam(initializer, hasDocValues, false);
+    }
+
+    public static FieldMapper.Parameter<Boolean> dimensionParam(
+        Function<FieldMapper, Boolean> initializer,
+        BooleanSupplier hasDocValues,
+        boolean defaultValue
+    ) {
+        return FieldMapper.Parameter.boolParam(TIME_SERIES_DIMENSION_PARAM, false, initializer, defaultValue).addValidator(v -> {
             if (v && (hasDocValues.getAsBoolean() == false)) {
                 throw new IllegalArgumentException(
                     "Field [" + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM + "] requires that [doc_values] is true"

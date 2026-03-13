@@ -61,7 +61,11 @@ public class MetricTemporalityFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
         private final IndexVersion indexCreatedVersion;
-        private final Parameter<Boolean> dimension = TimeSeriesParams.dimensionParam(m -> toType(m).fieldType().isDimension(), () -> true);
+        private final Parameter<Boolean> dimension = TimeSeriesParams.dimensionParam(
+            m -> toType(m).fieldType().isDimension(),
+            () -> true,
+            true
+        );
         private final IndexSettings indexSettings;
 
         Builder(String name, boolean ignoreMalformedByDefault, IndexVersion indexCreatedVersion, IndexSettings indexSettings) {
@@ -121,9 +125,6 @@ public class MetricTemporalityFieldMapper extends FieldMapper {
 
         @Override
         public MetricTemporalityFieldMapper build(MapperBuilderContext context) {
-            if (inheritDimensionParameterFromParentObject(context)) {
-                dimension(true);
-            }
             if (dimension.getValue() == false) {
                 throw new IllegalArgumentException("Field type [" + CONTENT_TYPE + "] requires [" + dimension.name + "] to be [true]");
             }

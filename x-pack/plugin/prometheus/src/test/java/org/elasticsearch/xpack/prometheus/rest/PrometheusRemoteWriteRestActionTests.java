@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpBody;
@@ -26,6 +27,7 @@ import org.elasticsearch.test.rest.FakeHttpBodyStream;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.junit.After;
 import org.junit.Before;
 
@@ -101,15 +103,38 @@ public class PrometheusRemoteWriteRestActionTests extends ESTestCase {
         }
     }
 
+    public void testSuccessfulWriteWithoutSnappy() {
+        client = new NoOpNodeClient(threadPool) {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> actionType,
+                Request req,
+                ActionListener<Response> listener
+            ) {
+                assertThat(actionType, equalTo(PrometheusRemoteWriteTransportAction.TYPE));
+                var remoteWriteRequest = (PrometheusRemoteWriteTransportAction.RemoteWriteRequest) req;
+                assertThat(remoteWriteRequest.remoteWriteRequest.length(), equalTo(64));
+                remoteWriteRequest.close();
+                listener.onResponse((Response) new PrometheusRemoteWriteTransportAction.RemoteWriteResponse());
+            }
+        };
+        try (var response = executeRemoteWrite(1024, 64, false)) {
+            assertThat(response.status(), equalTo(RestStatus.NO_CONTENT));
+        }
+    }
+
     private RestResponse executeRemoteWrite(int maxSize, int bodySize) {
+        return executeRemoteWrite(maxSize, bodySize, true);
+    }
+
+    private RestResponse executeRemoteWrite(int maxSize, int bodySize, boolean snappy) {
         var stream = new FakeHttpBodyStream();
-        var action = new PrometheusRemoteWriteRestAction(indexingPressure, maxSize);
-        var httpRequest = new FakeRestRequest.FakeHttpRequest(
-            RestRequest.Method.POST,
-            "/_prometheus/api/v1/write",
-            Map.of("Content-Type", List.of("application/x-protobuf")),
-            stream
-        );
+        var action = new PrometheusRemoteWriteRestAction(indexingPressure, maxSize, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+        var headers = snappy
+            ? Map.of("Content-Type", List.of("application/x-protobuf"), "Content-Encoding", List.of("snappy"))
+            : Map.of("Content-Type", List.of("application/x-protobuf"));
+        var httpRequest = new FakeRestRequest.FakeHttpRequest(RestRequest.Method.POST, "/_prometheus/api/v1/write", headers, stream);
         var request = RestRequest.request(parserConfig(), httpRequest, new FakeRestRequest.FakeHttpChannel(null));
         var channel = new FakeRestChannel(request, true, 1);
         var consumer = (BaseRestHandler.RequestBodyChunkConsumer) action.prepareRequest(request, client);
@@ -129,7 +154,11 @@ public class PrometheusRemoteWriteRestActionTests extends ESTestCase {
         } catch (Exception e) {
             throw new AssertionError(e);
         }
-        stream.sendNext(randomReleasableBytesReference(bodySize), true);
+        byte[] body = randomByteArrayOfLength(bodySize);
+        if (snappy) {
+            body = SnappyBlockDecoderTests.snappyEncode(body);
+        }
+        stream.sendNext(new ReleasableBytesReference(new BytesArray(body), () -> {}), true);
         RestResponse response = channel.capturedResponse();
         assertNotNull(response);
         return response;

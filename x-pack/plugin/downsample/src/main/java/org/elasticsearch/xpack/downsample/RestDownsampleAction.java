@@ -32,7 +32,8 @@ public class RestDownsampleAction extends BaseRestHandler {
         "downsample.multi_field_fix",
         "downsampling.exponential_histograms",
         "downsampling.tdigest_histograms",
-        "downsampling.tdigest"
+        "downsampling.tdigest",
+        "downsampling.store_reset_counters"
     );
 
     @Override

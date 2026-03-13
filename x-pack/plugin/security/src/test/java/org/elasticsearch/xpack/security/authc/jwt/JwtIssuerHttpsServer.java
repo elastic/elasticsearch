@@ -60,7 +60,11 @@ public class JwtIssuerHttpsServer implements Closeable {
     @SuppressForbidden(reason = "MockHttpServer.createHttps requires InetSocketAddress, PORT=0 resolves to an available ephemeral port.")
     public JwtIssuerHttpsServer(final byte[] encodedJwkSetPkcPublicBytes) throws Exception {
         this.httpsServer = MockHttpServer.createHttps(new InetSocketAddress(ADDRESS, PORT), BACKLOG);
-        this.url = "https://" + ADDRESS + ":" + this.httpsServer.getAddress().getPort() + PATH; // get ephemeral port
+        this.url = "https://"
+            + (ADDRESS.contains(":") && false == ADDRESS.startsWith("[") ? "[" + ADDRESS + "]" : ADDRESS)
+            + ":"
+            + this.httpsServer.getAddress().getPort()
+            + PATH; // get ephemeral port
         this.httpsServer.setHttpsConfigurator(new HttpsConfigurator(this.createSslContext()));
         this.httpsServer.createContext(PATH, new JwtIssuerHttpHandler(encodedJwkSetPkcPublicBytes));
         LOGGER.trace("Starting [{}]", this.url);

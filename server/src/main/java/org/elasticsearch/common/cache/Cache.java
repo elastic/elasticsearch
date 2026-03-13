@@ -380,6 +380,9 @@ public class Cache<K, V> {
 
         latch.await();
 
+        if (future.isDone()) {
+            return future.get();
+        }
         if (cancelled.get()) {
             throw new TaskCancelledException("Cache wait cancelled");
         }

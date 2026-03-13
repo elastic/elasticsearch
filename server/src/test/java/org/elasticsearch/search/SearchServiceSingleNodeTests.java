@@ -2900,23 +2900,6 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testCancelledTaskFailsFastWithCaching() throws Exception {
-        createIndex("index");
-        prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
-
-        final SearchService service = getInstanceFromNode(SearchService.class);
-        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
-        final IndexShard indexShard = indexService.getShard(0);
-
-        SearchRequest searchRequest = new SearchRequest("index").allowPartialSearchResults(true);
-        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
-        searchRequest.requestCache(true);
-
-        long nowInMillis = System.currentTimeMillis();
-        OriginalIndices originalIndices = new OriginalIndices(new String[] { "index" }, IndicesOptions.strictExpandOpenAndForbidClosed());
-        ShardSearchRequest request = new ShardSearchRequest(
-            originalIndices,
     public void testSeqNoAndPrimaryTermRejectedWhenSequenceNumbersDisabled() throws IOException {
         assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         final Settings settings = Settings.builder()
@@ -2938,6 +2921,44 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
         final ShardSearchRequest request = new ShardSearchRequest(
             OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            -1,
+            null
+        );
+        try (ReaderContext reader = createReaderContext(indexService, indexShard)) {
+            IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> service.createContext(reader, request, mock(SearchShardTask.class), ResultsType.NONE, randomBoolean())
+            );
+            assertEquals(
+                "Cannot request seq_no_primary_term on index [test-no-seqno] because [index.disable_sequence_numbers] is [true]",
+                ex.getMessage()
+            );
+        }
+    }
+
+    public void testCancelledTaskFailsFastWithCaching() throws Exception {
+        createIndex("index");
+        prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+
+        SearchRequest searchRequest = new SearchRequest("index").allowPartialSearchResults(true);
+        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
+        searchRequest.requestCache(true);
+
+        long nowInMillis = System.currentTimeMillis();
+        OriginalIndices originalIndices = new OriginalIndices(new String[]{"index"}, IndicesOptions.strictExpandOpenAndForbidClosed());
+        ShardSearchRequest request = new ShardSearchRequest(
+            originalIndices,
             searchRequest,
             indexShard.shardId(),
             0,
@@ -2979,19 +3000,6 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assertNotNull("Should have exception", caughtException.get());
         assertThat(caughtException.get(), instanceOf(TaskCancelledException.class));
         assertThat(caughtException.get().getMessage(), containsString("pre-cancelled for test"));
-            -1,
-            null
-        );
-        try (ReaderContext reader = createReaderContext(indexService, indexShard)) {
-            IllegalArgumentException ex = expectThrows(
-                IllegalArgumentException.class,
-                () -> service.createContext(reader, request, mock(SearchShardTask.class), ResultsType.NONE, randomBoolean())
-            );
-            assertEquals(
-                "Cannot request seq_no_primary_term on index [test-no-seqno] because [index.disable_sequence_numbers] is [true]",
-                ex.getMessage()
-            );
-        }
     }
 
     private static ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {

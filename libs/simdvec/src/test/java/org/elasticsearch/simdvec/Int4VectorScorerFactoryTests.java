@@ -16,7 +16,6 @@ import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorScorer;
 import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsFormat;
 import org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -30,7 +29,6 @@ import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -48,6 +46,8 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.simdvec.VectorSimilarityType.DOT_PRODUCT;
 import static org.elasticsearch.simdvec.VectorSimilarityType.EUCLIDEAN;
 import static org.elasticsearch.simdvec.VectorSimilarityType.MAXIMUM_INNER_PRODUCT;
+import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createDenseInt4VectorValues;
+import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.writePackedVectorWithCorrection;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -115,7 +115,14 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                     writePackedVectorWithCorrection(out, packed2, vec2Correction);
                 }
                 try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
-                    var values = vectorValues(dims, 2, centroid, centroidDP, in, similarityType.function());
+                    var values = createDenseInt4VectorValues(
+                        dims,
+                        2,
+                        centroid,
+                        centroidDP,
+                        in,
+                        similarityType.function()
+                    );
                     float expected = luceneScore(similarityType, packed1, packed2, dims, centroidDP, vec1Correction, vec2Correction);
 
                     var luceneSupplier = luceneScoreSupplier(values, similarityType.function()).scorer();
@@ -216,7 +223,14 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
             for (int times = 0; times < TIMES; times++) {
                 int idx0 = randomIntBetween(0, size - 1);
                 int idx1 = randomIntBetween(0, size - 1);
-                var values = vectorValues(dims, size, centroid, centroidDP, in, similarityType.function());
+                var values = createDenseInt4VectorValues(
+                    dims,
+                    size,
+                    centroid,
+                    centroidDP,
+                    in,
+                    similarityType.function()
+                );
                 float expected = luceneScore(
                     similarityType,
                     packedVectors[idx0],
@@ -293,7 +307,14 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
             for (int times = 0; times < TIMES; times++) {
                 int idx0 = randomIntBetween(0, size - 1);
                 int idx1 = randomIntBetween(0, size - 1);
-                var values = vectorValues(dims, size, centroid, centroidDP, in, similarityType.function());
+                var values = createDenseInt4VectorValues(
+                    dims,
+                    size,
+                    centroid,
+                    centroidDP,
+                    in,
+                    similarityType.function()
+                );
 
                 var expected = luceneScore(
                     similarityType,
@@ -356,7 +377,14 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                     for (int itrs = 0; itrs < TIMES / 10; itrs++) {
                         int idx0 = randomIntBetween(0, size - 1);
                         int idx1 = randomIntBetween(0, size - 1);
-                        var values = vectorValues(dims, size, centroid, centroidDP, in, similarityType.function());
+                        var values = createDenseInt4VectorValues(
+                            dims,
+                            size,
+                            centroid,
+                            centroidDP,
+                            in,
+                            similarityType.function()
+                        );
                         float expected = luceneScore(
                             similarityType,
                             packedVectors[idx0],
@@ -402,7 +430,14 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                 for (int times = 0; times < TIMES; times++) {
                     int idx0 = randomIntBetween(0, size - 1);
                     int idx1 = size - 1;
-                    var values = vectorValues(dims, size, centroid, centroidDP, in, similarityType.function());
+                    var values = createDenseInt4VectorValues(
+                        dims,
+                        size,
+                        centroid,
+                        centroidDP,
+                        in,
+                        similarityType.function()
+                    );
                     float expected = luceneScore(
                         similarityType,
                         vector(idx0, dims),
@@ -448,7 +483,14 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                 for (int times = 0; times < TIMES; times++) {
                     int idx0 = randomIntBetween(0, size - 1);
                     int idx1 = size - 1;
-                    var values = vectorValues(dims, size, centroid, centroidDP, in, similarityType.function());
+                    var values = createDenseInt4VectorValues(
+                        dims,
+                        size,
+                        centroid,
+                        centroidDP,
+                        in,
+                        similarityType.function()
+                    );
                     float expected = luceneScore(
                         similarityType,
                         packedVectors[idx0],
@@ -507,7 +549,14 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
             for (int times = 0; times < TIMES; times++) {
                 int idx0 = randomIntBetween(0, size - 1);
                 int[] nodes = shuffledList(ids).stream().mapToInt(i -> i).toArray();
-                QuantizedByteVectorValues values = vectorValues(dims, size, centroid, centroidDP, in, similarityType.function());
+                QuantizedByteVectorValues values = createDenseInt4VectorValues(
+                    dims,
+                    size,
+                    centroid,
+                    centroidDP,
+                    in,
+                    similarityType.function()
+                );
                 float[] expected = new float[nodes.length];
                 float[] scores = new float[nodes.length];
                 var referenceScorer = luceneScoreSupplier(values, similarityType.function()).scorer();
@@ -550,7 +599,14 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                 for (int times = 0; times < TIMES; times++) {
                     int idx0 = randomIntBetween(0, size - 1);
                     int[] nodes = shuffledList(ids).stream().mapToInt(i -> i).toArray();
-                    QuantizedByteVectorValues values = vectorValues(dims, size, centroid, centroidDP, in, similarityType.function());
+                    QuantizedByteVectorValues values = createDenseInt4VectorValues(
+                        dims,
+                        size,
+                        centroid,
+                        centroidDP,
+                        in,
+                        similarityType.function()
+                    );
                     float[] expected = new float[nodes.length];
                     float[] scores = new float[nodes.length];
                     var referenceScorer = luceneScoreSupplier(values, similarityType.function()).scorer();
@@ -608,7 +664,14 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
             for (int times = 0; times < TIMES; times++) {
                 int queryIdx = randomIntBetween(0, size - 1);
                 int[] nodes = shuffledList(ids).stream().mapToInt(i -> i).toArray();
-                QuantizedByteVectorValues values = vectorValues(dims, size, centroid, centroidDP, in, similarityType.function());
+                QuantizedByteVectorValues values = createDenseInt4VectorValues(
+                    dims,
+                    size,
+                    centroid,
+                    centroidDP,
+                    in,
+                    similarityType.function()
+                );
                 float[] expected = new float[nodes.length];
                 float[] scores = new float[nodes.length];
                 var referenceScorer = luceneScoreSupplier(values, similarityType.function()).scorer();
@@ -653,7 +716,14 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                 }
             }
             try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
-                var values = vectorValues(dims, size, centroid, centroidDP, in, similarityType.function());
+                var values = createDenseInt4VectorValues(
+                    dims,
+                    size,
+                    centroid,
+                    centroidDP,
+                    in,
+                    similarityType.function()
+                );
                 var supplier = factory.getInt4VectorScorerSupplier(similarityType, in, values).get();
                 var scorer = supplier.scorer();
                 for (int queryOrd = 0; queryOrd < size; queryOrd++) {
@@ -692,7 +762,14 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                 }
             }
             try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
-                var values = vectorValues(dims, size, centroid, centroidDP, in, similarityType.function());
+                var values = createDenseInt4VectorValues(
+                    dims,
+                    size,
+                    centroid,
+                    centroidDP,
+                    in,
+                    similarityType.function()
+                );
                 var supplier = factory.getInt4VectorScorerSupplier(similarityType, in, values).get();
                 var scorer = supplier.scorer();
                 expectThrows(IllegalArgumentException.class, () -> scorer.setScoringOrdinal(-1));
@@ -735,7 +812,14 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                 }
             }
             try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
-                var values = vectorValues(dims, size, centroid, centroidDP, in, similarityType.function());
+                var values = createDenseInt4VectorValues(
+                    dims,
+                    size,
+                    centroid,
+                    centroidDP,
+                    in,
+                    similarityType.function()
+                );
                 var supplier = factory.getInt4VectorScorerSupplier(similarityType, in, values).get();
                 var scorer = supplier.scorer();
                 expectThrows(IllegalStateException.class, () -> scorer.score(0));
@@ -771,7 +855,14 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
             var expectedScore2 = luceneScore(similarityType, packed2, packed2, dims, centroidDP, correction2, correction2);
 
             try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
-                var values = vectorValues(dims, 4, centroid, centroidDP, in, similarityType.function());
+                var values = createDenseInt4VectorValues(
+                    dims,
+                    4,
+                    centroid,
+                    centroidDP,
+                    in,
+                    similarityType.function()
+                );
                 var scoreSupplier = factory.getInt4VectorScorerSupplier(similarityType, in, values).get();
                 var tasks = List.<Callable<Optional<Throwable>>>of(
                     new ScoreCallable(scoreSupplier.copy().scorer(), 0, 1, expectedScore1),
@@ -852,27 +943,6 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         float lowerInterval = randomFloat();
         float upperInterval = lowerInterval + randomFloat();
         return new OptimizedScalarQuantizer.QuantizationResult(lowerInterval, upperInterval, randomFloat(), componentSum);
-    }
-
-    static void writePackedVectorWithCorrection(IndexOutput out, byte[] packed, OptimizedScalarQuantizer.QuantizationResult correction)
-        throws IOException {
-        out.writeBytes(packed, 0, packed.length);
-        out.writeInt(Float.floatToIntBits(correction.lowerInterval()));
-        out.writeInt(Float.floatToIntBits(correction.upperInterval()));
-        out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
-        out.writeInt(correction.quantizedComponentSum());
-    }
-
-    QuantizedByteVectorValues vectorValues(
-        int dims,
-        int size,
-        float[] centroid,
-        float centroidDP,
-        IndexInput in,
-        VectorSimilarityFunction sim
-    ) throws IOException {
-        var slice = in.slice("values", 0, in.length());
-        return new DenseOffHeapInt4VectorValues(dims, size, sim, slice, centroid, centroidDP);
     }
 
     public float luceneScore(
@@ -992,118 +1062,6 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     };
 
     static final int TIMES = 100;
-
-    static class DenseOffHeapInt4VectorValues extends QuantizedByteVectorValues {
-        final int dimension;
-        final int size;
-        final VectorSimilarityFunction similarityFunction;
-
-        final IndexInput slice;
-        final byte[] vectorValue;
-        final ByteBuffer byteBuffer;
-        final int byteSize;
-        private int lastOrd = -1;
-        final float[] correctiveValues;
-        int quantizedComponentSum;
-        final float[] centroid;
-        final float centroidDp;
-
-        DenseOffHeapInt4VectorValues(
-            int dimension,
-            int size,
-            VectorSimilarityFunction similarityFunction,
-            IndexInput slice,
-            float[] centroid,
-            float centroidDp
-        ) {
-            this.dimension = dimension;
-            this.size = size;
-            this.similarityFunction = similarityFunction;
-            this.slice = slice;
-            this.centroid = centroid;
-            this.centroidDp = centroidDp;
-            this.correctiveValues = new float[3];
-            this.byteSize = dimension / 2 + (Float.BYTES * 3) + Integer.BYTES;
-            this.byteBuffer = ByteBuffer.allocate(dimension / 2);
-            this.vectorValue = byteBuffer.array();
-        }
-
-        @Override
-        public IndexInput getSlice() {
-            return slice;
-        }
-
-        @Override
-        public OptimizedScalarQuantizer.QuantizationResult getCorrectiveTerms(int vectorOrd) throws IOException {
-            if (lastOrd != vectorOrd) {
-                slice.seek((long) vectorOrd * byteSize);
-                slice.readBytes(byteBuffer.array(), byteBuffer.arrayOffset(), vectorValue.length);
-                slice.readFloats(correctiveValues, 0, 3);
-                quantizedComponentSum = slice.readInt();
-                lastOrd = vectorOrd;
-            }
-            return new OptimizedScalarQuantizer.QuantizationResult(
-                correctiveValues[0],
-                correctiveValues[1],
-                correctiveValues[2],
-                quantizedComponentSum
-            );
-        }
-
-        @Override
-        public OptimizedScalarQuantizer getQuantizer() {
-            return scalarQuantizer(similarityFunction);
-        }
-
-        @Override
-        public Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding getScalarEncoding() {
-            return Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.PACKED_NIBBLE;
-        }
-
-        @Override
-        public float[] getCentroid() throws IOException {
-            return centroid;
-        }
-
-        @Override
-        public float getCentroidDP() throws IOException {
-            return centroidDp;
-        }
-
-        @Override
-        public VectorScorer scorer(float[] query) throws IOException {
-            assert false;
-            return null;
-        }
-
-        @Override
-        public byte[] vectorValue(int ord) throws IOException {
-            if (lastOrd == ord) {
-                return vectorValue;
-            }
-            slice.seek((long) ord * byteSize);
-            slice.readBytes(byteBuffer.array(), byteBuffer.arrayOffset(), vectorValue.length);
-            slice.readFloats(correctiveValues, 0, 3);
-            quantizedComponentSum = slice.readInt();
-            lastOrd = ord;
-            return vectorValue;
-        }
-
-        @Override
-        public int dimension() {
-            return dimension;
-        }
-
-        @Override
-        public int size() {
-            return size;
-        }
-
-        @Override
-        public QuantizedByteVectorValues copy() throws IOException {
-            return new DenseOffHeapInt4VectorValues(dimension, size, similarityFunction, slice.clone(), centroid, centroidDp);
-        }
-    }
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {

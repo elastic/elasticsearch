@@ -144,8 +144,18 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
-    public void testWithoutNotSupported() {
-        tsdb.error("PROMQL index=test step=5m avg(foo) without (bar)", containsString("'without' grouping is not supported at this time"));
+    public void testNestedWithoutOverWithoutNotSupported() {
+        tsdb.error(
+            "PROMQL index=test step=5m sum without (bar) (sum without (baz) (foo))",
+            containsString("nested WITHOUT over WITHOUT is not supported at this time")
+        );
+    }
+
+    public void testBinaryWithWithoutNotSupported() {
+        tsdb.error(
+            "PROMQL index=test step=5m sum without (bar) (foo) + avg(foo)",
+            containsString("binary expressions with WITHOUT are not supported at this time")
+        );
     }
 
     public void testGroupModifiersNotSupported() {

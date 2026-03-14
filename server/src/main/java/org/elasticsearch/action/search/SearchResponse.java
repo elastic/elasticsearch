@@ -12,7 +12,6 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
@@ -473,7 +472,22 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     @Override
     public String toString() {
-        return hasReferences() == false ? "SearchResponse[released]" : Strings.toString(this);
+        if (hasReferences() == false) {
+            return "SearchResponse[released]";
+        }
+        return "SearchResponse{totalShards="
+            + totalShards
+            + ", successfulShards="
+            + successfulShards
+            + ", skippedShards="
+            + skippedShards
+            + ", tookInMillis="
+            + tookInMillis
+            + ", hits="
+            + (hits == null ? "null" : hits.getTotalHits())
+            + ", scrollId="
+            + (scrollId != null ? "[present]" : "null")
+            + "}";
     }
 
     /**

@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLConnection;
+import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -85,6 +86,10 @@ public final class EntitledActions {
             baseDir.resolve(actualFileMount.getFileName()),
             dataDir.getFileName().resolve(actualFileMount.getFileName())
         );
+    }
+
+    public static FileStore getFileStore(Path path) throws IOException {
+        return Files.getFileStore(path);
     }
 
     public static URLConnection createHttpURLConnection() throws IOException {

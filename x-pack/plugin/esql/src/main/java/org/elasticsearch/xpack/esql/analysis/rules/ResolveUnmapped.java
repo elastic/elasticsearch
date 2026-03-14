@@ -47,7 +47,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.insistKeyword;
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
@@ -339,7 +338,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         Set<String> aliasedGroupings = aliasNamesInAggregateGroupings(plan);
 
         LinkedHashMap<String, List<UnresolvedAttribute>> unresolved = new LinkedHashMap<>();
-        Consumer<UnresolvedAttribute> collectUnresolved = ua -> {
+        plan.forEachExpression(UnresolvedAttribute.class, ua -> {
             if (leaveUnresolved(ua) == false
                 // The aggs will "export" the aliases as UnresolvedAttributes part of their .aggregates(); we don't need to consider those
                 // as they'll be resolved as refs once the aliased expression is resolved.
@@ -350,8 +349,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
                 && childOutputNames.contains(ua.name()) == false) {
                 unresolved.computeIfAbsent(ua.name(), k -> new ArrayList<>()).add(ua);
             }
-        };
-        plan.forEachExpression(UnresolvedAttribute.class, collectUnresolved);
+        });
         return unresolved;
     }
 

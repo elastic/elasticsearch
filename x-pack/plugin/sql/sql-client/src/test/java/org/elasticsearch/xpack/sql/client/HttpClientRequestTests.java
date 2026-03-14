@@ -93,7 +93,7 @@ public class HttpClientRequestTests extends ESTestCase {
     private void assertBinaryRequestForCLI(XContentType xContentType) throws URISyntaxException {
         boolean isBinary = XContentType.CBOR == xContentType;
 
-        String url = "http://" + webServer.getHostName() + ":" + webServer.getPort();
+        String url = "http://" + webServer.getHttpAddress();
         String query = randomAlphaOfLength(256);
         int fetchSize = randomIntBetween(1, 100);
         Properties props = new Properties();
@@ -151,7 +151,7 @@ public class HttpClientRequestTests extends ESTestCase {
     private void assertBinaryRequestForDrivers(XContentType xContentType) throws URISyntaxException {
         boolean isBinary = XContentType.CBOR == xContentType;
 
-        String url = "http://" + webServer.getHostName() + ":" + webServer.getPort();
+        String url = "http://" + webServer.getHttpAddress();
         String query = randomAlphaOfLength(256);
         Properties props = new Properties();
         props.setProperty(ConnectionConfiguration.BINARY_COMMUNICATION, Boolean.toString(isBinary));
@@ -263,6 +263,18 @@ public class HttpClientRequestTests extends ESTestCase {
 
         int getPort() {
             return port;
+        }
+
+        /**
+         * Returns the HTTP address in the format "host:port", properly handling IPv6 addresses with brackets.
+         */
+        String getHttpAddress() {
+            String host = getHostName();
+            if (host.contains(":")) {
+                // IPv6 address needs brackets
+                host = "[" + host + "]";
+            }
+            return host + ":" + getPort();
         }
 
         void enqueue(Response response) {

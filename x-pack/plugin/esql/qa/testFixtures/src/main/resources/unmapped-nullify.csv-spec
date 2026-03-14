@@ -606,7 +606,6 @@ max_bytes:long | cluster:null
 10797          | null
 ;
 
-
 kqlWithUnmappedField
 required_capability: optional_fields_nullify_tech_preview
 required_capability: kql_function
@@ -649,4 +648,33 @@ book_no:keyword | author:text                                        | does_not_
 2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | null                      | null
 2713            | William Faulkner                                   | null                      | null
 2847            | Colleen Faulkner                                   | null                      | null
+;
+
+
+// https://github.com/elastic/elasticsearch/issues/143991
+statsFilteredAggAfterEvalWithDottedUnmappedField
+required_capability: optional_fields_detect_unmapped_fields_in_agg_filters
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| EVAL entity.id = "foo"
+| STATS host.entity.id = VALUES(host.entity.id) WHERE host.entity.id IS NOT NULL BY entity.id
+;
+
+host.entity.id:null | entity.id:keyword
+null                | foo
+;
+
+// https://github.com/elastic/elasticsearch/issues/143991
+statsFilteredAggAfterEvalWithDottedUnmappedFieldFromIndex
+required_capability: optional_fields_detect_unmapped_fields_in_agg_filters
+
+SET unmapped_fields="nullify"\;
+FROM languages
+| EVAL entity.id = "foo"
+| STATS host.entity.id = VALUES(host.entity.id) WHERE host.entity.id IS NOT NULL BY entity.id
+;
+
+host.entity.id:null | entity.id:keyword
+null                | foo
 ;

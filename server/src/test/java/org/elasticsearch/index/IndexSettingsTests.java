@@ -978,6 +978,45 @@ public class IndexSettingsTests extends ESTestCase {
         assertTrue(indexMetadata.useTimeSeriesSyntheticId());
     }
 
+    public void testSyntheticIdDefaultValueTrue() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT,
+            IndexVersion.current()
+        );
+        IndexMode mode = IndexMode.TIME_SERIES;
+        String codec = CodecService.DEFAULT_CODEC;
+
+        Settings settings = Settings.builder()
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
+            .put(IndexSettings.MODE.getKey(), mode)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, version);
+
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        assertTrue(indexSettings.useTimeSeriesSyntheticId());
+        assertTrue(indexMetadata.useTimeSeriesSyntheticId());
+    }
+
+    public void testSyntheticIdDefaultValueFalse() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT);
+        IndexMode mode = IndexMode.TIME_SERIES;
+        String codec = CodecService.DEFAULT_CODEC;
+
+        Settings settings = Settings.builder()
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
+            .put(IndexSettings.MODE.getKey(), mode)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-routing")
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, version);
+
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        assertFalse(indexSettings.useTimeSeriesSyntheticId());
+        assertFalse(indexMetadata.useTimeSeriesSyntheticId());
+    }
+
     public void testSyntheticIdBadVersion() {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         IndexVersion badVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);

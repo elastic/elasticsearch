@@ -12,6 +12,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -111,7 +112,7 @@ public class VoyageAIEmbeddingsModel extends VoyageAIModel {
             modelSecrets,
             (DefaultSecretSettings) modelSecrets.getSecretSettings(),
             ((BaseVoyageAIEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings(),
-            buildUriFromSettings((BaseVoyageAIEmbeddingsServiceSettings) modelConfigurations.getServiceSettings())
+            buildUriFromSettings(modelConfigurations.getServiceSettings())
         );
     }
 
@@ -155,7 +156,7 @@ public class VoyageAIEmbeddingsModel extends VoyageAIModel {
         };
     }
 
-    private static URI buildUriFromSettings(BaseVoyageAIEmbeddingsServiceSettings serviceSettings) {
+    private static URI buildUriFromSettings(ServiceSettings serviceSettings) {
         if (serviceSettings.isMultimodal()) {
             return buildUri(VoyageAIService.NAME, VoyageAIEmbeddingsModel::buildMultimodalRequestUri);
         }

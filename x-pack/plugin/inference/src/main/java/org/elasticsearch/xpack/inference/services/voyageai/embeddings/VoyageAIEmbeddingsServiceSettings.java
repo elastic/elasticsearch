@@ -19,10 +19,12 @@ import java.util.Map;
 
 /**
  * Service settings for the VoyageAI TEXT_EMBEDDING task type.
- * This name is a holdover from before the introduction of {@link VoyageAIEmbeddingServiceSettings} to support multimodal embeddings.
- * This name cannot be changed due to backwards compatibility, but it should be 'voyageai_text_embedding_service_settings'.
  */
 public class VoyageAIEmbeddingsServiceSettings extends BaseVoyageAIEmbeddingsServiceSettings {
+    /**
+     * This name is a holdover from before the introduction of {@link VoyageAIEmbeddingServiceSettings} to support multimodal embeddings.
+     * This name cannot be changed due to backwards compatibility, but it should be 'voyageai_text_embedding_service_settings'.
+     */
     public static final String NAME = "voyageai_embeddings_service_settings";
     public static final boolean DEFAULT_MULTIMODAL_MODEL = false;
 

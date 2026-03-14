@@ -19,12 +19,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -42,6 +48,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -1901,6 +1908,130 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 originalBytes,
                 toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
                 XContentType.JSON
+            );
+        }
+    }
+
+    public void testDoEmbeddingInfer_FailsWhenModelIsNotVoyageAIEmbeddingsModel() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var mockModel = getInvalidModel(MODEL_ID_VALUE, "service_name");
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.embeddingInfer(
+                mockModel,
+                new EmbeddingRequest(List.of(), InputType.UNSPECIFIED, Map.of()),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            MatcherAssert.assertThat(
+                thrownException.getMessage(),
+                is(
+                    Strings.format(
+                        "The internal model was invalid, please delete the service [%s] with id [%s] and add it again.",
+                        "service_name",
+                        MODEL_ID_VALUE
+                    )
+                )
+            );
+            MatcherAssert.assertThat(thrownException.status(), is(RestStatus.INTERNAL_SERVER_ERROR));
+        }
+    }
+
+    public void testDoEmbeddingInfer_FailsWhenNonTextInputProvidedForTextOnlyModel() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var model = VoyageAIEmbeddingsModelTests.createModel(
+                getUrl(webServer),
+                API_KEY_VALUE,
+                null,
+                "voyage-3"
+            );
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            var inputs = List.of(
+                new InferenceStringGroup("first_input"),
+                new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.BASE64, "second_input"))
+            );
+            service.embeddingInfer(
+                model,
+                new EmbeddingRequest(inputs, InputType.UNSPECIFIED, Map.of()),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            MatcherAssert.assertThat(thrownException.getMessage(), is("Non-text input provided for text-only model"));
+            MatcherAssert.assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
+        }
+    }
+
+    public void testDoEmbeddingInfer_SucceedsWithMultimodalModel() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+
+            String responseJson = """
+                {
+                    "model": "voyage-multimodal-3",
+                    "object": "list",
+                    "usage": {
+                        "total_tokens": 5
+                    },
+                    "data": [
+                        {
+                            "object": "embedding",
+                            "index": 0,
+                            "embedding": [
+                                0.123,
+                                -0.123
+                            ]
+                        }
+                    ]
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = VoyageAIEmbeddingsModelTests.createMultimodalModel(
+                getUrl(webServer),
+                API_KEY_VALUE,
+                null,
+                null,
+                "voyage-multimodal-3"
+            );
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            var inputs = List.of(
+                new InferenceStringGroup("first_input"),
+                new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.BASE64, "second_input"))
+            );
+            service.embeddingInfer(
+                model,
+                new EmbeddingRequest(inputs, InputType.INGEST, Map.of()),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertEquals(
+                GenericDenseEmbeddingFloatResultsTests.buildExpectationFloat(List.of(new float[] { 0.123F, -0.123F })),
+                result.asMap()
+            );
+
+            MatcherAssert.assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            MatcherAssert.assertThat(
+                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
+                equalTo(XContentType.JSON.mediaType())
+            );
+            MatcherAssert.assertThat(
+                webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION),
+                equalTo("Bearer " + API_KEY_VALUE)
             );
         }
     }

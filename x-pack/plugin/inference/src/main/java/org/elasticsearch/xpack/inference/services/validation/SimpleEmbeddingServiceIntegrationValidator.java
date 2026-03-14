@@ -27,7 +27,7 @@ import java.util.Map;
 
 public class SimpleEmbeddingServiceIntegrationValidator implements ServiceIntegrationValidator {
     // The below data URI represents the base64 encoding of 28x28 pixel black square .jpg image
-    private static final String BASE64_IMAGE_DATA = "data:image/jpg;base64,/9j/4QDKRXhpZgAATU0AKgAAAAgABgESAAMAAAABAAEAAAEaAAUAAAABAAAAV"
+    private static final String BASE64_IMAGE_DATA = "data:image/jpeg;base64,/9j/4QDKRXhpZgAATU0AKgAAAAgABgESAAMAAAABAAEAAAEaAAUAAAABAAAAV"
         + "gEbAAUAAAABAAAAXgEoAAMAAAABAAIAAAITAAMAAAABAAEAAIdpAAQAAAABAAAAZgAAAAAAAABIAAAAAQAAAEgAAAABAAeQAAAHAAAABDAyMjGRAQAHAAAABAECAw"
         + "CgAAAHAAAABDAxMDCgAQADAAAAAQABAACgAgAEAAAAAQAAABygAwAEAAAAAQAAABykBgADAAAAAQAAAAAAAAAAAAD/2wCEABwcHBwcHDAcHDBEMDAwRFxEREREXHR"
         + "cXFxcXHSMdHR0dHR0jIyMjIyMjIyoqKioqKjExMTExNzc3Nzc3Nzc3NwBIiQkODQ4YDQ0YOacgJzm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm5ubm"

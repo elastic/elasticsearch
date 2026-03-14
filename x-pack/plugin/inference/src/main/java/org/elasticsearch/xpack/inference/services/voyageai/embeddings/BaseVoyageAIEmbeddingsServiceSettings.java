@@ -39,6 +39,9 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsTy
 public abstract class BaseVoyageAIEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
 
     private static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = TransportVersion.fromName("voyage_ai_integration_added");
+    private static final TransportVersion VOYAGE_AI_MULTIMODAL_EMBEDDINGS_ADDED = TransportVersion.fromName(
+        "voyage_ai_multimodal_embeddings_added"
+    );
 
     @FunctionalInterface
     public interface ConstructorInvoker<T extends BaseVoyageAIEmbeddingsServiceSettings> {
@@ -79,9 +82,7 @@ public abstract class BaseVoyageAIEmbeddingsServiceSettings extends FilteredXCon
 
         boolean multimodalModel = handleMultimodalModelField.apply(map, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return constructor.construct(
             commonServiceSettings,
@@ -153,7 +154,7 @@ public abstract class BaseVoyageAIEmbeddingsServiceSettings extends FilteredXCon
         this.embeddingType = Objects.requireNonNullElse(in.readOptionalEnum(VoyageAIEmbeddingType.class), VoyageAIEmbeddingType.FLOAT);
         this.dimensionsSetByUser = in.readBoolean();
 
-        if (in.getTransportVersion().supports(VOYAGE_AI_INTEGRATION_ADDED)) {
+        if (in.getTransportVersion().supports(VOYAGE_AI_MULTIMODAL_EMBEDDINGS_ADDED)) {
             this.multimodalModel = in.readBoolean();
         } else {
             this.multimodalModel = false;
@@ -204,7 +205,7 @@ public abstract class BaseVoyageAIEmbeddingsServiceSettings extends FilteredXCon
 
     @Override
     public DenseVectorFieldMapper.ElementType elementType() {
-        return embeddingType == null ? DenseVectorFieldMapper.ElementType.FLOAT : embeddingType.toElementType();
+        return embeddingType.toElementType();
     }
 
     @Override
@@ -237,9 +238,7 @@ public abstract class BaseVoyageAIEmbeddingsServiceSettings extends FilteredXCon
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
-        if (embeddingType != null) {
-            builder.field(ServiceFields.EMBEDDING_TYPE, embeddingType);
-        }
+        builder.field(ServiceFields.EMBEDDING_TYPE, embeddingType);
 
         optionallyWriteMultimodalField(builder);
 
@@ -266,7 +265,7 @@ public abstract class BaseVoyageAIEmbeddingsServiceSettings extends FilteredXCon
         out.writeOptionalEnum(embeddingType);
         out.writeBoolean(dimensionsSetByUser);
 
-        if (out.getTransportVersion().supports(VOYAGE_AI_INTEGRATION_ADDED)) {
+        if (out.getTransportVersion().supports(VOYAGE_AI_MULTIMODAL_EMBEDDINGS_ADDED)) {
             out.writeBoolean(multimodalModel);
         }
     }

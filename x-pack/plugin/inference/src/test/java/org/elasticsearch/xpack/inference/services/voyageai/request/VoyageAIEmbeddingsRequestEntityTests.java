@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.inference.services.voyageai.request;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
@@ -144,5 +147,28 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
 
         MatcherAssert.assertThat(xContentResult, is("""
             {"input":["abc"],"model":"model","output_dtype":"float"}"""));
+    }
+
+    public void testXContent_WritesMultimodalInput_WhenModelIsMultimodal() throws IOException {
+        var model = VoyageAIEmbeddingsModelTests.createMultimodalModel(
+            "https://www.abc.com",
+            "api_key",
+            512,
+            2048,
+            "voyage-multimodal-3.5"
+        );
+
+        var entity = new VoyageAIEmbeddingsRequestEntity(
+            List.of(new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.BASE64, "base64data"))),
+            InputType.INGEST,
+            model
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"inputs":[{"content":[{"type":"image_base64","image_base64":"base64data"}]}],"model":"voyage-multimodal-3.5","input_type":"document","output_dimension":2048,"output_dtype":"float"}"""));
     }
 }

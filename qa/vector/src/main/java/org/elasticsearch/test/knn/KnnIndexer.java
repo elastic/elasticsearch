@@ -25,7 +25,9 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -33,12 +35,15 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.ReadAdvice;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PrintStreamInfoStream;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.index.StandardIOBehaviorHint;
@@ -68,6 +73,7 @@ import static org.elasticsearch.test.knn.KnnIndexTester.logger;
 class KnnIndexer {
     static final String ID_FIELD = "id";
     static final String VECTOR_FIELD = "vector";
+    static final String PARTITION_ID_FIELD = "partition_id";
 
     private final List<Path> docsPath;
     private final Path indexPath;
@@ -114,22 +120,7 @@ class KnnIndexer {
     }
 
     void createIndex(KnnIndexTester.Results result, Directory dir) throws IOException, InterruptedException, ExecutionException {
-        IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.CREATE);
-        iwc.setCodec(codec);
-        iwc.setMaxBufferedDocs(writerMaxBufferedDocs);
-        iwc.setRAMBufferSizeMB(writerBufferSizeInMb);
-        iwc.setUseCompoundFile(false);
-        if (mergePolicy != null) {
-            iwc.setMergePolicy(mergePolicy);
-        }
-        iwc.setMaxFullFlushMergeWaitMillis(0);
-
-        iwc.setInfoStream(new PrintStreamInfoStream(System.out) {
-            @Override
-            public boolean isEnabled(String component) {
-                return Objects.equals(component, "IVF");
-            }
-        });
+        DocumentFactory documentFactory = new DefaultDocumentFactory();
         logger.debug(
             "KnnIndexer: using codec={}, vectorEncoding={}, dim={}, similarityFunction={}",
             codec.getName(),
@@ -146,6 +137,7 @@ class KnnIndexer {
 
         long start = System.nanoTime();
         AtomicInteger numDocsIndexed = new AtomicInteger();
+        IndexWriterConfig iwc = createIndexWriterConfig(null);
         try (IndexWriter iw = new IndexWriter(dir, iwc)) {
             for (Path docsPath : this.docsPath) {
                 int dim = this.dim;
@@ -195,21 +187,19 @@ class KnnIndexer {
                     numDocs += numDocsIndexed.get();
 
                     VectorReader inReader = VectorReader.create(in, dim, vectorEncoding, offsetByteSize);
+                    IndexVectorReader vectorReader = new FileVectorReader(inReader, dim);
                     try (ExecutorService exec = Executors.newFixedThreadPool(numIndexThreads, r -> new Thread(r, "KnnIndexer-Thread"))) {
                         List<Future<?>> futures = new ArrayList<>();
-                        List<IndexerThread> threads = new ArrayList<>();
                         for (int i = 0; i < numIndexThreads; i++) {
-                            var t = new IndexerThread(iw, inReader, dim, vectorEncoding, fieldType, numDocsIndexed, numDocs);
-                            threads.add(t);
-                            t.setDaemon(true);
-                            futures.add(exec.submit(t));
+                            futures.add(
+                                exec.submit(
+                                    new IndexerThread(iw, vectorReader, vectorEncoding, fieldType, documentFactory, numDocsIndexed, numDocs)
+                                )
+                            );
                         }
                         for (Future<?> future : futures) {
                             future.get();
                         }
-                        result.docAddTimeMS = TimeUnit.NANOSECONDS.toMillis(
-                            threads.stream().mapToLong(x -> x.docAddTime).sum() / numIndexThreads
-                        );
                     }
                 }
             }
@@ -226,6 +216,118 @@ class KnnIndexer {
 
         // report numDocsIndexed here in case we have less than the total numDocs
         result.numDocs = numDocsIndexed.get();
+    }
+
+    /**
+     * Creates an index from synthetic partitioned data. Documents are sorted by partition_id.
+     */
+    void createGeneratedIndex(KnnIndexTester.Results result, Directory dir, PartitionDataGenerator generator) throws IOException,
+        InterruptedException, ExecutionException {
+        // Flatten partition assignments for multi-threaded indexing
+        var assignments = generator.getPartitionAssignments();
+        int totalDocs = 0;
+        for (var docIds : assignments.values()) {
+            totalDocs += docIds.size();
+        }
+        String[] docPartitionIds = new String[totalDocs];
+        int[] docOrdinals = new int[totalDocs];
+        int idx = 0;
+        for (var entry : assignments.entrySet()) {
+            for (int docId : entry.getValue()) {
+                docPartitionIds[idx] = entry.getKey();
+                docOrdinals[idx] = docId;
+                idx++;
+            }
+        }
+
+        logger.info(
+            "KnnIndexer: creating generated index with {} partitions, codec={}, vectorEncoding={}, dim={}",
+            generator.getNumPartitions(),
+            codec.getName(),
+            vectorEncoding,
+            dim
+        );
+
+        IndexVectorReader vectorReader = new PartitionGeneratingVectorReader(generator);
+        DocumentFactory documentFactory = new PartitionDocumentFactory(docPartitionIds, docOrdinals);
+        Sort indexSort = new Sort(new SortField(PARTITION_ID_FIELD, SortField.Type.STRING, false));
+        createIndex(result, dir, vectorReader, documentFactory, totalDocs, indexSort);
+    }
+
+    /**
+     * Core indexing method that uses the provided vector reader and document factory to build the index.
+     */
+    void createIndex(
+        KnnIndexTester.Results result,
+        Directory dir,
+        IndexVectorReader vectorReader,
+        DocumentFactory documentFactory,
+        int totalDocs,
+        Sort indexSort
+    ) throws IOException, InterruptedException, ExecutionException {
+        if (dim <= 0) {
+            throw new IllegalArgumentException("dimensions must be specified for generated data");
+        }
+        FieldType fieldType = switch (vectorEncoding) {
+            case BYTE -> KnnByteVectorField.createFieldType(dim, similarityFunction);
+            case FLOAT32 -> KnnFloatVectorField.createFieldType(dim, similarityFunction);
+        };
+
+        if (Files.exists(indexPath)) {
+            logger.debug("KnnIndexer: existing index at {}", indexPath);
+        } else {
+            Files.createDirectories(indexPath);
+        }
+
+        long start = System.nanoTime();
+        AtomicInteger numDocsIndexed = new AtomicInteger();
+        IndexWriterConfig iwc = createIndexWriterConfig(indexSort);
+        try (IndexWriter iw = new IndexWriter(dir, iwc)) {
+            try (ExecutorService exec = Executors.newFixedThreadPool(numIndexThreads, r -> new Thread(r, "KnnIndexer-Thread"))) {
+                List<Future<?>> futures = new ArrayList<>();
+                for (int i = 0; i < numIndexThreads; i++) {
+                    futures.add(
+                        exec.submit(
+                            new IndexerThread(iw, vectorReader, vectorEncoding, fieldType, documentFactory, numDocsIndexed, totalDocs)
+                        )
+                    );
+                }
+                for (Future<?> future : futures) {
+                    future.get();
+                }
+            }
+            logger.info("KnnIndexer: indexed {} documents", numDocsIndexed.get());
+            iw.commit();
+            ConcurrentMergeScheduler cms = (ConcurrentMergeScheduler) iwc.getMergeScheduler();
+            cms.sync();
+        }
+
+        long elapsed = System.nanoTime() - start;
+        logger.debug("Indexing took {} ms for {} docs", TimeUnit.NANOSECONDS.toMillis(elapsed), numDocsIndexed.get());
+        result.indexTimeMS = TimeUnit.NANOSECONDS.toMillis(elapsed);
+        result.numDocs = numDocsIndexed.get();
+    }
+
+    private IndexWriterConfig createIndexWriterConfig(Sort indexSort) {
+        IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+        iwc.setCodec(codec);
+        iwc.setMaxBufferedDocs(writerMaxBufferedDocs);
+        iwc.setRAMBufferSizeMB(writerBufferSizeInMb);
+        iwc.setUseCompoundFile(false);
+        if (mergePolicy != null) {
+            iwc.setMergePolicy(mergePolicy);
+        }
+        iwc.setMaxFullFlushMergeWaitMillis(0);
+        if (indexSort != null) {
+            iwc.setIndexSort(indexSort);
+        }
+        iwc.setInfoStream(new PrintStreamInfoStream(System.out) {
+            @Override
+            public boolean isEnabled(String component) {
+                return Objects.equals(component, "IVF");
+            }
+        });
+        return iwc;
     }
 
     void forceMerge(KnnIndexTester.Results results, int maxNumSegments) throws Exception {
@@ -302,91 +404,168 @@ class KnnIndexer {
         };
     }
 
-    static class IndexerThread extends Thread {
+    /**
+     * Provide vectors for indexing. Implementations must be thread-safe.
+     */
+    interface IndexVectorReader {
+        /** Returns the next float vector. Thread-safe. */
+        float[] nextFloatVector(int docOrd) throws IOException;
+
+        /** Returns the next byte vector. Thread-safe. */
+        byte[] nextByteVector(int docOrd) throws IOException;
+    }
+
+    /**
+     * Creates a document from a vector field and document ordinal.
+     */
+    interface DocumentFactory {
+        Document createDocument(IndexableField vectorField, int docOrd);
+    }
+
+    /**
+     * An {@link IndexVectorReader} that reads vectors from a file channel.
+     */
+    static class FileVectorReader implements IndexVectorReader {
+        private final VectorReader reader;
+        private final int dim;
+
+        FileVectorReader(VectorReader reader, int dim) {
+            this.reader = reader;
+            this.dim = dim;
+        }
+
+        @Override
+        public float[] nextFloatVector(int docOrd) throws IOException {
+            float[] dest = new float[dim];
+            reader.next(dest);
+            return dest;
+        }
+
+        @Override
+        public byte[] nextByteVector(int docOrd) throws IOException {
+            byte[] dest = new byte[dim];
+            reader.next(dest);
+            return dest;
+        }
+    }
+
+    /**
+     * An {@link IndexVectorReader} that generates vectors from a {@link PartitionDataGenerator}.
+     */
+    static class PartitionGeneratingVectorReader implements IndexVectorReader {
+        private final PartitionDataGenerator generator;
+
+        PartitionGeneratingVectorReader(PartitionDataGenerator generator) {
+            this.generator = generator;
+        }
+
+        @Override
+        public float[] nextFloatVector(int docOrd) {
+            return generator.nextVector();
+        }
+
+        @Override
+        public byte[] nextByteVector(int docOrd) {
+            return generator.nextByteVector();
+        }
+    }
+
+    /**
+     * A {@link DocumentFactory} that creates documents with just a vector and a stored ID.
+     */
+    static class DefaultDocumentFactory implements DocumentFactory {
+        @Override
+        public Document createDocument(IndexableField vectorField, int docOrd) {
+            Document doc = new Document();
+            doc.add(vectorField);
+            doc.add(new StoredField(ID_FIELD, docOrd));
+            return doc;
+        }
+    }
+
+    /**
+     * A {@link DocumentFactory} that creates documents with a vector, stored ID, and partition fields.
+     */
+    static class PartitionDocumentFactory implements DocumentFactory {
+        private final String[] docPartitionIds;
+        private final int[] docOrdinals;
+
+        PartitionDocumentFactory(String[] docPartitionIds, int[] docOrdinals) {
+            this.docPartitionIds = docPartitionIds;
+            this.docOrdinals = docOrdinals;
+        }
+
+        @Override
+        public Document createDocument(IndexableField vectorField, int docOrd) {
+            Document doc = new Document();
+            doc.add(vectorField);
+            doc.add(new StoredField(ID_FIELD, docOrdinals[docOrd]));
+            doc.add(new SortedDocValuesField(PARTITION_ID_FIELD, new BytesRef(docPartitionIds[docOrd])));
+            doc.add(new StringField(PARTITION_ID_FIELD, docPartitionIds[docOrd], org.apache.lucene.document.Field.Store.YES));
+            return doc;
+        }
+    }
+
+    static class IndexerThread implements Runnable {
         private final IndexWriter iw;
+        private final IndexVectorReader vectorReader;
+        private final VectorEncoding vectorEncoding;
+        private final FieldType fieldType;
+        private final DocumentFactory documentFactory;
         private final AtomicInteger numDocsIndexed;
         private final int numDocsToIndex;
-        private final FieldType fieldType;
-        private final VectorEncoding vectorEncoding;
-        private final byte[] byteVectorBuffer;
-        private final float[] floatVectorBuffer;
-        private final VectorReader in;
 
-        long readTime;
-        long docAddTime;
-
-        private IndexerThread(
+        IndexerThread(
             IndexWriter iw,
-            VectorReader in,
-            int dims,
+            IndexVectorReader vectorReader,
             VectorEncoding vectorEncoding,
             FieldType fieldType,
+            DocumentFactory documentFactory,
             AtomicInteger numDocsIndexed,
             int numDocsToIndex
         ) {
             this.iw = iw;
-            this.in = in;
+            this.vectorReader = vectorReader;
             this.vectorEncoding = vectorEncoding;
             this.fieldType = fieldType;
+            this.documentFactory = documentFactory;
             this.numDocsIndexed = numDocsIndexed;
             this.numDocsToIndex = numDocsToIndex;
-            switch (vectorEncoding) {
-                case BYTE -> {
-                    byteVectorBuffer = new byte[dims];
-                    floatVectorBuffer = null;
-                }
-                case FLOAT32 -> {
-                    floatVectorBuffer = new float[dims];
-                    byteVectorBuffer = null;
-                }
-                default -> throw new IllegalArgumentException("unexpected vector encoding: " + vectorEncoding);
-            }
         }
 
         @Override
         public void run() {
             try {
-                _run();
+                while (true) {
+                    int idx = numDocsIndexed.get();
+                    if (idx >= numDocsToIndex) {
+                        break;
+                    } else if (numDocsIndexed.compareAndSet(idx, idx + 1) == false) {
+                        continue;
+                    }
+
+                    final IndexableField field;
+                    switch (vectorEncoding) {
+                        case BYTE -> {
+                            byte[] vector = vectorReader.nextByteVector(idx);
+                            field = new KnnByteVectorField(VECTOR_FIELD, vector, fieldType);
+                        }
+                        case FLOAT32 -> {
+                            float[] vector = vectorReader.nextFloatVector(idx);
+                            field = new KnnFloatVectorField(VECTOR_FIELD, vector, fieldType);
+                        }
+                        default -> throw new UnsupportedOperationException();
+                    }
+
+                    Document doc = documentFactory.createDocument(field, idx);
+                    iw.addDocument(doc);
+
+                    if ((idx + 1) % 25000 == 0) {
+                        logger.debug("Done indexing {} documents.", idx + 1);
+                    }
+                }
             } catch (IOException ioe) {
                 throw new UncheckedIOException(ioe);
-            }
-        }
-
-        private void _run() throws IOException {
-            while (true) {
-                int id = numDocsIndexed.get();
-                if (id == numDocsToIndex) {
-                    break;
-                } else if (numDocsIndexed.compareAndSet(id, id + 1) == false) {
-                    continue;
-                }
-
-                var startRead = System.nanoTime();
-                final IndexableField field;
-                switch (vectorEncoding) {
-                    case BYTE -> {
-                        in.next(byteVectorBuffer);
-                        field = new KnnByteVectorField(VECTOR_FIELD, byteVectorBuffer, fieldType);
-                    }
-                    case FLOAT32 -> {
-                        in.next(floatVectorBuffer);
-                        field = new KnnFloatVectorField(VECTOR_FIELD, floatVectorBuffer, fieldType);
-                    }
-                    default -> throw new UnsupportedOperationException();
-                }
-                long endRead = System.nanoTime();
-                readTime += (endRead - startRead);
-
-                Document doc = new Document();
-                doc.add(field);
-
-                if ((id + 1) % 25000 == 0) {
-                    logger.debug("Done indexing " + (id + 1) + " documents.");
-                }
-                doc.add(new StoredField(ID_FIELD, id));
-                iw.addDocument(doc);
-
-                docAddTime += (System.nanoTime() - endRead);
             }
         }
     }

@@ -466,6 +466,17 @@ public class KnnIndexTester {
     ) throws Exception {
         Directory sharedDir = dirConfig.shared() ? dirConfig.factory().create(indexPath) : null;
         try {
+            // Create generator if using partition-generated dataset (needed for both indexing and search)
+            PartitionDataGenerator generator = testConfiguration.datasetConfig() instanceof DatasetConfig.PartitionGenerated pg
+                ? new PartitionDataGenerator(
+                    testConfiguration.numDocs(),
+                    testConfiguration.dimensions(),
+                    pg.numPartitions(),
+                    pg.partitionDistribution(),
+                    pg.generatorSeed()
+                )
+                : null;
+
             if (testConfiguration.reindex() || testConfiguration.forceMerge()) {
                 KnnIndexer knnIndexer = new KnnIndexer(
                     testConfiguration.docVectors(),
@@ -480,18 +491,32 @@ public class KnnIndexTester {
                     testConfiguration.writerBufferSizeInMb(),
                     testConfiguration.writerMaxBufferedDocs()
                 );
-                if (testConfiguration.reindex() == false && Files.exists(indexPath) == false) {
-                    throw new IllegalArgumentException("Index path does not exist: " + indexPath);
-                }
                 if (testConfiguration.reindex()) {
-                    reindex(knnIndexer, indexResults, sharedDir);
+                    if (generator != null) {
+                        Directory writeDir = sharedDir != null ? sharedDir : dirConfig.factory().create(indexPath);
+                        try {
+                            knnIndexer.createGeneratedIndex(indexResults, writeDir, generator);
+                        } finally {
+                            if (sharedDir == null) {
+                                writeDir.close();
+                            }
+                        }
+                    } else {
+                        reindex(knnIndexer, indexResults, sharedDir);
+                    }
+                } else if (generator == null && Files.exists(indexPath) == false) {
+                    throw new IllegalArgumentException("Index path does not exist: " + indexPath);
                 }
                 if (testConfiguration.forceMerge()) {
                     forceMerge(knnIndexer, indexResults, sharedDir, testConfiguration);
                 }
             }
             numSegments(indexPath, indexResults, sharedDir);
-            if (testConfiguration.queryVectors() != null && testConfiguration.numQueries() > 0) {
+
+            boolean hasQueries = generator != null
+                ? testConfiguration.numQueries() > 0
+                : (testConfiguration.queryVectors() != null && testConfiguration.numQueries() > 0);
+            if (hasQueries) {
                 Directory readDir = sharedDir != null ? sharedDir : dirConfig.factory().create(indexPath);
                 try {
                     if (dirConfig.preWarm()) {
@@ -499,7 +524,20 @@ public class KnnIndexTester {
                         KnnSearcher.preWarmDirectory(readDir);
                         logDiagnostics(dirConfig, readDir, "After prewarm");
                     }
-                    runSearches(testConfiguration, indexPath, readDir, results, parsedArgs, indexPathName, indexType);
+                    if (generator != null) {
+                        runPartitionSearches(
+                            testConfiguration,
+                            indexPath,
+                            readDir,
+                            results,
+                            parsedArgs,
+                            indexPathName,
+                            indexType,
+                            generator
+                        );
+                    } else {
+                        runSearches(testConfiguration, indexPath, readDir, results, parsedArgs, indexPathName, indexType);
+                    }
                     logDiagnostics(dirConfig, readDir, "After search");
                 } finally {
                     if (sharedDir == null) {
@@ -565,6 +603,32 @@ public class KnnIndexTester {
         for (int i = 0; i < results.length; i++) {
             KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
             knnSearcher.runSearch(results[i], testConfiguration.searchParams().get(i), dir);
+        }
+    }
+
+    private static void runPartitionSearches(
+        TestConfiguration testConfiguration,
+        Path indexPath,
+        Directory dir,
+        Results[] results,
+        ParsedArgs parsedArgs,
+        String indexPathName,
+        String indexType,
+        PartitionDataGenerator generator
+    ) throws Exception {
+        if (parsedArgs.warmUpIterations() > 0) {
+            logger.info("Running partitioned searches for " + parsedArgs.warmUpIterations() + " warm up iterations");
+        }
+        for (int warmUpCount = 0; warmUpCount < parsedArgs.warmUpIterations(); warmUpCount++) {
+            for (int i = 0; i < results.length; i++) {
+                var ignoreResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
+                KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
+                knnSearcher.runPartitionSearch(ignoreResults, testConfiguration.searchParams().get(i), dir, generator);
+            }
+        }
+        for (int i = 0; i < results.length; i++) {
+            KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
+            knnSearcher.runPartitionSearch(results[i], testConfiguration.searchParams().get(i), dir, generator);
         }
     }
 
@@ -647,7 +711,10 @@ public class KnnIndexTester {
                 "filter_cached",
                 "oversampling_factor",
                 "num_candidates",
-                "early_termination" };
+                "early_termination",
+                "partition_recall_min",
+                "partition_recall_max",
+                "partition_recall_avg" };
 
             // Calculate appropriate column widths based on headers and data
 
@@ -669,6 +736,22 @@ public class KnnIndexTester {
             String[][] queryResultsArray = new String[queryResults.size()][];
             for (int i = 0; i < queryResults.size(); i++) {
                 Results queryResult = queryResults.get(i);
+                String partitionMin = "";
+                String partitionMax = "";
+                String partitionAvg = "";
+                if (queryResult.perPartitionRecall != null && queryResult.perPartitionRecall.isEmpty() == false) {
+                    float min = Float.MAX_VALUE;
+                    float max = Float.MIN_VALUE;
+                    float sum = 0;
+                    for (float recall : queryResult.perPartitionRecall.values()) {
+                        min = Math.min(min, recall);
+                        max = Math.max(max, recall);
+                        sum += recall;
+                    }
+                    partitionMin = String.format(Locale.ROOT, "%.4f", min);
+                    partitionMax = String.format(Locale.ROOT, "%.4f", max);
+                    partitionAvg = String.format(Locale.ROOT, "%.4f", sum / queryResult.perPartitionRecall.size());
+                }
                 queryResultsArray[i] = new String[] {
                     queryResult.indexName,
                     queryResult.indexType,
@@ -683,7 +766,10 @@ public class KnnIndexTester {
                     Boolean.toString(queryResult.filterCached),
                     String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor),
                     String.format(Locale.ROOT, "%d", queryResult.numCandidates),
-                    Boolean.toString(queryResult.earlyTermination) };
+                    Boolean.toString(queryResult.earlyTermination),
+                    partitionMin,
+                    partitionMax,
+                    partitionAvg };
             }
 
             printBlock(sb, searchHeaders, queryResultsArray);
@@ -764,6 +850,7 @@ public class KnnIndexTester {
         double overSamplingFactor;
         boolean earlyTermination;
         int numCandidates;
+        Map<String, Float> perPartitionRecall;
 
         Results(String indexName, String indexType, int numDocs) {
             this.indexName = indexName;

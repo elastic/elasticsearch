@@ -42,6 +42,8 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32C;
 
+import static org.elasticsearch.test.knn.DatasetConfig.PartitionGenerated;
+
 /**
  * Command line arguments for the KNN index tester.
  * This class encapsulates all the parameters required to run the KNN index tests.
@@ -73,7 +75,8 @@ record TestConfiguration(
     int preconditioningBlockDims,
     int flatVectorThreshold,
     int secondaryClusterSize,
-    String directoryType
+    String directoryType,
+    DatasetConfig datasetConfig
 ) {
 
     static final ParseField DATASET_FIELD = new ParseField("dataset");
@@ -131,7 +134,7 @@ record TestConfiguration(
     static final ObjectParser<TestConfiguration.Builder, Void> PARSER = new ObjectParser<>("test_configuration", false, Builder::new);
 
     static {
-        PARSER.declareString(Builder::setDataset, DATASET_FIELD);
+        PARSER.declareField(Builder::setDatasetConfig, DatasetConfig::parse, DATASET_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
         PARSER.declareString(Builder::setDataDir, DATA_DIR_FIELD);
         PARSER.declareStringArray(Builder::setDocVectors, DOC_VECTORS_FIELD);
         PARSER.declareString(Builder::setQueryVectors, QUERY_VECTORS_FIELD);
@@ -198,7 +201,12 @@ record TestConfiguration(
 
     public static String formattedParameterHelp() {
         List<ParameterHelp> params = List.of(
-            new ParameterHelp("dataset", "string", "Optional. Name of the dataset to use. Available datasets displayed in help text."),
+            new ParameterHelp(
+                "dataset",
+                "string|object",
+                "Optional. GCP dataset name (string), or {\"type\":\"partition_generated\", \"num_partitions\":N, "
+                    + "\"partition_distribution\":\"uniform|zipf\", \"generator_seed\":L} (object)."
+            ),
             new ParameterHelp("doc_vectors", "array[string]", "Required. Paths to document vectors files used for indexing."),
             new ParameterHelp("query_vectors", "string", "Optional. Path to query vectors file; omit to skip searches."),
             new ParameterHelp("num_docs", "int", "Number of documents to index."),
@@ -348,7 +356,7 @@ record TestConfiguration(
     }
 
     static class Builder implements ToXContentObject {
-        private String dataset;
+        private DatasetConfig datasetConfig;
         private String dataDir = ".data";
         private List<Path> docVectors;
         private Path queryVectors;
@@ -394,8 +402,8 @@ record TestConfiguration(
          */
         private int writerMaxBufferedDocs = IndexWriterConfig.DISABLE_AUTO_FLUSH;
 
-        public Builder setDataset(String dataset) {
-            this.dataset = dataset;
+        public Builder setDatasetConfig(DatasetConfig datasetConfig) {
+            this.datasetConfig = datasetConfig;
             return this;
         }
 
@@ -613,7 +621,7 @@ record TestConfiguration(
              "num_query_vectors": 5000
            }
          */
-        private void resolveDataset() throws Exception {
+        private void resolveDataset(String dataset) throws Exception {
             final String cloudProjectId = "benchmarking";
             final String datasetBucket = "knnindextester";
 
@@ -748,9 +756,8 @@ record TestConfiguration(
         }
 
         public TestConfiguration build() throws Exception {
-            if (dataset != null) {
-                // this fills in various options from the dataset
-                resolveDataset();
+            if (datasetConfig instanceof DatasetConfig.GcpDataset gcpDataset) {
+                resolveDataset(gcpDataset.name());
             }
             // specify some defaults here, so they can be set by the config file or dataset first
             if (vectorSpace == null) {
@@ -763,7 +770,14 @@ record TestConfiguration(
                 numQueries = 100;
             }
 
-            if (docVectors == null) {
+            if (datasetConfig instanceof PartitionGenerated pg) {
+                if (dimensions <= 0) {
+                    throw new IllegalArgumentException("dimensions must be specified when using data generator");
+                }
+                if (docVectors == null) {
+                    docVectors = List.of(PathUtils.get("generated-" + pg.numPartitions() + "-partitions"));
+                }
+            } else if (docVectors == null) {
                 throw new IllegalArgumentException("Dataset or document vectors path must be provided");
             }
             if (dimensions <= 0 && dimensions != -1) {
@@ -835,15 +849,23 @@ record TestConfiguration(
                 preconditioningBlockDims,
                 flatVectorThreshold,
                 secondaryClusterSize,
-                directoryType
+                directoryType,
+                datasetConfig
             );
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            if (dataset != null) {
-                builder.field(DATASET_FIELD.getPreferredName(), dataset);
+            if (datasetConfig instanceof DatasetConfig.GcpDataset gcpDataset) {
+                builder.field(DATASET_FIELD.getPreferredName(), gcpDataset.name());
+            } else if (datasetConfig instanceof PartitionGenerated pg) {
+                builder.startObject(DATASET_FIELD.getPreferredName());
+                builder.field("type", "partition_generated");
+                builder.field("num_partitions", pg.numPartitions());
+                builder.field("partition_distribution", pg.partitionDistribution());
+                builder.field("generator_seed", pg.generatorSeed());
+                builder.endObject();
             }
             if (!dataDir.equals(".data")) {
                 builder.field(DATA_DIR_FIELD.getPreferredName(), dataDir);

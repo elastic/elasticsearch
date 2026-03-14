@@ -193,8 +193,8 @@ public class MetadataCreateIndexService {
     private final ClusterBlocksTransformer blocksTransformerUponIndexCreation;
 
     // package private for tests
-    final CreateIndexTaskExecutor createIndexTaskExecutor;
-    private final MasterServiceTaskQueue<CreateIndexTask> createIndexTaskQueue;
+    final CreateIndexClusterStateUpdateTaskExecutor createIndexTaskExecutor;
+    private final MasterServiceTaskQueue<CreateIndexClusterStateUpdateTask> createIndexTaskQueue;
 
     private volatile TimeValue maxMasterNodeTimeout;
     private volatile int maxIndicesPerProject;
@@ -227,7 +227,7 @@ public class MetadataCreateIndexService {
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
         this.threadPool = threadPool;
         this.blocksTransformerUponIndexCreation = createClusterBlocksTransformerForIndexCreation(settings);
-        this.createIndexTaskExecutor = new CreateIndexTaskExecutor();
+        this.createIndexTaskExecutor = new CreateIndexClusterStateUpdateTaskExecutor();
         this.createIndexTaskQueue = clusterService.createTaskQueue(
             "create-index",
             CREATE_INDEX_PRIORITY_SETTING.get(settings),
@@ -445,17 +445,21 @@ public class MetadataCreateIndexService {
     ) {
         ActionListener.run(listener, l -> {
             normalizeRequestSetting(request);
-            final var task = new CreateIndexTask(request, ackTimeout, l);
+            final var task = new CreateIndexClusterStateUpdateTask(request, ackTimeout, l);
             createIndexTaskQueue.submitTask(task.toString(), task, masterNodeTimeout);
         });
     }
 
-    static class CreateIndexTask implements ClusterStateTaskListener {
+    static class CreateIndexClusterStateUpdateTask implements ClusterStateTaskListener {
         private final CreateIndexClusterStateUpdateRequest request;
         private final TimeValue ackTimeout;
         private final ActionListener<AcknowledgedResponse> listener;
 
-        CreateIndexTask(CreateIndexClusterStateUpdateRequest request, TimeValue ackTimeout, ActionListener<AcknowledgedResponse> listener) {
+        CreateIndexClusterStateUpdateTask(
+            CreateIndexClusterStateUpdateRequest request,
+            TimeValue ackTimeout,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
             this.request = request;
             this.ackTimeout = ackTimeout;
             this.listener = listener;
@@ -508,9 +512,13 @@ public class MetadataCreateIndexService {
         }
     }
 
-    private class CreateIndexTaskExecutor implements ClusterStateTaskExecutor<CreateIndexTask> {
+    /**
+     * Executes a batch of {@link CreateIndexClusterStateUpdateTask}s in a single cluster state update,
+     * deferring allocation reroute() until all indices in the batch have been processed.
+     */
+    private class CreateIndexClusterStateUpdateTaskExecutor implements ClusterStateTaskExecutor<CreateIndexClusterStateUpdateTask> {
         @Override
-        public ClusterState execute(BatchExecutionContext<CreateIndexTask> batchExecutionContext) {
+        public ClusterState execute(BatchExecutionContext<CreateIndexClusterStateUpdateTask> batchExecutionContext) {
             final var allocationActionMultiListener = new AllocationActionMultiListener<AcknowledgedResponse>(
                 threadPool.getThreadContext()
             );

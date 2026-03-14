@@ -1972,12 +1972,18 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
             final int indexCount = randomIntBetween(2, 10);
             final var indexNames = new ArrayList<String>(indexCount);
-            final var tasks = new ArrayList<MetadataCreateIndexService.CreateIndexTask>(indexCount);
+            final var tasks = new ArrayList<MetadataCreateIndexService.CreateIndexClusterStateUpdateTask>(indexCount);
             for (int i = 0; i < indexCount; i++) {
                 final var indexName = randomIndexName();
                 indexNames.add(indexName);
                 var request = new CreateIndexClusterStateUpdateRequest("test", projectId, indexName, indexName);
-                tasks.add(new MetadataCreateIndexService.CreateIndexTask(request, TimeValue.THIRTY_SECONDS, ActionListener.noop()));
+                tasks.add(
+                    new MetadataCreateIndexService.CreateIndexClusterStateUpdateTask(
+                        request,
+                        TimeValue.THIRTY_SECONDS,
+                        ActionListener.noop()
+                    )
+                );
             }
 
             try {

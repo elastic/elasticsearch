@@ -1000,6 +1000,9 @@
                                 },
                                 "value_log_size": {
                                   "type": "long"
+                                },
+                                "storage_limit": {
+                                  "type": "long"
                                 }
                               }
                             }

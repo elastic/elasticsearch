@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -74,10 +73,6 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
 
     @Override
     protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
-        // In PromQL, queries never fail due to a field not being mapped, instead an empty result is returned.
-        if (plan instanceof PromqlCommand) {
-            return resolve(plan, false);
-        }
         return switch (context.unmappedResolution()) {
             case UnmappedResolution.FAIL -> plan;
             case UnmappedResolution.NULLIFY -> resolve(plan, false);
@@ -356,13 +351,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
                 unresolved.computeIfAbsent(ua.name(), k -> new ArrayList<>()).add(ua);
             }
         };
-        if (plan instanceof PromqlCommand promqlCommand) {
-            // The expressions of the PromqlCommand itself are not relevant here.
-            // The promqlPlan is a separate tree and its children may contain UnresolvedAttribute expressions
-            promqlCommand.promqlPlan().forEachExpressionDown(UnresolvedAttribute.class, collectUnresolved);
-        } else {
-            plan.forEachExpression(UnresolvedAttribute.class, collectUnresolved);
-        }
+        plan.forEachExpression(UnresolvedAttribute.class, collectUnresolved);
         return unresolved;
     }
 

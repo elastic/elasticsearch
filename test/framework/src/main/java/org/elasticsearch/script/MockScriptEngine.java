@@ -154,6 +154,27 @@ public class MockScriptEngine implements ScriptEngine {
                 }
             };
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(LongSortScript.class)) {
+            LongSortScript.Factory factory = (parameters, lookup) -> new LongSortScript.LeafFactory() {
+                @Override
+                public LongSortScript newInstance(DocReader reader) {
+                    return new LongSortScript(parameters, lookup, reader) {
+                        @Override
+                        public long execute() {
+                            Map<String, Object> vars = new HashMap<>(parameters);
+                            vars.put("params", parameters);
+                            vars.put("doc", getDoc());
+                            return ((Number) script.apply(vars)).longValue();
+                        }
+                    };
+                }
+
+                @Override
+                public boolean needs_score() {
+                    return false;
+                }
+            };
+            return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(StringSortScript.class)) {
             return context.factoryClazz.cast(new MockStringSortScriptFactory(script));
         } else if (context.instanceClazz.equals(BytesRefSortScript.class)) {
@@ -415,6 +436,7 @@ public class MockScriptEngine implements ScriptEngine {
             FieldScript.CONTEXT,
             TermsSetQueryScript.CONTEXT,
             NumberSortScript.CONTEXT,
+            LongSortScript.CONTEXT,
             StringSortScript.CONTEXT,
             IngestScript.CONTEXT,
             AggregationScript.CONTEXT,

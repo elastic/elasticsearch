@@ -85,7 +85,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         this.alwaysMatchTailQuery = true;
     }
 
-    private SortedNumericLongValues loadDocValues(LeafReaderContext context) {
+    protected SortedNumericLongValues getValues(LeafReaderContext context) throws IOException {
         final LeafNumericFieldData data = indexFieldData.load(context);
         SortedNumericLongValues values;
         if (data instanceof SortedNumericIndexFieldData.NanoSecondFieldData) {
@@ -97,7 +97,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
     }
 
     DenseLongValues getLongValues(LeafReaderContext context, long missingValue) throws IOException {
-        final SortedNumericLongValues values = loadDocValues(context);
+        final SortedNumericLongValues values = getValues(context);
         if (nested == null) {
             return FieldData.replaceMissing(sortMode.select(values), missingValue);
         }

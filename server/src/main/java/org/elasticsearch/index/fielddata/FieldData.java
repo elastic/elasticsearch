@@ -181,6 +181,10 @@ public enum FieldData {
         }
     }
 
+    public static SortedNumericLongValues singleton(LongValues values) {
+        return new SingletonSortedNumericLongValues(values);
+    }
+
     /**
      * Returns a multi-valued view over the provided {@link DoubleValues}.
      */

@@ -426,10 +426,6 @@ public final class S3FixtureUtils {
             return path;
         }
 
-        public long getContentLength() {
-            return contentLength;
-        }
-
         public long getTimestamp() {
             return timestamp;
         }
@@ -448,22 +444,13 @@ public final class S3FixtureUtils {
 
         private static final Logger fixtureLogger = LogManager.getLogger(DataSourcesS3HttpFixture.class);
 
-        private final int fixedPort;
         private S3HttpHandler handler;
 
         /**
          * Create a fixture with a random available port.
          */
         public DataSourcesS3HttpFixture() {
-            this(-1);
-        }
-
-        /**
-         * Create a fixture with a specific port.
-         */
-        public DataSourcesS3HttpFixture(int port) {
             super(true, () -> S3ConsistencyModel.STRONG_MPUS);
-            this.fixedPort = port;
         }
 
         @Override

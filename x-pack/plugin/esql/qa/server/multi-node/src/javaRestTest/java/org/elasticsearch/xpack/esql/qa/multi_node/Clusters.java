@@ -10,14 +10,22 @@ package org.elasticsearch.xpack.esql.qa.multi_node;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.xpack.esql.CsvTestUtils;
+
+import java.nio.file.Path;
 
 public class Clusters {
     public static ElasticsearchCluster testCluster(LocalClusterConfigProvider configProvider) {
+        return testCluster(CsvTestUtils.createCsvDataDirectory(), configProvider);
+    }
+
+    public static ElasticsearchCluster testCluster(Path csvDataPath, LocalClusterConfigProvider configProvider) {
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .nodes(2)
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
+            .setting("path.repo", csvDataPath::toString)
             .apply(() -> configProvider)
             .build();
     }

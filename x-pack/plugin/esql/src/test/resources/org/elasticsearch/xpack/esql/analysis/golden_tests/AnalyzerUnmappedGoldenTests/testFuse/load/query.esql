@@ -1,0 +1,4 @@
+SET unmapped_fields="load"; FROM employees METADATA _score, _index, _id
+| FORK (WHERE does_not_exist::LONG > 0)
+       (WHERE emp_no > 0)
+| FUSE

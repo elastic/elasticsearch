@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 143745
+summary: Add (stack) telemetry for views
+type: enhancement

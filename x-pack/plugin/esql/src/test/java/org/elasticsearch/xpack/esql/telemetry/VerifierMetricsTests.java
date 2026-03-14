@@ -13,10 +13,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 
+import java.util.BitSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +51,7 @@ import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.SHOW;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.SORT;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.STATS;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.TS;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.VIEWS;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.WHERE;
 import static org.elasticsearch.xpack.esql.telemetry.Metrics.FEATURES_PREFIX;
 import static org.elasticsearch.xpack.esql.telemetry.Metrics.FUNC_PREFIX;
@@ -837,6 +842,22 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, lookupJoinOnFields(c));
         assertEquals(0, lookupJoinOnExpression(c));
         assertEquals(0, subqueryInFromCommand(c));
+    }
+
+    public void testSubqueryTelemetry() {
+        Row innerPlan = new Row(Source.EMPTY, List.of());
+
+        Subquery view = new Subquery(Source.EMPTY, innerPlan, "my_view");
+        BitSet viewBitSet = new BitSet();
+        FeatureMetric.set(view, viewBitSet);
+        assertFalse("VIEWS should not be set for named Subquery (counted ad-hoc)", viewBitSet.get(VIEWS.ordinal()));
+        assertFalse("SUBQUERY should not be set for named Subquery", viewBitSet.get(FeatureMetric.SUBQUERY.ordinal()));
+
+        Subquery subquery = new Subquery(Source.EMPTY, innerPlan);
+        BitSet subqueryBitSet = new BitSet();
+        FeatureMetric.set(subquery, subqueryBitSet);
+        assertFalse("VIEWS should not be set for unnamed Subquery", subqueryBitSet.get(VIEWS.ordinal()));
+        assertTrue("SUBQUERY should be set for unnamed Subquery", subqueryBitSet.get(FeatureMetric.SUBQUERY.ordinal()));
     }
 
     private long dissect(Counters c) {

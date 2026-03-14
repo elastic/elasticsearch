@@ -24,7 +24,7 @@ esplugin {
   name = 'x-pack-esql'
   description = 'The plugin that powers ESQL for Elasticsearch'
   classname = 'org.elasticsearch.xpack.esql.plugin.EsqlPlugin'
-  extendedPlugins = ['x-pack-esql-core', 'lang-painless', 'x-pack-ml']
+  extendedPlugins = ['x-pack-ml']
 }
 
 base {
@@ -34,7 +34,6 @@ base {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':modules:lang-painless:spi')
-  compileOnly project(xpackModule('esql-core'))
   compileOnly project(xpackModule('ml'))
   compileOnly project(path: xpackModule('mapper-aggregate-metric'))
   compileOnly project(path: xpackModule('downsample'))
@@ -48,6 +47,8 @@ dependencies {
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.antlr:antlr4-runtime:${versions.antlr4}"
   api project(":libs:h3")
+  api project(path: xpackModule('mapper-version'))
+  api "org.locationtech.jts:jts-core:${versions.jts}"
   implementation project('arrow')
   implementation "org.apache.commons:commons-math3:${versions.commons_math3}"
   // Also contains a dummy processor to allow compilation with unused annotations.
@@ -95,15 +96,6 @@ dependencies {
   internalClusterTestImplementation project(xpackModule('wildcard'))
   internalClusterTestImplementation project(xpackModule('mapper-version'))
   internalClusterTestImplementation project(xpackModule('mapper-aggregate-metric'))
-}
-
-tasks.named('splitPackagesAudit').configure {
-  // TODO: Remove these exclusions by renaming the esql-core packages
-  ignoreClasses(
-    "org.elasticsearch.xpack.esql.core.util.*",
-    "org.elasticsearch.xpack.esql.core.plugin.AbstractTransportQlAsyncGetResultsAction",
-    "org.elasticsearch.xpack.esql.core.package-info"
-  )
 }
 
 tasks.named("dependencyLicenses").configure {

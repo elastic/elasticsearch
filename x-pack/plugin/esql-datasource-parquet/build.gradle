@@ -27,16 +27,15 @@ base {
 dependencies {
   // SPI interfaces from ESQL core
   compileOnly project(path: xpackModule('esql'))
-  compileOnly project(path: xpackModule('esql-core'))
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))
-  
+
   // Parquet format support - using parquet-hadoop-bundle to avoid jar hell from duplicate shaded classes
   implementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
-  
+
   // Hadoop dependencies - required at both compile time and runtime for Parquet operations.
-  // 
+  //
   // The Hadoop Configuration class is needed because:
   // 1. ParquetFileReader has method overloads that reference Configuration in their signatures
   // 2. ParquetReadOptions.Builder() constructor creates HadoopParquetConfiguration internally,

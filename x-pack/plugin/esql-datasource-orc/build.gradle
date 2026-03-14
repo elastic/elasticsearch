@@ -26,7 +26,6 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('esql'))
-  compileOnly project(path: xpackModule('esql-core'))
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))

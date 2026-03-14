@@ -97,7 +97,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 
 import static java.util.Collections.emptyList;
@@ -136,7 +135,6 @@ import static org.mockito.Mockito.mock;
  */
 public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeSubclassTests {
     private static final String ESQL_CORE_CLASS_PREFIX = "org.elasticsearch.xpack.esql.core";
-    private static final String ESQL_CORE_JAR_LOCATION_SUBSTRING = "x-pack-esql-core";
     private static final String ESQL_CLASS_PREFIX = "org.elasticsearch.xpack.esql";
 
     private static final Predicate<String> CLASSNAME_FILTER = className -> {
@@ -820,39 +818,20 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             Path root = PathUtils.get(path);
             int rootLength = root.toString().length() + 1;
 
-            // load classes from jar files
-            // NIO FileSystem API is not used since it trips the SecurityManager
-            // https://bugs.openjdk.java.net/browse/JDK-8160798
-            // so iterate the jar "by hand"
-            if (path.endsWith(".jar") && path.contains(ESQL_CORE_JAR_LOCATION_SUBSTRING)) {
-                try (JarInputStream jar = jarStream(root)) {
-                    JarEntry je = null;
-                    while ((je = jar.getNextJarEntry()) != null) {
-                        String name = je.getName();
-                        if (name.endsWith(".class")) {
-                            String className = name.substring(0, name.length() - ".class".length()).replace("/", ".");
-                            maybeLoadClass(clazz, className, root + "!/" + name, classNameFilter, results);
-                        }
+            Files.walkFileTree(root, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    if (Files.isRegularFile(file) && file.getFileName().toString().endsWith(".class")) {
+                        String fileName = file.toString();
+                        // Chop off the root and file extension
+                        String className = fileName.substring(rootLength, fileName.length() - ".class".length());
+                        // Go from "path" style to class style
+                        className = className.replace(PathUtils.getDefaultFileSystem().getSeparator(), ".");
+                        maybeLoadClass(clazz, className, fileName, classNameFilter, results);
                     }
+                    return FileVisitResult.CONTINUE;
                 }
-            }
-            // for folders, just use the FileSystems API
-            else {
-                Files.walkFileTree(root, new SimpleFileVisitor<>() {
-                    @Override
-                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                        if (Files.isRegularFile(file) && file.getFileName().toString().endsWith(".class")) {
-                            String fileName = file.toString();
-                            // Chop off the root and file extension
-                            String className = fileName.substring(rootLength, fileName.length() - ".class".length());
-                            // Go from "path" style to class style
-                            className = className.replace(PathUtils.getDefaultFileSystem().getSeparator(), ".");
-                            maybeLoadClass(clazz, className, fileName, classNameFilter, results);
-                        }
-                        return FileVisitResult.CONTINUE;
-                    }
-                });
-            }
+            });
         }
         subclassCache.put(clazz, results);
         return results;

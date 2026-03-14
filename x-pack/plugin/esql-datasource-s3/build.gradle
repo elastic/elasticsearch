@@ -22,10 +22,9 @@ base {
 dependencies {
   // SPI interfaces from ESQL core
   compileOnly project(path: xpackModule('esql'))
-  compileOnly project(path: xpackModule('esql-core'))
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
-  
+
   // AWS SDK for S3 access - following repository-s3 pattern
   // Using explicit module declarations instead of bundle for better classloading
   implementation "software.amazon.awssdk:annotations:${versions.awsv2sdk}"
@@ -45,10 +44,10 @@ dependencies {
   implementation "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
   implementation "software.amazon.awssdk:sts:${versions.awsv2sdk}"
   implementation "software.amazon.awssdk:utils:${versions.awsv2sdk}"
-  
+
   // Apache HTTP client for AWS SDK (required by apache-client module)
   implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  
+
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
   runtimeOnly "commons-logging:commons-logging:${versions.commonslogging}"
   runtimeOnly "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -111,7 +110,7 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.avalon.framework.logger.Logger',
     'org.apache.log.Hierarchy',
     'org.apache.log.Logger',
-    
+
     // We use the Apache HTTP client rather than AWS CRT, so these classes are not needed
     'software.amazon.awssdk.crt.CRT',
     'software.amazon.awssdk.crt.auth.credentials.Credentials',
@@ -155,7 +154,7 @@ tasks.named("thirdPartyAudit").configure {
     'software.amazon.awssdk.crtcore.CrtProxyConfiguration$Builder',
     'software.amazon.awssdk.crtcore.CrtProxyConfiguration$DefaultBuilder',
     'software.amazon.awssdk.crtcore.CrtProxyConfiguration',
-    
+
     // We don't use eventstream-based features
     'software.amazon.eventstream.HeaderValue',
     'software.amazon.eventstream.Message',

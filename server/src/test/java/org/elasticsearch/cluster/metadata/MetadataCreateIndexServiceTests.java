@@ -1976,23 +1976,21 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             for (int i = 0; i < indexCount; i++) {
                 final var indexName = randomIndexName();
                 indexNames.add(indexName);
-                var request = new CreateIndexClusterStateUpdateRequest("test", projectId, indexName, indexName);
                 tasks.add(
                     new MetadataCreateIndexService.CreateIndexClusterStateUpdateTask(
-                        request,
+                        new CreateIndexClusterStateUpdateRequest("test", projectId, indexName, indexName),
                         TimeValue.THIRTY_SECONDS,
                         ActionListener.noop()
                     )
                 );
             }
-
             try {
-                final ClusterState state = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+                final var resultState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
                     clusterService.state(),
                     service.createIndexTaskExecutor,
                     tasks
                 );
-                final var stateIndices = state.metadata().getProject(projectId).indices().keySet();
+                final var stateIndices = resultState.metadata().getProject(projectId).indices().keySet();
                 assertTrue(
                     "expected cluster state indices [" + stateIndices + "] to contain all [" + indexNames + "]",
                     stateIndices.containsAll(indexNames)
@@ -2005,13 +2003,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     private IndicesService mockIndicesService() {
-        final IndicesService indicesService;
         try {
-            indicesService = DataStreamTestHelper.mockIndicesServices(MappingLookup.EMPTY);
+            return DataStreamTestHelper.mockIndicesServices(MappingLookup.EMPTY);
         } catch (Exception e) {
             throw new AssertionError("failed to setup indicesService", e);
         }
-        return indicesService;
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {

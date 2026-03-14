@@ -79,7 +79,7 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
      * exception or an unacknowledged response from the cluster.
      */
     public void maybeMarkIndexReadOnly() {
-        if (isIndexReadOnly(indexName, projectState)) {
+        if (isIndexReadOnly()) {
             logger.debug("Index [{}] is already marked as read-only, skipping to clone step", indexName);
             return;
         }
@@ -115,7 +115,7 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
 
     }
 
-    private boolean isIndexReadOnly(String indexName, ProjectState projectState) {
+    private boolean isIndexReadOnly() {
         return projectState.blocks().hasIndexBlock(projectState.projectId(), indexName, WRITE.getBlock());
     }
 

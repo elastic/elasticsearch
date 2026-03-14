@@ -1950,7 +1950,7 @@ public class EsqlCapabilities {
         /**
          * Support for PromQL {@code without} grouping.
          */
-        PROMQL_WITHOUT_GROUPING(false),
+        PROMQL_WITHOUT_GROUPING,
 
         /**
          * Support for {@code TIME_SERIES_WITHOUT_GROUPING} capability for the

@@ -36,7 +36,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public record Message(
-    Content content,
+    @Nullable Content content,
     String role,
     @Nullable String toolCallId,
     @Nullable List<ToolCall> toolCalls,

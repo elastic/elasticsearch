@@ -1,0 +1,3 @@
+Limit[1000[INTEGER],false,false]
+\_Aggregate[[TBUCKET(P1D[DATE_PERIOD],@timestamp{f}#0) AS tbucket(1 day)#1],[SUM(TODOUBLE(does_not_exist{f}#2),true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS s#3, COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#4, tbucket(1 day){r}#1]]
+  \_EsRelation[sample_data][@timestamp{f}#0, client_ip{f}#5, event_duration{f}#6, message{f}#7, does_not_exist{f}#2]

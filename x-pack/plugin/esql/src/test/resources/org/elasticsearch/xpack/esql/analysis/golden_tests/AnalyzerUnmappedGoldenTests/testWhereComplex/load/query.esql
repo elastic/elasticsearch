@@ -1,0 +1,2 @@
+SET unmapped_fields="load"; FROM employees
+| WHERE does_not_exist1::LONG > 0 OR emp_no > 0 AND does_not_exist2::LONG < 100

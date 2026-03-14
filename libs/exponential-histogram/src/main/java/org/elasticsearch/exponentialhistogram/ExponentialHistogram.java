@@ -131,6 +131,8 @@ public interface ExponentialHistogram extends Accountable {
         /**
          * @return a {@link BucketIterator} for the populated buckets of this bucket range.
          * The {@link BucketIterator#scale()} of the returned iterator must be the same as {@link #scale()}.
+         * The iterator iterates on the buckets from lowest bucket index to highest bucket index,
+         * i.e. from the bucket closest to zero to the bucket closest to infinity.
          */
         CopyableBucketIterator iterator();
 
@@ -156,6 +158,31 @@ public interface ExponentialHistogram extends Accountable {
                 it.advance();
             }
             return count;
+        }
+
+        /**
+         * Returns an iterator iterating over all buckets in the opposite direction of {@link #iterator()}.
+         * So the iterator iterates the buckets from the highest bucket index to the lowest,
+         * i.e. from the bucket closest to zero to the bucket closest to infinity.
+         * The {@link BucketIterator#scale()} of the returned iterator must be the same as {@link #scale()}.
+         * <br>
+         * Note that depending on how the buckets are stored, this method might be expensive.
+         * It might involve copying all buckets first.
+         */
+        default BucketIterator reverseIterator() {
+            int bucketCount = bucketCount();
+            long[] indices = new long[bucketCount];
+            long[] counts = new long[bucketCount];
+            BucketIterator ascendingIt = iterator();
+            int scale = ascendingIt.scale();
+            for (int i = 0; i < bucketCount; i++) {
+                assert ascendingIt.hasNext() : "bucketCount() must be consistent with the number of buckets returned by iterator()";
+                indices[i] = ascendingIt.peekIndex();
+                counts[i] = ascendingIt.peekCount();
+                ascendingIt.advance();
+            }
+            assert ascendingIt.hasNext() == false : "bucketCount() must be consistent with the number of buckets returned by iterator()";
+            return BucketArrayIterator.createReversed(scale, counts, indices, 0, bucketCount);
         }
 
     }

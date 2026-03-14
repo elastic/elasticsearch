@@ -270,9 +270,6 @@ tests:
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/143551
-- class: org.elasticsearch.index.query.PrefixQueryBuilderTests
-  method: testPrefixCircuitBreakerTripsWithLowLimit
-  issue: https://github.com/elastic/elasticsearch/issues/143548
 - class: org.elasticsearch.xpack.security.support.MetadataFlattenedMigrationIntegTests
   method: testMigrationWithConcurrentUpdates
   issue: https://github.com/elastic/elasticsearch/issues/143674

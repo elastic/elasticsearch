@@ -179,6 +179,7 @@ setup:
                 index: true
                 similarity: cosine
           settings:
+            index.number_of_replicas: 0
             index.query.parse.allow_unmapped_fields: false
 
   - do:

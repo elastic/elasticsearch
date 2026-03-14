@@ -390,6 +390,7 @@ dfs profile for search with dfs_query_then_fetch:
         body:
           settings:
             index.number_of_shards: 2
+            index.number_of_replicas: 0
           mappings:
             properties:
               keyword:

@@ -160,22 +160,10 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     }
 
     void upgradeToHll(long bucketOrd) {
-        // We need to copy values into an arrays as we will override
-        // the values on the buffer
         hll.ensureCapacity(bucketOrd + 1);
-        // It's safe to reuse lc's readSpare because we're single threaded.
-        final AbstractLinearCounting.HashesIterator hashes = lc.values(bucketOrd);
-        try {
-            int size = hashes.size();
-            hll.reset(bucketOrd);
-            for (int i = 0; i < size; i++) {
-                hashes.next();
-                hll.collectEncoded(bucketOrd, hashes.value());
-            }
-            algorithm.set(bucketOrd);
-        } finally {
-            lc.closeBucket(bucketOrd);
-        }
+        hll.reset(bucketOrd);
+        lc.copyToHll(bucketOrd, hll);
+        algorithm.set(bucketOrd);
     }
 
     public void combine(long bucket, BytesRef other) throws IOException {
@@ -411,16 +399,25 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         private long bytesUsed;
         private final int threshold;
         private ObjectArray<LinearCountingCell> cells;
-        private final int initialCellSize;
+        private final int capacity;
 
         LinearCounting(BigArrays bigArrays, CircuitBreaker breaker, long initialBucketCount, int precision) {
             super(precision);
             this.bigArrays = bigArrays;
             this.breaker = breaker;
-            final int capacity = (1 << precision) / 4;
-            this.initialCellSize = Math.min(capacity, 32);
+            this.capacity = (1 << precision) / 4;
             this.threshold = (int) (capacity * MAX_LOAD_FACTOR);
             this.cells = bigArrays.newObjectArray(initialBucketCount);
+        }
+
+        private static int initialCellSize(long bucket, int capacity) {
+            // Pre-allocate full capacity for the first few buckets to bypass the cost of multiple rehashes.
+            // Optimized for ungrouped aggregations or those with few groups but high cardinality.
+            if (bucket < 10) {
+                return capacity;
+            } else {
+                return Math.min(capacity, 32);
+            }
         }
 
         private LinearCountingCell newCell(int capacity) {
@@ -442,7 +439,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             LinearCountingCell cell;
             if (bucketOrd >= cells.size()) {
                 cells = bigArrays.grow(cells, bucketOrd + 1);
-                cell = newCell(initialCellSize);
+                cell = newCell(initialCellSize(bucketOrd, capacity));
                 cells.set(bucketOrd, cell);
             } else {
                 cell = cells.get(bucketOrd);
@@ -455,7 +452,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
                         cell = newCell;
                     }
                 } else {
-                    cell = newCell(initialCellSize);
+                    cell = newCell(initialCellSize(bucketOrd, capacity));
                     cells.set(bucketOrd, cell);
                 }
             }
@@ -478,14 +475,18 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             }
         }
 
-        private void closeBucket(long bucketOrd) {
-            if (bucketOrd < cells.size()) {
-                LinearCountingCell cell = cells.get(bucketOrd);
-                if (cell != null) {
-                    closeCell(cell);
-                    cells.set(bucketOrd, null);
+        void copyToHll(long bucketOrd, HyperLogLog hll) {
+            final LinearCountingCell cell = bucketOrd < cells.size() ? cells.get(bucketOrd) : null;
+            if (cell == null) {
+                return;
+            }
+            for (int v : cell.values) {
+                if (v != 0) {
+                    hll.collectEncoded(bucketOrd, v);
                 }
             }
+            closeCell(cell);
+            cells.set(bucketOrd, null);
         }
 
         long maxOrd() {

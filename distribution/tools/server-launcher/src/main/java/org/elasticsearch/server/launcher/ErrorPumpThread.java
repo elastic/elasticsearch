@@ -19,6 +19,8 @@ import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 /**
  * A thread which reads stderr of the server JVM process and writes it to this process' stderr.
@@ -28,6 +30,12 @@ import java.util.concurrent.CountDownLatch;
  * All other messages are passed through to stderr.
  */
 public class ErrorPumpThread extends Thread implements Closeable {
+    /** Messages / lines predicate to filter from the output. */
+    private static final Predicate<String> filter = Pattern.compile(
+        "WARNING: Using incubator modules: jdk\\.incubator\\.vector"
+            // requires log4j2 upgrade, see https://github.com/elastic/elasticsearch/issues/132035
+            + "|WARNING: Use of the three-letter time zone ID .* is deprecated and it will be removed in a future release"
+    ).asMatchPredicate();
 
     static final char SERVER_READY_MARKER = '\u0018';
 
@@ -85,7 +93,7 @@ public class ErrorPumpThread extends Thread implements Closeable {
                 if (line.isEmpty() == false && line.charAt(0) == SERVER_READY_MARKER) {
                     ready = true;
                     readyOrDead.countDown();
-                } else {
+                } else if (filter.test(line) == false) {
                     errOutput.println(line);
                 }
             }

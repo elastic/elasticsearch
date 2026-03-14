@@ -177,6 +177,7 @@ public class MetadataMigrateToDataStreamService {
             req,
             backingIndices,
             updatedState.metadata().getProject(project.id()).index(writeIndex),
+            RerouteBehavior.PERFORM_REROUTE,
             listener,
             // No need to initialize the failure store when migrating to a data stream.
             false

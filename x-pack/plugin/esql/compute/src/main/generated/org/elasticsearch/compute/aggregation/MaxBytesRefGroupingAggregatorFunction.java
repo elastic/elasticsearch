@@ -37,16 +37,10 @@ public final class MaxBytesRefGroupingAggregatorFunction implements GroupingAggr
 
   private final DriverContext driverContext;
 
-  public MaxBytesRefGroupingAggregatorFunction(List<Integer> channels,
-      MaxBytesRefAggregator.GroupingState state, DriverContext driverContext) {
+  MaxBytesRefGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = MaxBytesRefAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static MaxBytesRefGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new MaxBytesRefGroupingAggregatorFunction(channels, MaxBytesRefAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

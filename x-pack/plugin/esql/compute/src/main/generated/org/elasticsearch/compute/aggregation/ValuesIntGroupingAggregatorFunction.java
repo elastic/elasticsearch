@@ -32,16 +32,10 @@ public final class ValuesIntGroupingAggregatorFunction implements GroupingAggreg
 
   private final DriverContext driverContext;
 
-  public ValuesIntGroupingAggregatorFunction(List<Integer> channels,
-      ValuesIntAggregator.GroupingState state, DriverContext driverContext) {
+  ValuesIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = ValuesIntAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static ValuesIntGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new ValuesIntGroupingAggregatorFunction(channels, ValuesIntAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

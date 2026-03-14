@@ -36,17 +36,12 @@ public final class CountDistinctFloatAggregatorFunction implements AggregatorFun
 
   private final int precision;
 
-  public CountDistinctFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      HllStates.SingleState state, int precision) {
+  CountDistinctFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      int precision) {
+    this.precision = precision;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-    this.precision = precision;
-  }
-
-  public static CountDistinctFloatAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, int precision) {
-    return new CountDistinctFloatAggregatorFunction(driverContext, channels, CountDistinctFloatAggregator.initSingle(driverContext, precision), precision);
+    this.state = CountDistinctFloatAggregator.initSingle(driverContext, precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

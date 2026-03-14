@@ -225,7 +225,6 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         // More comprehensive tests are defined in yamlRestTest.
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/enterprise-search-team/issues/6351")
     public void testUpdateConnectorConfiguration_PartialValuesUpdate() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
@@ -260,7 +259,6 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/enterprise-search-team/issues/6351")
     public void testUpdateConnectorConfiguration_PartialValuesUpdate_SelectedKeys() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();

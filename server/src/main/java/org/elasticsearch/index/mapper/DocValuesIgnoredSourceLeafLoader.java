@@ -42,7 +42,7 @@ import java.util.Set;
  * {@link LegacyIgnoredSourceEncoding} entries wrapped in the {@code IntegratedCount} format:
  * <pre>{@code [2][len]["obj.foo" entry][len]["bar" entry]}</pre>
  */
-class DocValuesIgnoredSourceLeafLoader implements IgnoredSourceLeafLoader {
+final class DocValuesIgnoredSourceLeafLoader implements IgnoredSourceLeafLoader {
 
     private final MultiValuedSortedBinaryDocValues docValues;
 

@@ -36,7 +36,7 @@ import java.util.Set;
  *   <li>{@code [1]["bar"][0][42]} — count=1, field name, then one (parentOffset, value) pair</li>
  * </ul>
  */
-class CoalescedIgnoredSourceLeafLoader implements IgnoredSourceLeafLoader {
+final class CoalescedIgnoredSourceLeafLoader implements IgnoredSourceLeafLoader {
 
     @Override
     public Map<String, List<NameValue>> loadAllIgnoredFields(SourceFilter filter, Map<String, List<Object>> storedFields, int docId) {

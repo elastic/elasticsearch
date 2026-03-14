@@ -326,6 +326,11 @@ setup:
             index.query.parse.allow_unmapped_fields: false
 
   - do:
+      cluster.health:
+        index: test_nonexistent
+        wait_for_status: green
+
+  - do:
       catch: bad_request
       search:
         index: test_nonexistent

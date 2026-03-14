@@ -133,6 +133,12 @@ setup:
           body:
             settings:
               number_of_shards: 1
+
+  - do:
+      cluster.health:
+        index: test_a_unmapped
+        wait_for_status: green
+
   - do:
       search:
         index: test_a_unmapped

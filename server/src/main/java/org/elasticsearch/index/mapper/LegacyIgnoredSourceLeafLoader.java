@@ -32,7 +32,7 @@ import java.util.Set;
  * where {@code obj.foo} and {@code bar} are ignored, would produce two separate stored field entries under
  * {@code _ignored_source}, one for each ignored value.
  */
-class LegacyIgnoredSourceLeafLoader implements IgnoredSourceLeafLoader {
+final class LegacyIgnoredSourceLeafLoader implements IgnoredSourceLeafLoader {
 
     @Override
     public Map<String, List<NameValue>> loadAllIgnoredFields(SourceFilter filter, Map<String, List<Object>> storedFields, int docId) {

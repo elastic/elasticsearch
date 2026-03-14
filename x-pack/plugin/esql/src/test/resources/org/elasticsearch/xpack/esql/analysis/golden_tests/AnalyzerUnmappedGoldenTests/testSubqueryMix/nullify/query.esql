@@ -1,0 +1,6 @@
+SET unmapped_fields="nullify"; FROM
+    (FROM employees
+     | EVAL emp_no_plus = emp_no_foo::LONG + 1
+     | WHERE emp_no < 10003)
+| KEEP emp_no*
+| SORT emp_no, emp_no_plus

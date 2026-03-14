@@ -843,6 +843,11 @@ public class EsqlCapabilities {
         SOURCE_FIELD_MAPPING,
 
         /**
+         * Support for field aliases in mappings. Used by tests, since this was feature wasn't always supported by CsvTests.
+         */
+        FIELD_ALIAS_SUPPORT,
+
+        /**
          * Allow filter per individual aggregation.
          */
         PER_AGG_FILTERING,
@@ -2296,6 +2301,13 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/144024
          */
         FIX_LIMIT_ZERO_IN_STATS_BY_ALL,
+
+        /**
+         * Fix field caps incorrectly synthesizing object parents under subobjects:false (passthrough) mappers,
+         * causing false type conflicts in ES|QL when querying across indices.
+         * https://github.com/elastic/elasticsearch/issues/144179
+         */
+        FIX_PASSTHROUGH_FIELD_CAPS_OBJECT_PARENT,
 
         /**
          * Support window durations that are larger than but not exact multiples of the time bucket

@@ -1,0 +1,8 @@
+SET unmapped_fields="nullify"; FROM employees
+| WHERE first_name == "Chris" AND does_not_exist1::LONG > 5
+| EVAL does_not_exist2 IS NULL
+| FORK (WHERE emp_no > 3 | SORT does_not_exist3 | LIMIT 7 )
+       (WHERE emp_no > 2 | EVAL xyz = does_not_exist4::KEYWORD )
+       (DISSECT first_name "%{d} %{e} %{f}"
+        | STATS x = MIN(d::DOUBLE), y = MAX(e::DOUBLE) WHERE d::DOUBLE > 1000 + does_not_exist5::DOUBLE
+        | EVAL xyz = "abc")

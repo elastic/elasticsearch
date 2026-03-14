@@ -9,6 +9,7 @@
 ###############################################
 
 sum_over_time_non_multiple_7m_window_5m_bucket
+required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
 
 TS ts_window
@@ -33,6 +34,7 @@ s:long | dim:keyword | time_bucket:datetime
 
 
 sum_over_time_non_multiple_8m_window_6m_bucket
+required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
 
 TS ts_window
@@ -54,6 +56,7 @@ s:long | dim:keyword | time_bucket:datetime
 ;
 
 avg_over_time_non_multiple_7m_window_5m_bucket
+required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
 
 TS ts_window
@@ -77,6 +80,7 @@ a:double | dim:keyword | time_bucket:datetime
 ;
 
 count_over_time_non_multiple_7m_window_5m_bucket
+required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
 
 TS ts_window
@@ -100,6 +104,7 @@ c:long | dim:keyword | time_bucket:datetime
 ;
 
 max_over_time_non_multiple_7m_window_5m_bucket
+required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
 
 TS ts_window
@@ -123,6 +128,7 @@ mx:long | dim:keyword | time_bucket:datetime
 ;
 
 min_over_time_non_multiple_7m_window_5m_bucket
+required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
 
 TS ts_window
@@ -146,6 +152,7 @@ mn:long | dim:keyword | time_bucket:datetime
 ;
 
 sum_over_time_non_multiple_with_trange
+required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
 
 TS ts_window
@@ -164,6 +171,7 @@ s:long | dim:keyword | time_bucket:datetime
 ;
 
 sum_over_time_non_multiple_single_dim_filter
+required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
 
 TS ts_window
@@ -182,6 +190,7 @@ s:long | dim:keyword | time_bucket:datetime
 ;
 
 sum_over_time_exact_multiple_baseline
+required_capability: ts_command_v0
 required_capability: time_series_window_v1
 
 TS ts_window
@@ -212,6 +221,7 @@ s:long | dim:keyword | time_bucket:datetime
 ###############################################
 
 rate_non_multiple_avg_rate_7m_window_5m_bucket
+required_capability: ts_command_v0
 required_capability: time_series_window_non_multiple
 required_capability: rate_with_interpolation
 

@@ -513,6 +513,8 @@ public enum DataType implements Writeable {
         // semantic_text is returned as text by field_caps, but unit tests will retrieve it from the mapping
         // so we need to map it here as well
         map.put("semantic_text", DataType.TEXT);
+        // Root flattened fields are loaded as keyword (JSON blob) via RootFlattenedFieldType#blockLoader
+        map.put("flattened", DataType.KEYWORD);
         ES_TO_TYPE = Collections.unmodifiableMap(map);
         // DATETIME has different esType and typeName, add an entry in NAME_TO_TYPE with date as key
         map = TYPES.stream().collect(toMap(DataType::typeName, t -> t));

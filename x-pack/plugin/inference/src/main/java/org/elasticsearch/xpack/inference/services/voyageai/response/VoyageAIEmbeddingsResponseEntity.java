@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingBitResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -184,6 +185,10 @@ public class VoyageAIEmbeddingsResponseEntity {
                 List<DenseEmbeddingByteResults.Embedding> embeddingList = embeddingResult.entries.stream()
                     .map(EmbeddingInt8ResultEntry::toInferenceByteEmbedding)
                     .toList();
+
+                if (taskType == TaskType.EMBEDDING) {
+                    return new GenericDenseEmbeddingByteResults(embeddingList);
+                }
                 return new DenseEmbeddingByteResults(embeddingList);
             } else if (embeddingType == VoyageAIEmbeddingType.BIT || embeddingType == VoyageAIEmbeddingType.BINARY) {
                 var embeddingResult = EmbeddingInt8Result.PARSER.apply(jsonParser, null);

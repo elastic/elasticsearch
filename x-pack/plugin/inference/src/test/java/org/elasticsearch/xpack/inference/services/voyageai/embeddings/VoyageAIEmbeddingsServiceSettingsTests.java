@@ -12,7 +12,8 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -36,7 +37,7 @@ import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS_SET_BY_USER;
 import static org.hamcrest.Matchers.is;
 
-public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<VoyageAIEmbeddingsServiceSettings> {
+public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<VoyageAIEmbeddingsServiceSettings> {
     public static VoyageAIEmbeddingsServiceSettings createRandom() {
         SimilarityMeasure similarityMeasure = SimilarityMeasure.DOT_PRODUCT;
         Integer dims = 1024;
@@ -341,6 +342,52 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractWireSerializ
         entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
         entries.addAll(InferenceNamedWriteablesProvider.getNamedWriteables());
         return new NamedWriteableRegistry(entries);
+    }
+
+    public static VoyageAIEmbeddingsServiceSettings createRandomWithNoNullValues() {
+        SimilarityMeasure similarityMeasure = randomSimilarityMeasure();
+        Integer dimensions = randomIntBetween(32, 256);
+        Integer maxInputTokens = randomIntBetween(128, 256);
+
+        var commonSettings = VoyageAIServiceSettingsTests.createRandom();
+        var embeddingType = randomFrom(VoyageAIEmbeddingType.values());
+        var dimensionsSetByUser = randomBoolean();
+
+        return new VoyageAIEmbeddingsServiceSettings(
+            commonSettings,
+            embeddingType,
+            similarityMeasure,
+            dimensions,
+            maxInputTokens,
+            dimensionsSetByUser
+        );
+    }
+
+    @Override
+    protected VoyageAIEmbeddingsServiceSettings mutateInstanceForVersion(
+        VoyageAIEmbeddingsServiceSettings instance,
+        TransportVersion version
+    ) {
+        return instance;
+    }
+
+    public void testUpdateEmbeddingDetails() {
+        var settings = createRandomWithNoNullValues();
+        var similarity = randomSimilarityMeasure();
+        var dimensions = randomIntBetween(32, 256);
+
+        var newSettings = settings.update(similarity, dimensions);
+
+        var expectedSettings = new VoyageAIEmbeddingsServiceSettings(
+            settings.getCommonSettings(),
+            settings.getEmbeddingType(),
+            similarity,
+            dimensions,
+            settings.maxInputTokens(),
+            settings.dimensionsSetByUser()
+        );
+
+        assertThat(newSettings, is(expectedSettings));
     }
 
     public static Map<String, Object> getServiceSettingsMap(String model) {

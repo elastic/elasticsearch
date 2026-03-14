@@ -939,6 +939,19 @@ public final class IndexSettings {
      * occupy at most 4 bytes.
      */
 
+    /**
+     * Controls whether flattened fields store root-level doc values when the field has {@code index: false}.
+     * When a flattened field has indexing enabled (the default), root doc values are always stored regardless
+     * of this setting. When indexing is disabled, root doc values are omitted by default to save storage;
+     * set this to {@code true} to force storing them (e.g. if you rely on term aggregations over root values).
+     */
+    public static final Setting<Boolean> STORE_FLATTENED_ROOT_DOC_VALUES = Setting.boolSetting(
+        "index.mapping.flattened.store_root_doc_values",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting(
         "index.mapping.ignore_above",
         settings -> String.valueOf(getIgnoreAboveDefaultValue(settings)),

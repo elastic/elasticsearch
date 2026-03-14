@@ -42,6 +42,7 @@ class FlattenedFieldParser {
     private final String nullValue;
 
     private final boolean usesBinaryDocValues;
+    private final boolean hasRootDocValues;
 
     FlattenedFieldParser(
         String rootFieldFullPath,
@@ -51,7 +52,8 @@ class FlattenedFieldParser {
         int depthLimit,
         int ignoreAbove,
         String nullValue,
-        boolean usesBinaryDocValues
+        boolean usesBinaryDocValues,
+        boolean hasRootDocValues
     ) {
         this.rootFieldFullPath = rootFieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
@@ -61,6 +63,7 @@ class FlattenedFieldParser {
         this.ignoreAbove = ignoreAbove;
         this.nullValue = nullValue;
         this.usesBinaryDocValues = usesBinaryDocValues;
+        this.hasRootDocValues = hasRootDocValues;
     }
 
     public void parse(final DocumentParserContext documentParserContext) throws IOException {
@@ -168,18 +171,22 @@ class FlattenedFieldParser {
 
         if (fieldType.hasDocValues()) {
             if (usesBinaryDocValues) {
-                MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
-                    context.documentParserContext.doc(),
-                    rootFieldFullPath,
-                    bytesValue
-                );
+                if (hasRootDocValues) {
+                    MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
+                        context.documentParserContext.doc(),
+                        rootFieldFullPath,
+                        bytesValue
+                    );
+                }
                 MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
                     context.documentParserContext.doc(),
                     keyedFieldFullPath,
                     bytesKeyedValue
                 );
             } else {
-                context.documentParserContext.doc().add(new SortedSetDocValuesField(rootFieldFullPath, bytesValue));
+                if (hasRootDocValues) {
+                    context.documentParserContext.doc().add(new SortedSetDocValuesField(rootFieldFullPath, bytesValue));
+                }
                 context.documentParserContext.doc().add(new SortedSetDocValuesField(keyedFieldFullPath, bytesKeyedValue));
             }
 

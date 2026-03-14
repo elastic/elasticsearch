@@ -17,6 +17,7 @@ import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.test.ActivityLoggingUtils;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
@@ -26,6 +27,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_RESULT_COUNT;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_SHARDS;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
@@ -37,6 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.junit.Assert.assertTrue;
 
+@ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
     static AccumulatingMockAppender appender;
     static Logger queryLog = LogManager.getLogger(QueryLogging.QUERY_LOGGER_NAME);
@@ -65,7 +68,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
     }
 
     @After
-    public void restoreLog() {
+    public void disableLog() {
         ActivityLoggingUtils.disableLoggers();
     }
 
@@ -98,6 +101,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
                 assertTrue("Expected profile field present: " + tookKey, message.containsKey(tookKey));
             }
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(hits)));
+            assertThat(message.get(QUERY_FIELD_INDICES), equalTo("index-*"));
         }
     }
 
@@ -129,10 +133,14 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         setupIndex("esql_partial_test", "1.1.1.1");
         internalCluster().stopRandomDataNode();
-        client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForStatus(ClusterHealthStatus.RED).get();
-        awaitClusterState(
-            state -> RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.UNASSIGNED).isEmpty() == false
-        );
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForStatus(ClusterHealthStatus.RED).get();
+        assertBusy(() -> {
+            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            assertFalse(
+                "expected some unassigned shards",
+                RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.UNASSIGNED).isEmpty()
+            );
+        });
 
         EsqlQueryRequest request = syncEsqlQueryRequest("FROM esql_partial_test | LIMIT 100").allowPartialResults(true);
         try (var resp = run(request)) {
@@ -147,5 +155,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThanOrEqualTo(1));
         assertThat(Integer.valueOf(message.getOrDefault(QUERY_FIELD_SHARDS + "skipped", "0")), equalTo(0));
         assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "failed")), greaterThanOrEqualTo(1));
+        assertThat(message.get(QUERY_FIELD_INDICES), equalTo("esql_partial_test"));
     }
+
 }

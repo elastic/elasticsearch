@@ -224,9 +224,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         final String remoteClusterSettingPrefix = "cluster.remote." + clusterAlias + ".";
         Settings.Builder settings = Settings.builder();
         final List<String> seedAddresses = seedNodes.stream().map(TransportAddress::toString).toList();
-        boolean skipUnavailable = skipUnavailableForRemoteClusters().containsKey(clusterAlias)
-            ? skipUnavailableForRemoteClusters().get(clusterAlias)
-            : DEFAULT_SKIP_UNAVAILABLE;
+        boolean skipUnavailable = skipUnavailableForRemoteClusters().getOrDefault(clusterAlias, DEFAULT_SKIP_UNAVAILABLE);
         Settings.Builder builder;
         if (randomBoolean()) {
             LOGGER.info("--> use sniff mode with seed [{}], remote nodes [{}]", Collectors.joining(","), seedNodes);

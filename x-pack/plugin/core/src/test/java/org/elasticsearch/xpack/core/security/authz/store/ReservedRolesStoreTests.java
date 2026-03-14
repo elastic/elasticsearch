@@ -63,7 +63,7 @@ import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexVersion;
@@ -72,6 +72,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
+import org.elasticsearch.xpack.core.esql.EsqlViewActionNames;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
@@ -148,6 +149,7 @@ import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
@@ -464,6 +466,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         // API keys
         assertThat(kibanaRole.cluster().check(InvalidateApiKeyAction.NAME, request, authentication), is(true));
         assertThat(kibanaRole.cluster().check(GrantApiKeyAction.NAME, request, authentication), is(true));
+        assertThat(kibanaRole.cluster().check(CloneApiKeyAction.NAME, request, authentication), is(true));
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLength(8), null, null);
         assertThat(kibanaRole.cluster().check(CreateApiKeyAction.NAME, createApiKeyRequest, authentication), is(true));
         // Can only get and query its own API keys
@@ -635,6 +638,15 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ReservedRolesStore.LISTS_ITEMS_INDEX_REINDEXED_V8 + randomAlphaOfLength(randomIntBetween(0, 13)),
             ".slo-observability." + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
+
+        // Alerting V2 views prefix: Kibana system user has create_view only
+        final IndexAbstraction alertingV2ViewsAbstraction = mockIndexAbstraction(
+            ReservedRolesStore.ALERTING_V2_VIEWS + randomAlphaOfLength(randomIntBetween(0, 13))
+        );
+        assertThat(
+            kibanaRole.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME).test(alertingV2ViewsAbstraction),
+            is(true)
+        );
 
         Arrays.asList(
             ReservedRolesStore.ADHOC_ALERTS_INDEX_ALIAS + randomAlphaOfLength(randomIntBetween(0, 13)),
@@ -2069,6 +2081,15 @@ public class ReservedRolesStoreTests extends ESTestCase {
             final IndexAbstraction otherIndex = mockIndexAbstraction("some-unrelated-index");
             assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(otherIndex), is(false));
         });
+
+        // logs-*.* indices have read-only access
+        final IndexAbstraction logsStarDotStar = mockIndexAbstraction("logs-myintegration.dataset-default");
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(logsStarDotStar), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(logsStarDotStar), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(logsStarDotStar), is(true));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(logsStarDotStar), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(logsStarDotStar), is(false));
+        assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(logsStarDotStar), is(false));
     }
 
     public void testKibanaAdminRole() {
@@ -2841,14 +2862,16 @@ public class ReservedRolesStoreTests extends ESTestCase {
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
         );
-        final Metadata metadata = new Metadata.Builder().put(
-            new IndexMetadata.Builder(internalSecurityIndex).settings(indexSettings)
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .putAlias(new AliasMetadata.Builder(TestRestrictedIndices.SECURITY_MAIN_ALIAS).build())
-                .build(),
-            true
-        ).build();
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(
+                new IndexMetadata.Builder(internalSecurityIndex).settings(indexSettings)
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(new AliasMetadata.Builder(TestRestrictedIndices.SECURITY_MAIN_ALIAS).build())
+                    .build(),
+                true
+            )
+            .build();
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         final List<String> indexMonitoringActionNamesList = Arrays.asList(
             IndicesStatsAction.NAME,
@@ -2863,7 +2886,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 .authorize(
                     indexMonitoringActionName,
                     Sets.newHashSet(internalSecurityIndex, TestRestrictedIndices.SECURITY_MAIN_ALIAS, asyncSearchIndex),
-                    metadata.getProject(),
+                    projectMetadata,
                     fieldPermissionsCache
                 );
             assertThat(iac.hasIndexPermissions(internalSecurityIndex), is(true));
@@ -3050,10 +3073,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
         );
-        final var metadata = new Metadata.Builder().put(
-            new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(),
-            true
-        )
+        final var metadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new IndexMetadata.Builder("a2").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new IndexMetadata.Builder("aaaaaa").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new IndexMetadata.Builder("bbbbb").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
@@ -3074,8 +3095,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                     .build(),
                 true
             )
-            .build()
-            .getProject();
+            .build();
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         IndicesAccessControl iac = superuserRole.indices()

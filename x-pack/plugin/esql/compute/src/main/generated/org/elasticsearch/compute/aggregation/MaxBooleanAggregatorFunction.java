@@ -31,16 +31,10 @@ public final class MaxBooleanAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public MaxBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      BooleanState state) {
+  MaxBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static MaxBooleanAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new MaxBooleanAggregatorFunction(driverContext, channels, new BooleanState(MaxBooleanAggregator.init()));
+    this.state = new BooleanState(MaxBooleanAggregator.init());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

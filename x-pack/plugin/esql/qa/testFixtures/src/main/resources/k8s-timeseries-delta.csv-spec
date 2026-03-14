@@ -50,19 +50,23 @@ cost_change:double | step:datetime
 delta_of_integer
 required_capability: ts_command_v0
 required_capability: delta_ts_agg
-TS k8s | STATS clients = avg(delta(network.eth0.currently_connected_clients)) BY time_bucket = bucket(@timestamp,1minute) | SORT time_bucket | LIMIT 10;
+TS k8s
+| STATS clients = avg(delta(network.eth0.currently_connected_clients)) BY time_bucket = bucket(@timestamp,1minute)
+| EVAL clients = round(clients, 6)
+| KEEP clients, time_bucket
+| SORT time_bucket | LIMIT 10;
 
-clients:double      | time_bucket:datetime
--520.0              | 2024-05-10T00:00:00.000Z
-null                | 2024-05-10T00:01:00.000Z
--248.5              | 2024-05-10T00:02:00.000Z
--179.0              | 2024-05-10T00:03:00.000Z
-289.0               | 2024-05-10T00:04:00.000Z
--436.0              | 2024-05-10T00:05:00.000Z
-117.25              | 2024-05-10T00:06:00.000Z
--214.0              | 2024-05-10T00:07:00.000Z
--80.66666666666667  | 2024-05-10T00:08:00.000Z
--46.714285714285715 | 2024-05-10T00:09:00.000Z
+clients:double | time_bucket:datetime
+-520.0         | 2024-05-10T00:00:00.000Z
+null           | 2024-05-10T00:01:00.000Z
+-248.5         | 2024-05-10T00:02:00.000Z
+-179.0         | 2024-05-10T00:03:00.000Z
+289.0          | 2024-05-10T00:04:00.000Z
+-436.0         | 2024-05-10T00:05:00.000Z
+117.25         | 2024-05-10T00:06:00.000Z
+-214.0         | 2024-05-10T00:07:00.000Z
+-80.666667     | 2024-05-10T00:08:00.000Z
+-46.714286     | 2024-05-10T00:09:00.000Z
 
 ;
 
@@ -71,19 +75,21 @@ required_capability: promql_command_v0
 required_capability: promql_unmapped_fields_filter_nulls
 
 PROMQL index=k8s step=1m clients=(avg(delta(network.eth0.currently_connected_clients[1m])))
+| EVAL clients = round(clients, 6)
+| KEEP clients, step
 | SORT step | LIMIT 10;
 
-clients:double      | step:datetime
--520.0              | 2024-05-10T00:00:00.000Z
--248.5              | 2024-05-10T00:02:00.000Z
--179.0              | 2024-05-10T00:03:00.000Z
-289.0               | 2024-05-10T00:04:00.000Z
--436.0              | 2024-05-10T00:05:00.000Z
-117.25              | 2024-05-10T00:06:00.000Z
--214.0              | 2024-05-10T00:07:00.000Z
--80.66666666666667  | 2024-05-10T00:08:00.000Z
--46.714285714285715 | 2024-05-10T00:09:00.000Z
-650.0               | 2024-05-10T00:10:00.000Z
+clients:double | step:datetime
+-520.0         | 2024-05-10T00:00:00.000Z
+-248.5         | 2024-05-10T00:02:00.000Z
+-179.0         | 2024-05-10T00:03:00.000Z
+289.0          | 2024-05-10T00:04:00.000Z
+-436.0         | 2024-05-10T00:05:00.000Z
+117.25         | 2024-05-10T00:06:00.000Z
+-214.0         | 2024-05-10T00:07:00.000Z
+-80.666667     | 2024-05-10T00:08:00.000Z
+-46.714286     | 2024-05-10T00:09:00.000Z
+650.0          | 2024-05-10T00:10:00.000Z
 ;
 
 delta_of_integer_grouping
@@ -189,18 +195,23 @@ tx:double | cluster:keyword | time_bucket:datetime
 eval_on_delta
 required_capability: ts_command_v0
 required_capability: delta_ts_agg
-TS k8s | STATS avg_bytes = avg(delta(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | EVAL kb_minus_offset = (avg_bytes - 100) / 1000.0 | LIMIT 10 | SORT time_bucket, cluster ;
+TS k8s
+| STATS avg_bytes = avg(delta(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| EVAL kb_minus_offset = (avg_bytes - 100) / 1000.0
+| EVAL avg_bytes = round(avg_bytes, 6), kb_minus_offset = round(kb_minus_offset, 6)
+| KEEP avg_bytes, cluster, time_bucket, kb_minus_offset
+| LIMIT 10 | SORT time_bucket, cluster ;
 
-avg_bytes:double    | cluster:keyword | time_bucket:datetime     | kb_minus_offset:double
--199.66666666666666 | prod            | 2024-05-10T00:00:00.000Z | -0.29966666666666664
--68.33333333333333  | qa              | 2024-05-10T00:00:00.000Z | -0.1683333333333333
--26.666666666666668 | staging         | 2024-05-10T00:00:00.000Z | -0.12666666666666668
-140.33333333333334  | prod            | 2024-05-10T00:10:00.000Z | 0.040333333333333346
-322.3333333333333   | qa              | 2024-05-10T00:10:00.000Z | 0.22233333333333333
-196.33333333333334  | staging         | 2024-05-10T00:10:00.000Z | 0.09633333333333334
-56.0                | prod            | 2024-05-10T00:20:00.000Z | -0.044
--367.0              | qa              | 2024-05-10T00:20:00.000Z | -0.467
--505.0              | staging         | 2024-05-10T00:20:00.000Z | -0.605
+avg_bytes:double | cluster:keyword | time_bucket:datetime     | kb_minus_offset:double
+-199.666667      | prod            | 2024-05-10T00:00:00.000Z | -0.299667
+-68.333333       | qa              | 2024-05-10T00:00:00.000Z | -0.168333
+-26.666667       | staging         | 2024-05-10T00:00:00.000Z | -0.126667
+140.333333       | prod            | 2024-05-10T00:10:00.000Z | 0.040333
+322.333333       | qa              | 2024-05-10T00:10:00.000Z | 0.222333
+196.333333       | staging         | 2024-05-10T00:10:00.000Z | 0.096333
+56.0             | prod            | 2024-05-10T00:20:00.000Z | -0.044
+-367.0           | qa              | 2024-05-10T00:20:00.000Z | -0.467
+-505.0           | staging         | 2024-05-10T00:20:00.000Z | -0.605
 ;
 
 eval_on_delta_promql
@@ -208,18 +219,20 @@ required_capability: promql_command_v0
 
 PROMQL index=k8s step=10m avg_bytes=(avg by (cluster) (delta(network.bytes_in[10m])))
 | EVAL kb_minus_offset = (avg_bytes - 100) / 1000.0
+| EVAL avg_bytes = round(avg_bytes, 6), kb_minus_offset = round(kb_minus_offset, 6)
+| KEEP avg_bytes, step, cluster, kb_minus_offset
 | SORT step, cluster | LIMIT 10;
 
-avg_bytes:double    | step:datetime            | cluster:keyword | kb_minus_offset:double
--199.66666666666666 | 2024-05-10T00:00:00.000Z | prod            | -0.29966666666666664
--68.33333333333333  | 2024-05-10T00:00:00.000Z | qa              | -0.1683333333333333
--26.666666666666668 | 2024-05-10T00:00:00.000Z | staging         | -0.12666666666666668
-140.33333333333334  | 2024-05-10T00:10:00.000Z | prod            | 0.040333333333333346
-322.3333333333333   | 2024-05-10T00:10:00.000Z | qa              | 0.22233333333333333
-196.33333333333334  | 2024-05-10T00:10:00.000Z | staging         | 0.09633333333333334
-56.0                | 2024-05-10T00:20:00.000Z | prod            | -0.044
--367.0              | 2024-05-10T00:20:00.000Z | qa              | -0.467
--505.0              | 2024-05-10T00:20:00.000Z | staging         | -0.605
+avg_bytes:double | step:datetime            | cluster:keyword | kb_minus_offset:double
+-199.666667      | 2024-05-10T00:00:00.000Z | prod            | -0.299667
+-68.333333       | 2024-05-10T00:00:00.000Z | qa              | -0.168333
+-26.666667       | 2024-05-10T00:00:00.000Z | staging         | -0.126667
+140.333333       | 2024-05-10T00:10:00.000Z | prod            | 0.040333
+322.333333       | 2024-05-10T00:10:00.000Z | qa              | 0.222333
+196.333333       | 2024-05-10T00:10:00.000Z | staging         | 0.096333
+56.0             | 2024-05-10T00:20:00.000Z | prod            | -0.044
+-367.0           | 2024-05-10T00:20:00.000Z | qa              | -0.467
+-505.0           | 2024-05-10T00:20:00.000Z | staging         | -0.605
 ;
 
 delta_multi_values

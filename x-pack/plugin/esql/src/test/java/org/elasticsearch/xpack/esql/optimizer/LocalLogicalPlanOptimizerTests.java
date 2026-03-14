@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -38,7 +39,6 @@ import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -65,7 +65,6 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -112,6 +111,8 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
@@ -621,7 +622,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var analyzer = new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(index),
                 emptyPolicyResolution(),
                 emptyInferenceResolution()
@@ -629,7 +630,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             TEST_VERIFIER
         );
 
-        var analyzed = analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query));
+        var analyzed = analyzer.analyze(TEST_PARSER.parseQuery(query));
         var optimized = logicalOptimizer.optimize(analyzed);
         var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), searchStats);
         var plan = new LocalLogicalPlanOptimizer(localContext).localOptimize(optimized);
@@ -2474,7 +2475,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         return new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(test),
                 emptyPolicyResolution(),
                 emptyInferenceResolution()
@@ -2492,7 +2493,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         return new Analyzer(
             testAnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(test),
                 Map.of(),
                 emptyPolicyResolution(),
@@ -2692,5 +2693,29 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         // The left side should still be a MetadataAttribute
         var metadataAttr = as(equals.left(), MetadataAttribute.class);
         assertThat(metadataAttr.name(), equalTo("_index"));
+    }
+
+    public void testTimeSeriesMetadataAttributeNotReplaced() {
+        var timeSeriesAttr = new TimeSeriesMetadataAttribute(EMPTY, Set.of());
+        var fieldAttr = getFieldAttribute("name");
+        var relation = new EsRelation(
+            EMPTY,
+            "test",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("test", IndexMode.TIME_SERIES),
+            List.of(fieldAttr, timeSeriesAttr)
+        );
+        var eval = new Eval(EMPTY, new Limit(EMPTY, L(1000), relation), List.of(new Alias(EMPTY, "ts", timeSeriesAttr)));
+
+        var localContext = new LocalLogicalOptimizerContext(TEST_CFG, FoldContext.small(), TEST_SEARCH_STATS);
+        var optimizedPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(eval);
+
+        var optimizedEval = as(optimizedPlan, Eval.class);
+        var alias = as(optimizedEval.fields().get(0), Alias.class);
+        var optimizedAttr = as(alias.child(), TimeSeriesMetadataAttribute.class);
+        assertThat(MetadataAttribute.isTimeSeriesAttribute(optimizedAttr), is(true));
+        assertThat(optimizedAttr.withoutFields(), equalTo(Set.of()));
     }
 }

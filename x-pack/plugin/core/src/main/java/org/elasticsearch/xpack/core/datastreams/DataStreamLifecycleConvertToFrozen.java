@@ -10,23 +10,28 @@ package org.elasticsearch.xpack.core.datastreams;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.repositories.RepositoriesService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.master.MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
+import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOT_FEATURE;
 
 /**
  * This class encapsulates the steps necessary to convert a data stream backing index to frozen.
@@ -38,11 +43,13 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
     private final String indexName;
     private final Client client;
     private final ProjectState projectState;
+    private final XPackLicenseState licenseState;
 
-    public DataStreamLifecycleConvertToFrozen(String indexName, Client client, ProjectState projectState) {
+    public DataStreamLifecycleConvertToFrozen(String indexName, Client client, ProjectState projectState, XPackLicenseState licenseState) {
         this.indexName = indexName;
         this.client = client;
         this.projectState = projectState;
+        this.licenseState = licenseState;
     }
 
     /**
@@ -50,6 +57,9 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
      */
     @Override
     public void run() {
+        if (isEligibleForConvertToFrozen() == false) {
+            return;
+        }
         // Todo: WIP - only the first step of marking the index read-only is implemented for now,
         // the rest of the steps will be implemented in follow-up PRs
         maybeMarkIndexReadOnly();
@@ -62,9 +72,11 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
     /**
      * Marks the index as read-only by adding a WRITE block, if the block is not already present.
      * This ensures all in-flight writes are completed and flushed to segments before proceeding
-     * with the subsequent convert-to-frozen steps.
+     * with the subsequent convert-to-frozen steps. In the case that the index is already marked as
+     * read-only, this method will simply return without performing any action.
      *
-     * @throws ElasticsearchException if the request to add the write block fails or is not acknowledged
+     * @throws ElasticsearchException if the attempt to add the read-only block fails due to an
+     * exception or an unacknowledged response from the cluster.
      */
     public void maybeMarkIndexReadOnly() {
         if (isIndexReadOnly(indexName, projectState)) {
@@ -72,17 +84,19 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
             return;
         }
         ProjectId projectId = projectState.projectId();
-
         AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(WRITE, indexName).masterNodeTimeout(
             INFINITE_MASTER_NODE_TIMEOUT
         );
         // Force a flush while adding the read-only block to ensure all in-flight writes are completed and written to segments
         addIndexBlockRequest.markVerified(true);
-
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
-        addIndexBlock(projectId, addIndexBlockRequest, future);
-        future.actionGet();
-        logger.debug("DLM successfully marked index [{}] as read-only", indexName);
+        AddIndexBlockResponse resp;
+        try {
+            resp = client.projectClient(projectId).execute(TransportAddIndexBlockAction.TYPE, addIndexBlockRequest).get();
+            validateAddIndexBlockResponse(addIndexBlockRequest, resp);
+            logger.debug("DLM successfully marked index [{}] as read-only", indexName);
+        } catch (ExecutionException | InterruptedException e) {
+            throw new ElasticsearchException(e);
+        }
     }
 
     public void maybeCloneIndex() {
@@ -105,92 +119,101 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
         return projectState.blocks().hasIndexBlock(projectState.projectId(), indexName, WRITE.getBlock());
     }
 
-    private void addIndexBlock(ProjectId projectId, AddIndexBlockRequest addIndexBlockRequest, ActionListener<Void> listener) {
-        assert addIndexBlockRequest.indices() != null && addIndexBlockRequest.indices().length == 1
-            : "DLM should update the index block for one index at a time";
-        // "saving" the index name here so we don't capture the entire request
-        String targetIndex = addIndexBlockRequest.indices()[0];
-        logger.trace("DLM issuing request to add block [{}] for index [{}]", addIndexBlockRequest.getBlock(), targetIndex);
-        client.projectClient(projectId)
-            .admin()
-            .indices()
-            .addBlock(addIndexBlockRequest, new AddIndexBlockResponseActionListener(addIndexBlockRequest, targetIndex, listener));
+    /**
+     * Public for testing only.
+     * Checks whether the necessary conditions are met to proceed with the convert-to-frozen steps.
+     * Throws an exception if the license does not allow searchable snapshots,
+     * and returns false if the index or repository are no longer present in the project metadata.
+     * @return true if the convert-to-frozen steps can proceed, false if they should be skipped due to missing index or repository
+     * @throws org.elasticsearch.ElasticsearchSecurityException if the license does not allow searchable snapshots
+     */
+    public boolean isEligibleForConvertToFrozen() {
+        ProjectMetadata projectMetadata = projectState.metadata();
+        if (projectMetadata.indices().containsKey(indexName) == false) {
+            logger.debug(
+                "Index [{}] no longer exists in project [{}], skipping convert-to-frozen steps",
+                indexName,
+                projectState.projectId()
+            );
+            return false;
+        }
+        ;
+
+        String repositoryName = resolveRepositoryName(projectState);
+        boolean repoIsRegistered = RepositoriesMetadata.get(projectState.metadata())
+            .repositories()
+            .stream()
+            .anyMatch(repositoryMetadata -> repositoryMetadata.name().equals(repositoryName));
+        if (repoIsRegistered == false) {
+            logger.debug(
+                "Repository [{}] required for convert-to-frozen steps is not registered in project [{}], skipping convert-to-frozen steps",
+                repositoryName,
+                projectState.projectId()
+            );
+            return false;
+        }
+
+        if (SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
+            throw LicenseUtils.newComplianceException("searchable-snapshots");
+        }
+
+        return true;
     }
 
-    private static class AddIndexBlockResponseActionListener implements ActionListener<AddIndexBlockResponse> {
-        private final AddIndexBlockRequest addIndexBlockRequest;
-        private final String targetIndex;
-        private final ActionListener<Void> listener;
+    /**
+     * Resolves the repository name to use for the snapshot and searchable snapshot steps.
+     */
+    private static String resolveRepositoryName(ProjectState projectState) {
+        return RepositoriesService.DEFAULT_REPOSITORY_SETTING.get(projectState.cluster().metadata().settings());
+    }
 
-        private AddIndexBlockResponseActionListener(
-            AddIndexBlockRequest addIndexBlockRequest,
-            String targetIndex,
-            ActionListener<Void> listener
-        ) {
-            this.addIndexBlockRequest = addIndexBlockRequest;
-            this.targetIndex = targetIndex;
-            this.listener = listener;
-        }
-
-        @Override
-        public void onResponse(AddIndexBlockResponse addIndexBlockResponse) {
-            if (addIndexBlockResponse.isAcknowledged()) {
-                logger.info("DLM successfully added block [{}] for index [{}]", addIndexBlockRequest.getBlock(), targetIndex);
-                listener.onResponse(null);
-            } else {
-                Optional<AddIndexBlockResponse.AddBlockResult> resultForTargetIndex = addIndexBlockResponse.getIndices()
-                    .stream()
-                    .filter(blockResult -> blockResult.getIndex().getName().equals(targetIndex))
-                    .findAny();
-                if (resultForTargetIndex.isEmpty()) {
-                    // This really should not happen but, if it does, mark as a fail and retry next DLM run
-                    logger.trace(
-                        "DLM received an unacknowledged response when attempting to add the "
-                            + "read-only block to index [{}], but the response didn't contain an explicit result for the index.",
-                        targetIndex
+    /**
+     * Validates the response from the add index block request. If the response indicates that the block was successfully added,
+     * this method returns normally. If the response indicates a failure, this method throws an exception with details about the failure.
+     */
+    private void validateAddIndexBlockResponse(AddIndexBlockRequest addIndexBlockRequest, AddIndexBlockResponse addIndexBlockResponse) {
+        String targetIndex = addIndexBlockRequest.indices()[0];
+        if (addIndexBlockResponse.isAcknowledged()) {
+            logger.info("DLM successfully added block [{}] for index [{}]", addIndexBlockRequest.getBlock(), targetIndex);
+        } else {
+            Optional<AddIndexBlockResponse.AddBlockResult> resultForTargetIndex = addIndexBlockResponse.getIndices()
+                .stream()
+                .filter(blockResult -> blockResult.getIndex().getName().equals(targetIndex))
+                .findAny();
+            if (resultForTargetIndex.isEmpty()) {
+                // This really should not happen but, if it does, mark as a fail and retry next DLM run
+                logger.trace(
+                    "DLM received an unacknowledged response when attempting to add the "
+                        + "read-only block to index [{}], but the response didn't contain an explicit result for the index.",
+                    targetIndex
+                );
+                throw new ElasticsearchException("DLM request to mark index [" + targetIndex + "] as read-only was not acknowledged");
+            } else if (resultForTargetIndex.get().hasFailures()) {
+                AddIndexBlockResponse.AddBlockResult blockResult = resultForTargetIndex.get();
+                if (blockResult.getException() != null) {
+                    throw new ElasticsearchException(
+                        "DLM received an exception when marking index [" + targetIndex + "] as read-only: " + blockResult.getException()
                     );
-                    listener.onFailure(
-                        new ElasticsearchException("request to mark index [" + targetIndex + "] as read-only was not acknowledged")
-                    );
-                } else if (resultForTargetIndex.get().hasFailures()) {
-                    AddIndexBlockResponse.AddBlockResult blockResult = resultForTargetIndex.get();
-                    if (blockResult.getException() != null) {
-                        listener.onFailure(blockResult.getException());
-                    } else {
-                        List<AddIndexBlockResponse.AddBlockShardResult.Failure> shardFailures = new ArrayList<>(
-                            blockResult.getShards().length
-                        );
-                        for (AddIndexBlockResponse.AddBlockShardResult shard : blockResult.getShards()) {
-                            if (shard.hasFailures()) {
-                                shardFailures.addAll(Arrays.asList(shard.getFailures()));
-                            }
-                        }
-                        assert shardFailures.isEmpty() == false
-                            : "The block response must have shard failures as the global "
-                                + "exception is null. The block result is: "
-                                + blockResult;
-                        String errorMessage = org.elasticsearch.common.Strings.collectionToDelimitedString(
-                            shardFailures.stream().map(org.elasticsearch.common.Strings::toString).collect(Collectors.toList()),
-                            ","
-                        );
-                        listener.onFailure(new ElasticsearchException(errorMessage));
-                    }
                 } else {
-                    listener.onFailure(
-                        new ElasticsearchException("request to mark index [" + targetIndex + "] as read-only was not acknowledged")
+                    List<AddIndexBlockResponse.AddBlockShardResult.Failure> shardFailures = new ArrayList<>(blockResult.getShards().length);
+                    for (AddIndexBlockResponse.AddBlockShardResult shard : blockResult.getShards()) {
+                        if (shard.hasFailures()) {
+                            shardFailures.addAll(Arrays.asList(shard.getFailures()));
+                        }
+                    }
+                    assert shardFailures.isEmpty() == false
+                        : "DLM: The block response must have shard failures as the global "
+                            + "exception is null. The block result is: "
+                            + blockResult;
+                    String errorMessage = org.elasticsearch.common.Strings.collectionToDelimitedString(
+                        shardFailures.stream().map(org.elasticsearch.common.Strings::toString).collect(Collectors.toList()),
+                        ","
                     );
+                    throw new ElasticsearchException(errorMessage);
                 }
+            } else {
+                throw new ElasticsearchException("DLM's request to mark index [" + targetIndex + "] as read-only was not acknowledged");
             }
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            if (e instanceof IndexNotFoundException) {
-                // index was already deleted, treat this as a success
-                listener.onResponse(null);
-                return;
-            }
-            listener.onFailure(e);
         }
     }
 }

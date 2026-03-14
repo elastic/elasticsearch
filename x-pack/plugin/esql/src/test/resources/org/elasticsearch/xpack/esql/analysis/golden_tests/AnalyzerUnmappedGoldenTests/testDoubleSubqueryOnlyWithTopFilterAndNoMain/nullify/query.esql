@@ -1,0 +1,6 @@
+SET unmapped_fields="nullify"; FROM
+    (FROM languages
+     | WHERE does_not_exist1::LONG > 1),
+    (FROM sample_data
+     | WHERE does_not_exist1::DOUBLE > 10.)
+| WHERE does_not_exist2::LONG < 100

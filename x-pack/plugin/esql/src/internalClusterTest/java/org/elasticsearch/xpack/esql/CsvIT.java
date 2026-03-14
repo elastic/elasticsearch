@@ -218,6 +218,10 @@ public class CsvIT extends ESTestCase {
             "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
             testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
         );
+        for (String required : testCase.requiredCapabilities) {
+            EsqlCapabilities.Cap cap = EsqlCapabilities.Cap.valueOf(required.toUpperCase(java.util.Locale.ROOT));
+            assumeTrue("Capability [" + required + "] is not enabled", cap.isEnabled());
+        }
 
         currentGroupName = groupName;
         // verify no prior failures

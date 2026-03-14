@@ -219,6 +219,17 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertEquals("cannot use `collapse` in a scroll context", validationErrors.validationErrors().get(0));
         }
         {
+            // scroll and profile
+            SearchRequest searchRequest = createSearchRequest().source(new SearchSourceBuilder());
+            searchRequest.requestCache(false);
+            searchRequest.scroll(new TimeValue(1000));
+            searchRequest.source().profile(true);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[profile] cannot be used in a scroll context", validationErrors.validationErrors().get(0));
+        }
+        {
             // allow_partial_results and compound retriever
             SearchRequest searchRequest = createSearchRequest().source(
                 new SearchSourceBuilder().retriever(new TestCompoundRetrieverBuilder(randomIntBetween(1, 10)))

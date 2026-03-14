@@ -191,6 +191,9 @@ public class MetadataCreateIndexService {
     private final Set<IndexSettingProvider> indexSettingProviders;
     private final ThreadPool threadPool;
     private final ClusterBlocksTransformer blocksTransformerUponIndexCreation;
+
+    // package private for tests
+    final CreateIndexTaskExecutor createIndexTaskExecutor;
     private final MasterServiceTaskQueue<CreateIndexTask> createIndexTaskQueue;
 
     private volatile TimeValue maxMasterNodeTimeout;
@@ -224,10 +227,11 @@ public class MetadataCreateIndexService {
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
         this.threadPool = threadPool;
         this.blocksTransformerUponIndexCreation = createClusterBlocksTransformerForIndexCreation(settings);
+        this.createIndexTaskExecutor = new CreateIndexTaskExecutor();
         this.createIndexTaskQueue = clusterService.createTaskQueue(
             "create-index",
             CREATE_INDEX_PRIORITY_SETTING.get(settings),
-            new CreateIndexTaskExecutor()
+            createIndexTaskExecutor
         );
 
         if (clusterService.getClusterSettings().isDynamicSetting(CREATE_INDEX_MAX_TIMEOUT_SETTING.getKey())) {
@@ -446,7 +450,7 @@ public class MetadataCreateIndexService {
         });
     }
 
-    private static class CreateIndexTask implements ClusterStateTaskListener {
+    static class CreateIndexTask implements ClusterStateTaskListener {
         private final CreateIndexClusterStateUpdateRequest request;
         private final TimeValue ackTimeout;
         private final ActionListener<AcknowledgedResponse> listener;
@@ -555,8 +559,8 @@ public class MetadataCreateIndexService {
         ClusterState currentState,
         CreateIndexClusterStateUpdateRequest request,
         boolean silent,
-        RerouteBehavior rerouteBehavior,
         BiConsumer<ProjectMetadata.Builder, IndexMetadata> metadataTransformer,
+        RerouteBehavior rerouteBehavior,
         ActionListener<Void> rerouteListener
     ) throws Exception {
 
@@ -697,7 +701,7 @@ public class MetadataCreateIndexService {
         RerouteBehavior rerouteBehavior,
         ActionListener<Void> rerouteListener
     ) throws Exception {
-        return applyCreateIndexRequest(currentState, request, silent, rerouteBehavior, null, rerouteListener);
+        return applyCreateIndexRequest(currentState, request, silent, null, rerouteBehavior, rerouteListener);
     }
 
     /**

@@ -148,6 +148,9 @@ public class MetadataCreateIndexServiceIT extends ESIntegTestCase {
                 createdInState,
                 anyOf(hasSize(0), hasSize(validIndicesNames.size()))
             );
+            for (final var indexName : invalidSettingsNames) {
+                assertFalse("invalid index [" + indexName + "] should never be created", projectMetadata.hasIndex(indexName));
+            }
         };
         masterClusterService.addListener(listener);
         try {

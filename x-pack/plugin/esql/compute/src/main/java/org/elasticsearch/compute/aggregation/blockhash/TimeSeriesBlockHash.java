@@ -358,6 +358,10 @@ public final class TimeSeriesBlockHash extends BlockHash {
         return finalHash.size();
     }
 
+    public long numTsids() {
+        return tsidHash.size();
+    }
+
     public long minTimestamp() {
         return minTimestamp;
     }

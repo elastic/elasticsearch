@@ -26,7 +26,8 @@ import java.util.function.BiFunction;
 
 // a IS NULL AND a IS NOT NULL -> FALSE
 // a IS NULL AND a > 10 -> a IS NULL and FALSE
-// can be extended to handle null conditions where available
+// For disjunctions, nullify only matching sub-expressions so surviving OR branches are preserved.
+// (a IS NOT NULL OR p) AND a IS NULL -> p AND a IS NULL
 public class PropagateNullable extends OptimizerRules.OptimizerExpressionRule<And> {
 
     public PropagateNullable() {
@@ -66,10 +67,19 @@ public class PropagateNullable extends OptimizerRules.OptimizerExpressionRule<An
         boolean modified = replace(nullExpressions, others, splits, this::nullify);
         modified |= replace(notNullExpressions, others, splits, this::nonNullify);
         if (modified) {
-            // reconstruct the expression
-            return Predicates.combineAnd(splits);
+            // Rebuild once and fold once after all substitutions.
+            return foldAfterSubstitution(Predicates.combineAnd(splits), ctx);
         }
         return and;
+    }
+
+    private static Expression foldAfterSubstitution(Expression expression, LogicalOptimizerContext ctx) {
+        return expression.transformUp(e -> {
+            if (e instanceof Literal || e.foldable() == false) {
+                return e;
+            }
+            return Literal.of(e, e.fold(ctx.foldCtx()));
+        });
     }
 
     /**
@@ -115,6 +125,20 @@ public class PropagateNullable extends OptimizerRules.OptimizerExpressionRule<An
                 return exp.replaceChildren(newChildren);
             }
         }
-        return Literal.of(exp, null);
+
+        // Substitute only the constrained expression so other OR branches can survive and fold.
+        Expression replaced = exp.transformDown(e -> {
+            if (e.semanticEquals(nullExp)) {
+                return Literal.of(e, null);
+            }
+            if (e instanceof IsNull isNull && isNull.field().semanticEquals(nullExp)) {
+                return Literal.of(e, true);
+            }
+            if (e instanceof IsNotNull isNotNull && isNotNull.field().semanticEquals(nullExp)) {
+                return Literal.of(e, false);
+            }
+            return e;
+        });
+        return replaced;
     }
 }

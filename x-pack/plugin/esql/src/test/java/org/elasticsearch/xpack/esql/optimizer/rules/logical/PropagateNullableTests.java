@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
-import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
@@ -142,6 +141,7 @@ public class PropagateNullableTests extends ESTestCase {
         assertEquals(and, propagateNullable(and));
     }
 
+    // constants and nullable comparison keep exact conjunction shape
     public void testDoNotOptimizeIsNullAndMultipleComparisonWithConstants() {
         Literal a = ONE;
         Literal b = ONE;
@@ -152,7 +152,15 @@ public class PropagateNullableTests extends ESTestCase {
         And aIsNull_AND_bLT1_AND_cLT1_AND_aLT1 = new And(EMPTY, aIsNull_AND_bLT1_AND_cLT1, lessThanOf(a, ONE));
 
         Expression optimized = propagateNullable(aIsNull_AND_bLT1_AND_cLT1_AND_aLT1);
-        Literal nullLiteral = new Literal(EMPTY, null, BOOLEAN);
-        assertEquals(asList(aIsNull, nullLiteral, nullLiteral, nullLiteral), Predicates.splitAnd(optimized));
+
+        Literal nullBoolean = new Literal(EMPTY, null, BOOLEAN);
+        Literal nullInteger = new Literal(EMPTY, null, ONE.dataType());
+        Expression expected = new And(
+            EMPTY,
+            aIsNull,
+            new And(EMPTY, nullBoolean, new And(EMPTY, lessThanOf(getFieldAttribute("c"), nullInteger), nullBoolean))
+        );
+
+        assertEquals(Predicates.splitAnd(expected), Predicates.splitAnd(optimized));
     }
 }

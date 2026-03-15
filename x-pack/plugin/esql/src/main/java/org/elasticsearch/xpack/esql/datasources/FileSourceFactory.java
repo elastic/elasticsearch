@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Framework-internal factory that bridges the building-block registries
@@ -138,6 +140,15 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 partitionValues = fileSplit.partitionValues();
             }
 
+            TimeValue drainTimeout = null;
+            if (context.queryDeadlineNanos() > 0) {
+                long remainingNanos = context.queryDeadlineNanos() - System.nanoTime();
+                if (remainingNanos > 0) {
+                    long remainingMillis = Math.max(1, TimeUnit.NANOSECONDS.toMillis(remainingNanos));
+                    drainTimeout = TimeValue.timeValueMillis(remainingMillis);
+                }
+            }
+
             return new AsyncExternalSourceOperatorFactory(
                 storage,
                 format,
@@ -152,7 +163,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 partitionValues,
                 context.sliceQueue(),
                 errorPolicy,
-                context.parsingParallelism()
+                context.parsingParallelism(),
+                drainTimeout
             );
         };
     }

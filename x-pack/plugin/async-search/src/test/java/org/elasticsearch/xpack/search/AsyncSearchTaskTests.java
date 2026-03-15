@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -18,6 +19,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
@@ -30,13 +32,18 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.RawTaskStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.junit.After;
 import org.junit.Before;
@@ -45,12 +52,17 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -123,6 +135,29 @@ public class AsyncSearchTaskTests extends ESTestCase {
             assertEquals("""
                 async_search{indices[index1,index2], search_type[QUERY_THEN_FETCH], source\
                 [{"query":{"term":{"field":{"value":"value"}}}}]}""", asyncSearchTask.getDescription());
+        }
+    }
+
+    public void testTaskStatusIncludesKeepAlive() {
+        try (AsyncSearchTask task = createAsyncSearchTask()) {
+            TaskInfo taskInfo = task.taskInfo("node1", true);
+            assertThat(taskInfo.status(), notNullValue());
+            assertThat(taskInfo, hasToString(containsString("\"request_id\" : \"" + task.getExecutionId().getEncoded() + "\"")));
+            assertThat(taskInfo, hasToString(containsString("\"keep_alive\" : \"1h\"")));
+        }
+    }
+
+    public void testTaskStatusSerializationToPreviousTransportVersionUsesRawTaskStatus() throws IOException {
+        try (AsyncSearchTask task = createAsyncSearchTask()) {
+            NamedWriteableRegistry oldRegistry = new NamedWriteableRegistry(
+                List.of(new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new))
+            );
+            TaskInfo taskInfo = task.taskInfo("node1", true);
+            TransportVersion previousVersion = TransportVersionUtils.randomVersionNotSupporting(AsyncTask.ASYNC_TASK_KEEP_ALIVE_STATUS);
+            TaskInfo serialized = copyWriteable(taskInfo, oldRegistry, TaskInfo::from, previousVersion);
+            assertThat(serialized.status(), instanceOf(RawTaskStatus.class));
+            Map<String, Object> statusMap = ((RawTaskStatus) serialized.status()).toMap();
+            assertThat(statusMap, allOf(hasEntry("request_id", task.getExecutionId().getEncoded()), hasEntry("keep_alive", "1h")));
         }
     }
 

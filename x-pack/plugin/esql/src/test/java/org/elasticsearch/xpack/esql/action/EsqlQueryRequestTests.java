@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -28,11 +30,14 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -67,6 +72,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class EsqlQueryRequestTests extends ESTestCase {
+    private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(List.of(EsqlQueryStatus.ENTRY));
 
     public void testParseFields() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
@@ -835,13 +841,15 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testTask() throws IOException {
         String query = randomAlphaOfLength(10);
         int id = randomInt();
+        TimeValue keepAlive = TimeValue.timeValueDays(2);
 
         String requestJson = """
             {
-                "query": "QUERY"
-            }""".replace("QUERY", query);
+                "query": "QUERY",
+                "keep_alive": "KEEP_ALIVE"
+            }""".replace("QUERY", query).replace("KEEP_ALIVE", keepAlive.getStringRep());
 
-        EsqlQueryRequest request = parseEsqlQueryRequestSync(requestJson);
+        EsqlQueryRequest request = parseEsqlQueryRequestAsync(requestJson);
         String localNode = randomAlphaOfLength(2);
         Task task = request.createTask(new TaskId(localNode, id), "transport", EsqlQueryAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
         assertThat(task.getDescription(), equalTo(query));
@@ -856,7 +864,8 @@ public class EsqlQueryRequestTests extends ESTestCase {
                   "type" : "transport",
                   "action" : "indices:data/read/esql",
                   "status" : {
-                    "request_id" : "%s"
+                    "request_id" : "%s",
+                    "keep_alive" : "%s"
                   },
                   "description" : "%s",
                   "start_time" : "%s",
@@ -871,6 +880,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             localNode,
             id,
             ((EsqlQueryStatus) taskInfo.status()).id().getEncoded(),
+            keepAlive,
             query,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(taskInfo.startTime()),
             taskInfo.startTime(),
@@ -878,6 +888,45 @@ public class EsqlQueryRequestTests extends ESTestCase {
             taskInfo.runningTimeNanos()
         );
         assertThat(json, equalTo(expected));
+    }
+
+    public void testTaskStatusSerializationToPreviousTransportVersionOmitsKeepAlive() throws IOException {
+        EsqlQueryStatus status = new EsqlQueryStatus(
+            new AsyncExecutionId(randomAlphaOfLength(10), new TaskId(randomAlphaOfLength(4), randomNonNegativeLong())),
+            TimeValue.timeValueDays(2)
+        );
+        TransportVersion previousVersion = TransportVersionUtils.randomVersionNotSupporting(AsyncTask.ASYNC_TASK_KEEP_ALIVE_STATUS);
+        EsqlQueryStatus serialized = copyWriteable(
+            status,
+            namedWriteableRegistry,
+            in -> (EsqlQueryStatus) EsqlQueryStatus.ENTRY.reader.read(in),
+            previousVersion
+        );
+        assertThat(serialized.id(), equalTo(status.id()));
+        assertNull(serialized.keepAlive());
+    }
+
+    public void testTaskStatusWithNullKeepAliveCanBeSerializedBackToCurrentTransportVersion() throws IOException {
+        EsqlQueryStatus status = new EsqlQueryStatus(
+            new AsyncExecutionId(randomAlphaOfLength(10), new TaskId(randomAlphaOfLength(4), randomNonNegativeLong())),
+            TimeValue.timeValueDays(2)
+        );
+        TransportVersion previousVersion = TransportVersionUtils.randomVersionNotSupporting(AsyncTask.ASYNC_TASK_KEEP_ALIVE_STATUS);
+        EsqlQueryStatus withoutKeepAlive = copyWriteable(
+            status,
+            namedWriteableRegistry,
+            in -> (EsqlQueryStatus) EsqlQueryStatus.ENTRY.reader.read(in),
+            previousVersion
+        );
+
+        EsqlQueryStatus serializedBack = copyWriteable(
+            withoutKeepAlive,
+            namedWriteableRegistry,
+            in -> (EsqlQueryStatus) EsqlQueryStatus.ENTRY.reader.read(in),
+            TransportVersion.current()
+        );
+        assertThat(serializedBack.id(), equalTo(status.id()));
+        assertNull(serializedBack.keepAlive());
     }
 
     public void testProjectRouting() throws IOException {

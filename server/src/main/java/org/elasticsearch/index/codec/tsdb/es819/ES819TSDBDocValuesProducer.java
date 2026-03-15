@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesProducer;
-import org.apache.lucene.codecs.compressing.Decompressor;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
 import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.BinaryDocValues;
@@ -449,7 +448,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             final DirectMonotonicReader docOffsets = DirectMonotonicReader.getInstance(entry.docOffsetMeta, docOffsetsData);
             return new DenseBinaryDocValues(maxDoc) {
                 final BinaryDecoder decoder = new BinaryDecoder(
-                    entry.compression.compressionMode().newDecompressor(),
+                    new ZstdBlockDecompressor(),
                     addresses,
                     docOffsets,
                     data.clone(),
@@ -534,7 +533,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             final DirectMonotonicReader docOffsets = DirectMonotonicReader.getInstance(entry.docOffsetMeta, docOffsetsData);
             return new SparseBinaryDocValues(disi) {
                 final BinaryDecoder decoder = new BinaryDecoder(
-                    entry.compression.compressionMode().newDecompressor(),
+                    new ZstdBlockDecompressor(),
                     addresses,
                     docOffsets,
                     data.clone(),
@@ -570,11 +569,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         private final BytesRef uncompressedBytesRef;
         private long startDocNumForBlock = -1;
         private long limitDocNumForBlock = -1;
-        private final Decompressor decompressor;
+        private final BlockDecompressor decompressor;
         private final DocOffsetsCodec.Decoder docOffsetsDecoder;
 
         BinaryDecoder(
-            Decompressor decompressor,
+            BlockDecompressor decompressor,
             LongValues addresses,
             DirectMonotonicReader docOffsets,
             IndexInput compressedData,

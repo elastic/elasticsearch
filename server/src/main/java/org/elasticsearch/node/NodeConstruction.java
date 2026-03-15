@@ -169,6 +169,7 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ActionRegistryConsumer;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
@@ -1610,6 +1611,8 @@ class NodeConstruction {
         Map<ActionType<?>, TransportAction<?, ?>> actions = forciblyCast(
             injector.getInstance(new Key<Map<ActionType, TransportAction>>() {})
         );
+
+        pluginsService.filterPlugins(ActionRegistryConsumer.class).forEach(p -> p.onActionRegistryReady(actionModule));
 
         client.initialize(
             actions,

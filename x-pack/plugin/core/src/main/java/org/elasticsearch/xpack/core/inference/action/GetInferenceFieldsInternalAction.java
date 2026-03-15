@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.ContextConstrainedAction;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -43,7 +44,10 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * fields can be gathered more directly using {@link IndexMetadata#getMatchingInferenceFields}.
  * </p>
  */
-public class GetInferenceFieldsInternalAction extends ActionType<GetInferenceFieldsInternalAction.Response> {
+public class GetInferenceFieldsInternalAction extends ActionType<GetInferenceFieldsInternalAction.Response>
+    implements
+        ContextConstrainedAction {
+
     public static final GetInferenceFieldsInternalAction INSTANCE = new GetInferenceFieldsInternalAction();
     public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(INSTANCE.name(), Response::new);
 
@@ -57,9 +61,15 @@ public class GetInferenceFieldsInternalAction extends ActionType<GetInferenceFie
     );
 
     public static final String NAME = "indices:admin/inference/fields/get";
+    public static final String REQUIRED_CONTEXT = "inference_query_rewrite";
 
     public GetInferenceFieldsInternalAction() {
         super(NAME);
+    }
+
+    @Override
+    public String requiredInvocationContext() {
+        return REQUIRED_CONTEXT;
     }
 
     public static class Request extends ActionRequest implements IndicesRequest.Replaceable {

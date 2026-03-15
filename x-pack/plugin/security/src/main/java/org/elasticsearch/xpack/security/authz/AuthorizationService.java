@@ -113,6 +113,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.action.ContextConstrainedAction.HEADER_KEY;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
@@ -155,6 +156,8 @@ public class AuthorizationService {
     private final AuthorizationDenialMessages authorizationDenialMessages;
     private final ProjectResolver projectResolver;
 
+    private final Supplier<Map<String, String>> contextConstrainedActions;
+
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
     private final DlsFlsFeatureTrackingIndicesAccessControlWrapper indicesAccessControlWrapper;
@@ -180,7 +183,8 @@ public class AuthorizationService {
         ProjectResolver projectResolver,
         AuthorizedProjectsResolver authorizedProjectsResolver,
         CrossProjectModeDecider crossProjectModeDecider,
-        ProjectRoutingResolver projectRoutingResolver
+        ProjectRoutingResolver projectRoutingResolver,
+        Supplier<Map<String, String>> contextConstrainedActions
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -213,6 +217,7 @@ public class AuthorizationService {
         this.authorizationDenialMessages = authorizationDenialMessages;
         this.projectResolver = projectResolver;
         this.authorizedProjectsResolver = authorizedProjectsResolver;
+        this.contextConstrainedActions = contextConstrainedActions;
     }
 
     public void checkPrivileges(
@@ -344,6 +349,10 @@ public class AuthorizationService {
                 return;
             }
 
+            if (checkContextConstraint(authentication, action, auditId, unwrappedRequest, listener) == false) {
+                return;
+            }
+
             if (SystemUser.is(authentication.getEffectiveSubject().getUser())) {
                 // this never goes async so no need to wrap the listener
                 authorizeSystemUser(authentication, action, auditId, unwrappedRequest, listener);
@@ -443,6 +452,42 @@ public class AuthorizationService {
             throw actionDenied(authentication, null, action, originalRequest, "because it requires operator privileges", operatorException);
         }
         operatorPrivilegesService.maybeInterceptRequest(threadContext, originalRequest);
+    }
+
+    /**
+     * Checks whether the action is context-constrained and, if so, whether the required
+     * invocation context marker is present in the thread context.
+     *
+     * @return {@code true} if the action is allowed to proceed, {@code false} if it was denied
+     *         (in which case the listener has already been notified of the failure)
+     */
+    private boolean checkContextConstraint(
+        final Authentication authentication,
+        final String action,
+        final String requestId,
+        final TransportRequest request,
+        final ActionListener<Void> listener
+    ) {
+        final String requiredContext = contextConstrainedActions.get().get(action);
+        if (requiredContext != null && authentication.isCrossClusterAccess() == false) {
+            final String actualContext = threadContext.getHeader(HEADER_KEY);
+            if (requiredContext.equals(actualContext) == false) {
+                final AuditTrail auditTrail = auditTrailService.get();
+                auditTrail.accessDenied(requestId, authentication, action, request, EmptyAuthorizationInfo.INSTANCE);
+                listener.onFailure(
+                    actionDenied(
+                        authentication,
+                        EmptyAuthorizationInfo.INSTANCE,
+                        action,
+                        request,
+                        "missing required invocation context [" + requiredContext + "]",
+                        null
+                    )
+                );
+                return false;
+            }
+        }
+        return true;
     }
 
     private void maybeAuthorizeRunAs(

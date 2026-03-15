@@ -469,7 +469,7 @@ public class AuthorizationService {
         final ActionListener<Void> listener
     ) {
         final String requiredContext = contextConstrainedActions.get().get(action);
-        if (requiredContext != null) {
+        if (requiredContext != null && authentication.isCrossClusterAccess() == false) {
             final String actualContext = threadContext.getHeader(HEADER_KEY);
             if (requiredContext.equals(actualContext) == false) {
                 final AuditTrail auditTrail = auditTrailService.get();

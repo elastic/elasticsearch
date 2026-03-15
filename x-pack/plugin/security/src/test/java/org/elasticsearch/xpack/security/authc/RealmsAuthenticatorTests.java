@@ -12,10 +12,12 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -24,6 +26,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.metric.SecurityMetricType;
 import org.junit.Before;
@@ -31,6 +34,7 @@ import org.junit.Before;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -110,6 +114,7 @@ public class RealmsAuthenticatorTests extends AbstractAuthenticatorTests {
             numInvalidation,
             lastSuccessfulAuthCache,
             telemetryPlugin.getTelemetryProvider(Settings.EMPTY).getMeterRegistry(),
+            (Runnable) null,
             nanoTimeSupplier
         );
     }
@@ -361,6 +366,131 @@ public class RealmsAuthenticatorTests extends AbstractAuthenticatorTests {
             )
         );
 
+    }
+
+    public void testTimingMitigationFiresForUsernamePasswordToken() {
+        final AtomicInteger mitigationCount = new AtomicInteger(0);
+        final RealmsAuthenticator authenticator = new RealmsAuthenticator(
+            numInvalidation,
+            lastSuccessfulAuthCache,
+            MeterRegistry.NOOP,
+            mitigationCount::incrementAndGet,
+            nanoTimeSupplier
+        );
+
+        final UsernamePasswordToken upToken = new UsernamePasswordToken(username, new SecureString("password".toCharArray()));
+        when(realm1.supports(upToken)).thenReturn(true);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<AuthenticationResult<User>> listener = (ActionListener<AuthenticationResult<User>>) invocationOnMock
+                .getArguments()[1];
+            listener.onResponse(AuthenticationResult.notHandled());
+            return null;
+        }).when(realm1).authenticate(eq(upToken), any());
+        when(realm2.supports(upToken)).thenReturn(false);
+
+        final Authenticator.Context context = createAuthenticatorContext();
+        context.addAuthenticationToken(upToken);
+        final ElasticsearchSecurityException e = new ElasticsearchSecurityException("fail");
+        when(request.authenticationFailed(upToken)).thenReturn(e);
+
+        final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
+        authenticator.authenticate(context, future);
+        expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+        assertThat(mitigationCount.get(), equalTo(1));
+    }
+
+    public void testTimingMitigationDoesNotFireForNonPasswordToken() {
+        final AtomicInteger mitigationCount = new AtomicInteger(0);
+        final RealmsAuthenticator authenticator = new RealmsAuthenticator(
+            numInvalidation,
+            lastSuccessfulAuthCache,
+            MeterRegistry.NOOP,
+            mitigationCount::incrementAndGet,
+            nanoTimeSupplier
+        );
+
+        when(realm1.supports(authenticationToken)).thenReturn(true);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<AuthenticationResult<User>> listener = (ActionListener<AuthenticationResult<User>>) invocationOnMock
+                .getArguments()[1];
+            listener.onResponse(AuthenticationResult.notHandled());
+            return null;
+        }).when(realm1).authenticate(eq(authenticationToken), any());
+        when(realm2.supports(authenticationToken)).thenReturn(false);
+
+        final Authenticator.Context context = createAuthenticatorContext();
+        context.addAuthenticationToken(authenticationToken);
+        final ElasticsearchSecurityException e = new ElasticsearchSecurityException("fail");
+        when(request.authenticationFailed(authenticationToken)).thenReturn(e);
+
+        final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
+        authenticator.authenticate(context, future);
+        expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+        assertThat(mitigationCount.get(), equalTo(0));
+    }
+
+    public void testTimingMitigationSkippedWhenNoLocalPasswordRealmsConfigured() {
+        final RealmsAuthenticator authenticator = new RealmsAuthenticator(
+            numInvalidation,
+            lastSuccessfulAuthCache,
+            MeterRegistry.NOOP,
+            (Runnable) null,
+            nanoTimeSupplier
+        );
+
+        final UsernamePasswordToken upToken = new UsernamePasswordToken(username, new SecureString("password".toCharArray()));
+        when(realm1.supports(upToken)).thenReturn(true);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<AuthenticationResult<User>> listener = (ActionListener<AuthenticationResult<User>>) invocationOnMock
+                .getArguments()[1];
+            listener.onResponse(AuthenticationResult.notHandled());
+            return null;
+        }).when(realm1).authenticate(eq(upToken), any());
+        when(realm2.supports(upToken)).thenReturn(false);
+
+        final Authenticator.Context context = createAuthenticatorContext();
+        context.addAuthenticationToken(upToken);
+        final ElasticsearchSecurityException e = new ElasticsearchSecurityException("fail");
+        when(request.authenticationFailed(upToken)).thenReturn(e);
+
+        final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
+        authenticator.authenticate(context, future);
+        expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+    }
+
+    public void testTimingMitigationSkippedWhenCredentialVerificationPerformed() {
+        final AtomicInteger mitigationCount = new AtomicInteger(0);
+        final RealmsAuthenticator authenticator = new RealmsAuthenticator(
+            numInvalidation,
+            lastSuccessfulAuthCache,
+            MeterRegistry.NOOP,
+            mitigationCount::incrementAndGet,
+            nanoTimeSupplier
+        );
+
+        final UsernamePasswordToken upToken = new UsernamePasswordToken(username, new SecureString("password".toCharArray()));
+        when(realm1.supports(upToken)).thenReturn(true);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<AuthenticationResult<User>> listener = (ActionListener<AuthenticationResult<User>>) invocationOnMock
+                .getArguments()[1];
+            listener.onResponse(AuthenticationResult.unsuccessful("wrong password", null, true));
+            return null;
+        }).when(realm1).authenticate(eq(upToken), any());
+        when(realm2.supports(upToken)).thenReturn(false);
+
+        final Authenticator.Context context = createAuthenticatorContext();
+        context.addAuthenticationToken(upToken);
+        final ElasticsearchSecurityException e = new ElasticsearchSecurityException("fail");
+        when(request.authenticationFailed(upToken)).thenReturn(e);
+
+        final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
+        authenticator.authenticate(context, future);
+        expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+        assertThat(mitigationCount.get(), equalTo(0));
     }
 
     private void configureRealmAuthResponse(Realm realm, AuthenticationResult<User> authenticationResult) {

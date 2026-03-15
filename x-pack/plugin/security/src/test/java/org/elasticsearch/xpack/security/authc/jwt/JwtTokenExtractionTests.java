@@ -58,7 +58,8 @@ public class JwtTokenExtractionTests extends ESTestCase {
         RealmsAuthenticator realmsAuthenticator = new RealmsAuthenticator(
             mock(AtomicLong.class),
             (Cache<String, Realm>) mock(Cache.class),
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            null
         );
         final Authenticator.Context context = new Authenticator.Context(
             threadContext,

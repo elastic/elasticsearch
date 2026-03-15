@@ -178,7 +178,12 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                             cachedResult.authenticationResult.getStatus(),
                             cachedResult.authenticationResult.getMessage()
                         );
-                        listener.onResponse(cachedResult.authenticationResult);
+                        final var cached = cachedResult.authenticationResult;
+                        listener.onResponse(
+                            cached.getStatus() == AuthenticationResult.Status.TERMINATE
+                                ? AuthenticationResult.terminate(cached.getMessage(), cached.getException())
+                                : AuthenticationResult.unsuccessful(cached.getMessage(), cached.getException())
+                        );
                     } else {
                         logger.trace(
                             "realm [{}], provided credentials for user [{}] do not match (possibly invalid) cached credentials,"

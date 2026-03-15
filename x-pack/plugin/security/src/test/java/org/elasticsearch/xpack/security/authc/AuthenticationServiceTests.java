@@ -382,6 +382,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             mock(),
             MeterRegistry.NOOP
         );
+        Mockito.clearInvocations(firstRealm, secondRealm);
     }
 
     private Realm mockRealm(RealmConfig config) {
@@ -681,6 +682,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             mock(),
             MeterRegistry.NOOP
         );
+        Mockito.clearInvocations(firstRealm, secondRealm);
         User user = new User("_username", "r1");
         when(firstRealm.supports(token)).thenReturn(true);
         mockAuthenticate(firstRealm, token, null);
@@ -1066,6 +1068,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 mock(),
                 MeterRegistry.NOOP
             );
+            Mockito.clearInvocations(firstRealm);
             boolean requestIdAlreadyPresent = randomBoolean();
             SetOnce<String> reqId = new SetOnce<>();
             if (requestIdAlreadyPresent) {
@@ -1143,6 +1146,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 mock(),
                 MeterRegistry.NOOP
             );
+            Mockito.clearInvocations(firstRealm);
             service.authenticate("_action", new InternalRequest(), InternalUsers.SYSTEM_USER, ActionListener.wrap(result -> {
                 if (requestIdAlreadyPresent) {
                     assertThat(expectAuditRequestId(threadPool2.getThreadContext()), is(reqId.get()));

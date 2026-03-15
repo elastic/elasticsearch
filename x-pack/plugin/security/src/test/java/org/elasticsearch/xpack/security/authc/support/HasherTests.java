@@ -320,6 +320,11 @@ public class HasherTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Error using PBKDF2 implementation from the selected Security Provider"));
     }
 
+    public void testVerifyForTimingNormalization() {
+        Hasher hasher = randomFrom(Hasher.BCRYPT, Hasher.PBKDF2, Hasher.PBKDF2_STRETCH);
+        Hasher.verifyForTimingNormalization(hasher);
+    }
+
     private static void testHasherSelfGenerated(Hasher hasher) {
         // In FIPS 140 mode, passwords for PBKDF2 need to be at least 14 chars
         SecureString passwd = new SecureString(randomAlphaOfLength(between(14, 18)).toCharArray());

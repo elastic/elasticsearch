@@ -628,7 +628,7 @@ public class NativeUsersStore {
                     listener.onResponse(AuthenticationResult.success(userAndPassword.user()));
                 } else {
                     logger.trace("password mismatch for user [{}] (security index [{}])", userAndPassword, securityIndex.aliasName());
-                    listener.onResponse(AuthenticationResult.unsuccessful("Password authentication failed for " + username, null));
+                    listener.onResponse(AuthenticationResult.unsuccessful("Password authentication failed for " + username, null, true));
                 }
             }
         }, listener::onFailure));

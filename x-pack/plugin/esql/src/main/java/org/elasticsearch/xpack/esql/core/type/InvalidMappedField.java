@@ -22,30 +22,44 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
- * Representation of field mapped differently across indices.
+ * Representation of field mapped differently across indices; or being potentially unmapped in some, in which case it is treated as
+ * {@link DataType#KEYWORD} in the indices where it is unmapped.
  * Used during mapping discovery only.
- * Note that the field <code>typesToIndices</code> is not serialized because that information is
+ * Note that the fields <code>typesToIndices</code> and <code>isPotentiallyUnmapped</code> are not serialized because that information is
  * not required through the cluster, only surviving as long as the Analyser phase of query planning.
- * It is used specifically for the 'union types' feature in ES|QL.
+ * It is used specifically for the 'union types' and 'unmapped fields' feature in ES|QL.
  */
 public class InvalidMappedField extends EsField {
 
     private final String errorMessage;
     private final Map<String, Set<String>> typesToIndices;
+    // Marks the field as being unmapped in some indices.
+    private final boolean isPotentiallyUnmapped;
 
     public InvalidMappedField(String name, String errorMessage, Map<String, EsField> properties) {
-        this(name, errorMessage, properties, Map.of(), TimeSeriesFieldType.UNKNOWN);
+        this(name, errorMessage, properties, Map.of(), false, TimeSeriesFieldType.UNKNOWN);
     }
 
     public InvalidMappedField(String name, String errorMessage) {
         this(name, errorMessage, new TreeMap<>());
     }
 
+    public InvalidMappedField(String name, Map<String, Set<String>> typesToIndices) {
+        this(name, makeErrorMessage(typesToIndices, false), new TreeMap<>(), typesToIndices, false, TimeSeriesFieldType.UNKNOWN);
+    }
+
     /**
      * Constructor supporting union types, used in ES|QL.
      */
-    public InvalidMappedField(String name, Map<String, Set<String>> typesToIndices) {
-        this(name, makeErrorMessage(typesToIndices, false), new TreeMap<>(), typesToIndices, TimeSeriesFieldType.UNKNOWN);
+    public static InvalidMappedField potentiallyUnmapped(String name, Map<String, Set<String>> typesToIndices) {
+        return new InvalidMappedField(
+            name,
+            makeErrorMessage(typesToIndices, true),
+            new TreeMap<>(),
+            typesToIndices,
+            true,
+            TimeSeriesFieldType.UNKNOWN
+        );
     }
 
     private InvalidMappedField(
@@ -53,11 +67,13 @@ public class InvalidMappedField extends EsField {
         String errorMessage,
         Map<String, EsField> properties,
         Map<String, Set<String>> typesToIndices,
+        boolean isPotentiallyUnmapped,
         TimeSeriesFieldType type
     ) {
         super(name, DataType.UNSUPPORTED, properties, false, type);
         this.errorMessage = errorMessage;
         this.typesToIndices = typesToIndices;
+        this.isPotentiallyUnmapped = isPotentiallyUnmapped;
     }
 
     protected InvalidMappedField(StreamInput in) throws IOException {
@@ -66,6 +82,7 @@ public class InvalidMappedField extends EsField {
             in.readString(),
             in.readImmutableMap(StreamInput::readString, EsField::readFrom),
             Map.of(),
+            false,
             readTimeSeriesFieldType(in)
         );
     }
@@ -120,8 +137,8 @@ public class InvalidMappedField extends EsField {
         return typesToIndices;
     }
 
-    public static String makeErrorsMessageIncludingInsistKeyword(Map<String, Set<String>> typesToIndices) {
-        return makeErrorMessage(typesToIndices, true);
+    public boolean isPotentiallyUnmapped() {
+        return isPotentiallyUnmapped;
     }
 
     private static String makeErrorMessage(Map<String, Set<String>> typesToIndices, boolean includeInsistKeyword) {
@@ -131,6 +148,7 @@ public class InvalidMappedField extends EsField {
         errorMessage.append(typesToIndices.size() + (isInsistKeywordOnlyKeyword ? 1 : 0));
         errorMessage.append("] incompatible types: ");
         boolean first = true;
+        // FIXME(gal, NOCOMMIT) Rephrase to use LOAD
         if (isInsistKeywordOnlyKeyword) {
             first = false;
             errorMessage.append("[keyword] enforced by INSIST command");

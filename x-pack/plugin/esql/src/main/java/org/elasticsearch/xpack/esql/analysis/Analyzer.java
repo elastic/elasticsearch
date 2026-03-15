@@ -14,7 +14,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.logging.Logger;
@@ -179,6 +179,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -1205,7 +1207,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Field is partially unmapped.
             // TODO: Should the check for partially unmapped fields be done specific to each sub-query in a fork?
             if (resolvedCol instanceof FieldAttribute fa && indices.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
-                return fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa);
+                return fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, indices);
             }
 
             // Either the field is mapped everywhere and we can just use the resolved column, or the INSIST clause isn't on top of a FROM
@@ -1213,17 +1215,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolvedCol;
         }
 
-        private static FieldAttribute invalidInsistAttribute(FieldAttribute fa) {
-            var name = fa.name();
-            EsField field = fa.field() instanceof InvalidMappedField imf
-                ? new InvalidMappedField(name, InvalidMappedField.makeErrorsMessageIncludingInsistKeyword(imf.getTypesToIndices()))
-                : new InvalidMappedField(
-                    name,
-                    Strings.format(
-                        "mapped as [2] incompatible types: [keyword] enforced by INSIST command, and [%s] in index mappings",
-                        fa.dataType().typeName()
-                    )
-                );
+        private static FieldAttribute invalidInsistAttribute(FieldAttribute fa, List<IndexResolution> indexResolutions) {
+            String name = fa.name();
+            EsIndex esIndex = indexResolutions.stream()
+                .map(IndexResolution::get)
+                .filter(r -> r.isPartiallyUnmappedField(name))
+                .findFirst()
+                .orElseThrow();
+            Map<String, Set<String>> typesToIndices = new TreeMap<>();
+            if (fa.field() instanceof InvalidMappedField imf) {
+                typesToIndices.putAll(imf.getTypesToIndices());
+            } else {
+                TreeSet<String> indicesWithField = new TreeSet<>(esIndex.concreteQualifiedIndices());
+                indicesWithField.removeAll(esIndex.getUnmappedIndices(fa.name()));
+                typesToIndices.put(fa.dataType().typeName(), indicesWithField);
+            }
+            EsField field = InvalidMappedField.potentiallyUnmapped(name, typesToIndices);
             return new FieldAttribute(fa.source(), null, fa.qualifier(), name, field);
         }
 
@@ -1246,18 +1253,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Map<FieldAttribute, FieldAttribute> insistedMap = new HashMap<>();
             var transformed = plan.transformExpressionsOnly(FieldAttribute.class, fa -> {
                 var esField = fa.field();
-                var isInsisted = esField instanceof PotentiallyUnmappedKeywordEsField || esField instanceof InvalidMappedField;
-                if (isInsisted == false) {
-                    var existing = insistedMap.get(fa);
-                    if (existing != null) { // field shows up multiple times in the node; return first processing
-                        return existing;
-                    }
-                    // Field is partially unmapped.
-                    if (indexResolutions.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
-                        FieldAttribute newFA = fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa);
-                        insistedMap.put(fa, newFA);
-                        return newFA;
-                    }
+                if (esField instanceof PotentiallyUnmappedKeywordEsField
+                    || (esField instanceof InvalidMappedField imf && imf.isPotentiallyUnmapped())) {
+                    return fa;
+                }
+                var existing = insistedMap.get(fa);
+                if (existing != null) { // field shows up multiple times in the node; return first processing
+                    return existing;
+                }
+                if (indexResolutions.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
+                    FieldAttribute newFA = fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, indexResolutions);
+                    insistedMap.put(fa, newFA);
+                    return newFA;
                 }
                 return fa;
             });
@@ -2432,9 +2439,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         typeResolutions(fa, convert, type, imf, typeResolutions);
                     }
                 });
+                Expression potentiallyUnmappedConversion = imf.isPotentiallyUnmapped()
+                    ? ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), KEYWORD, imf)
+                    : null;
                 // If all mapped types were resolved, create a new FieldAttribute with the resolved MultiTypeEsField
                 if (typeResolutions.size() == imf.getTypesToIndices().size()) {
-                    var resolvedField = resolvedMultiTypeEsField(fa, typeResolutions);
+                    var resolvedField = resolvedMultiTypeEsField(fa, typeResolutions, potentiallyUnmappedConversion);
                     return createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
                 }
             } else if (convert.field() instanceof FieldAttribute fa
@@ -2468,7 +2478,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             convertExpression.dataType(),
                             false,
                             indexToConversionExpressions,
-                            fa.field().getTimeSeriesFieldType()
+                            fa.field().getTimeSeriesFieldType(),
+                            null
                         );
                         return createIfDoesNotAlreadyExist(fa, multiTypeEsField, unionFieldAttributes);
                     }
@@ -2511,7 +2522,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static MultiTypeEsField resolvedMultiTypeEsField(
             FieldAttribute fa,
-            HashMap<TypeResolutionKey, Expression> typeResolutions
+            HashMap<TypeResolutionKey, Expression> typeResolutions,
+            @Nullable Expression potentiallyUnmappedConversion
         ) {
             Map<String, Expression> typesToConversionExpressions = new HashMap<>();
             InvalidMappedField imf = (InvalidMappedField) fa.field();
@@ -2522,7 +2534,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     typesToConversionExpressions.put(typeName, typeResolutions.get(key));
                 }
             });
-            return MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions);
+            return MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions)
+                .withPotentiallyUnmappedExpression(potentiallyUnmappedConversion);
         }
 
         private static boolean canConvertOriginalTypes(MultiTypeEsField multiTypeEsField, Set<DataType> supportedTypes) {
@@ -2632,7 +2645,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                         var convert = new ToDateNanos(f.source(), f, context.configuration());
                         imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions));
-                        var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions);
+                        var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions, null);
                         return new FieldAttribute(
                             f.source(),
                             f.parentName(),

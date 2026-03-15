@@ -240,6 +240,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
     }
 
     static String expectedTypesAsString(Set<DataType> dataTypes) {
-        return String.join(", ", dataTypes.stream().map(dt -> dt.name().toLowerCase(Locale.ROOT)).toList());
+        // FIXME(gal, NOCOMMIT) Extract this to a separate PR.
+        return String.join(", ", dataTypes.stream().map(dt -> dt.name().toLowerCase(Locale.ROOT)).sorted().toList());
     }
 }

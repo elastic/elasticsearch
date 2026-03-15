@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 143693
+summary: Type conflict resolution in unmapped-fields load
+type: feature

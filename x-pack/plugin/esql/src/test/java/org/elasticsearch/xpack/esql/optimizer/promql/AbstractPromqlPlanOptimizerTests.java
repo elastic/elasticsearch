@@ -31,7 +31,6 @@ import org.junit.BeforeClass;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
-import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
@@ -54,7 +53,7 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
     public static void initPromql() {
         var timeSeriesMapping = loadMapping("k8s-mappings.json");
         var timeSeriesIndex = IndexResolution.valid(
-            new EsIndex("k8s", timeSeriesMapping, Map.of("k8s", IndexMode.TIME_SERIES), Map.of(), Map.of(), Set.of())
+            new EsIndex("k8s", timeSeriesMapping, Map.of("k8s", IndexMode.TIME_SERIES), Map.of(), Map.of(), Map.of())
         );
         tsAnalyzer = new Analyzer(
             new AnalyzerContext(

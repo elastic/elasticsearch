@@ -23,7 +23,9 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ExecutionException;
 
@@ -31,6 +33,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
@@ -39,6 +42,13 @@ public class SearchShardsIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
+    }
+
+    private static void assertGroupsSortedByShardId(Collection<SearchShardsGroup> groups) {
+        List<SearchShardsGroup> list = new ArrayList<>(groups);
+        for (int i = 1; i < list.size(); i++) {
+            assertThat(list.get(i).shardId().compareTo(list.get(i - 1).shardId()), greaterThanOrEqualTo(0));
+        }
     }
 
     public void testBasic() {
@@ -88,7 +98,6 @@ public class SearchShardsIT extends ESIntegTestCase {
             }
             assertThat(skipped, equalTo(indicesWithoutData));
         }
-        // Match all
         {
             MatchAllQueryBuilder matchAll = new MatchAllQueryBuilder();
             var request = new SearchShardsRequest(
@@ -105,6 +114,7 @@ public class SearchShardsIT extends ESIntegTestCase {
             for (SearchShardsGroup g : resp.getGroups()) {
                 assertFalse(g.skipped());
             }
+            assertGroupsSortedByShardId(resp.getGroups());
         }
     }
 
@@ -145,6 +155,7 @@ public class SearchShardsIT extends ESIntegTestCase {
                 assertThat(searchShardsResponse.getGroups(), hasSize(searchResponse.getTotalShards()));
                 long skippedShards = searchShardsResponse.getGroups().stream().filter(SearchShardsGroup::skipped).count();
                 assertThat(skippedShards, equalTo((long) searchResponse.getSkippedShards()));
+                assertGroupsSortedByShardId(searchShardsResponse.getGroups());
             });
         }
     }

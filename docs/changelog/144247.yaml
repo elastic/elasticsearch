@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 143945
+pr: 144247
+summary: Making use of sort optimization written from search in search shards
+type: enhancement

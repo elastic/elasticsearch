@@ -39,12 +39,29 @@ public class ParameterizedQuery extends LeafPlan {
     private final List<MatchConfig> matchFields;
     @Nullable
     private final Expression joinOnConditions;
+    /**
+     * Runtime-only flag set by the {@link org.elasticsearch.xpack.esql.optimizer.LookupLogicalOptimizer}
+     * when a filter folds to {@code false}/{@code null}. Not serialized — it is computed locally on the
+     * lookup node after deserialization.
+     */
+    private final boolean emptyResult;
 
     public ParameterizedQuery(Source source, List<Attribute> output, List<MatchConfig> matchFields, @Nullable Expression joinOnConditions) {
+        this(source, output, matchFields, joinOnConditions, false);
+    }
+
+    public ParameterizedQuery(
+        Source source,
+        List<Attribute> output,
+        List<MatchConfig> matchFields,
+        @Nullable Expression joinOnConditions,
+        boolean emptyResult
+    ) {
         super(source);
         this.output = output;
         this.matchFields = matchFields;
         this.joinOnConditions = joinOnConditions;
+        this.emptyResult = emptyResult;
     }
 
     private static ParameterizedQuery readFrom(StreamInput in) throws IOException {
@@ -69,6 +86,10 @@ public class ParameterizedQuery extends LeafPlan {
         return joinOnConditions;
     }
 
+    public boolean emptyResult() {
+        return emptyResult;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
@@ -89,12 +110,12 @@ public class ParameterizedQuery extends LeafPlan {
 
     @Override
     protected NodeInfo<ParameterizedQuery> info() {
-        return NodeInfo.create(this, ParameterizedQuery::new, output, matchFields, joinOnConditions);
+        return NodeInfo.create(this, ParameterizedQuery::new, output, matchFields, joinOnConditions, emptyResult);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(output, matchFields, joinOnConditions);
+        return Objects.hash(output, matchFields, joinOnConditions, emptyResult);
     }
 
     @Override
@@ -108,6 +129,7 @@ public class ParameterizedQuery extends LeafPlan {
         ParameterizedQuery other = (ParameterizedQuery) obj;
         return Objects.equals(output, other.output)
             && Objects.equals(matchFields, other.matchFields)
-            && Objects.equals(joinOnConditions, other.joinOnConditions);
+            && Objects.equals(joinOnConditions, other.joinOnConditions)
+            && emptyResult == other.emptyResult;
     }
 }

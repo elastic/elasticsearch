@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -31,6 +32,7 @@ public class ApplyWindowFilter extends OptimizerRules.ParameterizedOptimizerRule
     @Override
     protected LogicalPlan rule(TimeSeriesAggregate aggregate, LogicalOptimizerContext context) {
         List<NamedExpression> aggs = new ArrayList<>();
+        boolean modified = false;
         for (var agg : aggregate.aggregates()) {
             if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af && af.hasWindow()) {
                 if (af.window().foldable() && af.window().fold(FoldContext.small()) instanceof Duration windowDuration) {
@@ -39,30 +41,33 @@ public class ApplyWindowFilter extends OptimizerRules.ParameterizedOptimizerRule
                         && bucket.foldable()
                         && bucket.fold(FoldContext.small()) instanceof Duration bucketDuration
                         && bucketDuration.compareTo(windowDuration) > 0) {
-                        AggregateFunction newAggregateFunction;
-                        if (af.hasFilter()) {
-                            newAggregateFunction = af.withFilter(
-                                Predicates.combineAnd(
-                                    List.of(
-                                        af.filter(),
-                                        new WindowFilter(af.source(), af.window(), aggregate.timeBucket(), aggregate.timestamp())
-                                    )
-                                )
-                            );
-                        } else {
-                            newAggregateFunction = af.withFilter(
-                                new WindowFilter(af.source(), af.window(), aggregate.timeBucket(), aggregate.timestamp())
-                            );
-                        }
                         aggs.add(
-                            new Alias(alias.source(), alias.name(), newAggregateFunction.withWindow(AggregateFunction.NO_WINDOW), agg.id())
+                            new Alias(
+                                alias.source(),
+                                alias.name(),
+                                replaceWindowWithFilter(af, aggregate.timeBucket(), aggregate.timestamp()),
+                                agg.id()
+                            )
                         );
+                        modified = true;
                         continue;
                     }
                 }
             }
             aggs.add(agg);
         }
-        return aggregate.with(aggregate.child(), aggregate.groupings(), aggs);
+        return modified ? aggregate.with(aggregate.child(), aggregate.groupings(), aggs) : aggregate;
+    }
+
+    private static AggregateFunction replaceWindowWithFilter(AggregateFunction af, Bucket bucket, Expression timestamp) {
+        AggregateFunction newAggregateFunction;
+        if (af.hasFilter()) {
+            newAggregateFunction = af.withFilter(
+                Predicates.combineAnd(List.of(af.filter(), new WindowFilter(af.source(), af.window(), bucket, timestamp)))
+            );
+        } else {
+            newAggregateFunction = af.withFilter(new WindowFilter(af.source(), af.window(), bucket, timestamp));
+        }
+        return newAggregateFunction.withWindow(AggregateFunction.NO_WINDOW);
     }
 }

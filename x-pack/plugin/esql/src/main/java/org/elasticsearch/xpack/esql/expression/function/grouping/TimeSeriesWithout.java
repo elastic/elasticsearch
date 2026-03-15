@@ -49,14 +49,14 @@ public class TimeSeriesWithout extends GroupingFunction.NonEvaluatableGroupingFu
     /**
      * Returns the canonical grouping expression for the {@code _timeseries} metadata column.
      */
-    public Alias asTimeSeriesAttribute() {
-        return asTimeSeriesAttribute(null);
+    public Alias toAttribute() {
+        return toAttribute(null);
     }
 
     /**
      * Returns the canonical grouping expression for the {@code _timeseries} metadata column.
      */
-    public Alias asTimeSeriesAttribute(@Nullable NameId id) {
+    public Alias toAttribute(@Nullable NameId id) {
         return new Alias(source(), MetadataAttribute.TIMESERIES, this, id);
     }
 

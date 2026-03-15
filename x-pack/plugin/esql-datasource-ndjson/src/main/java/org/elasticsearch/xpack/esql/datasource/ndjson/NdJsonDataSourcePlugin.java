@@ -32,6 +32,6 @@ public class NdJsonDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-        return Map.of("ndjson", (s, blockFactory) -> new NdJsonFormatReader(blockFactory));
+        return Map.of("ndjson", NdJsonFormatReader::new);
     }
 }

@@ -25,6 +25,7 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -34,36 +35,42 @@ import java.util.Map;
  * Infers schema from NDJSON files by reading the first N lines.
  * - Flattens nested objects using dot notation
  * - Detects arrays as multi-value fields
- * - Marks fields as nullable when null values are encountered
+ * - Marks fields as nullable when null or missing values are encountered
  *
- * Types: KEYWORD, LONG, DOUBLE, BOOLEAN, NULL. Number types are large to be on the safe side if the sample
- * only shows small values.
- *
- * Missing:
- * - Support for union types (e.g., string or integer)
- * - Support for nested arrays (does it exist in ESQL?)
- * - Support for complex types (e.g., date, ip)
+ * Types: KEYWORD, INTEGER, LONG, DOUBLE, BOOLEAN.
  */
 public class NdJsonSchemaInferrer {
 
-    private static final Logger logger = LogManager.getLogger(NdJsonSchemaInferrer.class);
-    private static final int DEFAULT_SAMPLE_SIZE = 100;
+    // Known issue: missing field in structures in nested arrays will not be marked as nullable.
+    // In this example, "events.page" will not be nullable:
+    // {"events": [{"type": "click", "page": 1}, {"type": "view", "page": 2}]}
+    // {"events": [{"type": "click", "page": 3}, {"type": "view"}]}
+    //
+    // Accurately detecting this would require a more costly null/missing algorithm, and nulls are
+    // not supported in arrays anyway.
 
-    /**
-     * Infers schema from an NDJSON input stream.
-     */
-    public static List<Attribute> inferSchema(InputStream inputStream) throws IOException {
-        return inferSchema(inputStream, DEFAULT_SAMPLE_SIZE);
-    }
+    private static final Logger logger = LogManager.getLogger(NdJsonSchemaInferrer.class);
+
+    private static final EnumSet<DataType> NUMBER_TYPES = EnumSet.of(DataType.DOUBLE, DataType.LONG, DataType.INTEGER);
+
+    // Fields that we've actually seen in the current json document
+    private final BitSet fieldsSeen = new BitSet();
+    private final List<FieldInfo> fields = new ArrayList<>();
+    private int lineCount = 0;
+
+    private NdJsonSchemaInferrer() {}
 
     /**
      * Infers schema from an NDJSON input stream, reading up to maxLines.
      */
     public static List<Attribute> inferSchema(InputStream inputStream, int maxLines) throws IOException {
-        FieldInfo root = new FieldInfo();
+        return new NdJsonSchemaInferrer().doInferSchema(inputStream, maxLines);
+    }
+
+    private List<Attribute> doInferSchema(InputStream inputStream, int maxLines) throws IOException {
+        FieldInfo root = new FieldInfo(null);
         JsonParser parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
         try {
-            int lineCount = 0;
             while (lineCount < maxLines) {
                 try {
                     if (parser.nextToken() == null) {
@@ -84,6 +91,15 @@ public class NdJsonSchemaInferrer {
                     inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
                 }
+
+                // Mark fields we haven't seen in this round as nullable
+                for (int i = 0; i < fields.size(); i++) {
+                    if (fieldsSeen.get(i) == false) {
+                        fields.get(i).nullable = true;
+                    }
+                }
+                fieldsSeen.clear();
+
             }
         } finally {
             parser.close();
@@ -138,7 +154,7 @@ public class NdJsonSchemaInferrer {
             } // conservative size
             case VALUE_NUMBER_FLOAT -> field.addType(DataType.DOUBLE); // conservative size
             case VALUE_TRUE, VALUE_FALSE -> field.addType(DataType.BOOLEAN);
-            case VALUE_NULL -> field.addType(DataType.NULL);
+            case VALUE_NULL -> field.nullable = true;
             // Ignore all other events
         }
     }
@@ -156,7 +172,7 @@ public class NdJsonSchemaInferrer {
             DataType dataType = info.resolveType();
             if (dataType != DataType.UNSUPPORTED) {
                 // Unsupported is used for nested object properties
-                attributes.add(attribute(name, dataType, info.types.contains(DataType.NULL)));
+                attributes.add(attribute(name, dataType, info.nullable));
             }
 
             if (info.children != null) {
@@ -181,21 +197,35 @@ public class NdJsonSchemaInferrer {
     /**
      * Field type information collected during schema inference.
      */
-    private static class FieldInfo {
+    private class FieldInfo {
         final EnumSet<DataType> types = EnumSet.noneOf(DataType.class);
         boolean isArray = false;
+        boolean nullable = false;
         Map<String, FieldInfo> children = null;
+        final int idx;
+        final String name;
+
+        FieldInfo(String name) {
+            this.name = name;
+            this.idx = fields.size();
+            fields.add(this);
+            if (lineCount > 0) {
+                // Field appearing after the first lines.
+                nullable = true;
+            }
+        }
 
         FieldInfo getChild(String name) {
             // TODO: limit depth
             if (children == null) {
                 children = new LinkedHashMap<>();
             }
-            return children.computeIfAbsent(name, (_name) -> new FieldInfo());
+            return children.computeIfAbsent(name, (n) -> new FieldInfo(n));
         }
 
         void addType(DataType type) {
             types.add(type);
+            fieldsSeen.set(idx);
         }
 
         DataType resolveType() {
@@ -203,27 +233,41 @@ public class NdJsonSchemaInferrer {
                 // Can happen with parent and always-empty array
                 return DataType.UNSUPPORTED;
             }
+
+            // Note: DATETIME and BOOLEAN will only be selected if they're the only type
             if (types.size() == 1) {
                 return types.iterator().next();
             }
-            // Multiple types - for now, use the widest type
-            // TODO: Create MultiTypeEsField for proper union type support
-            if (types.contains(DataType.DATETIME)) {
-                return DataType.DATETIME;
-            }
+
+            // Multiple types - use the widest type
+            // Nullability is handled separately and not part of type resolution
             if (types.contains(DataType.KEYWORD)) {
                 return DataType.KEYWORD;
             }
-            if (types.contains(DataType.DOUBLE)) {
-                return DataType.DOUBLE;
+
+            if (hasOnly(types, NUMBER_TYPES)) {
+                if (types.contains(DataType.DOUBLE)) {
+                    return DataType.DOUBLE;
+                }
+                if (types.contains(DataType.LONG)) {
+                    return DataType.LONG;
+                }
+                if (types.contains(DataType.INTEGER)) {
+                    return DataType.INTEGER;
+                }
             }
-            if (types.contains(DataType.LONG)) {
-                return DataType.LONG;
-            }
-            if (types.contains(DataType.INTEGER)) {
-                return DataType.INTEGER;
-            }
-            return types.iterator().next();
+
+            // Widest type
+            return DataType.KEYWORD;
         }
+    }
+
+    private static <E extends Enum<E>> boolean hasOnly(EnumSet<E> values, EnumSet<E> from) {
+        if (values.isEmpty()) {
+            return false;
+        }
+        var copy = EnumSet.copyOf(values);
+        copy.removeAll(from);
+        return copy.isEmpty();
     }
 }

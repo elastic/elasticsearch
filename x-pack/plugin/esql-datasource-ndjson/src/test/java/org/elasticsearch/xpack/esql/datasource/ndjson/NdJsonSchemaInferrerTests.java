@@ -57,7 +57,7 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
         check("""
             {"user": {"name": "John", "age": 30, "long_value": 12345678901234}}
             {"user": {"name": "Jane", "age": 25}}
-            """, field("user.name", DataType.KEYWORD), field("user.age", DataType.INTEGER), field("user.long_value", DataType.LONG));
+            """, field("user.name", DataType.KEYWORD), field("user.age", DataType.INTEGER), field("user.long_value", DataType.LONG, true));
     }
 
     /**
@@ -106,13 +106,14 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
     }
 
     /**
-     * Test case: Ensures correct schema inference when all fields are null.
+     * Test case: Ensures correct schema inference when all values of a field are null.
      */
     public void testInferSchemaForNullFields() throws IOException {
+        // "age" field ignored as it has no non-null value.
         check("""
-            {"name": null, "age": null}
-            {"name": null, "age": null}
-            """, field("name", DataType.NULL, true), field("age", DataType.NULL, true));
+            {"name": "John", "age": null}
+            {"name": "Jane", "age": null}
+            """, field("name", DataType.KEYWORD));
     }
 
     /**
@@ -139,7 +140,7 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
 
     private void check(String ndjson, Attribute... expected) throws IOException {
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8))) {
-            List<Attribute> result = NdJsonSchemaInferrer.inferSchema(inputStream);
+            List<Attribute> result = NdJsonSchemaInferrer.inferSchema(inputStream, 100);
 
             assertEquals(expected.length, result.size());
             for (int i = 0; i < expected.length; i++) {

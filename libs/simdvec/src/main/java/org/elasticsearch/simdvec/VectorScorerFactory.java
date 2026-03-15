@@ -44,6 +44,21 @@ public interface VectorScorerFactory {
     );
 
     /**
+     * Returns an optional containing a float vector score supplier for array-backed vectors,
+     * or an empty optional if a scorer is not supported.
+     *
+     * @param similarityType the similarity type
+     * @param values the random access vector values
+     * @return an optional containing the vector scorer supplier, or empty
+     */
+    default Optional<RandomVectorScorerSupplier> getFloatVectorScorerSupplier(
+        VectorSimilarityType similarityType,
+        FloatVectorValues values
+    ) {
+        return Optional.empty();
+    }
+
+    /**
      * Returns an optional containing a byte vector score supplier
      * for the given parameters, or an empty optional if a scorer is not supported.
      *
@@ -59,6 +74,18 @@ public interface VectorScorerFactory {
         IndexInput input,
         ByteVectorValues values
     );
+
+    /**
+     * Returns an optional containing a byte vector score supplier for array-backed vectors,
+     * or an empty optional if a scorer is not supported.
+     *
+     * @param similarityType the similarity type
+     * @param values the random access vector values
+     * @return an optional containing the vector scorer supplier, or empty
+     */
+    default Optional<RandomVectorScorerSupplier> getByteVectorScorerSupplier(VectorSimilarityType similarityType, ByteVectorValues values) {
+        return Optional.empty();
+    }
 
     /**
      * Returns an optional containing a float vector scorer for

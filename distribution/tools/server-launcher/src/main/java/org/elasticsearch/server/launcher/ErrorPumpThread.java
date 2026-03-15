@@ -7,49 +7,49 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.server.cli;
+package org.elasticsearch.server.launcher;
 
-import org.elasticsearch.bootstrap.BootstrapInfo;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.Terminal.Verbosity;
-import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.server.launcher.common.ProcessUtil;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Predicate;
-
-import static org.elasticsearch.bootstrap.BootstrapInfo.SERVER_READY_MARKER;
-import static org.elasticsearch.server.cli.ProcessUtil.nonInterruptibleVoid;
+import java.util.regex.Pattern;
 
 /**
- * A thread which reads stderr of the jvm process and writes it to this process' stderr.
+ * A thread which reads stderr of the server JVM process and writes it to this process' stderr.
  *
  * <p> The thread watches for a special state marker from the process. The ascii character
- * {@link BootstrapInfo#SERVER_READY_MARKER} signals the server is ready and the cli may
- * detach if daemonizing. All other messages are passed through to stderr.
+ * {@code \u0018} signals the server is ready and the launcher may detach if daemonizing.
+ * All other messages are passed through to stderr.
  */
-class ErrorPumpThread extends Thread implements Closeable {
+public class ErrorPumpThread extends Thread implements Closeable {
+    /** Messages / lines predicate to filter from the output. */
+    private static final Predicate<String> filter = Pattern.compile(
+        "WARNING: Using incubator modules: jdk\\.incubator\\.vector"
+            // requires log4j2 upgrade, see https://github.com/elastic/elasticsearch/issues/132035
+            + "|WARNING: Use of the three-letter time zone ID .* is deprecated and it will be removed in a future release"
+    ).asMatchPredicate();
+
+    static final char SERVER_READY_MARKER = '\u0018';
+
     private final BufferedReader reader;
-    private final Terminal terminal;
+    private final PrintStream errOutput;
 
-    // a latch which changes state when the server is ready or has had a bootstrap error
     private final CountDownLatch readyOrDead = new CountDownLatch(1);
-
-    // a flag denoting whether the ready marker has been received by the server process
     private volatile boolean ready;
-
-    // an unexpected io failure that occurred while pumping stderr
     private volatile IOException ioFailure;
 
-    ErrorPumpThread(Terminal terminal, InputStream errInput) {
-        super("server-cli[stderr_pump]");
+    public ErrorPumpThread(InputStream errInput, PrintStream errOutput) {
+        super("server-launcher[stderr_pump]");
         this.reader = new BufferedReader(new InputStreamReader(errInput, StandardCharsets.UTF_8));
-        this.terminal = terminal;
+        this.errOutput = errOutput;
     }
 
     private void checkForIoFailure() throws IOException {
@@ -69,11 +69,11 @@ class ErrorPumpThread extends Thread implements Closeable {
     /**
      * Waits until the server ready marker has been received.
      *
-     * {@code true} if successful, {@code false} if a startup error occurred
+     * @return {@code true} if successful, {@code false} if a startup error occurred
      * @throws IOException if there was a problem reading from stderr of the process
      */
-    boolean waitUntilReady() throws IOException {
-        nonInterruptibleVoid(readyOrDead::await);
+    public boolean waitUntilReady() throws IOException {
+        ProcessUtil.nonInterruptibleVoid(readyOrDead::await);
         checkForIoFailure();
         return ready;
     }
@@ -81,16 +81,9 @@ class ErrorPumpThread extends Thread implements Closeable {
     /**
      * Waits for the stderr pump thread to exit.
      */
-    void drain() {
-        nonInterruptibleVoid(this::join);
+    public void drain() {
+        ProcessUtil.nonInterruptibleVoid(this::join);
     }
-
-    /** Messages / lines predicate to filter from the output. */
-    private static Predicate<String> filter = Regex.simpleMatcher(
-        "WARNING: Using incubator modules: jdk.incubator.vector",
-        // requires log4j2 upgrade, see https://github.com/elastic/elasticsearch/issues/132035
-        "WARNING: Use of the three-letter time zone ID * is deprecated and it will be removed in a future release"
-    );
 
     @Override
     public void run() {
@@ -101,13 +94,13 @@ class ErrorPumpThread extends Thread implements Closeable {
                     ready = true;
                     readyOrDead.countDown();
                 } else if (filter.test(line) == false) {
-                    terminal.errorPrintln(Verbosity.SILENT, line, false);
+                    errOutput.println(line);
                 }
             }
         } catch (IOException e) {
             ioFailure = e;
         } finally {
-            terminal.flush();
+            errOutput.flush();
             readyOrDead.countDown();
         }
     }

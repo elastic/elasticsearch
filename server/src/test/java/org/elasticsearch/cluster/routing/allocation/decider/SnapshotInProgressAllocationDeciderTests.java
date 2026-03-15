@@ -38,7 +38,7 @@ import java.util.Map;
 
 public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
 
-    private final SnapshotInProgressAllocationDecider decider = new SnapshotInProgressAllocationDecider();
+    private final SnapshotInProgressAllocationDecider decider = new SnapshotInProgressAllocationDecider(() -> false);
     private final Index index = new Index(randomIdentifier(), randomUUID());
     private final ShardId shardId = new ShardId(index, 0);
     private final String repositoryName = randomIdentifier();
@@ -200,6 +200,27 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
                 + "]",
             decision.getExplanation()
         );
+    }
+
+    public void testYesWhenSnapshotDecoupledFromShardLifecycle() {
+        final var decoupledDecider = new SnapshotInProgressAllocationDecider(() -> true);
+        final var routingAllocation = new RoutingAllocation(
+            new AllocationDeciders(List.of(decoupledDecider)),
+            makeClusterState(shardId, SnapshotsInProgress.ShardState.INIT),
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            randomNonNegativeLong()
+        );
+        routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
+
+        final var decision = decoupledDecider.canAllocate(
+            TestShardRouting.newShardRouting(shardId, nodeId, true, ShardRoutingState.STARTED),
+            null,
+            routingAllocation
+        );
+
+        assertEquals(Decision.Type.YES, decision.type());
+        assertEquals("snapshot is decoupled from shard lifecycle", decision.getExplanation());
     }
 
     public void testYesWhenSnapshotInProgressButShardIsPausedDueToShutdown() {

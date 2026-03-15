@@ -48,10 +48,12 @@ public interface SnapshotShardContextFactory {
     ) throws IOException;
 
     /**
-     * Indicates whether this factory wants to ignore shard close events while a shard snapshot is running.
-     * Defaults to false. It should return false unless the shard snapshot allows the shard to relocate.
+     * Indicates whether the snapshot operation is decoupled from the local shard lifecycle. When {@code true}, the snapshot
+     * does not depend on the shard remaining on the current node, which means shard relocations should not be blocked
+     * by in-progress snapshots and shard close events should not abort running snapshots.
+     * Defaults to {@code false}.
      */
-    default boolean ignoreShardCloseEvent() {
+    default boolean isSnapshotDecoupledFromShardLifecycle() {
         return false;
     }
 }

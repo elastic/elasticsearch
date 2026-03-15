@@ -223,6 +223,10 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         }
     }
 
+    public ThrottledTaskRunner getStartShardSnapshotTaskRunner() {
+        return startShardSnapshotTaskRunner;
+    }
+
     /**
      * The {@link SnapshotShardsService} should be activated for all nodes that contain data.
      * On stateful, since nodes share both indexing and search functionality, this is determined by whether
@@ -253,7 +257,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
 
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
-        if (snapshotShardContextFactory.ignoreShardCloseEvent()) {
+        if (snapshotShardContextFactory.isSnapshotDecoupledFromShardLifecycle()) {
             return;
         }
         // abort any snapshots occurring on the soon-to-be closed shard

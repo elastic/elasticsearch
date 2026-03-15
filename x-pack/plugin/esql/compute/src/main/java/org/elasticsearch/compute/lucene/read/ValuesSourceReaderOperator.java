@@ -195,7 +195,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     private final int docChannel;
 
     /**
-     * Multiplier applied to {@link #lastKnownSourceSize} to pre-reserve memory on the circuit
+     * Multiplier applied to {@link #maxSourceSize} to pre-reserve memory on the circuit
      * breaker before loading {@code _source}. A factor of 3.0 covers the large untracked
      * allocations from source parsing such as the scratch buffer, SourceFilter.filterBytes() and
      * JSON parsing overhead. This is a heuristic and can be adjusted based on observed
@@ -215,7 +215,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      * document in a page. On a 512MB JVM, jumboBytes is ~512KB, so each 5MB text field
      * creates a 1-doc page. Without persisting this, every page starts with 0 reservation.
      */
-    long lastKnownSourceSize;
+    long maxSourceSize;
 
     /**
      * Persistent reservation on the circuit breaker for the expected overhead of _source
@@ -225,6 +225,21 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      * temporaries from concurrent loads can overwhelm the heap.
      */
     private long sourceLoadingReservation;
+
+    /**
+     * The largest total byte size of column-at-a-time blocks observed in a single batch read
+     * across all pages so far. This persists across pages so the pre-reservation can protect
+     * against concurrent large column-at-a-time loads on other drivers.
+     */
+    long maxColumnBatchBytes;
+
+    /**
+     * Persistent reservation on the circuit breaker for the expected peak memory of
+     * column-at-a-time block reads. During a column-at-a-time read, a temporary block is
+     * allocated and then copied into the final builder, so both exist simultaneously.
+     * This reservation accounts for that temporary block overhead.
+     */
+    private long columnBatchReservation;
 
     /**
      * Creates a new extractor
@@ -260,6 +275,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     @Override
     protected ReleasableIterator<Page> receive(Page page) {
         acquireSourceLoadingReservation();
+        acquireColumnBatchReservation();
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
         return appendBlockArrays(page, valuesReader(docVector));
     }
@@ -287,11 +303,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     /**
      * Acquires or increases the persistent source loading reservation on the circuit breaker.
      * Called at the start of each page and after each row load that updates
-     * {@link #lastKnownSourceSize}. If the breaker trips, the exception propagates and
+     * {@link #maxSourceSize}. If the breaker trips, the exception propagates and
      * prevents further loading, limiting concurrent large _source operations.
      */
     void acquireSourceLoadingReservation() {
-        long needed = (long) (lastKnownSourceSize * sourceReservationFactor);
+        long needed = (long) (maxSourceSize * sourceReservationFactor);
         long additional = needed - sourceLoadingReservation;
         if (additional > 0) {
             driverContext.blockFactory().adjustBreaker(additional);
@@ -308,11 +324,39 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      */
     void trackSourceBytesAndRelease(BlockLoaderStoredFieldsFromLeafLoader storedFields) {
         long sourceBytes = storedFields.lastSourceBytesSize();
-        if (sourceBytes > lastKnownSourceSize) {
-            lastKnownSourceSize = sourceBytes;
+        if (sourceBytes > maxSourceSize) {
+            maxSourceSize = sourceBytes;
             acquireSourceLoadingReservation();
         }
         storedFields.releaseParsedSource();
+    }
+
+    /**
+     * Acquires or increases the persistent column-at-a-time batch reservation on the circuit
+     * breaker. Called at the start of each page. If the breaker trips, the exception propagates
+     * and prevents further loading.
+     */
+    void acquireColumnBatchReservation() {
+        long needed = maxColumnBatchBytes;
+        long additional = needed - columnBatchReservation;
+        if (additional > 0) {
+            driverContext.blockFactory().adjustBreaker(additional);
+            columnBatchReservation = needed;
+            if (log.isDebugEnabled()) {
+                log.debug("reserve {}/{} bytes on circuit breaker for column batch loading", additional, columnBatchReservation);
+            }
+        }
+    }
+
+    /**
+     * Updates {@link #maxColumnBatchBytes} if the given batch size exceeds the previous
+     * maximum, then acquires an increased reservation if needed.
+     */
+    void trackColumnBatchBytes(long batchBytes) {
+        if (batchBytes > maxColumnBatchBytes) {
+            maxColumnBatchBytes = batchBytes;
+            acquireColumnBatchReservation();
+        }
     }
 
     void positionFieldWork(int shard, int segment, int firstDoc) {
@@ -374,10 +418,17 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     public void close() {
         if (sourceLoadingReservation > 0) {
             driverContext.blockFactory().adjustBreaker(-sourceLoadingReservation);
-            sourceLoadingReservation = 0;
             if (log.isDebugEnabled()) {
                 log.debug("release {} bytes from circuit breaker after source loading", sourceLoadingReservation);
             }
+            sourceLoadingReservation = 0;
+        }
+        if (columnBatchReservation > 0) {
+            driverContext.blockFactory().adjustBreaker(-columnBatchReservation);
+            if (log.isDebugEnabled()) {
+                log.debug("release {} bytes from circuit breaker after column batch loading", columnBatchReservation);
+            }
+            columnBatchReservation = 0;
         }
         Releasables.close(super::close, converterEvaluators, Releasables.wrap(fields));
     }

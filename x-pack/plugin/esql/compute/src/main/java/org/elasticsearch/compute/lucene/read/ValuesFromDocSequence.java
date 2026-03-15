@@ -102,13 +102,16 @@ class ValuesFromDocSequence extends ValuesReader {
             }
             ValuesReaderDocs readerDocs = new ValuesReaderDocs(docs);
             readerDocs.setCount(end);
+            long columnBatchBytes = 0;
             for (CurrentWork c : columnAtATime) {
                 assert c.rowStride == null;
                 try (Block read = (Block) c.columnAtATime.read(blockFactory, readerDocs, start, c.field.info.nullsFiltered())) {
                     assert read.getPositionCount() == end - start : read.getPositionCount() + " == " + end + " - " + start + " " + read;
+                    columnBatchBytes += read.ramBytesUsed();
                     c.builder.copyFrom(read, 0, read.getPositionCount());
                 }
             }
+            operator.trackColumnBatchBytes(columnBatchBytes);
         }
 
         /**

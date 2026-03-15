@@ -1,0 +1,6 @@
+area: Transform
+issues:
+ - 114514
+pr: 143146
+summary: Exclude clusters in license check
+type: bug

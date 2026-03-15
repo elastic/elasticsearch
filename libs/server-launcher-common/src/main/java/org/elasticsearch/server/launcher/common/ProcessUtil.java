@@ -7,17 +7,20 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.server.cli;
+package org.elasticsearch.server.launcher.common;
 
-class ProcessUtil {
+/**
+ * Utility methods for dealing with interruptible operations in a no-interruption-policy context.
+ */
+public class ProcessUtil {
 
-    private ProcessUtil() { /* no instance*/ }
+    private ProcessUtil() { /* no instance */ }
 
-    interface Interruptible<T> {
+    public interface Interruptible<T> {
         T run() throws InterruptedException;
     }
 
-    interface InterruptibleVoid {
+    public interface InterruptibleVoid {
         void run() throws InterruptedException;
     }
 
@@ -26,7 +29,7 @@ class ProcessUtil {
      *
      * This is useful for threads which expect a no interruption policy
      */
-    static <T> T nonInterruptible(Interruptible<T> interruptible) {
+    public static <T> T nonInterruptible(Interruptible<T> interruptible) {
         try {
             return interruptible.run();
         } catch (InterruptedException e) {
@@ -35,7 +38,7 @@ class ProcessUtil {
         }
     }
 
-    static void nonInterruptibleVoid(InterruptibleVoid interruptible) {
+    public static void nonInterruptibleVoid(InterruptibleVoid interruptible) {
         nonInterruptible(() -> {
             interruptible.run();
             return null;

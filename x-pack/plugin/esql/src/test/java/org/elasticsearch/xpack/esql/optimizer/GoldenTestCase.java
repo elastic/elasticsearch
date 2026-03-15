@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.esql.CsvTests;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
-import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -59,6 +59,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -177,6 +178,15 @@ public abstract class GoldenTestCase extends ESTestCase {
         public void run() {
             runGoldenTest(esqlQuery, stages, searchStats, transportVersion, nestedPath);
         }
+
+        public Optional<Throwable> tryRun() {
+            try {
+                run();
+                return Optional.empty();
+            } catch (Throwable e) {
+                return Optional.of(e);
+            }
+        }
     }
 
     private record Test(
@@ -217,7 +227,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                     TEST_FUNCTION_REGISTRY,
                     CsvTests.loadIndexResolution(CsvTests.testDatasets(parsedPlan)),
                     defaultLookupResolution(),
-                    new EnrichResolution(),
+                    AnalyzerTestUtils.defaultEnrichResolution(),
                     InferenceResolution.EMPTY,
                     transportVersion,
                     statement.setting(UNMAPPED_FIELDS)

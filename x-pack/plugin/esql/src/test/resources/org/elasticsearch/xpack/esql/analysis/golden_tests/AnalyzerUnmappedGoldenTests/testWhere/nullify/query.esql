@@ -1,0 +1,2 @@
+SET unmapped_fields="nullify"; FROM employees
+| WHERE does_not_exist::LONG > 0

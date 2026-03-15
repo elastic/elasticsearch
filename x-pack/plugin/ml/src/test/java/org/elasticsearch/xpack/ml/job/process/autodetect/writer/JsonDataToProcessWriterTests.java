@@ -423,4 +423,142 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
         }
     }
 
+    public void testWrite_GivenOversizedByFieldValue_ThenTruncated() throws Exception {
+        Detector detector = new Detector.Builder("count", null).setByFieldName("by_field").build();
+        analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector)).build();
+
+        String oversizedValue = randomAlphaOfLength(77000);
+        String input = "{\"time\":\"1\", \"by_field\":\"" + oversizedValue + "\"}";
+        InputStream inputStream = createInputStream(input);
+        JsonDataToProcessWriter writer = createWriter();
+        writer.writeHeader();
+        writer.write(inputStream, null, XContentType.JSON, (r, e) -> {});
+
+        List<String[]> expectedRecords = new ArrayList<>();
+        expectedRecords.add(new String[] { "time", "by_field", "." });
+        expectedRecords.add(new String[] { "1", oversizedValue.substring(0, AnalysisConfig.MAX_FIELD_VALUE_LENGTH), "" });
+        assertWrittenRecordsEqualTo(expectedRecords);
+    }
+
+    public void testWrite_GivenOversizedInfluencerFieldValue_ThenTruncated() throws Exception {
+        Detector detector = new Detector.Builder("count", null).build();
+        analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector)).setInfluencers(
+            Collections.singletonList("influencer_field")
+        ).build();
+
+        String oversizedValue = randomAlphaOfLength(77000);
+        String input = "{\"time\":\"1\", \"influencer_field\":\"" + oversizedValue + "\"}";
+        InputStream inputStream = createInputStream(input);
+        JsonDataToProcessWriter writer = createWriter();
+        writer.writeHeader();
+        writer.write(inputStream, null, XContentType.JSON, (r, e) -> {});
+
+        List<String[]> expectedRecords = new ArrayList<>();
+        expectedRecords.add(new String[] { "time", "influencer_field", "." });
+        expectedRecords.add(new String[] { "1", oversizedValue.substring(0, AnalysisConfig.MAX_FIELD_VALUE_LENGTH), "" });
+        assertWrittenRecordsEqualTo(expectedRecords);
+    }
+
+    public void testWrite_GivenOversizedPartitionFieldValue_ThenTruncated() throws Exception {
+        Detector detector = new Detector.Builder("count", null).setPartitionFieldName("partition_field").build();
+        analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector)).build();
+
+        String oversizedValue = randomAlphaOfLength(77000);
+        String input = "{\"time\":\"1\", \"partition_field\":\"" + oversizedValue + "\"}";
+        InputStream inputStream = createInputStream(input);
+        JsonDataToProcessWriter writer = createWriter();
+        writer.writeHeader();
+        writer.write(inputStream, null, XContentType.JSON, (r, e) -> {});
+
+        List<String[]> expectedRecords = new ArrayList<>();
+        expectedRecords.add(new String[] { "time", "partition_field", "." });
+        expectedRecords.add(new String[] { "1", oversizedValue.substring(0, AnalysisConfig.MAX_FIELD_VALUE_LENGTH), "" });
+        assertWrittenRecordsEqualTo(expectedRecords);
+    }
+
+    public void testWrite_GivenOversizedOverFieldValue_ThenTruncated() throws Exception {
+        Detector detector = new Detector.Builder("count", null).setOverFieldName("over_field").build();
+        analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector)).build();
+
+        String oversizedValue = randomAlphaOfLength(77000);
+        String input = "{\"time\":\"1\", \"over_field\":\"" + oversizedValue + "\"}";
+        InputStream inputStream = createInputStream(input);
+        JsonDataToProcessWriter writer = createWriter();
+        writer.writeHeader();
+        writer.write(inputStream, null, XContentType.JSON, (r, e) -> {});
+
+        List<String[]> expectedRecords = new ArrayList<>();
+        expectedRecords.add(new String[] { "time", "over_field", "." });
+        expectedRecords.add(new String[] { "1", oversizedValue.substring(0, AnalysisConfig.MAX_FIELD_VALUE_LENGTH), "" });
+        assertWrittenRecordsEqualTo(expectedRecords);
+    }
+
+    public void testWrite_GivenNormalSizedFieldValues_ThenNotTruncated() throws Exception {
+        Detector detector = new Detector.Builder("count", null).setByFieldName("by_field").setPartitionFieldName("partition_field").build();
+        analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector)).setInfluencers(
+            Collections.singletonList("influencer_field")
+        ).build();
+
+        String normalByValue = randomAlphaOfLengthBetween(1, 255);
+        String normalPartitionValue = randomAlphaOfLengthBetween(1, 255);
+        String normalInfluencerValue = randomAlphaOfLengthBetween(1, 255);
+        String input = "{\"time\":\"1\", \"by_field\":\""
+            + normalByValue
+            + "\", \"partition_field\":\""
+            + normalPartitionValue
+            + "\", \"influencer_field\":\""
+            + normalInfluencerValue
+            + "\"}";
+        InputStream inputStream = createInputStream(input);
+        JsonDataToProcessWriter writer = createWriter();
+        writer.writeHeader();
+        writer.write(inputStream, null, XContentType.JSON, (r, e) -> {});
+
+        List<String[]> expectedRecords = new ArrayList<>();
+        expectedRecords.add(new String[] { "time", "by_field", "influencer_field", "partition_field", "." });
+        expectedRecords.add(new String[] { "1", normalByValue, normalInfluencerValue, normalPartitionValue, "" });
+        assertWrittenRecordsEqualTo(expectedRecords);
+    }
+
+    public void testWrite_GivenOversizedCategorizationField_ThenUses1001Limit() throws Exception {
+        Detector detector = new Detector.Builder("count", null).setByFieldName("mlcategory").build();
+        AnalysisConfig.Builder builder = new AnalysisConfig.Builder(Collections.singletonList(detector));
+        builder.setCategorizationFieldName("message");
+        analysisConfig = builder.build();
+
+        String oversizedValue = randomAlphaOfLength(1500);
+        String input = "{\"time\":\"1\", \"message\":\"" + oversizedValue + "\"}";
+        InputStream inputStream = createInputStream(input);
+        JsonDataToProcessWriter writer = createWriter();
+        writer.writeHeader();
+        writer.write(inputStream, null, XContentType.JSON, (r, e) -> {});
+
+        List<String[]> expectedRecords = new ArrayList<>();
+        // The "..." field is the pre-tokenized tokens field; "." is the control field
+        expectedRecords.add(new String[] { "time", "message", "...", "." });
+        expectedRecords.add(new String[] { "1", oversizedValue.substring(0, AnalysisConfig.MAX_CATEGORIZATION_FIELD_LENGTH), "", "" });
+        assertWrittenRecordsEqualTo(expectedRecords);
+    }
+
+    public void testWrite_GivenOversizedMetricValueField_ThenNotTruncated() throws Exception {
+        Detector detector = new Detector.Builder("max", "value").build();
+        analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector)).build();
+
+        String largeNumericString = "123456789012345678901234567890123456789012345678901234567890"
+            + "123456789012345678901234567890123456789012345678901234567890"
+            + "123456789012345678901234567890123456789012345678901234567890"
+            + "123456789012345678901234567890123456789012345678901234567890"
+            + "123456789012345678901234567890";
+        String input = "{\"time\":\"1\", \"value\":\"" + largeNumericString + "\"}";
+        InputStream inputStream = createInputStream(input);
+        JsonDataToProcessWriter writer = createWriter();
+        writer.writeHeader();
+        writer.write(inputStream, null, XContentType.JSON, (r, e) -> {});
+
+        List<String[]> expectedRecords = new ArrayList<>();
+        expectedRecords.add(new String[] { "time", "value", "." });
+        expectedRecords.add(new String[] { "1", largeNumericString, "" });
+        assertWrittenRecordsEqualTo(expectedRecords);
+    }
+
 }

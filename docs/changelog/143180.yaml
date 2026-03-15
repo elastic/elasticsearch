@@ -1,0 +1,6 @@
+area: Machine Learning
+issues: []
+pr: 143180
+summary: Add field value truncation for anomaly detection term fields to prevent C++
+  OOM crashes
+type: bug

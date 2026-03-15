@@ -139,6 +139,12 @@ public class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
         // We never expect to get the control field or categorization tokens field
         boolean[] gotFields = new boolean[inputFields.size()];
 
+        // Build reverse lookup from input index to field name for truncation
+        String[] indexToFieldName = new String[numFields];
+        for (Map.Entry<String, Integer> entry : inFieldIndexes.entrySet()) {
+            indexToFieldName[entry.getValue()] = entry.getKey();
+        }
+
         XContentRecordReader recordReader = new XContentRecordReader(parser, inFieldIndexes, LOGGER);
         Integer categorizationFieldIndex = inFieldIndexes.get(analysisConfig.getCategorizationFieldName());
         long inputFieldCount = recordReader.read(input, gotFields);
@@ -155,8 +161,15 @@ public class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
             for (InputOutputMap inOut : inputOutputMap) {
                 String field = input[inOut.inputIndex];
                 field = (field == null) ? "" : field;
+
                 if (categorizationFieldIndex != null && inOut.inputIndex == categorizationFieldIndex) {
-                    field = maybeTruncateCatgeorizationField(field);
+                    record[inOut.outputIndex] = maybeTruncateCatgeorizationField(field);
+                    continue;
+                }
+
+                String fieldName = indexToFieldName[inOut.inputIndex];
+                if (fieldName != null && termFields.contains(fieldName)) {
+                    field = maybeTruncateFieldValue(field, fieldName);
                 }
                 record[inOut.outputIndex] = field;
             }

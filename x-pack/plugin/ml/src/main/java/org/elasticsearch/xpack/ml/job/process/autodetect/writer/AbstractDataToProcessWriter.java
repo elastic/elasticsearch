@@ -56,7 +56,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
     private long latestEpochMs;
     private long latestEpochMsThisUpload;
 
-    private Set<String> termFields;
+    protected Set<String> termFields;
 
     protected AbstractDataToProcessWriter(
         boolean includeControlField,
@@ -98,6 +98,21 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
             return categorizationField.substring(0, Math.min(categorizationField.length(), AnalysisConfig.MAX_CATEGORIZATION_FIELD_LENGTH));
         }
         return categorizationField;
+    }
+
+    /**
+     * Truncate a term field value to prevent excessive memory usage in the C++ process.
+     * Term fields include by_field, over_field, partition_field, and influencer fields.
+     * @param fieldValue The field value to potentially truncate
+     * @param fieldName The name of the field (for logging)
+     * @return The original value if within limits, or a truncated value
+     */
+    public String maybeTruncateFieldValue(String fieldValue, String fieldName) {
+        if (fieldValue == null || fieldValue.length() <= AnalysisConfig.MAX_FIELD_VALUE_LENGTH) {
+            return fieldValue;
+        }
+        logger.debug("Field '{}' value exceeds {} characters and has been truncated", fieldName, AnalysisConfig.MAX_FIELD_VALUE_LENGTH);
+        return fieldValue.substring(0, AnalysisConfig.MAX_FIELD_VALUE_LENGTH);
     }
 
     /**

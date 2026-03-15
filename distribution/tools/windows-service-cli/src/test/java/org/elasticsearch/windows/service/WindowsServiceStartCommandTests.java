@@ -10,10 +10,13 @@
 package org.elasticsearch.windows.service;
 
 import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.service.windows.WindowsServiceException;
 
-import java.io.IOException;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
-public class WindowsServiceStartCommandTests extends WindowsServiceCliTestCase {
+public class WindowsServiceStartCommandTests extends ScmCommandTestCase {
 
     public WindowsServiceStartCommandTests(boolean spaceInPath) {
         super(spaceInPath);
@@ -21,17 +24,12 @@ public class WindowsServiceStartCommandTests extends WindowsServiceCliTestCase {
 
     @Override
     protected Command newCommand() {
-        return new WindowsServiceStartCommand() {
-            @Override
-            Process startProcess(ProcessBuilder processBuilder) throws IOException {
-                return mockProcess(processBuilder);
-            }
-        };
+        return new WindowsServiceStartCommand(mockServiceControl);
     }
 
     @Override
-    protected String getCommand() {
-        return "ES";
+    protected String getExpectedOperation() {
+        return "start";
     }
 
     @Override
@@ -42,5 +40,13 @@ public class WindowsServiceStartCommandTests extends WindowsServiceCliTestCase {
     @Override
     protected String getDefaultFailureMessage() {
         return "Failed starting 'elasticsearch-service-x64' service";
+    }
+
+    public void testFailure() throws Exception {
+        mockServiceControl.startException = new WindowsServiceException("Access denied", 5);
+        int exitCode = executeMain();
+        assertThat(exitCode, equalTo(ExitCodes.CODE_ERROR));
+        assertThat(terminal.getErrorOutput(), containsString(getDefaultFailureMessage()));
+        assertThat(terminal.getErrorOutput(), containsString("Access denied"));
     }
 }

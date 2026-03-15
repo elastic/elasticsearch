@@ -1,0 +1,13 @@
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.mrjar'
+
+dependencies {
+  compileOnly project(':libs:core')
+  compileOnly project(':libs:logging')
+
+  testImplementation project(":test:framework")
+}
+
+tasks.named('forbiddenApisMain').configure {
+  enabled = false
+}

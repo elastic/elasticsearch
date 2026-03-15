@@ -112,10 +112,12 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -138,6 +140,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
@@ -146,6 +149,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
@@ -1568,6 +1572,238 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.limit().fold(FoldContext.small()), is(10));
         // extra ints for doc id and emp_no_10
         assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES * 2));
+    }
+
+    /**
+     * {@code
+     * LimitExec[10000[INTEGER]]
+     * \_LimitByExec[10[INTEGER],[emp_no{f}#]]
+     *   \_ExchangeExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..],false]
+     *     \_ProjectExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..]]
+     *       \_FieldExtractExec[_meta_field{f}#, first_name{f}#, gender{f}#, ..]<[],[]>
+     *         \_LimitExec[10000[INTEGER]]
+     *           \_LimitByExec[10[INTEGER],[emp_no{f}#]]
+     *             \_FieldExtractExec[emp_no{f}#]<[],[]>
+     *               \_EsQueryExec[test], indexMode[standard], limit[], sort[]
+     * }
+     */
+    public void testLimitByNotPushedToSource() {
+        var optimized = optimizedPlan(physicalPlanNoSerializationCheck("""
+            from test
+            | limit 10 by emp_no
+            """));
+
+        var leaves = optimized.collectLeaves();
+        assertEquals(1, leaves.size());
+        var source = as(leaves.get(0), EsQueryExec.class);
+        assertThat(source.limit(), nullValue());
+    }
+
+    /**
+     * {@code
+     * LimitExec[10000[INTEGER]]
+     * \_LimitByExec[5[INTEGER],[first_name{f}#, last_name{f}#]]
+     *   \_ExchangeExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..],false]
+     *     \_ProjectExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..]]
+     *       \_FieldExtractExec[_meta_field{f}#, emp_no{f}#, gender{f}#, ..]<[],[]>
+     *         \_LimitExec[10000[INTEGER]]
+     *           \_LimitByExec[5[INTEGER],[first_name{f}#, last_name{f}#]]
+     *             \_FieldExtractExec[first_name{f}#, last_name{f}#]<[],[]>
+     *               \_EsQueryExec[test], indexMode[standard], limit[], sort[]
+     * }
+     */
+    public void testLimitByMultipleKeys() {
+        var optimized = optimizedPlan(physicalPlanNoSerializationCheck("""
+            from test
+            | limit 5 by first_name, last_name
+            """));
+
+        var defaultLimit = as(optimized, LimitExec.class);
+
+        var limitBy = as(defaultLimit.child(), LimitByExec.class);
+        assertThat(limitBy.limit().fold(FoldContext.small()), is(5));
+        assertThat(limitBy.groupings(), hasSize(2));
+        assertThat(names(limitBy.groupings()), contains("first_name", "last_name"));
+
+        var exchange = asRemoteExchange(limitBy.child());
+
+        var sources = exchange.collectLeaves().stream().filter(EsQueryExec.class::isInstance).toList();
+        assertThat(sources, hasSize(1));
+        assertThat(((EsQueryExec) sources.get(0)).limit(), is(nullValue()));
+    }
+
+    /**
+     * {@code
+     * ProjectExec[[avg_salary{r}#, first_name{f}#]]
+     * \_EvalExec[[$$SUM$avg_salary$0{r$}# / $$COUNT$avg_salary$1{r$}# AS avg_salary#]]
+     *   \_LimitExec[10000[INTEGER]]
+     *     \_LimitByExec[5[INTEGER],[first_name{f}#]]
+     *       \_AggregateExec[[first_name{f}#],[SUM(..) AS $$SUM$avg_salary$0#, COUNT(..) AS $$COUNT$avg_salary$1#, first_name{f}#],FINAL,..]
+     *         \_ExchangeExec[[first_name{f}#, ..],true]
+     *           \_AggregateExec[[first_name{f}#],[SUM(..) AS $$SUM$avg_salary$0#, COUNT(..) AS
+     *                            $$COUNT$avg_salary$1#, first_name{f}#],INITIAL,..]
+     *             \_FieldExtractExec[first_name{f}#, salary{f}#]<[],[]>
+     *               \_EsQueryExec[test], indexMode[standard], limit[], sort[]
+     * }
+     */
+    public void testLimitByAfterStats() {
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | stats avg_salary = avg(salary) by first_name
+            | limit 5 by first_name
+            """));
+
+        // AVG is decomposed into SUM/COUNT with a ProjectExec + EvalExec on top
+        var project = as(optimized, ProjectExec.class);
+        var eval = as(project.child(), EvalExec.class);
+
+        var defaultLimit = as(eval.child(), LimitExec.class);
+
+        var limitBy = as(defaultLimit.child(), LimitByExec.class);
+        assertThat(limitBy.limit().fold(FoldContext.small()), is(5));
+        assertThat(limitBy.groupings(), hasSize(1));
+        assertThat(names(limitBy.groupings()), contains("first_name"));
+
+        var aggregate = as(limitBy.child(), AggregateExec.class);
+        assertThat(aggregate.groupings(), hasSize(1));
+    }
+
+    /**
+     * {@code
+     * EvalExec[[salary{f}#12 + 1[INTEGER] AS x#5]]
+     * \_LimitExec[1000[INTEGER],2276]
+     *   \_LimitByExec[10[INTEGER],[first_name{f}#8],2276]
+     *     \_ExchangeExec[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16,
+     *                    languages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12],false]
+     *       \_ProjectExec[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16,
+     *                     languages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12]]
+     *         \_FieldExtractExec[_meta_field{f}#13, emp_no{f}#7, gender{f}#9, hire_d..]<[],[]>
+     *           \_LimitExec[1000[INTEGER],70]
+     *             \_LimitByExec[10[INTEGER],[first_name{f}#8],70]
+     *               \_FieldExtractExec[first_name{f}#8]<[],[]>
+     *                 \_EsQueryExec[test], indexMode[standard], [_doc{f}#18], limit[], sort[] estimatedRowSize[2284]
+     *                 queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]
+     * }
+     */
+    public void testLimitByAfterEval() {
+        // Do not assert serialization, this will have a local LIMIT which doesn't serialize to a local LIMIT
+        var optimized = optimizedPlan(physicalPlanNoSerializationCheck("""
+            from test
+            | eval x = salary + 1
+            | limit 10 by first_name
+            """));
+
+        // Eval is pushed above the limits by the logical optimizer
+        var eval = as(optimized, EvalExec.class);
+
+        var defaultLimit = as(eval.child(), LimitExec.class);
+
+        var limitBy = as(defaultLimit.child(), LimitByExec.class);
+        assertThat(limitBy.limit().fold(FoldContext.small()), is(10));
+        assertThat(limitBy.groupings(), hasSize(1));
+        assertThat(names(limitBy.groupings()), contains("first_name"));
+
+        var exchange = asRemoteExchange(limitBy.child());
+
+        var sources = exchange.collectLeaves().stream().filter(EsQueryExec.class::isInstance).toList();
+        assertThat(sources, hasSize(1));
+        assertThat(((EsQueryExec) sources.get(0)).limit(), is(nullValue()));
+    }
+
+    /**
+     * {@code
+     * LimitExec[1000[INTEGER]]
+     * \_LimitByExec[10[INTEGER],[emp_no{f}#]]
+     *   \_ExchangeExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..],false]
+     *     \_ProjectExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..]]
+     *       \_FieldExtractExec[_meta_field{f}#, first_name{f}#, gender{f}#, ..]<[],[]>
+     *         \_LimitExec[1000[INTEGER]]
+     *           \_LimitByExec[10[INTEGER],[emp_no{f}#]]
+     *             \_FieldExtractExec[emp_no{f}#]<[],[]>
+     *               \_EsQueryExec[test], indexMode[standard], query[{"range":{"emp_no":{"gt":0,..}}}], limit[], sort[]
+     * }
+     */
+    public void testLimitByWithFilter() {
+        // Do not assert serialization, this will have a local LIMIT which doesn't serialize to a local LIMIT
+        var optimized = optimizedPlan(physicalPlanNoSerializationCheck("""
+            from test
+            | where emp_no > 0
+            | limit 10 by emp_no
+            """));
+
+        var leaves = optimized.collectLeaves();
+        assertEquals(1, leaves.size());
+        var source = as(leaves.get(0), EsQueryExec.class);
+        assertThat(source.limit(), nullValue());
+        var rq = as(sv(source.query(), "emp_no"), RangeQueryBuilder.class);
+        assertThat(rq.fieldName(), equalTo("emp_no"));
+        assertThat(rq.from(), equalTo(0));
+        assertThat(rq.includeLower(), equalTo(false));
+        assertThat(rq.to(), nullValue());
+    }
+
+    /**
+     * {@code
+     * ProjectExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..]]
+     * \_LimitExec[1000[INTEGER]]
+     *   \_LimitByExec[10[INTEGER],[emp_no * 2{r}#]]
+     *     \_ExchangeExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, .., emp_no * 2{r}#],false]
+     *       \_ProjectExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, .., emp_no * 2{r}#]]
+     *         \_FieldExtractExec[_meta_field{f}#, first_name{f}#, gender{f}#, ..]<[],[]>
+     *           \_LimitExec[1000[INTEGER]]
+     *             \_LimitByExec[10[INTEGER],[emp_no * 2{r}#]]
+     *               \_EvalExec[[emp_no{f}# * 2[INTEGER] AS emp_no * 2#]]
+     *                 \_FieldExtractExec[emp_no{f}#]<[],[]>
+     *                   \_EsQueryExec[test], indexMode[standard], query[{"range":{"emp_no":{"gt":0,..}}}], limit[], sort[]
+     * }
+     */
+    public void testLimitByExpressionWithEval() {
+        // Do not assert serialization, this will have a local LIMIT which doesn't serialize to a local LIMIT
+        var optimized = optimizedPlan(physicalPlanNoSerializationCheck("""
+            from test
+            | where emp_no > 0
+            | limit 10 by emp_no * 2
+            """));
+
+        // ReplaceLimitByExpressionWithEval wraps the plan in a Project to hide the synthetic eval attribute
+        var topProject = as(optimized, ProjectExec.class);
+
+        var defaultLimit = as(topProject.child(), LimitExec.class);
+
+        var limitBy = as(defaultLimit.child(), LimitByExec.class);
+        assertThat(limitBy.limit().fold(FoldContext.small()), is(10));
+        assertThat(limitBy.groupings(), hasSize(1));
+        var groupKey = as(limitBy.groupings().get(0), ReferenceAttribute.class);
+        assertThat(groupKey.name(), equalTo("emp_no * 2"));
+
+        var exchange = asRemoteExchange(limitBy.child());
+
+        // An EvalExec for the "emp_no * 2" expression must be present inside the exchange
+        assertThat(exchange.anyMatch(EvalExec.class::isInstance), is(true));
+
+        var sources = exchange.collectLeaves().stream().filter(EsQueryExec.class::isInstance).toList();
+        assertThat(sources, hasSize(1));
+        var source = (EsQueryExec) sources.get(0);
+        assertThat(source.limit(), is(nullValue()));
+        var rq = as(sv(source.query(), "emp_no"), RangeQueryBuilder.class);
+        assertThat(rq.fieldName(), equalTo("emp_no"));
+    }
+
+    /**
+     * {@code
+     * LimitExec[1000[INTEGER]]
+     * \_LocalSourceExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..],EMPTY]
+     * }
+     */
+    public void testLimitByZero() {
+        var plan = optimizedPlan(physicalPlan("""
+            FROM test
+            | LIMIT 0 BY emp_no
+            """));
+
+        var limitExec = as(plan, LimitExec.class);
+        assertThat(((Literal) limitExec.limit()).value(), equalTo(1000));
+        as(limitExec.child(), LocalSourceExec.class);
     }
 
     /**
@@ -9065,6 +9301,139 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         PhysicalPlan reduction = ((PlannerUtils.ReducedPlan) PlannerUtils.reductionPlan(plans.v2())).plan();
         LimitExec limitExec = as(reduction, LimitExec.class);
         assertThat(limitExec.estimatedRowSize(), equalTo(2276));
+    }
+
+    /**
+     * {@code
+     * ProjectExec[[first_name{f}#10, last_name{f}#13, salary{f}#14, languages{f}#12]]
+     * \_LimitExec[1000[INTEGER],null]
+     *   \_TopNByExec[[Order[salary{f}#14,DESC,LAST]],5[INTEGER],[languages{f}#12],null]
+     *     \_ExchangeExec[[],false]
+     *       \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+     * TopNBy[[Order[salary{f}#14,DESC,LAST]],5[INTEGER],[languages{f}#12],false]
+     * \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]<>]]
+     * }
+     **/
+    public void testSortWithLimitBy() {
+        String query = """
+             FROM test
+            | SORT salary DESC NULLS LAST
+            | LIMIT 5 BY languages
+            | KEEP first_name, last_name, salary, languages""";
+        PhysicalPlan plan = physicalPlan(query);
+
+        var project = as(plan, ProjectExec.class);
+        var limit = as(project.child(), LimitExec.class);
+        var topNBy = as(limit.child(), TopNByExec.class);
+        assertThat(as(as(topNBy.limit(), Literal.class).value(), Integer.class), equalTo(5));
+        assertThat(topNBy.groupings(), hasSize(1));
+        var fieldAttr = as(topNBy.groupings().get(0), FieldAttribute.class);
+        assertThat(fieldAttr.name(), equalTo("languages"));
+
+        var topNOrder = topNBy.order();
+        assertThat(topNOrder.size(), equalTo(1));
+        var order = as(topNOrder.get(0), Order.class);
+        assertThat(as(order.child(), FieldAttribute.class).name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+
+        var exchangeExec = as(topNBy.child(), ExchangeExec.class);
+        var fragmentExec = as(exchangeExec.child(), FragmentExec.class);
+        var topNByFragment = as(fragmentExec.fragment(), TopNBy.class);
+
+        assertThat(as(as(topNByFragment.limit(), Literal.class).value(), Integer.class), equalTo(5));
+        assertThat(topNByFragment.groupings(), hasSize(1));
+        assertThat(as(topNByFragment.groupings().get(0), FieldAttribute.class).name(), equalTo("languages"));
+
+        var topNFragmentOrder = topNByFragment.order();
+        assertThat(topNFragmentOrder.size(), equalTo(1));
+        var fragmentOrder = as(topNFragmentOrder.get(0), Order.class);
+        assertThat(as(fragmentOrder.child(), FieldAttribute.class).name(), equalTo("salary"));
+        assertThat(fragmentOrder.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(fragmentOrder.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+
+        as(topNByFragment.child(), EsRelation.class);
+    }
+
+    /**
+     * Verify that a basic LIMIT BY creates a LimitByExec and the LimitBy inside the fragment (via ExchangeExec), so data nodes execute
+     * both operators.
+     *
+     * <pre>{@code
+     * LimitExec[1000]
+     * \_LimitByExec[5,[emp_no]]         (coordinator)
+     *   \_ExchangeExec
+     *     \_FragmentExec
+     *         \_LimitBy[5,[emp_no]]     (data node)
+     *           \_EsRelation[test]
+     * }</pre>
+     *
+     * TODO LIMIT BY We should change this to have a normal limit inside the fragment
+     *
+     * LimitExec[1000]
+     * \_LimitByExec[5,[emp_no]]         (coordinator)
+     *   \_ExchangeExec
+     *     \_FragmentExec
+     *       \_Limit[1000,local]         (data node)
+     *         \_LimitBy[5,[emp_no]]     (data node)
+     *           \_EsRelation[test]
+     *
+     */
+    public void testLimitByPhysicalPlan() {
+        var plan = physicalPlanNoSerializationCheck("""
+            FROM test
+            | LIMIT 5 BY emp_no
+            """);
+
+        var limitExec = as(plan, LimitExec.class);
+        assertThat(((Literal) limitExec.limit()).value(), equalTo(1000));
+        var limitByExec = as(limitExec.child(), LimitByExec.class);
+        assertThat(((Literal) limitByExec.limit()).value(), equalTo(5));
+
+        var exchange = as(limitByExec.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var limitBy = as(fragment.fragment(), LimitBy.class);
+        assertThat(((Literal) limitBy.limit()).value(), equalTo(5));
+        as(limitBy.child(), EsRelation.class);
+    }
+
+    /**
+     * Verify that breakPlanBetweenCoordinatorAndDataNode produces a data node plan that contains a LimitBy
+     * as its pipeline breaker, and that the reduction plan is a LimitByExec.
+     */
+    public void testReductionPlanForLimitBy() {
+        var plan = physicalPlanNoSerializationCheck("""
+            FROM test
+            | LIMIT 5 BY emp_no
+            """);
+        Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
+        PhysicalPlan reduction = ((PlannerUtils.ReducedPlan) PlannerUtils.reductionPlan(plans.v2())).plan();
+        as(reduction, LimitByExec.class);
+    }
+
+    /**
+     * Verify that the coordinator plan after splitting contains the LimitByExec above the ExchangeSource,
+     * while the data node plan contains both a local LimitBy inside the fragment.
+     */
+    public void testLimitByCoordinatorAndDataNodeSplit() {
+        var plan = physicalPlanNoSerializationCheck("""
+            FROM test
+            | LIMIT 5 BY emp_no
+            """);
+        Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
+
+        var coordinatorPlan = plans.v1();
+        var limitExec = as(coordinatorPlan, LimitExec.class);
+        var limitByExec = as(limitExec.child(), LimitByExec.class);
+        assertThat(((Literal) limitByExec.limit()).value(), equalTo(5));
+
+        var dataNodePlan = plans.v2();
+        var fragments = dataNodePlan.collectFirstChildren(p -> p instanceof FragmentExec);
+        assertFalse("Expected a FragmentExec in the data node plan", fragments.isEmpty());
+        var fragment = as(fragments.getFirst(), FragmentExec.class);
+        var limitBy = as(fragment.fragment(), LimitBy.class);
+        assertThat(((Literal) limitBy.limit()).value(), equalTo(5));
+        as(limitBy.child(), EsRelation.class);
     }
 
     public void testEqualsPushdownToDelegate() {

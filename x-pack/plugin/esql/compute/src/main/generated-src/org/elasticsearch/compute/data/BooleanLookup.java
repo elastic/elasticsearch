@@ -18,7 +18,7 @@ import org.elasticsearch.core.Releasables;
  * Generic {@link Block#lookup} implementation {@link BooleanBlock}s.
  * This class is generated. Edit {@code X-Lookup.java.st} instead.
  */
-final class BooleanLookup implements ReleasableIterator<BooleanBlock> {
+public final class BooleanLookup implements ReleasableIterator<BooleanBlock> {
     private final BooleanBlock values;
     private final IntBlock positions;
     private final long targetByteSize;
@@ -27,7 +27,7 @@ final class BooleanLookup implements ReleasableIterator<BooleanBlock> {
     private boolean first;
     private int valuesInPosition;
 
-    BooleanLookup(BooleanBlock values, IntBlock positions, ByteSizeValue targetBlockSize) {
+    public BooleanLookup(BooleanBlock values, IntBlock positions, ByteSizeValue targetBlockSize) {
         values.incRef();
         positions.incRef();
         this.values = values;

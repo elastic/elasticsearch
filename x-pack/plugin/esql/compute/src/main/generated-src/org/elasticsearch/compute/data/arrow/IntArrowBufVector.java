@@ -1,0 +1,96 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.compute.data.arrow;
+
+// begin generated imports
+import org.apache.arrow.memory.ArrowBuf;
+import org.apache.arrow.vector.FixedWidthVector;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntLookup;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.core.ReleasableIterator;
+
+import java.io.IOException;
+// end generated imports
+
+/**
+ * Arrow buffer backed IntVector.
+ * This class is generated. Edit {@code X-ArrowBufVector.java.st} instead.
+ */
+public final class IntArrowBufVector extends AbstractArrowBufVector<IntVector, IntBlock> implements IntVector {
+
+    /**
+     *  Create an ArrowBuf vector based on the constituents of an Arrow <code>ValueVector</code>. The caller must retain the buffers if they
+     *  are shared with other blocks or Arrow vectors.
+     */
+    public IntArrowBufVector(ArrowBuf valueBuffer, int positionCount, BlockFactory blockFactory) {
+        super(valueBuffer, positionCount, blockFactory);
+    }
+
+    private IntArrowBufVector(FixedWidthVector arrowVector, BlockFactory blockFactory) {
+        super(arrowVector, blockFactory);
+    }
+
+    public static IntArrowBufVector of(FixedWidthVector arrowVector, BlockFactory blockFactory) {
+        return new IntArrowBufVector(arrowVector, blockFactory);
+    }
+
+    @Override
+    protected ArrowBufVectorConstructor<IntVector> vectorConstructor() {
+        return IntArrowBufVector::new;
+    }
+
+    @Override
+    protected ArrowBufBlockConstructor<IntBlock> blockConstructor() {
+        return IntArrowBufBlock::new;
+    }
+
+    @Override
+    public int getInt(int position) {
+        return valueBuffer.getInt((long) position * Integer.BYTES);
+    }
+
+    @Override
+    protected int byteSize() {
+        return Integer.BYTES;
+    }
+
+    @Override
+    public ElementType elementType() {
+        return ElementType.INT;
+    }
+
+    @Override
+    public ReleasableIterator<IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return new IntLookup(asBlock(), positions, targetBlockSize);
+    }
+
+    @Override
+    public int min() {
+        int v = Integer.MAX_VALUE;
+        for (int i = 0; i < positionCount; i++) {
+            v = Math.min(v, getInt(i));
+        }
+        return v;
+    }
+
+    @Override
+    public int max() {
+        int v = Integer.MIN_VALUE;
+        for (int i = 0; i < positionCount; i++) {
+            v = Math.max(v, getInt(i));
+        }
+        return v;
+    }
+
+}

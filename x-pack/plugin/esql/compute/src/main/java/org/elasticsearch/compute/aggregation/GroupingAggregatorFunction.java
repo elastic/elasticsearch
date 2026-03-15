@@ -74,6 +74,8 @@ public interface GroupingAggregatorFunction extends Releasable {
                 case IntBigArrayBlock b:
                     add(positionOffset, b);
                     break;
+                default:
+                    throw new IllegalStateException("unexpected block type for groupIds: " + groupIds.getClass());
             }
         }
 

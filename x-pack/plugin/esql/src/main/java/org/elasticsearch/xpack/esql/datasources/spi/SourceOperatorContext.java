@@ -54,7 +54,8 @@ public record SourceOperatorContext(
     @Nullable ExternalSplit split,
     Set<String> partitionColumnNames,
     @Nullable ExternalSliceQueue sliceQueue,
-    int parsingParallelism
+    int parsingParallelism,
+    long queryDeadlineNanos
 ) {
     public SourceOperatorContext {
         Check.notNull(path, "path cannot be null");
@@ -108,7 +109,8 @@ public record SourceOperatorContext(
             split,
             null,
             null,
-            1
+            1,
+            0
         );
     }
 
@@ -141,7 +143,8 @@ public record SourceOperatorContext(
             null,
             null,
             null,
-            1
+            1,
+            0
         );
     }
 
@@ -173,7 +176,8 @@ public record SourceOperatorContext(
             null,
             null,
             null,
-            1
+            1,
+            0
         );
     }
 
@@ -203,7 +207,8 @@ public record SourceOperatorContext(
             null,
             null,
             null,
-            1
+            1,
+            0
         );
     }
 
@@ -228,6 +233,7 @@ public record SourceOperatorContext(
         private Set<String> partitionColumnNames;
         private ExternalSliceQueue sliceQueue;
         private int parsingParallelism = 1;
+        private long queryDeadlineNanos;
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -309,6 +315,11 @@ public record SourceOperatorContext(
             return this;
         }
 
+        public Builder queryDeadlineNanos(long queryDeadlineNanos) {
+            this.queryDeadlineNanos = queryDeadlineNanos;
+            return this;
+        }
+
         public SourceOperatorContext build() {
             return new SourceOperatorContext(
                 sourceType,
@@ -326,7 +337,8 @@ public record SourceOperatorContext(
                 split,
                 partitionColumnNames,
                 sliceQueue,
-                parsingParallelism
+                parsingParallelism,
+                queryDeadlineNanos
             );
         }
     }

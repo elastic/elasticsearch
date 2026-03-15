@@ -258,6 +258,14 @@ public class Configuration implements Writeable {
     }
 
     /**
+     * Returns the query deadline as a {@link System#nanoTime()} value, or {@code 0} if no deadline is set.
+     * When a deadline is active, operations should abort rather than retry/wait past this point.
+     */
+    public long queryDeadlineNanos() {
+        return 0;
+    }
+
+    /**
      * Create a new {@link FoldContext} with the limit configured in the {@link QueryPragmas}.
      */
     public FoldContext newFoldContext() {

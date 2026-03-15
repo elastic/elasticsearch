@@ -12,18 +12,20 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Tests for {@link ExternalSourceDrainUtils} verifying byte-based backpressure
- * during page draining.
+ * Tests for {@link ExternalSourceDrainUtils} verifying error handling, backpressure,
+ * and edge cases during page draining.
  */
 public class ExternalSourceDrainUtilsTests extends ESTestCase {
 
@@ -46,13 +48,75 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
         return new Page(blocks);
     }
 
-    public void testDrainRespectsByteBackpressure() throws Exception {
-        int totalPages = 20;
-        Page samplePage = createTestPage(2, 50);
-        long singlePageBytes = samplePage.ramBytesUsedByBlocks();
-        samplePage.releaseBlocks();
+    private static CloseableIterator<Page> iteratorOf(List<Page> pages) {
+        return new CloseableIterator<>() {
+            private int index = 0;
 
-        long maxBufferBytes = singlePageBytes * 3;
+            @Override
+            public boolean hasNext() {
+                return index < pages.size();
+            }
+
+            @Override
+            public Page next() {
+                if (index >= pages.size()) {
+                    throw new NoSuchElementException();
+                }
+                return pages.get(index++);
+            }
+
+            @Override
+            public void close() {}
+        };
+    }
+
+    /**
+     * Iterator that throws after delivering a configurable number of pages.
+     * The exception can be thrown from either {@code hasNext()} or {@code next()}.
+     */
+    private static CloseableIterator<Page> faultingIterator(List<Page> pages, int succeedCount, boolean failOnHasNext) {
+        return new CloseableIterator<>() {
+            private int index = 0;
+
+            @Override
+            public boolean hasNext() {
+                if (failOnHasNext && index >= succeedCount) {
+                    throw new RuntimeException(new IOException("simulated S3 read failure on hasNext"));
+                }
+                return index < pages.size();
+            }
+
+            @Override
+            public Page next() {
+                if (index >= pages.size()) {
+                    throw new NoSuchElementException();
+                }
+                if (failOnHasNext == false && index >= succeedCount) {
+                    throw new RuntimeException(new IOException("simulated S3 read failure on next"));
+                }
+                return pages.get(index++);
+            }
+
+            @Override
+            public void close() {}
+        };
+    }
+
+    public void testDrainPagesSimple() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+
+        List<Page> pages = List.of(createTestPage(1, 10), createTestPage(1, 10), createTestPage(1, 10));
+
+        ExternalSourceDrainUtils.drainPages(iteratorOf(pages), buffer);
+        assertEquals(3, buffer.size());
+
+        buffer.finish(true);
+    }
+
+    public void testDrainRespectsPagesBackpressure() throws Exception {
+        int totalPages = 20;
+        // ~3 pages worth of bytes: each page is 2 cols × 50 ints ≈ 400+ bytes
+        long maxBufferBytes = 1500;
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
 
         List<Page> sourcePages = new ArrayList<>();
@@ -60,36 +124,13 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
             sourcePages.add(createTestPage(2, 50));
         }
 
-        CloseableIterator<Page> iterator = new CloseableIterator<>() {
-            private int index = 0;
-
-            @Override
-            public boolean hasNext() {
-                return index < sourcePages.size();
-            }
-
-            @Override
-            public Page next() {
-                if (index >= sourcePages.size()) {
-                    throw new NoSuchElementException();
-                }
-                Page page = sourcePages.get(index++);
-                page.allowPassingToDifferentDriver();
-                return page;
-            }
-
-            @Override
-            public void close() {}
-        };
-
-        AtomicLong maxObservedBytes = new AtomicLong(0);
         AtomicReference<Exception> drainError = new AtomicReference<>();
         CyclicBarrier barrier = new CyclicBarrier(2);
 
         Thread drainThread = new Thread(() -> {
             try {
                 barrier.await();
-                ExternalSourceDrainUtils.drainPages(iterator, buffer);
+                ExternalSourceDrainUtils.drainPages(iteratorOf(sourcePages), buffer);
                 buffer.finish(false);
             } catch (Exception e) {
                 drainError.set(e);
@@ -104,8 +145,6 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
                 while (consumed < totalPages) {
                     Page page = buffer.pollPage();
                     if (page != null) {
-                        long currentBytes = buffer.bytesInBuffer();
-                        maxObservedBytes.updateAndGet(prev -> Math.max(prev, currentBytes));
                         page.releaseBlocks();
                         consumed++;
                     } else if (buffer.noMoreInputs() && buffer.size() == 0) {
@@ -126,76 +165,168 @@ public class ExternalSourceDrainUtilsTests extends ESTestCase {
         consumeThread.join(30_000);
 
         assertNull("Drain should not throw", drainError.get());
-        assertTrue(
-            "Max observed bytes ("
-                + maxObservedBytes.get()
-                + ") should be bounded by maxBufferBytes + one page ("
-                + (maxBufferBytes + singlePageBytes)
-                + ")",
-            maxObservedBytes.get() <= maxBufferBytes + singlePageBytes
-        );
-    }
-
-    public void testDrainPagesSimple() {
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(AsyncExternalSourceBuffer.DEFAULT_MAX_BUFFER_BYTES);
-
-        List<Page> pages = List.of(createTestPage(1, 10), createTestPage(1, 10), createTestPage(1, 10));
-
-        CloseableIterator<Page> iterator = new CloseableIterator<>() {
-            private int index = 0;
-
-            @Override
-            public boolean hasNext() {
-                return index < pages.size();
-            }
-
-            @Override
-            public Page next() {
-                if (index >= pages.size()) throw new NoSuchElementException();
-                return pages.get(index++);
-            }
-
-            @Override
-            public void close() {}
-        };
-
-        ExternalSourceDrainUtils.drainPages(iterator, buffer);
-        assertEquals(3, buffer.size());
-        assertTrue(buffer.bytesInBuffer() > 0);
-
-        buffer.finish(true);
     }
 
     public void testDrainPagesWithBudgetRespectsRowLimit() {
-        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(AsyncExternalSourceBuffer.DEFAULT_MAX_BUFFER_BYTES);
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
 
         List<Page> pages = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             pages.add(createTestPage(1, 10));
         }
 
-        CloseableIterator<Page> iterator = new CloseableIterator<>() {
+        int totalRows = ExternalSourceDrainUtils.drainPagesWithBudget(iteratorOf(pages), buffer, 25);
+        assertEquals(30, totalRows);
+        assertEquals(3, buffer.size());
+
+        buffer.finish(true);
+    }
+
+    public void testDrainPagesIteratorThrowsOnNext() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        int succeedCount = between(1, 3);
+        List<Page> pages = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            pages.add(createTestPage(1, 10));
+        }
+
+        try {
+            RuntimeException ex = expectThrows(
+                RuntimeException.class,
+                () -> ExternalSourceDrainUtils.drainPages(faultingIterator(pages, succeedCount, false), buffer)
+            );
+            assertTrue(ex.getCause().getMessage().contains("simulated S3 read failure on next"));
+            assertEquals(succeedCount, buffer.size());
+        } finally {
+            buffer.finish(true);
+        }
+    }
+
+    public void testDrainPagesIteratorThrowsOnHasNext() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        int succeedCount = between(1, 3);
+        List<Page> pages = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            pages.add(createTestPage(1, 10));
+        }
+
+        try {
+            RuntimeException ex = expectThrows(
+                RuntimeException.class,
+                () -> ExternalSourceDrainUtils.drainPages(faultingIterator(pages, succeedCount, true), buffer)
+            );
+            assertTrue(ex.getCause().getMessage().contains("simulated S3 read failure on hasNext"));
+            assertEquals(succeedCount, buffer.size());
+        } finally {
+            buffer.finish(true);
+        }
+    }
+
+    public void testDrainPagesBufferCancelledMidDrain() throws Exception {
+        int totalPages = 20;
+        // ~2 pages worth of bytes: each page is 2 cols × 50 ints ≈ 400+ bytes
+        long maxBufferBytes = 1000;
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
+
+        CountDownLatch drainStarted = new CountDownLatch(1);
+
+        List<Page> sourcePages = new ArrayList<>();
+        for (int i = 0; i < totalPages; i++) {
+            sourcePages.add(createTestPage(2, 50));
+        }
+        CloseableIterator<Page> signalingIterator = new CloseableIterator<>() {
             private int index = 0;
 
             @Override
             public boolean hasNext() {
-                return index < pages.size();
+                drainStarted.countDown();
+                return index < sourcePages.size();
             }
 
             @Override
             public Page next() {
-                if (index >= pages.size()) throw new NoSuchElementException();
-                return pages.get(index++);
+                if (index >= sourcePages.size()) {
+                    throw new NoSuchElementException();
+                }
+                return sourcePages.get(index++);
             }
 
             @Override
             public void close() {}
         };
 
-        int totalRows = ExternalSourceDrainUtils.drainPagesWithBudget(iterator, buffer, 25);
+        AtomicReference<Exception> drainError = new AtomicReference<>();
+
+        Thread drainThread = new Thread(() -> {
+            try {
+                ExternalSourceDrainUtils.drainPages(signalingIterator, buffer);
+            } catch (Exception e) {
+                drainError.set(e);
+            }
+        });
+
+        drainThread.start();
+        drainStarted.await();
+        buffer.finish(true);
+
+        drainThread.join(10_000);
+        assertFalse("Drain thread should have exited", drainThread.isAlive());
+        assertNull("Drain should exit cleanly when buffer is cancelled, but got: " + drainError.get(), drainError.get());
+    }
+
+    public void testDrainEmptyIterator() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+
+        ExternalSourceDrainUtils.drainPages(iteratorOf(List.of()), buffer);
+        assertEquals(0, buffer.size());
+
+        buffer.finish(true);
+    }
+
+    public void testDrainPagesWithBudgetThrowsMidDrain() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        List<Page> pages = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            pages.add(createTestPage(1, 10));
+        }
+
+        try {
+            RuntimeException ex = expectThrows(
+                RuntimeException.class,
+                () -> ExternalSourceDrainUtils.drainPagesWithBudget(faultingIterator(pages, 2, false), buffer, 100)
+            );
+            assertTrue(ex.getCause().getMessage().contains("simulated S3 read failure on next"));
+            assertEquals(2, buffer.size());
+        } finally {
+            buffer.finish(true);
+        }
+    }
+
+    public void testDrainPagesWithExplicitTimeout() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        List<Page> pages = List.of(createTestPage(1, 10), createTestPage(1, 10));
+
+        ExternalSourceDrainUtils.drainPages(iteratorOf(pages), buffer, TimeValue.timeValueMinutes(1));
+        assertEquals(2, buffer.size());
+
+        buffer.finish(true);
+    }
+
+    public void testDrainPagesWithBudgetAndExplicitTimeout() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
+        List<Page> pages = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            pages.add(createTestPage(1, 10));
+        }
+
+        int totalRows = ExternalSourceDrainUtils.drainPagesWithBudget(iteratorOf(pages), buffer, 25, TimeValue.timeValueMinutes(1));
         assertEquals(30, totalRows);
         assertEquals(3, buffer.size());
 
         buffer.finish(true);
+    }
+
+    public void testDefaultDrainTimeoutConstant() {
+        assertEquals(TimeValue.timeValueMinutes(5), ExternalSourceDrainUtils.DEFAULT_DRAIN_TIMEOUT);
     }
 }

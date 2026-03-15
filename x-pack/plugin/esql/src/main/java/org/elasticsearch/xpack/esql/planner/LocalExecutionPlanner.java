@@ -1297,6 +1297,7 @@ public class LocalExecutionPlanner {
             .partitionColumnNames(partitionColumnNames)
             .sliceQueue(sliceQueue)
             .parsingParallelism(context.queryPragmas().parsingParallelism())
+            .queryDeadlineNanos(configuration.queryDeadlineNanos())
             .build();
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);

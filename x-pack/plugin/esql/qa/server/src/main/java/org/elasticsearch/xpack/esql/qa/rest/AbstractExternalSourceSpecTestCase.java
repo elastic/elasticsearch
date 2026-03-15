@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.DataSourcesAzureHttpFixture;
+import org.elasticsearch.xpack.esql.datasources.FaultInjectingS3HttpHandler;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.S3RequestLog;
@@ -653,6 +654,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     protected static String getS3Endpoint() {
         return s3Fixture.getAddress();
+    }
+
+    protected static FaultInjectingS3HttpHandler getFaultHandler() {
+        return s3Fixture.getFaultHandler();
     }
 
     protected static String getGcsEndpoint() {

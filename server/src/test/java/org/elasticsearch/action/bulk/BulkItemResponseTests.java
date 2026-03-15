@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -265,5 +266,58 @@ public class BulkItemResponseTests extends ESTestCase {
             bulkItemResponse = BulkItemResponse.success(id, opType, builder.build());
         }
         return bulkItemResponse;
+    }
+
+    public void testStatusDelegatesToResponseOnSuccess() {
+        IndexResponse response = IndexResponseTests.randomIndexResponse().v1();
+        BulkItemResponse item = BulkItemResponse.success(0, DocWriteRequest.OpType.INDEX, response);
+        assertEquals(response.status(), item.status());
+    }
+
+    public void testGetFailureStoreStatusDelegatesToResponse() {
+        IndexResponse response = IndexResponseTests.randomIndexResponse().v1();
+        response.setFailureStoreStatus(IndexDocFailureStoreStatus.FAILED);
+        BulkItemResponse item = BulkItemResponse.success(0, DocWriteRequest.OpType.INDEX, response);
+        assertEquals(IndexDocFailureStoreStatus.FAILED, item.getFailureStoreStatus());
+    }
+
+    public void testGetVersionReturnsMinusOneOnFailure() {
+        Failure failure = new Failure("index", "id", new RuntimeException("Exception"));
+        BulkItemResponse item = BulkItemResponse.failure(0, DocWriteRequest.OpType.INDEX, failure);
+        assertEquals(-1L, item.getVersion());
+    }
+
+    public void testFailureSeqNoAndPrimaryTerm() {
+        long seqNo = randomNonNegativeLong();
+        long term = randomNonNegativeLong();
+
+        Failure failure = new Failure("index", "id", new IllegalStateException("Exception"), seqNo, term);
+
+        assertEquals(seqNo, failure.getSeqNo());
+        assertEquals(term, failure.getTerm());
+    }
+
+    public void testFailureUnassignedSeqNoAndTermDefaults() {
+        Failure failure = new Failure("index", "id", new RuntimeException("Exception"));
+
+        assertEquals(SequenceNumbers.UNASSIGNED_SEQ_NO, failure.getSeqNo());
+        assertEquals(SequenceNumbers.UNASSIGNED_PRIMARY_TERM, failure.getTerm());
+    }
+
+    public void testFailureAbortedFlag() {
+        Failure abortedFailure = new Failure("index", "id", new RuntimeException("Exception"), true);
+
+        assertTrue(abortedFailure.isAborted());
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, abortedFailure.getStatus());
+    }
+
+    public void testFailureStoreStatus() {
+        Failure failure = new Failure("index", "id", new RuntimeException("boom"));
+
+        assertEquals(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN, failure.getFailureStoreStatus());
+
+        failure.setFailureStoreStatus(IndexDocFailureStoreStatus.FAILED);
+
+        assertEquals(IndexDocFailureStoreStatus.FAILED, failure.getFailureStoreStatus());
     }
 }

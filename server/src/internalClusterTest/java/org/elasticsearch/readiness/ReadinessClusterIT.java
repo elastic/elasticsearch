@@ -181,6 +181,14 @@ public class ReadinessClusterIT extends ESIntegTestCase {
 
                 logger.info("--> master node [{}] stopped", nodeName);
 
+                // Wait for each data node to see "no master" before awaiting readiness shutdown.
+                // awaitMasterNotFound() uses a random node, so the other data node may not have
+                // applied the cluster state yet; without this we can race and timeout on
+                // listenerThreadLatch.await() for that node.
+                for (String dataNode : dataNodes) {
+                    awaitMasterNotFound(dataNode);
+                }
+
                 for (String dataNode : dataNodes) {
                     logger.info("--> checking data node [{}] for readiness", dataNode);
                     ReadinessService s = internalCluster().getInstance(ReadinessService.class, dataNode);

@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Random;
@@ -128,6 +129,7 @@ import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
@@ -5209,6 +5211,82 @@ public class AnalyzerTests extends ESTestCase {
         Literal literal = as(tbucket.buckets(), Literal.class);
         Literal oneWeek = new Literal(EMPTY, Period.ofWeeks(1), DATE_PERIOD);
         assertEquals(oneWeek, literal);
+    }
+
+    public void testTStepUsesTRangeEndAnchor() {
+        LogicalPlan plan = analyze("""
+            FROM sample_data
+            | WHERE TRANGE("2023-10-23T12:15:00.000Z", "2023-10-23T13:55:01.543Z")
+            | STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TSTEP(10 minutes)
+            | SORT min
+            """, "mapping-sample_data.json");
+
+        Limit limit = as(plan, Limit.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        Aggregate agg = as(orderBy.child(), Aggregate.class);
+
+        Alias grouping = as(agg.groupings().get(0), Alias.class);
+        TStep tstep = as(grouping.child(), TStep.class);
+        FieldAttribute fa = as(tstep.timestamp(), FieldAttribute.class);
+        assertEquals("@timestamp", fa.name());
+        assertEquals(Duration.ofMinutes(10), as(tstep.step(), Literal.class).value());
+        assertEquals(Instant.parse("2023-10-23T13:55:01.543Z").toEpochMilli(), as(tstep.end(), Literal.class).value());
+    }
+
+    public void testTStepUsesTimestampBoundsEndAnchor() {
+        Instant start = Instant.parse("2024-01-01T00:00:00Z");
+        Instant end = Instant.parse("2024-01-02T00:00:00Z");
+        var analyzer = analyzerWithTimestampBounds("mapping-sample_data.json", "sample_data", start, end);
+
+        LogicalPlan plan = analyze("FROM sample_data | STATS count = COUNT() BY bucket = TSTEP(10 minutes)", analyzer);
+
+        Limit limit = as(plan, Limit.class);
+        Aggregate agg = as(limit.child(), Aggregate.class);
+
+        Alias grouping = as(agg.groupings().get(0), Alias.class);
+        TStep tstep = as(grouping.child(), TStep.class);
+        assertFalse(tstep.needsTimestampBounds());
+        assertEquals(end.toEpochMilli(), as(tstep.end(), Literal.class).value());
+    }
+
+    public void testTStepPrefersTRangeEndOverTimestampBounds() {
+        Instant start = Instant.parse("2024-01-01T00:00:00Z");
+        Instant end = Instant.parse("2024-01-02T00:00:00Z");
+        var analyzer = analyzerWithTimestampBounds("mapping-sample_data.json", "sample_data", start, end);
+
+        LogicalPlan plan = analyze("""
+            FROM sample_data
+            | WHERE TRANGE("2023-10-23T12:15:00.000Z", "2023-10-23T13:55:01.543Z")
+            | STATS count = COUNT() BY bucket = TSTEP(10 minutes)
+            """, analyzer);
+
+        Limit limit = as(plan, Limit.class);
+        Aggregate agg = as(limit.child(), Aggregate.class);
+
+        Alias grouping = as(agg.groupings().get(0), Alias.class);
+        TStep tstep = as(grouping.child(), TStep.class);
+        assertEquals(Instant.parse("2023-10-23T13:55:01.543Z").toEpochMilli(), as(tstep.end(), Literal.class).value());
+    }
+
+    private Analyzer analyzerWithTimestampBounds(String mappingFile, String indexName, Instant start, Instant end) {
+        var bounds = new QueryDslTimestampBoundsExtractor.TimestampBounds(start, end);
+        var indexResolution = loadMapping(mappingFile, indexName);
+        var indexResolutions = Map.of(new IndexPattern(Source.EMPTY, indexName), indexResolution);
+        var mergedResolutions = AnalyzerTestUtils.mergeIndexResolutions(indexResolutions, AnalyzerTestUtils.defaultSubqueryResolution());
+        var context = new AnalyzerContext(
+            EsqlTestUtils.TEST_CFG,
+            new EsqlFunctionRegistry(),
+            null,
+            mergedResolutions,
+            AnalyzerTestUtils.defaultLookupResolution(),
+            defaultEnrichResolution(),
+            defaultInferenceResolution(),
+            ExternalSourceResolution.EMPTY,
+            EsqlTestUtils.randomMinimumVersion(),
+            QuerySettings.UNMAPPED_FIELDS.defaultValue(),
+            bounds
+        );
+        return new Analyzer(context, TEST_VERIFIER);
     }
 
     private void verifyNameAndType(String actualName, DataType actualType, String expectedName, DataType expectedType) {

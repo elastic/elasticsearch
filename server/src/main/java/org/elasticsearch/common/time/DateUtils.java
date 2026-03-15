@@ -369,6 +369,43 @@ public class DateUtils {
     }
 
     /**
+     * Rounds the given utc milliseconds since the epoch down to the next offset unit millis.
+     *
+     * @param utcMillis    the milliseconds since the epoch
+     * @param unitMillis   the unit to round to
+     * @param offsetMillis the offset of the unit grid
+     * @return             the rounded milliseconds since the epoch
+     */
+    public static long roundFloor(long utcMillis, long unitMillis, long offsetMillis) {
+        return roundFloor(utcMillis - offsetMillis, unitMillis) + offsetMillis;
+    }
+
+    /**
+     * Returns the remainder r such that:
+     * <p>
+     * utcMillis = roundFloor(utcMillis, unitMillis) + r
+     * @param utcMillis   the milliseconds since the epoch
+     * @param unitMillis  the unit to round to
+     * @return offset from {@link #roundFloor(long, long)} within the unit
+     */
+    public static long floorRemainder(long utcMillis, long unitMillis) {
+        return utcMillis - roundFloor(utcMillis, unitMillis);
+    }
+
+    /**
+     * Rounds the given utc milliseconds since the epoch up to the next offset unit millis.
+     *
+     * @param utcMillis    the milliseconds since the epoch
+     * @param unitMillis   the unit to round to
+     * @param offsetMillis the offset of the unit grid
+     * @return             the rounded milliseconds since the epoch
+     */
+    public static long roundCeil(long utcMillis, long unitMillis, long offsetMillis) {
+        long rounded = roundFloor(utcMillis, unitMillis, offsetMillis);
+        return rounded < utcMillis ? rounded + unitMillis : rounded;
+    }
+
+    /**
      * Round down to the beginning of the quarter of the year of the specified time
      * @param utcMillis the milliseconds since the epoch
      * @return The milliseconds since the epoch rounded down to the quarter of the year

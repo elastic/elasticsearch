@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggr
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
@@ -220,6 +221,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         List<Expression> secondPassGroupings = new ArrayList<>();
         List<Alias> unpackDimensions = new ArrayList<>();
         Holder<NamedExpression> timeBucketRef = new Holder<>();
+        Holder<Bucket> timeBucketSpecRef = new Holder<>();
         Consumer<NamedExpression> extractTimeBucket = e -> {
             for (Expression child : e.children()) {
                 if (child instanceof Bucket bucket && bucket.field().equals(aggregate.timestamp())) {
@@ -227,12 +229,20 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                         throw new IllegalArgumentException("expected at most one time bucket");
                     }
                     timeBucketRef.set(e);
+                    timeBucketSpecRef.set(bucket);
                 } else if (child instanceof TBucket tbucket && tbucket.timestamp().equals(aggregate.timestamp())) {
                     if (timeBucketRef.get() != null) {
                         throw new IllegalArgumentException("expected at most one time tbucket");
                     }
                     Bucket bucket = (Bucket) tbucket.surrogate();
-                    timeBucketRef.set(new Alias(e.source(), bucket.functionName(), bucket, e.id()));
+                    timeBucketRef.set(new Alias(e.source(), e.name(), bucket, e.id()));
+                    timeBucketSpecRef.set(bucket);
+                } else if (child instanceof TStep tstep && tstep.timestamp().equals(aggregate.timestamp())) {
+                    if (timeBucketRef.get() != null) {
+                        throw new IllegalArgumentException("expected at most one time tstep");
+                    }
+                    timeBucketRef.set(new Alias(e.source(), e.name(), tstep.surrogate(), e.id()));
+                    timeBucketSpecRef.set(tstep.timeBucket());
                 } else if (child instanceof DateTrunc dateTrunc && dateTrunc.field().equals(aggregate.timestamp())) {
                     if (timeBucketRef.get() != null) {
                         throw new IllegalArgumentException("expected at most one time bucket");
@@ -245,7 +255,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                         null,
                         dateTrunc.configuration()
                     );
-                    timeBucketRef.set(new Alias(e.source(), bucket.functionName(), bucket, e.id()));
+                    timeBucketRef.set(new Alias(e.source(), e.name(), bucket, e.id()));
+                    timeBucketSpecRef.set(bucket);
                 }
             }
         };
@@ -311,7 +322,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             newChild,
             firstPassGroupings,
             mergeExpressions(firstPassAggs, firstPassGroupings),
-            (Bucket) Alias.unwrap(timeBucket),
+            timeBucketSpecRef.get(),
             aggregate.timestamp()
         );
         checkWindow(firstPhase);

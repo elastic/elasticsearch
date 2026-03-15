@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePatternList;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
@@ -189,6 +191,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -5130,6 +5133,47 @@ public class AnalyzerTests extends ESTestCase {
             """, "Found 1 problem\n" + "line 2:15: Unknown column [stats]", "mapping-default.json");
     }
 
+    public void testTBucketAutoBucketingWithTimestampBounds() {
+        Instant start = Instant.parse("2024-01-01T00:00:00Z");
+        Instant end = Instant.parse("2024-01-02T00:00:00Z");
+        var bounds = new QueryDslTimestampBoundsExtractor.TimestampBounds(start, end);
+        var indexResolution = loadMapping("mapping-sample_data.json", "sample_data");
+        var indexResolutions = Map.of(new IndexPattern(Source.EMPTY, "sample_data"), indexResolution);
+        var mergedResolutions = AnalyzerTestUtils.mergeIndexResolutions(indexResolutions, AnalyzerTestUtils.defaultSubqueryResolution());
+        var context = new AnalyzerContext(
+            EsqlTestUtils.TEST_CFG,
+            new EsqlFunctionRegistry(),
+            null,
+            mergedResolutions,
+            AnalyzerTestUtils.defaultLookupResolution(),
+            defaultEnrichResolution(),
+            defaultInferenceResolution(),
+            ExternalSourceResolution.EMPTY,
+            EsqlTestUtils.randomMinimumVersion(),
+            UNMAPPED_FIELDS.defaultValue(),
+            bounds
+        );
+        var analyzer = new Analyzer(context, TEST_VERIFIER);
+        LogicalPlan plan = analyze("FROM sample_data | STATS count = COUNT() BY bucket = TBUCKET(100)", analyzer);
+
+        Limit limit = as(plan, Limit.class);
+        Aggregate agg = as(limit.child(), Aggregate.class);
+
+        List<Expression> groupings = agg.groupings();
+        assertEquals(1, groupings.size());
+        Alias a = as(groupings.get(0), Alias.class);
+        TBucket tbucket = as(a.child(), TBucket.class);
+        assertFalse(tbucket.needsTimestampBounds());
+        assertNotNull(tbucket.from());
+        assertNotNull(tbucket.to());
+        FieldAttribute fa = as(tbucket.timestamp(), FieldAttribute.class);
+        assertEquals("@timestamp", fa.name());
+        Literal fromLiteral = as(tbucket.from(), Literal.class);
+        assertEquals(start.toEpochMilli(), fromLiteral.value());
+        Literal toLiteral = as(tbucket.to(), Literal.class);
+        assertEquals(end.toEpochMilli(), toLiteral.value());
+    }
+
     public void testTBucketWithDatePeriodInBothAggregationAndGrouping() {
         LogicalPlan plan = analyze("""
             FROM sample_data
@@ -5187,7 +5231,7 @@ public class AnalyzerTests extends ESTestCase {
         );
 
         var esIndex = new EsIndex(
-            "k8s*",
+            "k8s,k8s-downsampled",
             mapping,
             Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
             Map.of(),
@@ -5205,12 +5249,12 @@ public class AnalyzerTests extends ESTestCase {
             TEST_VERIFIER
         );
         var stddevPlan = analyze("""
-            from k8s* | stats std_dev = std_dev(metric_field)
+            from k8s,k8s-downsampled | stats std_dev = std_dev(metric_field)
             """, analyzer);
         assertProjection(stddevPlan, "std_dev");
 
         var plan = analyze("""
-            from k8s* | stats max = max(metric_field),
+            from k8s,k8s-downsampled | stats max = max(metric_field),
             avg = avg(metric_field),
             sum = sum(metric_field),
             min = min(metric_field),
@@ -5219,7 +5263,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection(plan, "max", "avg", "sum", "min", "count");
 
         var plan2 = analyze("""
-            TS k8s* | stats s1 = sum(sum_over_time(metric_field)),
+            TS k8s,k8s-downsampled | stats s1 = sum(sum_over_time(metric_field)),
             s2 = sum(avg_over_time(metric_field)),
             min = min(max_over_time(metric_field)),
             count = count(count_over_time(metric_field)),

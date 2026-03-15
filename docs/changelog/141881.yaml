@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 141881
+summary: Identify Elasticsearch as user-agent in S3 calls
+type: enhancement

@@ -37,6 +37,7 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.conn.DnsResolver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -331,6 +332,9 @@ class S3Service extends AbstractLifecycleComponent {
 
     static ClientOverrideConfiguration buildConfiguration(S3ClientSettings clientSettings, boolean isStateless) {
         ClientOverrideConfiguration.Builder clientOverrideConfiguration = ClientOverrideConfiguration.builder();
+        final var build = Build.current();
+        final var version = "default".equals(build.flavor()) ? build.version() : build.flavor(); // "serverless" in serverless
+        clientOverrideConfiguration.putAdvancedOption(SdkAdvancedClientOption.USER_AGENT_PREFIX, "elasticsearch/" + version);
         clientOverrideConfiguration.putAdvancedOption(SdkAdvancedClientOption.SIGNER, signer);
         var retryStrategyBuilder = AwsRetryStrategy.standardRetryStrategy()
             .toBuilder()

@@ -2300,6 +2300,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             if (collapse() != null) {
                 validationException = addValidationError("cannot use `collapse` in a scroll context", validationException);
             }
+            if (profile()) {
+                validationException = addValidationError("[profile] cannot be used in a scroll context", validationException);
+            }
         }
         if (slice() != null) {
             if (pointInTimeBuilder() == null && (isScroll == false)) {

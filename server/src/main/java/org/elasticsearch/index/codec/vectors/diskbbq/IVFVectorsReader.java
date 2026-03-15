@@ -31,6 +31,8 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
@@ -47,6 +49,8 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILA
  * Reader for IVF vectors. This reader is used to read the IVF vectors from the index.
  */
 public abstract class IVFVectorsReader extends KnnVectorsReader {
+
+    private static final Logger logger = LogManager.getLogger(IVFVectorsReader.class);
 
     protected final IndexInput ivfCentroids, ivfClusters;
     private final SegmentReadState state;
@@ -299,10 +303,14 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             : esAcceptDocs instanceof ESAcceptDocs.ESAcceptDocsAll ? numVectors
             : esAcceptDocs.approximateCost());
         float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / numVectors));
+        int numCands = 0;
+        int k = knnCollector.k();
         float visitRatio = dynamicVisitRatio;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
             visitRatio = ivfSearchStrategy.getVisitRatio();
+            numCands = ivfSearchStrategy.getNumCands();
+            k = ivfSearchStrategy.getK();
         }
 
         FieldEntry entry = fields.get(fieldInfo.number);
@@ -313,11 +321,18 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             // TODO: we might want to consider the density of the centroids as experiments shows that for fewer vectors per centroid,
             // the least vectors we need to score to get a good recall.
             float estimated = Math.round(Math.log10(numVectors) * Math.log10(numVectors) * (knnCollector.k()));
-            // clip so we visit at least one vector
             visitRatio = estimated / numVectors;
         }
         // we account for soar vectors here. We can potentially visit a vector twice so we multiply by 2 here.
         long maxVectorVisited = (long) (2.0 * visitRatio * numVectors);
+        logger.debug(
+            "IVF search segment: numVectors=[{}], visitRatio=[{}], maxVectorVisited=[{}], numCands=[{}], k=[{}]",
+            numVectors,
+            visitRatio,
+            maxVectorVisited,
+            numCands,
+            k
+        );
         IndexInput postListSlice = entry.postingListSlice(ivfClusters);
         CentroidIterator centroidPrefetchingIterator = getCentroidIterator(
             fieldInfo,
@@ -361,6 +376,12 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 }
             }
         }
+        logger.debug(
+            "IVF search result: expectedDocs=[{}], actualDocs=[{}], visitedCount=[{}]",
+            expectedDocs,
+            actualDocs,
+            knnCollector.visitedCount()
+        );
     }
 
     @Override
@@ -492,4 +513,5 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         /** returns the number of scored documents */
         int visit(KnnCollector collector) throws IOException;
     }
+
 }

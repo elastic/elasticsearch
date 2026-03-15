@@ -11,7 +11,6 @@ package org.elasticsearch.search.vectors;
 
 import com.carrotsearch.hppc.IntHashSet;
 
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -48,6 +47,14 @@ import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAS
 abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider {
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
+
+    // Two-Signal Model constants for dynamic visit ratio
+    private static final float V_MIN = 0.003f;
+    private static final float V_MAX = 0.04f;
+    private static final double LOG1P_R_MAX = Math.log1p(10.0);
+    private static final double LOG1P_K_MAX = Math.log1p(10_000.0);
+    private static final double RATIO_WEIGHT = 0.85;
+    private static final double K_WEIGHT = 0.15;
 
     protected final String field;
     protected final float providedVisitRatio;
@@ -88,6 +95,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (o == null || getClass() != o.getClass()) return false;
         AbstractIVFKnnVectorQuery that = (AbstractIVFKnnVectorQuery) o;
         return k == that.k
+            && numCands == that.numCands
             && Objects.equals(field, that.field)
             && Objects.equals(filter, that.filter)
             && Objects.equals(providedVisitRatio, that.providedVisitRatio);
@@ -95,7 +103,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, k, filter, providedVisitRatio);
+        return Objects.hash(field, k, numCands, filter, providedVisitRatio);
     }
 
     @Override
@@ -125,23 +133,11 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
 
-        assert this instanceof IVFKnnFloatVectorQuery;
-        int totalVectors = 0;
-        for (LeafReaderContext leafReaderContext : leafReaderContexts) {
-            LeafReader leafReader = leafReaderContext.reader();
-            FloatVectorValues floatVectorValues = leafReader.getFloatVectorValues(field);
-            if (floatVectorValues != null) {
-                totalVectors += floatVectorValues.size();
-            }
-        }
-
         final float visitRatio;
         if (providedVisitRatio == 0.0f) {
-            // dynamically set the percentage
-            float expected = (float) Math.round(
-                Math.log10(totalVectors) * Math.log10(totalVectors) * (Math.min(10_000, Math.max(numCands, 5 * k)))
-            );
-            visitRatio = expected / totalVectors;
+            double r = (double) numCands / Math.max(k, 1);
+            double z = RATIO_WEIGHT * logScale(r - 1.0, LOG1P_R_MAX) + K_WEIGHT * logScale(k, LOG1P_K_MAX);
+            visitRatio = (float) (V_MIN + (V_MAX - V_MIN) * z);
         } else {
             visitRatio = providedVisitRatio;
         }
@@ -214,6 +210,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             knnCollectorManager,
             visitRatio
         );
+    }
+
+    private static double logScale(double value, double log1pMax) {
+        return Math.max(0.0, Math.min(1.0, Math.log1p(value) / log1pMax));
     }
 
     abstract void preconditionQuery(LeafReaderContext context) throws IOException;

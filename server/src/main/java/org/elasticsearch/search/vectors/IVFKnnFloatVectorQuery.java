@@ -137,7 +137,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         if (floatVectorValues.size() == 0) {
             return NO_RESULTS;
         }
-        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, knnCollectorManager.longAccumulator);
+        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, numCands, k, knnCollectorManager.longAccumulator);
         AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
         if (knnCollector == null) {
             return NO_RESULTS;

@@ -13,7 +13,6 @@ import com.google.protobuf.InvalidProtocolBufferException;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.index.IndexingPressure;
-import org.elasticsearch.rest.RestStatus;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -31,7 +30,7 @@ public class OTLPMetricsRestActionTests extends AbstractOTLPRestActionTests {
 
     @Override
     protected OTLPActionResponse createSuccessResponse() {
-        return new OTLPActionResponse(RestStatus.OK, ExportMetricsServiceResponse.newBuilder().build());
+        return new OTLPActionResponse(ExportMetricsServiceResponse.newBuilder().build());
     }
 
     @Override

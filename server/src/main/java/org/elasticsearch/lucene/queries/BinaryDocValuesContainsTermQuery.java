@@ -25,6 +25,7 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -121,28 +122,7 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
         return Objects.hash(classHash(), fieldName, containsTerm);
     }
 
-    // Copied and modified from StringUTF16.indexOfLatin1Unsafe
     public static boolean contains(BytesRef value, BytesRef term) {
-        byte first = term.bytes[term.offset];
-        int max = (value.length - term.length) + value.offset;
-        for (int i = value.offset; i <= max; i++) {
-            // Look for first character.
-            if (value.bytes[i] != first) {
-                while (++i <= max && value.bytes[i] != first)
-                    ;
-            }
-            // Found first character, now look at the rest of value
-            if (i <= max) {
-                int j = i + 1;
-                int end = j + term.length - 1;
-                for (int k = 1; j < end && value.bytes[j] == term.bytes[k]; j++, k++)
-                    ;
-                if (j == end) {
-                    // Found whole string.
-                    return true;
-                }
-            }
-        }
-        return false;
+        return ESVectorUtil.contains(value.bytes, value.offset, value.length, term.bytes, term.offset, term.length);
     }
 }

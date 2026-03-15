@@ -13,6 +13,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -23,12 +24,13 @@ import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicLong;
 
 public final class FetchSearchResult extends SearchPhaseResult {
 
     private SearchHits hits;
 
-    private transient long searchHitsSizeBytes = 0L;
+    private final transient AtomicLong searchHitsSizeBytes = new AtomicLong(0L);
 
     // client side counter
     private transient int counter;
@@ -88,18 +90,30 @@ public final class FetchSearchResult extends SearchPhaseResult {
     }
 
     public void setSearchHitsSizeBytes(long bytes) {
-        this.searchHitsSizeBytes = bytes;
+        this.searchHitsSizeBytes.set(bytes);
     }
 
     public long getSearchHitsSizeBytes() {
-        return searchHitsSizeBytes;
+        return searchHitsSizeBytes.get();
     }
 
     public void releaseCircuitBreakerBytes(CircuitBreaker circuitBreaker) {
-        if (searchHitsSizeBytes > 0L) {
-            circuitBreaker.addWithoutBreaking(-searchHitsSizeBytes);
-            searchHitsSizeBytes = 0L;
+        long bytes = searchHitsSizeBytes.getAndSet(0L);
+        if (bytes > 0L) {
+            circuitBreaker.addWithoutBreaking(-bytes);
         }
+    }
+
+    /**
+     * Extracts the circuit-breaker reservation from this result and returns a
+     * {@link Releasable} that releases those bytes from the breaker when closed.
+     */
+    public Releasable detachCircuitBreakerReservation(CircuitBreaker circuitBreaker) {
+        long bytes = searchHitsSizeBytes.getAndSet(0L);
+        if (bytes > 0L) {
+            return () -> circuitBreaker.addWithoutBreaking(-bytes);
+        }
+        return () -> {};
     }
 
     public FetchSearchResult initCounter() {

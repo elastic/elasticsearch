@@ -7,15 +7,13 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-
 import java.util.EnumSet;
 
 /**
  * Golden tests for filter and sort pushdown to Lucene.
  * New pushdown tests should be added here rather than in {@link LocalPhysicalPlanOptimizerTests}.
  */
-public class PushdownGoldenTests extends GoldenTestCase {
+public class PushdownGoldenTests extends UnmappedGoldenTestCase {
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION);
 
     public void testFilterPushdownNoUnmapped() {
@@ -94,8 +92,6 @@ public class PushdownGoldenTests extends GoldenTestCase {
     }
 
     private void runUnmappedTests(String query) {
-        runGoldenTest("SET unmapped_fields=\"nullify\"; " + query, STAGES, "nullify");
-        assumeTrue("Requires OPTIONAL_FIELDS_V2 for load", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
-        runGoldenTest("SET unmapped_fields=\"load\"; " + query, STAGES, "load");
+        runTestsNullifyAndLoad(query, STAGES);
     }
 }

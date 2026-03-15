@@ -96,11 +96,11 @@ clients:double | cluster:keyword | time_bucket:datetime
 avg_over_time_of_aggregate_metric_double
 required_capability: ts_command_v0
 required_capability: aggregate_metric_double_v0
-TS k8s-downsampled 
+TS k8s-downsampled
 | STATS tx = sum(avg_over_time(network.eth0.tx)) BY time_bucket = bucket(@timestamp, 10minute)
 | EVAL tx = round(tx, 6)
 | KEEP tx, time_bucket
-| SORT time_bucket 
+| SORT time_bucket
 | LIMIT 10
 ;
 
@@ -113,11 +113,11 @@ tx:double   | time_bucket:datetime
 avg_over_time_of_aggregate_metric_double_grouping
 required_capability: ts_command_v0
 required_capability: aggregate_metric_double_v0
-TS k8s-downsampled 
-| STATS tx = sum(avg_over_time(network.eth0.tx)) BY cluster, time_bucket = bucket(@timestamp, 10minute) 
+TS k8s-downsampled
+| STATS tx = sum(avg_over_time(network.eth0.tx)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
 | EVAL tx = round(tx, 6)
 | KEEP tx, cluster, time_bucket
-| SORT time_bucket, cluster 
+| SORT time_bucket, cluster
 | LIMIT 10;
 
 tx:double   | cluster:keyword | time_bucket:datetime
@@ -247,7 +247,7 @@ avg_over_time_with_window
 required_capability: ts_command_v0
 required_capability: time_series_window_v1
 // tag::avg_over_time_with_window[]
-TS k8s 
+TS k8s
 | STATS events = sum(avg_over_time(events_received, 10minute)) by pod, time_bucket = tbucket(5minute)
 // end::avg_over_time_with_window[]
 | SORT time_bucket, pod
@@ -271,10 +271,10 @@ events:double      | pod:keyword | time_bucket:datetime
 avg_over_time_aggregate_metric_double_implicit_casting
 required_capability: ts_command_v0
 required_capability: aggregate_metric_double_v0
-TS k8s* 
+TS k8s,k8s-downsampled
 | STATS bytes = sum(avg_over_time(network.eth0.rx)) by time_bucket = bucket(@timestamp, 10minute)
-| SORT bytes desc, time_bucket 
-| LIMIT 10 
+| SORT bytes desc, time_bucket
+| LIMIT 10
 | EVAL bytes = round(bytes, 6)
 | KEEP bytes, time_bucket
 ;
@@ -291,7 +291,7 @@ bytes:double | time_bucket:datetime
 avg_over_time_aggregate_metric_double_implicit_casting_grouping
 required_capability: ts_command_v0
 required_capability: aggregate_metric_double_v0
-TS k8s* | STATS bytes = sum(avg_over_time(network.eth0.rx)) by pod, time_bucket = bucket(@timestamp, 10minute) | SORT bytes desc, pod, time_bucket | LIMIT 10 ;
+TS k8s,k8s-downsampled | STATS bytes = sum(avg_over_time(network.eth0.rx)) by pod, time_bucket = bucket(@timestamp, 10minute) | SORT bytes desc, pod, time_bucket | LIMIT 10 ;
 
 bytes:double       | pod:keyword | time_bucket:datetime
 3095.5             | one         | 2024-05-10T00:20:00.000Z

@@ -28,13 +28,23 @@ public abstract class ResultDiversification<C extends ResultDiversificationConte
 
     public abstract RankDoc[] diversify(RankDoc[] docs) throws IOException;
 
-    protected float getVectorComparisonScore(
+    public static float getVectorComparisonScore(
         VectorSimilarityFunction similarityFunction,
         VectorData thisDocVector,
         VectorData comparisonVector
     ) {
-        return thisDocVector.isFloat()
-            ? similarityFunction.compare(thisDocVector.floatVector(), comparisonVector.floatVector())
-            : similarityFunction.compare(thisDocVector.byteVector(), comparisonVector.byteVector());
+        boolean docVectorIsFloat = thisDocVector.isFloat();
+
+        if (docVectorIsFloat == comparisonVector.isFloat()) {
+            return docVectorIsFloat
+                ? similarityFunction.compare(thisDocVector.floatVector(), comparisonVector.floatVector())
+                : similarityFunction.compare(thisDocVector.byteVector(), comparisonVector.byteVector());
+        }
+
+        if (docVectorIsFloat) {
+            return similarityFunction.compare(thisDocVector.floatVector(), comparisonVector.asFloatVector());
+        }
+
+        return similarityFunction.compare(thisDocVector.asFloatVector(), comparisonVector.floatVector());
     }
 }

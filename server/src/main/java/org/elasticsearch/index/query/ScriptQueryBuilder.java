@@ -38,7 +38,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
-public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder> {
+public class ScriptQueryBuilder extends LeafQueryBuilder<ScriptQueryBuilder> {
     public static final String NAME = "script";
 
     private final Script script;

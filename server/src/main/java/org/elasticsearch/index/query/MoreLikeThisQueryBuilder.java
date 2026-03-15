@@ -65,7 +65,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
  *
  * The documents are provided as a set of strings and/or a list of {@link Item}.
  */
-public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQueryBuilder> {
+public class MoreLikeThisQueryBuilder extends LeafQueryBuilder<MoreLikeThisQueryBuilder> {
     public static final String NAME = "more_like_this";
 
     public static final int DEFAULT_MAX_QUERY_TERMS = XMoreLikeThis.DEFAULT_MAX_QUERY_TERMS;

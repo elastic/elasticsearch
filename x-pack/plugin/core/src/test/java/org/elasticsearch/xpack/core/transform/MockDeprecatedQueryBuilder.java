@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -26,7 +26,7 @@ import java.io.IOException;
 /*
  * Utility test class to write a deprecation message on usage
  */
-public class MockDeprecatedQueryBuilder extends AbstractQueryBuilder<MockDeprecatedQueryBuilder> {
+public class MockDeprecatedQueryBuilder extends LeafQueryBuilder<MockDeprecatedQueryBuilder> {
 
     public static final String NAME = "deprecated_match_all";
     public static final String DEPRECATION_MESSAGE = "expected deprecation message from MockDeprecatedQueryBuilder";

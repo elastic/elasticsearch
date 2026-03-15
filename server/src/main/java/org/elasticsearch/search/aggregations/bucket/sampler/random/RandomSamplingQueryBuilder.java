@@ -14,7 +14,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -28,7 +28,7 @@ import static org.elasticsearch.search.aggregations.bucket.sampler.random.Random
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class RandomSamplingQueryBuilder extends AbstractQueryBuilder<RandomSamplingQueryBuilder> {
+public class RandomSamplingQueryBuilder extends LeafQueryBuilder<RandomSamplingQueryBuilder> {
 
     public static final String NAME = "random_sampling";
     static final ParseField PROBABILITY = new ParseField("query");

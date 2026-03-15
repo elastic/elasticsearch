@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -157,7 +158,7 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) throws IOException {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(
                 "[script score] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
@@ -166,7 +167,7 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
         ScoreScript.Factory factory = context.compile(script, ScoreScript.CONTEXT);
         SearchLookup lookup = context.lookup();
         ScoreScript.LeafFactory scoreScriptFactory = factory.newFactory(script.getParams(), lookup);
-        Query query = this.query.toQuery(context);
+        Query query = this.query.toQuery(context, queryVisitor);
         return new ScriptScoreQuery(
             query,
             script,

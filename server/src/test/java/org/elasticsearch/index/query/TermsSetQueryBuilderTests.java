@@ -121,7 +121,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
         queryBuilder.setMinimumShouldMatchField("m_s_m");
         context = createSearchExecutionContext();
         rewriteQuery(queryBuilder, new SearchExecutionContext(context));
-        assertNotNull(queryBuilder.doToQuery(context));
+        assertNotNull(queryBuilder.toQuery(context));
         assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
 
         queryBuilder = new TermsSetQueryBuilder(TEXT_FIELD_NAME, Collections.emptyList());

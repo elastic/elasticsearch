@@ -114,7 +114,11 @@ public class Warnings {
     public void registerException(Class<? extends Exception> exceptionClass, String message) {
         if (addedWarnings < MAX_ADDED_WARNINGS) {
             if (addedWarnings == 0) {
-                addWarning(first);
+                if (ArithmeticException.class.isAssignableFrom(exceptionClass)) {
+                    addWarning(first + " " + exceptionClass.getName() + ": Arithmetic overflow");
+                } else {
+                    addWarning(first);
+                }
             }
             // location needs to be added to the exception too, since the headers are deduplicated
             addWarning(location + exceptionClass.getName() + ": " + message);

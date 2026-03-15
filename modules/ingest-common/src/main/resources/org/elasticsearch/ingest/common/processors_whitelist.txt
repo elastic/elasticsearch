@@ -10,6 +10,7 @@
 # This file contains a whitelist of static processor methods that can be accessed from painless
 
 class org.elasticsearch.ingest.common.Processors {
+  List commandLineArgs(String, String)
   long bytes(String)
   String lowercase(String)
   String uppercase(String)

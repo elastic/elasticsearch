@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -85,8 +86,18 @@ public class DesiredBalanceReconciler {
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
     private final UndesiredAllocationsTracker undesiredAllocationsTracker;
     private final ShardRelocationOrder shardRelocationOrder;
+    private final RoutingChangesObserver reconcilerMetricsObserver;
 
     public DesiredBalanceReconciler(ClusterSettings clusterSettings, TimeProvider timeProvider, ShardRelocationOrder shardRelocationOrder) {
+        this(clusterSettings, timeProvider, shardRelocationOrder, DesiredBalanceMetrics.NOOP);
+    }
+
+    public DesiredBalanceReconciler(
+        ClusterSettings clusterSettings,
+        TimeProvider timeProvider,
+        ShardRelocationOrder shardRelocationOrder,
+        DesiredBalanceMetrics desiredBalanceMetrics
+    ) {
         this.undesiredAllocationLogInterval = new FrequencyCappedAction(timeProvider::relativeTimeInMillis, TimeValue.timeValueMinutes(5));
         clusterSettings.initializeAndWatch(UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING, this.undesiredAllocationLogInterval::setMinInterval);
         clusterSettings.initializeAndWatch(
@@ -95,6 +106,7 @@ public class DesiredBalanceReconciler {
         );
         this.undesiredAllocationsTracker = new UndesiredAllocationsTracker(clusterSettings, timeProvider);
         this.shardRelocationOrder = shardRelocationOrder;
+        this.reconcilerMetricsObserver = new ReconcilerShardMovementObserver(desiredBalanceMetrics);
     }
 
     /**
@@ -133,6 +145,7 @@ public class DesiredBalanceReconciler {
         private final DesiredBalance desiredBalance;
         private final RoutingAllocation allocation;
         private final RoutingNodes routingNodes;
+        private RoutingChangesObserver changesObserver;
 
         Reconciliation(DesiredBalance desiredBalance, RoutingAllocation allocation) {
             this.desiredBalance = desiredBalance;
@@ -142,6 +155,10 @@ public class DesiredBalanceReconciler {
 
         DesiredBalanceMetrics.AllocationStats run() {
             undesiredAllocationsTracker.cleanup(routingNodes);
+            this.changesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
+                allocation.changes(),
+                reconcilerMetricsObserver
+            );
             try (var ignored = allocation.withReconcilingFlag()) {
 
                 logger.debug("Reconciling desired balance for [{}]", desiredBalance.lastConvergedIndex());
@@ -242,7 +259,7 @@ public class DesiredBalanceReconciler {
                             unassignedInfo.lastAllocatedNodeId()
                         ),
                         shardRouting.recoverySource(),
-                        allocation.changes()
+                        changesObserver
                     );
                 }
             }
@@ -333,7 +350,7 @@ public class DesiredBalanceReconciler {
                                 case YES, NOT_PREFERRED -> {
                                     logger.debug("Assigning shard [{}] to {} [{}]", shard, nodeIdsIterator.source, nodeId);
                                     long shardSize = getExpectedShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation);
-                                    routingNodes.initializeShard(shard, nodeId, null, shardSize, allocation.changes());
+                                    routingNodes.initializeShard(shard, nodeId, null, shardSize, changesObserver);
                                     allocationOrdering.recordAllocation(nodeId);
                                     if (shard.primary() == false) {
                                         // copy over the same replica shards to the secondary array so they will get allocated
@@ -362,7 +379,7 @@ public class DesiredBalanceReconciler {
                     }
 
                     logger.debug("No eligible node found to assign shard [{}]", shard);
-                    unassigned.ignoreShard(shard, unallocatedStatus, allocation.changes());
+                    unassigned.ignoreShard(shard, unallocatedStatus, changesObserver);
                     if (shard.primary() == false) {
                         // We could not allocate the shard copy and the copy is a replica: check if we can ignore the other unassigned
                         // replicas.
@@ -371,7 +388,7 @@ public class DesiredBalanceReconciler {
                                 orderedShardAllocationList[i],
                                 orderedShardAllocationList[i + 1]
                             ) == 0) {
-                            unassigned.ignoreShard(orderedShardAllocationList[++i], unallocatedStatus, allocation.changes());
+                            unassigned.ignoreShard(orderedShardAllocationList[++i], unallocatedStatus, changesObserver);
                         }
                     }
                 }
@@ -538,7 +555,7 @@ public class DesiredBalanceReconciler {
                             moveTarget.getId(),
                             allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
                             "move",
-                            allocation.changes()
+                            changesObserver
                         );
                         iterator.dePrioritizeNode(shardRouting.currentNodeId());
                         moveOrdering.recordAllocation(shardRouting.currentNodeId());
@@ -633,7 +650,7 @@ public class DesiredBalanceReconciler {
                             rebalanceTarget.getId(),
                             allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
                             "rebalance",
-                            allocation.changes()
+                            changesObserver
                         );
                         iterator.dePrioritizeNode(shardRouting.currentNodeId());
                         moveOrdering.recordAllocation(shardRouting.currentNodeId());

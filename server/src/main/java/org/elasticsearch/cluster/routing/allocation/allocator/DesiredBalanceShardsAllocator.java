@@ -163,7 +163,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.threadPool = threadPool;
         this.reconciler = reconciler;
         this.desiredBalanceComputer = desiredBalanceComputer;
-        this.desiredBalanceReconciler = new DesiredBalanceReconciler(clusterService.getClusterSettings(), threadPool, shardRelocationOrder);
+        this.desiredBalanceReconciler = new DesiredBalanceReconciler(
+            clusterService.getClusterSettings(),
+            threadPool,
+            shardRelocationOrder,
+            desiredBalanceMetrics
+        );
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
             @Override

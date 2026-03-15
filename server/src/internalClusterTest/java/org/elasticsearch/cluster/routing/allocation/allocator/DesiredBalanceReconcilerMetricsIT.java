@@ -14,17 +14,22 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matcher;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.snapshots.SnapshotTestUtils.clearShutdownMetadata;
+import static org.elasticsearch.snapshots.SnapshotTestUtils.putShutdownForRemovalMetadata;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -173,6 +178,67 @@ public class DesiredBalanceReconcilerMetricsIT extends ESIntegTestCase {
             assertThat((String) nodeStat.attributes().get("node_name"), is(in(nodeNames)));
         }
         assertTrue(currentNodeForecastedDiskUsageMetrics.stream().anyMatch(m -> m.getLong() > 0L));
+    }
+
+    public void testReconcilerShardMovementMetrics() {
+        internalCluster().startNodes(2);
+        final TestTelemetryPlugin telemetryPlugin = getTelemetryPlugin(internalCluster().getMasterName());
+
+        // Create an index, should result in 'unassigned' reconciler shard movement
+        final var indexName = randomIdentifier();
+        prepareCreate(indexName).setSettings(indexSettings(6, 1)).get();
+        ensureGreen(indexName);
+
+        telemetryPlugin.collect();
+        List<Measurement> measurements = telemetryPlugin.getLongCounterMeasurement(
+            DesiredBalanceMetrics.RECONCILER_SHARD_MOVEMENTS_METRIC_NAME
+        );
+        assertTrue(
+            "expected at least one 'unassigned' shard movement when assigning the new index",
+            measurements.stream()
+                .anyMatch(
+                    m -> DesiredBalanceMetrics.ShardMovementReason.UNASSIGNED.getAttributeValue()
+                        .equals(m.attributes().get(DesiredBalanceMetrics.SHARD_MOVEMENT_REASON_ATTRIBUTE))
+                )
+        );
+
+        // Trigger rebalance by adding a third node
+        internalCluster().startNode();
+        ClusterRerouteUtils.reroute(client());
+
+        telemetryPlugin.collect();
+        measurements = telemetryPlugin.getLongCounterMeasurement(DesiredBalanceMetrics.RECONCILER_SHARD_MOVEMENTS_METRIC_NAME);
+        assertTrue(
+            "expected at least one 'rebalance' shard movement when adding a node",
+            measurements.stream()
+                .anyMatch(
+                    m -> DesiredBalanceMetrics.ShardMovementReason.REBALANCE.getAttributeValue()
+                        .equals(m.attributes().get(DesiredBalanceMetrics.SHARD_MOVEMENT_REASON_ATTRIBUTE))
+                )
+        );
+
+        // Trigger a 'cannot_remain' movement by marking one node for shutdown
+        ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final var state = clusterService.state();
+        final var randomNodeId = randomFrom(state.routingTable().index(indexName).allActivePrimaries().toList()).currentNodeId();
+        final var nodeNameToShutdown = state.nodes().get(randomNodeId).getName();
+        putShutdownForRemovalMetadata(nodeNameToShutdown, clusterService);
+        ClusterRerouteUtils.reroute(client());
+
+        try {
+            telemetryPlugin.collect();
+            measurements = telemetryPlugin.getLongCounterMeasurement(DesiredBalanceMetrics.RECONCILER_SHARD_MOVEMENTS_METRIC_NAME);
+            assertTrue(
+                "expected at least one 'cannot_remain' shard movement when a node is shutting down",
+                measurements.stream()
+                    .anyMatch(
+                        m -> DesiredBalanceMetrics.ShardMovementReason.CANNOT_REMAIN.getAttributeValue()
+                            .equals(m.attributes().get(DesiredBalanceMetrics.SHARD_MOVEMENT_REASON_ATTRIBUTE))
+                    )
+            );
+        } finally {
+            clearShutdownMetadata(clusterService);
+        }
     }
 
     private static void assertOnlyMasterIsPublishingMetrics() {

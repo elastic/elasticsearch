@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator.NodeAllocationStatsAndWeight;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
@@ -129,10 +130,45 @@ public class DesiredBalanceMetrics {
     // Decider metrics
     public static final String WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE = "es.allocator.deciders.write_load.max_latency_value.current";
 
+    /** Counter for shard movements performed by the desired balance reconciler. */
+    public static final String RECONCILER_SHARD_MOVEMENTS_METRIC_NAME = "es.allocator.desired_balance.reconciler.shard_movements.total";
+
+    /** Attribute key for the reason a shard movement was performed. */
+    public static final String SHARD_MOVEMENT_REASON_ATTRIBUTE = "es_shard_movement_reason";
+
+    /**
+     * Reason why the desired balance reconciler performed a shard movement.
+     */
+    public enum ShardMovementReason {
+        /** Shard was unassigned and was assigned to a node. */
+        UNASSIGNED("unassigned"),
+        /** Shard could not remain on its current node and was relocated. */
+        CANNOT_REMAIN("cannot_remain"),
+        /** Shard was relocated as part of rebalancing. */
+        REBALANCE("rebalance");
+
+        private final String attributeValue;
+        private final Map<String, Object> attributeMap;
+
+        ShardMovementReason(String attributeValue) {
+            this.attributeValue = attributeValue;
+            this.attributeMap = Map.of(SHARD_MOVEMENT_REASON_ATTRIBUTE, attributeValue);
+        }
+
+        public String getAttributeValue() {
+            return attributeValue;
+        }
+
+        public Map<String, Object> getAttributeMap() {
+            return attributeMap;
+        }
+    }
+
     public static final AllocationStats EMPTY_ALLOCATION_STATS = new AllocationStats(0, Map.of());
     public static final DesiredBalanceMetrics NOOP = new DesiredBalanceMetrics(MeterRegistry.NOOP);
 
     private final MeterRegistry meterRegistry;
+    private final LongCounter reconcilerShardMovementsCounter;
     private volatile boolean nodeIsMaster = false;
 
     /**
@@ -161,6 +197,11 @@ public class DesiredBalanceMetrics {
 
     public DesiredBalanceMetrics(MeterRegistry meterRegistry) {
         this.meterRegistry = meterRegistry;
+        this.reconcilerShardMovementsCounter = meterRegistry.registerLongCounter(
+            RECONCILER_SHARD_MOVEMENTS_METRIC_NAME,
+            "Number of shard movements performed by the desired balance reconciler",
+            "unit"
+        );
         meterRegistry.registerLongsGauge(
             UNASSIGNED_SHARDS_METRIC_NAME,
             "Current number of unassigned shards",
@@ -266,6 +307,13 @@ public class DesiredBalanceMetrics {
 
     public AllocationStats allocationStats() {
         return lastReconciliationAllocationStats;
+    }
+
+    /**
+     * Record that the desired balance reconciler performed a shard movement for the given reason.
+     */
+    public void recordReconcilerShardMovement(ShardMovementReason reason) {
+        reconcilerShardMovementsCounter.incrementBy(1, reason.getAttributeMap());
     }
 
     public void registerWriteLoadDeciderMaxLatencyGauge(Supplier<Collection<LongWithAttributes>> maxLatencySupplier) {

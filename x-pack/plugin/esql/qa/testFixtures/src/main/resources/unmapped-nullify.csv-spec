@@ -49,6 +49,23 @@ FROM partial_mapping_excluded_source_sample_data
 2024-10-23T12:15:03.360Z | null
 ;
 
+unmappedNumericFromSyntheticSourceSingleIndex
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_synthetic_sample_data
+| KEEP @timestamp, unmapped_event_duration
+| SORT @timestamp DESC
+| LIMIT 4
+;
+
+@timestamp:date          | unmapped_event_duration:null
+2024-10-23T13:55:01.543Z | null
+2024-10-23T13:53:55.832Z | null
+2024-10-23T13:52:55.015Z | null
+2024-10-23T13:51:54.732Z | null
+;
+
 fieldUnmappedInSourceButSourceDisabledSingleIndex
 required_capability: optional_fields_nullify_tech_preview
 required_capability: source_field_mapping
@@ -84,6 +101,25 @@ FROM date_nanos
 nanos:date_nanos
 2023-03-23T12:15:03.360103847Z
 2023-01-23T13:55:01.543123456Z
+;
+
+unmappedNumericFromK8sSyntheticTsIndex
+required_capability: optional_fields_nullify_tech_preview
+required_capability: ts_command_v0
+
+SET unmapped_fields="nullify"\;
+TS k8s_unmapped
+| KEEP @timestamp, cluster, network.cost
+| SORT @timestamp
+| LIMIT 5
+;
+
+@timestamp:date            | cluster:keyword | network.cost:null
+2024-05-10T00:00:29.000Z   | staging         | null
+2024-05-10T00:00:33.000Z   | staging         | null
+2024-05-10T00:00:51.000Z   | prod            | null
+2024-05-10T00:00:57.000Z   | prod            | null
+2024-05-10T00:01:25.000Z   | qa              | null
 ;
 
 keepStar

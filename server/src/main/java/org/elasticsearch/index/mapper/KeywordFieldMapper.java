@@ -556,6 +556,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final boolean isDimension;
         private final boolean usesBinaryDocValues;
         private final boolean usesBinaryDocValuesForIgnoredFields;
+        private final boolean forUnmappedLoad;
 
         public KeywordFieldType(
             String name,
@@ -563,7 +564,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             TextSearchInfo textSearchInfo,
             NamedAnalyzer normalizer,
             Builder builder,
-            boolean isSyntheticSource
+            boolean isSyntheticSource,
+            boolean forUnmappedLoad
         ) {
             super(
                 name,
@@ -587,6 +589,18 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.usesBinaryDocValues = builder.usesBinaryDocValues();
             this.usesBinaryDocValuesForIgnoredFields = builder.indexSettings.getIndexVersionCreated()
                 .onOrAfter(IndexVersions.STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES);
+            this.forUnmappedLoad = forUnmappedLoad;
+        }
+
+        public KeywordFieldType(
+            String name,
+            IndexType indexType,
+            TextSearchInfo textSearchInfo,
+            NamedAnalyzer normalizer,
+            Builder builder,
+            boolean isSyntheticSource
+        ) {
+            this(name, indexType, textSearchInfo, normalizer, builder, isSyntheticSource, false);
         }
 
         public KeywordFieldType(String name) {
@@ -613,6 +627,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.isDimension = false;
             this.usesBinaryDocValues = usesBinaryDocValues;
             this.usesBinaryDocValuesForIgnoredFields = false;
+            this.forUnmappedLoad = false;
         }
 
         public KeywordFieldType(String name, FieldType fieldType, boolean isSyntheticSource) {
@@ -633,6 +648,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.isDimension = false;
             this.usesBinaryDocValues = false;
             this.usesBinaryDocValuesForIgnoredFields = false;
+            this.forUnmappedLoad = false;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
@@ -653,6 +669,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.isDimension = false;
             this.usesBinaryDocValues = false;
             this.usesBinaryDocValuesForIgnoredFields = false;
+            this.forUnmappedLoad = false;
         }
 
         public boolean usesBinaryDocValues() {
@@ -933,10 +950,20 @@ public final class KeywordFieldMapper extends FieldMapper {
             return new FallbackSyntheticSourceBlockLoader.SingleValueReader<BytesRef>(nullValueBytes) {
                 @Override
                 public void convertValue(Object value, List<BytesRef> accumulator) {
-                    String stringValue = ((BytesRef) value).utf8ToString();
+                    final String stringValue;
+                    if (forUnmappedLoad) {
+                        if (value == null) {
+                            if (nullValueBytes != null) {
+                                accumulator.add(nullValueBytes);
+                            }
+                            return;
+                        }
+                        stringValue = value instanceof BytesRef br ? br.utf8ToString() : value.toString();
+                    } else {
+                        stringValue = ((BytesRef) value).utf8ToString();
+                    }
                     String adjusted = applyIgnoreAboveAndNormalizer(stringValue);
                     if (adjusted != null) {
-                        // TODO what if the value didn't change?
                         accumulator.add(new BytesRef(adjusted));
                     }
                 }

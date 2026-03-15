@@ -325,7 +325,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 new TextSearchInfo(UNMAPPED_FIELD_TYPE, builder.similarity(), Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
                 Lucene.KEYWORD_ANALYZER,
                 builder,
-                context.ctx.isSourceSynthetic()
+                context.ctx.isSourceSynthetic(),
+                true
             );
         }
     }

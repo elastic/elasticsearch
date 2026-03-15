@@ -4,14 +4,6 @@
     "@timestamp": {
       "type": "date"
     },
-    "cluster": {
-      "type": "keyword",
-      "time_series_dimension": true
-    },
-    "pod": {
-      "type": "keyword",
-      "time_series_dimension": true
-    },
     "client": {
       "properties": {
         "ip": {
@@ -19,12 +11,8 @@
         }
       }
     },
-    "region": {
-      "type": "keyword",
-      "time_series_dimension": true
-    },
-    "event": {
-      "type": "keyword"
+    "event_log": {
+      "type": "text"
     },
     "events_received": {
       "type": "long"
@@ -55,9 +43,6 @@
           "type": "long",
           "time_series_metric": "counter",
           "meta": { "unit": "bytes" }
-        },
-        "cost": {
-          "type": "double"
         },
         "total_cost": {
           "type": "double",

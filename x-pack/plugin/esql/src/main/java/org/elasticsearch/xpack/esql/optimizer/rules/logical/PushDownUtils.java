@@ -14,11 +14,15 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
@@ -209,4 +213,39 @@ class PushDownUtils {
     }
 
     private record AttributeReplacement(List<Expression> rewrittenExpressions, AttributeMap<Alias> replacedAttributes) {}
+
+    public static boolean shouldPushDownPipelineBreakerIntoForkBranch(LogicalPlan plan) {
+        // We only push down a pipeline breaker when:
+        // 1. There is an OrderBy that is not followed by a Limit.
+        // 2. There is no PipelineBreaker, but we have an EsRelation. If no EsRelation is found.
+        // We should not push a pipeline breaker like LIMIT into the fork branch, since it will
+        // be removed by other optimizations.
+        Holder<Boolean> hasPipelineBreaker = new Holder<>(false);
+        Holder<Boolean> hasEsRelation = new Holder<>(false);
+        Holder<Boolean> hasUnboundedOrderBy = new Holder<>(false);
+        Holder<Boolean> hasLimit = new Holder<>(false);
+
+        plan.forEachDown(p -> {
+            if (p instanceof PipelineBreaker && p instanceof OrderBy == false) {
+                hasPipelineBreaker.set(true);
+            }
+            if (p instanceof EsRelation) {
+                hasEsRelation.set(true);
+            }
+
+            if (p instanceof Limit) {
+                hasLimit.set(true);
+            }
+
+            if (p instanceof OrderBy && hasLimit.get() == false) {
+                hasUnboundedOrderBy.set(true);
+            }
+        });
+
+        if (hasUnboundedOrderBy.get()) {
+            return true;
+        }
+
+        return hasEsRelation.get() && hasPipelineBreaker.get() == false;
+    }
 }

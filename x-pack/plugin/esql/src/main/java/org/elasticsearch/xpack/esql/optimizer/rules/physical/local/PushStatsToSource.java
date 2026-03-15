@@ -17,15 +17,20 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 
 import java.util.ArrayList;
@@ -47,7 +52,7 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
     protected PhysicalPlan rule(AggregateExec aggregateExec, LocalPhysicalOptimizerContext context) {
         PhysicalPlan plan = aggregateExec;
         if (aggregateExec.child() instanceof EsQueryExec queryExec) {
-            var tuple = pushableStats(aggregateExec, context);
+            var tuple = pushableStats(aggregateExec.groupings(), aggregateExec.aggregates(), context);
 
             // for the moment support pushing count just for one field
             List<EsStatsQueryExec.Stat> stats = tuple.v2();
@@ -65,19 +70,36 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                 tuple.v1(),
                 stats.get(0)
             );
+
+            if (aggregateExec.aggregates().getFirst() instanceof Alias alias && alias.child() instanceof CountApproximate) {
+                Attribute originalCount = aggregateExec.intermediateAttributes().get(0);
+                Attribute originalSeen = aggregateExec.intermediateAttributes().get(1);
+                Attribute count = tuple.v1().get(0);
+                Attribute seen = tuple.v1().get(1);
+                plan = new EvalExec(
+                    plan.source(),
+                    plan,
+                    List.of(
+                        new Alias(count.source(), count.name(), new ToDouble(Source.EMPTY, count), originalCount.id()),
+                        new Alias(seen.source(), seen.name(), seen, originalSeen.id())
+                    )
+                );
+                plan = new ProjectExec(aggregateExec.source(), plan, aggregateExec.output());
+            }
         }
         return plan;
     }
 
-    private Tuple<List<Attribute>, List<EsStatsQueryExec.Stat>> pushableStats(
-        AggregateExec aggregate,
+    static Tuple<List<Attribute>, List<EsStatsQueryExec.Stat>> pushableStats(
+        List<? extends Expression> groupings,
+        List<? extends NamedExpression> aggregates,
         LocalPhysicalOptimizerContext context
     ) {
         AttributeMap.Builder<EsStatsQueryExec.Stat> statsBuilder = AttributeMap.builder();
         Tuple<List<Attribute>, List<EsStatsQueryExec.Stat>> tuple = new Tuple<>(new ArrayList<>(), new ArrayList<>());
 
-        if (aggregate.groupings().isEmpty()) {
-            for (NamedExpression agg : aggregate.aggregates()) {
+        if (groupings.isEmpty()) {
+            for (NamedExpression agg : aggregates) {
                 var attribute = agg.toAttribute();
                 EsStatsQueryExec.Stat stat = statsBuilder.computeIfAbsent(attribute, a -> {
                     if (agg instanceof Alias as) {
@@ -122,8 +144,17 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                     return null;
                 });
                 if (stat != null) {
+                    NamedExpression aggForIntermediate = agg;
+                    if (agg instanceof Alias as && as.child() instanceof CountApproximate ca) {
+                        aggForIntermediate = new Alias(
+                            as.source(),
+                            as.name(),
+                            new Count(ca.source(), ca.field(), ca.filter(), ca.window()),
+                            as.id()
+                        );
+                    }
                     List<Attribute> intermediateAttributes = AbstractPhysicalOperationProviders.intermediateAttributes(
-                        singletonList(agg),
+                        singletonList(aggForIntermediate),
                         emptyList()
                     );
                     // TODO: the attributes have been recreated here; they will have wrong name ids, and the dependency check will

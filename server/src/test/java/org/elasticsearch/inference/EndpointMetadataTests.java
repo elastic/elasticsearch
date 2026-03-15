@@ -34,7 +34,7 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
     private static final EndpointMetadata NON_EMPTY_ENDPOINT_METADATA = new EndpointMetadata(
         new EndpointMetadata.Heuristics(List.of("heuristic1", "heuristic2"), StatusHeuristic.BETA, "2025-01-01", "2025-12-31"),
         new EndpointMetadata.Internal("fingerprint", 1L),
-        new EndpointMetadata.Display("name")
+        new EndpointMetadata.Display("name", "some_creator")
     );
 
     private static final String NON_EMPTY_ENDPOINT_METADATA_JSON = """
@@ -50,7 +50,8 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
             "version": 1
           },
           "display": {
-            "name": "name"
+            "name": "name",
+            "model_creator": "some_creator"
           }
         }
         """;
@@ -64,7 +65,8 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
             "end_of_life_date": "2025-12-31"
           },
           "display": {
-            "name": "name"
+            "name": "name",
+            "model_creator": "some_creator"
           }
         }
         """;
@@ -97,13 +99,15 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         var version = randomLongBetween(0, Long.MAX_VALUE);
         var internal = new EndpointMetadata.Internal(fingerprint, version);
 
-        var display = new EndpointMetadata.Display(randomAlphaOfLengthBetween(1, 20));
+        var display = new EndpointMetadata.Display(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLength(10));
 
         return new EndpointMetadata(heuristics, internal, display);
     }
 
     public static EndpointMetadata.Display randomDisplay() {
-        return randomBoolean() ? EndpointMetadata.Display.EMPTY_INSTANCE : new EndpointMetadata.Display(randomAlphaOfLengthBetween(1, 20));
+        return randomBoolean()
+            ? EndpointMetadata.Display.EMPTY_INSTANCE
+            : new EndpointMetadata.Display(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLength(10));
     }
 
     public static EndpointMetadata.Heuristics randomHeuristics() {
@@ -176,6 +180,84 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
         assertThat(json, is(XContentHelper.stripWhitespace(NON_EMPTY_ENDPOINT_METADATA_JSON_WITHOUT_INTERNAL)));
     }
 
+    public void testFingerprintMatches() {
+        EndpointMetadata endpointWithNullFingerprint1 = new EndpointMetadata(
+            randomHeuristics(),
+            new EndpointMetadata.Internal(null, null),
+            randomDisplay()
+        );
+        EndpointMetadata endpointWithNullFingerprint2 = new EndpointMetadata(
+            randomHeuristics(),
+            new EndpointMetadata.Internal(null, null),
+            randomDisplay()
+        );
+        EndpointMetadata endpointWithFingerprintAbc1 = new EndpointMetadata(
+            randomHeuristics(),
+            new EndpointMetadata.Internal("abc", null),
+            randomDisplay()
+        );
+        EndpointMetadata endpointWithFingerprintAbc2 = new EndpointMetadata(
+            randomHeuristics(),
+            new EndpointMetadata.Internal("abc", null),
+            randomDisplay()
+        );
+        EndpointMetadata endpointWithFingerprintXyz1 = new EndpointMetadata(
+            randomHeuristics(),
+            new EndpointMetadata.Internal("xyz", null),
+            randomDisplay()
+        );
+        EndpointMetadata endpointWithFingerprintXyz2 = new EndpointMetadata(
+            randomHeuristics(),
+            new EndpointMetadata.Internal("xyz", null),
+            randomDisplay()
+        );
+
+        assertThat(endpointWithNullFingerprint1.fingerprintMatches(endpointWithNullFingerprint2), is(true));
+        assertThat(endpointWithNullFingerprint1.fingerprintMatches(endpointWithFingerprintAbc1), is(false));
+        assertThat(endpointWithNullFingerprint1.fingerprintMatches(endpointWithFingerprintXyz1), is(false));
+
+        assertThat(endpointWithFingerprintAbc1.fingerprintMatches(endpointWithFingerprintAbc2), is(true));
+        assertThat(endpointWithFingerprintXyz1.fingerprintMatches(endpointWithFingerprintXyz2), is(true));
+
+        assertThat(endpointWithFingerprintXyz1.fingerprintMatches(endpointWithFingerprintAbc1), is(false));
+    }
+
+    public void testHasNewerVersionThan() {
+        EndpointMetadata endpointWithNullVersion1 = new EndpointMetadata(
+            randomHeuristics(),
+            new EndpointMetadata.Internal(null, null),
+            randomDisplay()
+        );
+        EndpointMetadata endpointWithNullVersion2 = new EndpointMetadata(
+            randomHeuristics(),
+            new EndpointMetadata.Internal(null, null),
+            randomDisplay()
+        );
+        EndpointMetadata endpointWithVersionFour = new EndpointMetadata(
+            randomHeuristics(),
+            new EndpointMetadata.Internal(null, 4L),
+            randomDisplay()
+        );
+        EndpointMetadata anotherEndpointWithVersionFour = new EndpointMetadata(
+            randomHeuristics(),
+            new EndpointMetadata.Internal(null, 4L),
+            randomDisplay()
+        );
+        EndpointMetadata endpointWithVersionFive = new EndpointMetadata(
+            randomHeuristics(),
+            new EndpointMetadata.Internal(null, 5L),
+            randomDisplay()
+        );
+
+        assertThat(endpointWithNullVersion1.hasNewerVersionThan(endpointWithNullVersion2), is(false));
+        assertThat(endpointWithNullVersion1.hasNewerVersionThan(endpointWithVersionFour), is(false));
+        assertThat(endpointWithVersionFour.hasNewerVersionThan(endpointWithNullVersion1), is(true));
+        assertThat(endpointWithVersionFour.hasNewerVersionThan(anotherEndpointWithVersionFour), is(false));
+        assertThat(endpointWithVersionFour.hasNewerVersionThan(endpointWithVersionFive), is(false));
+        assertThat(endpointWithVersionFive.hasNewerVersionThan(endpointWithVersionFour), is(true));
+        assertThat(endpointWithVersionFive.hasNewerVersionThan(endpointWithNullVersion2), is(true));
+    }
+
     @Override
     protected EndpointMetadata createTestInstance() {
         return randomInstance();
@@ -213,6 +295,13 @@ public class EndpointMetadataTests extends AbstractBWCSerializationTestCase<Endp
 
     @Override
     protected EndpointMetadata mutateInstanceForVersion(EndpointMetadata instance, TransportVersion version) {
+        if (version.supports(EndpointMetadata.Display.MODEL_CREATOR_ADDED) == false) {
+            return new EndpointMetadata(
+                instance.heuristics(),
+                instance.internal(),
+                new EndpointMetadata.Display(instance.display().name(), null)
+            );
+        }
         return instance;
     }
 }

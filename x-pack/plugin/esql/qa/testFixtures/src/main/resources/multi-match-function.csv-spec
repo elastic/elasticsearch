@@ -167,3 +167,106 @@ from books
 1              |2714
 ;
 
+multiMatchAfterSimpleRename
+required_capability: multi_match_function
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as writer
+| where multi_match("Faulkner", writer, description)
+| keep book_no, writer
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+multiMatchAfterChainedRename
+required_capability: multi_match_function
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as x
+| rename x as writer
+| where multi_match("Faulkner", writer, description)
+| keep book_no, writer
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+multiMatchAfterRenameMultipleFields
+required_capability: multi_match_function
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as writer, description as dsc
+| where multi_match("Faulkner", writer, dsc)
+| keep book_no, writer
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+multiMatchAfterEvalAndRename
+required_capability: multi_match_function
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| eval x = 1
+| rename author as writer
+| where multi_match("Faulkner", writer, description)
+| keep book_no, writer
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+multiMatchAfterRenameWithEvalAndSort
+required_capability: multi_match_function
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as writer
+| eval yr = year
+| sort book_no
+| where multi_match("Faulkner", writer, description)
+| keep book_no, writer
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+

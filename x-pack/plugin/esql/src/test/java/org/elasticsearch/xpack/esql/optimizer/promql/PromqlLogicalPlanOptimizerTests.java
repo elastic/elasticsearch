@@ -522,7 +522,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     protected LogicalPlan planPromql(String query, boolean allowEmptyReferences) {
         query = query.replace("$now-1h", '"' + Instant.now().minus(1, ChronoUnit.HOURS).toString() + '"');
         query = query.replace("$now", '"' + Instant.now().toString() + '"');
-        var analyzed = tsAnalyzer.analyze(parser.parseQuery(query));
+        var analyzed = tsAnalyzer.analyze(EsqlTestUtils.TEST_PARSER.parseQuery(query));
         AttributeSet.Builder references = AttributeSet.builder();
         analyzed.forEachDown(lp -> references.addAll(lp.references()));
         if (allowEmptyReferences) {

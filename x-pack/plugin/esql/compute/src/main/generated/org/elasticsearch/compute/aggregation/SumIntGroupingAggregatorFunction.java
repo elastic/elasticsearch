@@ -37,16 +37,10 @@ public final class SumIntGroupingAggregatorFunction implements GroupingAggregato
 
   private final DriverContext driverContext;
 
-  public SumIntGroupingAggregatorFunction(List<Integer> channels, LongArrayState state,
-      DriverContext driverContext) {
+  SumIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = new LongArrayState(driverContext.bigArrays(), SumIntAggregator.init());
     this.driverContext = driverContext;
-  }
-
-  public static SumIntGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new SumIntGroupingAggregatorFunction(channels, new LongArrayState(driverContext.bigArrays(), SumIntAggregator.init()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

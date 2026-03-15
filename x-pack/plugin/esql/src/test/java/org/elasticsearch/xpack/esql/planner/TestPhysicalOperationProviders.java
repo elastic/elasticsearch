@@ -303,6 +303,10 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                     case BlockResultSuccess success -> success.block;
                 };
             }
+            // For NULL-typed fields (unmapped fields with NULLIFY mode), return nulls
+            if (fa.dataType() == DataType.NULL) {
+                return (doc, copier) -> getNullsBlock(doc);
+            }
         }
         return (indexDoc, blockCopier) -> switch (extractBlockForSingleDoc(indexDoc, attribute.name(), blockCopier)) {
             case BlockResultMissing missing -> {
@@ -375,11 +379,9 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 docBlock.blockFactory()
                     .newConstantBytesRefBlockWith(new BytesRef("data_content"), blockCopier.docIndices.getPositionCount())
             );
-            default -> unmappedResolution == UnmappedResolution.NULLIFY && indexPage.mappedFields().contains(columnName) == false
-                ? new BlockResultMissing(columnName, indexPage.columnNames())
-                : indexPage.columnIndex(columnName)
-                    .<BlockResult>map(columnIndex -> new BlockResultSuccess(blockCopier.copyBlock(indexPage.page.getBlock(columnIndex))))
-                    .orElseGet(() -> new BlockResultMissing(columnName, indexPage.columnNames()));
+            default -> indexPage.columnIndex(columnName)
+                .<BlockResult>map(columnIndex -> new BlockResultSuccess(blockCopier.copyBlock(indexPage.page.getBlock(columnIndex))))
+                .orElseGet(() -> new BlockResultMissing(columnName, indexPage.columnNames()));
         };
     }
 

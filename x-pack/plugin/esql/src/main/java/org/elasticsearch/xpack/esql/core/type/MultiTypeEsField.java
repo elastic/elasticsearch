@@ -77,7 +77,12 @@ public class MultiTypeEsField extends EsField {
         out.writeOptionalNamedWriteable(out.getTransportVersion().supports(UNMAPPED_FIELDS_LOAD) ? potentiallyUnmappedExpression : null);
     }
 
-    public String getWriteableName() {
+    public String getWriteableName(TransportVersion transportVersion) {
+        return "MultiTypeEsField";
+    }
+
+    @Override
+    public String getNodeStringName() {
         return "MultiTypeEsField";
     }
 

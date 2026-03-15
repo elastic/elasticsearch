@@ -16,9 +16,8 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -283,33 +282,33 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         }
     }
 
+    private int evaluateInManyThreadsCountMax() {
+        for (TestCaseSupplier.TypedData dt : testCase.getData()) {
+            if (dt.type() == DataType.EXPONENTIAL_HISTOGRAM) {
+                return 500;
+            }
+        }
+        return 10_000;
+    }
+
     public final void testEvaluateInManyThreads() throws ExecutionException, InterruptedException {
         Expression expression = buildFieldExpression(testCase);
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
-        int count;
-        Set<DataType> complexTypes = Set.of(DataType.EXPONENTIAL_HISTOGRAM);
-        if (testCase.getData().stream().anyMatch(d -> complexTypes.contains(d.type()))) {
-            // Limit the amount of data for large types, otherwise the test run very long or even hang
-            count = 500;
-        } else {
-            count = 10_000;
-        }
-
+        int count = scaledRandomIntBetween(100, evaluateInManyThreadsCountMax());
         int threads = 5;
         var evalSupplier = evaluator(expression);
         if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
             assertWarnings(testCase.getExpectedBuildEvaluatorWarnings());
         }
 
-        ExecutorService exec = Executors.newFixedThreadPool(threads);
-        try {
+        try (ExecutorService exec = Executors.newFixedThreadPool(threads)) {
             List<Future<?>> futures = new ArrayList<>();
             for (int i = 0; i < threads; i++) {
                 List<Object> simpleData = testCase.getDataValues();
                 Page page = row(simpleData);
 
                 futures.add(exec.submit(() -> {
-                    try (EvalOperator.ExpressionEvaluator eval = evalSupplier.get(driverContext())) {
+                    try (ExpressionEvaluator eval = evalSupplier.get(driverContext())) {
                         for (int c = 0; c < count; c++) {
                             try (Block block = eval.eval(page)) {
                                 assertThat(block.getPositionCount(), is(1));
@@ -322,8 +321,6 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             for (Future<?> f : futures) {
                 f.get();
             }
-        } finally {
-            exec.shutdown();
         }
     }
 

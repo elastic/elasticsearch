@@ -7,17 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.response;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.metadata.EndpointMetadata;
+import org.elasticsearch.inference.metadata.EndpointMetadata.Display;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
@@ -33,20 +32,18 @@ import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.Elast
 
 import java.io.IOException;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.inference.metadata.EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED;
 import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_SCHEMA_VERSION;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 
-public class ElasticInferenceServiceAuthorizationResponseEntityTests extends AbstractBWCWireSerializationTestCase<
-    ElasticInferenceServiceAuthorizationResponseEntity> {
+public class ElasticInferenceServiceAuthorizationResponseEntityTests extends ESTestCase {
 
     // rainbow-sprinkles
     public static final String RAINBOW_SPRINKLES_ENDPOINT_ID = ".rainbow-sprinkles-elastic";
@@ -107,7 +104,10 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
               ],
               "release_date": "2024-05-01",
               "end_of_life_date": "2024-05-02",
-              "display_name": "Rainbow Sprinkles Elastic",
+              "display": {
+                "name": "Rainbow Sprinkles",
+                "model_creator": "Elastic"
+              },
               "fingerprint": "fingerprint123"
             }
           ]
@@ -140,7 +140,10 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                   "overlap": 2
                 }
               },
-              "display_name": "Jina Embeddings V3",
+              "display": {
+                "name": "Jina Embeddings V3",
+                "model_creator": "Jina"
+              },
               "fingerprint": "fingerprint456"
             }
           ]
@@ -169,7 +172,10 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                   "sentence_overlap": 1
                 }
               },
-              "display_name": "Elser 2 Elastic",
+              "display": {
+                "name": "ELSER v2",
+                "model_creator": "Elastic"
+              },
               "fingerprint": "fingerprint789"
             }
           ]
@@ -192,7 +198,10 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
               ],
               "release_date": "2024-05-01",
               "end_of_life_date": "2024-05-02",
-              "display_name": "Rainbow Sprinkles Elastic",
+              "display": {
+                "name": "Rainbow Sprinkles",
+                "model_creator": "Elastic"
+              },
               "fingerprint": "fingerprint123"
             },
             {
@@ -207,7 +216,10 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 "multilingual"
               ],
               "release_date": "2024-05-01",
-              "display_name": "Gp Llm V2 Chat Completion",
+              "display": {
+                "name": "Gp Llm V2 Chat Completion",
+                "model_creator": "Elastic"
+              },
               "fingerprint": "fingerprint234"
             },
             {
@@ -222,7 +234,10 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 "multilingual"
               ],
               "release_date": "2024-05-01",
-              "display_name": "Gp Llm V2 Completion",
+              "display": {
+                "name": "Gp Llm V2 Completion",
+                "model_creator": "Elastic"
+              },
               "fingerprint": "fingerprint345"
             },
             {
@@ -244,7 +259,10 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                   "sentence_overlap": 1
                 }
               },
-              "display_name": "Elser 2 Elastic",
+              "display": {
+                "name": "ELSER v2",
+                "model_creator": "Elastic"
+              },
               "fingerprint": "fingerprint789"
             },
             {
@@ -270,7 +288,10 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                   "overlap": 2
                 }
               },
-              "display_name": "Jina Embeddings V3",
+              "display": {
+                "name": "Jina Embeddings V3",
+                "model_creator": "Jina"
+              },
               "fingerprint": "fingerprint456"
             },
             {
@@ -297,7 +318,10 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                   "overlap": 2
                 }
               },
-              "display_name": "Jina Clip V2",
+              "display": {
+                "name": "Jina Clip V2",
+                "model_creator": "Jina"
+              },
               "fingerprint": "fingerprint_clip_v2"
             },
             {
@@ -310,7 +334,10 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
               "status": "preview",
               "properties": [],
               "release_date": "2024-05-01",
-              "display_name": "Jina Reranker V2",
+              "display": {
+                "name": "Jina Reranker V2",
+                "model_creator": "Jina"
+              },
               "fingerprint": "fingerprint567"
             }
           ]
@@ -319,19 +346,19 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
 
     private static final String RELEASE_DATE_STRING = "2024-05-01";
     private static final String END_OF_LIFE_DATE_STRING = "2024-05-02";
-    private static final String RAINBOW_SPRINKLES_DISPLAY_NAME = "Rainbow Sprinkles Elastic";
+    private static final Display RAINBOW_SPRINKLES_DISPLAY = new Display("Rainbow Sprinkles", "Elastic");
     private static final String RAINBOW_SPRINKLES_FINGERPRINT = "fingerprint123";
-    private static final String GP_LLM_V2_CHAT_COMPLETION_DISPLAY_NAME = "Gp Llm V2 Chat Completion";
+    private static final Display GP_LLM_V2_CHAT_COMPLETION_DISPLAY = new Display("Gp Llm V2 Chat Completion", "Elastic");
     private static final String GP_LLM_V2_CHAT_COMPLETION_FINGERPRINT = "fingerprint234";
-    private static final String GP_LLM_V2_COMPLETION_DISPLAY_NAME = "Gp Llm V2 Completion";
+    private static final Display GP_LLM_V2_COMPLETION_DISPLAY = new Display("Gp Llm V2 Completion", "Elastic");
     private static final String GP_LLM_V2_COMPLETION_FINGERPRINT = "fingerprint345";
-    private static final String ELSER_V2_DISPLAY_NAME = "Elser 2 Elastic";
+    private static final Display ELSER_V2_DISPLAY = new Display("ELSER v2", "Elastic");
     private static final String ELSER_V2_FINGERPRINT = "fingerprint789";
-    private static final String JINA_EMBED_V3_DISPLAY_NAME = "Jina Embeddings V3";
+    private static final Display JINA_EMBED_V3_DISPLAY = new Display("Jina Embeddings V3", "Jina");
     private static final String JINA_EMBED_V3_FINGERPRINT = "fingerprint456";
-    private static final String JINA_CLIP_V2_DISPLAY_NAME = "Jina Clip V2";
+    private static final Display JINA_CLIP_V2_DISPLAY = new Display("Jina Clip V2", "Jina");
     private static final String JINA_CLIP_V2_FINGERPRINT = "fingerprint_clip_v2";
-    private static final String RERANK_V1_DISPLAY_NAME = "Jina Reranker V2";
+    private static final Display RERANK_V1_DISPLAY = new Display("Jina Reranker V2", "Jina");
     private static final String RERANK_V1_FINGERPRINT = "fingerprint567";
     private static final LocalDate RELEASE_DATE_PARSED = LocalDate.parse(RELEASE_DATE_STRING);
     private static final LocalDate END_OF_LIFE_DATE_PARSED = LocalDate.parse(END_OF_LIFE_DATE_STRING);
@@ -361,7 +388,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of("english"), StatusHeuristic.fromString("preview"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(ELSER_V2_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(ELSER_V2_DISPLAY_NAME)
+                ELSER_V2_DISPLAY
             )
         );
     }
@@ -381,7 +408,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 null,
                 Map.of("strategy", "sentence", "max_chunk_size", 250, "sentence_overlap", 1)
             ),
-            ELSER_V2_DISPLAY_NAME,
+            ELSER_V2_DISPLAY,
             ELSER_V2_FINGERPRINT
         );
     }
@@ -434,7 +461,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             RELEASE_DATE_STRING,
             END_OF_LIFE_DATE_STRING,
             null,
-            RAINBOW_SPRINKLES_DISPLAY_NAME,
+            RAINBOW_SPRINKLES_DISPLAY,
             RAINBOW_SPRINKLES_FINGERPRINT
         );
     }
@@ -448,7 +475,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of("multilingual"), StatusHeuristic.fromString("ga"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(GP_LLM_V2_CHAT_COMPLETION_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(GP_LLM_V2_CHAT_COMPLETION_DISPLAY_NAME)
+                GP_LLM_V2_CHAT_COMPLETION_DISPLAY
             )
         );
     }
@@ -462,7 +489,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of("multilingual"), StatusHeuristic.fromString("ga"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(GP_LLM_V2_COMPLETION_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(GP_LLM_V2_COMPLETION_DISPLAY_NAME)
+                GP_LLM_V2_COMPLETION_DISPLAY
             )
         );
     }
@@ -477,7 +504,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             RELEASE_DATE_STRING,
             null,
             null,
-            GP_LLM_V2_CHAT_COMPLETION_DISPLAY_NAME,
+            GP_LLM_V2_CHAT_COMPLETION_DISPLAY,
             GP_LLM_V2_CHAT_COMPLETION_FINGERPRINT
         );
     }
@@ -492,7 +519,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             RELEASE_DATE_STRING,
             null,
             null,
-            GP_LLM_V2_COMPLETION_DISPLAY_NAME,
+            GP_LLM_V2_COMPLETION_DISPLAY,
             GP_LLM_V2_COMPLETION_FINGERPRINT
         );
     }
@@ -511,7 +538,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                     END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal(RAINBOW_SPRINKLES_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(RAINBOW_SPRINKLES_DISPLAY_NAME)
+                RAINBOW_SPRINKLES_DISPLAY
             )
         );
     }
@@ -561,7 +588,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 "float",
                 Map.of("strategy", "word", "max_chunk_size", 500, "overlap", 2)
             ),
-            JINA_EMBED_V3_DISPLAY_NAME,
+            JINA_EMBED_V3_DISPLAY,
             JINA_EMBED_V3_FINGERPRINT
         );
     }
@@ -581,7 +608,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                     null
                 ),
                 new EndpointMetadata.Internal(JINA_EMBED_V3_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(JINA_EMBED_V3_DISPLAY_NAME)
+                JINA_EMBED_V3_DISPLAY
             )
         );
     }
@@ -601,7 +628,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 "float",
                 Map.of("strategy", "word", "max_chunk_size", 500, "overlap", 2)
             ),
-            JINA_CLIP_V2_DISPLAY_NAME,
+            JINA_CLIP_V2_DISPLAY,
             JINA_CLIP_V2_FINGERPRINT
         );
     }
@@ -621,7 +648,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                     null
                 ),
                 new EndpointMetadata.Internal(JINA_CLIP_V2_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(JINA_CLIP_V2_DISPLAY_NAME)
+                JINA_CLIP_V2_DISPLAY
             )
         );
     }
@@ -636,7 +663,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             RELEASE_DATE_STRING,
             null,
             null,
-            RERANK_V1_DISPLAY_NAME,
+            RERANK_V1_DISPLAY,
             RERANK_V1_FINGERPRINT
         );
     }
@@ -650,14 +677,18 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of(), StatusHeuristic.fromString("preview"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(RERANK_V1_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(RERANK_V1_DISPLAY_NAME)
+                RERANK_V1_DISPLAY
             )
         );
     }
 
     public static ElasticInferenceServiceAuthorizationResponseEntity createResponse() {
         return new ElasticInferenceServiceAuthorizationResponseEntity(
-            randomList(1, 5, () -> createAuthorizedEndpoint(randomFrom(ElasticInferenceService.IMPLEMENTED_TASK_TYPES)))
+            randomList(
+                1,
+                5,
+                () -> createAuthorizedEndpoint(randomFrom(ElasticInferenceService.IMPLEMENTED_TASK_TYPES), () -> randomAlphaOfLength(10))
+            )
         );
     }
 
@@ -665,7 +696,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
         var id = randomAlphaOfLength(10);
         var name = randomAlphaOfLength(10);
         var status = randomFrom("ga", "beta", "preview");
-        var kibanaConnectorName = "Test Connector Name";
+        var display = new Display("Test Connector Name", "Test Model Creator");
         var fingerprint = "fingerprint" + randomAlphaOfLength(5);
 
         return new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -677,16 +708,25 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             "",
             "",
             null,
-            kibanaConnectorName,
+            display,
             fingerprint
         );
     }
 
-    public static ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint createAuthorizedEndpoint(TaskType taskType) {
-        var id = randomAlphaOfLength(10);
+    public static ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint createAuthorizedEndpoint(
+        TaskType taskType,
+        Supplier<String> fingerprintSupplier
+    ) {
+        return createAuthorizedEndpoint(randomAlphaOfLength(10), taskType, fingerprintSupplier);
+    }
+
+    public static ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint createAuthorizedEndpoint(
+        String id,
+        TaskType taskType,
+        Supplier<String> fingerprintSupplier
+    ) {
         var name = randomAlphaOfLength(10);
         var status = randomFrom("ga", "beta", "preview");
-        var fingerprintPrefix = "fingerprint_";
 
         return switch (taskType) {
             case CHAT_COMPLETION -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
@@ -698,8 +738,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 RELEASE_DATE_STRING,
                 null,
                 null,
-                "Chat Completion Connector",
-                fingerprintPrefix + randomAlphaOfLength(5)
+                new Display("Chat Completion Connector", "ChatCompletion Creator"),
+                fingerprintSupplier.get()
             );
             case SPARSE_EMBEDDING -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                 id,
@@ -710,8 +750,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 RELEASE_DATE_STRING,
                 null,
                 null,
-                "Sparse Embedding Connector",
-                fingerprintPrefix + randomAlphaOfLength(5)
+                new Display("Sparse Embedding Connector", "Sparse Creator"),
+                fingerprintSupplier.get()
             );
             case TEXT_EMBEDDING -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                 id,
@@ -727,8 +767,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                     DenseVectorFieldMapper.ElementType.FLOAT.toString(),
                     null
                 ),
-                "Text Embedding Connector",
-                fingerprintPrefix + randomAlphaOfLength(5)
+                new Display("Text Embedding Connector", "Text Creator"),
+                fingerprintSupplier.get()
             );
             case EMBEDDING -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                 id,
@@ -744,8 +784,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                     DenseVectorFieldMapper.ElementType.FLOAT.toString(),
                     null
                 ),
-                "Embedding Connector",
-                fingerprintPrefix + randomAlphaOfLength(5)
+                new Display("Embedding Connector", "Embedding Creator"),
+                fingerprintSupplier.get()
             );
             case RERANK -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                 id,
@@ -756,8 +796,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 RELEASE_DATE_STRING,
                 null,
                 null,
-                "Rerank Connector",
-                fingerprintPrefix + randomAlphaOfLength(5)
+                new Display("Rerank Connector", "Rerank Creator"),
+                fingerprintSupplier.get()
             );
             case COMPLETION -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
                 id,
@@ -768,8 +808,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 RELEASE_DATE_STRING,
                 END_OF_LIFE_DATE_STRING,
                 null,
-                "Completion Connector",
-                fingerprintPrefix + randomAlphaOfLength(5)
+                new Display("Completion Connector", "Completion Creator"),
+                fingerprintSupplier.get()
             );
             default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
         };
@@ -804,53 +844,5 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 containsInAnyOrder(responseData.expectedEndpoints().toArray(ElasticInferenceServiceModel[]::new))
             );
         }
-    }
-
-    @Override
-    protected ElasticInferenceServiceAuthorizationResponseEntity mutateInstanceForVersion(
-        ElasticInferenceServiceAuthorizationResponseEntity instance,
-        TransportVersion version
-    ) {
-        if (version.supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED)) {
-            return instance;
-        }
-
-        return new ElasticInferenceServiceAuthorizationResponseEntity(
-            instance.getAuthorizedEndpoints()
-                .stream()
-                .map(
-                    endpoint -> new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
-                        endpoint.id(),
-                        endpoint.modelName(),
-                        endpoint.taskType(),
-                        endpoint.status(),
-                        endpoint.properties(),
-                        endpoint.releaseDate(),
-                        endpoint.endOfLifeDate(),
-                        endpoint.configuration(),
-                        null,
-                        null
-                    )
-                )
-                .toList()
-        );
-    }
-
-    @Override
-    protected Writeable.Reader<ElasticInferenceServiceAuthorizationResponseEntity> instanceReader() {
-        return ElasticInferenceServiceAuthorizationResponseEntity::new;
-    }
-
-    @Override
-    protected ElasticInferenceServiceAuthorizationResponseEntity createTestInstance() {
-        return createResponse();
-    }
-
-    @Override
-    protected ElasticInferenceServiceAuthorizationResponseEntity mutateInstance(ElasticInferenceServiceAuthorizationResponseEntity instance)
-        throws IOException {
-        var newEndpoints = new ArrayList<>(instance.getAuthorizedEndpoints());
-        newEndpoints.add(createAuthorizedEndpoint(randomFrom(ElasticInferenceService.IMPLEMENTED_TASK_TYPES)));
-        return new ElasticInferenceServiceAuthorizationResponseEntity(newEndpoints);
     }
 }

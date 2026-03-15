@@ -30,6 +30,7 @@ import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
@@ -46,6 +47,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
@@ -73,11 +75,13 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -98,7 +102,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.IntFunction;
 
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.query.LuceneSourceOperator.NO_LIMIT;
@@ -195,6 +198,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             )
         );
         boolean reuseColumnLoaders = fieldExtractExec.attributesToExtract().size() <= plannerSettings.reuseColumnLoadersThreshold();
+        int docSequenceThreshold = context.queryPragmas()
+            .docSequenceBytesRefFieldThreshold(plannerSettings.docSequenceBytesRefFieldThreshold());
         return source.with(
             new ValuesSourceReaderOperator.Factory(
                 plannerSettings.valuesLoadingJumboSize(),
@@ -202,7 +207,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 readers,
                 reuseColumnLoaders,
                 docChannel,
-                plannerSettings.sourceReservationFactor()
+                plannerSettings.sourceReservationFactor(),
+                docSequenceThreshold
             ),
             layout.build()
         );
@@ -214,37 +220,47 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     private ValuesSourceReaderOperator.LoaderAndConverter blockLoaderAndConverter(
+        DriverContext.WarningsMode warningsMode,
         int shardId,
         Attribute attr,
         MappedFieldType.FieldExtractPreference fieldExtractPreference
     ) {
-        MultiTypeEsField unionTypes = findUnionTypes(attr);
-        DefaultShardContext shardContext = getShardContext(shardId, attr, unionTypes);
-        // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
-        String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
+        DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
+        if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField kf) {
+            shardContext = wrapWithUnmappedFieldContext(shardContext, kf);
+        }
 
-        boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
-        String fieldName = getFieldName(attr);
         // Apply any block loader function if present
-        BlockLoaderFunctionConfig functionConfig = attr instanceof FieldAttribute fieldAttr
-            && fieldAttr.field() instanceof FunctionEsField functionEsField ? functionEsField.functionConfig() : null;
+
+        BlockLoaderFunctionConfig functionConfig = null;
+        BlockLoaderWarnings warnings = new BlockLoaderWarnings(warningsMode, attr.source());
+        String fieldName = getFieldName(attr);
+        if (attr instanceof TimeSeriesMetadataAttribute timeSeriesMetadataAttribute) {
+            functionConfig = new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, timeSeriesMetadataAttribute.withoutFields());
+            fieldName = SourceFieldMapper.NAME;
+        } else if (attr instanceof FieldAttribute fieldAttr && fieldAttr.field() instanceof FunctionEsField functionEsField) {
+            functionConfig = functionEsField.functionConfig();
+        }
+        boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
+        MultiTypeEsField unionTypes = findUnionTypes(attr);
         if (unionTypes == null) {
             BlockLoader blockLoader = shardContext.blockLoader(
                 fieldName,
                 isUnsupported,
                 fieldExtractPreference,
                 functionConfig,
+                warnings,
                 plannerSettings.blockLoaderSizeOrdinals(),
                 plannerSettings.blockLoaderSizeScript()
             );
             return ValuesSourceReaderOperator.load(blockLoader);
         }
-        Expression conversion = getConversion(indexName, unionTypes);
-        // Type-conflicted without a conversion function: return nulls for this field
+        // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
+        String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
+        Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
         if (conversion == null) {
             return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
         }
-        // Special case for expressions that aren't plain type conversions.
         if (conversion instanceof BlockLoaderExpression ble) {
             BlockLoaderExpression.PushedBlockLoaderExpression e = ble.tryPushToFieldLoading(SearchStats.EMPTY);
             if (e != null) {
@@ -254,6 +270,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                         isUnsupported,
                         fieldExtractPreference,
                         e.config(),
+                        warnings,
                         plannerSettings.blockLoaderSizeOrdinals(),
                         plannerSettings.blockLoaderSizeScript()
                     )
@@ -265,31 +282,15 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             isUnsupported,
             fieldExtractPreference,
             functionConfig,
+            warnings,
             plannerSettings.blockLoaderSizeOrdinals(),
             plannerSettings.blockLoaderSizeScript()
         );
         return ValuesSourceReaderOperator.loadAndConvert(blockLoader, new TypeConverter((EsqlScalarFunction) conversion));
     }
 
-    private DefaultShardContext getShardContext(int shardId, Attribute attr, MultiTypeEsField unionTypes) {
-        DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
-        String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
-        Expression conversion = unionTypes != null ? unionTypes.getConversionExpressionForIndex(indexName) : null;
-        if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField kf) {
-            return new DefaultShardContextForUnmappedField(shardContext, kf);
-        }
-        if (unionTypes != null && conversion == null && unionTypes.getPotentiallyUnmappedExpression() != null) {
-            return new DefaultShardContextForUnmappedField(shardContext, new PotentiallyUnmappedKeywordEsField(getFieldName(attr)));
-        }
-        return shardContext;
-    }
-
-    @Nullable
-    private Expression getConversion(String indexName, MultiTypeEsField unionTypes) {
-        Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
-        return conversion == null && unionTypes.getPotentiallyUnmappedExpression() != null
-            ? unionTypes.getPotentiallyUnmappedExpression()
-            : conversion;
+    static DefaultShardContext wrapWithUnmappedFieldContext(DefaultShardContext ctx, PotentiallyUnmappedKeywordEsField unmappedField) {
+        return new DefaultShardContextForUnmappedField(ctx, unmappedField);
     }
 
     /** A hack to pretend an unmapped field still exists. */
@@ -312,12 +313,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         public @Nullable MappedFieldType fieldType(String name) {
             var superResult = super.fieldType(name);
             return superResult == null && name.equals(unmappedEsField.getName()) ? createUnmappedFieldType(name, this) : superResult;
-        }
-
-        @Override
-        protected Set<String> resolveSourcePaths(String name) {
-            var result = super.resolveSourcePaths(name);
-            return result.isEmpty() && name.equals(unmappedEsField.getName()) ? Set.of(name) : result;
         }
 
         static MappedFieldType createUnmappedFieldType(String name, DefaultShardContext context) {
@@ -443,14 +438,15 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             DataType dataType = attr.dataType();
             var fieldExtractPreference = fieldExtractExec.fieldExtractPreference(attr);
             ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
-            IntFunction<ValuesSourceReaderOperator.LoaderAndConverter> loaderAndConverter = s -> blockLoaderAndConverter(
+            ValuesSourceReaderOperator.BuildLoader buildLoader = (warningsMode, s) -> blockLoaderAndConverter(
+                warningsMode,
                 s,
                 attr,
                 fieldExtractPreference
             );
             String fieldName = getFieldName(attr);
             boolean nullsFiltered = nullsFilteredFields.contains(fieldName);
-            fieldInfos.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, nullsFiltered, loaderAndConverter));
+            fieldInfos.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, nullsFiltered, buildLoader));
         }
         return fieldInfos;
     }
@@ -608,6 +604,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             boolean asUnsupportedSource,
             MappedFieldType.FieldExtractPreference fieldExtractPreference,
             BlockLoaderFunctionConfig blockLoaderFunctionConfig,
+            org.elasticsearch.index.mapper.blockloader.Warnings warnings,
             ByteSizeValue blockLoaderSizeOrdinals,
             ByteSizeValue blockLoaderSizeScript
         ) {
@@ -624,6 +621,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                     ctx,
                     fieldExtractPreference,
                     blockLoaderFunctionConfig,
+                    warnings,
                     blockLoaderSizeOrdinals,
                     blockLoaderSizeScript
                 )
@@ -649,10 +647,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public double storedFieldsSequentialProportion() {
             return EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.get(ctx.getIndexSettings().getSettings());
-        }
-
-        protected Set<String> resolveSourcePaths(String name) {
-            return ctx.sourcePath(name);
         }
 
         @Override

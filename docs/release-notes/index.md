@@ -20,6 +20,64 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+## 9.2.7 [elasticsearch-9.2.7-release-notes]
+```{applies_to}
+stack: ga 9.2.7
+```
+
+### Features and enhancements [elasticsearch-9.2.7-features-enhancements]
+
+Authentication:
+* Bump Kiota Libs [#143556](https://github.com/elastic/elasticsearch/pull/143556)
+
+Authorization:
+* [JupiterOne] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` [#140049](https://github.com/elastic/elasticsearch/pull/140049)
+* [Sentinel One] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third-party agent indices in the `Kibana system` to support the unified alert data stream. [#142648](https://github.com/elastic/elasticsearch/pull/142648)
+
+Monitoring:
+* Apm-server: update monitor mappings to include new TBS metrics [#140700](https://github.com/elastic/elasticsearch/pull/140700)
+
+Search:
+* Fix nested object float arrays being mapped to dense vectors when they are mapped in dynamic template mappings [#143733](https://github.com/elastic/elasticsearch/pull/143733) (issue: [#143732](https://github.com/elastic/elasticsearch/issues/143732))
+
+Transform:
+* Skip checkpoint query filter when `runtime_mappings` are present [#142452](https://github.com/elastic/elasticsearch/pull/142452)
+
+
+### Fixes [elasticsearch-9.2.7-fixes]
+
+Aggregations:
+* Fix `ClassCastException` when merging `TopHits` with mixed sort field types [#141919](https://github.com/elastic/elasticsearch/pull/141919) (issue: [#141714](https://github.com/elastic/elasticsearch/issues/141714))
+
+Data streams:
+* Apm-data: explicit map of `timestamp.us` to long [#143173](https://github.com/elastic/elasticsearch/pull/143173)
+
+ES|QL:
+* ESQL - enable zero_terms_query option in MATCH function [#143668](https://github.com/elastic/elasticsearch/pull/143668) (issue: [#143070](https://github.com/elastic/elasticsearch/issues/143070))
+* Promptly clean up CCS exchange sinks [#143325](https://github.com/elastic/elasticsearch/pull/143325)
+
+Machine Learning:
+* Fix Duplicate ML Model Allocations on Same Node [#142872](https://github.com/elastic/elasticsearch/pull/142872)
+* Fixed stats API to use correct allocation count for `required_native_memory_bytes` calculation [#143077](https://github.com/elastic/elasticsearch/pull/143077) (issue: [#107831](https://github.com/elastic/elasticsearch/issues/107831))
+
+SQL:
+* Fix `QlIllegalArgumentException` with non-foldable date range queries [#142386](https://github.com/elastic/elasticsearch/pull/142386) (issue: [#137365](https://github.com/elastic/elasticsearch/issues/137365))
+
+Search:
+* Add circuit breaker for query construction to prevent OOM from automaton-based queries [#142150](https://github.com/elastic/elasticsearch/pull/142150)
+* Add timeout support for KNN searches in the DFS phase [#142925](https://github.com/elastic/elasticsearch/pull/142925)
+
+Security:
+* Disable CAE in microsoft-graph-authz plugin [#142848](https://github.com/elastic/elasticsearch/pull/142848) (issue: [#142743](https://github.com/elastic/elasticsearch/issues/142743))
+* Fix use-after-free in `SearchApplicationIndexService` buffer lifecycle [#143134](https://github.com/elastic/elasticsearch/pull/143134)
+
+Snapshot/Restore:
+* Fix cancellation race in `CancellableRateLimitedFluxIterator` [#141974](https://github.com/elastic/elasticsearch/pull/141974)
+
+Transform:
+* [ML]Fix latest transforms disregarding updates when sort and sync fields are non-monotonic [#142856](https://github.com/elastic/elasticsearch/pull/142856) (issue: [#90643](https://github.com/elastic/elasticsearch/issues/90643))
+
+
 
 ## 9.3.1 [elasticsearch-9.3.1-release-notes]
 ```{applies_to}
@@ -31,45 +89,20 @@ stack: ga 9.3.1
 ES|QL:
 * Fix ILM's 'skipping policy' logging level [#141890](https://github.com/elastic/elasticsearch/pull/141890) (issue: [#141876](https://github.com/elastic/elasticsearch/issues/141876))
 
+Packaging:
+* Updating bundled jdk version to 25.0.2+10 [#142500](https://github.com/elastic/elasticsearch/pull/142500)
+
 
 ### Fixes [elasticsearch-9.3.1-fixes]
 
 Allocation:
 * Don't overwrite decision with `NOT_PREFERRED` unless its an improvement [#141565](https://github.com/elastic/elasticsearch/pull/141565)
 
-Data streams:
-* Allow `include_source_on_error` param on logs streams [#141391](https://github.com/elastic/elasticsearch/pull/141391) (issue: [#141360](https://github.com/elastic/elasticsearch/issues/141360))
-
-ES|QL:
-* Fix TS bug when grouping on aliases [#141568](https://github.com/elastic/elasticsearch/pull/141568)
-* Fix injected attributes's IDs in `UnionAll` branches [#141262](https://github.com/elastic/elasticsearch/pull/141262)
-* Remove incorrect inline stats pruning [#141056](https://github.com/elastic/elasticsearch/pull/141056) (issues: [#140757](https://github.com/elastic/elasticsearch/issues/140757), [#139359](https://github.com/elastic/elasticsearch/issues/139359))
-
-Machine Learning:
-* Evict old models from the cache before loading new [#140844](https://github.com/elastic/elasticsearch/pull/140844)
-
-Snapshot/Restore:
-* Terminate GCS retries when node is shutting down [#142193](https://github.com/elastic/elasticsearch/pull/142193)
-* Terminate S3 get blob retries when node is shutting down [#142186](https://github.com/elastic/elasticsearch/pull/142186)
-
-Vector Search:
-* [GPU] Handle segments too big for MSAI segment access [#141872](https://github.com/elastic/elasticsearch/pull/141872) (issue: [#141746](https://github.com/elastic/elasticsearch/issues/141746))
-
-## 9.2.6 [elasticsearch-9.2.6-release-notes]
-```{applies_to}
-stack: ga 9.2.6
-```
-
-### Features and enhancements [elasticsearch-9.2.6-features-enhancements]
-
-Packaging:
-* Updating bundled jdk version to 25.0.2+10 [#142500](https://github.com/elastic/elasticsearch/pull/142500)
-
-
-### Fixes [elasticsearch-9.2.6-fixes]
-
 Cluster Coordination:
 * Suppress success callback when failing master task [#142042](https://github.com/elastic/elasticsearch/pull/142042)
+
+Data streams:
+* Allow `include_source_on_error` param on logs streams [#141391](https://github.com/elastic/elasticsearch/pull/141391) (issue: [#141360](https://github.com/elastic/elasticsearch/issues/141360))
 
 ES|QL:
 * Avoid a possible NPE by throwing an EIAE instead with more info [#141711](https://github.com/elastic/elasticsearch/pull/141711) (issue: [#141267](https://github.com/elastic/elasticsearch/issues/141267))
@@ -78,7 +111,10 @@ ES|QL:
 * ESQL fix TO_IP leading_zeros=octal parsing [#141776](https://github.com/elastic/elasticsearch/pull/141776) (issue: [#141627](https://github.com/elastic/elasticsearch/issues/141627))
 * Fix IP_PREFIX function leaking data in scratch [#141940](https://github.com/elastic/elasticsearch/pull/141940) (issue: [#141628](https://github.com/elastic/elasticsearch/issues/141628))
 * Fix NPE with null field parameter [#142328](https://github.com/elastic/elasticsearch/pull/142328) (issue: [#142281](https://github.com/elastic/elasticsearch/issues/142281))
+* Fix TS bug when grouping on aliases [#141568](https://github.com/elastic/elasticsearch/pull/141568)
 * Fix bug with multiple spatial aggs filtering in ES|QL [#142332](https://github.com/elastic/elasticsearch/pull/142332) (issue: [#142329](https://github.com/elastic/elasticsearch/issues/142329))
+* Fix injected attributes's IDs in `UnionAll` branches [#141262](https://github.com/elastic/elasticsearch/pull/141262)
+* Remove incorrect inline stats pruning [#141056](https://github.com/elastic/elasticsearch/pull/141056) (issues: [#140757](https://github.com/elastic/elasticsearch/issues/140757), [#139359](https://github.com/elastic/elasticsearch/issues/139359))
 
 Inference:
 * [Inference API] Do not write "task" field in Jina embedding request if unsupported [#142181](https://github.com/elastic/elasticsearch/pull/142181)
@@ -92,7 +128,7 @@ Infra/Logging:
 * Fix cluster name in ECS upgrade [#141792](https://github.com/elastic/elasticsearch/pull/141792)
 
 Machine Learning:
-* Add missing `job_id` filter to Anomaly Detection data deleter [#138160](https://github.com/elastic/elasticsearch/pull/138160)
+* Evict old models from the cache before loading new [#140844](https://github.com/elastic/elasticsearch/pull/140844)
 * Reduce locking when persisting ML job statistics [#141519](https://github.com/elastic/elasticsearch/pull/141519) (issue: [#140511](https://github.com/elastic/elasticsearch/issues/140511))
 
 Mapping:
@@ -109,12 +145,33 @@ Search:
 * Prevent large CancelTasksRequest descriptions by truncating nodes and actions [#141815](https://github.com/elastic/elasticsearch/pull/141815)
 * Reduce cancellation check interval in `CancellableBulkScorer` for better responsiveness [#141747](https://github.com/elastic/elasticsearch/pull/141747)
 
+Security:
+* Fix built-in roles sync to retry on lock contention instead of silently discarding pending updates [#142433](https://github.com/elastic/elasticsearch/pull/142433)
+
 Snapshot/Restore:
 * Ensure paused shard snapshot can be deleted [#141408](https://github.com/elastic/elasticsearch/pull/141408)
+* Terminate GCS retries when node is shutting down [#142193](https://github.com/elastic/elasticsearch/pull/142193)
+* Terminate S3 get blob retries when node is shutting down [#142186](https://github.com/elastic/elasticsearch/pull/142186)
 
 Transform:
 * Fix transform producing empty dest index when source query references runtime fields [#142450](https://github.com/elastic/elasticsearch/pull/142450) (issue: [#113156](https://github.com/elastic/elasticsearch/issues/113156))
 * Fix transform validation to reject PUT and `_start` when user lacks remote index permissions [#142403](https://github.com/elastic/elasticsearch/pull/142403) (issue: [#95367](https://github.com/elastic/elasticsearch/issues/95367))
+
+Vector Search:
+* [GPU] Handle segments too big for MSAI segment access [#141872](https://github.com/elastic/elasticsearch/pull/141872) (issue: [#141746](https://github.com/elastic/elasticsearch/issues/141746))
+
+
+
+## 9.2.6 [elasticsearch-9.2.6-release-notes]
+```{applies_to}
+stack: ga 9.2.6
+```
+
+### Fixes [elasticsearch-9.2.6-fixes]
+
+Machine Learning:
+* Add missing `job_id` filter to Anomaly Detection data deleter [#138160](https://github.com/elastic/elasticsearch/pull/138160)
+
 
 
 ## 9.3.0 [elasticsearch-9.3.0-release-notes]

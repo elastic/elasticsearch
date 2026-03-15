@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -130,6 +131,7 @@ public class ApproximationSupportTests extends ESTestCase {
         Fuse.class,
         FuseScoreEval.class,
         LimitBy.class,
+        TopNBy.class,
         Lookup.class,
         MMR.class,
         Subquery.class,

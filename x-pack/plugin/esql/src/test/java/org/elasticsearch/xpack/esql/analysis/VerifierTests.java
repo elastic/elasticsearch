@@ -3885,27 +3885,6 @@ public class VerifierTests extends ESTestCase {
     public void testLimitBy() {
         assertThat(error("""
             FROM test
-            | SORT salary DESC
-            | LIMIT 5 BY languages
-            """, defaultAnalyzer, VerificationException.class), containsString("SORT cannot be used before LIMIT BY"));
-
-        assertThat(error("""
-            FROM test
-            | SORT salary DESC
-            | EVAL g = languages * 2
-            | LIMIT 5 BY languages
-            """, defaultAnalyzer, VerificationException.class), containsString("SORT cannot be used before LIMIT BY"));
-
-        assertThat(error("""
-            FROM test
-            | SORT salary DESC
-            | EVAL g = languages * 2
-            | EVAL h = 2 * g
-            | LIMIT 5 BY h
-            """, defaultAnalyzer, VerificationException.class), containsString("SORT cannot be used before LIMIT BY"));
-
-        assertThat(error("""
-            FROM test
             | LIMIT 5 BY made_up_attr
             """, defaultAnalyzer, VerificationException.class), containsString("Unknown column [made_up_attr]"));
 

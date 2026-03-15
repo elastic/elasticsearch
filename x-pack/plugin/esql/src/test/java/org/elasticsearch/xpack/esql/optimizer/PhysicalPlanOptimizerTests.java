@@ -117,6 +117,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -148,6 +149,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
@@ -9299,6 +9301,58 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         PhysicalPlan reduction = ((PlannerUtils.ReducedPlan) PlannerUtils.reductionPlan(plans.v2())).plan();
         LimitExec limitExec = as(reduction, LimitExec.class);
         assertThat(limitExec.estimatedRowSize(), equalTo(2276));
+    }
+
+    /**
+     * {@code
+     * ProjectExec[[first_name{f}#10, last_name{f}#13, salary{f}#14, languages{f}#12]]
+     * \_LimitExec[1000[INTEGER],null]
+     *   \_TopNByExec[[Order[salary{f}#14,DESC,LAST]],5[INTEGER],[languages{f}#12],null]
+     *     \_ExchangeExec[[],false]
+     *       \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+     * TopNBy[[Order[salary{f}#14,DESC,LAST]],5[INTEGER],[languages{f}#12],false]
+     * \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]<>]]
+     * }
+     **/
+    public void testSortWithLimitBy() {
+        String query = """
+             FROM test
+            | SORT salary DESC NULLS LAST
+            | LIMIT 5 BY languages
+            | KEEP first_name, last_name, salary, languages""";
+        PhysicalPlan plan = physicalPlan(query);
+
+        var project = as(plan, ProjectExec.class);
+        var limit = as(project.child(), LimitExec.class);
+        var topNBy = as(limit.child(), TopNByExec.class);
+        assertThat(as(as(topNBy.limit(), Literal.class).value(), Integer.class), equalTo(5));
+        assertThat(topNBy.groupings(), hasSize(1));
+        var fieldAttr = as(topNBy.groupings().get(0), FieldAttribute.class);
+        assertThat(fieldAttr.name(), equalTo("languages"));
+
+        var topNOrder = topNBy.order();
+        assertThat(topNOrder.size(), equalTo(1));
+        var order = as(topNOrder.get(0), Order.class);
+        assertThat(as(order.child(), FieldAttribute.class).name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+
+        var exchangeExec = as(topNBy.child(), ExchangeExec.class);
+        var fragmentExec = as(exchangeExec.child(), FragmentExec.class);
+        var topNByFragment = as(fragmentExec.fragment(), TopNBy.class);
+
+        assertThat(as(as(topNByFragment.limit(), Literal.class).value(), Integer.class), equalTo(5));
+        assertThat(topNByFragment.groupings(), hasSize(1));
+        assertThat(as(topNByFragment.groupings().get(0), FieldAttribute.class).name(), equalTo("languages"));
+
+        var topNFragmentOrder = topNByFragment.order();
+        assertThat(topNFragmentOrder.size(), equalTo(1));
+        var fragmentOrder = as(topNFragmentOrder.get(0), Order.class);
+        assertThat(as(fragmentOrder.child(), FieldAttribute.class).name(), equalTo("salary"));
+        assertThat(fragmentOrder.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(fragmentOrder.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+
+        as(topNByFragment.child(), EsRelation.class);
     }
 
     /**

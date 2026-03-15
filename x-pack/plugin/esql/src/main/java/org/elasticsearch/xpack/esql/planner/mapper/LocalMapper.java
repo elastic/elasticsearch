@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 
@@ -102,6 +104,10 @@ public class LocalMapper {
 
         if (unary instanceof TopN topN) {
             return new TopNExec(topN.source(), mappedChild, topN.order(), topN.limit(), null);
+        }
+
+        if (unary instanceof TopNBy topNBy) {
+            return new TopNByExec(topNBy.source(), mappedChild, topNBy.order(), topNBy.limit(), topNBy.groupings(), null);
         }
 
         if (unary instanceof MetricsInfo metricsInfo) {

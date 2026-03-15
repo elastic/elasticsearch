@@ -540,6 +540,22 @@ public class DoSection implements ExecutableSection {
         } else {
             throw new UnsupportedOperationException("catch value [" + catchParam + "] not supported");
         }
+
+        final String testPath = executionContext.getClientYamlTestCandidate() != null
+            ? executionContext.getClientYamlTestCandidate().getTestPath()
+            : null;
+        // Only check warning headers on the catch path when this do section declares warning expectations;
+        // otherwise allow any warnings on error responses to avoid requiring YAML changes in every test that uses catch.
+        if (hasWarningConfiguration()) {
+            checkWarningHeaders(restTestResponse.getWarningHeaders(), testPath);
+        }
+    }
+
+    private boolean hasWarningConfiguration() {
+        return expectedWarningHeaders.isEmpty() == false
+            || expectedWarningHeadersRegex.isEmpty() == false
+            || allowedWarningHeaders.isEmpty() == false
+            || allowedWarningHeadersRegex.isEmpty() == false;
     }
 
     private static void appendBadHeaders(final StringBuilder sb, final List<String> headers, final String message) {

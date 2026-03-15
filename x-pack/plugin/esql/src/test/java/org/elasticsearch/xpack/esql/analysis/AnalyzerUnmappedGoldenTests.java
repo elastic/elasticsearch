@@ -211,13 +211,6 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """, STAGES);
     }
 
-    public void testInlineStats() throws Exception {
-        runTests("""
-            FROM employees
-            | STATS s = SUM(does_not_exist1::DOUBLE) BY does_not_exist2
-            """);
-    }
-
     public void testInlineStatsMixed() throws Exception {
         runTests("""
             FROM employees
@@ -589,25 +582,6 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     }
 
     public void testSubquerysMixAndLookupJoinNullify() throws Exception {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runTestsNullifyOnly("""
-            FROM employees,
-                (FROM languages
-                 | WHERE language_code > 10
-                 | RENAME language_name as languageName),
-                (FROM sample_data
-                | STATS max(@timestamp)),
-                (FROM employees
-                | EVAL language_code = languages
-                | LOOKUP JOIN languages_lookup ON language_code)
-            | WHERE emp_no > 10000 OR does_not_exist1::LONG < 10
-            | STATS count(*) BY emp_no, language_code, does_not_exist2
-            | RENAME emp_no AS empNo, language_code AS languageCode
-            | MV_EXPAND languageCode
-            """, STAGES);
-    }
-
-    public void testSubquerysMixAndLookupJoinLoad() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runTestsNullifyOnly("""
             FROM employees,

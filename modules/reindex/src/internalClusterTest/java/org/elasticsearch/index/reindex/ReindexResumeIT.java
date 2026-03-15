@@ -28,6 +28,7 @@ import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -96,7 +97,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
             .setDestIndex(destIndex)
             .setSourceBatchSize(batchSize)
             .setRefresh(true)
-            .setResumeInfo(new ResumeInfo(new ScrollWorkerResumeInfo(scrollId, startTime, randomStats, null), null));
+            .setResumeInfo(new ResumeInfo(randomOrigin(), new ScrollWorkerResumeInfo(scrollId, startTime, randomStats, null), null));
         ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(request))
             .actionGet();
         GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
@@ -158,7 +159,9 @@ public class ReindexResumeIT extends ESIntegTestCase {
                     RemoteInfo.DEFAULT_CONNECT_TIMEOUT
                 )
             )
-            .setResumeInfo(new ResumeInfo(new ScrollWorkerResumeInfo(scrollId, startTime, randomStats, Version.CURRENT), null));
+            .setResumeInfo(
+                new ResumeInfo(randomOrigin(), new ScrollWorkerResumeInfo(scrollId, startTime, randomStats, Version.CURRENT), null)
+            );
         ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(request))
             .actionGet();
         GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
@@ -217,7 +220,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
             .setSourceBatchSize(batchSize)
             .setRefresh(true)
             .setSlices(numSlices)
-            .setResumeInfo(new ResumeInfo(null, sliceStatus));
+            .setResumeInfo(new ResumeInfo(randomOrigin(), null, sliceStatus));
         ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(request))
             .actionGet();
         GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
@@ -285,7 +288,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
             .setSourceBatchSize(batchSize)
             .setRefresh(true)
             .setSlices(numSlices)
-            .setResumeInfo(new ResumeInfo(null, sliceStatus));
+            .setResumeInfo(new ResumeInfo(randomOrigin(), null, sliceStatus));
 
         ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(request))
             .actionGet();
@@ -344,7 +347,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
             .setSourceBatchSize(batchSize)
             .setRefresh(true)
             .setSlices(AUTO_SLICES)
-            .setResumeInfo(new ResumeInfo(null, sliceStatus));
+            .setResumeInfo(new ResumeInfo(randomOrigin(), null, sliceStatus));
 
         ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(request))
             .actionGet();
@@ -408,7 +411,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
                 .setSourceBatchSize(batchSize)
                 .setRefresh(true)
                 .setSlices(1)
-                .setResumeInfo(new ResumeInfo(new ScrollWorkerResumeInfo(scrollId, startTime, sliceStats, null), null));
+                .setResumeInfo(new ResumeInfo(randomOrigin(), new ScrollWorkerResumeInfo(scrollId, startTime, sliceStats, null), null));
             request.getSearchRequest().source(new SearchSourceBuilder().slice(new SliceBuilder(IdFieldMapper.NAME, sliceId, numSlices)));
 
             ResumeBulkByScrollResponse resumeResponse = client().execute(
@@ -445,7 +448,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
             .setDestIndex("dest")
             .setShouldStoreResult(false)
             .setEligibleForRelocationOnShutdown(true)
-            .setResumeInfo(new ResumeInfo(new ScrollWorkerResumeInfo("ignored", 0L, randomStats(), null), null));
+            .setResumeInfo(new ResumeInfo(randomOrigin(), new ScrollWorkerResumeInfo("ignored", 0L, randomStats(), null), null));
 
         ActionRequestValidationException e = expectThrows(
             ActionRequestValidationException.class,
@@ -460,7 +463,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
             .setDestIndex("dest")
             .setShouldStoreResult(true)
             .setEligibleForRelocationOnShutdown(false)
-            .setResumeInfo(new ResumeInfo(new ScrollWorkerResumeInfo("ignored", 0L, randomStats(), null), null));
+            .setResumeInfo(new ResumeInfo(randomOrigin(), new ScrollWorkerResumeInfo("ignored", 0L, randomStats(), null), null));
 
         ActionRequestValidationException e = expectThrows(
             ActionRequestValidationException.class,
@@ -490,7 +493,9 @@ public class ReindexResumeIT extends ESIntegTestCase {
             .setEligibleForRelocationOnShutdown(true)
             .setRemoteInfo(remoteInfo)
             .setSlices(randomIntBetween(2, 10))
-            .setResumeInfo(new ResumeInfo(new ScrollWorkerResumeInfo("scrollId", 0L, randomStats(), Version.CURRENT), null));
+            .setResumeInfo(
+                new ResumeInfo(randomOrigin(), new ScrollWorkerResumeInfo("scrollId", 0L, randomStats(), Version.CURRENT), null)
+            );
 
         ActionRequestValidationException e = expectThrows(
             ActionRequestValidationException.class,
@@ -520,7 +525,9 @@ public class ReindexResumeIT extends ESIntegTestCase {
             .setEligibleForRelocationOnShutdown(true)
             .setRemoteInfo(remoteInfo)
             .setSlices(1)
-            .setResumeInfo(new ResumeInfo(new ScrollWorkerResumeInfo("scrollId", 0L, randomStats(), Version.CURRENT), null));
+            .setResumeInfo(
+                new ResumeInfo(randomOrigin(), new ScrollWorkerResumeInfo("scrollId", 0L, randomStats(), Version.CURRENT), null)
+            );
         request.getSearchRequest().source(new SearchSourceBuilder().slice(new SliceBuilder(IdFieldMapper.NAME, 0, 2)));
 
         ActionRequestValidationException e = expectThrows(
@@ -696,5 +703,12 @@ public class ReindexResumeIT extends ESIntegTestCase {
 
     private static long timeAgo(TimeValue period) {
         return System.currentTimeMillis() - period.millis();
+    }
+
+    private static ResumeInfo.RelocationOrigin randomOrigin() {
+        return new ResumeInfo.RelocationOrigin(
+            randomBoolean() ? TaskId.EMPTY_TASK_ID : new TaskId(randomAlphanumericOfLength(10), randomNonNegativeLong()),
+            randomNonNegativeLong()
+        );
     }
 }

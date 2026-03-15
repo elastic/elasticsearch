@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Map;
@@ -24,19 +25,23 @@ import java.util.Optional;
 /**
  * Holds resume state information for a {@link BulkByScrollTask} task to be resumed from a previous run. It may contain a WorkerResumeInfo
  * which keeps the state for a single worker task, or a map of SliceResumeInfo which keeps the state for each slice of a leader task.
- *
+ * It also has information about the original task that was relocated, so the user-facing taskID and start time are preserved in listings.
+ * But the RelocationOrigin isn't accurate for sliced tasks, they have themselves as the origin, but for listing the leader is correct.
+ * <p>
  * Note: For sliced tasks, resume info must include all slices, including those that are already completed. This ensures that the final
  * task has a complete result from all slices. A task may be resumed multiple times, so information for completed slices must be carried
  * forward to each subsequent resume until the task is fully completed.
- *
+ * <p>
  * TODO: we can use List instead of Map for since the keys are required to be 0-based and contiguous.
  */
-public record ResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Integer, SliceStatus> slices) implements Writeable {
+public record ResumeInfo(RelocationOrigin relocationOrigin, @Nullable WorkerResumeInfo worker, @Nullable Map<Integer, SliceStatus> slices)
+    implements
+        Writeable {
 
-    public ResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Integer, SliceStatus> slices) {
+    public ResumeInfo(RelocationOrigin relocationOrigin, @Nullable WorkerResumeInfo worker, @Nullable Map<Integer, SliceStatus> slices) {
+        this.relocationOrigin = Objects.requireNonNull(relocationOrigin, "relocation origin cannot be null");
         if (worker == null && (slices == null || slices.size() < 2)) {
             throw new IllegalArgumentException("resume info requires a worker resume info or at minimum two slices");
-
         }
         if (worker != null && slices != null) {
             throw new IllegalArgumentException("resume info cannot contain both a worker resume info and slices resume info");
@@ -46,11 +51,16 @@ public record ResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Intege
     }
 
     public ResumeInfo(StreamInput in) throws IOException {
-        this(in.readOptionalNamedWriteable(WorkerResumeInfo.class), in.readOptionalImmutableMap(StreamInput::readVInt, SliceStatus::new));
+        this(
+            new RelocationOrigin(in), // if serialized, always present
+            in.readOptionalNamedWriteable(WorkerResumeInfo.class),
+            in.readOptionalImmutableMap(StreamInput::readVInt, SliceStatus::new)
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeWriteable(relocationOrigin);
         out.writeOptionalNamedWriteable(worker);
         out.writeOptionalMap(slices, StreamOutput::writeVInt, (o, v) -> v.writeTo(o));
     }
@@ -93,6 +103,7 @@ public record ResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Intege
         BulkByScrollTask.Status status,
         @Nullable Version remoteVersion
     ) implements WorkerResumeInfo {
+
         public static final String NAME = "ScrollWorkerResumeInfo";
 
         public ScrollWorkerResumeInfo {
@@ -182,4 +193,24 @@ public record ResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Intege
         }
     }
 
+    /**
+     * Identity of the original task that was relocated. Propagated through relocation chains
+     * so the user-facing task ID and start time are preserved across any number of hops.
+     */
+    public record RelocationOrigin(TaskId originalTaskId, long originalStartTimeMillis) implements Writeable {
+
+        public RelocationOrigin {
+            Objects.requireNonNull(originalTaskId, "originalTaskId cannot be null");
+        }
+
+        public RelocationOrigin(StreamInput in) throws IOException {
+            this(TaskId.readFromStream(in), in.readLong());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeWriteable(originalTaskId);
+            out.writeLong(originalStartTimeMillis);
+        }
+    }
 }

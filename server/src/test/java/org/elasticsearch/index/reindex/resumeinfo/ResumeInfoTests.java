@@ -19,6 +19,7 @@ import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.SliceStatus;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResult;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
@@ -37,10 +38,10 @@ public class ResumeInfoTests extends ESTestCase {
 
     /** Constructor rejects null worker with null slices, or with fewer than two slices. */
     public void testResumeInfoRequiresWorkerOrSlices() {
-        expectThrows(IllegalArgumentException.class, () -> new ResumeInfo(null, null));
+        expectThrows(IllegalArgumentException.class, () -> new ResumeInfo(randomOrigin(), null, null));
         expectThrows(
             IllegalArgumentException.class,
-            () -> new ResumeInfo(null, Map.of(0, sliceStatusWithResult(0, new ElasticsearchException("e"))))
+            () -> new ResumeInfo(randomOrigin(), null, Map.of(0, sliceStatusWithResult(0, new ElasticsearchException("e"))))
         );
     }
 
@@ -53,12 +54,12 @@ public class ResumeInfoTests extends ESTestCase {
             1,
             sliceStatusWithResult(1, new ElasticsearchException("e2"))
         );
-        expectThrows(IllegalArgumentException.class, () -> new ResumeInfo(worker, slices));
+        expectThrows(IllegalArgumentException.class, () -> new ResumeInfo(randomOrigin(), worker, slices));
     }
 
     public void testResumeInfoWithWorker() {
         ScrollWorkerResumeInfo worker = scrollWorkerResumeInfo("scroll-1", 100L, taskStatus());
-        ResumeInfo info = new ResumeInfo(worker, null);
+        ResumeInfo info = new ResumeInfo(randomOrigin(), worker, null);
         assertThat(info.getTotalSlices(), equalTo(1));
         assertTrue(info.getWorker().isPresent());
         assertThat(info.getWorker().get(), equalTo(worker));
@@ -70,7 +71,7 @@ public class ResumeInfoTests extends ESTestCase {
         SliceStatus s0 = sliceStatusWithResumeInfo(0, scrollWorkerResumeInfo("s0", 1L, taskStatus()));
         SliceStatus s1 = sliceStatusWithResult(1, new ElasticsearchException("fail"));
         Map<Integer, SliceStatus> slices = Map.of(0, s0, 1, s1);
-        ResumeInfo info = new ResumeInfo(null, slices);
+        ResumeInfo info = new ResumeInfo(randomOrigin(), null, slices);
         assertThat(info.getTotalSlices(), equalTo(2));
         assertTrue(info.getWorker().isEmpty());
         assertTrue(info.getSlice(99).isEmpty());
@@ -91,7 +92,7 @@ public class ResumeInfoTests extends ESTestCase {
                 sliceStatusWithResult(1, new ElasticsearchException("b"))
             )
         );
-        ResumeInfo info = new ResumeInfo(null, mutable);
+        ResumeInfo info = new ResumeInfo(randomOrigin(), null, mutable);
         mutable.put(2, sliceStatusWithResult(2, new ElasticsearchException("c")));
         assertThat(info.slices().keySet(), hasSize(2));
     }
@@ -211,5 +212,12 @@ public class ResumeInfoTests extends ESTestCase {
 
     private static SliceStatus sliceStatusWithResult(int sliceId, Exception failure) {
         return new SliceStatus(sliceId, null, new WorkerResult(null, failure));
+    }
+
+    private static ResumeInfo.RelocationOrigin randomOrigin() {
+        return new ResumeInfo.RelocationOrigin(
+            randomBoolean() ? TaskId.EMPTY_TASK_ID : new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
+            randomNonNegativeLong()
+        );
     }
 }

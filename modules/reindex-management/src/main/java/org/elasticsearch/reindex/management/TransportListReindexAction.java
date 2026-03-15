@@ -17,14 +17,20 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksProjectAction;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Transport action for listing all running reindex tasks.
@@ -62,11 +68,52 @@ public class TransportListReindexAction extends TransportTasksProjectAction<Task
         List<TaskOperationFailure> taskOperationFailures,
         List<FailedNodeException> failedNodeExceptions
     ) {
-        return new ListReindexResponse(tasks, taskOperationFailures, failedNodeExceptions);
+        return new ListReindexResponse(deduplicateTasks(tasks), taskOperationFailures, failedNodeExceptions);
+    }
+
+    /**
+     * Deduplicate tasks that share the same {@link TaskId}. During a relocation window both the
+     * original task and the relocated task may be visible, each rewritten to carry the original ID.
+     * We can't distinguish which is the relocated one, but the status shouldn't be meaningfully different, so pick the first one.
+     */
+    static List<TaskInfo> deduplicateTasks(final List<TaskInfo> tasks) {
+        if (tasks.size() <= 1) {
+            return tasks;
+        }
+        final Map<TaskId, TaskInfo> seen = new LinkedHashMap<>(tasks.size());
+        for (final TaskInfo task : tasks) {
+            seen.putIfAbsent(task.taskId(), task);
+        }
+        return seen.size() == tasks.size() ? tasks : List.copyOf(seen.values());
     }
 
     @Override
     protected void taskOperation(CancellableTask actionTask, ListReindexRequest request, Task task, ActionListener<TaskInfo> listener) {
-        listener.onResponse(task.taskInfo(clusterService.localNode().getId(), request.getDetailed()));
+        assert task instanceof BulkByScrollTask : "task should be a BulkByScrollTask";
+        TaskInfo info = task.taskInfo(clusterService.localNode().getId(), request.getDetailed());
+        if (task instanceof final BulkByScrollTask bbs) {
+            final ResumeInfo.RelocationOrigin origin = bbs.relocationOrigin();
+            final TaskId originalId = origin.originalTaskId();
+            final long originalStartMillis = origin.originalStartTimeMillis();
+            final long adjustedRunningTimeNanos = info.runningTimeNanos() + TimeUnit.MILLISECONDS.toNanos(
+                info.startTime() - originalStartMillis
+            );
+            // is a NOP (doesn't change anything) unless relocated
+            info = new TaskInfo(
+                originalId,
+                info.type(),
+                originalId.getNodeId(),
+                info.action(),
+                info.description(),
+                info.status(),
+                originalStartMillis,
+                adjustedRunningTimeNanos,
+                info.cancellable(),
+                info.cancelled(),
+                info.parentTaskId(),
+                info.headers()
+            );
+        }
+        listener.onResponse(info);
     }
 }

@@ -1,3 +1,0 @@
-SET unmapped_fields="nullify"; FROM employees
-| STATS COUNT(*) BY emp_no
-| EVAL x = salary

@@ -1,2 +1,0 @@
-SET unmapped_fields="load"; FROM employees
-| STATS c = COUNT(*) BY tbucket(1 hour)

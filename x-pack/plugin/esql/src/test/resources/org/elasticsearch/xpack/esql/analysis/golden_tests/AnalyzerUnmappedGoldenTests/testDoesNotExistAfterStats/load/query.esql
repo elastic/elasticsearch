@@ -1,3 +1,0 @@
-SET unmapped_fields="load"; FROM employees
-| INLINE STATS COUNT(*) BY emp_no
-| EVAL x = does_not_exist_field

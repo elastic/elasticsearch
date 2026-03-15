@@ -1,3 +1,0 @@
-SET unmapped_fields="load"; FROM employees,
-    (FROM languages | KEEP language_code, unmapped1, unmapped2)
-| KEEP emp_no, language_code, unmapped1, unmapped2

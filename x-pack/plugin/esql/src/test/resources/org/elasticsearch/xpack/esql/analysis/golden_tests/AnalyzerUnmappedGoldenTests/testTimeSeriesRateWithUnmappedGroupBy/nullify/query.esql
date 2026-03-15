@@ -1,2 +1,0 @@
-SET unmapped_fields="nullify"; TS k8s
-| STATS r = RATE(network.total_cost) BY tbucket(1 hour), does_not_exist

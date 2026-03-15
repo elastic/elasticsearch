@@ -1,3 +1,0 @@
-SET unmapped_fields="load"; ROW x = 1
-| EVAL y = does_not_exist_field1::INTEGER + x
-| KEEP *, does_not_exist_field2

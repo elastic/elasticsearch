@@ -1,3 +1,0 @@
-SET unmapped_fields="nullify"; TS k8s
-| EVAL x = does_not_exist::DOUBLE + network.cost
-| KEEP @timestamp, cluster, x

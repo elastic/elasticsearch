@@ -1,0 +1,12 @@
+title: Fix inconsistent ES|QL expression canonicalization during optimization
+type: bug-fix
+products:
+  - product: elasticsearch
+    target: 9.4.0
+areas:
+  - ES|QL
+issues:
+  - 137892
+prs:
+  - 143824
+description: Ensures ES|QL expressions are rewritten into canonical form during logical optimization so semantic comparisons and deduplication operate consistently.

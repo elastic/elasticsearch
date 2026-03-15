@@ -71,13 +71,6 @@ public class ValuesNextPreparedForEmitting implements Releasable {
         this.max = selected.max();
     }
 
-    private ValuesNextPreparedForEmitting(BlockFactory blockFactory, IntVector selected, LongHashTable hashes) {
-        this.blockFactory = blockFactory;
-        this.selected = selected;
-        this.min = selected.min();
-        this.max = selected.max();
-    }
-
     public int nextValuesEnd(int group, int nextValuesStart) {
         return selectedCounts != null ? selectedCounts[group - min] : nextValuesStart;
     }

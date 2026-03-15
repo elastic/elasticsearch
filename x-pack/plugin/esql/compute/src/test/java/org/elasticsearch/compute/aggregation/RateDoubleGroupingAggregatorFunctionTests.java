@@ -79,14 +79,14 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
             List.of(1, 2, 3, 4)
         );
         final List<BlockHash.GroupSpec> groupSpecs = List.of(new BlockHash.GroupSpec(0, ElementType.INT));
-        HashAggregationOperator hashAggregationOperator = new HashAggregationOperator(
-            aggregatorMode,
-            List.of(aggregatorFactory),
-            () -> BlockHash.build(groupSpecs, driverContext.blockFactory(), randomIntBetween(1, 1024), randomBoolean()),
-            Integer.MAX_VALUE,
-            1.0,
-            driverContext
-        );
+        HashAggregationOperator hashAggregationOperator = new HashAggregationOperator.Builder().mode(aggregatorMode)
+            .aggregators(List.of(aggregatorFactory))
+            .groups(groupSpecs)
+            .aggregationBatchSize(randomIntBetween(1, 1024))
+            .partialEmit(Integer.MAX_VALUE, 1.0)
+            .maxPageSize(Integer.MAX_VALUE)
+            .build()
+            .get(driverContext);
         List<Page> outputPages = new ArrayList<>();
         Driver driver = TestDriverFactory.create(
             driverContext,

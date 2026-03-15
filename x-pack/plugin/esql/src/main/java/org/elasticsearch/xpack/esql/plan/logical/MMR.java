@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -19,21 +20,25 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.planner.PlannerUtils.hasLimitedInput;
 
-public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordinator, PostAnalysisVerificationAware {
+public class MMR extends UnaryPlan
+    implements
+        TelemetryAware,
+        ExecutesOn.Coordinator,
+        PostAnalysisVerificationAware,
+        PostOptimizationPlanVerificationAware {
     public static final String LAMBDA_OPTION_NAME = "lambda";
     private static final List<String> VALID_MMR_OPTION_NAMES = List.of(LAMBDA_OPTION_NAME);
 
@@ -53,7 +58,7 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         super(source, child);
         this.diversifyField = diversifyField;
         this.limit = limit;
-        this.queryVector = processQueryVector(queryVector);
+        this.queryVector = queryVector;
         this.options = options;
     }
 
@@ -136,21 +141,18 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
             failures.add(fail(this, "MMR limit must be a positive integer"));
         }
 
-        // ensure query_vector, if given, is resolved to a DENSE_VECTOR type
-        if (isValidQueryVector() == false) {
-            failures.add(fail(this, "MMR query vector must be resolved to a dense vector type"));
+        if (queryVector != null && queryVector.dataType() != DENSE_VECTOR) {
+            failures.add(
+                fail(
+                    this,
+                    "MMR query vector must be a DENSE_VECTOR, found [{}] of type [{}]",
+                    queryVector.source().text(),
+                    queryVector.dataType().name()
+                )
+            );
         }
-
         // ensure lambda, if given, is between 0.0 and 1.0
         postAnalysisOptionsVerification(failures);
-    }
-
-    private boolean isValidQueryVector() {
-        if (queryVector == null || queryVector.dataType() == DENSE_VECTOR) {
-            return true;
-        }
-
-        return queryVector.resolved() && queryVector.dataType().isNumeric();
     }
 
     private void postAnalysisOptionsVerification(Failures failures) {
@@ -215,22 +217,15 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         return null;
     }
 
-    private Expression processQueryVector(Expression queryVector) {
-        if (queryVector == null
-            || queryVector.resolved() == false
-            || queryVector.dataType() == null
-            || queryVector.dataType() == DENSE_VECTOR) {
-            return queryVector;
-        }
-
-        if (queryVector.dataType().isNumeric()) {
-            return new ToDenseVector(queryVector.source(), queryVector);
-        }
-
-        if (queryVector instanceof Literal litQueryVector && litQueryVector.dataType() == KEYWORD) {
-            return new ToDenseVector(queryVector.source(), queryVector);
-        }
-
-        return queryVector;
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postOptimizationPlanVerification() {
+        return (plan, failures) -> {
+            if (plan instanceof MMR mmr) {
+                Expression queryVector = mmr.queryVector();
+                if (queryVector != null && false == queryVector instanceof Literal) {
+                    failures.add(fail(mmr, "MMR query vector must be a constant, found [{}]", queryVector.source().text()));
+                }
+            }
+        };
     }
 }

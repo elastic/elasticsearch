@@ -3834,6 +3834,11 @@ public class VerifierTests extends ESTestCase {
 
         query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr \"7e7e\" on dense_embedding limit 10");
         query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [15, 16, 20] on dense_embedding limit 10");
+
+        assertThat(
+            error("FROM test | LIMIT 100 | MMR published_date ON vector LIMIT 10", fullTextAnalyzer, VerificationException.class),
+            equalTo("1:25: MMR query vector must be a DENSE_VECTOR, found [published_date] of type [DATETIME]")
+        );
     }
 
     public void testMMRLambdaValueIsValid() {

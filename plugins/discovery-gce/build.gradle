@@ -30,6 +30,7 @@ dependencies {
   api 'io.opencensus:opencensus-api:0.30.0'
   api 'io.opencensus:opencensus-contrib-http-util:0.30.0'
   api 'io.grpc:grpc-context:1.27.2'
+  clusterModules project(':modules:codecs-common')
 }
 
 restResources {

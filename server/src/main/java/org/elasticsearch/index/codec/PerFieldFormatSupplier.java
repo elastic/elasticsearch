@@ -20,7 +20,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
-import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
 import org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatFactory;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
@@ -67,28 +66,35 @@ public class PerFieldFormatSupplier {
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private final KnnVectorsFormat knnVectorsFormat;
-    private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
+    static final String ES812_POSTINGS_FORMAT_NAME = "ES812Postings";
     private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion104");
 
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
     private final MapperService mapperService;
     private final ThreadPool threadPool;
+    private final PostingsFormat es812PostingsFormat;
 
     private final PostingsFormat defaultPostingsFormat;
     private final TSDBSyntheticIdPostingsFormat syntheticIdPostingsFormat;
     private final ES94BloomFilterDocValuesFormat idBloomFilterDocValuesFormat;
 
+    @SuppressWarnings("this-escape")
     public PerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         this.mapperService = mapperService;
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
         this.threadPool = threadPool;
+        this.es812PostingsFormat = loadES819PostingsFormat();
         this.defaultPostingsFormat = getDefaultPostingsFormat(mapperService);
         this.knnVectorsFormat = getDefaultKnnVectorsFormat(mapperService, threadPool);
         this.syntheticIdPostingsFormat = new TSDBSyntheticIdPostingsFormat();
         this.idBloomFilterDocValuesFormat = new ES94BloomFilterDocValuesFormat(bigArrays, IdFieldMapper.NAME);
     }
 
-    private static PostingsFormat getDefaultPostingsFormat(final MapperService mapperService) {
+    protected PostingsFormat loadES819PostingsFormat() {
+        return PostingsFormat.forName(ES812_POSTINGS_FORMAT_NAME);
+    }
+
+    private PostingsFormat getDefaultPostingsFormat(final MapperService mapperService) {
         // we migrated to using a new postings format for the standard indices with Lucene 10.3
         if (mapperService != null
             && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_3_0)) {

@@ -21,6 +21,7 @@ dependencies {
   yamlRestTestImplementation project(':test:fixtures:geoip-fixture')
   yamlRestTestImplementation project(':x-pack:qa:multi-project:yaml-test-framework')
 
+  clusterModules project(':modules:codecs-common')
   clusterModules project(':modules:ingest-geoip')
   clusterModules project(':modules:reindex')  // needed for database cleanup
   clusterModules project(':test:external-modules:test-multi-project')

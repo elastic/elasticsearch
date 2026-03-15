@@ -18,6 +18,10 @@ dependencies {
   api project(':libs:user-agent-api')
 }
 
+dependencies {
+  clusterModules project(':modules:codecs-common')
+}
+
 restResources {
   restApi {
     include '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'

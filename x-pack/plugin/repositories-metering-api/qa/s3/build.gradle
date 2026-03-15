@@ -11,6 +11,7 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
+  clusterModules project(':modules:codecs-common')
   javaRestTestImplementation(testArtifact(project(xpackModule('repositories-metering-api'))))
   javaRestTestImplementation project(':test:fixtures:s3-fixture')
 }

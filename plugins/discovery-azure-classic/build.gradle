@@ -42,6 +42,7 @@ dependencies {
   api 'javax.xml.bind:jaxb-api:2.2.2'
 
   runtimeOnly "joda-time:joda-time:2.10.10"
+  clusterModules project(':modules:codecs-common')
 }
 
 restResources {

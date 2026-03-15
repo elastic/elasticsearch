@@ -26,6 +26,7 @@ dependencies {
   clusterModules project(xpackModule('mapper-constant-keyword'))
   clusterModules project(xpackModule('wildcard'))
   clusterModules project(xpackModule('transform'))
+  clusterModules project(':modules:codecs-common')
 }
 
 restResources {

@@ -16,6 +16,10 @@ esplugin {
   deploymentTarget = 'STATEFUL_ONLY'
 }
 
+dependencies {
+  clusterModules project(':modules:codecs-common')
+}
+
 restResources {
   restApi {
     include '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'

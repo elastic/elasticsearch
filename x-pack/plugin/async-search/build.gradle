@@ -26,6 +26,7 @@ dependencies {
 
   clusterModules project(":x-pack:test:deprecated-query")
   clusterModules project(':modules:analysis-common')
+  clusterModules project(':modules:codecs-common')
   clusterModules project(':test:external-modules:test-error-query')
 }
 

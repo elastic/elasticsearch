@@ -8,6 +8,7 @@
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
+  clusterModules project(':modules:codecs-common')
   clusterModules project(xpackModule('repositories-metering-api'))
   clusterModules project(':modules:repository-azure')
   javaRestTestImplementation(testArtifact(project(xpackModule('repositories-metering-api'))))

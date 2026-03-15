@@ -87,6 +87,8 @@ dependencies {
   internalClusterTestImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'server'
   }
+  testImplementation(project(':modules:codecs-common'))
+  internalClusterTestImplementation(project(':modules:codecs-common'))
   internalClusterTestImplementation(project(':modules:reindex'))
   internalClusterTestImplementation(project(':modules:mapper-extras'))
   internalClusterTestImplementation(project(':modules:data-streams'))

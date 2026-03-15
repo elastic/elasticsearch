@@ -28,5 +28,6 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('analytics'))
+  clusterModules project(':modules:codecs-common')
 }
 

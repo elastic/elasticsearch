@@ -10,4 +10,5 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 dependencies {
   clusterModules project(':modules:ingest-common')
+  clusterModules project(':modules:codecs-common')
 }

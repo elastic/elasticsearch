@@ -21,4 +21,5 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   api project(':libs:grok')
   api project(':libs:dissect')
+  clusterModules project(':modules:codecs-common')
 }

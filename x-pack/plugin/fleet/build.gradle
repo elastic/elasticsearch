@@ -30,4 +30,5 @@ dependencies {
   clusterModules project(xpackModule('mapper-version'))
   clusterModules project(xpackModule('inference'))
   clusterModules project(':modules:data-streams')
+  clusterModules project(':modules:codecs-common')
 }

@@ -699,17 +699,17 @@ public class IndexRoutingTests extends ESTestCase {
          * versions of Elasticsearch must continue to route based on the
          * version on the index.
          */
-        assertIndexShard(fixture, Map.of("dim", Map.of("a", "a")), 7);
-        assertIndexShard(fixture, Map.of("dim", Map.of("a", "b")), 5);
-        assertIndexShard(fixture, Map.of("dim", Map.of("c", "d")), 5);
-        assertIndexShard(fixture, Map.of("other", Map.of("a", "a")), 0);
-        assertIndexShard(fixture, Map.of("top", "a"), 7);
-        assertIndexShard(fixture, Map.of("dim", Map.of("c", "d"), "top", "b"), 2);
-        assertIndexShard(fixture, Map.of("dim.a", "a"), 7);
-        assertIndexShard(fixture, Map.of("dim.a", 1), 0);
-        assertIndexShard(fixture, Map.of("dim.a", "1"), 5);
-        assertIndexShard(fixture, Map.of("dim.a", true), 5);
-        assertIndexShard(fixture, Map.of("dim.a", "true"), 6);
+        assertIndexShard(fixture, Map.of("dim", Map.of("a", "a")), 5);
+        assertIndexShard(fixture, Map.of("dim", Map.of("a", "b")), 3);
+        assertIndexShard(fixture, Map.of("dim", Map.of("c", "d")), 7);
+        assertIndexShard(fixture, Map.of("other", Map.of("a", "a")), 1);
+        assertIndexShard(fixture, Map.of("top", "a"), 6);
+        assertIndexShard(fixture, Map.of("dim", Map.of("c", "d"), "top", "b"), 0);
+        assertIndexShard(fixture, Map.of("dim.a", "a"), 5);
+        assertIndexShard(fixture, Map.of("dim.a", 1), 2);
+        assertIndexShard(fixture, Map.of("dim.a", "1"), 0);
+        assertIndexShard(fixture, Map.of("dim.a", true), 3);
+        assertIndexShard(fixture, Map.of("dim.a", "true"), 1);
     }
 
     public void testRoutingPathReadWithInvalidString() {
@@ -1236,7 +1236,7 @@ public class IndexRoutingTests extends ESTestCase {
      */
     private int hash(IndexRouting routing, List<Object> keysAndValues) {
         if (routing instanceof IndexRouting.ExtractFromSource.ForIndexDimensions) {
-            return tsidBasedRoutingHash(keysAndValues);
+            return tsidBasedRoutingHash(keysAndValues, routing.creationVersion);
         }
         return legacyRoutingHash(keysAndValues);
     }
@@ -1252,7 +1252,7 @@ public class IndexRoutingTests extends ESTestCase {
         return hash;
     }
 
-    private static int tsidBasedRoutingHash(List<Object> keysAndValues) {
+    private static int tsidBasedRoutingHash(List<Object> keysAndValues, IndexVersion indexVersion) {
         TsidBuilder tsidBuilder = new TsidBuilder();
         for (int i = 0; i < keysAndValues.size(); i += 2) {
             String key = keysAndValues.get(i).toString();
@@ -1271,6 +1271,6 @@ public class IndexRoutingTests extends ESTestCase {
                 throw new IllegalArgumentException("Unsupported value type for TSID routing: " + value.getClass());
             }
         }
-        return StringHelper.murmurhash3_x86_32(tsidBuilder.buildTsid(), 0);
+        return StringHelper.murmurhash3_x86_32(tsidBuilder.buildTsid(indexVersion), 0);
     }
 }

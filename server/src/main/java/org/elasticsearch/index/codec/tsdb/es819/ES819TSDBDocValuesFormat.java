@@ -126,7 +126,7 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
      * If the average number of documents per ordinal is below this threshold, it is more efficient to encode doc values in blocks.
      * A much smaller value may be used in tests to exercise ordinal range encoding more frequently.
      */
-    public static final int ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL = 512;
+    public static final int ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL = 128;
 
     /**
      * The block shift used in DirectMonotonicWriter when encoding the start docs of each ordinal with ordinal range encoding.

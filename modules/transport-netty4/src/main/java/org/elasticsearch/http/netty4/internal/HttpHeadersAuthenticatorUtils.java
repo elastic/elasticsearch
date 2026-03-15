@@ -14,13 +14,16 @@ import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpRequest;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.SecureReleasable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.netty4.Netty4HttpHeaderValidator;
 import org.elasticsearch.http.netty4.Netty4HttpRequest;
 import org.elasticsearch.rest.RestRequest;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -47,6 +50,8 @@ public final class HttpHeadersAuthenticatorUtils {
             if (httpRequest.headers() instanceof HttpHeadersWithAuthenticationContext httpHeadersWithAuthenticationContext) {
                 validator.validate(httpRequest, channel, ActionListener.wrap(aVoid -> {
                     httpHeadersWithAuthenticationContext.setAuthenticationContext(threadContext.newStoredContext());
+                    // captures SecureReleasable objects from thread context for cleanup after response is sent
+                    httpHeadersWithAuthenticationContext.setSecureReleasables(extractSecureReleasables(threadContext));
                     // a successful authentication needs to signal to the {@link Netty4HttpHeaderValidator} to resume
                     // forwarding the request beyond the headers part
                     listener.onResponse(null);
@@ -56,6 +61,19 @@ public final class HttpHeadersAuthenticatorUtils {
                 listener.onFailure(new HttpHeadersValidationException(new IllegalStateException("Cannot authenticate unwrapped requests")));
             }
         }, threadContext);
+    }
+
+    /**
+     * Extracts all {@link SecureReleasable} objects from the thread context's transient headers.
+     */
+    private static List<SecureReleasable> extractSecureReleasables(ThreadContext threadContext) {
+        List<SecureReleasable> result = new ArrayList<>();
+        for (Map.Entry<String, Object> entry : threadContext.getTransientHeaders().entrySet()) {
+            if (entry.getValue() instanceof SecureReleasable secureReleasable) {
+                result.add(secureReleasable);
+            }
+        }
+        return result;
     }
 
     /**
@@ -83,6 +101,17 @@ public final class HttpHeadersAuthenticatorUtils {
     public static ThreadContext.StoredContext extractAuthenticationContext(org.elasticsearch.http.HttpRequest request) {
         HttpHeadersWithAuthenticationContext authenticatedHeaders = unwrapAuthenticatedHeaders(request);
         return authenticatedHeaders != null ? authenticatedHeaders.authenticationContextSetOnce.get() : null;
+    }
+
+    /**
+     * Releases any secure releasables (like authentication tokens) stored during request authentication.
+     * This should be called after the response is sent.
+     */
+    public static void releaseSecureReleasables(org.elasticsearch.http.HttpRequest request) {
+        HttpHeadersWithAuthenticationContext authenticatedHeaders = unwrapAuthenticatedHeaders(request);
+        if (authenticatedHeaders != null) {
+            IOUtils.closeWhileHandlingException(authenticatedHeaders.getSecureReleasables());
+        }
     }
 
     /**

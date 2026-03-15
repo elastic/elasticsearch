@@ -304,7 +304,18 @@ public class FieldNameUtils {
     }
 
     private static Stream<String> withSubfields(String name) {
-        return name.endsWith(WILDCARD) ? Stream.of(name) : Stream.of(name, name + ".*");
+        if (name.endsWith(WILDCARD)) {
+            return Stream.of(name);
+        }
+        Stream.Builder<String> builder = Stream.builder();
+        builder.add(name);
+        builder.add(name + ".*");
+        int dot = name.indexOf('.');
+        while (dot > 0) {
+            builder.add(name.substring(0, dot));
+            dot = name.indexOf('.', dot + 1);
+        }
+        return builder.build();
     }
 
     /**

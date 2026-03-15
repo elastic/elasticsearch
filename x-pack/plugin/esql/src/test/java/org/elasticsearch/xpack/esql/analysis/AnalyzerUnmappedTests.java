@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -14,13 +15,26 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzeStatement;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
@@ -515,6 +529,58 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             """);
         verificationFailure(query, "Subqueries and views are not supported with unmapped_fields=\"load\"");
         verificationFailure(query, "FORK is not supported with unmapped_fields=\"load\"");
+    }
+
+    /**
+     * Verify that referencing a sub-field of a flattened field (e.g. "foo.bar" when "foo" is flattened) is rejected
+     */
+    public void testFlattenedSubFieldRejection() {
+        Map<String, EsField> mapping = Map.of("field", new UnsupportedEsField("field", List.of("flattened")));
+        EsIndex index = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Set.of());
+        String errorMessage = "Cannot load subfield [%s] from a flattened field type";
+
+        verificationFailure(setUnmappedLoad("FROM test | KEEP field.a"), index, String.format(Locale.ROOT, errorMessage, "field.a"));
+        verificationFailure(
+            setUnmappedLoad("FROM test | STATS x = SAMPLE(field.a, 1)"),
+            index,
+            String.format(Locale.ROOT, errorMessage, "field.a")
+        );
+        verificationFailure(
+            setUnmappedLoad("FROM test | EVAL x = TO_STRING(field.a)"),
+            index,
+            String.format(Locale.ROOT, errorMessage, "field.a")
+        );
+        verificationFailure(setUnmappedLoad("FROM test | KEEP field.a.b"), index, String.format(Locale.ROOT, errorMessage, "field.a.b"));
+        verificationFailure(
+            setUnmappedLoad("FROM test | KEEP field.a.b.c"),
+            index,
+            String.format(Locale.ROOT, errorMessage, "field.a.b.c")
+        );
+        verificationFailure(
+            setUnmappedLoad("FROM test | SORT field.x, field.z"),
+            index,
+            String.format(Locale.ROOT, errorMessage, "field.x"),
+            String.format(Locale.ROOT, errorMessage, "field.z")
+        );
+        verificationFailure(
+            setUnmappedLoad("FROM test | SORT field.x | KEEP field.z"),
+            index,
+            String.format(Locale.ROOT, errorMessage, "field.x"),
+            String.format(Locale.ROOT, errorMessage, "field.z")
+        );
+    }
+
+    private void verificationFailure(String query, EsIndex index, String... expectedFailures) {
+        EsqlStatement statement = TEST_PARSER.createStatement(query);
+        Map<IndexPattern, IndexResolution> indexResolutions = Map.of(
+            new IndexPattern(Source.EMPTY, index.name()),
+            IndexResolution.valid(index)
+        );
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(indexResolutions, TEST_VERIFIER, configuration(query), statement);
+        var e = expectThrows(VerificationException.class, () -> analyzer.analyze(statement.plan()));
+        for (String expectedFailure : expectedFailures) {
+            assertThat(e.getMessage(), containsString(expectedFailure));
+        }
     }
 
     private void verificationFailure(String statement, String expectedFailure) {

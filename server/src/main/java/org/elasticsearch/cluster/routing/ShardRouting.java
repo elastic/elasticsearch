@@ -70,7 +70,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     ShardRouting(
         ShardId shardId,
         @Nullable String currentNodeId,
-        String relocatingNodeId,
+        @Nullable String relocatingNodeId,
         boolean primary,
         ShardRoutingState state,
         RecoverySource recoverySource,

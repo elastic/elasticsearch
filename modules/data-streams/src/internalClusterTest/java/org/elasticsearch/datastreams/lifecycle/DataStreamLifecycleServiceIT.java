@@ -1056,7 +1056,9 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             assertThat(setRepo, equalTo(DEFAULT_REPO));
         }, 30, TimeUnit.SECONDS);
 
-        dataStreamLifecycleServices.forEach(dataStreamLifecycleService -> dataStreamLifecycleService.setNowSupplier(now::get));
+        dataStreamLifecycleServices.forEach(
+            dataStreamLifecycleService -> dataStreamLifecycleService.setNowSupplier(System::currentTimeMillis)
+        );
     }
 
     /**

@@ -354,6 +354,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.FlattenedRollingUpgradeIT
   method: testIndexingWithIndexFalse
   issue: https://github.com/elastic/elasticsearch/issues/144354
+- class: org.elasticsearch.server.cli.APMJvmOptionsTests
+  method: testAPMAgentMetricsDisabledWhenOtelMetricsEnabled
+  issue: https://github.com/elastic/elasticsearch/issues/144357
 
 # Examples:
 #

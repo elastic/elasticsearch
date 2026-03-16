@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.azureopenai.oauth2;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -22,14 +23,13 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettingsTests.CLIENT_SECRET_VALUE;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettingsTests.TEST_INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Secrets.CLIENT_SECRET_FIELD;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class AzureOpenAiOAuth2SecretsTests extends AbstractBWCWireSerializationTestCase<AzureOpenAiOAuth2Secrets> {
-
-    private static final String TEST_INFERENCE_ID = "test-inference-id";
-    private static final String CLIENT_SECRET_VALUE = "secret";
 
     public static AzureOpenAiOAuth2Secrets createRandom() {
         return new AzureOpenAiOAuth2Secrets(randomAlphaOfLength(10), randomSecureStringOfLength(15));
@@ -46,12 +46,6 @@ public class AzureOpenAiOAuth2SecretsTests extends AbstractBWCWireSerializationT
         assertThat(finalSettings, is(newSettings));
     }
 
-    public void testFromMap_ClientSecret() {
-        var result = AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(CLIENT_SECRET_FIELD, CLIENT_SECRET_VALUE)), TEST_INFERENCE_ID);
-        assertThat(result, instanceOf(AzureOpenAiOAuth2Secrets.class));
-        assertThat(((AzureOpenAiOAuth2Secrets) result).getClientSecret().toString(), is(CLIENT_SECRET_VALUE));
-    }
-
     public void testToXContent_WritesClientSecretWhenSet() throws IOException {
         var testSettings = new AzureOpenAiOAuth2Secrets(TEST_INFERENCE_ID, new SecureString(CLIENT_SECRET_VALUE.toCharArray()));
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -63,6 +57,20 @@ public class AzureOpenAiOAuth2SecretsTests extends AbstractBWCWireSerializationT
                 "%s":"%s"
             }""", CLIENT_SECRET_FIELD, CLIENT_SECRET_VALUE));
         assertThat(xContentResult, is(expectedResult));
+    }
+
+    public void testFromMap_Empty_ThrowsError() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(CLIENT_SECRET_FIELD, "")), TEST_INFERENCE_ID)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format("[secret_settings] Invalid value empty string. [%s] must be a non-empty string", CLIENT_SECRET_FIELD)
+            )
+        );
     }
 
     @Override

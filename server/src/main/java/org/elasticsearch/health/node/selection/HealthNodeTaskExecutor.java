@@ -15,6 +15,7 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -43,7 +44,7 @@ import static org.elasticsearch.health.node.selection.HealthNode.TASK_NAME;
 /**
  * Persistent task executor that is managing the {@link HealthNode}.
  */
-public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<HealthNodeTaskParams> {
+public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<HealthNodeTaskParams> implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(HealthNodeTaskExecutor.class);
 
@@ -82,7 +83,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     }
 
     private void registerListeners(ClusterSettings clusterSettings) {
-        clusterService.addListener(this::reconcileTask);
+        clusterService.addListener(this);
         clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, enabled -> this.enabled = enabled);
     }
 
@@ -108,7 +109,8 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
      * Reconciles the health node task with the desired state on every cluster state update.
      * Only the master node triggers the lifecycle update. Other nodes return early.
      */
-    private void reconcileTask(ClusterChangedEvent event) {
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
         if (event.localNodeMaster() == false) {
             return;
         }

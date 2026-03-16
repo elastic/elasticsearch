@@ -188,7 +188,7 @@ public class APMJvmOptionsTests extends ESTestCase {
         Properties properties = new Properties();
         Path configPath;
         try (var files = Files.list(tempDir)) {
-            configPath = files.filter(Files::isRegularFile)
+            configPath = files.filter(p -> p.getFileName().toString().matches("\\.elstcapm\\..*\\.tmp"))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("expected temp APM config file"));
         }

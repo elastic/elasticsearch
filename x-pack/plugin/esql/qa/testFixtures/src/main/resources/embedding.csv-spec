@@ -3,7 +3,7 @@ required_capability: embedding_function
 required_capability: dense_vector_field_type_released
 
 ROW input="Who is Victor Hugo?"
-| EVAL embedding = EMBEDDING("Who is Victor Hugo?", "test_dense_inference")
+| EVAL embedding = EMBEDDING("Who is Victor Hugo?", "test_embedding_inference")
 ;
 
 input:keyword       | embedding:dense_vector
@@ -16,7 +16,7 @@ required_capability: embedding_function
 required_capability: dense_vector_field_type_released
 
 ROW input="Who is Victor Hugo?"
-| EVAL embedding = EMBEDDING(CONCAT("Who is ", "Victor Hugo?"), "test_dense_inference")
+| EVAL embedding = EMBEDDING(CONCAT("Who is ", "Victor Hugo?"), "test_embedding_inference")
 ;
 
 input:keyword       | embedding:dense_vector
@@ -31,7 +31,7 @@ required_capability: knn_function_v5
 
 // tag::embedding-knn[]
 FROM dense_vector_text METADATA _score
-| EVAL query_embedding = EMBEDDING("be excellent to each other", "test_dense_inference")
+| EVAL query_embedding = EMBEDDING("be excellent to each other", "test_embedding_inference")
 | WHERE KNN(text_embedding_field, query_embedding)
 // end::embedding-knn[]
 | SORT _score DESC
@@ -52,7 +52,7 @@ required_capability: dense_vector_field_type_released
 required_capability: knn_function_v5
 
 FROM dense_vector_text METADATA _score
-| WHERE KNN(text_embedding_field, EMBEDDING("be excellent to each other", "test_dense_inference"))
+| WHERE KNN(text_embedding_field, EMBEDDING("be excellent to each other", "test_embedding_inference"))
 | SORT _score DESC
 | LIMIT 10
 | KEEP text_field
@@ -71,7 +71,7 @@ required_capability: dense_vector_field_type_released
 required_capability: knn_function_v5
 
 FROM dense_vector_text METADATA _score, _id
-| WHERE KNN(text_embedding_field, EMBEDDING("be excellent to each other", "test_dense_inference")) OR KNN(text_embedding_field, EMBEDDING("live long and prosper", "test_dense_inference"))
+| WHERE KNN(text_embedding_field, EMBEDDING("be excellent to each other", "test_embedding_inference")) OR KNN(text_embedding_field, EMBEDDING("live long and prosper", "test_embedding_inference"))
 | SORT _score DESC, _id
 | LIMIT 10
 | KEEP text_field
@@ -91,8 +91,8 @@ required_capability: knn_function_v5
 required_capability: fork_v9
 
 FROM dense_vector_text METADATA _score
-| FORK (EVAL query_embedding = EMBEDDING("be excellent to each other", "test_dense_inference") | WHERE KNN(text_embedding_field, query_embedding))
-       (EVAL query_embedding = EMBEDDING("live long and prosper", "test_dense_inference") | WHERE KNN(text_embedding_field, query_embedding))
+| FORK (EVAL query_embedding = EMBEDDING("be excellent to each other", "test_embedding_inference") | WHERE KNN(text_embedding_field, query_embedding))
+       (EVAL query_embedding = EMBEDDING("live long and prosper", "test_embedding_inference") | WHERE KNN(text_embedding_field, query_embedding))
 | SORT _score DESC, _fork ASC
 | LIMIT 10
 | KEEP text_field, query_embedding, _fork

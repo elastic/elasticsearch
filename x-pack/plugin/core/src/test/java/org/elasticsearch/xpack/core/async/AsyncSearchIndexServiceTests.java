@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.async;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
@@ -37,6 +39,15 @@ import static org.hamcrest.Matchers.equalTo;
 
 // TODO: test CRUD operations
 public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
+
+    /**
+     * Minimum circuit breaker limit that allows allocating the initial async response buffer and overhead for the ByteArrayWrapper object.
+     * The 40 bytes is the overhead derived from RamUsageEstimator.shallowSizeOfInstance(ByteArrayWrapper.class)
+     */
+    private static final int MIN_CIRCUIT_BREAKER_LIMIT_FOR_INITIAL_BUFFER = Math.toIntExact(
+        RamUsageEstimator.sizeOf(new byte[PageCacheRecycler.PAGE_SIZE_IN_BYTES]) + 40L
+    );
+
     private AsyncTaskIndexService<TestAsyncResponse> indexService;
 
     public static class TestAsyncResponse implements AsyncResponse<TestAsyncResponse> {
@@ -288,7 +299,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
             assertThat(circuitBreaker.getUsed(), equalTo(0L));
         }
         {
-            circuitBreaker.adjustLimit(randomIntBetween(16 * 1024, 1024 * 1024)); // large enough
+            circuitBreaker.adjustLimit(randomIntBetween(MIN_CIRCUIT_BREAKER_LIMIT_FOR_INITIAL_BUFFER, 1024 * 1024)); // large enough
             TestAsyncResponse initialResponse = new TestAsyncResponse(testMessage, expirationTime);
             PlainActionFuture<DocWriteResponse> createFuture = new PlainActionFuture<>();
             indexService.createResponse(executionId.getDocId(), Map.of(), initialResponse, createFuture);
@@ -312,7 +323,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
         int updates = randomIntBetween(1, 5);
         for (int u = 0; u < updates; u++) {
             if (randomBoolean()) {
-                circuitBreaker.adjustLimit(randomIntBetween(16 * 1024, 1024 * 1024));
+                circuitBreaker.adjustLimit(randomIntBetween(MIN_CIRCUIT_BREAKER_LIMIT_FOR_INITIAL_BUFFER, 1024 * 1024));
                 testMessage = randomAlphaOfLength(10);
                 TestAsyncResponse updateResponse = new TestAsyncResponse(testMessage, randomLong());
                 PlainActionFuture<UpdateResponse> updateFuture = new PlainActionFuture<>();
@@ -329,7 +340,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
                 assertThat(circuitBreaker.getUsed(), equalTo(0L));
             }
             if (randomBoolean()) {
-                circuitBreaker.adjustLimit(randomIntBetween(16 * 1024, 1024 * 1024)); // small limit
+                circuitBreaker.adjustLimit(randomIntBetween(MIN_CIRCUIT_BREAKER_LIMIT_FOR_INITIAL_BUFFER, 1024 * 1024));
                 PlainActionFuture<TestAsyncResponse> getFuture = new PlainActionFuture<>();
                 indexService.getResponse(executionId, randomBoolean(), getFuture);
                 assertThat(getFuture.actionGet().test, equalTo(testMessage));

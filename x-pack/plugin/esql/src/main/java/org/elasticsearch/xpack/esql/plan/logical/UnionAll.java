@@ -47,6 +47,11 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
     }
 
     @Override
+    public UnionAll refreshOutput() {
+        return new UnionAll(source(), children(), refreshedOutput());
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(UnionAll.class, children());
     }

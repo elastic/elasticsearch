@@ -38,19 +38,13 @@ public final class TopIpGroupingAggregatorFunction implements GroupingAggregator
 
   private final boolean ascending;
 
-  public TopIpGroupingAggregatorFunction(List<Integer> channels,
-      TopIpAggregator.GroupingState state, DriverContext driverContext, int limit,
+  TopIpGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext, int limit,
       boolean ascending) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
     this.limit = limit;
     this.ascending = ascending;
-  }
-
-  public static TopIpGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, int limit, boolean ascending) {
-    return new TopIpGroupingAggregatorFunction(channels, TopIpAggregator.initGrouping(driverContext.bigArrays(), limit, ascending), driverContext, limit, ascending);
+    this.channels = channels;
+    this.state = TopIpAggregator.initGrouping(driverContext.bigArrays(), limit, ascending);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

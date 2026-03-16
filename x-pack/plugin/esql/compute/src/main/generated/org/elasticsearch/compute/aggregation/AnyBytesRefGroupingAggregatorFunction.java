@@ -36,16 +36,10 @@ public final class AnyBytesRefGroupingAggregatorFunction implements GroupingAggr
 
   private final DriverContext driverContext;
 
-  public AnyBytesRefGroupingAggregatorFunction(List<Integer> channels,
-      AnyBytesRefAggregator.GroupingState state, DriverContext driverContext) {
+  AnyBytesRefGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = AnyBytesRefAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static AnyBytesRefGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new AnyBytesRefGroupingAggregatorFunction(channels, AnyBytesRefAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

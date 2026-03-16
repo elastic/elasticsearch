@@ -111,12 +111,13 @@ public class CloneStep implements DlmStep {
             indexName,
             cloneIndex,
             ActionListener.wrap(
-                resp -> logger.info("DLM successfully initiated clone of index [{}] to index [{}]", indexName, cloneIndex),
+                resp -> logger.info(
+                    "DLM successfully completed clone and force merge marking of index [{}] to index [{}]",
+                    indexName,
+                    cloneIndex
+                ),
                 err -> {
-                    logger.error(
-                        () -> Strings.format("DLM failed to initiate clone of index [%s] to index [%s]", indexName, cloneIndex),
-                        err
-                    );
+                    logger.error(() -> Strings.format("DLM failed to clone index [%s] to index [%s]", indexName, cloneIndex), err);
                     stepContext.errorStore().recordError(stepContext.projectId(), indexName, err);
                 }
             ),

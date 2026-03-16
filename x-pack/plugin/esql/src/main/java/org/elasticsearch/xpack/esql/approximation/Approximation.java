@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.approximation;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
@@ -16,6 +17,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -24,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
@@ -213,6 +216,7 @@ public class Approximation {
     static final Set<Class<? extends AggregateFunction>> SUPPORTED_SINGLE_VALUED_AGGS = Set.of(
         Avg.class,
         Count.class,
+        CountApproximate.class,
         Median.class,
         MedianAbsoluteDeviation.class,
         Percentile.class,
@@ -258,7 +262,9 @@ public class Approximation {
 
     private static final Logger logger = LogManager.getLogger(Approximation.class);
 
-    private static final AggregateFunction COUNT_ALL_ROWS = new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, StringUtils.WILDCARD));
+    private static final Expression WILDCARD = Literal.keyword(Source.EMPTY, StringUtils.WILDCARD);
+    private static final AggregateFunction COUNT_ALL_ROWS_EXACT = new Count(Source.EMPTY, WILDCARD);
+    private static final AggregateFunction COUNT_ALL_ROWS_APPROXIMATE = new CountApproximate(Source.EMPTY, WILDCARD);
 
     private final LogicalPlan logicalPlan;
     private final ApproximationSettings settings;
@@ -378,7 +384,7 @@ public class Approximation {
             Source.EMPTY,
             leaf,
             List.of(),
-            List.of(new Alias(Source.EMPTY, "$source_count", COUNT_ALL_ROWS))
+            List.of(new Alias(Source.EMPTY, "$source_count", COUNT_ALL_ROWS_EXACT))
         );
         sourceCountPlan.setOptimized();
         return sourceCountPlan;
@@ -430,10 +436,13 @@ public class Approximation {
                 if (plan instanceof Aggregate aggregate) {
                     // The STATS function should be replaced by a STATS COUNT(*).
                     encounteredStats.set(true);
-                    List<NamedExpression> aggregations = List.of(new Alias(Source.EMPTY, "$count_p=" + sampleProbability, COUNT_ALL_ROWS));
                     if (sampleProbability == 1.0) {
+                        List<NamedExpression> aggregations = List.of(new Alias(Source.EMPTY, "$count_p=1", COUNT_ALL_ROWS_EXACT));
                         plan = new Aggregate(Source.EMPTY, aggregate.child(), List.of(), aggregations);
                     } else {
+                        List<NamedExpression> aggregations = List.of(
+                            new Alias(Source.EMPTY, "$count_p=" + sampleProbability, COUNT_ALL_ROWS_APPROXIMATE)
+                        );
                         plan = new SampledAggregate(
                             Source.EMPTY,
                             aggregate.child(),
@@ -508,6 +517,9 @@ public class Approximation {
             throw new IllegalStateException("Approximation count iteration limit exceeded");
         }
         double sampleProbability = nextSubPlanSampleProbability;
+        // The row count is sample-corrected, however here we want the actual
+        // (not-corrected) number of rows reaching the STATS.
+        rowCount = Math.round(sampleProbability * rowCount);
         logger.debug("estimated number of rows reaching STATS (p=[{}]): [{}] rows", sampleProbability, rowCount);
         double newSampleProbability = Math.min(1.0, sampleProbability * sampleRowCount() / Math.max(1, rowCount));
         if (newSampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
@@ -547,7 +559,11 @@ public class Approximation {
         assert countResult.pages().getFirst().getBlockCount() == 1;
         assert countResult.pages().getFirst().getPositionCount() == 1;
 
-        long rowCount = ((LongBlock) (countResult.pages().getFirst().getBlock(0))).getLong(0);
+        long rowCount = switch (countResult.pages().getFirst().getBlock(0)) {
+            case DoubleBlock doubleBlock -> Math.round(doubleBlock.getDouble(0));
+            case LongBlock longBlock -> longBlock.getLong(0);
+            default -> throw new IllegalStateException("Unexpected value: " + countResult.pages().getFirst().getBlock(0));
+        };
         countResult.pages().getFirst().close();
         return rowCount;
     }

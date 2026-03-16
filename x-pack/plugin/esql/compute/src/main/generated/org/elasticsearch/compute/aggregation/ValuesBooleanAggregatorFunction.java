@@ -30,16 +30,10 @@ public final class ValuesBooleanAggregatorFunction implements AggregatorFunction
 
   private final List<Integer> channels;
 
-  public ValuesBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      ValuesBooleanAggregator.SingleState state) {
+  ValuesBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static ValuesBooleanAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new ValuesBooleanAggregatorFunction(driverContext, channels, ValuesBooleanAggregator.initSingle());
+    this.state = ValuesBooleanAggregator.initSingle();
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

@@ -544,7 +544,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 }
             }
         } catch (Exception e) {
-            logger.warn("Data stream lifecycle failed to mark candidates for converting to frozen index for data stream [%s]", e);
+            logger.warn("Data stream lifecycle failed to mark candidates for converting to frozen index for data stream", e);
         }
 
         lastRunDuration = nowSupplier.getAsLong() - lastRunStartedAt;

@@ -1487,3 +1487,40 @@ TS k8s | STATS max_rate = max(rate(network.total_bytes_in)) BY bucket = bucket(@
 
 max_rate:double | bucket:datetime
 ;
+
+tsRateWithWindowAndTBucketTargetCount
+required_capability: ts_command_v0
+required_capability: tbucket_from_to
+required_capability: rate_with_interpolation_v2
+required_capability: fix_tbucket_target_count_window_validation
+
+TS k8s
+| STATS sum_rate=sum(rate(network.total_bytes_in, 10m)) BY time_bucket = TBUCKET(20, "2024-05-10T00:00:00Z", "2024-05-10T01:00:00Z")
+| EVAL sum_rate=ROUND(sum_rate, 6)
+| KEEP sum_rate, time_bucket
+| SORT time_bucket DESC | LIMIT 3;
+
+sum_rate:double  | time_bucket:datetime
+11.979987        | 2024-05-10T00:20:00.000Z
+69.403259        | 2024-05-10T00:15:00.000Z
+79.551314        | 2024-05-10T00:10:00.000Z
+;
+
+tsLastOverTimeWithWindowAndTBucketTargetCount
+required_capability: ts_command_v0
+required_capability: tbucket_from_to
+required_capability: fix_tbucket_target_count_window_validation
+
+TS k8s
+| STATS max_cost=max(last_over_time(network.cost, 10 minute)) BY time_bucket = TBUCKET(20, "2024-05-10T00:00:00Z", "2024-05-10T01:00:00Z"), cluster
+| KEEP max_cost, time_bucket, cluster
+| SORT time_bucket DESC, cluster | LIMIT 6;
+
+max_cost:double | time_bucket:datetime     | cluster:keyword
+10.75           | 2024-05-10T00:20:00.000Z | prod
+10.875          | 2024-05-10T00:20:00.000Z | qa
+9.5             | 2024-05-10T00:20:00.000Z | staging
+10.75           | 2024-05-10T00:15:00.000Z | prod
+10.875          | 2024-05-10T00:15:00.000Z | qa
+9.5             | 2024-05-10T00:15:00.000Z | staging
+;

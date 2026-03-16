@@ -210,4 +210,56 @@ public class VectorScorerTestUtils {
             VectorUtil.l2normalize(vector);
         }
     }
+
+    public static void randomInt4Bytes(Random random, byte[] bytes) {
+        for (int i = 0, len = bytes.length; i < len;) {
+            bytes[i++] = (byte) random.nextInt(0, 0x10);
+        }
+    }
+
+    /**
+     * Packs unpacked int4 values (one value per byte) into Lucene nibble-packed format (two values per byte)
+     * written by {@code Lucene104ScalarQuantizedVectorsWriter} (ScalarEncoding#PACKED_NIBBLE format).
+     * <p>
+     * The unpacked input comes from {@link OptimizedScalarQuantizer#scalarQuantize}, which quantizes a float
+     * vector into one byte per element in natural order: unpacked = [v0, v1, v2, ..., v_{N-1}] where N = dims.
+     * <p>
+     * The packed format pairs elements that are packedLength ({@param unpacked} length / 2) apart. For example,
+     * with dims=8, unpacked.length is 8 and packedLength is 4:
+     *   - {@code packed[0] = (v0 << 4) | v4}
+     *   - {@code packed[1] = (v1 << 4) | v5}
+     *   - {@code packed[2] = (v2 << 4) | v6}
+     *   - {@code packed[3] = (v3 << 4) | v7}
+     * <p>
+     * Or, visually,
+     * UNPACKED (8 bytes, natural vector order, one 4-bit value per byte):
+     *   index:   0     1     2     3     4     5     6     7
+     *          [v0]  [v1]  [v2]  [v3]  [v4]  [v5]  [v6]  [v7]
+     *   PACKED (4 bytes, on disk, two 4-bit values per byte):
+     *   index:      0          1          2          3
+     *          [v0  | v4]  [v1 | v5]  [v2 | v6]  [v3 | v7]
+     *           hi    lo    hi   lo    hi   lo    hi   lo
+     *          7..4  3..0  7..4 3..0  7..4 3..0  7..4 3..0
+     */
+    public static byte[] packNibbles(byte[] unpacked) {
+        int packedLength = unpacked.length / 2;
+        byte[] packed = new byte[packedLength];
+        for (int i = 0; i < packedLength; i++) {
+            packed[i] = (byte) ((unpacked[i] << 4) | (unpacked[i + packedLength] & 0x0F));
+        }
+        return packed;
+    }
+
+    /**
+     * Unpacks "nibble-packed" int4 values (two values per byte) into a byte[] (one value per byte)
+     */
+    public static byte[] unpackNibbles(byte[] packed, int dims) {
+        byte[] unpacked = new byte[dims];
+        int packedLen = packed.length;
+        for (int i = 0; i < packedLen; i++) {
+            unpacked[i] = (byte) ((packed[i] & 0xFF) >> 4);
+            unpacked[i + packedLen] = (byte) (packed[i] & 0x0F);
+        }
+        return unpacked;
+    }
 }

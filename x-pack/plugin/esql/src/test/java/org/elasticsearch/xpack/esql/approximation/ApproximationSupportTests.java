@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
@@ -135,6 +136,7 @@ public class ApproximationSupportTests extends ESTestCase {
         Lookup.class,
         MMR.class,
         Subquery.class,
+        NamedSubquery.class,
 
         // Non-unary plans are not supported yet.
         // These require more complicated expression tree traversal.

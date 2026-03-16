@@ -12,6 +12,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModelTests;
 
 import java.io.IOException;
@@ -66,7 +67,7 @@ public class AzureOpenAiChatCompletionRequestTests extends ESTestCase {
     }
 
     private static HttpPost assertStreamingHttpPostCreated(AzureOpenAiChatCompletionRequest request, String input) throws IOException {
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -97,7 +98,7 @@ public class AzureOpenAiChatCompletionRequestTests extends ESTestCase {
     }
 
     private static HttpPost assertNonStreamingHttpPostCreated(AzureOpenAiChatCompletionRequest request, String input) throws IOException {
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();

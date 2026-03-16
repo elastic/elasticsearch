@@ -657,12 +657,13 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(e.getMessage(), containsString("circular view reference 'v_1'"));
     }
 
-    public void testCircularViewInMultiSource() {
+    public void testNonCircularViewInMultiSource() {
         addView("view_a", "FROM emp");
         addView("view_b", "FROM view_c");
         addView("view_c", "FROM view_a");
-        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM view_a, view_b")));
-        assertThat(e.getMessage(), containsString("circular view reference 'view_a'"));
+        // view_b -> view_c -> view_a -> emp is a valid chain, not circular.
+        // view_a appearing as both a direct source and a transitive dependency of view_b is fine.
+        assertThat(replaceViews(query("FROM view_a, view_b")), matchesPlan(query("FROM emp,emp")));
     }
 
     public void testCircularViewWithPipes() {
@@ -714,6 +715,17 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("v_2", "FROM emp");
         LogicalPlan plan = query("FROM v_1");
         assertThat(replaceViews(plan), matchesPlan(query("FROM emp")));
+    }
+
+    public void testWildcardNonCircularReferenceFromViewSibling() {
+        addIndex("idx_otel");
+        addIndex("idx_otel_linux");
+        addView("wired_otel", "FROM idx_otel, wired_otel_linux");
+        addView("wired_otel_linux", "FROM idx_otel_linux");
+        addView("wired_otel_query", "FROM wired_otel");
+
+        LogicalPlan plan = query("FROM wired_otel_*");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM idx_otel_linux,idx_otel_linux,idx_otel")));
     }
 
     public void testModifiedViewDepth() {

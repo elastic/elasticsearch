@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankModelTests;
 
 import java.io.IOException;
@@ -106,7 +107,7 @@ public class OpenShiftAiRerankRequestTests extends ESTestCase {
         Boolean expectedReturnDocuments,
         String expectedModelId
     ) throws IOException {
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();

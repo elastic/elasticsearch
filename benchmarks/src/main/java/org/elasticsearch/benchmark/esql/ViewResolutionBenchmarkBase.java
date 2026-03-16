@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -143,6 +144,7 @@ public abstract class ViewResolutionBenchmarkBase {
     private LogicalPlanOptimizer optimizer;
     private ThreadPool threadPool;
     private ClusterService clusterService;
+    private EsqlParser parser;
 
     @Setup
     public void setup() {
@@ -155,15 +157,9 @@ public abstract class ViewResolutionBenchmarkBase {
         TransportVersion minimumVersion = TransportVersion.current();
 
         telemetry = new PlanTelemetry(functionRegistry);
-
-        viewParser = (query, viewName) -> EsqlParser.INSTANCE.parseView(
-            query,
-            new QueryParams(),
-            validationCtx,
-            telemetry,
-            inferenceSettings,
-            viewName
-        ).plan();
+        parser = new EsqlParser(new EsqlConfig(functionRegistry));
+        viewParser = (query, viewName) -> parser.parseView(query, new QueryParams(), validationCtx, telemetry, inferenceSettings, viewName)
+            .plan();
 
         LinkedHashMap<String, EsField> mapping = new LinkedHashMap<>();
         for (int i = 0; i < 5; i++) {
@@ -272,7 +268,7 @@ public abstract class ViewResolutionBenchmarkBase {
     }
 
     private LogicalPlan parsePlan(String query) {
-        return EsqlParser.INSTANCE.parseQuery(query, new QueryParams(), telemetry, new InferenceSettings(Settings.EMPTY));
+        return parser.parseQuery(query, new QueryParams(), telemetry, new InferenceSettings(Settings.EMPTY));
     }
 
     private ViewResolver createResolver(boolean viewsEnabled, ViewMetadata viewMetadata) {

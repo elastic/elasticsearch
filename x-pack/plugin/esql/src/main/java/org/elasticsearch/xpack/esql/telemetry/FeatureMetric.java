@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
@@ -58,6 +59,7 @@ public enum FeatureMetric {
     EVAL(Eval.class::isInstance),
     GROK(Grok.class::isInstance),
     LIMIT(plan -> false), // the limit is checked in Analyzer.gatherPreAnalysisMetrics, because it has a more complex and general check
+    LIMIT_BY(LimitBy.class::isInstance),
     SORT(OrderBy.class::isInstance),
     // the STATS is checked in Analyzer.gatherPreAnalysisMetrics, because it can also be part of an INLINE STATS command
     STATS(plan -> false),

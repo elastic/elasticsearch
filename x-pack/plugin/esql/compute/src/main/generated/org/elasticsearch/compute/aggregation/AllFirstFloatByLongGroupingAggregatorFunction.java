@@ -37,16 +37,11 @@ public final class AllFirstFloatByLongGroupingAggregatorFunction implements Grou
 
   private final DriverContext driverContext;
 
-  public AllFirstFloatByLongGroupingAggregatorFunction(List<Integer> channels,
-      AllFirstFloatByLongAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static AllFirstFloatByLongGroupingAggregatorFunction create(List<Integer> channels,
+  AllFirstFloatByLongGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new AllFirstFloatByLongGroupingAggregatorFunction(channels, AllFirstFloatByLongAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = AllFirstFloatByLongAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

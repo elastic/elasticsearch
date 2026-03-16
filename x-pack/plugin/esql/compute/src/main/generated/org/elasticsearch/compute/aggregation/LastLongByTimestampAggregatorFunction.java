@@ -34,16 +34,10 @@ public final class LastLongByTimestampAggregatorFunction implements AggregatorFu
 
   private final List<Integer> channels;
 
-  public LastLongByTimestampAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      LongLongState state) {
+  LastLongByTimestampAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static LastLongByTimestampAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new LastLongByTimestampAggregatorFunction(driverContext, channels, LastLongByTimestampAggregator.initSingle(driverContext));
+    this.state = LastLongByTimestampAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

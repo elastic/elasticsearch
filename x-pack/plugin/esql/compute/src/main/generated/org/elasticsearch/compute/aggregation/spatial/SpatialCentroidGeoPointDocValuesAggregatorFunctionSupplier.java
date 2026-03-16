@@ -33,13 +33,13 @@ public final class SpatialCentroidGeoPointDocValuesAggregatorFunctionSupplier im
   @Override
   public SpatialCentroidGeoPointDocValuesAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return SpatialCentroidGeoPointDocValuesAggregatorFunction.create(driverContext, channels);
+    return new SpatialCentroidGeoPointDocValuesAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public SpatialCentroidGeoPointDocValuesGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return SpatialCentroidGeoPointDocValuesGroupingAggregatorFunction.create(channels, driverContext);
+    return new SpatialCentroidGeoPointDocValuesGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

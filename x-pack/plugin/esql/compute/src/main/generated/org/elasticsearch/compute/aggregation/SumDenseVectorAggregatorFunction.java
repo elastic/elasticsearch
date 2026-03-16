@@ -36,17 +36,12 @@ public final class SumDenseVectorAggregatorFunction implements AggregatorFunctio
 
   private final List<Integer> channels;
 
-  public SumDenseVectorAggregatorFunction(Warnings warnings, DriverContext driverContext,
-      List<Integer> channels, SumDenseVectorAggregator.SingleState state) {
+  SumDenseVectorAggregatorFunction(Warnings warnings, DriverContext driverContext,
+      List<Integer> channels) {
     this.warnings = warnings;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static SumDenseVectorAggregatorFunction create(Warnings warnings,
-      DriverContext driverContext, List<Integer> channels) {
-    return new SumDenseVectorAggregatorFunction(warnings, driverContext, channels, SumDenseVectorAggregator.initSingle());
+    this.state = SumDenseVectorAggregator.initSingle();
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

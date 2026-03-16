@@ -37,16 +37,11 @@ public final class FirstBytesRefByTimestampGroupingAggregatorFunction implements
 
   private final DriverContext driverContext;
 
-  public FirstBytesRefByTimestampGroupingAggregatorFunction(List<Integer> channels,
-      FirstBytesRefByTimestampAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static FirstBytesRefByTimestampGroupingAggregatorFunction create(List<Integer> channels,
+  FirstBytesRefByTimestampGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new FirstBytesRefByTimestampGroupingAggregatorFunction(channels, FirstBytesRefByTimestampAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = FirstBytesRefByTimestampAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

@@ -363,14 +363,18 @@ public abstract class ViewResolutionBenchmarkBase {
             EsqlResolveViewAction.Request request,
             ActionListener<EsqlResolveViewAction.Response> listener
         ) {
-            ProjectState projectState = benchmarkClusterService.state().projectState(benchmarkProjectResolver.getProjectId());
-            ViewResolutionService.ViewResolutionResult result = viewResolutionService.resolveViews(
-                projectState,
-                request.indices(),
-                request.indicesOptions(),
-                request.getResolvedIndexExpressions()
-            );
-            listener.onResponse(new EsqlResolveViewAction.Response(result.views(), result.resolvedIndexExpressions()));
+            try {
+                ProjectState projectState = benchmarkClusterService.state().projectState(benchmarkProjectResolver.getProjectId());
+                ViewResolutionService.ViewResolutionResult result = viewResolutionService.resolveViews(
+                    projectState,
+                    request.indices(),
+                    request.indicesOptions(),
+                    request.getResolvedIndexExpressions()
+                );
+                listener.onResponse(new EsqlResolveViewAction.Response(result.views(), result.resolvedIndexExpressions()));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
         }
     }
 }

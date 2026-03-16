@@ -808,13 +808,15 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
     public void testIgnoredSourceFilteringIntegration() throws Exception {
         IndexVersion indexVersion = randomBoolean() ? getVersion() : IndexVersions.MATCH_ONLY_TEXT_STORED_AS_BYTES;
+        Settings mapperSettings = Settings.builder()
+            .put("index.mapping.total_fields.limit", 1)
+            .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
+            .put("index.mapping.source.mode", "synthetic")
+            .build();
+        var indexSettings = createIndexSettings(indexVersion, mapperSettings);
         DocumentMapper mapper = createMapperService(
             indexVersion,
-            Settings.builder()
-                .put("index.mapping.total_fields.limit", 1)
-                .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
-                .put("index.mapping.source.mode", "synthetic")
-                .build(),
+            mapperSettings,
             mapping(b -> {
                 b.startObject("foo").field("type", "keyword").endObject();
             })
@@ -839,7 +841,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
                         new CharacterRunAutomaton(automaton),
-                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexVersion),
+                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
                         (fieldName) -> true
                     )
                 ) {
@@ -858,7 +860,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
                         new CharacterRunAutomaton(automaton),
-                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexVersion),
+                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
                         (fieldName) -> true
                     )
                 ) {
@@ -874,7 +876,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
                         new CharacterRunAutomaton(automaton),
-                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexVersion),
+                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
                         (fieldName) -> true
                     )
                 ) {
@@ -894,7 +896,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
                         new CharacterRunAutomaton(automaton),
-                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexVersion),
+                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
                         (fieldName) -> true
                     )
                 ) {
@@ -910,7 +912,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
                         new CharacterRunAutomaton(automaton),
-                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexVersion),
+                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
                         (fieldName) -> true
                     )
                 ) {
@@ -930,7 +932,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     DirectoryReader indexReader = FieldSubsetReader.wrap(
                         wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
                         new CharacterRunAutomaton(automaton),
-                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexVersion),
+                        IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings),
                         (fieldName) -> true
                     )
                 ) {

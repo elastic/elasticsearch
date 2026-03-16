@@ -10,6 +10,7 @@ package org.elasticsearch.index.seqno;
 
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -27,7 +28,9 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.assertRetentionLeasesAdvanced;
 import static org.elasticsearch.index.seqno.SequenceNumbersTestUtils.assertShardsHaveSeqNoDocValues;
@@ -347,5 +350,70 @@ public class SeqNoPruningIT extends ESIntegTestCase {
 
         assertHitCount(prepareSearch(indexName).setSize(0).setTrackTotalHits(true), totalDocs);
         assertShardsHaveSeqNoDocValues(indexName, false, 1);
+    }
+
+    /**
+     * Verifies that index and delete operations succeed on replicas after _seq_no doc values have been pruned
+     * by a force merge.
+     */
+    public void testWritesSucceedOnReplicaAfterSeqNoPruning() throws Exception {
+        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
+        ensureStableCluster(3);
+
+        final var indexName = randomIdentifier();
+        createIndex(
+            indexName,
+            indexSettings(1, 1).put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
+                .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+                .build()
+        );
+        ensureGreen(indexName);
+
+        final int nbBatches = randomIntBetween(5, 10);
+        final int docsPerBatch = randomIntBetween(20, 50);
+        final int totalDocs = nbBatches * docsPerBatch;
+
+        final Set<String> docsIds = new HashSet<>();
+        for (int batch = 0; batch < nbBatches; batch++) {
+            var bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int doc = 0; doc < docsPerBatch; doc++) {
+                var docId = "doc-" + (batch * docsPerBatch + doc);
+                bulk.add(prepareIndex(indexName).setId(docId).setSource("field", "value-for-" + docId));
+                docsIds.add(docId);
+            }
+            assertNoFailures(bulk.get());
+        }
+
+        flushAndRefresh(indexName);
+
+        assertHitCount(prepareSearch(indexName).setSize(0).setTrackTotalHits(true), totalDocs);
+        assertShardsHaveSeqNoDocValues(indexName, true, 2);
+
+        assertRetentionLeasesAdvanced(client(), indexName, totalDocs);
+
+        var forceMerge = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
+        assertThat(forceMerge.getFailedShards(), equalTo(0));
+
+        refresh(indexName);
+        assertShardsHaveSeqNoDocValues(indexName, false, 2);
+
+        var deletedIds = randomSubsetOf(randomIntBetween(5, Math.min(20, totalDocs)), docsIds);
+        for (var docId : deletedIds) {
+            var response = client().prepareDelete(indexName, docId).get();
+            assertThat(response.getResult(), equalTo(DocWriteResponse.Result.DELETED));
+        }
+
+        var updatedIds = randomSubsetOf(randomIntBetween(5, Math.min(20, totalDocs)), docsIds);
+        for (var docId : updatedIds) {
+            var response = prepareIndex(indexName).setId(docId).setSource("field", "updated").get();
+            var expectedResult = deletedIds.contains(docId) ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED;
+            assertThat(response.getResult(), equalTo(expectedResult));
+        }
+
+        ensureGreen(indexName);
     }
 }

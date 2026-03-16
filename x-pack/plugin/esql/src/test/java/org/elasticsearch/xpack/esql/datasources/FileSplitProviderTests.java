@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
@@ -538,7 +539,7 @@ public class FileSplitProviderTests extends ESTestCase {
             }
 
             @Override
-            public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
+            public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
                 return null;
             }
 

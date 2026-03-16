@@ -100,10 +100,26 @@ import static org.elasticsearch.action.ActionListenerImplementations.safeOnFailu
  * <p>
  * This pattern is often used in the transport action layer with the use of the {@link
  * org.elasticsearch.action.support.ChannelActionListener} class, which wraps a {@link org.elasticsearch.transport.TransportChannel}
- * produced by the transport layer.{@link org.elasticsearch.transport.TransportChannel} implementations can hold a reference to a Netty
+ * produced by the transport layer. {@link org.elasticsearch.transport.TransportChannel} implementations can hold a reference to a Netty
  * channel with which to pass the response back to the network caller. Netty has a many-to-one association of network callers to channels,
  * so a call taking a long time generally won't hog resources: it's cheap. A transport action can take hours to respond and that's alright,
  * barring caller timeouts.
+ * </p>
+ * <p>
+ * An {@link ActionListener} passed into an asynchronous method may be completed on a different thread from the one which calls the method.
+ * Take care to check which executor will be used to complete a listener, especially if on completion the listener might run a blocking or
+ * long-running computation. Do not allow expensive listeners to run on latency-sensitive (e.g. transport-worker) threads. Use {@link
+ * org.elasticsearch.threadpool.ThreadPool#assertCurrentThreadPool} and {@link
+ * org.elasticsearch.transport.Transports#assertNotTransportThread} to document expectations about threading, and add comments to describe
+ * any unusual threading behaviour.
+ * </p>
+ * <p>
+ * It is common for asynchronous methods to be <i>mostly</i> synchronous, completing their listeners on the calling thread in the typical
+ * case and only forking the work elsewhere when it is unavoidable. The caller controls the thread it is using, and the listener it is
+ * supplying, so we can usually expect these things to be compatible. The mostly-synchronous pattern avoids the latency costs of forking
+ * work unnecessarily. Put differently, if an asynchronous method returns <i>without</i> having completed its listener then this signals
+ * that the work has already deviated from the fastest-possible path, which may mean there is less benefit in trying to optimize its
+ * performance.
  * </p>
  * <p>
  * Note that we explicitly avoid {@link java.util.concurrent.CompletableFuture} and other similar mechanisms as much as possible. They

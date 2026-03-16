@@ -85,8 +85,6 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
         DataStream.validateDataset(dataset);
         DataStream.validateNamespace(namespace);
 
-        var coordinating = indexingPressure.markCoordinatingOperationStarted(1, maxRequestSizeBytes, false);
-
         // while the remote write spec mandates snappy, we intentionally want to allow additional compression formats
         var bodyPostProcessor = "snappy".equals(request.header(HttpHeaders.CONTENT_ENCODING))
             ? new SnappyBlockDecoder(recycler)
@@ -94,7 +92,7 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
 
         return new IndexingPressureAwareContentAggregator(
             request,
-            coordinating,
+            indexingPressure,
             maxRequestSizeBytes,
             new IndexingPressureAwareContentAggregator.CompletionHandler() {
                 @Override

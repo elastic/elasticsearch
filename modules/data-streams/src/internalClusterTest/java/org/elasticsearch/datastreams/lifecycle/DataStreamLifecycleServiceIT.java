@@ -954,11 +954,17 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                     .includeDefaults(true);
                 GetSettingsResponse getSettingsResponse = client().execute(GetSettingsAction.INSTANCE, getSettingsRequest).actionGet();
                 assertThat(
-                    getSettingsResponse.getSetting(firstGenerationIndex, MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey()),
+                    getSettingsResponse.getSetting(
+                        firstGenerationIndex,
+                        MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey()
+                    ),
                     is(targetFactor.toString())
                 );
                 assertThat(
-                    getSettingsResponse.getSetting(firstGenerationIndex, MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey()),
+                    getSettingsResponse.getSetting(
+                        firstGenerationIndex,
+                        MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey()
+                    ),
                     is(targetFloor.getStringRep())
                 );
             } catch (IndexNotFoundException e) {

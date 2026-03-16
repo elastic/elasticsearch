@@ -490,8 +490,11 @@ public class JobUpdate implements Writeable, ToXContentObject {
             builder.setModelPlotConfig(modelPlotConfig);
         }
         if (analysisLimits != null) {
+            AnalysisLimits currentLimits = source.getAnalysisLimits();
+            AnalysisLimits limitsToValidate = currentLimits != null ? currentLimits.mergeWithUpdates(analysisLimits) : analysisLimits;
+
             AnalysisLimits validatedLimits = AnalysisLimits.validateAndSetDefaults(
-                analysisLimits,
+                limitsToValidate,
                 maxModelMemoryLimit,
                 AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB
             );

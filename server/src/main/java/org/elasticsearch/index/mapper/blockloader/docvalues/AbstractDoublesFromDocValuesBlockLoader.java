@@ -37,10 +37,10 @@ public abstract class AbstractDoublesFromDocValuesBlockLoader extends BlockDocVa
     }
 
     @Override
-    public final AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+    public final ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         NumericDvSingletonOrSorted dv = NumericDvSingletonOrSorted.get(breaker, context, fieldName);
         if (dv == null) {
-            return ConstantNull.READER;
+            return ConstantNull.COLUMN_READER;
         }
         if (dv.singleton() != null) {
             return singletonReader(dv.singleton(), toDouble);
@@ -48,9 +48,9 @@ public abstract class AbstractDoublesFromDocValuesBlockLoader extends BlockDocVa
         return sortedReader(dv.sorted(), toDouble);
     }
 
-    protected abstract AllReader singletonReader(TrackingNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble);
+    protected abstract ColumnAtATimeReader singletonReader(TrackingNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble);
 
-    protected abstract AllReader sortedReader(TrackingSortedNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble);
+    protected abstract ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble);
 
     public static class Singleton extends BlockDocValuesReader implements BlockDocValuesReader.NumericDocValuesAccessor {
         private final TrackingNumericDocValues docValues;
@@ -80,16 +80,6 @@ public abstract class AbstractDoublesFromDocValuesBlockLoader extends BlockDocVa
                     }
                 }
                 return builder.build();
-            }
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            DoubleBuilder blockBuilder = (DoubleBuilder) builder;
-            if (docValues.docValues().advanceExact(docId)) {
-                blockBuilder.appendDouble(toDouble.convert(docValues.docValues().longValue()));
-            } else {
-                blockBuilder.appendNull();
             }
         }
 
@@ -133,11 +123,6 @@ public abstract class AbstractDoublesFromDocValuesBlockLoader extends BlockDocVa
                 }
                 return builder.build();
             }
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (DoubleBuilder) builder);
         }
 
         private void read(int doc, DoubleBuilder builder) throws IOException {

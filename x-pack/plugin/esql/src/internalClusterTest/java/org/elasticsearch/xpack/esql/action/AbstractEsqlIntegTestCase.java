@@ -136,7 +136,7 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), EsqlPlugin.class);
+        return CollectionUtils.appendToCopy(super.nodePlugins(), EsqlPluginWithEnterpriseOrTrialLicense.class);
     }
 
     @Override

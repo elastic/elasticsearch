@@ -15,5 +15,5 @@ module org.elasticsearch.analysis.icu {
     requires org.apache.lucene.core;
     requires org.apache.lucene.analysis.icu;
 
-    // exports nothing
+    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.plugin.analysis.icu.AnalysisIcuFeatures;
 }

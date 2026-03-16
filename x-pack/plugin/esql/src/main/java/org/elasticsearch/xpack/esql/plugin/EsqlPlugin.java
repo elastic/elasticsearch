@@ -6,21 +6,17 @@
  */
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockFactoryBuilder;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
@@ -29,6 +25,7 @@ import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.GroupedLimitOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.MMROperator;
@@ -47,7 +44,6 @@ import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -61,10 +57,12 @@ import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
 import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncStopAction;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
+import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
@@ -75,17 +73,22 @@ import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PlanCheckerProvider;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
+import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -108,7 +111,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -118,6 +120,13 @@ import static org.elasticsearch.xpack.core.esql.EsqlFeatureFlags.ESQL_VIEWS_FEAT
 public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin {
 
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
+
+    public static final Setting<Integer> ESQL_WORKER_THREAD_POOL_SIZE = Setting.intSetting(
+        "esql.worker.thread_pool_size",
+        -1,
+        -1,
+        Setting.Property.NodeScope
+    );
 
     public static final Setting<Boolean> QUERY_ALLOW_PARTIAL_RESULTS = Setting.boolSetting(
         "esql.query.allow_partial_results",
@@ -195,17 +204,23 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     private final List<PlanCheckerProvider> extraCheckerProviders = new ArrayList<>();
     private final List<DataSourcePlugin> dataSourcePlugins = new ArrayList<>();
 
+    private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
+
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        CircuitBreaker circuitBreaker = services.indicesService().getBigArrays().breakerService().getBreaker("request");
-        Objects.requireNonNull(circuitBreaker, "request circuit breaker wasn't set");
         Settings settings = services.clusterService().getSettings();
-        ByteSizeValue maxPrimitiveArrayBlockSize = settings.getAsBytesSize(
-            BlockFactory.MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING,
-            BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE
-        );
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
-        var blockFactoryProvider = blockFactoryProvider(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
+        var blockFactoryProvider = blockFactoryProvider(
+            BlockFactory.builder(bigArrays)
+                .maxPrimitiveArraySize(
+                    settings.getAsBytesSize(
+                        BlockFactory.MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING,
+                        BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE
+                    )
+                )
+                .bytesRefRamOverestimateThreshold(PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_THRESHOLD.get(settings))
+                .bytesRefRamOverestimateFactor(PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR.get(settings))
+        );
         List<BiConsumer<LogicalPlan, Failures>> extraCheckers = extraCheckerProviders.stream()
             .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())
             .toList();
@@ -224,17 +239,21 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         }
 
         // Build capabilities from plugin declarations (cheap -- no I/O, no heavy deps)
-        DataSourceCapabilities capabilities = DataSourceCapabilities.build(allDataSourcePlugins);
+        DataSourceCapabilities dataSourceCapabilities = DataSourceCapabilities.build(allDataSourcePlugins);
 
         // Create DataSourceModule with all discovered plugins
         // Pass GENERIC executor for plugins that need async I/O (e.g. HTTP storage provider)
         DataSourceModule dataSourceModule = new DataSourceModule(
             allDataSourcePlugins,
-            capabilities,
+            dataSourceCapabilities,
             settings,
             blockFactoryProvider.blockFactory(),
             services.threadPool().executor(ThreadPool.Names.GENERIC)
         );
+
+        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+        EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
+        capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
 
         List<Object> components = new ArrayList<>(
             List.of(
@@ -244,8 +263,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                     getLicenseState(),
                     new EsqlQueryLog(services.clusterService().getClusterSettings(), services.loggingFieldsProvider()),
                     extraCheckers,
-                    settings,
-                    dataSourceModule
+                    services.crossProjectModeDecider(),
+                    dataSourceModule,
+                    functionRegistry,
+                    parser
                 ),
                 new ExchangeService(
                     services.clusterService().getSettings(),
@@ -259,14 +280,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
         if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
             components = new ArrayList<>(components);
-            components.add(new ViewResolver(services.clusterService(), services.projectResolver()));
-            components.add(new ViewService(services.clusterService()));
+            components.add(new ViewResolver(services.clusterService(), services.projectResolver(), services.client()));
+            components.add(new ViewService(services.clusterService(), functionRegistry, parser));
         }
         return components;
     }
 
-    protected BlockFactoryProvider blockFactoryProvider(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize) {
-        return new BlockFactoryProvider(new BlockFactory(breaker, bigArrays, maxPrimitiveArraySize));
+    protected BlockFactoryProvider blockFactoryProvider(BlockFactoryBuilder builder) {
+        return new BlockFactoryProvider(builder.build());
     }
 
     // to be overriden by tests
@@ -294,6 +315,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ESQL_QUERYLOG_THRESHOLD_WARN_SETTING,
                 ESQL_QUERYLOG_INCLUDE_USER_SETTING,
                 STORED_FIELDS_SEQUENTIAL_PROPORTION,
+                ESQL_WORKER_THREAD_POOL_SIZE,
                 EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
                 EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD
             )
@@ -331,6 +353,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 List.of(
                     new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
                     new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
+                    new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
                     new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
                 )
             );
@@ -341,19 +364,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
+        EsqlCapabilities capabilities = this.capabilities.get();
         List<RestHandler> releasedRestHandlers = List.of(
-            new RestEsqlQueryAction(),
-            new RestEsqlAsyncQueryAction(),
+            new RestEsqlQueryAction(capabilities),
+            new RestEsqlAsyncQueryAction(capabilities),
             new RestEsqlGetAsyncResultAction(),
             new RestEsqlStopAsyncAction(),
             new RestEsqlDeleteAsyncResultAction(),
@@ -380,6 +398,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator.Status.ENTRY);
         entries.add(HashAggregationOperator.Status.ENTRY);
         entries.add(LimitOperator.Status.ENTRY);
+        entries.add(GroupedLimitOperator.Status.ENTRY);
         entries.add(LuceneOperator.Status.ENTRY);
         entries.add(TopNOperatorStatus.ENTRY);
         entries.add(MvExpandOperator.Status.ENTRY);
@@ -388,11 +407,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(AsyncOperator.Status.ENTRY);
         entries.add(EnrichLookupOperator.Status.ENTRY);
         entries.add(LookupFromIndexOperator.Status.ENTRY);
+        entries.add(StreamingLookupFromIndexOperator.StreamingLookupStatus.ENTRY);
         entries.add(SampleOperator.Status.ENTRY);
         entries.add(LinearScoreEvalOperator.Status.ENTRY);
         entries.add(MMROperator.Status.ENTRY);
 
         entries.add(FileSplit.ENTRY);
+        entries.add(CoalescedSplit.ENTRY);
 
         entries.add(ExpressionQueryBuilder.ENTRY);
         entries.add(PlanStreamWrapperQueryBuilder.ENTRY);
@@ -418,13 +439,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
+        int configuredSize = ESQL_WORKER_THREAD_POOL_SIZE.get(settings);
+        int poolSize = configuredSize > 0 ? configuredSize : ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors);
         return List.of(
-            // TODO: Maybe have two types of threadpools for workers: one for CPU-bound and one for I/O-bound tasks.
-            // And we should also reduce the number of threads of the CPU-bound threadpool to allocatedProcessors.
             new FixedExecutorBuilder(
                 settings,
                 ESQL_WORKER_THREAD_POOL_NAME,
-                ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors),
+                poolSize,
                 1000,
                 ESQL_WORKER_THREAD_POOL_NAME,
                 EsExecutors.TaskTrackingConfig.DEFAULT

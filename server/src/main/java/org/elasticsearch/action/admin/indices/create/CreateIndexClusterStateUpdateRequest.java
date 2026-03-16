@@ -49,8 +49,6 @@ public class CreateIndexClusterStateUpdateRequest {
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
-    private boolean performReroute = true;
-
     private ComposableIndexTemplate matchingTemplate;
 
     private boolean settingsSystemProvided = false;
@@ -199,15 +197,6 @@ public class CreateIndexClusterStateUpdateRequest {
 
     public CreateIndexClusterStateUpdateRequest dataStreamName(String dataStreamName) {
         this.dataStreamName = dataStreamName;
-        return this;
-    }
-
-    public boolean performReroute() {
-        return performReroute;
-    }
-
-    public CreateIndexClusterStateUpdateRequest performReroute(boolean performReroute) {
-        this.performReroute = performReroute;
         return this;
     }
 

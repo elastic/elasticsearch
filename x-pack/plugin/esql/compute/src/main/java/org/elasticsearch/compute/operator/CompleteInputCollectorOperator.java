@@ -28,19 +28,19 @@ public abstract class CompleteInputCollectorOperator implements Operator {
     }
 
     @Override
-    public boolean needsInput() {
+    public final boolean needsInput() {
         return finished == false;
     }
 
     @Override
-    public void addInput(Page page) {
+    public final void addInput(Page page) {
         inputPages.add(page);
         pagesReceived++;
         rowsReceived += page.getPositionCount();
     }
 
     @Override
-    public void finish() {
+    public final void finish() {
         if (finished == false) {
             finished = true;
             onFinished();
@@ -48,12 +48,12 @@ public abstract class CompleteInputCollectorOperator implements Operator {
     }
 
     @Override
-    public boolean isFinished() {
+    public final boolean isFinished() {
         return finished && isOperatorFinished();
     }
 
     @Override
-    public Page getOutput() {
+    public final Page getOutput() {
         if (finished == false || isOperatorFinished()) {
             return null;
         }
@@ -62,7 +62,7 @@ public abstract class CompleteInputCollectorOperator implements Operator {
     }
 
     @Override
-    public void close() {
+    public final void close() {
         Releasables.close(inputPages);
         onClose();
     }

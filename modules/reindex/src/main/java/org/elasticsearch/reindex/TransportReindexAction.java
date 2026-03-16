@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -23,13 +22,13 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -61,7 +60,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         TransportService transportService,
         ReindexSslConfig sslConfig,
         @Nullable ReindexMetrics reindexMetrics,
-        ReindexRelocationNodePicker relocationNodePicker
+        ReindexRelocationNodePicker relocationNodePicker,
+        FeatureService featureService
     ) {
         this(
             ReindexAction.NAME,
@@ -77,7 +77,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             transportService,
             sslConfig,
             reindexMetrics,
-            relocationNodePicker
+            relocationNodePicker,
+            featureService
         );
     }
 
@@ -95,7 +96,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         TransportService transportService,
         ReindexSslConfig sslConfig,
         @Nullable ReindexMetrics reindexMetrics,
-        ReindexRelocationNodePicker relocationNodePicker
+        ReindexRelocationNodePicker relocationNodePicker,
+        FeatureService featureService
     ) {
         super(name, transportService, actionFilters, ReindexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
@@ -115,7 +117,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             sslConfig,
             reindexMetrics,
             transportService,
-            relocationNodePicker
+            relocationNodePicker,
+            featureService
         );
     }
 
@@ -144,17 +147,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
      * fails.
      */
     protected void validate(ReindexRequest request) {
-        IndicesOptions indicesOptions = request.getSearchRequest().indicesOptions();
-        if (indicesOptions.resolveCrossProjectIndexExpression()) {
-            try {
-                request.getSearchRequest()
-                    .indicesOptions(CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(indicesOptions));
-                reindexValidator.initialValidation(request);
-            } finally {
-                request.getSearchRequest().indicesOptions(indicesOptions);
-            }
-        } else {
-            reindexValidator.initialValidation(request);
-        }
+        reindexValidator.initialValidation(request);
     }
 }

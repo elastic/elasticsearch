@@ -550,6 +550,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues()) {
+                return new KeyedFlattenedDocValuesBlockLoader(name(), key, usesBinaryDocValues);
+            }
+
             var fetcher = new SourceValueFetcher(
                 blContext.sourcePaths(rootName + "." + key),
                 nullValue,

@@ -46,6 +46,8 @@ dependencies {
   clusterPlugins project(xpackModule('esql-datasource-s3'))
   // GCS datasource plugin for gs:// storage backend
   clusterPlugins project(xpackModule('esql-datasource-gcs'))
+  // Azure Blob datasource plugin for wasbs:///wasb:// storage backend
+  clusterPlugins project(xpackModule('esql-datasource-azure'))
 }
 
 // The parquet fixtures (employees.parquet and parquet-basic.csv-spec) are included

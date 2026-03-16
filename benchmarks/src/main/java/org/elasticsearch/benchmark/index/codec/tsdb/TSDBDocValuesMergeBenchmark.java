@@ -24,9 +24,9 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
+import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -66,9 +66,7 @@ import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.
 public class TSDBDocValuesMergeBenchmark {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
-        LogConfigurator.configureESLogging();
-        LogConfigurator.setNodeName("test");
+        Utils.configureBenchmarkLogging();
     }
 
     private static final String TIMESTAMP_FIELD = "@timestamp";
@@ -268,7 +266,7 @@ public class TSDBDocValuesMergeBenchmark {
             true,
             NUMERIC_LARGE_BLOCK_SHIFT
         );
-        config.setCodec(new Elasticsearch92Lucene103Codec() {
+        config.setCodec(new Elasticsearch93Lucene104Codec() {
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
                 return docValuesFormat;

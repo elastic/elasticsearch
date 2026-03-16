@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.core.io.JsonEOFException;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
@@ -97,7 +98,11 @@ public class NdJsonPageDecoder implements Closeable {
                         break; // End of stream
                     }
                 } catch (JsonParseException e) {
-                    LOGGER.warn("Malformed NDJSON at line {}: {}", lineCount, e);
+                    if (e instanceof JsonEOFException) {
+                        LOGGER.debug("Truncated NDJSON at line {} (expected at split boundaries): {}", lineCount, e.getOriginalMessage());
+                    } else {
+                        LOGGER.warn("Malformed NDJSON at line {}: {}", lineCount, e.getOriginalMessage());
+                    }
                     this.input = NdJsonUtils.moveToNextLine(parser, this.input);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(this.input);
                     continue;
@@ -109,7 +114,11 @@ public class NdJsonPageDecoder implements Closeable {
                 try {
                     decoder.decodeObject(parser);
                 } catch (JsonParseException e) {
-                    LOGGER.warn("Malformed NDJSON at line {}: {}", lineCount, e);
+                    if (e instanceof JsonEOFException) {
+                        LOGGER.debug("Truncated NDJSON at line {} (expected at split boundaries): {}", lineCount, e.getOriginalMessage());
+                    } else {
+                        LOGGER.warn("Malformed NDJSON at line {}: {}", lineCount, e.getOriginalMessage());
+                    }
                     this.input = NdJsonUtils.moveToNextLine(parser, this.input);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(this.input);
                 }

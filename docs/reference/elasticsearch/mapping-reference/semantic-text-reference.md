@@ -56,6 +56,10 @@ the [Update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/opera
 :   (Optional, object) Specifies the index options to override default values
 for the field. Currently, `dense_vector` and `sparse_vector` index options are supported. For text embeddings, `index_options` may match any allowed.
 
+    :::{note}
+    This parameter configures vector indexing structures. It is distinct from the [`index_options`](/reference/elasticsearch/mapping-reference/index-options.md) parameter used by term-based fields to control whether term frequencies, positions, and offsets are stored in the inverted index.
+    :::
+
 - [dense_vector index options](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-options)
 
 - [sparse_vector index options](/reference/elasticsearch/mapping-reference/sparse-vector.md#sparse-vectors-params) {applies_to}`stack: ga 9.2`

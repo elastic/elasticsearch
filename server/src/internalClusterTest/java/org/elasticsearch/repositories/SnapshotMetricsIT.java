@@ -46,9 +46,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.snapshots.SnapshotTestUtils.clearShutdownMetadata;
-import static org.elasticsearch.snapshots.SnapshotTestUtils.flushMasterQueue;
-import static org.elasticsearch.snapshots.SnapshotTestUtils.putShutdownForRemovalMetadata;
+import static org.elasticsearch.test.NodeShutdownTestUtils.clearShutdownMetadata;
+import static org.elasticsearch.test.NodeShutdownTestUtils.flushMasterQueue;
+import static org.elasticsearch.test.NodeShutdownTestUtils.putShutdownForRemovalMetadata;
 import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.empty;
@@ -143,6 +143,13 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, hasSize(numShards));
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, everyItem(lessThan(snapshotElapsedTime.secondsFrac())));
 
+        // Sanity check shard queue time observations
+        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_QUEUE_TIME, hasSize(numShards));
+        assertDoubleHistogramMetrics(
+            SnapshotMetrics.SNAPSHOT_SHARDS_QUEUE_TIME,
+            everyItem(allOf(greaterThanOrEqualTo(0.0), lessThan(snapshotElapsedTime.secondsFrac())))
+        );
+
         // Sanity check snapshot observations
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, hasSize(1));
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, everyItem(lessThan(snapshotElapsedTime.secondsFrac())));
@@ -185,6 +192,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertMetricsHaveAttributes(InstrumentType.LONG_GAUGE, SnapshotMetrics.SNAPSHOT_SHARDS_IN_PROGRESS, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_SHARDS_COMPLETED, expectedAttrsWithShardStage);
         assertMetricsHaveAttributes(InstrumentType.DOUBLE_HISTOGRAM, SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, expectedAttrsWithShardStage);
+        assertMetricsHaveAttributes(InstrumentType.DOUBLE_HISTOGRAM, SnapshotMetrics.SNAPSHOT_SHARDS_QUEUE_TIME, expectedAttrs);
 
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_UPLOAD_DURATION, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_BYTES_UPLOADED, expectedAttrs);

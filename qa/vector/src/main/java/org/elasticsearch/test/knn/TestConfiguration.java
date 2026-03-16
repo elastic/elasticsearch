@@ -33,10 +33,13 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 import java.util.zip.CRC32C;
 
 /**
@@ -69,7 +72,8 @@ record TestConfiguration(
     boolean doPrecondition,
     int preconditioningBlockDims,
     int flatVectorThreshold,
-    int secondaryClusterSize
+    int secondaryClusterSize,
+    String directoryType
 ) {
 
     static final ParseField DATASET_FIELD = new ParseField("dataset");
@@ -110,6 +114,7 @@ record TestConfiguration(
     static final ParseField FILTER_CACHED = new ParseField("filter_cache");
     static final ParseField SEARCH_PARAMS = new ParseField("search_params");
     static final ParseField FLAT_VECTOR_THRESHOLD = new ParseField("flat_vector_threshold");
+    static final ParseField DIRECTORY_TYPE_FIELD = new ParseField("directory_type");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
@@ -174,6 +179,7 @@ record TestConfiguration(
         PARSER.declareInt(Builder::setMergeWorkers, MERGE_WORKERS_FIELD);
         PARSER.declareInt(Builder::setFlatVectorThreshold, FLAT_VECTOR_THRESHOLD);
         PARSER.declareInt(Builder::setSecondaryClusterSize, SECONDARY_CLUSTER_SIZE);
+        PARSER.declareString(Builder::setDirectoryType, DIRECTORY_TYPE_FIELD);
     }
 
     public int numberOfSearchRuns() {
@@ -192,6 +198,7 @@ record TestConfiguration(
 
     public static String formattedParameterHelp() {
         List<ParameterHelp> params = List.of(
+            new ParameterHelp("dataset", "string", "Optional. Name of the dataset to use. Available datasets displayed in help text."),
             new ParameterHelp("doc_vectors", "array[string]", "Required. Paths to document vectors files used for indexing."),
             new ParameterHelp("query_vectors", "string", "Optional. Path to query vectors file; omit to skip searches."),
             new ParameterHelp("num_docs", "int", "Number of documents to index."),
@@ -230,25 +237,29 @@ record TestConfiguration(
                 "search_params",
                 "array[object]",
                 "Explicit per-search settings; each object may include search fields like num_candidates, k, and visit_percentage."
+            ),
+            new ParameterHelp(
+                "directory_type",
+                "string",
+                "Directory type: default (mmap), frozen (searchable snapshot), or custom types registered by external wrappers."
             )
         );
 
-        int nameWidth = "parameter".length();
-        int typeWidth = "type".length();
+        int[] lengths = new int[] { "parameter".length(), "type".length(), "description".length() };
         for (ParameterHelp param : params) {
-            nameWidth = Math.max(nameWidth, param.name.length());
-            typeWidth = Math.max(typeWidth, param.type.length());
+            lengths[0] = Math.max(lengths[0], param.name.length());
+            lengths[1] = Math.max(lengths[1], param.type.length());
         }
 
         StringBuilder sb = new StringBuilder();
         sb.append("Configuration parameters:");
         sb.append("\n");
-        sb.append(formatParamRow("parameter", "type", "description", nameWidth, typeWidth));
+        sb.append(formatParamRow(lengths, "parameter", "type", "description"));
         sb.append("\n");
-        sb.append("-".repeat(nameWidth)).append("  ").append("-".repeat(typeWidth)).append("  ").append("-".repeat("description".length()));
+        sb.append(formatParamRow(lengths, Arrays.stream(lengths).mapToObj("-"::repeat).toArray(String[]::new)));
         sb.append("\n");
         for (ParameterHelp param : params) {
-            sb.append(formatParamRow(param.name, param.type, param.description, nameWidth, typeWidth));
+            sb.append(formatParamRow(lengths, param.name, param.type, param.description));
             sb.append("\n");
         }
         sb.append("\n");
@@ -259,19 +270,90 @@ record TestConfiguration(
         return sb.toString();
     }
 
-    private static String formatParamRow(String name, String type, String description, int nameWidth, int typeWidth) {
-        return String.format(Locale.ROOT, "%-" + nameWidth + "s  %-" + typeWidth + "s  %s", name, type, description);
+    private static String formatParamRow(int[] entryLengths, String... entries) {
+        assert entries.length == entryLengths.length;
+        return Strings.format(
+            Arrays.stream(entryLengths).mapToObj(l -> "%-" + l + "s").collect(Collectors.joining("  ")),
+            (Object[]) entries
+        );
     }
 
     private record ParameterHelp(String name, String type, String description) {}
+
+    public static String listDatasets() throws IOException {
+        var datasets = datasets();
+
+        int[] lengths = new int[] { "dataset".length(), "docs".length(), "queries".length(), "dims".length(), "space".length() };
+        for (Map.Entry<String, String[]> entry : datasets.entrySet()) {
+            lengths[0] = Math.max(lengths[0], entry.getKey().length());
+            lengths[1] = Math.max(lengths[1], entry.getValue()[0].length());
+            lengths[2] = Math.max(lengths[2], entry.getValue()[1].length());
+            lengths[3] = Math.max(lengths[3], entry.getValue()[2].length());
+            lengths[4] = Math.max(lengths[4], entry.getValue()[3].length());
+        }
+
+        System.out.println(formatParamRow(lengths, "Dataset", "docs", "queries", "dims", "space"));
+        System.out.println(formatParamRow(lengths, Arrays.stream(lengths).mapToObj("-"::repeat).toArray(String[]::new)));
+        return datasets.entrySet()
+            .stream()
+            .map(e -> formatParamRow(lengths, e.getKey(), e.getValue()[0], e.getValue()[1], e.getValue()[2], e.getValue()[3]))
+            .collect(Collectors.joining("\n"));
+    }
+
+    private static Map<String, String[]> datasets() throws IOException {
+        final String cloudProjectId = "benchmarking";
+        final String datasetBucket = "knnindextester";
+
+        try (Storage storage = StorageOptions.newBuilder().setProjectId(cloudProjectId).build().getService()) {
+            Map<String, String[]> datasets = new TreeMap<>();
+            var page = storage.list(datasetBucket);
+
+            while (true) {
+                for (Blob blob : page.iterateAll()) {
+                    String name = blob.getName();
+                    int slash = name.indexOf('/');
+
+                    String dataset = name.substring(0, slash);
+                    String descriptor = name.substring(slash + 1);
+                    if (descriptor.equals(dataset + ".json")) {
+                        Map<?, ?> dsData;
+                        try (
+                            XContentParser parser = XContentType.JSON.xContent()
+                                .createParser(XContentParserConfiguration.EMPTY, blob.getContent())
+                        ) {
+                            dsData = parser.map();
+                        }
+
+                        datasets.put(
+                            dataset,
+                            new String[] {
+                                String.valueOf(dsData.get("num_doc_vectors")),
+                                String.valueOf(dsData.get("num_query_vectors")),
+                                String.valueOf(dsData.get("dimensions")),
+                                String.valueOf(dsData.get("vector_space")) }
+                        );
+                    }
+                }
+
+                if (page.hasNextPage() == false) {
+                    break;
+                }
+                page = page.getNextPage();
+            }
+
+            return datasets;
+        } catch (Exception e) {
+            throw new IOException("Failed to list datasets from gs://" + datasetBucket, e);
+        }
+    }
 
     static class Builder implements ToXContentObject {
         private String dataset;
         private String dataDir = ".data";
         private List<Path> docVectors;
         private Path queryVectors;
-        private int numDocs = 1000;
-        private int numQueries = 100;
+        private Integer numDocs;
+        private Integer numQueries;
         private KnnIndexTester.IndexType indexType = KnnIndexTester.IndexType.HNSW;
         private List<Integer> numCandidates = List.of(1000);
         private List<Integer> k = List.of(10);
@@ -286,7 +368,7 @@ record TestConfiguration(
         private boolean reindex = false;
         private boolean forceMerge = false;
         private int forceMergeMaxNumSegments = 1;
-        private VectorSimilarityFunction vectorSpace;   // can be specified in config file, dataset, or the default is set in build()
+        private VectorSimilarityFunction vectorSpace;
         private Integer quantizeBits = null;
         private KnnIndexTester.VectorEncoding vectorEncoding = KnnIndexTester.VectorEncoding.FLOAT32;
         private int dimensions;
@@ -303,6 +385,8 @@ record TestConfiguration(
         private int numMergeWorkers = 1;
         private int flatVectorThreshold = -1; // -1 mean use default (vectorPerCluster * 3)
         private int secondaryClusterSize = -1;
+        private int flatIndexThreshold = -1; // use format's default threshold
+        private String directoryType = "default";
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -391,6 +475,11 @@ record TestConfiguration(
 
         public Builder setHnswEfConstruction(int hnswEfConstruction) {
             this.hnswEfConstruction = hnswEfConstruction;
+            return this;
+        }
+
+        public Builder setFlatIndexThreshold(int flatIndexThreshold) {
+            this.flatIndexThreshold = flatIndexThreshold;
             return this;
         }
 
@@ -504,6 +593,11 @@ record TestConfiguration(
             return this;
         }
 
+        public Builder setDirectoryType(String directoryType) {
+            this.directoryType = directoryType.toLowerCase(Locale.ROOT);
+            return this;
+        }
+
         /*
          * Each dataset has a descriptor file, expected to be at gs://<bucket>/<dataset>/<dataset>.json, with contents of:
            {
@@ -512,6 +606,7 @@ record TestConfiguration(
                "<corpus_2>.fvec"
              ],
              "queries": "<queries>.fvec",
+             "vector_encoding": "float32", // optional, default float32
              "dimensions": 512,
              "vector_space": "cosine",
              "num_doc_vectors": 10000000,
@@ -554,9 +649,17 @@ record TestConfiguration(
                 ).getFirst();
             }
 
+            Object vectorEncoding = dsData.get("vector_encoding");
             String vectorSpace = dsData.get("vector_space").toString();
             int numDocVectors = ((Number) dsData.get("num_doc_vectors")).intValue();
             int numQueryVectors = ((Number) dsData.get("num_query_vectors")).intValue();
+
+            if (numDocs == null) {
+                numDocs = numDocVectors;
+            }
+            if (numQueries == null) {
+                numQueries = numQueryVectors;
+            }
 
             if (numDocs > numDocVectors) {
                 throw new IllegalArgumentException(numDocs + " docs requested, but only " + numDocVectors + " available");
@@ -569,6 +672,10 @@ record TestConfiguration(
 
             docVectors = data;
             queryVectors = queries;
+            // vector encoding is optional (default float32)
+            if (vectorEncoding != null) {
+                setVectorEncoding(vectorEncoding.toString());
+            }
             setDimensions(-1);  // dataset dimensions is documentation, the tester reads the dimensions from the fvec files
             // vector space might already be set explicitly from the config file
             if (this.vectorSpace == null) {
@@ -645,9 +752,15 @@ record TestConfiguration(
                 // this fills in various options from the dataset
                 resolveDataset();
             }
+            // specify some defaults here, so they can be set by the config file or dataset first
             if (vectorSpace == null) {
-                // specify the default here, so it can be set by the config file or dataset first
                 vectorSpace = VectorSimilarityFunction.EUCLIDEAN;
+            }
+            if (numDocs == null) {
+                numDocs = 1000;
+            }
+            if (numQueries == null) {
+                numQueries = 100;
             }
 
             if (docVectors == null) {
@@ -721,7 +834,8 @@ record TestConfiguration(
                 doPrecondition,
                 preconditioningBlockDims,
                 flatVectorThreshold,
-                secondaryClusterSize
+                secondaryClusterSize,
+                directoryType
             );
         }
 
@@ -779,6 +893,7 @@ record TestConfiguration(
                 builder.field(SEARCH_PARAMS.getPreferredName(), searchParams);
             }
             builder.field(FLAT_VECTOR_THRESHOLD.getPreferredName(), flatVectorThreshold);
+            builder.field(DIRECTORY_TYPE_FIELD.getPreferredName(), directoryType);
             return builder.endObject();
         }
 

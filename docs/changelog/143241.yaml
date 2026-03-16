@@ -1,0 +1,7 @@
+area: Vector Search
+issues:
+ - 143232
+pr: 143241
+summary: Fix int overflow in vector similarity bounds checks for segments larger than
+  2GB
+type: bug

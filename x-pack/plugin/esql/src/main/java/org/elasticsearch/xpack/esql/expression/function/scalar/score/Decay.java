@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.script.ScoreScriptUtils;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
@@ -110,7 +110,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     private static final Double DEFAULT_CARTESIAN_POINT_OFFSET = 0.0;
     private static final Long DEFAULT_TEMPORAL_OFFSET = 0L;
 
-    private static final Double DEFAULT_DECAY = 0.5;
+    private static final double DEFAULT_DECAY = 0.5;
 
     private static final BytesRef DEFAULT_FUNCTION = new BytesRef("linear");
 
@@ -159,6 +159,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         ) Expression scale,
         @MapParam(
             name = "options",
+            description = "(Optional) Additional options such as `decay`, `offset` and `type`.",
             params = {
                 @MapParam.MapParamEntry(
                     name = OFFSET,
@@ -208,6 +209,22 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     @Override
     public String getWriteableName() {
         return ENTRY.name;
+    }
+
+    Expression value() {
+        return value;
+    }
+
+    Expression origin() {
+        return origin;
+    }
+
+    Expression scale() {
+        return scale;
+    }
+
+    Expression options() {
+        return options;
     }
 
     @Override
@@ -337,7 +354,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         DataType valueDataType = value.dataType();
         Options.populateMapWithExpressionsMultipleDataTypesAllowed(
             (MapExpression) options,
@@ -347,7 +364,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
             ALLOWED_OPTIONS
         );
 
-        EvalOperator.ExpressionEvaluator.Factory valueFactory = toEvaluator.apply(value);
+        ExpressionEvaluator.Factory valueFactory = toEvaluator.apply(value);
 
         Expression offsetExpr = (Expression) resolvedOptions.get(OFFSET);
         Expression decayExpr = (Expression) resolvedOptions.get(DECAY);
@@ -359,7 +376,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         Object originFolded = origin.fold(foldCtx);
         Object scaleFolded = getFoldedScale(foldCtx, valueDataType);
         Object offsetFolded = getOffset(foldCtx, valueDataType, offsetExpr);
-        Double decayFolded = decayExpr != null ? (Double) decayExpr.fold(foldCtx) : DEFAULT_DECAY;
+        double decayFolded = decayExpr != null ? ((Number) decayExpr.fold(foldCtx)).doubleValue() : DEFAULT_DECAY;
         DecayFunction decayFunction = DecayFunction.fromBytesRef(typeExpr != null ? (BytesRef) typeExpr.fold(foldCtx) : DEFAULT_FUNCTION);
 
         return switch (valueDataType) {

@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
@@ -34,7 +35,7 @@ import static org.hamcrest.Matchers.is;
 public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTests {
 
     private LogicalPlan plan(String query, Analyzer analyzer) {
-        var analyzed = analyzer.analyze(parser.parseQuery(query));
+        var analyzed = analyzer.analyze(TEST_PARSER.parseQuery(query));
         return logicalOptimizer.optimize(analyzed);
     }
 

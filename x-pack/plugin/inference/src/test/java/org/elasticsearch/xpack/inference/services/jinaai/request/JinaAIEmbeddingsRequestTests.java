@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.inference.services.jinaai.request;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
@@ -235,9 +237,9 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
         for (String input : inputs) {
             InferenceString inferenceString;
             if (isTextInput) {
-                inferenceString = new InferenceString(InferenceString.DataType.TEXT, InferenceString.DataFormat.TEXT, input);
+                inferenceString = new InferenceString(DataType.TEXT, DataFormat.TEXT, input);
             } else {
-                inferenceString = new InferenceString(InferenceString.DataType.IMAGE, InferenceString.DataFormat.BASE64, input);
+                inferenceString = new InferenceString(DataType.IMAGE, DataFormat.BASE64, input);
             }
             isTextInput = isTextInput == false;
             var inferenceStringGroup = new InferenceStringGroup(inferenceString);

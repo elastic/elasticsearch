@@ -35,16 +35,10 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
 
   private final DriverContext driverContext;
 
-  public MinIntGroupingAggregatorFunction(List<Integer> channels, IntArrayState state,
-      DriverContext driverContext) {
+  MinIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = new IntArrayState(driverContext.bigArrays(), MinIntAggregator.init());
     this.driverContext = driverContext;
-  }
-
-  public static MinIntGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new MinIntGroupingAggregatorFunction(channels, new IntArrayState(driverContext.bigArrays(), MinIntAggregator.init()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

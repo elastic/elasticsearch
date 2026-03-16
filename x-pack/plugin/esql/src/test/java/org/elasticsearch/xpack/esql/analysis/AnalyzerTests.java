@@ -186,6 +186,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -4987,6 +4989,158 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(syntheticFieldAttr.id(), equalTo(syntheticField.id()));
     }
 
+    public void testImplicitNumericWidening() {
+        IndexResolution indexWithNumericUnionTypes = AnalyzerTestUtils.indexWithNumericUnionTypes();
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(indexWithNumericUnionTypes);
+
+        LogicalPlan plan = analyze("FROM index*", analyzer);
+        Limit limit = as(plan, Limit.class);
+        EsRelation relation = as(limit.child(), EsRelation.class);
+        List<Attribute> output = relation.output();
+
+        // int_double -> double (implicit widening)
+        FieldAttribute intDouble = output.stream()
+            .filter(a -> a.name().equals("int_double"))
+            .map(a -> as(a, FieldAttribute.class))
+            .findFirst()
+            .orElseThrow();
+        assertEquals(DOUBLE, intDouble.dataType());
+        assertTrue(intDouble.field() instanceof MultiTypeEsField);
+
+        // int_keyword -> remains UnsupportedAttribute (no numeric widening for mixed numeric+non-numeric)
+        var intKeyword = output.stream().filter(a -> a.name().equals("int_keyword")).findFirst().orElseThrow();
+        assertEquals(UNSUPPORTED, intKeyword.dataType());
+
+        // int_long -> long (implicit widening)
+        FieldAttribute intLong = output.stream()
+            .filter(a -> a.name().equals("int_long"))
+            .map(a -> as(a, FieldAttribute.class))
+            .findFirst()
+            .orElseThrow();
+        assertEquals(LONG, intLong.dataType());
+        assertTrue(intLong.field() instanceof MultiTypeEsField);
+
+        // long_double -> double (implicit widening)
+        FieldAttribute longDouble = output.stream()
+            .filter(a -> a.name().equals("long_double"))
+            .map(a -> as(a, FieldAttribute.class))
+            .findFirst()
+            .orElseThrow();
+        assertEquals(DOUBLE, longDouble.dataType());
+        assertTrue(longDouble.field() instanceof MultiTypeEsField);
+
+        // short_integer -> integer (short is widened to integer via widenSmallNumeric before commonType)
+        FieldAttribute shortInteger = output.stream()
+            .filter(a -> a.name().equals("short_integer"))
+            .map(a -> as(a, FieldAttribute.class))
+            .findFirst()
+            .orElseThrow();
+        assertEquals(INTEGER, shortInteger.dataType());
+        assertTrue(shortInteger.field() instanceof MultiTypeEsField);
+
+        // unsigned_long_integer -> remains UnsupportedAttribute (UNSIGNED_LONG must not be mixed with signed numerics)
+        var unsignedLongInteger = output.stream().filter(a -> a.name().equals("unsigned_long_integer")).findFirst().orElseThrow();
+        assertEquals(UNSUPPORTED, unsignedLongInteger.dataType());
+    }
+
+    /**
+     * Tests that different counter types in UNION ALL are NOT widened (follow-up work needed):
+     * counter_integer + counter_long → null/keyword (no counter converters exist yet, widening is a follow-up).
+     * The existing null/unsupported behaviour is preserved.
+     */
+    public void testCounterDifferentTypesStayUnsupportedInUnionAll() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        Map<IndexPattern, IndexResolution> resolutions = AnalyzerTestUtils.counterTypeIndexResolutions();
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(resolutions);
+
+        // ts_counter_integer (COUNTER_INTEGER) combined with ts_counter_long (COUNTER_LONG) — different counter types
+        // counter_field is not referenced in parent, so it gets a null/keyword alias
+        LogicalPlan plan = analyze("""
+            FROM ts_counter_integer, (FROM ts_counter_long | KEEP @timestamp, pod, counter_field)
+            | DROP counter_field
+            """, analyzer);
+
+        Limit limit = as(plan, Limit.class);
+        Project project = as(limit.child(), Project.class);
+        UnionAll unionAll = findUnionAll(project);
+
+        // No counter converters exist, so counter_integer + counter_long is not widened.
+        // The unreferenced column gets a null alias with KEYWORD type.
+        Attribute counterAttr = unionAll.output()
+            .stream()
+            .filter(a -> a.name().equals("counter_field"))
+            .findFirst()
+            .orElseThrow();
+        assertEquals(KEYWORD, counterAttr.dataType());
+    }
+
+    /**
+     * Tests that a counter type mixed with a non-counter type of a different base type stays unsupported (preserved old behaviour).
+     * counter_integer + long → null/keyword (counter + non-counter with different base types must not be widened).
+     */
+    public void testCounterWithNonCounterDifferentBaseTypeStaysUnsupportedInUnionAll() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        Map<IndexPattern, IndexResolution> resolutions = AnalyzerTestUtils.counterTypeIndexResolutions();
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(resolutions);
+
+        // ts_counter_integer (COUNTER_INTEGER) combined with ts_regular_long (plain LONG)
+        // counter_field is not referenced in parent, so it gets a null/keyword alias
+        LogicalPlan plan = analyze("""
+            FROM ts_counter_integer, (FROM ts_regular_long | KEEP @timestamp, pod, counter_field)
+            | DROP counter_field
+            """, analyzer);
+
+        Limit limit = as(plan, Limit.class);
+        Project project = as(limit.child(), Project.class);
+        UnionAll unionAll = findUnionAll(project);
+
+        // counter_integer + long must not be widened — the unreferenced column gets a null alias with KEYWORD type.
+        Attribute counterAttr = unionAll.output()
+            .stream()
+            .filter(a -> a.name().equals("counter_field"))
+            .findFirst()
+            .orElseThrow();
+        assertEquals(KEYWORD, counterAttr.dataType());
+    }
+
+    /**
+     * Tests that a counter type combined with a non-counter of the SAME base type is handled as before:
+     * counter_long + long → long (existing behaviour: the counter flag is stripped, base type returned).
+     */
+    public void testCounterWithNonCounterSameBaseTypeInUnionAll() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        Map<IndexPattern, IndexResolution> resolutions = AnalyzerTestUtils.counterTypeIndexResolutions();
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(resolutions);
+
+        // ts_counter_long (COUNTER_LONG) combined with ts_regular_long (plain LONG)
+        LogicalPlan plan = analyze("""
+            FROM ts_counter_long, (FROM ts_regular_long | KEEP @timestamp, pod, counter_field)
+            | DROP counter_field
+            """, analyzer);
+
+        Limit limit = as(plan, Limit.class);
+        Project project = as(limit.child(), Project.class);
+        UnionAll unionAll = findUnionAll(project);
+
+        // counter_long + long → long (counter stripped, existing behaviour preserved)
+        Attribute counterAttr = unionAll.output()
+            .stream()
+            .filter(a -> a.name().equals("counter_field"))
+            .findFirst()
+            .orElseThrow();
+        assertEquals(LONG, counterAttr.dataType());
+    }
+
+    /** Traverses the plan to find the first {@link UnionAll} node. */
+    private static UnionAll findUnionAll(LogicalPlan plan) {
+        List<UnionAll> found = new ArrayList<>();
+        plan.forEachDown(UnionAll.class, u -> {
+            if (found.isEmpty()) found.add(u);
+        });
+        assertFalse("No UnionAll found in plan", found.isEmpty());
+        return found.get(0);
+    }
+
     public void testImplicitCastingForDateAndDateNanosFields() {
         IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
         Analyzer analyzer = AnalyzerTestUtils.analyzer(indexWithUnionTypedFields);
@@ -5733,7 +5887,7 @@ public class AnalyzerTests extends ESTestCase {
 
         subqueryProject = as(unionAll.children().get(1), Project.class);
         implicitCastingEval = as(subqueryProject.child(), Eval.class);
-        assertEquals(9, implicitCastingEval.fields().size());
+        assertEquals(6, implicitCastingEval.fields().size());
         explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
         assertEquals(1, explicitCastingEval.fields().size());
         missingFieldEval = as(explicitCastingEval.child(), Eval.class);
@@ -5802,7 +5956,7 @@ public class AnalyzerTests extends ESTestCase {
 
         subqueryProject = as(unionAll.children().get(1), Project.class);
         implicitCastingEval = as(subqueryProject.child(), Eval.class);
-        assertEquals(9, implicitCastingEval.fields().size());
+        assertEquals(6, implicitCastingEval.fields().size());
         explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
         assertEquals(3, explicitCastingEval.fields().size());
         missingFieldEval = as(explicitCastingEval.child(), Eval.class);
@@ -5883,7 +6037,7 @@ public class AnalyzerTests extends ESTestCase {
 
         subqueryProject = as(unionAll.children().get(1), Project.class);
         implicitCastingEval = as(subqueryProject.child(), Eval.class);
-        assertEquals(9, implicitCastingEval.fields().size());
+        assertEquals(6, implicitCastingEval.fields().size());
         explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
         assertEquals(6, explicitCastingEval.fields().size());
         missingFieldEval = as(explicitCastingEval.child(), Eval.class);

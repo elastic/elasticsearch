@@ -83,6 +83,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
@@ -3481,7 +3482,7 @@ public class VerifierTests extends ESTestCase {
             | WHERE emp_no > 10000
             | SORT is_rehired, still_hired
             """);
-        assertThat(errorMessage, containsString("Column [emp_no] has conflicting data types in subqueries: [integer, long]"));
+        assertThat(errorMessage, not(containsString("Column [emp_no] has conflicting data types")));
         assertThat(errorMessage, containsString("Column [is_rehired] has conflicting data types in subqueries: [boolean, keyword]"));
         assertThat(errorMessage, containsString("Column [still_hired] has conflicting data types in subqueries: [boolean, keyword]"));
     }

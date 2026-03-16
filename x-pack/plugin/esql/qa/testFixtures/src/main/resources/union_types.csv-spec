@@ -1406,12 +1406,12 @@ FROM apps, apps_short
 | LIMIT 5
 ;
 
-id:unsupported | name:keyword | version:version | s:long       
-null           | aaaaa        | 1               | 210
-null           | aaaaa        | 1               | 210
-null           | aaaaa        | 1.2.3.4         | 210
-null           | aaaaa        | 1.2.3.4         | 210
-null           | bbbbb        | 2.1             | 210
+id:integer     | name:keyword | version:version | s:long       
+1              | aaaaa        | 1               | 210
+1              | aaaaa        | 1               | 210
+12             | aaaaa        | 1.2.3.4         | 210
+12             | aaaaa        | 1.2.3.4         | 210
+2              | bbbbb        | 2.1             | 210
 ;
 
 multiIndexIndirectUseOfUnionTypesInSort
@@ -1693,9 +1693,9 @@ FROM employees, employees_incompatible
 | LIMIT 2
 ;
 
-x:long |languages:unsupported |hire_date:date_nanos     |avg_worked_seconds:unsigned_long |y:datetime               |z:date_nanos             |w:date_nanos
-10001  |null                  |1986-06-26T00:00:00.000Z |268728049                        |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
-10001  |null                  |1986-06-26T00:00:00.000Z |268728049                        |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+x:long |languages:integer |hire_date:date_nanos     |avg_worked_seconds:unsigned_long |y:datetime               |z:date_nanos             |w:date_nanos
+10001  |2                 |1986-06-26T00:00:00.000Z |268728049                        |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+10001  |2                 |1986-06-26T00:00:00.000Z |268728049                        |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
 ;
 
 ImplicitCastingMultiTypedFieldsDropKeepSort
@@ -1710,9 +1710,9 @@ FROM employees, employees_incompatible
 | limit 2
 ;
 
-emp_no:long |languages:unsupported |hire_date:date_nanos     |avg_worked_seconds:unsigned_long |x:datetime               |y:date_nanos
-10001       |null                  |1986-06-26T00:00:00.000Z |268728049                        |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
-10001       |null                  |1986-06-26T00:00:00.000Z |268728049                        |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+emp_no:long |languages:integer |hire_date:date_nanos     |avg_worked_seconds:unsigned_long |x:datetime               |y:date_nanos
+10001       |2                 |1986-06-26T00:00:00.000Z |268728049                        |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+10001       |2                 |1986-06-26T00:00:00.000Z |268728049                        |1986-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
 ;
 
 ImplicitCastingMultiTypedFieldsRenameKeepSort
@@ -2553,5 +2553,99 @@ id:integer  | name:keyword
 1           | aaaaa
 2           | bbbbb
 2           | bbbbb
+3           | ccccc
+;
+
+implicitNumericWideningIntegerLong
+required_capability: union_types_implicit_numeric_widening
+
+FROM apps, apps_long
+| WHERE id <= 3
+| KEEP id, name
+| SORT id ASC, name ASC
+;
+
+id:long     | name:keyword
+1           | aaaaa
+1           | aaaaa
+2           | bbbbb
+2           | bbbbb
+3           | ccccc
+3           | ccccc
+;
+
+implicitNumericWideningIntegerDouble
+required_capability: union_types_implicit_numeric_widening
+
+FROM apps, apps_double
+| WHERE id <= 3
+| KEEP id, name
+| SORT id ASC, name ASC
+;
+
+id:double   | name:keyword
+1.0         | aaaaa
+1.0         | aaaaa
+2.0         | bbbbb
+2.0         | bbbbb
+3.0         | ccccc
+3.0         | ccccc
+;
+
+implicitNumericWideningLongDouble
+required_capability: union_types_implicit_numeric_widening
+
+FROM apps_long, apps_double
+| WHERE id <= 3
+| KEEP id, name
+| SORT id ASC, name ASC
+;
+
+id:double   | name:keyword
+1.0         | aaaaa
+1.0         | aaaaa
+2.0         | bbbbb
+2.0         | bbbbb
+3.0         | ccccc
+3.0         | ccccc
+;
+
+implicitNumericWideningIntegerLongStats
+required_capability: union_types_implicit_numeric_widening
+
+FROM apps, apps_long
+| STATS s = sum(id)
+;
+
+s:long
+210
+;
+
+implicitNumericWideningIntegerDoubleStats
+required_capability: union_types_implicit_numeric_widening
+
+FROM apps, apps_double
+| STATS s = sum(id)
+;
+
+s:double
+210.0
+;
+
+implicitNumericWideningShortLong
+required_capability: union_types_implicit_numeric_widening
+
+FROM apps_short, apps_long
+| WHERE id <= 3
+| KEEP id, name
+| SORT id ASC, name ASC
+;
+
+id:long     | name:keyword
+1           | aaaaa
+1           | aaaaa
+2           | bbbbb
+2           | bbbbb
+3           | ccccc
 3           | ccccc
 ;

@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.huggingface.embeddings.HuggingFaceEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.huggingface.request.embeddings.HuggingFaceEmbeddingsRequest;
 
@@ -30,7 +31,7 @@ public class HuggingFaceEmbeddingsRequestTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testCreateRequest() throws URISyntaxException, IOException {
         var huggingFaceRequest = createRequest("www.google.com", "secret", "abc");
-        var httpRequest = huggingFaceRequest.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(huggingFaceRequest);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -51,7 +52,7 @@ public class HuggingFaceEmbeddingsRequestTests extends ESTestCase {
         var truncatedRequest = huggingFaceRequest.truncate();
         assertThat(truncatedRequest.getURI().toString(), is(new URI("www.google.com").toString()));
 
-        var httpRequest = truncatedRequest.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();

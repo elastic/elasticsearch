@@ -989,7 +989,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             List<Index> retrievedFailureIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices();
             assertThat(retrievedFailureIndices.size(), equalTo(1));
             assertThat(retrievedFailureIndices.get(0).getName(), equalTo(secondGenerationIndex));
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testCollectAndMarkIndicesForFrozen() throws Exception {

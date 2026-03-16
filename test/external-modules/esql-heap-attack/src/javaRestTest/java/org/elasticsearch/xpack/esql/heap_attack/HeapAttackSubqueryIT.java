@@ -83,7 +83,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortOneField() throws IOException {
         int docs = docs();
         heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true, fields());
-        assertCircuitBreaks(attempt -> buildSubqueriesWithSort(maxSubqueries(), "manybigfields", " substring(f000, 5) "));
+        assertCircuitBreaks(attempt -> buildSubqueriesWithSort(maxSubqueries(), "manybigfields", "f000"));
     }
 
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortManyFields() throws IOException {

@@ -2,5 +2,5 @@ area: Search
 issues:
  - 142811
 pr: 144308
-summary: Fix edge case in "_terms_enum" API for ip fields
+summary: Fixes an edge case in "_terms_enum" API for ip fields
 type: bug

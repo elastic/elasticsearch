@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -22,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -151,7 +151,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertTrue(description.contains("sync-wrapper"));
         assertTrue(description.contains("file:///data/test.csv"));
         assertTrue(description.contains("500"));
-        assertTrue(description.contains("10"));
+        assertTrue(description.contains("maxBufferBytes="));
     }
 
     public void testDescribeNativeAsyncMode() {
@@ -1097,8 +1097,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             }
         }
 
-        assertTrue("readSplit should be called for non-first segments", formatReader.readSplitCount.get() > 0);
-        assertEquals("read() should be called once for the first segment (handles header)", 1, formatReader.readCount.get());
+        assertTrue("read() should be called for multiple segments when parallel parsing is used", formatReader.readCount.get() > 1);
 
         for (Page p : pages) {
             p.releaseBlocks();
@@ -1150,7 +1149,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         assertTrue("read() should be called when row limit is set", formatReader.readCount.get() > 0);
-        assertEquals("readSplit should not be called when row limit bypasses parallel parsing", 0, formatReader.readSplitCount.get());
+        assertEquals(
+            "read() with firstSplit=false should not be called when row limit bypasses parallel parsing",
+            0,
+            formatReader.readWithFirstSplitFalseCount.get()
+        );
 
         for (Page p : pages) {
             p.releaseBlocks();
@@ -1257,6 +1260,59 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertTrue("describe should show sync-wrapper when parallelism is 1", description.contains("sync-wrapper"));
     }
 
+    // ===== Byte-based backpressure tests =====
+
+    public void testByteBasedBackpressureEndToEnd() throws Exception {
+        AtomicInteger readCount = new AtomicInteger(0);
+        FormatReader formatReader = new PageCountingFormatReader(readCount);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("file:///test.csv");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            2,
+            (Runnable r) -> r.run()
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        assertNotNull(operator);
+
+        AsyncExternalSourceOperator.Status status = (AsyncExternalSourceOperator.Status) operator.status();
+        assertNotNull(status);
+        assertTrue("bytesBuffered should be reported in status", status.bytesBuffered() >= 0);
+
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
     // ===== Helpers =====
 
     private static CloseableIterator<Page> emptyIterator() {
@@ -1294,7 +1350,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             readCount.incrementAndGet();
             Page page = createTestPage();
             return new CloseableIterator<>() {
@@ -1342,7 +1398,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
             int call = callCount.incrementAndGet();
             if (call >= 2) {
                 throw new IOException("Simulated read error on file: " + object.path());
@@ -1467,7 +1523,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             return emptyIterator();
         }
 
@@ -1509,23 +1565,9 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             capturedObjects.add(object);
-            capturedSkipFirstLine.add(false);
-            return singlePageIterator();
-        }
-
-        @Override
-        public CloseableIterator<Page> readSplit(
-            StorageObject object,
-            List<String> projectedColumns,
-            int batchSize,
-            boolean skipFirstLine,
-            boolean lastSplit,
-            List<Attribute> resolvedAttributes
-        ) {
-            capturedObjects.add(object);
-            capturedSkipFirstLine.add(skipFirstLine);
+            capturedSkipFirstLine.add(context.firstSplit() == false);
             return singlePageIterator();
         }
 
@@ -1572,7 +1614,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      */
     private static class TrackingSegmentableFormatReader implements SegmentableFormatReader {
         final AtomicInteger readCount = new AtomicInteger(0);
-        final AtomicInteger readSplitCount = new AtomicInteger(0);
+        final AtomicInteger readWithFirstSplitFalseCount = new AtomicInteger(0);
 
         @Override
         public long findNextRecordBoundary(InputStream stream) throws IOException {
@@ -1593,35 +1635,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             readCount.incrementAndGet();
-            return singleTestPageIterator();
-        }
-
-        @Override
-        public CloseableIterator<Page> readSplit(
-            StorageObject object,
-            List<String> projectedColumns,
-            int batchSize,
-            boolean skipFirstLine,
-            boolean lastSplit,
-            List<Attribute> resolvedAttributes
-        ) {
-            readSplitCount.incrementAndGet();
-            return singleTestPageIterator();
-        }
-
-        @Override
-        public CloseableIterator<Page> readSplit(
-            StorageObject object,
-            List<String> projectedColumns,
-            int batchSize,
-            boolean skipFirstLine,
-            boolean lastSplit,
-            List<Attribute> resolvedAttributes,
-            org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy errorPolicy
-        ) {
-            readSplitCount.incrementAndGet();
+            if (context.firstSplit() == false) {
+                readWithFirstSplitFalseCount.incrementAndGet();
+            }
             return singleTestPageIterator();
         }
 
@@ -1776,19 +1794,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             return emptyIterator();
-        }
-
-        @Override
-        public void readAsync(
-            StorageObject object,
-            List<String> projectedColumns,
-            int batchSize,
-            Executor executor,
-            ActionListener<CloseableIterator<Page>> listener
-        ) {
-            executor.execute(() -> { listener.onResponse(emptyIterator()); });
         }
 
         @Override

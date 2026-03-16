@@ -880,6 +880,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(188, SearchContextMissingNodesException.class);
         ids.put(189, OCCNotSupportedException.class);
         ids.put(190, UpdateNotSupportedException.class);
+        ids.put(191, org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

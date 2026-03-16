@@ -17,6 +17,7 @@ import java.io.FileDescriptor;
 import java.io.IOException;
 import java.net.StandardProtocolFamily;
 import java.nio.channels.AsynchronousFileChannel;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.spi.SelectorProvider;
@@ -89,7 +90,7 @@ class NioChannelsActions {
         jdk.nio.Channels.readWriteSelectableChannel(new FileDescriptor(), new DummyImplementations.DummySelectableChannelCloser()).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = ClosedChannelException.class)
     static void selectableChannelRegisterConnect() throws IOException {
         try (var selectableChannel = new DummyImplementations.DummySelectableChannel(SelectorProvider.provider())) {
             selectableChannel.configureBlocking(false);
@@ -97,7 +98,7 @@ class NioChannelsActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = ClosedChannelException.class)
     static void selectableChannelRegisterAccept() throws IOException {
         try (var selectableChannel = new DummyImplementations.DummySelectableChannel(SelectorProvider.provider())) {
             selectableChannel.configureBlocking(false);

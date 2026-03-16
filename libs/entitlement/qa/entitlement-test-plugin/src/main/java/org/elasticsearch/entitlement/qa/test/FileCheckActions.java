@@ -648,7 +648,7 @@ class FileCheckActions {
         new FileImageInputStream(file.toFile()).close();
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = IOException.class)
     static void javaXmlFileRequest() throws Exception {
         // java.xml is part of the jdk, but not a system module. this checks it can't access files
         var saxParser = SAXParserFactory.newInstance().newSAXParser();

@@ -1736,12 +1736,25 @@ of several file types, each responsible for a different data structure:
 
 Check out the
 Lucene [documentation](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/codecs/lucene104/package-summary.html)
-for more details on each of those specific files.
+for more details on each of those specific files. Elasticsearch also maintains a registry of all known Lucene file
+extensions in
+[LuceneFilesExtensions](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/LuceneFilesExtensions.java).
 
 The `segments_N` file and the `write.lock` file live at the directory root. A commit atomically publishes a new
-`segments_N+1` as the active commit point, making the new set of segments visible. The old segment files are removed
-once no reader [holds a reference](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/IndexReader.html#decRef())
-to them.
+`segments_N+1` as the active commit point, making the new set of segments visible.
+The old segment files are removed once they are no longer 
+[referenced](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/IndexReader.html#decRef()) by any open 
+`IndexReader` or any retained commits. Elasticsearch's 
+[CombinedDeletionPolicy](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/CombinedDeletionPolicy.java), which implements Lucene's
+[IndexDeletionPolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/IndexDeletionPolicy.html), 
+manages which commits are retained. All commits more recent than 
+the [safe commit](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/CombinedDeletionPolicy.java#L55)
+(the most recent commit whose max sequence number is at most the global checkpoint, used as the starting point
+for peer recovery) are preserved. Older commits can also 
+be [pinned](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/CombinedDeletionPolicy.java#L216)
+by external consumers (e.g., snapshot operations). `CombinedDeletionPolicy` also
+[communicates the safe commit checkpoint information](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/CombinedDeletionPolicy.java#L109)
+with the translog deletion policy.
 
 #### Codecs
 
@@ -1760,13 +1773,6 @@ Elasticsearch ships its own codec stack, managed by the [CodecService] class. It
 (e.g. [Lucene104Codec](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/codecs/lucene104/Lucene104Codec.html))
 with Elasticsearch-specific customizations:
 
-- Lucene's default LZ4/DEFLATE stored field compression
-  is [replaced](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/CodecService.java#L64)
-  with ZSTD (see `Zstd814StoredFieldsFormat`) for better compression ratios.
-  Users can also set `index.codec: best_compression` on an index to switch to a higher-compression ZSTD mode
-  (`Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION`), trading indexing throughput for smaller on-disk stored
-  fields. See this blog
-  [post](https://www.elastic.co/search-labs/blog/improve-elasticsearch-performance-best-compression) for more details.
 - The [PerFieldMapperCodec] delegates postings, doc values, and KNN vector format selection
   to each field's [Mapper], allowing field types to choose specialized formats (See the [PerFieldFormatSupplier] for
   specific examples).
@@ -1784,7 +1790,11 @@ with Elasticsearch-specific customizations:
   produces an empty token stream so no postings are actually written on flush.
   At read time, the [TSDBSyntheticIdPostingsFormat] reconstructs postings from `_tsid`, `@timestamp`, and
   `_ts_routing_hash` doc values, and the [TSDBSyntheticIdStoredFieldsReader] synthesizes `_id` stored-field values on
-  the fly from the same doc values. This reduces disk usage and I/O for high-cardinality time-series indices.
+  the fly from the same doc values. An
+  [ES94BloomFilterDocValuesFormat](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/bloomfilter/ES94BloomFilterDocValuesFormat.java)
+  bloom filter is also built for the `_id` field so that existence checks during indexing can avoid `_tsid` and 
+  `@timestamp` doc-values lookups per document. The synthetic ID feature reduces the storage overhead for 
+  high-cardinality time-series indices.
 
 As the [IndexVersion](#index-version) advances with each Lucene upgrade, new codec implementations are
 introduced (e.g. [Elasticsearch92Lucene103Codec](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/Elasticsearch92Lucene103Codec.java)). Older segments written by previous codecs remain readable
@@ -1797,6 +1807,7 @@ mechanism loads the codec that originally wrote each segment.
 [ThreadPoolMergeScheduler]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/ThreadPoolMergeScheduler.java
 [SoftDeletesPolicy]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/SoftDeletesPolicy.java
 [PrunePostingsMergePolicy]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/PrunePostingsMergePolicy.java
+[PruningMergePolicy]:https://github.com/elastic/elasticsearch/blob/6b105b2e26988377532837e0360ddaaef87d279f/server/src/main/java/org/elasticsearch/index/engine/PruningMergePolicy.java
 [ShuffleForcedMergePolicy]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/ShuffleForcedMergePolicy.java
 [ThreadPoolMergeExecutorService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/ThreadPoolMergeExecutorService.java
 
@@ -1809,7 +1820,9 @@ reducing the number of segments a search must visit.
 [MergePolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/MergePolicy.html)s decides
 which segments to merge and when. Elasticsearch configures this through [MergePolicyConfig], which uses
 Lucene's [TieredMergePolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/TieredMergePolicy.html)
-as the base policy. Then the `InternalEngine`
+as the default base policy, and
+[LogByteSizeMergePolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/LogByteSizeMergePolicy.html)
+for time-series indices. Then the `InternalEngine`
 [wraps](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L2808)
 this base policy with several layers:
 
@@ -1817,23 +1830,26 @@ this base policy with several layers:
   retains soft-deleted documents (more details about soft deletes in subsequent paragraphs).
 - [PrunePostingsMergePolicy]: drops the _id field postings for deleted documents during segment merges, maintaining
   consistent update performance even when a large number of soft deleted/updated documents are retained.
+- [PruningMergePolicy]: prunes `_recovery_source` stored fields and `_seq_no`-related fields for documents
+  that no longer need them for replication.
 - [ShuffleForcedMergePolicy]: randomizes segment ordering during force merges so that recently-indexed
-  documents are not always co-located at the end, to improve the efficiency of time-based queries.
+  documents are not always co-located at the end, improving the efficiency of time-based queries.
 
 [MergeScheduler](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/MergeScheduler.html)s decides how
 merges are executed. The default implementation is [ThreadPoolMergeScheduler], which runs merges on the
 [ThreadPoolMergeExecutorService] shared node-level thread pool with disk-aware I/O throttling.
 
-Elasticsearch never hard-deletes documents from Lucene. Instead, every update and delete
-uses Lucene's [soft-delete](https://issues.apache.org/jira/browse/LUCENE-8198) mechanism. The [InternalEngine]
+Elasticsearch never hard-deletes documents from Lucene. Instead, both updates and deletes
+use Lucene's [soft-delete](https://issues.apache.org/jira/browse/LUCENE-8198) mechanism. The [InternalEngine]
 [calls](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1645)
 [IndexWriter.softUpdateDocument](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/IndexWriter.html#softUpdateDocument(org.apache.lucene.index.Term,java.lang.Iterable,org.apache.lucene.document.Field...)),
 which atomically marks the previous version of a document as soft-deleted
 (by setting a `__soft_deletes` numeric doc-values field to `1`) and writes the new version or a delete
 tombstone into the current segment.
-The old document is also marked as deleted in the `.liv` bitset, just like a hard delete. The
-difference is that hard-deleted documents are always discarded during merges, whereas documents carrying the
-`__soft_deletes` marker can be selectively retained. Lucene's
+The old document is also marked as deleted in the `.liv` bitset, just like a hard delete. The soft-delete update
+triggers a new generational `.liv` file for the segment that contained the previous version of the document.
+The difference between hard and soft deletes is that hard-deleted documents are always discarded during merges,
+whereas documents carrying the `__soft_deletes` marker can be selectively retained. Lucene's
 [SoftDeletesRetentionMergePolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/SoftDeletesRetentionMergePolicy.html)
 decides which soft-deleted documents to keep by evaluating a retention query at merge time.
 Elasticsearch provides this query through its [SoftDeletesPolicy], which evaluates whether a document can be discarded

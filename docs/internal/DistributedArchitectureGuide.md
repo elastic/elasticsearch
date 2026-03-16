@@ -1856,12 +1856,11 @@ Elasticsearch provides this query through its [SoftDeletesPolicy], which evaluat
 based on the minimum sequence number to retain (evaluated from the global checkpoint), the
 `index.soft_deletes.retention.operations` setting, and any active retention leases held by replicas or CCR followers.
 
-The soft delete feature is essential for the correctness of [peer recovery](#peer-recovery) and
-[CCR](#cross-cluster-replication-ccr). Both rely on replaying missed operations from the Lucene index to bring a
-stale replica or follower up to date. Without soft deletes, Lucene would discard deleted documents during merges,
-leaving no trace that the document existed or got deleted. A replica that missed the delete but not the original write
-would still have the document and effectively resurrect it. Soft-deleted tombstones prevent this by preserving
-delete operations in the Lucene index until all replicas and followers have processed them.
+Soft deletes are an essential feature for [CCR](#cross-cluster-replication-ccr).
+CCR followers replay operations from their leader Lucene index to stay up to date. Without soft deletes, the leader 
+Lucene index could discard deleted documents during merges, leaving no trace that the delete operation ever occurred. 
+CCR followers that fall behind would no longer be able to catch up via operation replay. Soft-deleted tombstones 
+prevent this by preserving delete operations in the Lucene index until all followers have processed them.
 
 # Recovery
 

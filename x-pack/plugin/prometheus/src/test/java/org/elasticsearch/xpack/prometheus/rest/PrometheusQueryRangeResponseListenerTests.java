@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -34,17 +35,17 @@ public class PrometheusQueryRangeResponseListenerTests extends ESTestCase {
     public void testConvertRangeQueryWithIndividualLabels() throws IOException {
         List<TestColumnInfo> columns = List.of(
             new TestColumnInfo("value", "double"),
-            new TestColumnInfo("step", "date"),
             new TestColumnInfo("__name__", "keyword"),
             new TestColumnInfo("instance", "keyword"),
-            new TestColumnInfo("job", "keyword")
+            new TestColumnInfo("job", "keyword"),
+            new TestColumnInfo("step", "long")
         );
 
         List<List<Object>> rows = List.of(
-            List.of(1.5, "2025-01-01T00:00:00.000Z", "http_requests_total", "localhost:9090", "prometheus"),
-            List.of(2.0, "2025-01-01T00:01:00.000Z", "http_requests_total", "localhost:9090", "prometheus"),
-            List.of(3.0, "2025-01-01T00:00:00.000Z", "http_requests_total", "localhost:9091", "prometheus"),
-            List.of(4.0, "2025-01-01T00:01:00.000Z", "http_requests_total", "localhost:9091", "prometheus")
+            List.of(1.5, "http_requests_total", "localhost:9090", "prometheus", 1735689600000L),
+            List.of(2.0, "http_requests_total", "localhost:9090", "prometheus", 1735689660000L),
+            List.of(3.0, "http_requests_total", "localhost:9091", "prometheus", 1735689600000L),
+            List.of(4.0, "http_requests_total", "localhost:9091", "prometheus", 1735689660000L)
         );
 
         EsqlResponse response = new TestEsqlResponse(columns, rows);
@@ -71,13 +72,13 @@ public class PrometheusQueryRangeResponseListenerTests extends ESTestCase {
         // The listener extracts the inner labels as bare metric keys (no "labels." prefix)
         List<TestColumnInfo> columns = List.of(
             new TestColumnInfo("value", "double"),
-            new TestColumnInfo("step", "date"),
-            new TestColumnInfo("_timeseries", "keyword")
+            new TestColumnInfo("_timeseries", "keyword"),
+            new TestColumnInfo("step", "long")
         );
 
         List<List<Object>> rows = List.of(
-            List.of(1.5, "2025-01-01T00:00:00.000Z", "{\"labels\":{\"__name__\":\"http_requests_total\",\"job\":\"prometheus\"}}"),
-            List.of(2.0, "2025-01-01T00:01:00.000Z", "{\"labels\":{\"__name__\":\"http_requests_total\",\"job\":\"prometheus\"}}")
+            List.of(1.5, "{\"labels\":{\"__name__\":\"http_requests_total\",\"job\":\"prometheus\"}}", 1735689600000L),
+            List.of(2.0, "{\"labels\":{\"__name__\":\"http_requests_total\",\"job\":\"prometheus\"}}", 1735689660000L)
         );
 
         EsqlResponse response = new TestEsqlResponse(columns, rows);
@@ -99,13 +100,13 @@ public class PrometheusQueryRangeResponseListenerTests extends ESTestCase {
         // {"attributes":{"resource":{"service.name":"my-service"}}} → metric key "attributes.resource.service.name".
         List<TestColumnInfo> columns = List.of(
             new TestColumnInfo("value", "double"),
-            new TestColumnInfo("step", "date"),
-            new TestColumnInfo("_timeseries", "keyword")
+            new TestColumnInfo("_timeseries", "keyword"),
+            new TestColumnInfo("step", "long")
         );
 
         List<List<Object>> rows = List.of(
-            List.of(1.5, "2025-01-01T00:00:00.000Z", "{\"attributes\":{\"resource\":{\"service.name\":\"my-service\"}}}"),
-            List.of(2.0, "2025-01-01T00:01:00.000Z", "{\"attributes\":{\"resource\":{\"service.name\":\"my-service\"}}}")
+            List.of(1.5, "{\"attributes\":{\"resource\":{\"service.name\":\"my-service\"}}}", 1735689600000L),
+            List.of(2.0, "{\"attributes\":{\"resource\":{\"service.name\":\"my-service\"}}}", 1735689660000L)
         );
 
         EsqlResponse response = new TestEsqlResponse(columns, rows);
@@ -125,13 +126,13 @@ public class PrometheusQueryRangeResponseListenerTests extends ESTestCase {
         // {"host":"my-host"} → metric key "host".
         List<TestColumnInfo> columns = List.of(
             new TestColumnInfo("value", "double"),
-            new TestColumnInfo("step", "date"),
-            new TestColumnInfo("_timeseries", "keyword")
+            new TestColumnInfo("_timeseries", "keyword"),
+            new TestColumnInfo("step", "long")
         );
 
         List<List<Object>> rows = List.of(
-            List.of(1.5, "2025-01-01T00:00:00.000Z", "{\"host\":\"my-host\"}"),
-            List.of(2.0, "2025-01-01T00:01:00.000Z", "{\"host\":\"my-host\"}")
+            List.of(1.5, "{\"host\":\"my-host\"}", 1735689600000L),
+            List.of(2.0, "{\"host\":\"my-host\"}", 1735689660000L)
         );
 
         EsqlResponse response = new TestEsqlResponse(columns, rows);
@@ -147,7 +148,7 @@ public class PrometheusQueryRangeResponseListenerTests extends ESTestCase {
     }
 
     public void testConvertEmptyResult() throws IOException {
-        List<TestColumnInfo> columns = List.of(new TestColumnInfo("value", "double"), new TestColumnInfo("step", "date"));
+        List<TestColumnInfo> columns = List.of(new TestColumnInfo("value", "double"), new TestColumnInfo("step", "long"));
 
         EsqlResponse response = new TestEsqlResponse(columns, List.of());
         try (XContentBuilder builder = PrometheusQueryRangeResponseListener.convertToPrometheusJson(response)) {
@@ -159,8 +160,8 @@ public class PrometheusQueryRangeResponseListenerTests extends ESTestCase {
     }
 
     public void testTimestampConversion() throws IOException {
-        List<TestColumnInfo> columns = List.of(new TestColumnInfo("value", "double"), new TestColumnInfo("step", "date"));
-        List<List<Object>> rows = List.of(List.of(1.0, "2025-01-01T00:00:00.000Z"));
+        List<TestColumnInfo> columns = List.of(new TestColumnInfo("value", "double"), new TestColumnInfo("step", "long"));
+        List<List<Object>> rows = List.of(List.of(1.0, 1735689600000L));
 
         EsqlResponse response = new TestEsqlResponse(columns, rows);
         try (XContentBuilder builder = PrometheusQueryRangeResponseListener.convertToPrometheusJson(response)) {
@@ -206,9 +207,21 @@ public class PrometheusQueryRangeResponseListenerTests extends ESTestCase {
     }
 
     public void testMissingStepColumnThrows() {
+        // Only value column — step is missing (would need to be last)
         List<TestColumnInfo> columns = List.of(new TestColumnInfo("value", "double"));
         EsqlResponse response = new TestEsqlResponse(columns, List.of());
         expectThrows(IllegalStateException.class, () -> PrometheusQueryRangeResponseListener.convertToPrometheusJson(response));
+    }
+
+    public void testWrongLastColumnNameThrows() {
+        // Last column is not named "step"
+        List<TestColumnInfo> columns = List.of(new TestColumnInfo("value", "double"), new TestColumnInfo("timestamp", "long"));
+        EsqlResponse response = new TestEsqlResponse(columns, List.of());
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> PrometheusQueryRangeResponseListener.convertToPrometheusJson(response)
+        );
+        assertThat(e.getMessage(), containsString("missing required 'step' column at last index"));
     }
 
     private static void assertSuccessMatrix(ObjectPath path) throws IOException {
@@ -217,8 +230,10 @@ public class PrometheusQueryRangeResponseListenerTests extends ESTestCase {
     }
 
     private static ObjectPath toObjectPath(XContentBuilder builder) throws IOException {
-        try (XContentParser parser = XContentType.JSON.xContent()
-            .createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(builder).streamInput())) {
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(builder).streamInput())
+        ) {
             return new ObjectPath(parser.map());
         }
     }

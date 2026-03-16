@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 
 import java.util.List;
-import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -41,6 +40,20 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
     static final String STEP_PARAM = "step";
     static final String VALUE_COLUMN = "value";
     public static final String INDEX_PARAM = "index";
+
+    static final String ESQL_QUERY = "PROMQL step=?"
+        + STEP_PARAM
+        + " start=?"
+        + START_PARAM
+        + " end=?"
+        + END_PARAM
+        + " index=?"
+        + INDEX_PARAM
+        + " "
+        + VALUE_COLUMN
+        + "=(?"
+        + QUERY_PARAM
+        + ") | EVAL step = TO_LONG(step)";
 
     @Override
     public String getName() {
@@ -68,9 +81,8 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
         String step = getRequiredParam(request, STEP_PARAM);
         String index = request.param(INDEX_PARAM, "*");
 
-        String esqlQuery = buildEsqlQuery(query, index);
-        EsqlQueryRequest esqlRequest = EsqlQueryRequest.syncEsqlQueryRequest(esqlQuery);
-        esqlRequest.params(buildQueryParams(start, end, step));
+        EsqlQueryRequest esqlRequest = EsqlQueryRequest.syncEsqlQueryRequest(ESQL_QUERY);
+        esqlRequest.params(buildQueryParams(query, index, start, end, step));
 
         return channel -> client.execute(EsqlQueryAction.INSTANCE, esqlRequest, new PrometheusQueryRangeResponseListener(channel));
     }
@@ -84,28 +96,13 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
     }
 
     /**
-     * Builds an ES|QL query string using named parameter placeholders for the start, end, and step values.
-     * The {@code index} parameter controls which indices are queried (defaults to {@code *}).
+     * Creates query parameters for all Prometheus query_range values.
      */
-    static String buildEsqlQuery(String promqlQuery, String index) {
-        return String.format(
-            Locale.ROOT,
-            "PROMQL step=?%s start=?%s end=?%s index=%s %s=(%s)",
-            STEP_PARAM,
-            START_PARAM,
-            END_PARAM,
-            index,
-            VALUE_COLUMN,
-            promqlQuery
-        );
-    }
-
-    /**
-     * Creates query parameters for the start, end, and step values.
-     */
-    static QueryParams buildQueryParams(String start, String end, String step) {
+    static QueryParams buildQueryParams(String query, String index, String start, String end, String step) {
         return new QueryParams(
             List.of(
+                new QueryParam(QUERY_PARAM, query, DataType.KEYWORD, VALUE),
+                new QueryParam(INDEX_PARAM, index, DataType.KEYWORD, VALUE),
                 new QueryParam(START_PARAM, start, DataType.KEYWORD, VALUE),
                 new QueryParam(END_PARAM, end, DataType.KEYWORD, VALUE),
                 new QueryParam(STEP_PARAM, step, DataType.KEYWORD, VALUE)

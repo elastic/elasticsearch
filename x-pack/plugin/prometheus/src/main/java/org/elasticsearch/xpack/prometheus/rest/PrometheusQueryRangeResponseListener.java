@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,10 +42,10 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
     private static final Logger logger = LogManager.getLogger(PrometheusQueryRangeResponseListener.class);
     private static final String JSON_CONTENT_TYPE = XContentType.JSON.mediaType();
 
-    // Fixed column indices produced by the PROMQL command
+    // Fixed column indices produced by the PROMQL command + EVAL step = TO_LONG(step).
+    // EVAL appends the new step column at the end, so dimension columns occupy indices 1..N-2.
     private static final int VALUE_COL_IDX = 0;
-    private static final int STEP_COL_IDX = 1;
-    private static final int DIMENSION_COL_START_IDX = 2;
+    private static final int DIMENSION_COL_START_IDX = 1;
 
     private final RestChannel channel;
 
@@ -90,25 +89,26 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
     /**
      * Converts an ES|QL response into a Prometheus-compatible JSON response.
      *
-     * <p>The ES|QL PROMQL command produces rows with a fixed column order:
+     * <p>The ES|QL PROMQL command, combined with {@code | EVAL step = TO_LONG(step)}, produces
+     * rows with the following column order (EVAL appends the converted step at the end):
      * <ol>
      *   <li>Column 0: value ({@code double})</li>
-     *   <li>Column 1: step ({@code datetime}, serialized as an ISO-8601 string)</li>
-     *   <li>Columns 2+: either a single {@code _timeseries} keyword column (JSON labels)
+     *   <li>Columns 1..N-2: either a single {@code _timeseries} keyword column (JSON labels)
      *       or individual dimension/label columns</li>
+     *   <li>Column N-1 (last): step ({@code long}, epoch milliseconds)</li>
      * </ol>
      */
     static XContentBuilder convertToPrometheusJson(EsqlResponse response) throws IOException {
         List<? extends ColumnInfo> columns = response.columns();
-        if (columns.size() <= VALUE_COL_IDX || "value".equals(columns.get(VALUE_COL_IDX).name()) == false) {
+        if (columns.size() < 1 || PrometheusQueryRangeRestAction.VALUE_COLUMN.equals(columns.get(VALUE_COL_IDX).name()) == false) {
             throw new IllegalStateException("PROMQL response is missing required 'value' column at index " + VALUE_COL_IDX);
         }
-        if (columns.size() <= STEP_COL_IDX || "step".equals(columns.get(STEP_COL_IDX).name()) == false) {
-            throw new IllegalStateException("PROMQL response is missing required 'step' column at index " + STEP_COL_IDX);
+        final int stepColIdx = columns.size() - 1;
+        if (columns.size() < 2 || PrometheusQueryRangeRestAction.STEP_PARAM.equals(columns.get(stepColIdx).name()) == false) {
+            throw new IllegalStateException("PROMQL response is missing required 'step' column at last index " + stepColIdx);
         }
-        // Column 2 is either _timeseries (a JSON blob) or the first of the individual dimension columns
-        final boolean useSeriesCol = columns.size() > DIMENSION_COL_START_IDX
-            && MetadataAttribute.TIMESERIES.equals(columns.get(DIMENSION_COL_START_IDX).name());
+        // Column 1 is either _timeseries (a JSON blob) or the first of the individual dimension columns
+        final boolean useSeriesCol = columns.size() > 2 && MetadataAttribute.TIMESERIES.equals(columns.get(DIMENSION_COL_START_IDX).name());
 
         Map<String, SeriesData> seriesMap = new LinkedHashMap<>();
 
@@ -124,7 +124,7 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
             } else {
                 StringBuilder keyBuilder = new StringBuilder();
                 metric = new LinkedHashMap<>();
-                for (int i = DIMENSION_COL_START_IDX; i < columns.size(); i++) {
+                for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
                     String label = columns.get(i).name();
                     String value = values[i] != null ? values[i].toString() : "";
                     metric.put(label, value);
@@ -134,7 +134,7 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
             }
 
             String sampleValue = formatSampleValue(values[VALUE_COL_IDX]);
-            double timestamp = parseTimestamp(values[STEP_COL_IDX]);
+            double timestamp = parseTimestamp(values[stepColIdx]);
 
             SeriesData series = seriesMap.get(seriesKey);
             if (series == null) {
@@ -160,16 +160,14 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
     }
 
     /**
-     * Parses a timestamp from the ES|QL response into Unix epoch seconds.
-     * The PROMQL command returns the step column as a {@code DATETIME}, which ES|QL serializes
-     * to an ISO-8601 string (e.g. {@code 2026-01-01T00:04:00.000Z}).
+     * Converts a timestamp from the ES|QL response into Unix epoch seconds.
+     * The step column is cast to {@code LONG} (epoch milliseconds) via {@code TO_LONG(step)} in the ES|QL query.
      */
     private static double parseTimestamp(Object value) {
-        if (value == null) {
-            return 0;
+        if (value instanceof Number n) {
+            return n.doubleValue() / 1000.0;
         }
-        Instant instant = Instant.parse(value.toString());
-        return instant.getEpochSecond() + instant.getNano() / 1_000_000_000.0;
+        return 0;
     }
 
     /**

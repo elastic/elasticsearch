@@ -42,21 +42,38 @@ public class PrometheusQueryRangeRestActionTests extends ESTestCase {
         }
     }
 
-    public void testBuildEsqlQuery() {
-        String esql = PrometheusQueryRangeRestAction.buildEsqlQuery("rate(http_requests_total[5m])", "*");
-        assertThat(esql, equalTo("PROMQL step=?step start=?start end=?end index=* value=(rate(http_requests_total[5m]))"));
-    }
-
-    public void testBuildEsqlQueryWithIndex() {
-        String esql = PrometheusQueryRangeRestAction.buildEsqlQuery("rate(http_requests_total[5m])", "my-index");
-        assertThat(esql, equalTo("PROMQL step=?step start=?start end=?end index=my-index value=(rate(http_requests_total[5m]))"));
+    public void testEsqlQueryConstant() {
+        assertThat(
+            PrometheusQueryRangeRestAction.ESQL_QUERY,
+            equalTo("PROMQL step=?step start=?start end=?end index=?index value=(?query) | EVAL step = TO_LONG(step)")
+        );
     }
 
     public void testBuildQueryParams() {
-        QueryParams params = PrometheusQueryRangeRestAction.buildQueryParams("2025-01-01T00:00:00Z", "2025-01-01T01:00:00Z", "15s");
+        QueryParams params = PrometheusQueryRangeRestAction.buildQueryParams(
+            "rate(http_requests_total[5m])",
+            "*",
+            "2025-01-01T00:00:00Z",
+            "2025-01-01T01:00:00Z",
+            "15s"
+        );
+        assertThat(params.get("query").value(), equalTo("rate(http_requests_total[5m])"));
+        assertThat(params.get("index").value(), equalTo("*"));
         assertThat(params.get("start").value(), equalTo("2025-01-01T00:00:00Z"));
         assertThat(params.get("end").value(), equalTo("2025-01-01T01:00:00Z"));
         assertThat(params.get("step").value(), equalTo("15s"));
+    }
+
+    public void testBuildQueryParamsWithCustomIndex() {
+        QueryParams params = PrometheusQueryRangeRestAction.buildQueryParams(
+            "up",
+            "logs-*,metrics-*",
+            "2025-01-01T00:00:00Z",
+            "2025-01-01T01:00:00Z",
+            "15s"
+        );
+        assertThat(params.get("query").value(), equalTo("up"));
+        assertThat(params.get("index").value(), equalTo("logs-*,metrics-*"));
     }
 
 }

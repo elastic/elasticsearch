@@ -1067,6 +1067,79 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
     }
 
     /**
+     * When query-and-tags is disabled (threshold=0) but block loader is supported,
+     * the RoundTo on a date field is replaced with a FunctionEsField-backed FieldAttribute.
+     */
+    public void testBlockLoaderFallbackForDate() {
+        String query = """
+            from test
+            | stats count(*) by x = round_to(date, "2023-10-20"::date, "2023-10-21"::date, "2023-10-22"::date, "2023-10-23"::date)
+            """;
+        TestPlannerOptimizer allTypesOptimizer = new TestPlannerOptimizer(config, makeAnalyzer("mapping-all-types.json"));
+        EsqlFlags disabledQueryAndTags = new EsqlFlags(0);
+        {
+            SearchStats noBlockLoaderStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of(), Map.of(), false);
+            PhysicalPlan plan = allTypesOptimizer.plan(query, noBlockLoaderStats, disabledQueryAndTags);
+            LimitExec limit = as(plan, LimitExec.class);
+            AggregateExec finalAgg = as(limit.child(), AggregateExec.class);
+            ExchangeExec exchange = as(finalAgg.child(), ExchangeExec.class);
+            AggregateExec initAgg = as(exchange.child(), AggregateExec.class);
+            EvalExec eval = as(initAgg.child(), EvalExec.class);
+            assertEquals(1, eval.fields().size());
+            RoundTo roundTo = as(eval.fields().getFirst().child(), RoundTo.class);
+            assertNotNull(roundTo);
+        }
+        {
+            PhysicalPlan plan = allTypesOptimizer.plan(query, searchStats, disabledQueryAndTags);
+            LimitExec limit = as(plan, LimitExec.class);
+            AggregateExec finalAgg = as(limit.child(), AggregateExec.class);
+            ExchangeExec exchange = as(finalAgg.child(), ExchangeExec.class);
+            AggregateExec initAgg = as(exchange.child(), AggregateExec.class);
+            EvalExec eval = as(initAgg.child(), EvalExec.class);
+            assertEquals(1, eval.fields().size());
+            FieldAttribute blockLoaderAttr = as(eval.fields().getFirst().child(), FieldAttribute.class);
+            assertThat(blockLoaderAttr.name(), org.hamcrest.Matchers.startsWith("$$date$ROUND_TO$"));
+        }
+    }
+
+    /**
+     * When query-and-tags is disabled (threshold=0) but block loader is supported,
+     * the RoundTo on a date_nanos field is replaced with a FunctionEsField-backed FieldAttribute.
+     */
+    public void testBlockLoaderFallbackForDateNanos() {
+        String query = """
+            from test
+            | stats count(*) by x = round_to(\
+            date_nanos, "2023-10-20"::date_nanos, "2023-10-21"::date_nanos, "2023-10-22"::date_nanos, "2023-10-23"::date_nanos)
+            """;
+        TestPlannerOptimizer allTypesOptimizer = new TestPlannerOptimizer(config, makeAnalyzer("mapping-all-types.json"));
+        EsqlFlags disabledQueryAndTags = new EsqlFlags(0);
+        {
+            SearchStats noBlockLoaderStats = new EsqlTestUtils.TestSearchStatsWithMinMax(Map.of(), Map.of(), false);
+            PhysicalPlan plan = allTypesOptimizer.plan(query, noBlockLoaderStats, disabledQueryAndTags);
+            LimitExec limit = as(plan, LimitExec.class);
+            AggregateExec finalAgg = as(limit.child(), AggregateExec.class);
+            ExchangeExec exchange = as(finalAgg.child(), ExchangeExec.class);
+            AggregateExec initAgg = as(exchange.child(), AggregateExec.class);
+            EvalExec eval = as(initAgg.child(), EvalExec.class);
+            assertEquals(1, eval.fields().size());
+            RoundTo roundTo = as(eval.fields().getFirst().child(), RoundTo.class);
+            assertNotNull(roundTo);
+        }
+        {
+            PhysicalPlan plan = allTypesOptimizer.plan(query, searchStats, disabledQueryAndTags);
+            LimitExec limit = as(plan, LimitExec.class);
+            AggregateExec finalAgg = as(limit.child(), AggregateExec.class);
+            ExchangeExec exchange = as(finalAgg.child(), ExchangeExec.class);
+            AggregateExec initAgg = as(exchange.child(), AggregateExec.class);
+            EvalExec eval = as(initAgg.child(), EvalExec.class);
+            assertEquals(1, eval.fields().size());
+            FieldAttribute blockLoaderAttr = as(eval.fields().getFirst().child(), FieldAttribute.class);
+            assertThat(blockLoaderAttr.name(), org.hamcrest.Matchers.startsWith("$$date_nanos$ROUND_TO$"));
+        }
+    }
+
+    /**
      * Block loader does not apply for integer fields (not LONG/DATETIME/DATE_NANOS),
      * so RoundTo stays when query-and-tags threshold is exceeded.
      */

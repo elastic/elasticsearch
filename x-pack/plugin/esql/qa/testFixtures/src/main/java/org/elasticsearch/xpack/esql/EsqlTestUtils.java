@@ -361,6 +361,16 @@ public final class EsqlTestUtils {
      */
     public static class TestSearchStats implements SearchStats {
 
+        private final boolean supportsLoaderConfig;
+
+        public TestSearchStats() {
+            this(true);
+        }
+
+        public TestSearchStats(boolean supportsLoaderConfig) {
+            this.supportsLoaderConfig = supportsLoaderConfig;
+        }
+
         @Override
         public boolean exists(FieldName field) {
             return true;
@@ -387,7 +397,7 @@ public final class EsqlTestUtils {
             BlockLoaderFunctionConfig config,
             MappedFieldType.FieldExtractPreference preference
         ) {
-            return true;
+            return supportsLoaderConfig;
         }
 
         @Override
@@ -508,6 +518,11 @@ public final class EsqlTestUtils {
         private final Map<String, Object> maxValues;
 
         public TestSearchStatsWithMinMax(Map<String, Object> minValues, Map<String, Object> maxValues) {
+            this(minValues, maxValues, true);
+        }
+
+        public TestSearchStatsWithMinMax(Map<String, Object> minValues, Map<String, Object> maxValues, boolean supportsLoaderConfig) {
+            super(supportsLoaderConfig);
             this.minValues = minValues;
             this.maxValues = maxValues;
         }

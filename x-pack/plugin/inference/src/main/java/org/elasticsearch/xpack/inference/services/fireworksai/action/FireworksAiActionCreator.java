@@ -33,12 +33,12 @@ import static org.elasticsearch.xpack.inference.external.action.ActionUtils.cons
 
 public class FireworksAiActionCreator implements FireworksAiActionVisitor {
 
-    public static final String COMPLETION_ERROR_PREFIX = "FireworksAI chat completions";
-    public static final String COMPLETION_REQUEST_TYPE = "fireworksai completion";
+    public static final String COMPLETION_ERROR_PREFIX = "Fireworks AI chat completions";
+    public static final String COMPLETION_REQUEST_TYPE = "Fireworks AI completion";
     private static final String USER_ROLE = "user";
 
     private static final ResponseHandler EMBEDDINGS_HANDLER = new FireworksAiResponseHandler(
-        "fireworksai embeddings",
+        "Fireworks AI embeddings",
         OpenAiEmbeddingsResponseEntity::fromResponse,
         false
     );
@@ -67,7 +67,7 @@ public class FireworksAiActionCreator implements FireworksAiActionVisitor {
             EmbeddingsInput.class
         );
 
-        var errorMessage = constructFailedToSendRequestMessage("FireworksAI embeddings");
+        var errorMessage = constructFailedToSendRequestMessage("Fireworks AI embeddings");
         return new SenderExecutableAction(sender, manager, errorMessage);
     }
 

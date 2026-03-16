@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -802,16 +803,25 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         ExchangeSinkExec sinkExec = (ExchangeSinkExec) request.plan();
         Configuration configuration = request.configuration();
         final String sessionId = request.sessionId();
+        EsqlFlags flags = computeService.createFlags();
+        PlannerSettings plannerSettings = computeService.plannerSettings().get();
 
-        // Inject external splits into the ExternalSourceExec within the plan
-        PhysicalPlan planWithSplits = sinkExec.child()
-            .transformUp(ExternalSourceExec.class, exec -> exec.withSplits(request.externalSplits()));
-        ExchangeSinkExec updatedSinkExec = new ExchangeSinkExec(
-            sinkExec.source(),
-            sinkExec.output(),
-            sinkExec.isIntermediateAgg(),
-            planWithSplits
+        // Run localPlan() to expand FragmentExec(ExternalRelation) -> ExternalSourceExec
+        // This runs LocalLogicalPlanOptimizer, LocalMapper, and LocalPhysicalPlanOptimizer
+        // (including filter pushdown via FilterPushdownRegistry)
+        PhysicalPlan expandedPlan = PlannerUtils.localPlan(
+            plannerSettings,
+            flags,
+            configuration,
+            configuration.newFoldContext(),
+            sinkExec,
+            SearchStats.EMPTY,
+            computeService.filterPushdownRegistry(),
+            planTimeProfile
         );
+
+        // Inject external splits into the ExternalSourceExec created by localPlan()
+        PhysicalPlan planWithSplits = expandedPlan.transformUp(ExternalSourceExec.class, exec -> exec.withSplits(request.externalSplits()));
 
         try (
             ComputeListener computeListener = new ComputeListener(
@@ -827,7 +837,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 task.addListener(
                     () -> { exchangeService.finishSinkHandler(sessionId, new TaskCancelledException(task.getReasonCancelled())); }
                 );
-                EsqlFlags flags = computeService.createFlags();
 
                 var computeContext = new ComputeContext(
                     internalSessionId,
@@ -843,9 +852,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 computeService.runCompute(
                     task,
                     computeContext,
-                    updatedSinkExec,
-                    computeService.plannerSettings().get(),
-                    LocalPhysicalOptimization.ENABLED,
+                    planWithSplits,
+                    plannerSettings,
+                    LocalPhysicalOptimization.DISABLED,
                     planTimeProfile,
                     ActionListener.wrap(resp -> {
                         externalSink.addCompletionListener(ActionListener.running(() -> {

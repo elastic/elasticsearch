@@ -203,6 +203,8 @@ public class CloneStepTests extends ESTestCase {
         assertThat(capturedResizeRequest.get().getSourceIndex(), equalTo(indexName));
         assertThat(capturedResizeRequest.get().getTargetIndexRequest().index(), containsString("dlm-clone-"));
         assertThat(capturedResizeRequest.get().getTargetIndexRequest().settings().get("index.number_of_replicas"), equalTo("0"));
+        assertTrue(capturedResizeRequest.get().getTargetIndexRequest().settings().keySet().contains("index.auto_expand_replicas"));
+        assertNull(capturedResizeRequest.get().getTargetIndexRequest().settings().get("index.auto_expand_replicas"));
     }
 
     public void testExecuteWithSuccessfulCloneResponse() {

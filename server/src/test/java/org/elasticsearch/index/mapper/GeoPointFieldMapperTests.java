@@ -436,6 +436,8 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             assertEquals(expectedParser.currentToken(), parser.currentToken());
             assertEquals(expectedParser.currentName(), parser.currentName());
             assertEquals(expectedParser.getTokenLocation(), parser.getTokenLocation());
+            // getCurrentLocation() delegates to docParser, whose cursor differs from expectedParser's
+            assertEquals(docParser.getCurrentLocation(), parser.getCurrentLocation());
             assertEquals(expectedParser.textOrNull(), parser.textOrNull());
             expectThrows(UnsupportedOperationException.class, parser::nextToken);
         }

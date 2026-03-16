@@ -24,7 +24,7 @@ import java.util.Objects;
  * Retains at most N rows per group defined by one or more grouping key expressions.
  * This is the {@code LIMIT N BY expr1, expr2, ...} command.
  */
-public class LimitBy extends UnaryPlan implements TelemetryAware, PipelineBreaker, ExecutesOn {
+public class LimitBy extends UnaryPlan implements TelemetryAware, PipelineBreaker {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "LimitBy", LimitBy::new);
 
     private final Expression limit;
@@ -123,10 +123,5 @@ public class LimitBy extends UnaryPlan implements TelemetryAware, PipelineBreake
             && Objects.equals(child(), other.child())
             && (duplicated == other.duplicated)
             && Objects.equals(groupings, other.groupings);
-    }
-
-    @Override
-    public ExecuteLocation executesOn() {
-        return ExecuteLocation.COORDINATOR;
     }
 }

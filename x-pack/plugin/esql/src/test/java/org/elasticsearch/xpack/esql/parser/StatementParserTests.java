@@ -108,8 +108,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assertEqualsIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
@@ -1100,10 +1098,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limitBy.groupings().size(), equalTo(2));
         assertThat(limitBy.groupings().get(0), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) limitBy.groupings().get(0)).name(), equalTo("hostname"));
-        assertThat(limitBy.groupings().get(1), instanceOf(Alias.class));
-        Alias divAlias = (Alias) limitBy.groupings().get(1);
-        assertThat(divAlias.child(), instanceOf(Div.class));
-        Div divExpr = (Div) divAlias.child();
+        assertThat(limitBy.groupings().get(1), instanceOf(Div.class));
+        Div divExpr = (Div) limitBy.groupings().get(1);
         assertThat(divExpr.left(), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) divExpr.left()).name(), equalTo("@timestamp"));
         assertThat(divExpr.right(), instanceOf(Literal.class));
@@ -1156,6 +1152,22 @@ public class StatementParserTests extends AbstractStatementParserTests {
         LogicalPlan relation = orderBy.child();
         assertThat(relation, instanceOf(UnresolvedRelation.class));
         assertThat(((UnresolvedRelation) relation).indexPattern().indexPattern(), equalTo("foo"));
+    }
+
+    public void testLimitByNegativeValue() {
+        expectThrows(
+            ParsingException.class,
+            containsString("value of [LIMIT -1 BY languages] must be a non negative integer, found value [-1] type [integer]"),
+            () -> query("""
+                FROM foo
+                | LIMIT -1 BY languages
+                """)
+        );
+
+        expectThrows(ParsingException.class, containsString("mismatched input '*'"), () -> query("""
+            FROM foo
+            | LIMIT -1 * 42 BY languages
+            """));
     }
 
     public void testBasicSortCommand() {
@@ -3841,10 +3853,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testRerankWithPositionalParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "statement text"), paramAsConstant(null, "reranker")));
-        var rerank = as(
-            TEST_PARSER.parseQuery("row a = 1 | RERANK rerank_score = ? ON title WITH { \"inference_id\" : ? }", queryParams),
-            Rerank.class
-        );
+        var rerank = as(query("row a = 1 | RERANK rerank_score = ? ON title WITH { \"inference_id\" : ? }", queryParams), Rerank.class);
 
         assertThat(rerank.queryText(), equalTo(literalString("statement text")));
         assertThat(rerank.inferenceId(), equalTo(literalString("reranker")));
@@ -3858,10 +3867,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             List.of(paramAsConstant("queryText", "statement text"), paramAsConstant("inferenceId", "reranker"))
         );
         var rerank = as(
-            TEST_PARSER.parseQuery(
-                "row a = 1 | RERANK rerank_score=?queryText ON title WITH { \"inference_id\": ?inferenceId }",
-                queryParams
-            ),
+            query("row a = 1 | RERANK rerank_score=?queryText ON title WITH { \"inference_id\": ?inferenceId }", queryParams),
             Rerank.class
         );
 
@@ -4036,10 +4042,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testCompletionWithPositionalParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "inferenceId")));
-        var plan = as(
-            TEST_PARSER.parseQuery("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ? }", queryParams),
-            Completion.class
-        );
+        var plan = as(query("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ? }", queryParams), Completion.class);
 
         assertThat(plan.prompt(), equalToIgnoringIds(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceId")));
@@ -4049,10 +4052,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testCompletionWithNamedParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant("inferenceId", "myInference")));
-        var plan = as(
-            TEST_PARSER.parseQuery("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ?inferenceId }", queryParams),
-            Completion.class
-        );
+        var plan = as(query("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ?inferenceId }", queryParams), Completion.class);
 
         assertThat(plan.prompt(), equalToIgnoringIds(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("myInference")));
@@ -4386,7 +4386,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
      * builds a little json report of the valid types.
      */
     public void testInlineCast() throws IOException {
-        EsqlFunctionRegistry registry = TEST_FUNCTION_REGISTRY;
+        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
         Path dir = PathUtils.get(System.getProperty("java.io.tmpdir"))
             .resolve("query-languages")
             .resolve("esql")
@@ -4407,7 +4407,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 if (EsqlDataTypeConverter.converterFunctionFactory(expectedType) == null) {
                     continue;
                 }
-                LogicalPlan plan = TEST_PARSER.parseQuery("ROW a = 1::" + nameOrAlias);
+                LogicalPlan plan = query("ROW a = 1::" + nameOrAlias);
                 Row row = as(plan, Row.class);
                 assertThat(row.fields(), hasSize(1));
                 org.elasticsearch.xpack.esql.core.expression.function.Function functionCall =
@@ -4523,7 +4523,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMMRCommandWithFieldQueryVector() {
         var queryParams = new QueryParams(List.of(paramAsConstant("query_vector_field", "[0.5, 0.4, 0.3, 0.2]")));
         var mmrCmd = as(
-            TEST_PARSER.parseQuery("row a = 1 | mmr ?query_vector_field on dense_embedding limit 10 with { \"lambda\": 0.5 }", queryParams),
+            query("row a = 1 | mmr ?query_vector_field on dense_embedding limit 10 with { \"lambda\": 0.5 }", queryParams),
             MMR.class
         );
 
@@ -4613,6 +4613,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidMMRCommands() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR_V2.isEnabled());
+
         expectError("row a = 1 | mmr on some_field", "line 1:30: mismatched input '<EOF>' expecting {'.', MMR_LIMIT}");
         expectError("row a = 1 | mmr on some_field limit", "line 1:36: mismatched input '<EOF>' expecting {INTEGER_LITERAL, '+', '-'}");
         expectError(

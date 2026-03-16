@@ -19,8 +19,6 @@ import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformByParentObject;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformGlobalSetup;
 import org.gradle.api.tasks.Input;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.Iterator;
 
@@ -29,7 +27,6 @@ import java.util.Iterator;
  */
 public class Skip implements RestTestTransformGlobalSetup, RestTestTransformByParentObject {
 
-    private static final Logger log = LoggerFactory.getLogger(Skip.class);
     private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
 
     private final String skipReason;

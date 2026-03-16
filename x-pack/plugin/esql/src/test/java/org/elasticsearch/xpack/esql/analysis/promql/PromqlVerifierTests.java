@@ -11,12 +11,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.VerifierTests.error;
 import static org.hamcrest.Matchers.containsString;
@@ -121,7 +121,7 @@ public class PromqlVerifierTests extends ESTestCase {
         var now = Instant.now();
         var bounds = new TimestampBounds(now.minus(1, ChronoUnit.HOURS), now);
         var analyzer = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution(), bounds);
-        var plan = analyzer.analyze(EsqlParser.INSTANCE.parseQuery("PROMQL index=test buckets=10 avg(network.bytes_in)"));
+        var plan = analyzer.analyze(TEST_PARSER.parseQuery("PROMQL index=test buckets=10 avg(network.bytes_in)"));
         assertTrue("Plan should be resolved after timestamp bounds injection", plan.resolved());
     }
 

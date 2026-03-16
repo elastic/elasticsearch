@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -35,7 +36,7 @@ public class RestResolveIndexActionTests extends ESTestCase {
 
     private void executeRequest(BytesArray body, boolean cpsEnabled) throws Exception {
         final Settings settings = Settings.builder().put("serverless.cross_project.enabled", cpsEnabled).build();
-        final var action = new RestResolveIndexAction(settings);
+        final var action = new RestResolveIndexAction(new CrossProjectModeDecider(settings));
         final var request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/_resolve/index/foo")
             .withContent(body, XContentType.JSON)

@@ -9,15 +9,11 @@ package org.elasticsearch.xpack.esql.generator.function;
 
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
-import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
-import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -68,48 +64,20 @@ public final class FullTextFunctionGenerator {
         return true;
     }
 
-    private static final Pattern RENAME_PAIR = Pattern.compile("\\s*`?([^`]+?)`?\\s+[Aa][Ss]\\s+`?([^`]+?)`?\\s*");
-
-    @SuppressWarnings("unchecked")
+    /**
+     * Returns the subset of columns that are index-mapped (originate from the actual index mapping).
+     * Full-text functions (match, match_phrase, multi_match, {@code :} operator) require these fields.
+     * Returns {@code null} when the information is unavailable (e.g. non-FROM source).
+     */
     private static List<Column> indexFieldColumns(List<Column> columns, List<CommandGenerator.CommandDescription> previousCommands) {
         if (previousCommands == null || previousCommands.isEmpty()) {
             return null;
         }
-        Object stored = previousCommands.get(0).context().get(FromGenerator.INDEX_FIELD_NAMES);
-        if (stored instanceof Set<?> == false) {
+        if (isFromSource(previousCommands.get(0)) == false) {
             return null;
         }
-        Set<String> safeNames = new HashSet<>((Set<String>) stored);
-        for (CommandGenerator.CommandDescription cmd : previousCommands) {
-            if ("eval".equals(cmd.commandName())) {
-                Object newCols = cmd.context().get(EvalGenerator.NEW_COLUMNS);
-                if (newCols instanceof List<?> list) {
-                    list.forEach(name -> safeNames.remove((String) name));
-                }
-            } else if ("mv_expand".equals(cmd.commandName())) {
-                String expandedField = cmd.commandString().replaceFirst("(?i)^\\s*\\|\\s*mv_expand\\s+", "").trim();
-                if (expandedField.startsWith("`") && expandedField.endsWith("`")) {
-                    expandedField = expandedField.substring(1, expandedField.length() - 1);
-                }
-                safeNames.remove(expandedField);
-            } else if ("rename".equals(cmd.commandName())) {
-                String cmdStr = cmd.commandString().replaceFirst("(?i)^\\s*\\|\\s*rename\\s+", "");
-                for (String pair : cmdStr.split(",")) {
-                    Matcher m = RENAME_PAIR.matcher(pair);
-                    if (m.matches()) {
-                        String oldName = m.group(1);
-                        String newName = m.group(2);
-                        boolean wasSafe = safeNames.remove(oldName);
-                        if (wasSafe) {
-                            safeNames.add(newName);
-                        } else {
-                            safeNames.remove(newName);
-                        }
-                    }
-                }
-            }
-        }
-        return columns.stream().filter(c -> safeNames.contains(c.name())).toList();
+        List<Column> result = columns.stream().filter(Column::indexMapped).toList();
+        return result.isEmpty() ? null : result;
     }
 
     private static final Set<String> MATCH_FIELD_TYPES = Set.of(

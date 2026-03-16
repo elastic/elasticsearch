@@ -1021,12 +1021,15 @@ public final class IndexSettings {
             public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
                 if (enabled) {
                     var indexVersion = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
-                    if (indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS) == false
-                        && indexVersion.equals(IndexVersions.ZERO) == false) {
-                        // We validate settings in different places before a real indexVersion has been assigned or
-                        // is missing for other reasons. In those cases IndexVersion.ZERO is used as fallback value,
-                        // and we don't want to fail those validations. At index creation time we _will_ validate with
-                        // the creation version.
+                    if (indexVersion.equals(IndexVersions.ZERO)) {
+                        // Settings are validated in different places before a real indexVersion has been assigned or is missing for other
+                        // reasons (eg. composable index templates). In those cases IndexVersion.ZERO is used as fallback value, and we
+                        // don't want to fail those validations so we return early here because the next two validation checks require
+                        // the IndexMetadata.SETTING_INDEX_VERSION_CREATED to be set. At index creation time we _will_ validate with the
+                        // creation version.
+                        return;
+                    }
+                    if (indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS) == false) {
                         throw new IllegalArgumentException(
                             String.format(
                                 Locale.ROOT,

@@ -7,6 +7,11 @@
 
 package org.elasticsearch.xpack.prometheus;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.handler.codec.compression.Snappy;
+
+import org.apache.http.HttpHeaders;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
@@ -142,6 +147,43 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
         assertThat(new ObjectPath(hits2.getFirst()).evaluate("metrics." + metric2), equalTo(100.0));
     }
 
+    public void testRemoteWriteDropsNaNSamples() throws Exception {
+        long timestamp = System.currentTimeMillis();
+        String metricName = "nan_metric";
+
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(timeSeries(metricName, Map.of("job", "test_job"), sample(Double.NaN, timestamp)))
+            .build();
+
+        sendAndAssertSuccess(writeRequest);
+        assertFalse("NaN-only request should not create a data stream", dataStreamExists(DEFAULT_DATA_STREAM));
+    }
+
+    public void testRemoteWriteDropsNaNButKeepsValidSamples() throws Exception {
+        long timestamp = System.currentTimeMillis();
+        String metricName = "nan_mixed_metric";
+
+        RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.newBuilder()
+            .addTimeseries(
+                timeSeries(
+                    metricName,
+                    Map.of("job", "test_job"),
+                    sample(Double.NaN, timestamp - 1000),
+                    sample(42.5, timestamp),
+                    sample(Double.POSITIVE_INFINITY, timestamp + 1000),
+                    sample(Double.NEGATIVE_INFINITY, timestamp + 2000)
+                )
+            )
+            .build();
+
+        sendAndAssertSuccess(writeRequest);
+        assertTrue("Data stream should exist for valid samples", dataStreamExists(DEFAULT_DATA_STREAM));
+
+        List<Map<String, Object>> docs = searchDocs(metricName);
+        assertThat("Only finite samples should be indexed", docs, hasSize(1));
+        assertThat(new ObjectPath(docs.getFirst()).evaluate("metrics." + metricName), equalTo(42.5));
+    }
+
     public void testRemoteWriteMissingNameLabelReturns400() throws Exception {
         long timestamp = System.currentTimeMillis();
 
@@ -216,7 +258,8 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
     private void sendAndAssertSuccess(RemoteWrite.WriteRequest writeRequest, String endpoint) throws IOException {
         Request request = new Request("POST", endpoint);
-        request.setEntity(new ByteArrayEntity(writeRequest.toByteArray(), ContentType.create("application/x-protobuf")));
+        request.setEntity(new ByteArrayEntity(snappyEncode(writeRequest.toByteArray()), ContentType.create("application/x-protobuf")));
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy"));
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(204));
     }
@@ -227,7 +270,8 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
     private String sendAndAssertBadRequest(RemoteWrite.WriteRequest writeRequest, String endpoint) throws IOException {
         Request request = new Request("POST", endpoint);
-        request.setEntity(new ByteArrayEntity(writeRequest.toByteArray(), ContentType.create("application/x-protobuf")));
+        request.setEntity(new ByteArrayEntity(snappyEncode(writeRequest.toByteArray()), ContentType.create("application/x-protobuf")));
+        request.setOptions(request.getOptions().toBuilder().addHeader(HttpHeaders.CONTENT_ENCODING, "snappy"));
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         return EntityUtils.toString(e.getResponse().getEntity());
@@ -286,6 +330,33 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
         List<Map<String, Object>> docs = searchDocs(dataStream, metricName);
         assertThat(docs, hasSize(1));
         return new ObjectPath(docs.getFirst());
+    }
+
+    private boolean dataStreamExists(String dataStream) throws IOException {
+        Request request = new Request("GET", "/_data_stream/" + dataStream);
+        try {
+            client().performRequest(request);
+            return true;
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() == 404) {
+                return false;
+            }
+            throw e;
+        }
+    }
+
+    private static byte[] snappyEncode(byte[] input) {
+        ByteBuf in = Unpooled.wrappedBuffer(input);
+        ByteBuf out = Unpooled.buffer(input.length);
+        try {
+            new Snappy().encode(in, out, input.length);
+            byte[] result = new byte[out.readableBytes()];
+            out.readBytes(result);
+            return result;
+        } finally {
+            in.release();
+            out.release();
+        }
     }
 
 }

@@ -34,17 +34,11 @@ public final class SampleBytesRefAggregatorFunction implements AggregatorFunctio
 
   private final int limit;
 
-  public SampleBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      SampleBytesRefAggregator.SingleState state, int limit) {
+  SampleBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels, int limit) {
+    this.limit = limit;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-    this.limit = limit;
-  }
-
-  public static SampleBytesRefAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, int limit) {
-    return new SampleBytesRefAggregatorFunction(driverContext, channels, SampleBytesRefAggregator.initSingle(driverContext.bigArrays(), limit), limit);
+    this.state = SampleBytesRefAggregator.initSingle(driverContext.bigArrays(), limit);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

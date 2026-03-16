@@ -36,16 +36,10 @@ public final class AllFirstIntByIntGroupingAggregatorFunction implements Groupin
 
   private final DriverContext driverContext;
 
-  public AllFirstIntByIntGroupingAggregatorFunction(List<Integer> channels,
-      AllFirstIntByIntAggregator.GroupingState state, DriverContext driverContext) {
+  AllFirstIntByIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = AllFirstIntByIntAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static AllFirstIntByIntGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new AllFirstIntByIntGroupingAggregatorFunction(channels, AllFirstIntByIntAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

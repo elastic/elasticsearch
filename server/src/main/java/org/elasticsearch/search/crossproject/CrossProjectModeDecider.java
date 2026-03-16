@@ -33,6 +33,8 @@ import org.elasticsearch.common.settings.Settings;
  * </ul>
  */
 public class CrossProjectModeDecider {
+    public static final CrossProjectModeDecider NOOP = new CrossProjectModeDecider(Settings.EMPTY);
+
     private static final String CROSS_PROJECT_ENABLED_SETTING_KEY = "serverless.cross_project.enabled";
     private final boolean crossProjectEnabled;
 

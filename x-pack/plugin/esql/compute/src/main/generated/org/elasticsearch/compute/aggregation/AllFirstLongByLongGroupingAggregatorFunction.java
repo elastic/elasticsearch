@@ -36,16 +36,11 @@ public final class AllFirstLongByLongGroupingAggregatorFunction implements Group
 
   private final DriverContext driverContext;
 
-  public AllFirstLongByLongGroupingAggregatorFunction(List<Integer> channels,
-      AllFirstLongByLongAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static AllFirstLongByLongGroupingAggregatorFunction create(List<Integer> channels,
+  AllFirstLongByLongGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new AllFirstLongByLongGroupingAggregatorFunction(channels, AllFirstLongByLongAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = AllFirstLongByLongAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

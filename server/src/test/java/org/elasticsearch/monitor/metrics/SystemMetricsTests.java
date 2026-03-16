@@ -9,6 +9,7 @@
 
 package org.elasticsearch.monitor.metrics;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -19,41 +20,30 @@ import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED
 
 public class SystemMetricsTests extends ESTestCase {
 
-    public void testLegacyMetricsAlwaysRegistered() {
+    @SuppressForbidden(reason = "sets/clears system property for test setup/teardown")
+    public void testOTelMetricsRegisteredWhenEnabled() {
         System.setProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "true");
-        try {
+        for (boolean emitOTelMetrics : new boolean[] { false, true }) {
             RecordingMeterRegistry registry = new RecordingMeterRegistry();
-            SystemMetrics systemMetrics = new SystemMetrics(registry, false);
+            SystemMetrics systemMetrics = new SystemMetrics(registry, emitOTelMetrics);
             systemMetrics.start();
 
             List<String> registeredGauges = registry.getRecorder().getRegisteredMetrics(InstrumentType.LONG_GAUGE);
-            assertTrue("jvm.fd.used should be registered", registeredGauges.contains("jvm.fd.used"));
-            assertTrue("jvm.fd.max should be registered", registeredGauges.contains("jvm.fd.max"));
-            assertFalse("jvm.file_descriptor.count should NOT be registered", registeredGauges.contains("jvm.file_descriptor.count"));
-            assertFalse("jvm.file_descriptor.limit should NOT be registered", registeredGauges.contains("jvm.file_descriptor.limit"));
+            assertTrue("jvm.fd.used should always be registered", registeredGauges.contains("jvm.fd.used"));
+            assertTrue("jvm.fd.max should always be registered", registeredGauges.contains("jvm.fd.max"));
+            assertEquals(
+                "jvm.file_descriptor.count should be registered if emitting OTel metrics",
+                registeredGauges.contains("jvm.file_descriptor.count"),
+                emitOTelMetrics
+            );
+            assertEquals(
+                "jvm.file_descriptor.limit should be registered if emitting OTel metrics",
+                registeredGauges.contains("jvm.file_descriptor.limit"),
+                emitOTelMetrics
+            );
 
             systemMetrics.close();
-        } finally {
-            System.clearProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY);
         }
-    }
-
-    public void testOtelMetricsRegisteredWhenEnabled() {
-        System.setProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "true");
-        try {
-            RecordingMeterRegistry registry = new RecordingMeterRegistry();
-            SystemMetrics systemMetrics = new SystemMetrics(registry, true);
-            systemMetrics.start();
-
-            List<String> registeredGauges = registry.getRecorder().getRegisteredMetrics(InstrumentType.LONG_GAUGE);
-            assertTrue("jvm.fd.used should be registered", registeredGauges.contains("jvm.fd.used"));
-            assertTrue("jvm.fd.max should be registered", registeredGauges.contains("jvm.fd.max"));
-            assertTrue("jvm.file_descriptor.count should be registered", registeredGauges.contains("jvm.file_descriptor.count"));
-            assertTrue("jvm.file_descriptor.limit should be registered", registeredGauges.contains("jvm.file_descriptor.limit"));
-
-            systemMetrics.close();
-        } finally {
-            System.clearProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY);
-        }
+        System.clearProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY);
     }
 }

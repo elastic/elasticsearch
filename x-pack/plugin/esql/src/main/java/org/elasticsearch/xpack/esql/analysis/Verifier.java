@@ -87,6 +87,13 @@ public class Verifier {
     }
 
     /**
+     * Verify that a {@link LogicalPlan} can be executed (no unmapped-field resolution context).
+     */
+    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics) {
+        return verify(plan, partialMetrics, null);
+    }
+
+    /**
      * Verify that a {@link LogicalPlan} can be executed.
      *
      * @param plan The logical plan to be verified
@@ -94,10 +101,6 @@ public class Verifier {
      * @param unmappedResolution the active unmapped-field resolution strategy; used to gate commands unsupported in certain modes
      * @return a collection of verification failures; empty if and only if the plan is valid
      */
-    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics) {
-        return verify(plan, partialMetrics, null);
-    }
-
     Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics, UnmappedResolution unmappedResolution) {
         assert partialMetrics != null;
         Failures failures = new Failures();

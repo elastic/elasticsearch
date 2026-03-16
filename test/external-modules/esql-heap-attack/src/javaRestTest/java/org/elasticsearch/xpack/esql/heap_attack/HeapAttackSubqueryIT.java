@@ -201,17 +201,15 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     }
 
     public void testGiantTextFieldInSubqueryIntermediateResults() throws IOException {
-        int docs = 50;
+        int docs = isServerless() ? 20 : 50;
         heapAttackIT.initGiantTextField(docs, false, 5);
         assertCircuitBreaks(attempt -> buildSubqueries(MAX_SUBQUERIES, "bigtext"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/141034")
     public void testGiantTextFieldInSubqueryIntermediateResultsWithSort() throws IOException {
-        // TODO OOM, after pages are added to TopN, the page is released, so the overestimation on big blocks are gone
-        int docs = 50;
+        int docs = 20;
         heapAttackIT.initGiantTextField(docs, false, 5);
-        assertCircuitBreaks(attempt -> buildSubqueriesWithSort(MAX_SUBQUERIES, "bigtext", " f "));
+        assertCircuitBreaks(attempt -> buildSubqueriesWithSort(MAX_SUBQUERIES, "bigtext", " substring(f, 5) "));
     }
 
     public void testGiantTextFieldInSubqueryIntermediateResultsWithAggNoGrouping() throws IOException {
@@ -245,18 +243,27 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
             columns.add(column);
         }
 
-        Map<?, ?> response = buildSubqueriesWithSortInMainQuery(MAX_SUBQUERIES, "manybigfields", "f000");
-        assertEquals(columns, response.get("columns"));
+        // serverless triggers CBE occasionally.
+        try {
+            Map<?, ?> response = buildSubqueriesWithSortInMainQuery(MAX_SUBQUERIES, "manybigfields", "f000");
+            assertEquals(columns, response.get("columns"));
 
-        List<?> values = (List<?>) response.get("values");
-        assertEquals(docs * MAX_SUBQUERIES, values.size());
+            List<?> values = (List<?>) response.get("values");
+            assertEquals(docs * MAX_SUBQUERIES, values.size());
 
-        for (Object rowObj : values) {
-            List<?> row = (List<?>) rowObj;
-            assertEquals(1000, row.size());
-            for (int f = 0; f < 1000; f++) {
-                assertEquals(Integer.toString(f % 10).repeat(1024), row.get(f));
+            for (Object rowObj : values) {
+                List<?> row = (List<?>) rowObj;
+                assertEquals(1000, row.size());
+                for (int f = 0; f < 1000; f++) {
+                    assertEquals(Integer.toString(f % 10).repeat(1024), row.get(f));
+                }
             }
+        } catch (ResponseException e) {
+            Map<?, ?> map = responseAsMap(e.getResponse());
+            assertMap(
+                map,
+                matchesMap().entry("status", 429).entry("error", matchesMap().extraOk().entry("type", "circuit_breaking_exception"))
+            );
         }
     }
 

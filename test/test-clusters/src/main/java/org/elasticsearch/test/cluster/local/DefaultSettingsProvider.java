@@ -31,7 +31,12 @@ public class DefaultSettingsProvider implements SettingsProvider {
         settings.put("node.portsfile", "true");
         settings.put("http.port", "0");
         settings.put("transport.port", "0");
-        settings.put("network.host", "_local_");
+
+        if (Boolean.getBoolean("java.net.preferIPv6Addresses")) {
+            settings.put("network.host", "_local:ipv6_");
+        } else {
+            settings.put("network.host", "_local_");
+        }
 
         if (nodeSpec.getDistributionType() == DistributionType.INTEG_TEST) {
             settings.put("xpack.security.enabled", "false");

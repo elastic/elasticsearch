@@ -36,4 +36,9 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
     protected boolean supportsSourceFieldMapping() {
         return false;
     }
+
+    @Override
+    protected String maybeRandomizeQuery(String query) {
+        return randomlyNullify(query);
+    }
 }

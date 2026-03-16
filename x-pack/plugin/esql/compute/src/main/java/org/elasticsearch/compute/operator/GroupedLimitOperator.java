@@ -7,12 +7,15 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.common.util.IntArray;
@@ -24,6 +27,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -32,7 +36,7 @@ import java.util.Objects;
  * For {@code LIMIT N BY x}, this accepts up to N rows for each distinct value of x.
  * Group keys use list semantics for multivalues: {@code [1,2]} and {@code [2,1]} are different groups.
  */
-public class GroupedLimitOperator implements Operator {
+public class GroupedLimitOperator implements Operator, Accountable {
     public static final class Factory implements Operator.OperatorFactory {
         private final int limitPerGroup;
         private final int[] groupChannels;
@@ -53,9 +57,11 @@ public class GroupedLimitOperator implements Operator {
 
         @Override
         public String describe() {
-            return "GroupedLimitOperator[limit = " + limitPerGroup + "]";
+            return "GroupedLimitOperator[limitPerGroup = " + limitPerGroup + "]";
         }
     }
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(GroupedLimitOperator.class);
 
     private final int limitPerGroup;
     private final GroupKeyEncoder keyEncoder;
@@ -188,8 +194,17 @@ public class GroupedLimitOperator implements Operator {
     }
 
     @Override
+    public long ramBytesUsed() {
+        long size = SHALLOW_SIZE;
+        size += seenKeys.ramBytesUsed();
+        size += counts.ramBytesUsed();
+        size += keyEncoder.ramBytesUsed();
+        return size;
+    }
+
+    @Override
     public Status status() {
-        return new Status(limitPerGroup, (int) seenKeys.size(), pagesProcessed, rowsReceived, rowsEmitted);
+        return new Status(limitPerGroup, (int) seenKeys.size(), pagesProcessed, rowsReceived, rowsEmitted, ramBytesUsed());
     }
 
     @Override
@@ -199,7 +214,13 @@ public class GroupedLimitOperator implements Operator {
 
     @Override
     public String toString() {
-        return "GroupedLimitOperator[limit = " + limitPerGroup + ", groups = " + seenKeys.size() + "]";
+        return "GroupedLimitOperator[limitPerGroup = "
+            + limitPerGroup
+            + ", groupKeys = "
+            + Arrays.toString(keyEncoder.groupChannels())
+            + ", groups = "
+            + seenKeys.size()
+            + "]";
     }
 
     public static class Status implements Operator.Status {
@@ -214,13 +235,15 @@ public class GroupedLimitOperator implements Operator {
         private final int pagesProcessed;
         private final long rowsReceived;
         private final long rowsEmitted;
+        private final long ramBytesUsed;
 
-        protected Status(int limitPerGroup, int groupCount, int pagesProcessed, long rowsReceived, long rowsEmitted) {
+        protected Status(int limitPerGroup, int groupCount, int pagesProcessed, long rowsReceived, long rowsEmitted, long ramBytesUsed) {
             this.limitPerGroup = limitPerGroup;
             this.groupCount = groupCount;
             this.pagesProcessed = pagesProcessed;
             this.rowsReceived = rowsReceived;
             this.rowsEmitted = rowsEmitted;
+            this.ramBytesUsed = ramBytesUsed;
         }
 
         protected Status(StreamInput in) throws IOException {
@@ -229,6 +252,7 @@ public class GroupedLimitOperator implements Operator {
             pagesProcessed = in.readVInt();
             rowsReceived = in.readVLong();
             rowsEmitted = in.readVLong();
+            ramBytesUsed = in.readVLong();
         }
 
         @Override
@@ -238,6 +262,7 @@ public class GroupedLimitOperator implements Operator {
             out.writeVInt(pagesProcessed);
             out.writeVLong(rowsReceived);
             out.writeVLong(rowsEmitted);
+            out.writeVLong(ramBytesUsed);
         }
 
         @Override
@@ -265,6 +290,10 @@ public class GroupedLimitOperator implements Operator {
             return rowsEmitted;
         }
 
+        public long ramBytesUsed() {
+            return ramBytesUsed;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -273,6 +302,8 @@ public class GroupedLimitOperator implements Operator {
             builder.field("pages_processed", pagesProcessed);
             builder.field("rows_received", rowsReceived);
             builder.field("rows_emitted", rowsEmitted);
+            builder.field("ram_bytes_used", ramBytesUsed);
+            builder.field("ram_used", ByteSizeValue.ofBytes(ramBytesUsed));
             return builder.endObject();
         }
 
@@ -285,12 +316,13 @@ public class GroupedLimitOperator implements Operator {
                 && groupCount == status.groupCount
                 && pagesProcessed == status.pagesProcessed
                 && rowsReceived == status.rowsReceived
-                && rowsEmitted == status.rowsEmitted;
+                && rowsEmitted == status.rowsEmitted
+                && ramBytesUsed == status.ramBytesUsed;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(limitPerGroup, groupCount, pagesProcessed, rowsReceived, rowsEmitted);
+            return Objects.hash(limitPerGroup, groupCount, pagesProcessed, rowsReceived, rowsEmitted, ramBytesUsed);
         }
 
         @Override

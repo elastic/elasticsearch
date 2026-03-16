@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.hamcrest.Matchers;
 
@@ -88,7 +89,12 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var object = new BytesStorageObject("file:///split.ndjson", data.getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
         var reader = new NdJsonFormatReader(blockFactory);
-        try (var iterator = reader.readSplit(object, List.of("id"), 100, true, null)) {
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(100).firstSplit(false).lastSplit(true).build()
+            )
+        ) {
             assertTrue(iterator.hasNext());
             var page = iterator.next();
             // Should have skipped "partial_first_line" and read 2 records
@@ -105,7 +111,12 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var object = new BytesStorageObject("file:///split.ndjson", data.getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
         var reader = new NdJsonFormatReader(blockFactory);
-        try (var iterator = reader.readSplit(object, List.of("id"), 100, false, null)) {
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(100).firstSplit(true).lastSplit(true).build()
+            )
+        ) {
             assertTrue(iterator.hasNext());
             var page = iterator.next();
             assertEquals(2, page.getPositionCount());

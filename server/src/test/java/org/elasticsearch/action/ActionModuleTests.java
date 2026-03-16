@@ -37,6 +37,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestInterceptor;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -137,6 +138,7 @@ public class ActionModuleTests extends ESTestCase {
             List.of(),
             RestExtension.allowAll(),
             new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+            CrossProjectModeDecider.NOOP,
             TestProjectResolvers.alwaysThrow()
         );
         actionModule.initRestHandlers(null, null);
@@ -196,6 +198,7 @@ public class ActionModuleTests extends ESTestCase {
                 List.of(),
                 RestExtension.allowAll(),
                 new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                CrossProjectModeDecider.NOOP,
                 TestProjectResolvers.alwaysThrow()
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null, null));
@@ -248,6 +251,7 @@ public class ActionModuleTests extends ESTestCase {
                 List.of(),
                 RestExtension.allowAll(),
                 new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                CrossProjectModeDecider.NOOP,
                 TestProjectResolvers.alwaysThrow()
             );
             actionModule.initRestHandlers(null, null);
@@ -299,6 +303,7 @@ public class ActionModuleTests extends ESTestCase {
                     List.of(),
                     RestExtension.allowAll(),
                     new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                    CrossProjectModeDecider.NOOP,
                     TestProjectResolvers.alwaysThrow()
                 )
             );
@@ -341,6 +346,7 @@ public class ActionModuleTests extends ESTestCase {
                     List.of(),
                     RestExtension.allowAll(),
                     new IncrementalBulkService(null, null, MeterRegistry.NOOP),
+                    CrossProjectModeDecider.NOOP,
                     TestProjectResolvers.alwaysThrow()
                 )
             );

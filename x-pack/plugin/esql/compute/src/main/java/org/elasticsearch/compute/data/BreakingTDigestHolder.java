@@ -96,8 +96,17 @@ public class BreakingTDigestHolder implements Releasable, Accountable {
 
         BreakingBytesStreamOutput(CircuitBreaker breaker) {
             this.breaker = breaker;
-            this.delegate = new BreakingBytesRefBuilder(breaker, CIRCUIT_BREAKER_LABEL);
-            breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, CIRCUIT_BREAKER_LABEL);
+            BreakingBytesRefBuilder delegate = new BreakingBytesRefBuilder(breaker, CIRCUIT_BREAKER_LABEL);
+            boolean success = false;
+            try {
+                breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, CIRCUIT_BREAKER_LABEL);
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(delegate);
+                }
+            }
+            this.delegate = delegate;
         }
 
         void clear() {

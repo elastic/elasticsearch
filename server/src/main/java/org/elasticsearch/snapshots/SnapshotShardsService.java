@@ -443,7 +443,10 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
 
         for (final Map.Entry<ShardId, ShardGeneration> shardEntry : shardsToStart.entrySet()) {
             final ShardId shardId = shardEntry.getKey();
-            final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(shardEntry.getValue());
+            final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(
+                shardEntry.getValue(),
+                threadPool.absoluteTimeInMillis()
+            );
             newSnapshotShards.put(shardId, snapshotStatus);
             final IndexId indexId = entry.indices().get(shardId.getIndexName());
             assert indexId != null;

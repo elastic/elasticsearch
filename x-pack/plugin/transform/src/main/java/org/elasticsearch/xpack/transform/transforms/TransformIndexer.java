@@ -101,6 +101,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     protected final TransformConfigManager transformsConfigManager;
     private final CheckpointProvider checkpointProvider;
     protected final TransformFailureHandler failureHandler;
+    private final IndicesOptions strictIndicesOptions;
     private volatile float docsPerSecond = -1;
 
     protected final TransformAuditor auditor;
@@ -162,6 +163,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         this.lastCheckpoint = ExceptionsHelper.requireNonNull(lastCheckpoint, "lastCheckpoint");
         this.nextCheckpoint = ExceptionsHelper.requireNonNull(nextCheckpoint, "nextCheckpoint");
         this.context = ExceptionsHelper.requireNonNull(context, "context");
+        ExceptionsHelper.requireNonNull(transformServices.crossProjectModeDecider(), "crossProjectModeDecider");
+        this.strictIndicesOptions = transformServices.crossProjectModeDecider().crossProjectEnabled()
+            && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+                ? SearchRequest.DEFAULT_CPS_INDICES_OPTIONS
+                : SearchRequest.DEFAULT_INDICES_OPTIONS;
         // give runState a default
         this.runState = RunState.APPLY_RESULTS;
 
@@ -329,7 +335,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
                     function.buildSearchQueryForInitialProgress(searchSourceBuilder);
                     searchSourceBuilder.query(QueryBuilders.boolQuery().filter(buildFilterQuery()).filter(searchSourceBuilder.query()));
-                    request.allowPartialSearchResults(false).source(searchSourceBuilder);
+                    request.allowPartialSearchResults(false).indicesOptions(strictIndicesOptions).source(searchSourceBuilder);
 
                     doGetInitialProgress(request, ActionListener.wrap(response -> {
                         function.getInitialProgressFromResponse(response, ActionListener.wrap(newProgress -> {
@@ -1129,7 +1135,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         );
 
         request.allowPartialSearchResults(false) // shard failures should fail the request
-            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN); // TODO: make configurable
+            .indicesOptions(getConfig().getSource().indicesOptions());
 
         changeCollector.buildChangesQuery(sourceBuilder, position != null ? position.getBucketsPosition() : null, context.getPageSize());
 
@@ -1192,7 +1198,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         return request.source(sourceBuilder)
             .allowPartialSearchResults(false) // shard failures should fail the request
-            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN); // TODO: make configurable
+            .indicesOptions(getConfig().getSource().indicesOptions());
     }
 
     /**

@@ -49,7 +49,10 @@ public class OTelSdkMeterSupplier implements MeterSupplier {
                     .registerMetricReader(reader)
                     .build();
                 var otelSdk = OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build();
-                runtimeMetrics = RuntimeMetrics.builder(otelSdk).disableAllFeatures().build();
+                if (OTelSdkSettings.TELEMETRY_OTEL_METRICS_ENABLED.get(settings)) {
+                    // Disable JFR features but JMX are enabled by default
+                    runtimeMetrics = RuntimeMetrics.builder(otelSdk).disableAllFeatures().build();
+                }
             }
             return meterProvider.get("elasticsearch");
         }

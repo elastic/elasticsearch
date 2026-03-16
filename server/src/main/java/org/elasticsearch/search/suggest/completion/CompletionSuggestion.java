@@ -285,7 +285,10 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             }
 
             public void setHit(SearchHit hit) {
-                this.hit = hit == null ? null : hit.asUnpooled();
+                if (hit != null) {
+                    hit.mustIncRef();
+                }
+                this.hit = hit;
             }
 
             @Override

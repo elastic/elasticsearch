@@ -271,6 +271,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             for (SearchHits h : topHitsToRelease) {
                 h.decRef();
             }
+            if (suggest != null) {
+                suggest.decRefCompletionOptionHits();
+            }
             hits.decRef();
             return true;
         }

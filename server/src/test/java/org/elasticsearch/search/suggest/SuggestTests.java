@@ -158,26 +158,33 @@ public class SuggestTests extends ESTestCase {
     public void testFromXContent() throws IOException {
         ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         Suggest suggest = createTestItem();
-        XContentType xContentType = randomFrom(XContentType.values());
-        boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toShuffledXContent(suggest, xContentType, params, humanReadable);
-        Suggest parsed;
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-            ensureFieldName(parser, parser.nextToken(), Suggest.NAME);
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-            parsed = SearchResponseUtils.parseSuggest(parser);
-            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-            assertNull(parser.nextToken());
+        Suggest parsed = null;
+        try {
+            XContentType xContentType = randomFrom(XContentType.values());
+            boolean humanReadable = randomBoolean();
+            BytesReference originalBytes = toShuffledXContent(suggest, xContentType, params, humanReadable);
+            try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                ensureFieldName(parser, parser.nextToken(), Suggest.NAME);
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                parsed = SearchResponseUtils.parseSuggest(parser);
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+                assertNull(parser.nextToken());
+            }
+            assertEquals(suggest.size(), parsed.size());
+            for (Suggestion<?> suggestion : suggest) {
+                Suggestion<? extends Entry<? extends Option>> parsedSuggestion = parsed.getSuggestion(suggestion.getName());
+                assertNotNull(parsedSuggestion);
+                assertEquals(suggestion.getClass(), parsedSuggestion.getClass());
+            }
+            assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, params, humanReadable), xContentType);
+        } finally {
+            suggest.decRefCompletionOptionHits();
+            if (parsed != null) {
+                parsed.decRefCompletionOptionHits();
+            }
         }
-        assertEquals(suggest.size(), parsed.size());
-        for (Suggestion<?> suggestion : suggest) {
-            Suggestion<? extends Entry<? extends Option>> parsedSuggestion = parsed.getSuggestion(suggestion.getName());
-            assertNotNull(parsedSuggestion);
-            assertEquals(suggestion.getClass(), parsedSuggestion.getClass());
-        }
-        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, params, humanReadable), xContentType);
     }
 
     public void testToXContent() throws IOException {
@@ -296,32 +303,40 @@ public class SuggestTests extends ESTestCase {
         TransportVersion bwcVersion = TransportVersionUtils.randomCompatibleVersion();
 
         final Suggest suggest = createTestItem();
-        final Suggest bwcSuggest;
+        Suggest bwcSuggest = null;
+        Suggest backAgain = null;
+        try {
+            NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
 
-        NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.setTransportVersion(bwcVersion);
+                suggest.writeTo(out);
+                try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
+                    in.setTransportVersion(bwcVersion);
+                    bwcSuggest = new Suggest(in);
+                }
+            }
 
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(bwcVersion);
-            suggest.writeTo(out);
-            try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
-                in.setTransportVersion(bwcVersion);
-                bwcSuggest = new Suggest(in);
+            assertEquals(suggest, bwcSuggest);
+
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.setTransportVersion(TransportVersion.current());
+                bwcSuggest.writeTo(out);
+                try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
+                    in.setTransportVersion(TransportVersion.current());
+                    backAgain = new Suggest(in);
+                }
+            }
+
+            assertEquals(suggest, backAgain);
+        } finally {
+            suggest.decRefCompletionOptionHits();
+            if (bwcSuggest != null) {
+                bwcSuggest.decRefCompletionOptionHits();
+            }
+            if (backAgain != null) {
+                backAgain.decRefCompletionOptionHits();
             }
         }
-
-        assertEquals(suggest, bwcSuggest);
-
-        final Suggest backAgain;
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(TransportVersion.current());
-            bwcSuggest.writeTo(out);
-            try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
-                in.setTransportVersion(TransportVersion.current());
-                backAgain = new Suggest(in);
-            }
-        }
-
-        assertEquals(suggest, backAgain);
     }
 }

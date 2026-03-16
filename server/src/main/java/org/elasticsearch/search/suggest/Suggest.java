@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
@@ -100,6 +101,26 @@ public final class Suggest implements Iterable<Suggest.Suggestion<? extends Entr
      */
     public boolean hasScoreDocs() {
         return hasScoreDocs;
+    }
+
+    /**
+     * Release ref-counted resources held by completion suggestion options (their SearchHits).
+     * Called when the owning SearchResponse is released.
+     */
+    public void decRefCompletionOptionHits() {
+        if (suggestions == null) {
+            return;
+        }
+        for (Suggestion<?> suggestion : suggestions) {
+            if (suggestion instanceof CompletionSuggestion completionSuggestion) {
+                for (CompletionSuggestion.Entry.Option option : completionSuggestion.getOptions()) {
+                    SearchHit hit = option.getHit();
+                    if (hit != null) {
+                        hit.decRef();
+                    }
+                }
+            }
+        }
     }
 
     @Override

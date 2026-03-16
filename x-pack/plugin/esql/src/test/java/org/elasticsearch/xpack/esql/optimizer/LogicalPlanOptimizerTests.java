@@ -7684,6 +7684,45 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
     }
 
+    public void testTranslateOverTimeWithWindowAndTBucketTargetCount() {
+        // TBUCKET(20, from, to) for a 1-hour range resolves to 5-minute buckets; 10m window is a valid multiple
+        // (no exception thrown is the assertion)
+        {
+            var query = """
+                TS k8s
+                | STATS sum(rate(network.total_bytes_in, 10m)) BY TBUCKET(20, "2024-05-10T00:00:00Z", "2024-05-10T01:00:00Z")
+                | LIMIT 10
+                """;
+            logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(TEST_PARSER.parseQuery(query)));
+        }
+        // same but with last_over_time
+        {
+            var query = """
+                TS k8s
+                | STATS avg(last_over_time(network.bytes_in, 10 minute)) BY TBUCKET(20, "2024-05-10T00:00:00Z", "2024-05-10T01:00:00Z")
+                | LIMIT 10
+                """;
+            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(TEST_PARSER.parseQuery(query)));
+            Holder<LastOverTime> holder = new Holder<>();
+            plan.forEachExpressionDown(LastOverTime.class, holder::set);
+            assertNotNull(holder.get());
+            assertTrue(holder.get().hasWindow());
+            assertThat(holder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
+        }
+        // 7m is not a multiple of 5m (the resolved bucket size), so this must be rejected
+        {
+            var query = """
+                TS k8s
+                | STATS sum(rate(network.total_bytes_in, 7m)) BY TBUCKET(20, "2024-05-10T00:00:00Z", "2024-05-10T01:00:00Z")
+                | LIMIT 10
+                """;
+            var error = expectThrows(IllegalArgumentException.class, () -> {
+                logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(TEST_PARSER.parseQuery(query)));
+            });
+            assertThat(error.getMessage(), containsString("the window must be larger than the time bucket"));
+        }
+    }
+
     public void testMvSortInvalidOrder() {
         VerificationException e = expectThrows(VerificationException.class, () -> plan("""
             from test

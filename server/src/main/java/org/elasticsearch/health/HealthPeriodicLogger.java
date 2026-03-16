@@ -130,6 +130,7 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
     private final Clock clock;
 
     private volatile boolean isHealthNode = false;
+    private volatile boolean hasNoHealthNode = false;
 
     // This semaphore is used to ensure only one schedule is currently running and to wait for this run to finish before closing
     private final Semaphore currentlyRunning = new Semaphore(1, true);
@@ -249,9 +250,18 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
         DiscoveryNode healthNode = HealthNode.findHealthNode(event.state());
         if (healthNode == null) {
             this.isHealthNode = false;
-            this.maybeCancelJob();
+            if (this.clusterService.localNode().isMasterNode()) {
+                // No health node exists, likely because preflight checks are failing.
+                // Master-eligible nodes can still report preflight health locally.
+                this.hasNoHealthNode = true;
+                maybeScheduleJob();
+            } else {
+                this.hasNoHealthNode = false;
+                this.maybeCancelJob();
+            }
             return;
         }
+        this.hasNoHealthNode = false;
         final boolean isCurrentlyHealthNode = healthNode.getId().equals(this.clusterService.localNode().getId());
         if (this.isHealthNode != isCurrentlyHealthNode) {
             this.isHealthNode = isCurrentlyHealthNode;
@@ -479,10 +489,11 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
     }
 
     /**
-     * Create the SchedulerEngine.Job if this node is the health node
+     * Create the SchedulerEngine.Job if this node is the health node, or if there is no health node
+     * and this node is master-eligible (to report preflight health).
      */
     private void maybeScheduleJob() {
-        if (this.isHealthNode == false) {
+        if (this.isHealthNode == false && this.hasNoHealthNode == false) {
             return;
         }
 
@@ -554,6 +565,11 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
     // Visible for testing
     boolean isHealthNode() {
         return isHealthNode;
+    }
+
+    // Visible for testing
+    boolean hasNoHealthNode() {
+        return hasNoHealthNode;
     }
 
     // Visible for testing

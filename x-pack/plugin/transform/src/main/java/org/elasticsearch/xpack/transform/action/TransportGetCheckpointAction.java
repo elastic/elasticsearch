@@ -174,13 +174,23 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         return nodesAndShards;
     }
 
+    /**
+     * Retains only (node, shard) pairs that appear in the search shards response.
+     * <p>
+     * Here "skipped" means <em>not in the search shards response</em>: shards that would not be
+     * queried for the given request. This is unrelated to {@link SearchShardsGroup#skipped()},
+     * which indicates a different condition (e.g. pre-filtered or non-matching shards).
+     *
+     * @param nodesAndShards      primary shards per node from the cluster state
+     * @param searchShardsResponse result of the search_shards API for the same request
+     * @return map of node id to shard ids that are present in the search shards response
+     */
     static Map<String, Set<ShardId>> filterOutSkippedShards(
         Map<String, Set<ShardId>> nodesAndShards,
         SearchShardsResponse searchShardsResponse
     ) {
         Map<String, Set<ShardId>> filteredNodesAndShards = new HashMap<>(nodesAndShards.size());
-        // Create a deep copy of the given nodes and shards map.
-        // Filter (node, shard) pairs for all the skipped shards.
+        // Keep only (node, shard) pairs that appear in the search shards response.
         for (SearchShardsGroup shardGroup : searchShardsResponse.getGroups()) {
             for (String allocatedNode : shardGroup.allocatedNodes()) {
                 Set<ShardId> shards = nodesAndShards.get(allocatedNode);

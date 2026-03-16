@@ -194,7 +194,14 @@ public class TopNOperator implements Operator, Accountable {
     private final BlockFactory blockFactory;
     private final CircuitBreaker breaker;
 
+    /**
+     * Maximum number of rows per output page.
+     */
     private final int maxPageRows;
+    /**
+     * If a page has more than this many bytes we stop after the current row and
+     * emit that page. Then start a new page for the next row.
+     */
     private final long jumboPageBytes;
 
     private final List<ElementType> elementTypes;

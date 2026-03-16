@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.SplitAwareRequest;
-import org.elasticsearch.action.get.TransportMultiGetActionTests;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.StaleRequestException;
@@ -87,7 +86,7 @@ public class TransportSingleShardActionTests extends ESTestCase {
 
         projectResolver = TestProjectResolvers.singleProject(projectId);
         final ProjectMetadata project = ProjectMetadata.builder(projectId).build();
-        final ClusterState clusterState = ClusterState.builder(new ClusterName(TransportMultiGetActionTests.class.getSimpleName()))
+        final ClusterState clusterState = ClusterState.builder(new ClusterName(TransportSingleShardActionTests.class.getSimpleName()))
             .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("node")).build())
             .metadata(new Metadata.Builder().put(project))
             .build();

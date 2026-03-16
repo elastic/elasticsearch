@@ -23,26 +23,30 @@ import java.util.Map;
 
 /**
  * Settings for query approximation.
- * @param enabled Whether approximation is enabled.
  * @param rows The number of rows used for query approximation.
  *             If {@code null}, the default will be used.
  * @param confidenceLevel The confidence level of the confidence intervals returned by query approximation.
  *                       If {@code null}, the default will be used.
  */
-public record ApproximationSettings(boolean enabled, Integer rows, Double confidenceLevel) implements Writeable {
-    public static final ApproximationSettings ENABLED = new ApproximationSettings(true, null, null);
-    public static final ApproximationSettings DISABLED = new ApproximationSettings(false, null, null);
+public record ApproximationSettings(Integer rows, Double confidenceLevel) implements Writeable {
 
     /**
-     * The default confidence level to use for query approximation if none is specified.
+     * Default confidence level to use for query approximation if none is specified.
      */
     private static final double DEFAULT_CONFIDENCE_LEVEL = 0.90;
 
     /**
-     * Sentinel value representing an explicit NULL for a field,
-     * meaning "revert to null" during merge.
+     * Default approximation settings, when it's enabled but no specific settings are provided.
      */
-    private static final int EXPLICIT_NULL = -1;
+    public static final ApproximationSettings DEFAULT = new ApproximationSettings(null, DEFAULT_CONFIDENCE_LEVEL);
+
+    /**
+     * Sentinel approximation settings representing an explicit NULL, meaning "revert to null" during merge.
+     */
+    public static final ApproximationSettings EXPLICIT_NULL = new ApproximationSettings(
+        Builder.EXPLICIT_NULL,
+        (double) Builder.EXPLICIT_NULL
+    );
 
     /**
      * Returns the number of rows to be used for query approximation.
@@ -50,40 +54,29 @@ public record ApproximationSettings(boolean enabled, Integer rows, Double confid
      */
     @Override
     public Integer rows() {
-        return rows != null && rows == EXPLICIT_NULL ? null : rows;
+        return rows == null || rows == Builder.EXPLICIT_NULL ? null : rows;
     }
 
     /**
      * Returns the request confidence level.
      * If none is set, the default level is returned.
-     * If null is set, no confidence intervals should be computed.
+     * If null is explicitly set, no confidence intervals should be computed.
      */
     @Override
     public Double confidenceLevel() {
-        if (confidenceLevel == null) {
-            return DEFAULT_CONFIDENCE_LEVEL;
-        } else {
-            return confidenceLevel == EXPLICIT_NULL ? null : confidenceLevel;
-        }
+        return confidenceLevel == null || confidenceLevel == Builder.EXPLICIT_NULL ? null : confidenceLevel;
     }
 
-    private static final ObjectParser<ApproximationSettingsBuilder, Void> X_CONTENT_PARSER = new ObjectParser<>(
-        "approximation",
-        ApproximationSettingsBuilder::new
-    );
+    private static final ObjectParser<Builder, Void> X_CONTENT_PARSER = new ObjectParser<>("approximation", () -> new Builder(true));
 
     static {
-        X_CONTENT_PARSER.declareIntOrNull(ApproximationSettingsBuilder::rows, EXPLICIT_NULL, new ParseField("rows"));
-        X_CONTENT_PARSER.declareDoubleOrNull(
-            ApproximationSettingsBuilder::confidenceLevel,
-            EXPLICIT_NULL,
-            new ParseField("confidence_level")
-        );
+        X_CONTENT_PARSER.declareIntOrNull(Builder::rows, Builder.EXPLICIT_NULL, new ParseField("rows"));
+        X_CONTENT_PARSER.declareDoubleOrNull(Builder::confidenceLevel, Builder.EXPLICIT_NULL, new ParseField("confidence_level"));
     }
 
     public static ApproximationSettings fromXContent(XContentParser parser) throws IOException {
         if (parser.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
-            return parser.booleanValue() ? ENABLED : DISABLED;
+            return parser.booleanValue() ? DEFAULT : EXPLICIT_NULL;
         } else {
             return X_CONTENT_PARSER.apply(parser, null).build();
         }
@@ -91,8 +84,8 @@ public record ApproximationSettings(boolean enabled, Integer rows, Double confid
 
     public static ApproximationSettings parse(Expression expression) {
         return switch (expression) {
-            case Literal literal when literal.value() == null -> DISABLED;
-            case Literal literal when literal.value() instanceof Boolean value -> value ? ENABLED : DISABLED;
+            case Literal literal when literal.value() == null -> EXPLICIT_NULL;
+            case Literal literal when literal.value() instanceof Boolean value -> value ? DEFAULT : EXPLICIT_NULL;
             case MapExpression mapExpression -> parse(mapExpression);
             default -> throw new IllegalArgumentException("Invalid approximation configuration [" + expression + "]");
         };
@@ -106,7 +99,7 @@ public record ApproximationSettings(boolean enabled, Integer rows, Double confid
             throw new IllegalArgumentException("Approximation configuration must be a constant value [" + expression + "]");
         }
 
-        ApproximationSettingsBuilder builder = new ApproximationSettingsBuilder();
+        Builder builder = new Builder(true);
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             switch (entry.getKey()) {
                 case "rows":
@@ -128,60 +121,72 @@ public record ApproximationSettings(boolean enabled, Integer rows, Double confid
         return builder.build();
     }
 
-    /**
-     * Returns a new settings with {@code override}'s non-null fields applied
-     * on top of this instance.
-     */
-    public ApproximationSettings merge(ApproximationSettings override) {
-        if (override == null) {
-            return this;
-        }
-        return new ApproximationSettings(
-            override.enabled,
-            override.rows != null ? override.rows : this.rows,
-            override.confidenceLevel != null ? override.confidenceLevel : this.confidenceLevel
-        );
-    }
-
     public ApproximationSettings(StreamInput in) throws IOException {
-        this(in.readBoolean(), in.readOptionalInt(), in.readOptionalDouble());
+        this(in.readOptionalInt(), in.readOptionalDouble());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(enabled);
         out.writeOptionalInt(rows());
         out.writeOptionalDouble(confidenceLevel());
     }
 
-    private static class ApproximationSettingsBuilder {
-        private Integer rows;
-        private Double confidenceLevel;
+    public static class Builder {
+        /**
+         * Sentinel value representing an explicit NULL for a field,
+         * meaning "revert to null" during merge.
+         */
+        private static final int EXPLICIT_NULL = -1;
 
-        void rows(Integer rows) {
+        private boolean enabled;
+        private Integer rows = null;
+        private Double confidenceLevel = 0.90;
+
+        public Builder(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public Builder rows(Integer rows) {
             if (rows == null || rows == EXPLICIT_NULL) {
                 this.rows = EXPLICIT_NULL;
-                return;
-            }
-            if (rows < 10000) {
+            } else if (rows < 10000) {
                 throw new IllegalArgumentException("Approximation configuration [rows] must be at least 10000");
+            } else {
+                this.rows = rows;
             }
-            this.rows = rows;
+            return this;
         }
 
-        void confidenceLevel(Double confidenceLevel) {
+        public Builder confidenceLevel(Double confidenceLevel) {
             if (confidenceLevel == null || confidenceLevel == EXPLICIT_NULL) {
                 this.confidenceLevel = (double) EXPLICIT_NULL;
-                return;
-            }
-            if (confidenceLevel < 0.5 || confidenceLevel > 0.95) {
+            } else if (confidenceLevel < 0.5 || confidenceLevel > 0.95) {
                 throw new IllegalArgumentException("Approximation configuration [confidence_level] must be between 0.5 and 0.95");
+            } else {
+                this.confidenceLevel = confidenceLevel;
             }
-            this.confidenceLevel = confidenceLevel;
+            return this;
         }
 
-        ApproximationSettings build() {
-            return new ApproximationSettings(true, rows, confidenceLevel);
+        /**
+         * Override with the provided settings' non-null fields.
+         */
+        public Builder merge(ApproximationSettings override) {
+            if (override == null) {
+                return this;
+            }
+            enabled = (override != ApproximationSettings.EXPLICIT_NULL);
+            if (override.rows != null) {
+                rows = override.rows;
+            }
+            if (override.confidenceLevel != null) {
+                confidenceLevel = override.confidenceLevel;
+            }
+            return this;
+        }
+
+        public ApproximationSettings build() {
+            return enabled ? new ApproximationSettings(rows, confidenceLevel) : null;
         }
     }
 }

@@ -30,7 +30,7 @@ public class ApproximationPlanTests extends ApproximationTestCase {
     public void testApproximationPlan_createsConfidenceInterval_withoutGrouping() throws Exception {
         LogicalPlan approximationPlan = ApproximationPlan.get(
             ApproximationTests.getLogicalPlan("FROM test | STATS COUNT(), SUM(emp_no)"),
-            ApproximationSettings.ENABLED
+            ApproximationSettings.DEFAULT
         );
 
         assertThat(approximationPlan, hasPlan(SampledAggregate.class));
@@ -43,7 +43,7 @@ public class ApproximationPlanTests extends ApproximationTestCase {
     public void testApproximationPlan_createsConfidenceInterval_withGrouping() throws Exception {
         LogicalPlan approximationPlan = ApproximationPlan.get(
             ApproximationTests.getLogicalPlan("FROM test | STATS COUNT(), SUM(emp_no) BY emp_no"),
-            ApproximationSettings.ENABLED
+            ApproximationSettings.DEFAULT
         );
 
         assertThat(approximationPlan, hasPlan(SampledAggregate.class));
@@ -58,7 +58,7 @@ public class ApproximationPlanTests extends ApproximationTestCase {
             ApproximationTests.getLogicalPlan(
                 "FROM test | STATS x=SUM(emp_no) | EVAL a=x*x, b=7, c=TO_STRING(x), d=MV_APPEND(x, 1::LONG), e=a+POW(b, 2)"
             ),
-            ApproximationSettings.ENABLED
+            ApproximationSettings.DEFAULT
         );
 
         assertThat(approximationPlan, hasPlan(SampledAggregate.class));
@@ -79,7 +79,7 @@ public class ApproximationPlanTests extends ApproximationTestCase {
     public void testColumnMetadata() throws Exception {
         LogicalPlan approximationPlan = ApproximationPlan.get(
             ApproximationTests.getLogicalPlan("FROM test | STATS count=COUNT(), sum=SUM(emp_no)"),
-            ApproximationSettings.ENABLED
+            ApproximationSettings.DEFAULT
         );
 
         for (Attribute attr : approximationPlan.output()) {

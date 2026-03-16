@@ -949,7 +949,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "approximation": null
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        assertThat(request.approximation(), equalTo(ApproximationSettings.DISABLED));
+        assertThat(request.approximation(), equalTo(ApproximationSettings.EXPLICIT_NULL));
     }
 
     public void testApproximationTrue() throws IOException {
@@ -959,7 +959,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "approximation": true
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        assertThat(request.approximation(), equalTo(ApproximationSettings.ENABLED));
+        assertThat(request.approximation(), equalTo(ApproximationSettings.DEFAULT));
         assertThat(request.approximation().confidenceLevel(), equalTo(0.90));
     }
 
@@ -970,7 +970,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "approximation": false
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        assertThat(request.approximation(), equalTo(ApproximationSettings.DISABLED));
+        assertThat(request.approximation(), equalTo(ApproximationSettings.EXPLICIT_NULL));
     }
 
     public void testApproximationObject() throws IOException {
@@ -979,11 +979,11 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "query": "FROM test | STATS count()",
                 "approximation": {
                     "rows": 50000,
-                    "confidence_level": 0.9
+                    "confidence_level": 0.678
                 }
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        assertThat(request.approximation(), equalTo(new ApproximationSettings(true, 50000, 0.9)));
+        assertThat(request.approximation(), equalTo(new ApproximationSettings(50000, 0.678)));
     }
 
     public void testApproximationObjectPartial() throws IOException {
@@ -995,7 +995,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 }
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        assertThat(request.approximation(), equalTo(new ApproximationSettings(true, 20000, null)));
+        assertThat(request.approximation(), equalTo(new ApproximationSettings(20000, 0.9)));
     }
 
     public void testApproximationObjectEmpty() throws IOException {
@@ -1005,7 +1005,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "approximation": {}
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
-        assertThat(request.approximation(), equalTo(ApproximationSettings.ENABLED));
+        assertThat(request.approximation(), equalTo(ApproximationSettings.DEFAULT));
     }
 
     public void testApproximationNotSet() throws IOException {

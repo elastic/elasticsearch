@@ -128,7 +128,7 @@ final class RequestXContent {
         parser.declareObjectOrBooleanOrNull(
             EsqlQueryRequest::approximation,
             (p, c) -> ApproximationSettings.fromXContent(p),
-            ApproximationSettings.DISABLED,
+            ApproximationSettings.EXPLICIT_NULL,
             APPROXIMATION_FIELD
         );
     }

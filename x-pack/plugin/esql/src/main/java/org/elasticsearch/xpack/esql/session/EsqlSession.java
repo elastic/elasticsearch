@@ -379,9 +379,11 @@ public class EsqlSession {
         return projectRouting;
     }
 
-    private static ApproximationSettings approximationSettings(EsqlQueryRequest request, EsqlStatement statement) {
+    public static ApproximationSettings approximationSettings(EsqlQueryRequest request, EsqlStatement statement) {
         // The precedence for settings is: SET in the statement > request parameter > default (=disabled).
-        return ApproximationSettings.DISABLED.merge(request.approximation()).merge(statement.setting(QuerySettings.APPROXIMATION));
+        return new ApproximationSettings.Builder(false).merge(request.approximation())
+            .merge(statement.setting(QuerySettings.APPROXIMATION))
+            .build();
     }
 
     /**

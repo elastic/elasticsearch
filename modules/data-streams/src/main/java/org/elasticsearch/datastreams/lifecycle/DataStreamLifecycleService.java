@@ -1973,7 +1973,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     }
 
     /**
-     * Executor for marking indices for conversation to frozen
+     * Executor for marking indices for conversion to frozen
      */
     public static class MarkIndexForFrozenExecutor implements ClusterStateTaskExecutor<MarkIndicesForFrozenTask> {
         @Override

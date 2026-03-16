@@ -1336,85 +1336,85 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                     downsampleDateHistogramBuckets.stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(Collectors.toList())
                 );
 
-            for (int i = 0; i < originalDateHistogramBuckets.size(); ++i) {
-                InternalDateHistogram.Bucket originalDateHistogramBucket = originalDateHistogramBuckets.get(i);
-                InternalDateHistogram.Bucket downsampleDateHistogramBucket = downsampleDateHistogramBuckets.get(i);
-                assertEquals(originalDateHistogramBucket.getKeyAsString(), downsampleDateHistogramBucket.getKeyAsString());
+                for (int i = 0; i < originalDateHistogramBuckets.size(); ++i) {
+                    InternalDateHistogram.Bucket originalDateHistogramBucket = originalDateHistogramBuckets.get(i);
+                    InternalDateHistogram.Bucket downsampleDateHistogramBucket = downsampleDateHistogramBuckets.get(i);
+                    assertEquals(originalDateHistogramBucket.getKeyAsString(), downsampleDateHistogramBucket.getKeyAsString());
 
-                InternalAggregations originalAggregations = originalDateHistogramBucket.getAggregations();
-                InternalAggregations downsampleAggregations = downsampleDateHistogramBucket.getAggregations();
-                assertEquals(originalAggregations.asList().size(), downsampleAggregations.asList().size());
+                    InternalAggregations originalAggregations = originalDateHistogramBucket.getAggregations();
+                    InternalAggregations downsampleAggregations = downsampleDateHistogramBucket.getAggregations();
+                    assertEquals(originalAggregations.asList().size(), downsampleAggregations.asList().size());
 
-                List<InternalAggregation> nonTopHitsOriginalAggregations = originalAggregations.asList()
-                    .stream()
-                    .filter(agg -> agg.getType().equals("top_hits") == false)
-                    .toList();
-                List<InternalAggregation> nonTopHitsDownsampleAggregations = downsampleAggregations.asList()
-                    .stream()
-                    .filter(agg -> agg.getType().equals("top_hits") == false)
-                    .toList();
-                assertEquals(nonTopHitsOriginalAggregations, nonTopHitsDownsampleAggregations);
+                    List<InternalAggregation> nonTopHitsOriginalAggregations = originalAggregations.asList()
+                        .stream()
+                        .filter(agg -> agg.getType().equals("top_hits") == false)
+                        .toList();
+                    List<InternalAggregation> nonTopHitsDownsampleAggregations = downsampleAggregations.asList()
+                        .stream()
+                        .filter(agg -> agg.getType().equals("top_hits") == false)
+                        .toList();
+                    assertEquals(nonTopHitsOriginalAggregations, nonTopHitsDownsampleAggregations);
 
-                List<InternalAggregation> topHitsOriginalAggregations = originalAggregations.asList()
-                    .stream()
-                    .filter(agg -> agg.getType().equals("top_hits"))
-                    .toList();
-                List<InternalAggregation> topHitsDownsampleAggregations = downsampleAggregations.asList()
-                    .stream()
-                    .filter(agg -> agg.getType().equals("top_hits"))
-                    .toList();
-                assertEquals(topHitsOriginalAggregations.size(), topHitsDownsampleAggregations.size());
+                    List<InternalAggregation> topHitsOriginalAggregations = originalAggregations.asList()
+                        .stream()
+                        .filter(agg -> agg.getType().equals("top_hits"))
+                        .toList();
+                    List<InternalAggregation> topHitsDownsampleAggregations = downsampleAggregations.asList()
+                        .stream()
+                        .filter(agg -> agg.getType().equals("top_hits"))
+                        .toList();
+                    assertEquals(topHitsOriginalAggregations.size(), topHitsDownsampleAggregations.size());
 
-                for (int j = 0; j < topHitsDownsampleAggregations.size(); ++j) {
-                    InternalTopHits originalTopHits = (InternalTopHits) topHitsOriginalAggregations.get(j);
-                    InternalTopHits downsampleTopHits = (InternalTopHits) topHitsDownsampleAggregations.get(j);
-                    SearchHit[] originalHits = originalTopHits.getHits().getHits();
-                    SearchHit[] downsampleHits = downsampleTopHits.getHits().getHits();
-                    assertEquals(originalHits.length, downsampleHits.length);
+                    for (int j = 0; j < topHitsDownsampleAggregations.size(); ++j) {
+                        InternalTopHits originalTopHits = (InternalTopHits) topHitsOriginalAggregations.get(j);
+                        InternalTopHits downsampleTopHits = (InternalTopHits) topHitsDownsampleAggregations.get(j);
+                        SearchHit[] originalHits = originalTopHits.getHits().getHits();
+                        SearchHit[] downsampleHits = downsampleTopHits.getHits().getHits();
+                        assertEquals(originalHits.length, downsampleHits.length);
 
-                    for (int k = 0; k < originalHits.length; ++k) {
-                        SearchHit originalHit = originalHits[k];
-                        SearchHit downsampleHit = downsampleHits[k];
+                        for (int k = 0; k < originalHits.length; ++k) {
+                            SearchHit originalHit = originalHits[k];
+                            SearchHit downsampleHit = downsampleHits[k];
 
-                        Map<String, DocumentField> originalHitDocumentFields = originalHit.getDocumentFields();
-                        Map<String, DocumentField> downsampleHitDocumentFields = downsampleHit.getDocumentFields();
-                        List<DocumentField> originalFields = originalHitDocumentFields.values().stream().toList();
-                        List<DocumentField> downsampleFields = downsampleHitDocumentFields.values().stream().toList();
-                        if (originalFields.isEmpty() == false && downsampleFields.isEmpty() == false) {
-                            assertEquals(originalFields.size(), downsampleFields.size());
-                            for (int fieldIndex = 0; fieldIndex < originalFields.size(); fieldIndex++) {
-                                DocumentField originalField = originalFields.get(fieldIndex);
-                                DocumentField downsampleField = downsampleFields.get(fieldIndex);
-                                assertEquals(originalField.getName(), downsampleField.getName());
-                                originalField.getValues()
-                                    .forEach(
-                                        value -> assertTrue(
-                                            "Field ["
-                                                + originalField.getName()
-                                                + "] does not have the value ["
-                                                + value
-                                                + "] in the downsample field values: "
-                                                + downsampleField.getValues(),
-                                            downsampleField.getValues().contains(value)
-                                        )
-                                    );
-                                downsampleField.getValues()
-                                    .forEach(
-                                        value -> assertTrue(
-                                            "Field ["
-                                                + downsampleField.getName()
-                                                + "] does not have the value ["
-                                                + value
-                                                + "] in the source field values: "
-                                                + originalField.getValues(),
-                                            originalField.getValues().contains(value)
-                                        )
-                                    );
+                            Map<String, DocumentField> originalHitDocumentFields = originalHit.getDocumentFields();
+                            Map<String, DocumentField> downsampleHitDocumentFields = downsampleHit.getDocumentFields();
+                            List<DocumentField> originalFields = originalHitDocumentFields.values().stream().toList();
+                            List<DocumentField> downsampleFields = downsampleHitDocumentFields.values().stream().toList();
+                            if (originalFields.isEmpty() == false && downsampleFields.isEmpty() == false) {
+                                assertEquals(originalFields.size(), downsampleFields.size());
+                                for (int fieldIndex = 0; fieldIndex < originalFields.size(); fieldIndex++) {
+                                    DocumentField originalField = originalFields.get(fieldIndex);
+                                    DocumentField downsampleField = downsampleFields.get(fieldIndex);
+                                    assertEquals(originalField.getName(), downsampleField.getName());
+                                    originalField.getValues()
+                                        .forEach(
+                                            value -> assertTrue(
+                                                "Field ["
+                                                    + originalField.getName()
+                                                    + "] does not have the value ["
+                                                    + value
+                                                    + "] in the downsample field values: "
+                                                    + downsampleField.getValues(),
+                                                downsampleField.getValues().contains(value)
+                                            )
+                                        );
+                                    downsampleField.getValues()
+                                        .forEach(
+                                            value -> assertTrue(
+                                                "Field ["
+                                                    + downsampleField.getName()
+                                                    + "] does not have the value ["
+                                                    + value
+                                                    + "] in the source field values: "
+                                                    + originalField.getValues(),
+                                                originalField.getValues().contains(value)
+                                            )
+                                        );
+                                }
                             }
                         }
                     }
                 }
-            }
             });
         } finally {
             respOrig.decRef();

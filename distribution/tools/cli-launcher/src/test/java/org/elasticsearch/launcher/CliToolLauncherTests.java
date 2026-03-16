@@ -157,6 +157,79 @@ public class CliToolLauncherTests extends ESTestCase {
         assertThat(stderr, containsString(RedirectTestCommand.USER_OUTPUT));
     }
 
+    public void testWithRedirectFlagStdoutOutputIsUntagged() throws Exception {
+        Path esHome = createTempDir();
+        ByteArrayOutputStream stdoutCapture = new ByteArrayOutputStream();
+        ByteArrayOutputStream stderrCapture = new ByteArrayOutputStream();
+        PrintStream savedOut = System.out;
+        PrintStream savedErr = System.err;
+        String savedEsPathHome = System.getProperty("es.path.home");
+        String savedCliName = System.getProperty("cli.name");
+        String savedCliLibs = System.getProperty("cli.libs");
+        String savedRedirect = System.getProperty("cli.redirectStdoutToStderr");
+        try {
+            System.setOut(new PrintStream(stdoutCapture, true, StandardCharsets.UTF_8));
+            System.setErr(new PrintStream(stderrCapture, true, StandardCharsets.UTF_8));
+            System.setProperty("es.path.home", esHome.toString());
+            System.setProperty("cli.name", "redirect-test");
+            System.setProperty("cli.libs", "");
+            System.setProperty("cli.redirectStdoutToStderr", "true");
+            CliToolLauncher.main(new String[0]);
+        } finally {
+            System.setOut(savedOut);
+            System.setErr(savedErr);
+            restoreOrClear("es.path.home", savedEsPathHome);
+            restoreOrClear("cli.name", savedCliName);
+            restoreOrClear("cli.libs", savedCliLibs);
+            restoreOrClear("cli.redirectStdoutToStderr", savedRedirect);
+        }
+        String stderr = stderrCapture.toString(StandardCharsets.UTF_8);
+        char tag = (char) StderrTaggingOutputStream.STDERR_LINE_TAG;
+        for (String line : stderr.split("\n")) {
+            if (line.contains(RedirectTestCommand.USER_OUTPUT)) {
+                assertThat("stdout-destined output should not be tagged", line.charAt(0) == tag, is(false));
+            }
+        }
+    }
+
+    public void testWithRedirectFlagErrorOutputIsTagged() throws Exception {
+        Path esHome = createTempDir();
+        ByteArrayOutputStream stdoutCapture = new ByteArrayOutputStream();
+        ByteArrayOutputStream stderrCapture = new ByteArrayOutputStream();
+        PrintStream savedOut = System.out;
+        PrintStream savedErr = System.err;
+        String savedEsPathHome = System.getProperty("es.path.home");
+        String savedCliName = System.getProperty("cli.name");
+        String savedCliLibs = System.getProperty("cli.libs");
+        String savedRedirect = System.getProperty("cli.redirectStdoutToStderr");
+        try {
+            System.setOut(new PrintStream(stdoutCapture, true, StandardCharsets.UTF_8));
+            System.setErr(new PrintStream(stderrCapture, true, StandardCharsets.UTF_8));
+            System.setProperty("es.path.home", esHome.toString());
+            System.setProperty("cli.name", "redirect-test");
+            System.setProperty("cli.libs", "");
+            System.setProperty("cli.redirectStdoutToStderr", "true");
+            CliToolLauncher.main(new String[0]);
+        } finally {
+            System.setOut(savedOut);
+            System.setErr(savedErr);
+            restoreOrClear("es.path.home", savedEsPathHome);
+            restoreOrClear("cli.name", savedCliName);
+            restoreOrClear("cli.libs", savedCliLibs);
+            restoreOrClear("cli.redirectStdoutToStderr", savedRedirect);
+        }
+        String stderr = stderrCapture.toString(StandardCharsets.UTF_8);
+        char tag = (char) StderrTaggingOutputStream.STDERR_LINE_TAG;
+        boolean foundTaggedError = false;
+        for (String line : stderr.split("\n")) {
+            if (line.contains(RedirectTestCommand.ERROR_OUTPUT)) {
+                assertThat("stderr-destined output should be tagged", line.charAt(0), equalTo(tag));
+                foundTaggedError = true;
+            }
+        }
+        assertThat("should have found tagged error output", foundTaggedError, is(true));
+    }
+
     private static void restoreOrClear(String key, String value) {
         if (value != null) {
             System.setProperty(key, value);

@@ -19,21 +19,27 @@ import java.io.PrintWriter;
 import java.nio.charset.Charset;
 
 /**
- * A terminal that sends all print output to stderr and exposes the real stdout
- * via {@link #getOutputStream()}. Used when the process is run with
- * ES_REDIRECT_STDOUT_TO_STDERR (or cli.redirectStdoutToStderr) so that
- * binary data (e.g. the launch descriptor) can be written to stdout while
- * user-visible output goes to stderr.
+ * A terminal used when the process is run with ES_REDIRECT_STDOUT_TO_STDERR
+ * (or cli.redirectStdoutToStderr). At construction time the calling code has already:
+ * <ol>
+ *     <li>Redirected {@code System.out} to the real stderr (untagged, stdout-destined)</li>
+ *     <li>Replaced {@code System.err} with a {@link StderrTaggingOutputStream} wrapper
+ *         (tagged, stderr-destined)</li>
+ * </ol>
+ * This terminal wires {@code outWriter} to {@code System.out} (untagged) and
+ * {@code errWriter} to {@code System.err} (tagged), so the launcher can distinguish
+ * the original destination of each line. Binary data (e.g. the launch descriptor)
+ * is written via {@link #getOutputStream()} which returns the saved original stdout.
  */
 class RedirectedStdoutTerminal extends Terminal {
 
     private final OutputStream stdoutForBinary;
 
-    @SuppressForbidden(reason = "Use stderr for all print output; stdout reserved for binary (e.g. descriptor)")
+    @SuppressForbidden(reason = "System.out is untagged stderr (stdout-destined); System.err is tagged (stderr-destined)")
     RedirectedStdoutTerminal(OutputStream stdoutForBinary) {
         super(
             new InputStreamReader(System.in, Charset.defaultCharset()),
-            new PrintWriter(System.err, true),
+            new PrintWriter(System.out, true),
             new PrintWriter(System.err, true)
         );
         this.stdoutForBinary = stdoutForBinary;

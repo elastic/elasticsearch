@@ -57,6 +57,7 @@ class CliToolLauncher {
         if (isRedirectStdoutToStderr()) {
             originalStdOut = System.out;
             setOutToStderr();
+            tagStderr();
         }
 
         ProcessInfo pinfo = ProcessInfo.fromSystem();
@@ -91,6 +92,11 @@ class CliToolLauncher {
     @SuppressForbidden(reason = "Redirect stdout to stderr so binary output can use real stdout")
     private static void setOutToStderr() {
         System.setOut(new PrintStream(System.err));
+    }
+
+    @SuppressForbidden(reason = "Replace stderr with a tagging stream so the launcher can route it to stderr")
+    private static void tagStderr() {
+        System.setErr(new PrintStream(new StderrTaggingOutputStream(System.err), true));
     }
 
     // package private for tests

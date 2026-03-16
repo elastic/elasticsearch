@@ -72,6 +72,7 @@ import static org.mockito.Mockito.when;
 public class TransportSingleShardActionTests extends ESTestCase {
     private static ThreadPool threadPool;
     private static ClusterService clusterService;
+    private static ClusterApplierService clusterApplierService;
     private static TransportService transportService;
     private static ProjectResolver projectResolver;
 
@@ -93,7 +94,7 @@ public class TransportSingleShardActionTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.getSettings()).thenReturn(settings);
         final var clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final var clusterApplierService = new ClusterApplierService("node", settings, clusterSettings, threadPool) {
+        clusterApplierService = new ClusterApplierService("node", settings, clusterSettings, threadPool) {
             private final PrioritizedEsThreadPoolExecutor directExecutor = new PrioritizedEsThreadPoolExecutor(
                 "master-service",
                 1,
@@ -134,6 +135,8 @@ public class TransportSingleShardActionTests extends ESTestCase {
     public static void afterClass() {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         threadPool = null;
+        clusterApplierService.close();
+        clusterApplierService = null;
         clusterService = null;
         transportService = null;
         projectResolver = null;

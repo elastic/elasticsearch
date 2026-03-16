@@ -9,21 +9,19 @@ package org.elasticsearch.xpack.inference.services.azureopenai.completion;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2SettingsTests;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Settings;
 import org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2SettingsTests;
-import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
@@ -32,23 +30,13 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Settings.AZURE_OPENAI_OAUTH_SETTINGS;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class AzureOpenAiCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<AzureOpenAiCompletionServiceSettings> {
-
-    private static final String RESOURCE_NAME = "resource";
-    private static final String DEPLOYMENT_ID = "deployment";
-    private static final String API_VERSION = "2024";
-    private static final String TENANT_ID = "tenant_id";
+public class AzureOpenAiCompletionServiceSettingsTests extends AzureOpenAiServiceSettingsTests<AzureOpenAiCompletionServiceSettings> {
 
     private static final String NEW_TENANT_ID = "new-tenant";
     private static final String NEW_CLIENT_ID = "new-client";
     private static final List<String> NEW_SCOPES = List.of("new-scope1", "new-scope2");
-
-    public static final String ERROR_RESOURCE_NAME_REQUIRED = "[service_settings] does not contain the required setting [resource_name]";
-    public static final String ERROR_DEPLOYMENT_ID_REQUIRED = "[service_settings] does not contain the required setting [deployment_id]";
-    public static final String ERROR_API_VERSION_REQUIRED = "[service_settings] does not contain the required setting [api_version]";
 
     public static AzureOpenAiCompletionServiceSettings createRandom() {
         return createRandom(randomFrom(AzureOpenAiOAuth2SettingsTests.createRandom(), null));
@@ -72,6 +60,28 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AbstractBWCWireSe
         return createRandom(null);
     }
 
+    @Override
+    protected AzureOpenAiCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        return AzureOpenAiCompletionServiceSettings.fromMap(map, context);
+    }
+
+    @Override
+    protected Map<String, Object> buildMinimalPersistentMapWithOAuth2() {
+        var map = new HashMap<String, Object>();
+        map.put(AzureOpenAiServiceFields.RESOURCE_NAME, RESOURCE_NAME);
+        map.put(AzureOpenAiServiceFields.DEPLOYMENT_ID, DEPLOYMENT_ID);
+        map.put(AzureOpenAiServiceFields.API_VERSION, API_VERSION);
+        map.put(OAuth2Settings.CLIENT_ID_FIELD, OAuth2SettingsTests.CLIENT_ID);
+        map.put(OAuth2Settings.SCOPES_FIELD, OAuth2SettingsTests.SCOPES);
+        map.put(AzureOpenAiOAuth2Settings.TENANT_ID_FIELD, TENANT_ID);
+        return map;
+    }
+
+    @Override
+    protected AzureOpenAiCompletionServiceSettings createSettingsWithOAuth2(@Nullable AzureOpenAiOAuth2Settings oAuth2Settings) {
+        return new AzureOpenAiCompletionServiceSettings(RESOURCE_NAME, DEPLOYMENT_ID, API_VERSION, null, oAuth2Settings);
+    }
+
     public void testFromMap_Request_CreatesSettingsCorrectly() {
         var serviceSettings = AzureOpenAiCompletionServiceSettings.fromMap(
             new HashMap<>(
@@ -90,83 +100,6 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AbstractBWCWireSe
         assertThat(serviceSettings, is(new AzureOpenAiCompletionServiceSettings(RESOURCE_NAME, DEPLOYMENT_ID, API_VERSION, null)));
     }
 
-    public void testFromMap_EmptyMap_ThrowsValidationException() {
-        var exception = expectThrows(
-            ValidationException.class,
-            () -> AzureOpenAiCompletionServiceSettings.fromMap(new HashMap<>(), ConfigurationParseContext.PERSISTENT)
-        );
-        assertThat(exception.getMessage(), containsString(ERROR_RESOURCE_NAME_REQUIRED));
-        assertThat(exception.getMessage(), containsString(ERROR_DEPLOYMENT_ID_REQUIRED));
-        assertThat(exception.getMessage(), containsString(ERROR_API_VERSION_REQUIRED));
-    }
-
-    public void testFromMap_MissingResourceName_ThrowsValidationException() {
-        Map<String, Object> map = new HashMap<>();
-        map.put(AzureOpenAiServiceFields.DEPLOYMENT_ID, DEPLOYMENT_ID);
-        map.put(AzureOpenAiServiceFields.API_VERSION, API_VERSION);
-        var exception = expectThrows(
-            ValidationException.class,
-            () -> AzureOpenAiCompletionServiceSettings.fromMap(map, ConfigurationParseContext.PERSISTENT)
-        );
-        assertThat(exception.getMessage(), containsString(ERROR_RESOURCE_NAME_REQUIRED));
-    }
-
-    public void testFromMap_MissingDeploymentId_ThrowsValidationException() {
-        Map<String, Object> map = new HashMap<>();
-        map.put(AzureOpenAiServiceFields.RESOURCE_NAME, RESOURCE_NAME);
-        map.put(AzureOpenAiServiceFields.API_VERSION, API_VERSION);
-        var exception = expectThrows(
-            ValidationException.class,
-            () -> AzureOpenAiCompletionServiceSettings.fromMap(map, ConfigurationParseContext.PERSISTENT)
-        );
-        assertThat(exception.getMessage(), containsString(ERROR_DEPLOYMENT_ID_REQUIRED));
-    }
-
-    public void testFromMap_MissingApiVersion_ThrowsValidationException() {
-        Map<String, Object> map = new HashMap<>();
-        map.put(AzureOpenAiServiceFields.RESOURCE_NAME, RESOURCE_NAME);
-        map.put(AzureOpenAiServiceFields.DEPLOYMENT_ID, DEPLOYMENT_ID);
-        var exception = expectThrows(
-            ValidationException.class,
-            () -> AzureOpenAiCompletionServiceSettings.fromMap(map, ConfigurationParseContext.PERSISTENT)
-        );
-        assertThat(exception.getMessage(), containsString(ERROR_API_VERSION_REQUIRED));
-    }
-
-    public void testFromMap_WithRateLimit_CreatesSettingsCorrectly() {
-        var requestsPerMinute = 99;
-        Map<String, Object> map = new HashMap<>();
-        map.put(AzureOpenAiServiceFields.RESOURCE_NAME, RESOURCE_NAME);
-        map.put(AzureOpenAiServiceFields.DEPLOYMENT_ID, DEPLOYMENT_ID);
-        map.put(AzureOpenAiServiceFields.API_VERSION, API_VERSION);
-        map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, requestsPerMinute)));
-        var serviceSettings = AzureOpenAiCompletionServiceSettings.fromMap(map, ConfigurationParseContext.PERSISTENT);
-
-        assertThat(serviceSettings.resourceName(), is(RESOURCE_NAME));
-        assertThat(serviceSettings.deploymentId(), is(DEPLOYMENT_ID));
-        assertThat(serviceSettings.apiVersion(), is(API_VERSION));
-        assertThat(serviceSettings.rateLimitSettings(), is(new RateLimitSettings(requestsPerMinute)));
-    }
-
-    public void testFromMap_WithOAuth2Settings_CreatesSettingsCorrectly() {
-        Map<String, Object> map = new HashMap<>();
-        map.put(AzureOpenAiServiceFields.RESOURCE_NAME, RESOURCE_NAME);
-        map.put(AzureOpenAiServiceFields.DEPLOYMENT_ID, DEPLOYMENT_ID);
-        map.put(AzureOpenAiServiceFields.API_VERSION, API_VERSION);
-        map.put(OAuth2Settings.CLIENT_ID_FIELD, OAuth2SettingsTests.CLIENT_ID);
-        map.put(OAuth2Settings.SCOPES_FIELD, OAuth2SettingsTests.SCOPES);
-        map.put(AzureOpenAiOAuth2Settings.TENANT_ID_FIELD, TENANT_ID);
-        var serviceSettings = AzureOpenAiCompletionServiceSettings.fromMap(map, ConfigurationParseContext.PERSISTENT);
-
-        assertThat(serviceSettings.resourceName(), is(RESOURCE_NAME));
-        assertThat(serviceSettings.deploymentId(), is(DEPLOYMENT_ID));
-        assertThat(serviceSettings.apiVersion(), is(API_VERSION));
-        assertNotNull(serviceSettings.oAuth2Settings());
-        assertThat(serviceSettings.oAuth2Settings().getClientId(), is(OAuth2SettingsTests.CLIENT_ID));
-        assertThat(serviceSettings.oAuth2Settings().getScopes(), is(OAuth2SettingsTests.SCOPES));
-        assertThat(serviceSettings.oAuth2Settings().getTenantId(), is(TENANT_ID));
-    }
-
     public void testFromMap_RequestContext_CreatesSettingsCorrectly() {
         var serviceSettings = AzureOpenAiCompletionServiceSettings.fromMap(
             new HashMap<>(
@@ -183,11 +116,6 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AbstractBWCWireSe
         );
 
         assertThat(serviceSettings, is(new AzureOpenAiCompletionServiceSettings(RESOURCE_NAME, DEPLOYMENT_ID, API_VERSION, null)));
-    }
-
-    public void testModelId_ReturnsNull() {
-        var settings = createRandom();
-        assertNull(settings.modelId());
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
@@ -238,14 +166,6 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AbstractBWCWireSe
                 }
             }
             """, RESOURCE_NAME, DEPLOYMENT_ID, API_VERSION))));
-    }
-
-    public void testUpdateServiceSettings_WhenOAuth2SettingsNull_ReturnsSameInstance() {
-        var settings = new AzureOpenAiCompletionServiceSettings(RESOURCE_NAME, DEPLOYMENT_ID, API_VERSION, null);
-
-        var updated = settings.updateServiceSettings(new HashMap<>(Map.of("some_key", "some_value")));
-
-        assertThat(updated, is(settings));
     }
 
     public void testUpdateServiceSettings_WhenOAuth2SettingsPresent_EmptyMap_ReturnsSettingsWithUnchangedOAuth2() {

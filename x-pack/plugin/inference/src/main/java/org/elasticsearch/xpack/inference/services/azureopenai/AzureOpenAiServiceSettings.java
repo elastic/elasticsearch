@@ -15,6 +15,8 @@ public interface AzureOpenAiServiceSettings {
 
     String deploymentId();
 
+    String apiVersion();
+
     RateLimitSettings rateLimitSettings();
 
     AzureOpenAiOAuth2Settings oAuth2Settings();

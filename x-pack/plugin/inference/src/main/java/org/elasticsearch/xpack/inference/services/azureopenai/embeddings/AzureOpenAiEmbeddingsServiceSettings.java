@@ -240,6 +240,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         return fields.deploymentId();
     }
 
+    @Override
     public String apiVersion() {
         return fields.apiVersion();
     }

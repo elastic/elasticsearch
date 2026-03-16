@@ -36,6 +36,9 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.oauth2.Azur
 public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject implements ServiceSettings, AzureOpenAiServiceSettings {
 
     public static final String NAME = "azure_openai_completions_service_settings";
+    public static final String OAUTH2_SETTINGS_NOT_CONFIGURED_ERROR =
+        "Cannot update OAuth2 fields as the service was not configured with OAuth2 settings. "
+            + "Please create a new Inference Endpoint with the OAuth2 settings instead.";
 
     /**
      * Rate limit documentation can be found here:
@@ -164,6 +167,7 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
         return rateLimitSettings;
     }
 
+    @Override
     public String apiVersion() {
         return apiVersion;
     }
@@ -204,6 +208,14 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
     @Override
     public AzureOpenAiCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         if (oAuth2Settings == null) {
+            // Switching the authentication method is not allowed. If the original settings did not have OAuth2 settings,
+            // then we should not allow updating OAuth2 fields as part of the service settings update.
+            // The reason it is not allowed is that the logic doesn't support setting the original authentication field to null
+            if (AzureOpenAiOAuth2Settings.hasAnyOAuth2Fields(serviceSettings)) {
+                var validationException = new ValidationException();
+                validationException.addValidationError(OAUTH2_SETTINGS_NOT_CONFIGURED_ERROR);
+                throw validationException;
+            }
             return this;
         }
 

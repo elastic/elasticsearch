@@ -105,6 +105,10 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
         return true;
     }
 
+    public static boolean hasAnyOAuth2Fields(Map<String, Object> map) {
+        return map.containsKey(CLIENT_ID_FIELD) || map.containsKey(SCOPES_FIELD);
+    }
+
     public OAuth2Settings(String clientId, List<String> scopes) {
         this.clientId = Objects.requireNonNull(clientId);
         this.scopes = Objects.requireNonNull(scopes);

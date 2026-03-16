@@ -72,6 +72,10 @@ public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable 
         return null;
     }
 
+    public static boolean hasAnyOAuth2Fields(Map<String, Object> map) {
+        return OAuth2Settings.hasAnyOAuth2Fields(map) || map.containsKey(TENANT_ID_FIELD);
+    }
+
     /**
      * Validates that either all or none of the fields are provided. If any field is provided, then all fields must be provided.
      * This is because OAuth2 requires all fields to be set together.

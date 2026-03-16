@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 
@@ -189,6 +190,8 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testUpgradeDataStream() throws Exception {
+        // TODO - https://github.com/elastic/elasticsearch-team/issues/2410
+        assumeFalse("PIT search cannot be used on closed indices", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
         /*
          * This test tests upgrading a "normal" data stream (dataStreamName), and upgrading a data stream that was originally just an
          * ordinary index that was converted to a data stream (dataStreamFromNonDataStreamIndices).

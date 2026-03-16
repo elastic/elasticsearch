@@ -34,11 +34,8 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.parser.QueryParam;
-import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -50,8 +47,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.toQueryParams;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
@@ -2976,11 +2973,14 @@ public class VerifierTests extends ESTestCase {
         );
         assertThat(
             error("from test | stats max(event_duration) by tbucket(3)", sampleDataAnalyzer),
-            equalTo("1:42: numeric bucket count in [tbucket(3)] requires [from] and [to] parameters")
+            equalTo(
+                "1:42: numeric bucket count in [tbucket(3)] requires [from] and [to] parameters"
+                    + " or a `@timestamp` range in the query filter"
+            )
         );
         assertThat(
             error("from test | stats max(event_duration) by tbucket(3, \"2023-01-01T00:00:00Z\")", sampleDataAnalyzer),
-            equalTo("1:42: numeric bucket count in [tbucket(3, \"2023-01-01T00:00:00Z\")] requires [from] and [to] parameters")
+            equalTo("1:42: [from] and [to] in [tbucket(3, \"2023-01-01T00:00:00Z\")] must both be provided or both omitted")
         );
         assertThat(
             error(
@@ -3009,6 +3009,13 @@ public class VerifierTests extends ESTestCase {
                 containsString("1:50: Cannot convert string [" + interval + "] to [DATE_PERIOD or TIME_DURATION]")
             );
         }
+        assertThat(
+            error("from test | stats max(event_duration) by tbucket(100)", sampleDataAnalyzer),
+            equalTo(
+                "1:42: numeric bucket count in [tbucket(100)] requires [from] and [to] parameters"
+                    + " or a `@timestamp` range in the query filter"
+            )
+        );
     }
 
     public void testFuse() {
@@ -3907,19 +3914,6 @@ public class VerifierTests extends ESTestCase {
 
     private void query(String query, Analyzer analyzer, Object... params) {
         analyzer.analyze(TEST_PARSER.parseQuery(query, toQueryParams(params)));
-    }
-
-    private static QueryParams toQueryParams(Object... params) {
-        List<QueryParam> parameters = new ArrayList<>();
-        for (Object param : params) {
-            switch (param) {
-                case null -> parameters.add(paramAsConstant(null, null));
-                case String s -> parameters.add(paramAsConstant(null, s));
-                case Number number -> parameters.add(paramAsConstant(null, number));
-                default -> throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
-            }
-        }
-        return new QueryParams(parameters);
     }
 
     private String error(String query) {

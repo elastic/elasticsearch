@@ -70,6 +70,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             cs,
             true,
             req,
+            RerouteBehavior.PERFORM_REROUTE,
             ActionListener.noop(),
             false
         );
@@ -106,6 +107,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             cs,
             true,
             req,
+            RerouteBehavior.PERFORM_REROUTE,
             ActionListener.noop(),
             false
         );
@@ -148,6 +150,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             cs,
             randomBoolean(),
             req,
+            RerouteBehavior.PERFORM_REROUTE,
             ActionListener.noop(),
             false
         );
@@ -226,6 +229,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             cs,
             randomBoolean(),
             req,
+            RerouteBehavior.PERFORM_REROUTE,
             ActionListener.noop(),
             false
         );
@@ -282,6 +286,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             cs,
             randomBoolean(),
             req,
+            RerouteBehavior.PERFORM_REROUTE,
             ActionListener.noop(),
             true
         );
@@ -326,6 +331,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             cs,
             randomBoolean(),
             req,
+            RerouteBehavior.PERFORM_REROUTE,
             ActionListener.noop(),
             false
         );
@@ -367,6 +373,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             cs,
             randomBoolean(),
             req,
+            RerouteBehavior.PERFORM_REROUTE,
             ActionListener.noop(),
             true
         );
@@ -395,8 +402,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             dataStreamName,
             systemDataStreamDescriptor(),
             TimeValue.MAX_VALUE,
-            TimeValue.ZERO,
-            true
+            TimeValue.ZERO
         );
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(
             metadataCreateIndexService,
@@ -404,6 +410,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             cs,
             randomBoolean(),
             req,
+            RerouteBehavior.PERFORM_REROUTE,
             ActionListener.noop(),
             false
         );
@@ -440,6 +447,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 cs,
                 randomBoolean(),
                 req,
+                RerouteBehavior.PERFORM_REROUTE,
                 ActionListener.noop(),
                 false
             )
@@ -463,6 +471,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 cs,
                 randomBoolean(),
                 req,
+                RerouteBehavior.PERFORM_REROUTE,
                 ActionListener.noop(),
                 false
             )
@@ -486,6 +495,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 cs,
                 randomBoolean(),
                 req,
+                RerouteBehavior.PERFORM_REROUTE,
                 ActionListener.noop(),
                 false
             )
@@ -509,6 +519,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 cs,
                 randomBoolean(),
                 req,
+                RerouteBehavior.PERFORM_REROUTE,
                 ActionListener.noop(),
                 false
             )
@@ -532,6 +543,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 cs,
                 randomBoolean(),
                 req,
+                RerouteBehavior.PERFORM_REROUTE,
                 ActionListener.noop(),
                 false
             )
@@ -556,6 +568,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 cs,
                 randomBoolean(),
                 req,
+                RerouteBehavior.PERFORM_REROUTE,
                 ActionListener.noop(),
                 false
             )
@@ -591,10 +604,24 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 );
             return ClusterState.builder(currentState).putProjectMetadata(b.build()).build();
         };
-        when(s.applyCreateIndexRequest(any(ClusterState.class), any(CreateIndexClusterStateUpdateRequest.class), anyBoolean(), any()))
-            .thenAnswer(objectAnswer);
         when(
-            s.applyCreateIndexRequest(any(ClusterState.class), any(CreateIndexClusterStateUpdateRequest.class), anyBoolean(), any(), any())
+            s.applyCreateIndexRequest(
+                any(ClusterState.class),
+                any(CreateIndexClusterStateUpdateRequest.class),
+                anyBoolean(),
+                any(RerouteBehavior.class),
+                any()
+            )
+        ).thenAnswer(objectAnswer);
+        when(
+            s.applyCreateIndexRequest(
+                any(ClusterState.class),
+                any(CreateIndexClusterStateUpdateRequest.class),
+                anyBoolean(),
+                any(RerouteBehavior.class),
+                any(),
+                any()
+            )
         ).thenAnswer(objectAnswer);
 
         return s;

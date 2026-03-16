@@ -273,29 +273,35 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
+        DataType type = field.dataType();
+
+        if (type == DataType.DATETIME || type == DataType.DATE_NANOS) {
             Rounding.Prepared preparedRounding = getDateRounding(toEvaluator.foldCtx());
-            return DateTrunc.evaluator(field.dataType(), source(), toEvaluator.apply(field), preparedRounding);
+            return DateTrunc.evaluator(type, source(), toEvaluator.apply(field), preparedRounding);
         }
-        if (field.dataType().isNumeric()) {
+
+        if (type.isNumeric()) {
             double roundTo;
+
             if (from != null) {
-                int b = ((Number) buckets.fold(toEvaluator.foldCtx())).intValue();
-                double f = ((Number) from.fold(toEvaluator.foldCtx())).doubleValue();
-                double t = ((Number) to.fold(toEvaluator.foldCtx())).doubleValue();
-                roundTo = pickRounding(b, f, t);
+                int bucketCount = ((Number) buckets.fold(toEvaluator.foldCtx())).intValue();
+                double fromVal = ((Number) from.fold(toEvaluator.foldCtx())).doubleValue();
+                double toVal = ((Number) to.fold(toEvaluator.foldCtx())).doubleValue();
+                roundTo = pickRounding(bucketCount, fromVal, toVal);
             } else {
                 roundTo = ((Number) buckets.fold(toEvaluator.foldCtx())).doubleValue();
             }
-            Literal rounding = new Literal(source(), roundTo, DataType.DOUBLE);
 
-            // We could make this more efficient, either by generating the evaluators with byte code or hand rolling this one.
+            Literal rounding = new Literal(source(), roundTo, DataType.DOUBLE);
             Div div = new Div(source(), field, rounding);
             Floor floor = new Floor(source(), div);
             Mul mul = new Mul(source(), floor, rounding);
+
             return toEvaluator.apply(mul);
         }
-        throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
+
+        // Throw if the type is unsupported
+        throw EsqlIllegalArgumentException.illegalDataType(type);
     }
 
     /**

@@ -507,6 +507,146 @@ public final class AnalyzerTestUtils {
         }
     }
 
+    public static IndexResolution indexWithNumericUnionTypes() {
+        LinkedHashMap<String, Set<String>> integerLong = new LinkedHashMap<>();
+        integerLong.put("integer", Set.of("index1"));
+        integerLong.put("long", Set.of("index2"));
+
+        LinkedHashMap<String, Set<String>> integerDouble = new LinkedHashMap<>();
+        integerDouble.put("integer", Set.of("index1"));
+        integerDouble.put("double", Set.of("index2"));
+
+        LinkedHashMap<String, Set<String>> longDouble = new LinkedHashMap<>();
+        longDouble.put("long", Set.of("index1"));
+        longDouble.put("double", Set.of("index2"));
+
+        LinkedHashMap<String, Set<String>> integerKeyword = new LinkedHashMap<>();
+        integerKeyword.put("integer", Set.of("index1"));
+        integerKeyword.put("keyword", Set.of("index2"));
+
+        // short and byte are widened to integer before computing the common type
+        LinkedHashMap<String, Set<String>> shortInteger = new LinkedHashMap<>();
+        shortInteger.put("short", Set.of("index1"));
+        shortInteger.put("integer", Set.of("index2"));
+
+        // unsigned_long mixed with signed numerics must NOT be implicitly widened (negative values would corrupt)
+        LinkedHashMap<String, Set<String>> unsignedLongInteger = new LinkedHashMap<>();
+        unsignedLongInteger.put("unsigned_long", Set.of("index1"));
+        unsignedLongInteger.put("integer", Set.of("index2"));
+
+        LinkedHashMap<String, EsField> fields = new LinkedHashMap<>();
+        fields.put("int_long", new InvalidMappedField("int_long", integerLong));
+        fields.put("int_double", new InvalidMappedField("int_double", integerDouble));
+        fields.put("long_double", new InvalidMappedField("long_double", longDouble));
+        fields.put("int_keyword", new InvalidMappedField("int_keyword", integerKeyword));
+        fields.put("short_integer", new InvalidMappedField("short_integer", shortInteger));
+        fields.put("unsigned_long_integer", new InvalidMappedField("unsigned_long_integer", unsignedLongInteger));
+
+        EsIndex index = new EsIndex(
+            "index*",
+            fields,
+            Map.of("index1", IndexMode.STANDARD, "index2", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of()
+        );
+        return IndexResolution.valid(index);
+    }
+
+    /**
+     * Returns a pair of index resolutions for testing counter-type widening in UNION ALL.
+     * <ul>
+     *   <li>{@code ts_counter_integer}: TIME_SERIES index with {@code counter_field} mapped as COUNTER_INTEGER</li>
+     *   <li>{@code ts_counter_long}:    TIME_SERIES index with {@code counter_field} mapped as COUNTER_LONG</li>
+     * </ul>
+     */
+    public static Map<IndexPattern, IndexResolution> counterTypeIndexResolutions() {
+        Map<String, EsField> noProps = Map.of();
+        EsField timestamp = new EsField(
+            "@timestamp",
+            org.elasticsearch.xpack.esql.core.type.DataType.DATETIME,
+            noProps,
+            true,
+            EsField.TimeSeriesFieldType.NONE
+        );
+        EsField pod = new EsField(
+            "pod",
+            org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD,
+            noProps,
+            true,
+            EsField.TimeSeriesFieldType.DIMENSION
+        );
+
+        Map<String, EsField> fields1 = new LinkedHashMap<>();
+        fields1.put("@timestamp", timestamp);
+        fields1.put("pod", pod);
+        fields1.put(
+            "counter_field",
+            new EsField(
+                "counter_field",
+                org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER,
+                noProps,
+                true,
+                EsField.TimeSeriesFieldType.METRIC
+            )
+        );
+        EsIndex ts1 = new EsIndex(
+            "ts_counter_integer",
+            fields1,
+            Map.of("ts_counter_integer", IndexMode.TIME_SERIES),
+            Map.of(),
+            Map.of(),
+            Set.of()
+        );
+
+        Map<String, EsField> fields2 = new LinkedHashMap<>();
+        fields2.put("@timestamp", timestamp);
+        fields2.put("pod", pod);
+        fields2.put(
+            "counter_field",
+            new EsField(
+                "counter_field",
+                org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG,
+                noProps,
+                true,
+                EsField.TimeSeriesFieldType.METRIC
+            )
+        );
+        EsIndex ts2 = new EsIndex(
+            "ts_counter_long",
+            fields2,
+            Map.of("ts_counter_long", IndexMode.TIME_SERIES),
+            Map.of(),
+            Map.of(),
+            Set.of()
+        );
+
+        // ts_regular_long: a standard index with counter_field as plain LONG (not a counter)
+        Map<String, EsField> fields3 = new LinkedHashMap<>();
+        fields3.put("@timestamp", timestamp);
+        fields3.put("pod", pod);
+        fields3.put(
+            "counter_field",
+            new EsField(
+                "counter_field",
+                org.elasticsearch.xpack.esql.core.type.DataType.LONG,
+                noProps,
+                true,
+                EsField.TimeSeriesFieldType.NONE
+            )
+        );
+        EsIndex tsRegularLong = new EsIndex(
+            "ts_regular_long",
+            fields3,
+            Map.of("ts_regular_long", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of()
+        );
+
+        return indexResolutions(IndexResolution.valid(ts1), IndexResolution.valid(ts2), IndexResolution.valid(tsRegularLong));
+    }
+
     public static IndexResolution indexWithDateDateNanosUnionType() {
         // this method is shared by AnalyzerTest, QueryTranslatorTests and LocalPhysicalPlanOptimizerTests
         String dateDateNanos = "date_and_date_nanos"; // mixed date and date_nanos

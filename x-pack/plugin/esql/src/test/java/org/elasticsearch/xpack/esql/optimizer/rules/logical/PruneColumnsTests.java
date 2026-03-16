@@ -52,6 +52,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.containsIgnoringIds;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
@@ -1544,7 +1545,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         var projections = topProject.projections();
         assertThat(projections, hasSize(2));
         assertThat(projections.get(0).name(), equalTo("languages"));
-        assertThat(projections.get(0).dataType(), equalTo(UNSUPPORTED));
+        assertThat(projections.get(0).dataType(), equalTo(INTEGER));
 
         Alias xAlias = as(projections.get(1), Alias.class);
         assertThat(xAlias.name(), equalTo("x"));
@@ -1770,11 +1771,11 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(relationOutput.get(1).name(), equalTo("id"));
         assertThat(relationOutput.get(1).dataType(), equalTo(KEYWORD));
         assertThat(relationOutput.get(2).name(), equalTo("languages"));
-        assertThat(relationOutput.get(2).dataType(), equalTo(UNSUPPORTED));
+        assertThat(relationOutput.get(2).dataType(), equalTo(INTEGER));
         assertThat(relationOutput.get(3).name(), equalTo("last_name"));
         assertThat(relationOutput.get(3).dataType(), equalTo(UNSUPPORTED));
         assertThat(relationOutput.get(4).name(), equalTo("salary_change"));
-        assertThat(relationOutput.get(4).dataType(), equalTo(UNSUPPORTED));
+        assertThat(relationOutput.get(4).dataType(), equalTo(DOUBLE));
     }
 
     /**

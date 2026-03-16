@@ -206,6 +206,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
@@ -237,7 +238,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveFunctions(),
             new ResolveTimestampBoundsAware(),
             new ResolveInference(),
-            new DateMillisToNanosInEsRelation()
+            new DateMillisToNanosInEsRelation(),
+            new NumericWidenInEsRelation()
         ),
         new Batch<>(
             "Resolution",
@@ -2663,6 +2665,57 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
+     * Implicitly widen numeric union types in EsRelation. When a field is mapped as different numeric types across indices
+     * (e.g. integer in one index, long in another), compute the common widened type and inject per-index conversion expressions.
+     */
+    private static class NumericWidenInEsRelation extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            return plan.transformUp(EsRelation.class, relation -> {
+                if (relation.indexMode() == IndexMode.LOOKUP) {
+                    return relation;
+                }
+                return relation.transformExpressionsUp(FieldAttribute.class, f -> {
+                    if (f.field() instanceof InvalidMappedField imf && imf.types().stream().allMatch(DataType::isNumeric)
+                    // UNSIGNED_LONG cannot be safely mixed with signed numerics: negative values would be corrupted
+                        && imf.types().stream().noneMatch(t -> t == UNSIGNED_LONG)) {
+                        DataType commonType = imf.types()
+                            .stream()
+                            .map(DataType::widenSmallNumeric)
+                            .reduce(EsqlDataTypeConverter::commonType)
+                            .orElse(null);
+                        if (commonType == null) {
+                            return f;
+                        }
+                        var converterFactory = EsqlDataTypeConverter.converterFunctionFactory(commonType);
+                        if (converterFactory == null) {
+                            return f;
+                        }
+                        // configuration is null here because all numeric converters (ToInteger, ToLong, ToDouble, etc.)
+                        // live in TYPE_TO_CONVERTER_FUNCTION and ignore the configuration parameter
+                        var convert = converterFactory.apply(f.source(), f, null);
+                        HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
+                        imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions));
+                        var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions);
+                        return new FieldAttribute(
+                            f.source(),
+                            f.parentName(),
+                            f.qualifier(),
+                            f.name(),
+                            resolvedField,
+                            f.nullable(),
+                            f.id(),
+                            f.synthetic()
+                        );
+                    }
+                    return f;
+                });
+            });
+        }
+    }
+
+    /**
      * Take InvalidMappedFields in specific aggregations (min, max, sum, count, and avg) and if all original data types
      * are aggregate metric double + any combination of numerics, implicitly cast them to the same type: aggregate metric
      * double for count, and double for min, max, and sum. Avg gets replaced with its surrogate (Div(Sum, Count))
@@ -3171,8 +3224,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<DataType> commonTypes = new ArrayList<>(columnCount);
             for (int i = 0; i < columnCount; i++) {
                 DataType type = outputs.get(0).get(i).dataType();
-                for (List<Attribute> out : outputs) {
-                    type = commonType(type, out.get(i).dataType());
+                // Start at 1: branch 0 is already the initial value; comparing it against itself
+                // would strip counter flags before the real cross-branch comparisons happen.
+                for (int j = 1; j < outputs.size(); j++) {
+                    type = commonType(type, outputs.get(j).get(i).dataType());
                 }
                 commonTypes.add(type);
             }
@@ -3183,13 +3238,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (t1 == null || t2 == null) {
                 return null;
             }
-            t1 = t1.isCounter() ? t1.noCounter() : t1;
-            t2 = t2.isCounter() ? t2.noCounter() : t2;
+            boolean t1WasCounter = t1.isCounter();
+            boolean t2WasCounter = t2.isCounter();
+            t1 = t1WasCounter ? t1.noCounter() : t1;
+            t2 = t2WasCounter ? t2.noCounter() : t2;
             if (t1 == t2) {
+                // Existing behaviour: same base type regardless of counter-ness (e.g. COUNTER_LONG + LONG → LONG).
                 return t1;
             }
             if (t1.isDate() && t2.isDate()) {
                 return DATE_NANOS;
+            }
+            if (t1.isNumeric() && t2.isNumeric()) {
+                // Do not apply numeric widening to any combination involving counter types.
+                // There are no counter-specific converters (no ToCounterLong, etc.), so widening
+                // counter_integer + counter_long cannot be expressed as a cast and is left for a follow-up.
+                // Mixing counter + non-counter with different base types was unsupported before numeric
+                // widening was introduced — preserve that old null/unsupported behaviour.
+                if (t1WasCounter || t2WasCounter) {
+                    return null;
+                }
+                return EsqlDataTypeConverter.commonType(t1, t2);
             }
             return null;
         }

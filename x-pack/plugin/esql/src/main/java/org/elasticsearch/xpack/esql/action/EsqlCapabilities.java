@@ -2307,7 +2307,14 @@ public class EsqlCapabilities {
          * causing false type conflicts in ES|QL when querying across indices.
          * https://github.com/elastic/elasticsearch/issues/144179
          */
-        FIX_PASSTHROUGH_FIELD_CAPS_OBJECT_PARENT
+        FIX_PASSTHROUGH_FIELD_CAPS_OBJECT_PARENT,
+
+        /**
+         * Implicit numeric widening for union types across indices and in UNION ALL.
+         * Fields mapped as different numeric types (e.g. integer in one index, long in another)
+         * are automatically widened to the common numeric type without requiring an explicit cast.
+         */
+        UNION_TYPES_IMPLICIT_NUMERIC_WIDENING
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

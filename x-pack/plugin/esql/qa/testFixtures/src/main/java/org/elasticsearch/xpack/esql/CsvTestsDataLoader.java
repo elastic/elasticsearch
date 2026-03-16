@@ -92,6 +92,8 @@ public class CsvTestsDataLoader {
         new TestDataset("hosts"),
         new TestDataset("apps"),
         new TestDataset("apps").withIndex("apps_short").withTypeMapping(Map.of("id", "short")),
+        new TestDataset("apps").withIndex("apps_long").withTypeMapping(Map.of("id", "long")),
+        new TestDataset("apps").withIndex("apps_double").withTypeMapping(Map.of("id", "double")),
         new TestDataset("languages"),
         new TestDataset("languages").withIndex("languages_lookup").withSetting("lookup-settings.json"),
         new TestDataset("languages").withIndex("languages_lookup_non_unique_key")

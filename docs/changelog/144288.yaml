@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 138509
+pr: 144288
+summary: Implicit numeric widening for union types
+type: enhancement

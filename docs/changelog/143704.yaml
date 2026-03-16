@@ -1,6 +1,5 @@
 area: ES|QL
-issues:
-  - 136281
+issues: []
 pr: 143704
 summary: Support of a window that is not an exact multiple of the bucket
 type: enhancement

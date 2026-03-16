@@ -9,12 +9,11 @@ package org.elasticsearch.xpack.inference.services.azureopenai.request;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
-import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.external.request.HttpRequest;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModelTests;
 import org.junit.After;
 import org.junit.Before;
@@ -84,9 +83,7 @@ public class AzureOpenAiChatCompletionRequestTests extends ESTestCase {
     }
 
     private static HttpPost assertStreamingHttpPostCreated(AzureOpenAiChatCompletionRequest request, String input) throws IOException {
-        var listener = new TestPlainActionFuture<HttpRequest>();
-        request.createHttpRequestAsync(listener);
-        var httpRequest = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -117,9 +114,7 @@ public class AzureOpenAiChatCompletionRequestTests extends ESTestCase {
     }
 
     private static HttpPost assertNonStreamingHttpPostCreated(AzureOpenAiChatCompletionRequest request, String input) throws IOException {
-        var listener = new TestPlainActionFuture<HttpRequest>();
-        request.createHttpRequestAsync(listener);
-        var httpRequest = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();

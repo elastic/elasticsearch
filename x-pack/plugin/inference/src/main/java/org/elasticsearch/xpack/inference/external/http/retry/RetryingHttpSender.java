@@ -15,7 +15,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -70,9 +71,12 @@ public class RetryingHttpSender implements RequestSender {
         this.executor = Objects.requireNonNull(executor);
     }
 
-    private static class AlreadyLoggedException extends RuntimeException {
-        AlreadyLoggedException(Exception e) {
+    private static class SenderException extends RuntimeException {
+        private final HttpResult result;
+
+        SenderException(HttpResult result, Exception e) {
             super(e);
+            this.result = result;
         }
 
         public Exception getOriginalException() {
@@ -82,6 +86,10 @@ public class RetryingHttpSender implements RequestSender {
             } else {
                 return new ElasticsearchException(cause);
             }
+        }
+
+        public HttpResult getResult() {
+            return result;
         }
     }
 
@@ -123,61 +131,55 @@ public class RetryingHttpSender implements RequestSender {
             retryCount.incrementAndGet();
             // A timeout likely occurred so let's stop attempting to execute the request
             if (hasRequestCompletedFunction.get()) {
+                // TimedListener will drop this, just being safe to avoid a hanging listener
+                listener.onFailure(
+                    new ElasticsearchStatusException(timeoutString(request.getInferenceEntityId()), RestStatus.REQUEST_TIMEOUT)
+                );
                 return;
             }
 
-            var logFailureListener = listener.delegateResponse((delegateListener, e) -> {
+            var failureListener = listener.delegateResponse((l, e) -> {
                 var exceptionToUse = e;
-                if (e instanceof AlreadyLoggedException alreadyLoggedException) {
-                    exceptionToUse = alreadyLoggedException.getOriginalException();
+
+                if (exceptionToUse instanceof SenderException senderException) {
+                    exceptionToUse = senderException.getOriginalException();
+
+                    logResponseException(logger, request, senderException.getResult(), responseHandler.getRequestType(), exceptionToUse);
                 } else {
-                    logException(logger, request, responseHandler.getRequestType(), exceptionToUse);
+                    logRequestException(logger, request, responseHandler.getRequestType(), exceptionToUse);
                 }
 
-                delegateListener.onFailure(exceptionToUse);
+                /*
+                 * We will try to determine if the exception is retryable and if so wrap it in a RetryException
+                 * so that when we pass the failure to the tryAction original listener it will get passed to shouldRetry() and be retried.
+                 * If it is already a RetryException, then transformIfRetryable will return it as is and
+                 * it will be retried again until we hit the max retry attempts.
+                 */
+                l.onFailure(transformIfRetryable(exceptionToUse));
             });
 
-            SubscribableListener.<HttpRequest>newForked(
-                httpRequestActionListener -> wrapThrownException(
-                    () -> request.createHttpRequestAsync(httpRequestActionListener),
-                    httpRequestActionListener
-                )
-            )
-                .<InferenceServiceResults>andThen(
-                    (inferenceServiceResultsActionListener, httpRequest) -> wrapThrownException(
-                        () -> sendRequest(httpRequest, inferenceServiceResultsActionListener),
-                        inferenceServiceResultsActionListener
-                    )
-                )
-                .addListener(logFailureListener);
+            SubscribableListener.<HttpRequest>newForked(createHttpRequestListener -> request.createHttpRequest(createHttpRequestListener))
+                .<InferenceServiceResults>andThen((inferenceServiceResultsActionListener, httpRequest) -> {
+                    if (hasRequestCompletedFunction.get()) {
+                        // TimedListener will drop this, just being safe to avoid a hanging listener
+                        inferenceServiceResultsActionListener.onFailure(
+                            new ElasticsearchStatusException(timeoutString(request.getInferenceEntityId()), RestStatus.REQUEST_TIMEOUT)
+                        );
+                        return;
+                    }
+
+                    sendRequest(httpRequest, inferenceServiceResultsActionListener);
+                })
+                .addListener(failureListener);
         }
 
-        /**
-         * Catches exceptions thrown by the provided runnable and passes them to the listener
-         * after wrapping them in an ElasticsearchException if necessary. This is necessary because we don't want to wrap all exception
-         * in the final listener used by {@link #tryAction(ActionListener)} because we'd lose the suppressed stack trace.
-         */
-        private void wrapThrownException(CheckedRunnable<Exception> runnable, ActionListener<?> listener) {
-            try {
-                runnable.run();
-            } catch (Exception e) {
-                listener.onFailure(wrapWithElasticsearchException(e, request.getInferenceEntityId()));
-            }
+        private static String timeoutString(String inferenceId) {
+            return Strings.format("Inference endpoint [%s]: request timed out", inferenceId);
         }
 
         private void sendRequest(HttpRequest httpRequest, ActionListener<InferenceServiceResults> listener) throws IOException {
-            /*
-             * This listener handles failures from the http client level such as an IOException or UnknownHostException. We will try
-             * to determine if the exception is retryable and if so wrap it in a RetryException so that when we pass the failure to the
-             * tryAction original listener it will get passed to shouldRetry() and be retried.
-             */
-            var httpClientFailureListener = listener.delegateResponse((l, e) -> {
-                logException(logger, request, responseHandler.getRequestType(), e);
-                l.onFailure(transformIfRetryable(e));
-            });
-
             if (request.isStreaming() && responseHandler.canHandleStreamingResponses()) {
-                httpClient.stream(httpRequest, context, httpClientFailureListener.delegateFailureAndWrap((l, r) -> {
+                httpClient.stream(httpRequest, context, listener.delegateFailureAndWrap((l, r) -> {
                     if (r.isSuccessfulResponse()) {
                         l.onResponse(responseHandler.parseResult(request, r.toHttpResult()));
                     } else {
@@ -192,7 +194,7 @@ public class RetryingHttpSender implements RequestSender {
                 httpClient.send(
                     httpRequest,
                     context,
-                    httpClientFailureListener.delegateFailureAndWrap(
+                    listener.delegateFailureAndWrap(
                         (delegateListener, httpResult) -> validateAndParseInferenceResults(httpResult, delegateListener)
                     )
                 );
@@ -206,13 +208,7 @@ public class RetryingHttpSender implements RequestSender {
 
                 listener.onResponse(inferenceResults);
             } catch (Exception e) {
-                /*
-                 * Entering this exception block typically happens when validateResponse() throws an exception
-                 * for when we get a failure status code. We pass it back to the original listener so
-                 * shouldRetry() can determine if we need to retry.
-                 */
-                logException(logger, request, httpResult, responseHandler.getRequestType(), e);
-                listener.onFailure(new AlreadyLoggedException(e));
+                listener.onFailure(new SenderException(httpResult, e));
             }
         }
 
@@ -237,19 +233,6 @@ public class RetryingHttpSender implements RequestSender {
             }
 
             return e;
-        }
-
-        private Exception wrapWithElasticsearchException(Exception e, String inferenceEntityId) {
-            var transformedException = transformIfRetryable(e);
-
-            if (transformedException instanceof ElasticsearchException) {
-                return transformedException;
-            }
-
-            return new ElasticsearchException(
-                format("Http client failed to send request from inference entity id [%s]", inferenceEntityId),
-                transformedException
-            );
         }
 
         @Override
@@ -286,17 +269,18 @@ public class RetryingHttpSender implements RequestSender {
         retrier.run();
     }
 
-    private void logException(Logger logger, Request request, String requestType, Exception exception) {
-        var causeException = ExceptionsHelper.unwrapCause(exception);
+    private void logResponseException(
+        Logger logger,
+        Request request,
+        @Nullable HttpResult result,
+        String requestType,
+        Exception exception
+    ) {
+        if (result == null) {
+            logRequestException(logger, request, requestType, exception);
+            return;
+        }
 
-        throttlerManager.warn(
-            logger,
-            format("Failed while sending request from inference entity id [%s] of type [%s]", request.getInferenceEntityId(), requestType),
-            causeException
-        );
-    }
-
-    private void logException(Logger logger, Request request, HttpResult result, String requestType, Exception exception) {
         var causeException = ExceptionsHelper.unwrapCause(exception);
 
         throttlerManager.warn(
@@ -308,6 +292,16 @@ public class RetryingHttpSender implements RequestSender {
                 result.response().getStatusLine().getStatusCode(),
                 result.response().getStatusLine().getReasonPhrase()
             ),
+            causeException
+        );
+    }
+
+    private void logRequestException(Logger logger, Request request, String requestType, Exception exception) {
+        var causeException = ExceptionsHelper.unwrapCause(exception);
+
+        throttlerManager.warn(
+            logger,
+            format("Failed while sending request from inference entity id [%s] of type [%s]", request.getInferenceEntityId(), requestType),
             causeException
         );
     }

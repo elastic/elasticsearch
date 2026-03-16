@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import java.net.URI;
 
 public interface Request {
-    HttpRequest createHttpRequest();
+    void createHttpRequest(ActionListener<HttpRequest> listener);
 
     default void createHttpRequestAsync(ActionListener<HttpRequest> listener) {
         listener.onResponse(createHttpRequest());

@@ -843,6 +843,11 @@ public class EsqlCapabilities {
         SOURCE_FIELD_MAPPING,
 
         /**
+         * Support for field aliases in mappings. Used by tests, since this was feature wasn't always supported by CsvTests.
+         */
+        FIELD_ALIAS_SUPPORT,
+
+        /**
          * Allow filter per individual aggregation.
          */
         PER_AGG_FILTERING,

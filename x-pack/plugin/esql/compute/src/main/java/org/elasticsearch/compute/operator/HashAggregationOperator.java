@@ -88,7 +88,7 @@ public class HashAggregationOperator implements Operator {
     }
 
     private boolean finished;
-    private Page output;
+    protected Page output;
 
     protected final Supplier<BlockHash> blockHashSupplier;
     protected final AggregatorMode aggregatorMode;

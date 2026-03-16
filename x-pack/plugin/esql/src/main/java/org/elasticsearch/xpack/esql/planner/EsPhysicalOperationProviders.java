@@ -510,7 +510,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         boolean needsOutputFiltering = aggregatorMode.isOutputPartial() == false
             && outputRounding != null
             && internalRounding != null
-            && outputRounding != internalRounding;
+            && outputRounding.getUnprepared().equals(internalRounding.getUnprepared()) == false;
         return new TimeSeriesAggregationOperator.Factory(
             internalRounding,
             ts.timeBucket() != null && ts.timeBucket().dataType() == DataType.DATE_NANOS,

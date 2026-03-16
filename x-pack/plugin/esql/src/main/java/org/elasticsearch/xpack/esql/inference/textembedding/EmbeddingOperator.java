@@ -10,36 +10,39 @@ package org.elasticsearch.xpack.esql.inference.textembedding;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 
 /**
- * {@link TextEmbeddingOperator} is an {@link InferenceOperator} that performs text embedding inference.
+ * {@link EmbeddingOperator} is an {@link InferenceOperator} that performs text embedding inference.
  * It evaluates a text expression for each input row, constructs text embedding inference requests,
  * and emits the dense vector embeddings as output.
  */
-public class TextEmbeddingOperator extends InferenceOperator {
+public class EmbeddingOperator extends InferenceOperator {
 
     private final String inferenceId;
 
     /**
-     * Constructs a new {@code TextEmbeddingOperator}.
+     * Constructs a new {@code EmbeddingOperator}.
      *
-     * @param driverContext                   The driver context.
-     * @param inferenceService                The inference service to use for executing inference requests.
-     * @param inferenceId                     The ID of the text embedding model to invoke.
-     * @param inputEvaluator                  Evaluator for computing input text from rows.
+     * @param driverContext    The driver context.
+     * @param inferenceService The inference service to use for executing inference requests.
+     * @param inferenceId      The ID of the embedding model to invoke.
+     * @param taskType         The task type to use for inference requests.
+     * @param inputEvaluator   Evaluator for computing input text from rows.
      */
-    TextEmbeddingOperator(
+    EmbeddingOperator(
         DriverContext driverContext,
         InferenceService inferenceService,
         String inferenceId,
+        TaskType taskType,
         ExpressionEvaluator inputEvaluator
     ) {
         super(
             driverContext,
             inferenceService,
-            new TextEmbeddingRequestIterator.Factory(inferenceId, inputEvaluator),
+            new EmbeddingRequestIterator.Factory(inferenceId, taskType, inputEvaluator),
             new TextEmbeddingOutputBuilder(driverContext.blockFactory())
         );
 
@@ -47,23 +50,23 @@ public class TextEmbeddingOperator extends InferenceOperator {
     }
 
     public String toString() {
-        return "TextEmbeddingOperator[inference_id=[" + inferenceId() + "]]";
+        return "EmbeddingOperator[inference_id=[" + inferenceId() + "]]";
     }
 
     /**
-     * Factory for creating {@link TextEmbeddingOperator} instances.
+     * Factory for creating {@link EmbeddingOperator} instances.
      */
-    public record Factory(InferenceService inferenceService, String inferenceId, ExpressionEvaluator.Factory textEvaluatorFactory)
+    public record Factory(InferenceService inferenceService, String inferenceId, TaskType taskType, ExpressionEvaluator.Factory textEvaluatorFactory)
         implements
             OperatorFactory {
         @Override
         public String describe() {
-            return "TextEmbeddingOperator[inference_id=[" + inferenceId + "]]";
+            return "EmbeddingOperator[inference_id=[" + inferenceId + "]]";
         }
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new TextEmbeddingOperator(driverContext, inferenceService, inferenceId, textEvaluatorFactory.get(driverContext));
+            return new EmbeddingOperator(driverContext, inferenceService, inferenceId, taskType, textEvaluatorFactory.get(driverContext));
         }
     }
 

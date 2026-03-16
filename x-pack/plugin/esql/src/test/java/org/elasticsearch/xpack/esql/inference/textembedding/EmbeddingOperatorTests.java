@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingResults;
@@ -29,20 +30,20 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class TextEmbeddingOperatorTests extends InferenceOperatorTestCase<DenseEmbeddingResults<?>> {
-    private static final String SIMPLE_INFERENCE_ID = "test_text_embedding";
+public class EmbeddingOperatorTests extends InferenceOperatorTestCase<DenseEmbeddingResults<?>> {
+    private static final String SIMPLE_INFERENCE_ID = "test_embedding";
     private static final int EMBEDDING_DIM = 384; // Common embedding dimension
 
     private int inputChannel;
 
     @Before
-    public void initTextEmbeddingChannels() {
+    public void initEmbeddingChannels() {
         inputChannel = between(0, inputsCount - 1);
     }
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new TextEmbeddingOperator.Factory(mockedInferenceService(), SIMPLE_INFERENCE_ID, evaluatorFactory(inputChannel));
+        return new EmbeddingOperator.Factory(mockedInferenceService(), SIMPLE_INFERENCE_ID, TaskType.EMBEDDING, evaluatorFactory(inputChannel));
     }
 
     @Override
@@ -115,7 +116,7 @@ public class TextEmbeddingOperatorTests extends InferenceOperatorTestCase<DenseE
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("TextEmbeddingOperator[inference_id=[" + SIMPLE_INFERENCE_ID + "]]");
+        return equalTo("EmbeddingOperator[inference_id=[" + SIMPLE_INFERENCE_ID + "]]");
     }
 
     public void testInferenceFailure() {
@@ -123,9 +124,10 @@ public class TextEmbeddingOperatorTests extends InferenceOperatorTestCase<DenseE
         Exception expectedException = new ElasticsearchException("Inference service unavailable");
         InferenceService failingService = mockedInferenceService(shouldFail, expectedException);
 
-        Operator.OperatorFactory factory = new TextEmbeddingOperator.Factory(
+        Operator.OperatorFactory factory = new EmbeddingOperator.Factory(
             failingService,
             SIMPLE_INFERENCE_ID,
+            TaskType.EMBEDDING,
             evaluatorFactory(inputChannel)
         );
 

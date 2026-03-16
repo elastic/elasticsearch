@@ -25,14 +25,15 @@ import java.util.NoSuchElementException;
  * Iterator that converts a block of text strings into inference request items for text embedding.
  * <p>
  * Each position in the text block is converted into a {@link InferenceAction.Request}
- * for text embedding inference. Null text inputs are preserved as null requests.
+ * for embedding inference. Null text inputs are preserved as null requests.
  * For multi-valued text fields, only the first value is used.
  * </p>
  */
-class TextEmbeddingRequestIterator implements BulkInferenceRequestItemIterator {
+class EmbeddingRequestIterator implements BulkInferenceRequestItemIterator {
 
     private final InputTextReader textReader;
     private final String inferenceId;
+    private final TaskType taskType;
     private final int size;
     private int currentPos = 0;
 
@@ -42,12 +43,14 @@ class TextEmbeddingRequestIterator implements BulkInferenceRequestItemIterator {
      * Constructs a new iterator from the given block of text inputs.
      *
      * @param inferenceId The ID of the inference model to invoke.
+     * @param taskType    The task type to use for inference requests.
      * @param textBlock   The input block containing text to embed.
      */
-    TextEmbeddingRequestIterator(String inferenceId, BytesRefBlock textBlock) {
+    EmbeddingRequestIterator(String inferenceId, TaskType taskType, BytesRefBlock textBlock) {
         this.textReader = new InputTextReader(textBlock);
         this.size = textBlock.getPositionCount();
         this.inferenceId = inferenceId;
+        this.taskType = taskType;
     }
 
     @Override
@@ -85,14 +88,14 @@ class TextEmbeddingRequestIterator implements BulkInferenceRequestItemIterator {
     }
 
     /**
-     * Wraps a single text string into an {@link InferenceAction.Request} for text embedding.
+     * Wraps a single text string into an {@link InferenceAction.Request} for embedding.
      */
     private InferenceAction.Request inferenceRequest(String text) {
         if (text == null) {
             return null;
         }
 
-        return InferenceAction.Request.builder(inferenceId, TaskType.TEXT_EMBEDDING).setInput(List.of(text)).build();
+        return InferenceAction.Request.builder(inferenceId, taskType).setInput(List.of(text)).build();
     }
 
     @Override
@@ -106,13 +109,15 @@ class TextEmbeddingRequestIterator implements BulkInferenceRequestItemIterator {
     }
 
     /**
-     * Factory for creating {@link TextEmbeddingRequestIterator} instances.
+     * Factory for creating {@link EmbeddingRequestIterator} instances.
      */
-    record Factory(String inferenceId, ExpressionEvaluator textEvaluator) implements BulkInferenceRequestItemIterator.Factory {
+    record Factory(String inferenceId, TaskType taskType, ExpressionEvaluator textEvaluator)
+        implements
+            BulkInferenceRequestItemIterator.Factory {
 
         @Override
         public BulkInferenceRequestItemIterator create(Page inputPage) {
-            return new TextEmbeddingRequestIterator(inferenceId, (BytesRefBlock) textEvaluator.eval(inputPage));
+            return new EmbeddingRequestIterator(inferenceId, taskType, (BytesRefBlock) textEvaluator.eval(inputPage));
         }
 
         @Override

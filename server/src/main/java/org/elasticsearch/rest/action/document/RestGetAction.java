@@ -19,6 +19,8 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.trace.RequestStatsListener;
+import org.elasticsearch.trace.RequestStatsService;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -70,7 +72,11 @@ public class RestGetAction extends BaseRestHandler {
             getRequest.setForceSyntheticSource(true);
         }
 
-        return channel -> client.get(getRequest, new RestToXContentListener<>(channel, r -> r.isExists() ? OK : NOT_FOUND));
+        return channel -> client.get(
+            getRequest,
+            RequestStatsListener.wrapIfEnabled(RequestStatsService.RequestKind.READ,
+                new RestToXContentListener<>(channel, r -> r.isExists() ? OK : NOT_FOUND))
+        );
     }
 
 }

@@ -24,6 +24,8 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.trace.RequestStatsListener;
+import org.elasticsearch.trace.RequestStatsService;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -91,7 +93,10 @@ public class RestUpdateAction extends BaseRestHandler {
 
         return channel -> client.update(
             updateRequest,
-            new RestToXContentListener<>(channel, UpdateResponse::status, r -> r.getLocation(updateRequest.routing()))
+            RequestStatsListener.wrapIfEnabled(
+                RequestStatsService.RequestKind.WRITE,
+                new RestToXContentListener<>(channel, UpdateResponse::status, r -> r.getLocation(updateRequest.routing()))
+            )
         );
     }
 

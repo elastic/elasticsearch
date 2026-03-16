@@ -240,6 +240,7 @@ import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.internal.BuiltInExecutorBuilders;
+import org.elasticsearch.trace.RequestStatsService;
 import org.elasticsearch.transport.ClusterSettingsLinkedProjectConfigService;
 import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.RemoteTransportClient;
@@ -1362,6 +1363,8 @@ class NodeConstruction {
             ActivityLogWriterProvider.class,
             () -> Log4jWriter.PROVIDER
         );
+
+        RequestStatsService.getInstance().start(settings, clusterService);
 
         modules.add(b -> {
             b.bind(NodeService.class).toInstance(nodeService);

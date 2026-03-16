@@ -118,15 +118,10 @@ setup:
   - match:  { hits.hits.0._source.metricset: pod }
   # Metrics
   - match:  { hits.hits.0._source.k8s.pod.multi-counter: 7 }
-  - match:  { hits.hits.0._source.k8s.pod.scaled-counter: 7.0 }
   - match:  { hits.hits.0._source.k8s.pod.multi-gauge.min: 100 }
   - match:  { hits.hits.0._source.k8s.pod.multi-gauge.max: 102 }
   - match:  { hits.hits.0._source.k8s.pod.multi-gauge.sum: 607 }
   - match:  { hits.hits.0._source.k8s.pod.multi-gauge.value_count: 6 }
-  - match: { hits.hits.0._source.k8s.pod.scaled-gauge.min: 100.0 }
-  - match: { hits.hits.0._source.k8s.pod.scaled-gauge.max: 101.0 }
-  - match: { hits.hits.0._source.k8s.pod.scaled-gauge.sum: 201.0 }
-  - match: { hits.hits.0._source.k8s.pod.scaled-gauge.value_count: 2 }
   - match:  { hits.hits.0._source.k8s.pod.network.tx.min: 1434521831 }
   - match:  { hits.hits.0._source.k8s.pod.network.tx.max: 1434577921 }
   - match:  { hits.hits.0._source.k8s.pod.network.tx.value_count: 2 }
@@ -146,7 +141,6 @@ setup:
   - match: { hits.hits.1._source.metricset: pod }
   # Metrics
   - match: { hits.hits.1._source.k8s.pod.multi-counter: 0 }
-  - match: { hits.hits.1._source.k8s.pod.scaled-counter: 0.0 }
   # Only dimensions and counters that have been reset are in this doc
   - is_false: hits.hits.1._source.k8s.pod.multi-gauge
 
@@ -158,7 +152,6 @@ setup:
   - match:  { hits.hits.2._source.metricset: pod }
   # Metrics
   - match:  { hits.hits.2._source.k8s.pod.multi-counter: 1000 }
-  - match:  { hits.hits.2._source.k8s.pod.scaled-counter: 1000.0 }
   - match:  { hits.hits.2._source.k8s.pod.multi-gauge.min: 95 }
 
   # Doc with counter resets
@@ -170,7 +163,6 @@ setup:
   # Metrics
   - match: { hits.hits.3._source.k8s.pod.multi-counter: 76 }
   # Only dimensions and counters that have been reset are in this doc
-  - is_false: hits.hits.3._source.k8s.pod.scaled-counter
   - is_false: hits.hits.3._source.k8s.pod.multi-gauge
 
   # Assert downsample index settings

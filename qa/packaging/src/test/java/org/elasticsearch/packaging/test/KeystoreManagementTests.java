@@ -173,7 +173,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         assertPasswordProtectedKeystore();
         Shell.Result r = installation.executables().elasticsearch.run("--help");
-        assertThat(r.stdout(), startsWith("Starts Elasticsearch"));
+        assertThat(r.stderr(), startsWith("Starts Elasticsearch"));
     }
 
     public void test30KeystorePasswordFromFile() throws Exception {

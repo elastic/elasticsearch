@@ -214,8 +214,8 @@ public class CsvTestsDataLoader {
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     // Developer flags for faster iteration when debugging specific csv-spec tests:
-    //   -Dtests.spec_indices=index1,index2   load only the specified dataset indices (enrich skipped unless spec_enrich_policies is set)
-    //   -Dtests.spec_enrich_policies=p1,p2   load only the specified enrich policies (overrides the spec_indices skipping of enrich)
+    // -Dtests.spec_indices=index1,index2 load only the specified dataset indices (enrich skipped unless spec_enrich_policies is set)
+    // -Dtests.spec_enrich_policies=p1,p2 load only the specified enrich policies (overrides the spec_indices skipping of enrich)
     @Nullable
     private static final Set<String> specIndices = parseSetProperty("tests.spec_indices");
     @Nullable

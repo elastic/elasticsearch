@@ -7669,7 +7669,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS sum(rate(network.total_bytes_in, 10m)) BY TBUCKET(20, "2024-05-10T00:00:00Z", "2024-05-10T01:00:00Z")
                 | LIMIT 10
                 """;
-            logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(TEST_PARSER.parseQuery(query)));
+            logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query(query));
         }
         // same but with last_over_time
         {
@@ -7678,7 +7678,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS avg(last_over_time(network.bytes_in, 10 minute)) BY TBUCKET(20, "2024-05-10T00:00:00Z", "2024-05-10T01:00:00Z")
                 | LIMIT 10
                 """;
-            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(TEST_PARSER.parseQuery(query)));
+            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query(query));
             Holder<LastOverTime> holder = new Holder<>();
             plan.forEachExpressionDown(LastOverTime.class, holder::set);
             assertNotNull(holder.get());
@@ -7693,7 +7693,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | LIMIT 10
                 """;
             var error = expectThrows(IllegalArgumentException.class, () -> {
-                logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(TEST_PARSER.parseQuery(query)));
+                logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query(query));
             });
             assertThat(error.getMessage(), containsString("the window must be larger than the time bucket"));
         }

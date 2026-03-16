@@ -7,9 +7,10 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -26,7 +27,9 @@ import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.listSemanticEquals;
 
@@ -99,8 +102,16 @@ public final class PushDownAndCombineLimitBy extends OptimizerRules.Parameterize
      * Duplicating the LimitBy below such a plan would leave the grouping attribute unresolved.
      */
     private static boolean groupingsReferenceAttributeNotInOutput(LimitBy limitBy, LogicalPlan plan) {
-        AttributeSet outputSet = plan.outputSet();
-        return Expressions.references(limitBy.groupings()).subtract(outputSet).isEmpty() == false;
+        Set<NameId> outputIds = new HashSet<>();
+        for (Attribute a : plan.output()) {
+            outputIds.add(a.id());
+        }
+        for (Expression g : limitBy.groupings()) {
+            if (g instanceof Attribute a && outputIds.contains(a.id()) == false) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

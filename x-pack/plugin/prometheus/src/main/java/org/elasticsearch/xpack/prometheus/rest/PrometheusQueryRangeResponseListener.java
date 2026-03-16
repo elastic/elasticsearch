@@ -42,6 +42,10 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
     private static final Logger logger = LogManager.getLogger(PrometheusQueryRangeResponseListener.class);
     private static final String JSON_CONTENT_TYPE = XContentType.JSON.mediaType();
 
+    // Column names expected in the ES|QL PROMQL response.
+    static final String VALUE_COLUMN = "value";
+    static final String STEP_PARAM = "step";
+
     // Fixed column indices produced by the PROMQL command + EVAL step = TO_LONG(step).
     // EVAL appends the new step column at the end, so dimension columns occupy indices 1..N-2.
     private static final int VALUE_COL_IDX = 0;
@@ -100,11 +104,11 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
      */
     static XContentBuilder convertToPrometheusJson(EsqlResponse response) throws IOException {
         List<? extends ColumnInfo> columns = response.columns();
-        if (columns.size() < 1 || PrometheusQueryRangeRestAction.VALUE_COLUMN.equals(columns.get(VALUE_COL_IDX).name()) == false) {
+        if (columns.size() < 1 || VALUE_COLUMN.equals(columns.get(VALUE_COL_IDX).name()) == false) {
             throw new IllegalStateException("PROMQL response is missing required 'value' column at index " + VALUE_COL_IDX);
         }
         final int stepColIdx = columns.size() - 1;
-        if (columns.size() < 2 || PrometheusQueryRangeRestAction.STEP_PARAM.equals(columns.get(stepColIdx).name()) == false) {
+        if (columns.size() < 2 || STEP_PARAM.equals(columns.get(stepColIdx).name()) == false) {
             throw new IllegalStateException("PROMQL response is missing required 'step' column at last index " + stepColIdx);
         }
         // Column 1 is either _timeseries (a JSON blob) or the first of the individual dimension columns

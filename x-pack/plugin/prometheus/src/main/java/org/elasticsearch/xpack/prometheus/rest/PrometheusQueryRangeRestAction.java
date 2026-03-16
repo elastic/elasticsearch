@@ -37,12 +37,10 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
     static final String QUERY_PARAM = "query";
     static final String START_PARAM = "start";
     static final String END_PARAM = "end";
-    static final String STEP_PARAM = "step";
-    static final String VALUE_COLUMN = "value";
     public static final String INDEX_PARAM = "index";
 
     static final String ESQL_QUERY = "PROMQL step=?"
-        + STEP_PARAM
+        + PrometheusQueryRangeResponseListener.STEP_PARAM
         + " start=?"
         + START_PARAM
         + " end=?"
@@ -50,7 +48,7 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
         + " index=?"
         + INDEX_PARAM
         + " "
-        + VALUE_COLUMN
+        + PrometheusQueryRangeResponseListener.VALUE_COLUMN
         + "=(?"
         + QUERY_PARAM
         + ") | EVAL step = TO_LONG(step)";
@@ -78,7 +76,7 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
         String query = getRequiredParam(request, QUERY_PARAM);
         String start = getRequiredParam(request, START_PARAM);
         String end = getRequiredParam(request, END_PARAM);
-        String step = getRequiredParam(request, STEP_PARAM);
+        String step = getRequiredParam(request, PrometheusQueryRangeResponseListener.STEP_PARAM);
         String index = request.param(INDEX_PARAM, "*");
 
         EsqlQueryRequest esqlRequest = EsqlQueryRequest.syncEsqlQueryRequest(ESQL_QUERY);
@@ -105,7 +103,7 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
                 new QueryParam(INDEX_PARAM, index, DataType.KEYWORD, VALUE),
                 new QueryParam(START_PARAM, start, DataType.KEYWORD, VALUE),
                 new QueryParam(END_PARAM, end, DataType.KEYWORD, VALUE),
-                new QueryParam(STEP_PARAM, step, DataType.KEYWORD, VALUE)
+                new QueryParam(PrometheusQueryRangeResponseListener.STEP_PARAM, step, DataType.KEYWORD, VALUE)
             )
         );
     }

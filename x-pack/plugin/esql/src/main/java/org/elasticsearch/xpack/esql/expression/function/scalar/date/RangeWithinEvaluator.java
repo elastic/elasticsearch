@@ -12,8 +12,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -23,23 +23,23 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
  * Supports (date_range, date), (date, date_range), (date_range, date_range), (date, date)
  * with Lucene CONTAINS semantics: left contains right (value within range).
  */
-public class RangeWithinEvaluator implements EvalOperator.ExpressionEvaluator {
+public class RangeWithinEvaluator implements ExpressionEvaluator {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RangeWithinEvaluator.class);
 
     @SuppressWarnings("unused")  // reserved for error reporting
     private final Source source;
     private final DataType leftType;
     private final DataType rightType;
-    private final EvalOperator.ExpressionEvaluator leftEvaluator;
-    private final EvalOperator.ExpressionEvaluator rightEvaluator;
+    private final ExpressionEvaluator leftEvaluator;
+    private final ExpressionEvaluator rightEvaluator;
     private final DriverContext driverContext;
 
     public RangeWithinEvaluator(
         Source source,
         DataType leftType,
         DataType rightType,
-        EvalOperator.ExpressionEvaluator leftEvaluator,
-        EvalOperator.ExpressionEvaluator rightEvaluator,
+        ExpressionEvaluator leftEvaluator,
+        ExpressionEvaluator rightEvaluator,
         DriverContext driverContext
     ) {
         this.source = source;
@@ -121,19 +121,19 @@ public class RangeWithinEvaluator implements EvalOperator.ExpressionEvaluator {
         return "RangeWithinEvaluator[left=" + leftEvaluator + ", right=" + rightEvaluator + "]";
     }
 
-    public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    public static class Factory implements ExpressionEvaluator.Factory {
         private final Source source;
         private final DataType leftType;
         private final DataType rightType;
-        private final EvalOperator.ExpressionEvaluator.Factory left;
-        private final EvalOperator.ExpressionEvaluator.Factory right;
+        private final ExpressionEvaluator.Factory left;
+        private final ExpressionEvaluator.Factory right;
 
         public Factory(
             Source source,
             DataType leftType,
             DataType rightType,
-            EvalOperator.ExpressionEvaluator.Factory left,
-            EvalOperator.ExpressionEvaluator.Factory right
+            ExpressionEvaluator.Factory left,
+            ExpressionEvaluator.Factory right
         ) {
             this.source = source;
             this.leftType = leftType;
@@ -143,7 +143,7 @@ public class RangeWithinEvaluator implements EvalOperator.ExpressionEvaluator {
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             return new RangeWithinEvaluator(source, leftType, rightType, left.get(context), right.get(context), context);
         }
 

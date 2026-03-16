@@ -11,8 +11,8 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -20,15 +20,15 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * Evaluator for RangeMin(date_range) -> date.
  * Returns the minimum (start) value of a date_range.
  */
-public class RangeMinEvaluator implements EvalOperator.ExpressionEvaluator {
+public class RangeMinEvaluator implements ExpressionEvaluator {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RangeMinEvaluator.class);
 
     @SuppressWarnings("unused")
     private final Source source;
-    private final EvalOperator.ExpressionEvaluator range;
+    private final ExpressionEvaluator range;
     private final DriverContext driverContext;
 
-    public RangeMinEvaluator(Source source, EvalOperator.ExpressionEvaluator range, DriverContext driverContext) {
+    public RangeMinEvaluator(Source source, ExpressionEvaluator range, DriverContext driverContext) {
         this.source = source;
         this.range = range;
         this.driverContext = driverContext;
@@ -81,17 +81,17 @@ public class RangeMinEvaluator implements EvalOperator.ExpressionEvaluator {
         return "RangeMinEvaluator[range=" + range + "]";
     }
 
-    public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    public static class Factory implements ExpressionEvaluator.Factory {
         private final Source source;
-        private final EvalOperator.ExpressionEvaluator.Factory range;
+        private final ExpressionEvaluator.Factory range;
 
-        public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory range) {
+        public Factory(Source source, ExpressionEvaluator.Factory range) {
             this.source = source;
             this.range = range;
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             return new RangeMinEvaluator(source, range.get(context), context);
         }
 

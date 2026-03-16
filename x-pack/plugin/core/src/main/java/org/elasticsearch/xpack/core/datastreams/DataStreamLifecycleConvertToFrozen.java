@@ -142,6 +142,10 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
         }
 
         String repositoryName = resolveRepositoryName(projectState);
+        if (Strings.hasText(repositoryName) == false) {
+            logger.debug("Default repository not configured, skipping convert-to-frozen steps for index [{}]", indexName);
+            return false; // Or throw? Depends how we do error handling later.
+        }
         boolean repoIsRegistered = RepositoriesMetadata.get(projectState.metadata())
             .repositories()
             .stream()

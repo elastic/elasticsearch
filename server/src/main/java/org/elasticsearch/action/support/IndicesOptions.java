@@ -530,8 +530,11 @@ public record IndicesOptions(
 
         ALLOW_FAILURE_INDICES,  // Added in 8.14, Removed in 8.18
         ALLOW_SELECTORS,        // Added in 8.18
-        INCLUDE_FAILURE_INDICES // Added in 8.18
+        INCLUDE_FAILURE_INDICES, // Added in 8.18
+        RESOLVE_VIEWS
     }
+
+    public static final TransportVersion INDICES_OPTIONS_RESOLVE_VIEWS = TransportVersion.fromName("esql_resolve_fields_response_views");
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndicesOptions.class);
     private static final String IGNORE_THROTTLED_DEPRECATION_MESSAGE = "[ignore_throttled] parameter is deprecated "
@@ -1012,6 +1015,9 @@ public record IndicesOptions(
         if (gatekeeperOptions.includeFailureIndices()) {
             backwardsCompatibleOptions.add(Option.INCLUDE_FAILURE_INDICES);
         }
+        if (indexAbstractionOptions.resolveViews() && out.getTransportVersion().supports(INDICES_OPTIONS_RESOLVE_VIEWS)) {
+            backwardsCompatibleOptions.add(Option.RESOLVE_VIEWS);
+        }
         out.writeEnumSet(backwardsCompatibleOptions);
 
         EnumSet<WildcardStates> states = EnumSet.noneOf(WildcardStates.class);
@@ -1044,6 +1050,7 @@ public record IndicesOptions(
             .includeFailureIndices(includeFailureIndices)
             .ignoreThrottled(options.contains(Option.IGNORE_THROTTLED))
             .build();
+        IndexAbstractionOptions indexAbstractionOptions = new IndexAbstractionOptions(options.contains(Option.RESOLVE_VIEWS));
         return new IndicesOptions(
             options.contains(Option.ALLOW_UNAVAILABLE_CONCRETE_TARGETS)
                 ? ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS
@@ -1051,7 +1058,7 @@ public record IndicesOptions(
             wildcardOptions,
             gatekeeperOptions,
             CrossProjectModeOptions.readFrom(in),
-            IndexAbstractionOptions.DEFAULT
+            indexAbstractionOptions
         );
     }
 

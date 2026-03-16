@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -28,7 +29,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -73,7 +73,7 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
         String releaseDate,
         @Nullable String endOfLifeDate,
         @Nullable Configuration configuration,
-        @Nullable String displayName,
+        @Nullable EndpointMetadata.Display display,
         @Nullable String fingerprint
     ) {
 
@@ -86,7 +86,7 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
         private static final String STATUS = "status";
         private static final String PROPERTIES = "properties";
         private static final String CONFIGURATION = "configuration";
-        private static final String DISPLAY_NAME = "display_name";
+        private static final String DISPLAY = "display";
         private static final String FINGERPRINT = "fingerprint";
 
         @SuppressWarnings("unchecked")
@@ -102,7 +102,7 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
                 (String) args[5],
                 (String) args[6],
                 (Configuration) args[7],
-                (String) args[8],
+                (EndpointMetadata.Display) args[8],
                 (String) args[9]
             )
         );
@@ -116,7 +116,11 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
             AUTHORIZED_ENDPOINT_PARSER.declareString(constructorArg(), new ParseField(RELEASE_DATE));
             AUTHORIZED_ENDPOINT_PARSER.declareString(optionalConstructorArg(), new ParseField(END_OF_LIFE_DATE));
             AUTHORIZED_ENDPOINT_PARSER.declareObject(optionalConstructorArg(), Configuration.PARSER::apply, new ParseField(CONFIGURATION));
-            AUTHORIZED_ENDPOINT_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField(DISPLAY_NAME));
+            AUTHORIZED_ENDPOINT_PARSER.declareObject(
+                optionalConstructorArg(),
+                (p, c) -> EndpointMetadata.Display.parse(p),
+                new ParseField(DISPLAY)
+            );
             AUTHORIZED_ENDPOINT_PARSER.declareString(optionalConstructorArg(), new ParseField(FINGERPRINT));
         }
     }
@@ -177,11 +181,6 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
             return PARSER.apply(jsonParser, null);
         }
-    }
-
-    @Override
-    public String toString() {
-        return authorizedEndpoints.stream().map(AuthorizedEndpoint::toString).collect(Collectors.joining(", "));
     }
 
     @Override

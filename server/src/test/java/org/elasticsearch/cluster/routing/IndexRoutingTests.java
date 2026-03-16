@@ -664,7 +664,8 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     public void testRoutingPathBwc() throws IOException {
-        TimeSeriesRoutingFixture fixture = indexRoutingForRoutingPath(IndexVersion.current(), 8, "dim.*,other.*,top", randomBoolean());
+        boolean useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean();
+        TimeSeriesRoutingFixture fixture = indexRoutingForRoutingPath(IndexVersion.current(), 8, "dim.*,other.*,top", useSyntheticId);
         /*
          * These are the expected shards when we first added routing_path. If these values change
          * time series will be routed to unexpected shards. You may modify
@@ -683,11 +684,12 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     public void testRoutingPathBwcAfterTsidBasedRouting() throws IOException {
+        boolean useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean();
         TimeSeriesRoutingFixture fixture = indexRoutingForTimeSeriesDimensions(
             IndexVersion.current(),
             8,
             "dim.*,other.*,top",
-            randomBoolean()
+            useSyntheticId
         );
         /*
          * These are the expected shards after tsid based routing. If these values change

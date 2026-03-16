@@ -9,8 +9,13 @@
 
 package org.elasticsearch.test.apmintegration;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.MutableSettingsProvider;
+import org.elasticsearch.test.cluster.MutableSystemPropertyProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -18,13 +23,14 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.spi.XContentProvider;
 import org.hamcrest.Matcher;
 import org.hamcrest.StringDescription;
+import org.junit.Before;
 import org.junit.ClassRule;
-import org.junit.Rule;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -37,21 +43,35 @@ import java.util.stream.Stream;
 import static java.util.Map.entry;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class MetricsApmIT extends ESRestTestCase {
     private static final XContentProvider.FormatProvider XCONTENT = XContentProvider.provider().getJsonXContent();
+    private static final MutableSettingsProvider clusterSettings = new MutableSettingsProvider();
+    private static final MutableSystemPropertyProvider systemProperties = new MutableSystemPropertyProvider();
+    private final boolean withOTel;
 
     @ClassRule
-    public static RecordingApmServer mockApmServer = new RecordingApmServer();
+    public static RecordingApmServer recordingApmServer = new RecordingApmServer();
 
-    @Rule
-    public ElasticsearchCluster cluster = ElasticsearchCluster.local()
+    public MetricsApmIT(@Name("withOTel") boolean withOTel) {
+        this.withOTel = withOTel;
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return List.of(new Object[] { true }, new Object[] { false });
+    }
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.INTEG_TEST)
         .module("test-apm-integration")
         .module("apm")
         .setting("telemetry.metrics.enabled", "true")
-        .setting("telemetry.agent.metrics_interval", "1s")
-        .setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockApmServer.getPort())
+        .settings(clusterSettings)
+        .systemProperties(systemProperties)
         .build();
 
     @Override
@@ -59,16 +79,39 @@ public class MetricsApmIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
+    /**
+     * Restarts the shared test cluster when needed so the parameterized cluster settings and system properties
+     * for the current test instance take effect. This follows the same pattern used in {@code AbstractNetty4IT}.
+     */
+    @Before
+    public void maybeRestart() throws IOException {
+        String current = systemProperties.get(null).get("telemetry.otel.metrics.enabled");
+        if (current == null || current.equals(Boolean.toString(withOTel)) == false) {
+            systemProperties.get(null).put("telemetry.otel.metrics.enabled", String.valueOf(withOTel));
+            if (withOTel) {
+                clusterSettings.get(null).put("telemetry.otel.metrics.interval", "1s");
+                clusterSettings.get(null)
+                    .put("telemetry.otel.metrics.endpoint", "http://" + recordingApmServer.getHttpAddress() + "/v1/metrics");
+            } else {
+                clusterSettings.get(null).put("telemetry.agent.metrics_interval", "1s");
+                clusterSettings.get(null).put("telemetry.agent.server_url", "http://" + recordingApmServer.getHttpAddress());
+            }
+            cluster.restart(false);
+            closeClients();
+            initClient();
+        }
+    }
+
     @SuppressWarnings("unchecked")
     public void testApmIntegration() throws Exception {
         Map<String, Predicate<Map<String, Object>>> valueAssertions = new HashMap<>(
             Map.ofEntries(
-                assertion("es.test.long_counter.total", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("es.test.double_counter.total", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("es.test.async_double_counter.total", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("es.test.async_long_counter.total", m -> (Integer) m.get("value"), equalTo(1)),
-                assertion("es.test.double_gauge.current", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
-                assertion("es.test.long_gauge.current", m -> (Integer) m.get("value"), equalTo(1))
+                assertion("es.test.long_counter.total", m -> ((Number) m.get("value")).doubleValue(), closeTo(1.0, 0.001)),
+                assertion("es.test.double_counter.total", m -> ((Number) m.get("value")).doubleValue(), closeTo(1.0, 0.001)),
+                assertion("es.test.async_double_counter.total", m -> ((Number) m.get("value")).doubleValue(), closeTo(1.0, 0.001)),
+                assertion("es.test.async_long_counter.total", m -> ((Number) m.get("value")).intValue(), equalTo(1)),
+                assertion("es.test.double_gauge.current", m -> ((Number) m.get("value")).doubleValue(), closeTo(1.0, 0.001)),
+                assertion("es.test.long_gauge.current", m -> ((Number) m.get("value")).intValue(), equalTo(1))
             )
         );
 
@@ -103,9 +146,9 @@ public class MetricsApmIT extends ESRestTestCase {
                     if (histogramAssertion != null) {
                         logger.info("Matched {}:{}", key, value);
                         var samplesObject = (Map<String, Object>) value;
-                        var counts = ((Collection<Integer>) samplesObject.get("counts")).stream().mapToInt(Integer::intValue).sum();
+                        var counts = ((Collection<? extends Number>) samplesObject.get("counts")).stream().mapToInt(Number::intValue).sum();
                         var remaining = histogramAssertion - counts;
-                        if (remaining == 0) {
+                        if (remaining <= 0) {
                             logger.info("{} assertion PASSED", key);
                             histogramAssertions.remove(key);
                         } else {
@@ -116,19 +159,87 @@ public class MetricsApmIT extends ESRestTestCase {
                 });
             }
 
+            if (valueAssertions.isEmpty() && histogramAssertions.isEmpty()) {
+                finished.countDown();
+            }
+        };
+
+        recordingApmServer.addMessageConsumer(messageConsumer);
+
+        if (withOTel) {
+            // Re-trigger periodically to produce fresh non-zero deltas for async counters
+            for (int i = 0; i < 15 && finished.getCount() > 0; i++) {
+                client().performRequest(new Request("GET", "/_use_apm_metrics"));
+                finished.await(2, TimeUnit.SECONDS);
+            }
+        } else {
+            client().performRequest(new Request("GET", "/_use_apm_metrics"));
+            finished.await(30, TimeUnit.SECONDS);
+        }
+
+        var remainingAssertions = Stream.concat(valueAssertions.keySet().stream(), histogramAssertions.keySet().stream())
+            .collect(Collectors.joining(","));
+        assertTrue(
+            "Timeout when waiting for assertions to complete. Remaining assertions to match: " + remainingAssertions,
+            finished.getCount() == 0
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testJvmMetrics() throws Exception {
+        Map<String, Predicate<Map<String, Object>>> valueAssertions = new HashMap<>(
+            Map.ofEntries(
+                assertion("system.cpu.total.norm.pct", m -> (Double) m.get("value"), closeTo(0.0, 1.0)),
+                assertion("system.process.cpu.total.norm.pct", m -> (Double) m.get("value"), closeTo(0.0, 1.0)),
+                assertion("system.memory.total", m -> ((Number) m.get("value")).longValue(), greaterThan(0L)),
+                assertion("system.memory.actual.free", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
+                assertion("system.process.memory.size", m -> ((Number) m.get("value")).longValue(), greaterThan(0L)),
+                assertion("jvm.memory.heap.used", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
+                assertion("jvm.memory.heap.committed", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
+                assertion("jvm.memory.heap.max", m -> ((Number) m.get("value")).longValue(), greaterThan(0L)),
+                assertion("jvm.memory.non_heap.used", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
+                assertion("jvm.memory.non_heap.committed", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
+                assertion("jvm.gc.count", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
+                assertion("jvm.gc.time", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
+                assertion("jvm.gc.alloc", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
+                assertion("jvm.thread.count", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(1L)),
+                assertion("jvm.fd.used", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
+                assertion("jvm.fd.max", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
+                assertion("jvm.memory.heap.pool.used", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
+                assertion("jvm.memory.heap.pool.committed", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
+                assertion("jvm.memory.non_heap.pool.used", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L)),
+                assertion("jvm.memory.non_heap.pool.committed", m -> ((Number) m.get("value")).longValue(), greaterThanOrEqualTo(0L))
+            )
+        );
+
+        CountDownLatch finished = new CountDownLatch(1);
+
+        Consumer<String> messageConsumer = (String message) -> {
+            var apmMessage = parseMap(message);
+            var metricset = (Map<String, Object>) apmMessage.getOrDefault("metricset", Collections.emptyMap());
+            var samples = (Map<String, Object>) metricset.getOrDefault("samples", Collections.emptyMap());
+
+            samples.forEach((key, value) -> {
+                var valueAssertion = valueAssertions.get(key);
+                if (valueAssertion != null) {
+                    var sampleObject = (Map<String, Object>) value;
+                    if (valueAssertion.test(sampleObject)) {
+                        logger.info("{} assertion PASSED", key);
+                        valueAssertions.remove(key);
+                    }
+                }
+            });
+
             if (valueAssertions.isEmpty()) {
                 finished.countDown();
             }
         };
 
-        mockApmServer.addMessageConsumer(messageConsumer);
-
-        client().performRequest(new Request("GET", "/_use_apm_metrics"));
+        recordingApmServer.addMessageConsumer(messageConsumer);
 
         var completed = finished.await(30, TimeUnit.SECONDS);
-        var remainingAssertions = Stream.concat(valueAssertions.keySet().stream(), histogramAssertions.keySet().stream())
-            .collect(Collectors.joining(","));
-        assertTrue("Timeout when waiting for assertions to complete. Remaining assertions to match: " + remainingAssertions, completed);
+        var remaining = valueAssertions.keySet().stream().collect(Collectors.joining(", "));
+        assertTrue("Timeout waiting for JVM metrics. Missing: " + remaining, completed);
     }
 
     private <T> Map.Entry<String, Predicate<Map<String, Object>>> assertion(

@@ -272,14 +272,13 @@ setup:
           query: 'FROM test | WHERE animal == "dog"'
 
   - do:
+      catch: /no such index \[myview\]/
       search:
         index: myview
         body: { query: { match_all: {} } }
 
-  - length: { hits.hits: 0 }
-
   - do:
-      catch: /an ESQL view \[myview\] may not be the target of an index operation/
+      catch: /no such index \[myview\]/
       index:
         index: myview
         id: "1"

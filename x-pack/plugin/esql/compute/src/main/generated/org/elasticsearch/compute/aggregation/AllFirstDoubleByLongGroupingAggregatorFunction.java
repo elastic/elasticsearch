@@ -37,16 +37,11 @@ public final class AllFirstDoubleByLongGroupingAggregatorFunction implements Gro
 
   private final DriverContext driverContext;
 
-  public AllFirstDoubleByLongGroupingAggregatorFunction(List<Integer> channels,
-      AllFirstDoubleByLongAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static AllFirstDoubleByLongGroupingAggregatorFunction create(List<Integer> channels,
+  AllFirstDoubleByLongGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new AllFirstDoubleByLongGroupingAggregatorFunction(channels, AllFirstDoubleByLongAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = AllFirstDoubleByLongAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

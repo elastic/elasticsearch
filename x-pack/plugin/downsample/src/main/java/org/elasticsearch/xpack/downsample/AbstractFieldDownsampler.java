@@ -78,7 +78,8 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
         SearchExecutionContext context,
         String[] fields,
         Map<String, String> multiFieldSources,
-        DownsampleConfig.SamplingMethod samplingMethod
+        DownsampleConfig.SamplingMethod samplingMethod,
+        DownsamplerCountPerValueType fieldCounts
     ) {
         List<AbstractFieldDownsampler<?>> downsamplers = new ArrayList<>();
         for (String field : fields) {
@@ -87,7 +88,7 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
             assert fieldType != null : "Unknown field type for field: [" + sourceField + "]";
 
             if (fieldType instanceof AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType aggMetricFieldType) {
-                downsamplers.addAll(AggregateMetricDoubleFieldDownsampler.create(context, aggMetricFieldType, samplingMethod));
+                downsamplers.addAll(AggregateMetricDoubleFieldDownsampler.create(context, aggMetricFieldType, samplingMethod, fieldCounts));
             } else {
                 if (context.fieldExistsInIndex(field)) {
                     final IndexFieldData<?> fieldData;
@@ -97,7 +98,7 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
                     } else {
                         fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
                     }
-                    downsamplers.add(create(field, fieldType, fieldData, samplingMethod));
+                    downsamplers.add(create(field, fieldType, fieldData, samplingMethod, fieldCounts));
                 }
             }
         }
@@ -111,24 +112,85 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
         String fieldName,
         MappedFieldType fieldType,
         IndexFieldData<?> fieldData,
-        DownsampleConfig.SamplingMethod samplingMethod
+        DownsampleConfig.SamplingMethod samplingMethod,
+        DownsamplerCountPerValueType fieldCounts
     ) {
         assert AggregateMetricDoubleFieldDownsampler.supportsFieldType(fieldType) == false
             : "Aggregate metric double should be handled by a dedicated downsampler";
         if (TDigestHistogramFieldDownsampler.supportsFieldType(fieldType)) {
+            fieldCounts.increaseTDigestHistogramFields();
             return TDigestHistogramFieldDownsampler.create(fieldName, fieldType, fieldData, samplingMethod);
         }
         if (ExponentialHistogramFieldDownsampler.supportsFieldType(fieldType)) {
+            fieldCounts.increaseExponentialHistogramFields();
             return ExponentialHistogramFieldDownsampler.create(fieldName, fieldData, samplingMethod);
         }
         if (NumericMetricFieldDownsampler.supportsFieldType(fieldType)) {
-            return NumericMetricFieldDownsampler.create(fieldName, fieldType, fieldData, samplingMethod);
+            return NumericMetricFieldDownsampler.create(fieldName, fieldType, fieldData, samplingMethod, fieldCounts);
         }
         // TODO: Support POSITION in downsampling
         if (fieldType.getMetricType() == POSITION) {
             throw new IllegalArgumentException("Unsupported metric type [position] for downsampling");
         }
         // If a field is not a metric, we downsample it as a label
-        return LastValueFieldDownsampler.create(fieldName, fieldType, fieldData);
+        return LastValueFieldDownsampler.create(fieldName, fieldType, fieldData, fieldCounts);
+    }
+
+    static class DownsamplerCountPerValueType {
+        private int numericFields = 0;
+        private int aggregateCounterFields = 0;
+        private int formattedValueFields = 0;
+        private int dimensionFields = 0;
+        private int exponentialHistogramFields = 0;
+        private int tDigestHistogramFields = 0;
+
+        void increaseNumericFields() {
+            numericFields++;
+        }
+
+        void increaseAggregateCounterFields() {
+            aggregateCounterFields++;
+        }
+
+        void increaseFormattedValueFields() {
+            formattedValueFields++;
+        }
+
+        void increaseDimensionFields() {
+            dimensionFields++;
+            formattedValueFields++;
+        }
+
+        void increaseExponentialHistogramFields() {
+            exponentialHistogramFields++;
+        }
+
+        void increaseTDigestHistogramFields() {
+            tDigestHistogramFields++;
+        }
+
+        int numericFields() {
+            return numericFields;
+        }
+
+        int aggregateCounterFields() {
+            return aggregateCounterFields;
+        }
+
+        int formattedValueFields() {
+            return formattedValueFields;
+        }
+
+        int dimensionFields() {
+            return dimensionFields;
+        }
+
+        int exponentialHistogramFields() {
+            return exponentialHistogramFields;
+        }
+
+        int tDigestHistogramFields() {
+            return tDigestHistogramFields;
+        }
     }
 }

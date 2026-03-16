@@ -34,16 +34,10 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
 
   private final DriverContext driverContext;
 
-  public MaxBooleanGroupingAggregatorFunction(List<Integer> channels, BooleanArrayState state,
-      DriverContext driverContext) {
+  MaxBooleanGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = new BooleanArrayState(driverContext.bigArrays(), MaxBooleanAggregator.init());
     this.driverContext = driverContext;
-  }
-
-  public static MaxBooleanGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new MaxBooleanGroupingAggregatorFunction(channels, new BooleanArrayState(driverContext.bigArrays(), MaxBooleanAggregator.init()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

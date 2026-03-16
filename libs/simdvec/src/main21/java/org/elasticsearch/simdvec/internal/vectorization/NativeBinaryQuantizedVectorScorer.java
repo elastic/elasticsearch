@@ -53,8 +53,8 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
                 qcDist = Similarities.dotProductD1Q4(segment, MemorySegment.ofArray(q), numBytes);
             } else {
                 try (var arena = Arena.ofConfined()) {
-                    var querySegment = arena.allocate(numBytes);
-                    MemorySegment.copy(q, 0, querySegment, ValueLayout.JAVA_BYTE, 0, numBytes);
+                    var querySegment = arena.allocate(q.length, 64);
+                    MemorySegment.copy(q, 0, querySegment, ValueLayout.JAVA_BYTE, 0, q.length);
                     qcDist = Similarities.dotProductD1Q4(segment, querySegment, numBytes);
                 }
             }
@@ -102,10 +102,10 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
                 );
             } else {
                 try (var arena = Arena.ofConfined()) {
-                    var querySegment = arena.allocate(numBytes, 64);
+                    var querySegment = arena.allocate(q.length, 64);
                     var offsetsSegment = arena.allocate((long) bulkSize * Integer.BYTES, 64);
                     var scoresSegment = arena.allocate((long) bulkSize * Float.BYTES, 64);
-                    MemorySegment.copy(q, 0, querySegment, ValueLayout.JAVA_BYTE, 0, numBytes);
+                    MemorySegment.copy(q, 0, querySegment, ValueLayout.JAVA_BYTE, 0, q.length);
                     MemorySegment.copy(nodes, 0, offsetsSegment, ValueLayout.JAVA_INT, 0, bulkSize);
                     Similarities.dotProductD1Q4BulkWithOffsets(
                         segment,

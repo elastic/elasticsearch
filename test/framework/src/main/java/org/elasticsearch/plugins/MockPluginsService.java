@@ -60,7 +60,8 @@ public class MockPluginsService extends PluginsService {
                 false,
                 false,
                 false,
-                false
+                false,
+                PluginDescriptor.DeploymentTarget.ALL
             );
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);

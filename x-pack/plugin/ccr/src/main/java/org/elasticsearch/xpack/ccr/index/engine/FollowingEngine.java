@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr.index.engine;
 
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -188,7 +187,7 @@ public class FollowingEngine extends InternalEngine {
             final IndexSearcher searcher = new IndexSearcher(reader);
             searcher.setQueryCache(null);
             final Query query = new BooleanQuery.Builder().add(
-                LongPoint.newExactQuery(SeqNoFieldMapper.NAME, seqNo),
+                SeqNoFieldMapper.exactQueryForSeqNo(engineConfig.getIndexSettings().seqNoIndexOptions(), seqNo),
                 BooleanClause.Occur.FILTER
             )
                 // excludes the non-root nested documents which don't have primary_term.
@@ -206,6 +205,8 @@ public class FollowingEngine extends InternalEngine {
             }
             if (seqNo <= engineConfig.getGlobalCheckpointSupplier().getAsLong()) {
                 return OptionalLong.empty(); // we have merged away the looking up operation.
+            } else if (engineConfig.getIndexSettings().sequenceNumbersDisabled()) {
+                return OptionalLong.empty(); // seq_no data may have been pruned
             } else {
                 assert false : "seq_no[" + seqNo + "] does not have primary_term, total_hits=[" + topDocs.totalHits + "]";
                 throw new IllegalStateException("seq_no[" + seqNo + "] does not have primary_term (total_hits=" + topDocs.totalHits + ")");

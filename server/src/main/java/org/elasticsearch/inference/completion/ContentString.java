@@ -17,7 +17,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.CONTENT_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CONTENT_FIELD;
 
 public record ContentString(String content) implements Content, NamedWriteable {
     public static final String NAME = "content_string";

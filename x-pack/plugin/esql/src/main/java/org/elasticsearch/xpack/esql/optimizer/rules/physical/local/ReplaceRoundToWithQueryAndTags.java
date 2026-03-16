@@ -406,7 +406,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         int count = roundingPoints.size();
         DataType dataType = roundTo.dataType();
         // sort rounding points
-        List<Object> points = resolveRoundingPoints(roundingPoints, dataType);
+        List<Number> points = resolveRoundingPoints(roundingPoints, dataType);
         if (points.size() != count || points.isEmpty()) {
             return null;
         }
@@ -437,7 +437,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         return queries;
     }
 
-    private static List<Object> resolveRoundingPoints(List<Expression> roundingPoints, DataType dataType) {
+    private static List<Number> resolveRoundingPoints(List<Expression> roundingPoints, DataType dataType) {
         List<Object> points = new ArrayList<>(roundingPoints.size());
         for (Expression e : roundingPoints) {
             if (e instanceof Literal l && l.value() instanceof Number n) {

@@ -1354,6 +1354,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             e.getMessage(),
             Matchers.containsString(
                 String.format(
+                    Locale.ROOT,
                     "The setting [%s] is only permitted for indexVersion [%d] or later. Current indexVersion: [%d].",
                     IndexSettings.SYNTHETIC_ID.getKey(),
                     IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94.id(),

@@ -14,6 +14,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
@@ -40,7 +41,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestTests extends ES
         var input = "What is 2+2?";
 
         var request = createRequest(url, modelId, List.of(input), false);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -66,7 +67,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestTests extends ES
         var inputs = List.of("What is 2+2?", "What is the capital of France?");
 
         var request = createRequest(url, modelId, inputs, false);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -88,7 +89,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestTests extends ES
         var input = "What is 2+2?";
 
         var request = createRequest(url, modelId, List.of(input), false);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -105,7 +106,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestTests extends ES
         var input = "What is 2+2?";
 
         var request = createRequest(url, modelId, List.of(input), true);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -160,7 +161,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestTests extends ES
         assertThat(truncatedRequest, is(request));
 
         // Verify content is unchanged
-        var httpRequest = truncatedRequest.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
@@ -213,7 +214,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequestTests extends ES
             CCMAuthenticationApplierFactory.NOOP_APPLIER
         );
 
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();

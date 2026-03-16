@@ -229,7 +229,6 @@ import static org.mockito.Mockito.mock;
  *         index emits documents a fairly random order. Multi-shard and multi-node tests doubly so.</li>
  * </ul>
  */
-// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class CsvTests extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
@@ -803,6 +802,7 @@ public class CsvTests extends ESTestCase {
         var testDatasets = testDatasets(plan);
         // Specifically use the newest transport version; the csv tests correspond to a single node cluster on the current version.
         TransportVersion minimumVersion = TransportVersion.current();
+        var unmappedResolution = statement.setting(UNMAPPED_FIELDS);
 
         boolean hasExternalSources = plan.anyMatch(UnresolvedExternalRelation.class::isInstance);
         ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
@@ -839,7 +839,7 @@ public class CsvTests extends ESTestCase {
 
         LogicalPlan analyzed = analyzedPlan(
             plan,
-            statement.setting(UNMAPPED_FIELDS),
+            unmappedResolution,
             configuration,
             testDatasets,
             minimumVersion,

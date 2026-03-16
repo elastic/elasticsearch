@@ -398,6 +398,7 @@ emp_no:integer | salary:integer | max_salary:integer
 
 uriPartsFromEval
 required_capability: external_command
+required_capability: external_csv_ip_support
 required_capability: uri_parts_command
 
 EXTERNAL "{{web_logs}}"
@@ -414,6 +415,7 @@ https                | www.elastic.co             | /guide/en/elasticsearch/refe
 
 registeredDomainFromEval
 required_capability: external_command
+required_capability: external_csv_ip_support
 required_capability: registered_domain_command
 
 EXTERNAL "{{web_logs}}"

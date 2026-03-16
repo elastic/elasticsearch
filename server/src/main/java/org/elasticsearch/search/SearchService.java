@@ -1870,13 +1870,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         if (source.seqNoAndPrimaryTerm() != null) {
-            if (source.seqNoAndPrimaryTerm() && context.getSearchExecutionContext().getIndexSettings().sequenceNumbersDisabled()) {
-                throw new IllegalArgumentException(
-                    "Cannot request seq_no_primary_term on index ["
-                        + context.getSearchExecutionContext().index().getName()
-                        + "] because [index.disable_sequence_numbers] is [true]"
-                );
-            }
             context.seqNoAndPrimaryTerm(source.seqNoAndPrimaryTerm());
         }
 

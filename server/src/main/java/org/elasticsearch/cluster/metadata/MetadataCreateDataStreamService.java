@@ -109,7 +109,13 @@ public class MetadataCreateDataStreamService {
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     // When we're manually creating a data stream (i.e. not an auto creation), we don't need to initialize the failure store
                     // because we don't need to redirect any failures in the same request.
-                    ClusterState clusterState = createDataStream(request, currentState, delegate.reroute(), false);
+                    ClusterState clusterState = createDataStream(
+                        request,
+                        currentState,
+                        RerouteBehavior.PERFORM_REROUTE,
+                        delegate.reroute(),
+                        false
+                    );
                     DataStream createdDataStream = clusterState.metadata().getProject(request.projectId()).dataStreams().get(request.name);
                     firstBackingIndexRef.set(createdDataStream.getIndices().get(0).getName());
                     if (createdDataStream.getFailureIndices().isEmpty() == false) {
@@ -129,6 +135,7 @@ public class MetadataCreateDataStreamService {
     public ClusterState createDataStream(
         CreateDataStreamClusterStateUpdateRequest request,
         ClusterState current,
+        RerouteBehavior rerouteBehavior,
         ActionListener<Void> rerouteListener,
         boolean initializeFailureStore
     ) throws Exception {
@@ -138,6 +145,7 @@ public class MetadataCreateDataStreamService {
             current,
             isDslOnlyMode,
             request,
+            rerouteBehavior,
             rerouteListener,
             initializeFailureStore
         );
@@ -149,8 +157,7 @@ public class MetadataCreateDataStreamService {
         long startTime,
         @Nullable SystemDataStreamDescriptor systemDataStreamDescriptor,
         TimeValue masterNodeTimeout,
-        TimeValue ackTimeout,
-        boolean performReroute
+        TimeValue ackTimeout
     ) {
         public CreateDataStreamClusterStateUpdateRequest {
             Objects.requireNonNull(name);
@@ -159,7 +166,7 @@ public class MetadataCreateDataStreamService {
         }
 
         public CreateDataStreamClusterStateUpdateRequest(final ProjectId projectId, String name) {
-            this(projectId, name, null, TimeValue.ZERO, TimeValue.ZERO, true);
+            this(projectId, name, null, TimeValue.ZERO, TimeValue.ZERO);
         }
 
         public CreateDataStreamClusterStateUpdateRequest(
@@ -167,10 +174,9 @@ public class MetadataCreateDataStreamService {
             String name,
             SystemDataStreamDescriptor systemDataStreamDescriptor,
             TimeValue masterNodeTimeout,
-            TimeValue ackTimeout,
-            boolean performReroute
+            TimeValue ackTimeout
         ) {
-            this(projectId, name, System.currentTimeMillis(), systemDataStreamDescriptor, masterNodeTimeout, ackTimeout, performReroute);
+            this(projectId, name, System.currentTimeMillis(), systemDataStreamDescriptor, masterNodeTimeout, ackTimeout);
         }
 
         public boolean isSystem() {
@@ -184,6 +190,7 @@ public class MetadataCreateDataStreamService {
         ClusterState currentState,
         boolean isDslOnlyMode,
         CreateDataStreamClusterStateUpdateRequest request,
+        RerouteBehavior rerouteBehavior,
         ActionListener<Void> rerouteListener,
         boolean initializeFailureStore
     ) throws Exception {
@@ -195,6 +202,7 @@ public class MetadataCreateDataStreamService {
             request,
             List.of(),
             null,
+            rerouteBehavior,
             rerouteListener,
             initializeFailureStore
         );
@@ -220,6 +228,7 @@ public class MetadataCreateDataStreamService {
         CreateDataStreamClusterStateUpdateRequest request,
         List<IndexMetadata> backingIndices,
         IndexMetadata writeIndex,
+        RerouteBehavior rerouteBehavior,
         ActionListener<Void> rerouteListener,
         boolean initializeFailureStore
     ) throws Exception {
@@ -304,6 +313,7 @@ public class MetadataCreateDataStreamService {
                 metadataCreateIndexService,
                 currentState,
                 request,
+                rerouteBehavior,
                 rerouteListener,
                 dataStreamName,
                 systemDataStreamDescriptor,
@@ -374,6 +384,7 @@ public class MetadataCreateDataStreamService {
         MetadataCreateIndexService metadataCreateIndexService,
         ClusterState currentState,
         CreateDataStreamClusterStateUpdateRequest request,
+        RerouteBehavior rerouteBehavior,
         ActionListener<Void> rerouteListener,
         String dataStreamName,
         SystemDataStreamDescriptor systemDataStreamDescriptor,
@@ -389,7 +400,6 @@ public class MetadataCreateDataStreamService {
         ).dataStreamName(dataStreamName)
             .systemDataStreamDescriptor(systemDataStreamDescriptor)
             .nameResolvedInstant(request.startTime())
-            .performReroute(request.performReroute())
             .setMatchingTemplate(template);
 
         if (isSystem) {
@@ -399,7 +409,13 @@ public class MetadataCreateDataStreamService {
         }
 
         try {
-            currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false, rerouteListener);
+            currentState = metadataCreateIndexService.applyCreateIndexRequest(
+                currentState,
+                createIndexRequest,
+                false,
+                rerouteBehavior,
+                rerouteListener
+            );
         } catch (ResourceAlreadyExistsException e) {
             // Rethrow as ElasticsearchStatusException, so that bulk transport action doesn't ignore it during
             // auto index/data stream creation.
@@ -436,7 +452,6 @@ public class MetadataCreateDataStreamService {
             failureStoreIndexName
         ).dataStreamName(dataStreamName)
             .nameResolvedInstant(nameResolvedInstant)
-            .performReroute(false)
             .setMatchingTemplate(template)
             .settings(indexSettings)
             .isFailureIndex(true)
@@ -447,6 +462,7 @@ public class MetadataCreateDataStreamService {
                 currentState,
                 createIndexRequest,
                 false,
+                RerouteBehavior.SKIP_REROUTE,
                 metadataTransformer,
                 AllocationActionListener.rerouteCompletionIsNotRequired()
             );

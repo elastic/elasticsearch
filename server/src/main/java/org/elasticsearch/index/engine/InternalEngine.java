@@ -1892,8 +1892,7 @@ public class InternalEngine extends Engine {
     /// Rather than hard-deleting the document, a tombstone is written using
     /// [soft-update semantics][IndexWriter#softUpdateDocument]: the tombstone carries the
     /// `__soft_deletes` marker so that Lucene's [org.apache.lucene.index.SoftDeletesRetentionMergePolicy]
-    /// can retain it during merges. This is essential for peer-recovery and CCR, which need the delete
-    /// operation preserved until all replicas and followers have processed it.
+    /// can retain it during merges (used for peer-recovery and CCR).
     ///
     /// If the document is already deleted or this is a stale replay, the tombstone is added as a new
     /// document instead of a soft-update (since there is no live document to replace).

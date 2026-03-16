@@ -208,7 +208,7 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
                             + "exception is null. The block result is: "
                             + blockResult;
                     String errorMessage = org.elasticsearch.common.Strings.collectionToDelimitedString(
-                        shardFailures.stream().map(org.elasticsearch.common.Strings::toString).collect(Collectors.toList()),
+                        shardFailures.stream().map(org.elasticsearch.common.Strings::toString).toList(),
                         ","
                     );
                     throw new ElasticsearchException(errorMessage);

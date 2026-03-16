@@ -1087,6 +1087,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitBy() {
+        assumeTrue("LIMIT BY requires snapshot builds", new EsqlConfig(TEST_FUNCTION_REGISTRY).isDevVersion());
         LogicalPlan plan = query("""
                 FROM foo
                 | SORT @timestamp DESC
@@ -1126,6 +1127,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitByQualifiedName() {
+        assumeTrue("LIMIT BY requires snapshot builds", new EsqlConfig(TEST_FUNCTION_REGISTRY).isDevVersion());
         LogicalPlan plan = query("""
                 FROM foo
                 | SORT @timestamp DESC

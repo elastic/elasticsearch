@@ -21,16 +21,16 @@
 
 package org.elasticsearch.exponentialhistogram;
 
-import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.adjustScale;
+import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.reduceScale;
 
 /**
- * An iterator that wraps another bucket iterator and adjusts its scale.
+ * An iterator that wraps another bucket iterator and reduces its scale.
  * When scaling down, multiple buckets can collapse into a single one. This iterator ensures they are merged correctly.
  */
-final class ScaleAdjustingBucketIterator implements BucketIterator {
+final class ScaleReducingBucketIterator implements BucketIterator {
 
     private final BucketIterator delegate;
-    private final int scaleAdjustment;
+    private final int scaleReduction;
 
     private long currentIndex;
     private long currentCount;
@@ -42,9 +42,10 @@ final class ScaleAdjustingBucketIterator implements BucketIterator {
      * @param delegate    the iterator to wrap
      * @param targetScale the target scale for the new iterator
      */
-    ScaleAdjustingBucketIterator(BucketIterator delegate, int targetScale) {
+    ScaleReducingBucketIterator(BucketIterator delegate, int targetScale) {
         this.delegate = delegate;
-        scaleAdjustment = targetScale - delegate.scale();
+        scaleReduction = delegate.scale() - targetScale;
+        assert scaleReduction >= 0;
         hasNextValue = true;
         advance();
     }
@@ -73,10 +74,10 @@ final class ScaleAdjustingBucketIterator implements BucketIterator {
         if (hasNextValue == false) {
             return;
         }
-        currentIndex = adjustScale(delegate.peekIndex(), delegate.scale(), scaleAdjustment);
+        currentIndex = reduceScale(delegate.peekIndex(), scaleReduction);
         currentCount = delegate.peekCount();
         delegate.advance();
-        while (delegate.hasNext() && adjustScale(delegate.peekIndex(), delegate.scale(), scaleAdjustment) == currentIndex) {
+        while (delegate.hasNext() && reduceScale(delegate.peekIndex(), scaleReduction) == currentIndex) {
             currentCount += delegate.peekCount();
             delegate.advance();
         }
@@ -90,6 +91,6 @@ final class ScaleAdjustingBucketIterator implements BucketIterator {
 
     @Override
     public int scale() {
-        return delegate.scale() + scaleAdjustment;
+        return delegate.scale() - scaleReduction;
     }
 }

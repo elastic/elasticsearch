@@ -194,14 +194,14 @@ public class ExponentialHistogramUtils {
             targetScale,
             ExponentialHistogramCircuitBreaker.noop()
         );
-        merger.addWithoutUpscaling(histogram);
+        merger.add(histogram);
         return merger.get();
     }
 
     private static ExponentialHistogram increaseZeroThreshold(ExponentialHistogram histo, ZeroBucket targetZeroBucket) {
         int bucketCount = Math.max(4, histo.positiveBuckets().bucketCount() + histo.negativeBuckets().bucketCount());
         ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(bucketCount, ExponentialHistogramCircuitBreaker.noop());
-        merger.addWithoutUpscaling(histo);
+        merger.add(histo);
         // now add a histogram with only the zero-threshold with a count of 1 to trigger merging of overlapping buckets
         merger.add(
             ExponentialHistogram.builder(ExponentialHistogram.MAX_SCALE, ExponentialHistogramCircuitBreaker.noop())

@@ -46,18 +46,14 @@ public final class ExponentialHistogramStates {
             this.breaker = breaker;
         }
 
-        public void add(ExponentialHistogram histogram, boolean allowUpscale) {
+        public void add(ExponentialHistogram histogram) {
             if (histogram == null) {
                 return;
             }
             if (merger == null) {
                 merger = ExponentialHistogramMerger.create(new HistoBreaker(breaker));
             }
-            if (allowUpscale) {
-                merger.add(histogram);
-            } else {
-                merger.addWithoutUpscaling(histogram);
-            }
+            merger.add(histogram);
         }
 
         @Override
@@ -125,7 +121,7 @@ public final class ExponentialHistogramStates {
             }
         }
 
-        public void add(int groupId, ExponentialHistogram histogram, boolean allowUpscale) {
+        public void add(int groupId, ExponentialHistogram histogram) {
             if (histogram == null) {
                 return;
             }
@@ -135,11 +131,7 @@ public final class ExponentialHistogramStates {
                 state = mergerFactory.createMerger();
                 states.set(groupId, state);
             }
-            if (allowUpscale) {
-                state.add(histogram);
-            } else {
-                state.addWithoutUpscaling(histogram);
-            }
+            state.add(histogram);
         }
 
         private void ensureCapacity(int groupId) {

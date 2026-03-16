@@ -696,6 +696,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
         private StoreHeartbeatService storeHeartbeatService;
         private StatelessClusterConsistencyService consistencyService;
         private StatelessCommitService statelessCommitService;
+        private SnapshotsCommitService snapshotsCommitService;
         private ClosedShardService closedShardService;
         private TranslogReplicator translogReplicator;
         private HollowShardsService hollowShardsService;
@@ -799,6 +800,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 TelemetryProvider.NOOP
             );
             clusterService.addListener(statelessCommitService);
+            this.snapshotsCommitService = new SnapshotsCommitService(clusterService, statelessCommitService);
+            clusterService.addListener(snapshotsCommitService);
             this.closedShardService = new ClosedShardService();
             this.translogReplicator = new TranslogReplicator(threadPool, settings, objectStoreService, consistencyService);
 
@@ -886,6 +889,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         if (indexShard != null) {
                             statelessCommitService.unregisterCommitNotificationSuccessListener(shardId);
                             statelessCommitService.closeShard(shardId);
+                            snapshotsCommitService.releaseCommitsAndRemoveShardAfterShardClosed(shardId);
                         }
                     }
 
@@ -948,7 +952,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     projectResolver,
                     bccHeaderReadExecutor,
                     clusterService.getClusterSettings(),
-                    cacheService
+                    cacheService,
+                    snapshotsCommitService
                 )
             );
         }

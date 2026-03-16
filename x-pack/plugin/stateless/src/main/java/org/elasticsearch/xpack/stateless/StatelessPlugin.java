@@ -204,6 +204,7 @@ import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
 import org.elasticsearch.xpack.stateless.reshard.TransportReshardSplitAction;
 import org.elasticsearch.xpack.stateless.reshard.TransportUpdateSplitSourceShardStateAction;
 import org.elasticsearch.xpack.stateless.reshard.TransportUpdateSplitTargetShardStateAction;
+import org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService;
 import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotShardContextFactory;
 import org.elasticsearch.xpack.stateless.utils.IndexingShardRefreshListenerProvider;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
@@ -494,6 +495,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<SearchShardInformationIndexListener> searchShardInformationIndexListener = new SetOnce<>();
     private final SetOnce<PITRelocationService> pitRelocationService = new SetOnce<>();
     private final SetOnce<List<StatelessExtensionProvider>> statelessServicesConsumerProviders = new SetOnce<>();
+    private final SetOnce<SnapshotsCommitService> snapshotsCommitServiceRef = new SetOnce<>();
 
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(
         BlobStoreCacheDirectoryMetrics::new
@@ -791,6 +793,9 @@ public class StatelessPlugin extends Plugin
         commitService = wrapStatelessCommitService(commitService);
         clusterService.addListener(commitService);
         setAndGet(this.commitService, commitService);
+
+        clusterService.addListener(setAndGet(this.snapshotsCommitServiceRef, new SnapshotsCommitService(clusterService, commitService)));
+
         var closedShardService = new ClosedShardService();
         components.add(closedShardService);
         setAndGet(this.closedShardService, closedShardService);
@@ -1210,6 +1215,7 @@ public class StatelessPlugin extends Plugin
         var localTranslogReplicator = translogReplicator.get();
         var localSplitTargetService = splitTargetService.get();
         var localSplitSourceService = splitSourceService.get();
+        var snapshotsCommitService = snapshotsCommitServiceRef.get();
         // register an IndexCommitListener so that stateless is notified of newly created commits on "index" nodes
         if (hasIndexRole) {
 
@@ -1311,6 +1317,8 @@ public class StatelessPlugin extends Plugin
                     if (indexShard != null) {
                         statelessCommitService.unregisterCommitNotificationSuccessListener(shardId);
                         statelessCommitService.closeShard(shardId);
+                        // release snapshot commits after shardCommitState is closed
+                        snapshotsCommitService.releaseCommitsAndRemoveShardAfterShardClosed(shardId);
                         hollowShardsService.get().removeHollowShard(indexShard, "index shard closed");
                     }
                 }
@@ -1392,7 +1400,8 @@ public class StatelessPlugin extends Plugin
                 projectResolver.get(),
                 bccHeaderReadExecutor.get(),
                 clusterService.get().getClusterSettings(),
-                getStatelessSharedBlobCacheService()
+                getStatelessSharedBlobCacheService(),
+                snapshotsCommitService
             )
         );
         indexModule.addIndexEventListener(recoveryMetricsCollector.get());

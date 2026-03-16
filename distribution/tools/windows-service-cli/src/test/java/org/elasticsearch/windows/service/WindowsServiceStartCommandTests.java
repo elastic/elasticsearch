@@ -13,7 +13,7 @@ import org.elasticsearch.cli.Command;
 
 import java.io.IOException;
 
-public class WindowsServiceStartCommandTests extends WindowsServiceCliTestCase {
+public class WindowsServiceStartCommandTests extends ScCommandTestCase {
 
     public WindowsServiceStartCommandTests(boolean spaceInPath) {
         super(spaceInPath);
@@ -30,8 +30,8 @@ public class WindowsServiceStartCommandTests extends WindowsServiceCliTestCase {
     }
 
     @Override
-    protected String getCommand() {
-        return "ES";
+    protected String getScVerb() {
+        return "start";
     }
 
     @Override

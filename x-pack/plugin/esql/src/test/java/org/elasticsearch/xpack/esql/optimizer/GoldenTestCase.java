@@ -67,8 +67,8 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -136,16 +136,14 @@ public abstract class GoldenTestCase extends ESTestCase {
             return;
         }
         try (Stream<Path> listing = Files.list(basePath)) {
-            listing.filter(Files::isDirectory)
-                .filter(p -> validTestNames.contains(p.getFileName().toString()) == false)
-                .forEach(orphan -> {
-                    logger.info("Removing orphan golden test directory (no corresponding test method): '{}'", orphan.toAbsolutePath());
-                    try {
-                        IOUtils.rm(orphan);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+            listing.filter(Files::isDirectory).filter(p -> validTestNames.contains(p.getFileName().toString()) == false).forEach(orphan -> {
+                logger.info("Removing orphan golden test directory (no corresponding test method): '{}'", orphan.toAbsolutePath());
+                try {
+                    IOUtils.rm(orphan);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
         } catch (IOException e) {
             throw new RuntimeException("Failed to remove orphan golden tests under " + basePath, e);
         }

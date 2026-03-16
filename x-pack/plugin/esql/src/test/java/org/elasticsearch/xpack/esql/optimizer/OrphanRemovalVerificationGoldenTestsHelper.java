@@ -30,17 +30,11 @@ public class OrphanRemovalVerificationGoldenTestsHelper extends GoldenTestCase {
 
     @Test
     public void testKeepMe() {
-        runGoldenTest(
-            "FROM employees | LIMIT 1",
-            EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION)
-        );
+        runGoldenTest("FROM employees | LIMIT 1", EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION));
     }
 
     @Test
     public void testDeleteMe() {
-        runGoldenTest(
-            "FROM employees | EVAL x = 1 | LIMIT 1",
-            EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION)
-        );
+        runGoldenTest("FROM employees | EVAL x = 1 | LIMIT 1", EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION));
     }
 }

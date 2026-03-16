@@ -27,11 +27,13 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
+import org.elasticsearch.xpack.esql.expression.function.inference.Embedding;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
-import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
+import org.elasticsearch.xpack.esql.inference.textembedding.EmbeddingOperator;
 
 import java.util.List;
 
@@ -207,10 +209,17 @@ public class InferenceFunctionEvaluator {
         private InferenceOperatorProvider createInferenceOperatorProvider(FoldContext foldContext, InferenceService inferenceService) {
             return (inferenceFunction, driverContext) -> {
                 Operator.OperatorFactory operatorFactory = switch (inferenceFunction) {
-                    case TextEmbedding textEmbedding -> new TextEmbeddingOperator.Factory(
+                    case TextEmbedding textEmbedding -> new EmbeddingOperator.Factory(
                         inferenceService,
                         inferenceId(inferenceFunction, foldContext),
+                        TaskType.TEXT_EMBEDDING,
                         expressionEvaluatorFactory(textEmbedding.inputText(), foldContext)
+                    );
+                    case Embedding embedding -> new EmbeddingOperator.Factory(
+                        inferenceService,
+                        inferenceId(inferenceFunction, foldContext),
+                        TaskType.EMBEDDING,
+                        expressionEvaluatorFactory(embedding.inputText(), foldContext)
                     );
                     case CompletionFunction completion -> new CompletionOperator.Factory(
                         inferenceService,

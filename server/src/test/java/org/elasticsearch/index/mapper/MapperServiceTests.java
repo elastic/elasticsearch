@@ -44,6 +44,230 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MapperServiceTests extends MapperServiceTestCase {
+    public void testCopyToInvalidTargetWithDynamicFalse() {
+      Exception e = expectThrows(MapperParsingException.class, () ->
+          createIndex("test-index", Settings.EMPTY, """
+          {
+            "mappings": {
+              "dynamic": false,
+              "properties": {
+                "test_field": {
+                  "type": "text",
+                  "copy_to": "missing_field"
+                }
+              }
+            }
+          }
+          """)
+      );
+      assertThat(e.getMessage(), containsString("copy_to referencing non-existent field"));
+    }
+
+    public void testCopyToInvalidTargetWithDynamicTrue() {
+        Exception e = expectThrows(MapperParsingException.class, () ->
+            createIndex("test-index", Settings.EMPTY, """
+            {
+              "mappings": {
+                "dynamic": true,
+                "properties": {
+                  "test_field": {
+                    "type": "text",
+                    "copy_to": "missing_field"
+                  }
+                }
+              }
+            }
+            """)
+        );
+        assertThat(e.getMessage(), containsString("copy_to referencing non-existent field"));
+    }
+
+    public void testCopyToInvalidTargetWithDynamicTemplate() {
+        Exception e = expectThrows(MapperParsingException.class, () ->
+            createIndex("test-index", Settings.EMPTY, """
+            {
+              "mappings": {
+                "dynamic_templates": [
+                  {
+                    "template1": {
+                      "match": "*",
+                      "mapping": {
+                        "type": "text",
+                        "copy_to": "missing_field"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """)
+        );
+        assertThat(e.getMessage(), containsString("copy_to referencing non-existent field"));
+    }
+
+    public void testCopyToInvalidTargetWithDynamicTemplateAndDynamicFalse() {
+        Exception e = expectThrows(MapperParsingException.class, () ->
+            createIndex("test-index", Settings.EMPTY, """
+            {
+              "mappings": {
+                "dynamic": false,
+                "dynamic_templates": [
+                  {
+                    "template1": {
+                      "match": "*",
+                      "mapping": {
+                        "type": "text",
+                        "copy_to": "missing_field"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """)
+        );
+        assertThat(e.getMessage(), containsString("copy_to referencing non-existent field"));
+    }
+
+    public void testCopyToInvalidTargetWithDynamicTemplateAndDynamicTrue() {
+        Exception e = expectThrows(MapperParsingException.class, () ->
+            createIndex("test-index", Settings.EMPTY, """
+            {
+              "mappings": {
+                "dynamic": true,
+                "dynamic_templates": [
+                  {
+                    "template1": {
+                      "match": "*",
+                      "mapping": {
+                        "type": "text",
+                        "copy_to": "missing_field"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+            """)
+        );
+        assertThat(e.getMessage(), containsString("copy_to referencing non-existent field"));
+    }
+
+    public void testCopyToInvalidTargetWithDynamicTemplateAndDynamicTrueAndDynamicFalse() {
+        Exception e = expectThrows(MapperParsingException.class, () ->
+            createIndex("test-index", Settings.EMPTY, """
+            {
+              "mappings": {
+                "dynamic": true,
+                "dynamic_templates": [
+                  {
+                    "template1": {
+                      "match": "*",
+                      "mapping": {
+                        "type": "text",
+                        "copy_to": "missing_field"
+                      }
+                    }
+                  }
+                ],
+                "_doc": {
+                  "dynamic": false
+                }
+              }
+            }
+            """)
+        );
+        assertThat(e.getMessage(), containsString("copy_to referencing non-existent field"));
+    }
+
+    public void testCopyToInvalidTargetWithDynamicTemplateAndDynamicTrueAndDynamicFalseAndDynamicTemplates() {
+        Exception e = expectThrows(MapperParsingException.class, () ->
+            createIndex("test-index", Settings.EMPTY, """
+            {
+              "mappings": {
+                "dynamic": true,
+                "dynamic_templates": [
+                  {
+                    "template1": {
+                      "match": "*",
+                      "mapping": {
+                        "type": "text",
+                        "copy_to": "missing_field"
+                      }
+                    }
+                  }
+                ],
+                "_doc": {
+                  "dynamic": false,
+                  "dynamic_templates": [
+                    {
+                      "template2": {
+                        "match": "*",
+                        "mapping": {
+                          "type": "text",
+                          "copy_to": "missing_field"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+            """)
+        );
+        assertThat(e.getMessage(), containsString("copy_to referencing non-existent field"));
+    }
+
+    public void testCopyToInvalidTargetWithDynamicTemplateAndDynamicTrueAndDynamicFalseAndDynamicTemplatesAndDynamic() {
+        Exception e = expectThrows(MapperParsingException.class, () ->
+            createIndex("test-index", Settings.EMPTY, """
+            {
+              "mappings": {
+                "dynamic": true,
+                "dynamic_templates": [
+                  {
+                    "template1": {
+                      "match": "*",
+                      "mapping": {
+                        "type": "text",
+                        "copy_to": "missing_field"
+                      }
+                    }
+                  }
+                ],
+                "_doc": {
+                  "dynamic": false,
+                  "dynamic_templates": [
+                    {
+                      "template2": {
+                        "match": "*",
+                        "mapping": {
+                          "type": "text",
+                          "copy_to": "missing_field"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "_doc2": {
+                  "dynamic_templates": [
+                    {
+                      "template3": {
+                        "match": "*",
+                        "mapping": {
+                          "type": "text",
+                          "copy_to": "missing_field"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+            """)
+        );
+        assertThat(e.getMessage(), containsString("copy_to referencing non-existent field"));
+    }
 
     public void testPreflightUpdateDoesNotChangeMapping() throws Throwable {
         final MapperService mapperService = createMapperService(mapping(b -> {}));

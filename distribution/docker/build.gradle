@@ -503,13 +503,6 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
       } else {
         baseImages = []
       }
-
-      Provider<DockerSupportService> serviceProvider = GradleUtils.getBuildService(
-        project.gradle.sharedServices,
-        DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
-      )
-      onlyIf("$architecture supported") { serviceProvider.get().isArchitectureSupported(architecture) }
-
     }
 
   if (base != DockerBase.IRON_BANK && base != DockerBase.CLOUD_ESS) {
@@ -576,11 +569,6 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
       baseImages = []
       tags = generateTags(dockerBase, architecture)
       platforms.add(architecture.dockerPlatform)
-      Provider<DockerSupportService> serviceProvider = GradleUtils.getBuildService(
-        project.gradle.sharedServices,
-        DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
-      )
-      onlyIf("$architecture supported") { serviceProvider.get().isArchitectureSupported(architecture) }
 
     }
 

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.RerouteBehavior;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
@@ -332,10 +333,9 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
             time.toEpochMilli(),
             null,
             TimeValue.ZERO,
-            TimeValue.ZERO,
-            false
+            TimeValue.ZERO
         );
-        return createDataStreamService.createDataStream(request, state, ActionListener.noop(), false);
+        return createDataStreamService.createDataStream(request, state, RerouteBehavior.SKIP_REROUTE, ActionListener.noop(), false);
     }
 
     private MetadataRolloverService.RolloverResult rolloverOver(ClusterState state, String name, Instant time) throws Exception {

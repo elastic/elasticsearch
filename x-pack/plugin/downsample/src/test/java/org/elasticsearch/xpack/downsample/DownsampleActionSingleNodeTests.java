@@ -1414,6 +1414,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                         }
                     }
                 }
+            }
             });
         } finally {
             respOrig.decRef();

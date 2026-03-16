@@ -304,7 +304,7 @@ public abstract class ViewResolutionBenchmarkBase {
         );
         ViewResolutionService viewResolutionService = new ViewResolutionService(indexNameExpressionResolver);
 
-        return new BenchmarkViewResolver(clusterService, projectResolver, viewsEnabled, viewResolutionService, threadPool);
+        return new BenchmarkViewResolver(clusterService, projectResolver, viewsEnabled, viewResolutionService);
     }
 
     /** Measures only the view resolution step (pre-parsed plan). */
@@ -331,30 +331,26 @@ public abstract class ViewResolutionBenchmarkBase {
 
     /**
      * {@link ViewResolver} subclass that uses the real {@link ViewResolutionService} algorithm
-     * to resolve views from the cluster state's {@code indicesLookup}, dispatching each
-     * resolution step through the thread pool to simulate the production ActionListener
-     * serialization pattern where each step completes on a pool thread.
+     * to resolve views from the cluster state's {@code indicesLookup}, bypassing only the
+     * transport layer.
      */
     static class BenchmarkViewResolver extends ViewResolver {
         private final boolean enabled;
         private final ViewResolutionService viewResolutionService;
         private final ClusterService benchmarkClusterService;
         private final ProjectResolver benchmarkProjectResolver;
-        private final ThreadPool benchmarkThreadPool;
 
         BenchmarkViewResolver(
             ClusterService clusterService,
             ProjectResolver projectResolver,
             boolean enabled,
-            ViewResolutionService viewResolutionService,
-            ThreadPool threadPool
+            ViewResolutionService viewResolutionService
         ) {
             super(clusterService, projectResolver, null);
             this.enabled = enabled;
             this.viewResolutionService = viewResolutionService;
             this.benchmarkClusterService = clusterService;
             this.benchmarkProjectResolver = projectResolver;
-            this.benchmarkThreadPool = threadPool;
         }
 
         @Override
@@ -367,16 +363,14 @@ public abstract class ViewResolutionBenchmarkBase {
             EsqlResolveViewAction.Request request,
             ActionListener<EsqlResolveViewAction.Response> listener
         ) {
-            benchmarkThreadPool.generic().execute(() -> {
-                ProjectState projectState = benchmarkClusterService.state().projectState(benchmarkProjectResolver.getProjectId());
-                ViewResolutionService.ViewResolutionResult result = viewResolutionService.resolveViews(
-                    projectState,
-                    request.indices(),
-                    request.indicesOptions(),
-                    request.getResolvedIndexExpressions()
-                );
-                listener.onResponse(new EsqlResolveViewAction.Response(result.views(), result.resolvedIndexExpressions()));
-            });
+            ProjectState projectState = benchmarkClusterService.state().projectState(benchmarkProjectResolver.getProjectId());
+            ViewResolutionService.ViewResolutionResult result = viewResolutionService.resolveViews(
+                projectState,
+                request.indices(),
+                request.indicesOptions(),
+                request.getResolvedIndexExpressions()
+            );
+            listener.onResponse(new EsqlResolveViewAction.Response(result.views(), result.resolvedIndexExpressions()));
         }
     }
 }

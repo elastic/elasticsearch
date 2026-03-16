@@ -89,9 +89,8 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
         );
         // Force a flush while adding the read-only block to ensure all in-flight writes are completed and written to segments
         addIndexBlockRequest.markVerified(true);
-        AddIndexBlockResponse resp;
         try {
-            resp = client.projectClient(projectId).execute(TransportAddIndexBlockAction.TYPE, addIndexBlockRequest).get();
+            AddIndexBlockResponse resp = client.projectClient(projectId).execute(TransportAddIndexBlockAction.TYPE, addIndexBlockRequest).get();
             validateAddIndexBlockResponse(addIndexBlockRequest, resp);
             logger.debug("DLM successfully marked index [{}] as read-only", indexName);
         } catch (InterruptedException e) {

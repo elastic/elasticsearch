@@ -573,33 +573,27 @@ public class SecurityServerTransportInterceptorTests extends AbstractServerTrans
         });
         Transport.Connection connection = mock(Transport.Connection.class);
         when(connection.getTransportVersion()).thenReturn(TransportVersion.current());
-        sender.sendRequest(
-            connection,
-            constrainedAction,
-            mock(TransportRequest.class),
-            null,
-            new TransportResponseHandler<>() {
-                @Override
-                public TransportResponse read(org.elasticsearch.common.io.stream.StreamInput in) {
-                    return null;
-                }
-
-                @Override
-                public Executor executor() {
-                    return EsExecutors.DIRECT_EXECUTOR_SERVICE;
-                }
-
-                @Override
-                public void handleResponse(TransportResponse response) {
-                    fail("should not succeed");
-                }
-
-                @Override
-                public void handleException(TransportException exp) {
-                    caughtException.set(exp);
-                }
+        sender.sendRequest(connection, constrainedAction, mock(TransportRequest.class), null, new TransportResponseHandler<>() {
+            @Override
+            public TransportResponse read(org.elasticsearch.common.io.stream.StreamInput in) {
+                return null;
             }
-        );
+
+            @Override
+            public Executor executor() {
+                return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+            }
+
+            @Override
+            public void handleResponse(TransportResponse response) {
+                fail("should not succeed");
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                caughtException.set(exp);
+            }
+        });
         assertFalse(calledWrappedSender.get());
         assertThat(caughtException.get(), notNullValue());
         assertThat(caughtException.get().getCause().getMessage(), org.hamcrest.Matchers.containsString("requires invocation context"));
@@ -610,10 +604,7 @@ public class SecurityServerTransportInterceptorTests extends AbstractServerTrans
         final String requiredContext = "test_context";
         AuthenticationTestHelper.builder().build().writeToContext(threadContext);
         AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, "indices:data/read/search");
-        threadContext.putHeader(
-            org.elasticsearch.action.ContextConstrainedAction.HEADER_KEY,
-            "wrong_context"
-        );
+        threadContext.putHeader(org.elasticsearch.action.ContextConstrainedAction.HEADER_KEY, "wrong_context");
 
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
@@ -644,33 +635,27 @@ public class SecurityServerTransportInterceptorTests extends AbstractServerTrans
         });
         Transport.Connection connection = mock(Transport.Connection.class);
         when(connection.getTransportVersion()).thenReturn(TransportVersion.current());
-        sender.sendRequest(
-            connection,
-            constrainedAction,
-            mock(TransportRequest.class),
-            null,
-            new TransportResponseHandler<>() {
-                @Override
-                public TransportResponse read(org.elasticsearch.common.io.stream.StreamInput in) {
-                    return null;
-                }
-
-                @Override
-                public Executor executor() {
-                    return EsExecutors.DIRECT_EXECUTOR_SERVICE;
-                }
-
-                @Override
-                public void handleResponse(TransportResponse response) {
-                    fail("should not succeed");
-                }
-
-                @Override
-                public void handleException(TransportException exp) {
-                    caughtException.set(exp);
-                }
+        sender.sendRequest(connection, constrainedAction, mock(TransportRequest.class), null, new TransportResponseHandler<>() {
+            @Override
+            public TransportResponse read(org.elasticsearch.common.io.stream.StreamInput in) {
+                return null;
             }
-        );
+
+            @Override
+            public Executor executor() {
+                return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+            }
+
+            @Override
+            public void handleResponse(TransportResponse response) {
+                fail("should not succeed");
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                caughtException.set(exp);
+            }
+        });
         assertFalse(calledWrappedSender.get());
         assertThat(caughtException.get(), notNullValue());
         assertThat(caughtException.get().getCause().getMessage(), org.hamcrest.Matchers.containsString("requires invocation context"));
@@ -681,10 +666,7 @@ public class SecurityServerTransportInterceptorTests extends AbstractServerTrans
         final String requiredContext = "test_context";
         AuthenticationTestHelper.builder().build().writeToContext(threadContext);
         AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, "indices:data/read/search");
-        threadContext.putHeader(
-            org.elasticsearch.action.ContextConstrainedAction.HEADER_KEY,
-            requiredContext
-        );
+        threadContext.putHeader(org.elasticsearch.action.ContextConstrainedAction.HEADER_KEY, requiredContext);
 
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,

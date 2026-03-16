@@ -86,7 +86,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             rule.calling(File::mkdir).enforce(Policies::fileWrite).elseReturn(false);
             rule.calling(File::mkdirs).enforce(Policies::fileWrite).elseReturn(false);
             rule.calling(File::renameTo, File.class)
-                .enforce((src, dest) -> Policies.fileRead(src).and(Policies.fileWrite(dest)))
+                .enforce((src, dest) -> Policies.fileWrite(src).and(Policies.fileWrite(dest)))
                 .elseReturn(false);
             rule.calling(File::setExecutable, Boolean.class).enforce(Policies::fileWrite).elseReturnArg(0);
             rule.calling(File::setExecutable, Boolean.class, Boolean.class).enforce(Policies::fileWrite).elseReturnArg(0);
@@ -132,7 +132,7 @@ public class FileInstrumentation implements InstrumentationConfig {
                 .enforce(Policies.and(Policies::fileRead, Policies::fileWrite))
                 .elseThrow(IOException::new);
             rule.callingStatic(Files::move, Path.class, Path.class, CopyOption[].class)
-                .enforce(Policies.and(Policies::fileRead, Policies::fileWrite))
+                .enforce(Policies.and(Policies::fileWrite, Policies::fileWrite))
                 .elseThrow(IOException::new);
             rule.callingStatic(Files::getOwner, Path.class, LinkOption[].class).enforce(Policies::fileRead).elseThrow(IOException::new);
             rule.callingStatic(Files::probeContentType, Path.class).enforce(Policies::fileRead).elseThrow(IOException::new);

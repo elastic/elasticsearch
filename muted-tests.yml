@@ -357,6 +357,9 @@ tests:
 - class: org.elasticsearch.server.cli.APMJvmOptionsTests
   method: testAPMAgentAlwaysAttached
   issue: https://github.com/elastic/elasticsearch/issues/144358
+- class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
+  method: testGetReindexFollowsRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/144364
 
 # Examples:
 #

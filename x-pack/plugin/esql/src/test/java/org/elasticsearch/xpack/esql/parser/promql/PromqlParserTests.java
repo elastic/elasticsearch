@@ -609,6 +609,24 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("No value found for parameter [?_typo]"));
     }
 
+    public void testQueryAsParamBlankStringError() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m (?query)", paramsAsConstant("query", ""))
+        );
+        assertThat(e.getMessage(), containsString("PromQL expression cannot be empty"));
+    }
+
+    public void testQueryAsNamedParamWithValueName() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m value=?query", paramsAsConstant("query", "foo")),
+            PromqlCommand.class
+        );
+        assertThat(promql.step().value(), equalTo(Duration.ofMinutes(5)));
+        assertThat(promql.promqlPlan(), instanceOf(InstantSelector.class));
+        assertThat(promql.valueColumnName(), equalTo("value"));
+    }
+
     // ---- index-as-param tests ----
 
     public void testIndexAsNamedParam() {
@@ -627,6 +645,22 @@ public class PromqlParserTests extends ESTestCase {
         );
         List<UnresolvedRelation> unresolvedRelations = promql.collect(UnresolvedRelation.class);
         assertThat(unresolvedRelations.getFirst().indexPattern().indexPattern(), equalTo("my-metrics"));
+    }
+
+    public void testIndexAsParamUnknownParamError() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.parseQuery("PROMQL index=?unknown step=5m avg(foo)", new QueryParams(List.of()))
+        );
+        assertThat(e.getMessage(), containsString("No value found for parameter [?unknown]"));
+    }
+
+    public void testIndexAsParamNonStringError() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.parseQuery("PROMQL index=?idx step=5m avg(foo)", paramsAsConstant("idx", 42))
+        );
+        assertThat(e.getMessage(), containsString("Parameter [?idx] for index must be a string"));
     }
 
     private static PromqlCommand parse(String query) {

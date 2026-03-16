@@ -1303,14 +1303,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (param == null) {
                 throw new ParsingException(source, "No value found for parameter [{}]", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
             }
-            if (param.value() instanceof String s == false) {
+            if (param.value() instanceof String s) {
+                promqlQuery = s;
+            } else {
                 throw new ParsingException(
                     source,
                     "Parameter [{}] in PromQL expression must be a string",
                     ctx.NAMED_OR_POSITIONAL_PARAM().getText()
                 );
             }
-            promqlQuery = (String) param.value();
+            if (promqlQuery.isBlank()) {
+                throw new ParsingException(source, "PromQL expression cannot be empty");
+            }
             Token paramToken = ctx.NAMED_OR_POSITIONAL_PARAM().getSymbol();
             promqlStartLine = paramToken.getLine();
             promqlStartColumn = paramToken.getCharPositionInLine();
@@ -1521,7 +1525,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     private IndexPattern parseIndexPattern(EsqlBaseParser.PromqlParamValueContext ctx) {
         if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
             QueryParam param = paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_PARAM());
-            return new IndexPattern(source(ctx), param.value().toString());
+            if (param == null) {
+                throw new ParsingException(source(ctx), "No value found for parameter [{}]", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
+            }
+            if (param.value() instanceof String s) {
+                return new IndexPattern(source(ctx), s);
+            }
+            throw new ParsingException(
+                source(ctx),
+                "Parameter [{}] for index must be a string",
+                ctx.NAMED_OR_POSITIONAL_PARAM().getText()
+            );
         } else if (ctx.promqlIndexPattern().isEmpty()) {
             // Default to all indices if no index pattern is provided
             return new IndexPattern(source(ctx), "*");

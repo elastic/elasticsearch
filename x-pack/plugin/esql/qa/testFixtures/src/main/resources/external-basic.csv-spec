@@ -362,7 +362,7 @@ EXTERNAL "{{employees}}"
 ;
 
 count:long
-35..65
+30..70
 ;
 
 forkTwoBranches
@@ -556,6 +556,30 @@ EXTERNAL "{{employees}}"
 
 emp_no:integer | joined:keyword
 10001          | "Senior Python Developer, Accountant"
+;
+
+mvDedupeFromSplit2
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| WHERE emp_no == 10004
+| EVAL deduped = MV_DEDUPE(salary_change)
+| KEEP emp_no, deduped, first_name
+;
+
+emp_no:integer | deduped:double          | first_name:keyword
+10004          | [3.65,-0.35,1.13,13.48] | Chirstian
+;
+
+filterFirstRowAllColumns
+required_capability: external_command
+EXTERNAL "{{employees}}"
+| WHERE emp_no < 10003
+| SORT emp_no
+;
+birth_date:date          | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date           | languages:integer | languages.long:long | languages.short:short | languages.byte:byte | last_name:keyword | salary:integer | height:double | height.float:double | height.scaled_float:double | height.half_float:double | still_hired:boolean | avg_worked_seconds:long | job_positions:keyword                 | is_rehired:boolean | salary_change:double | salary_change.int:integer | salary_change.long:long | salary_change.keyword:keyword
+1953-09-02T00:00:00.000Z | 10001          | Georgi             | M              | 1986-06-26T00:00:00.000Z | 2                 | 2                   | 2                     | 2                   | Facello           | 57305          | 2.03          | 2.03                | 2.03                       | 2.03                     | true                | 268728049               | [Senior Python Developer, Accountant] | [false, true]      | [1.19]               | [1]                       | [1]                     | [1.19]
+1964-06-02T00:00:00.000Z | 10002          | Bezalel            | F              | 1985-11-21T00:00:00.000Z | 5                 | 5                   | 5                     | 5                   | Simmel            | 56371          | 2.08          | 2.08                | 2.08                       | 2.08                     | true                | 328922887               | [Senior Team Lead]                    | [false,false]      | [-7.23,11.17]        | [-7,11]                   | [-7,11]                 | [-7.23,11.17]
 ;
 
 mvDedupeFromSplit

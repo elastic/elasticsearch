@@ -186,7 +186,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 supportsSourceFieldMapping(),
                 supportsSemanticTextInference(),
                 timeSeriesOnly(),
-                this::clusterHasCapability
+                this::clusterHasCapability,
+                indicesToLoad()
             );
             return null;
         });
@@ -263,6 +264,15 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     // Only load views for tests in the "views" group (from views.csv-spec)
     protected boolean shouldLoadViews() {
         return "views".equals(groupName);
+    }
+
+    /**
+     * Indices to load during setup. Override to control which indices are loaded.
+     *
+     * @return null to load all indices (default); empty list to load nothing; non-empty list to load only those indices
+     */
+    protected List<String> indicesToLoad() {
+        return null;
     }
 
     protected void shouldSkipTest(String testName) throws IOException {

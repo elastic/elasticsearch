@@ -99,11 +99,8 @@ public class Clusters {
             .setting("cluster.remote.remote_cluster.seeds", () -> "\"" + remoteCluster.getTransportEndpoint(0) + "\"")
             .setting("cluster.remote.connections_per_cluster", "1")
             .setting("cluster.remote." + REMOTE_CLUSTER_NAME + ".skip_unavailable", skipUnavailable.toString())
-<<<<<<< HEAD
             .setting("path.repo", csvDataPath::toString)
-=======
             .feature(FeatureFlag.ESQL_VIEWS)
->>>>>>> upstream/main
             .shared(true);
         if (supportRetryOnShardFailures(version) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");

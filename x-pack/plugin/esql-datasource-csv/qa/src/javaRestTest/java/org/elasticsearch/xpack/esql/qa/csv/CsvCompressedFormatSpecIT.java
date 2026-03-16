@@ -14,6 +14,7 @@ import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 
 import java.util.List;
@@ -23,7 +24,7 @@ import java.util.List;
  * Each csv-spec test is run against every configured storage backend (S3, HTTP, LOCAL, GCS) and compression format.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
-public class CsvCompressedFormatSpecIT extends AbstractCsvFormatSpecTestCase {
+public class CsvCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCase {
 
     private static final List<String> COMPRESSED_FORMATS = List.of("csv.gz", "csv.zst", "csv.zstd", "csv.bz2", "csv.bz");
 

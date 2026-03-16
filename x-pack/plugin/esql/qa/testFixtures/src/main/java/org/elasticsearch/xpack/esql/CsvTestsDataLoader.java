@@ -419,7 +419,7 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled
     ) throws IOException {
-        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, cap -> false);
+        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, cap -> false, null);
     }
 
     private static final IndexCreator INDEX_CREATOR = (restClient, indexName, indexMapping, indexSettings) -> ESRestTestCase.createIndex(
@@ -439,17 +439,49 @@ public class CsvTestsDataLoader {
         boolean timeSeriesOnly,
         Predicate<EsqlCapabilities.Cap> capabilityCheck
     ) throws IOException {
-        loadDataSets(
+        loadDataSetIntoEs(
             client,
             supportsIndexModeLookup,
             supportsSourceFieldMapping,
             inferenceEnabled,
             timeSeriesOnly,
             capabilityCheck,
-            INDEX_CREATOR
+            null
         );
-        if (timeSeriesOnly == false) {
-            loadEnrichPolicies(client);
+    }
+
+    /**
+     * Load test datasets into Elasticsearch.
+     *
+     * @param indicesToLoad null to load all indices (default); empty list to load nothing; non-empty list to load only those indices
+     */
+    public static void loadDataSetIntoEs(
+        RestClient client,
+        boolean supportsIndexModeLookup,
+        boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled,
+        boolean timeSeriesOnly,
+        Predicate<EsqlCapabilities.Cap> capabilityCheck,
+        @Nullable List<String> indicesToLoad
+    ) throws IOException {
+        if (indicesToLoad != null && indicesToLoad.isEmpty()) {
+            return;
+        }
+        if (indicesToLoad != null) {
+            loadDatasetsIntoEs(client, indicesToLoad);
+        } else {
+            loadDataSets(
+                client,
+                supportsIndexModeLookup,
+                supportsSourceFieldMapping,
+                inferenceEnabled,
+                timeSeriesOnly,
+                capabilityCheck,
+                INDEX_CREATOR
+            );
+            if (timeSeriesOnly == false) {
+                loadEnrichPolicies(client);
+            }
         }
     }
 

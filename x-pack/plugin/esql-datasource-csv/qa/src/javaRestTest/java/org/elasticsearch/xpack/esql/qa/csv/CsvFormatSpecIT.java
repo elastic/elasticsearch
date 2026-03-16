@@ -14,6 +14,7 @@ import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 
 import java.util.List;
@@ -23,7 +24,7 @@ import java.util.List;
  * Each csv-spec test is run against every configured storage backend (S3, HTTP, LOCAL).
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
-public class CsvFormatSpecIT extends AbstractCsvFormatSpecTestCase {
+public class CsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.FrequencyCappedAction;
@@ -105,7 +106,7 @@ public class DesiredBalanceReconciler {
      *                   reach the given desired balance.
      * @return {@link DesiredBalanceMetrics.AllocationStats} for this round of reconciliation changes.
      */
-    public DesiredBalanceMetrics.AllocationStats reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+    public DesiredBalanceMetrics.AllocationStats reconcile(DesiredBalance desiredBalance, MutableRoutingAllocation allocation) {
         var nodeIds = allocation.routingNodes().getAllNodeIds();
         allocationOrdering.retainNodes(nodeIds);
         moveOrdering.retainNodes(nodeIds);
@@ -131,10 +132,10 @@ public class DesiredBalanceReconciler {
     private class Reconciliation {
 
         private final DesiredBalance desiredBalance;
-        private final RoutingAllocation allocation;
+        private final MutableRoutingAllocation allocation;
         private final RoutingNodes routingNodes;
 
-        Reconciliation(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+        Reconciliation(DesiredBalance desiredBalance, MutableRoutingAllocation allocation) {
             this.desiredBalance = desiredBalance;
             this.allocation = allocation;
             this.routingNodes = allocation.routingNodes();

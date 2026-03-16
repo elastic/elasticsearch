@@ -517,7 +517,7 @@ public class AllocationService {
         /**
          * Generic action to be executed on preconfigured allocation
          */
-        void execute(RoutingAllocation allocation);
+        void execute(MutableRoutingAllocation allocation);
     }
 
     private static void logClusterHealthStateChange(final ClusterState previousState, final ClusterState newState, String reason) {
@@ -581,7 +581,7 @@ public class AllocationService {
         return false;
     }
 
-    private void reroute(RoutingAllocation allocation, RerouteStrategy rerouteStrategy) {
+    private void reroute(MutableRoutingAllocation allocation, RerouteStrategy rerouteStrategy) {
         assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See disassociateDeadNodes";
         assert hasAutoExpandReplicaChanges(allocation.metadata(), () -> allocation) == false
             : "auto-expand replicas out of sync with number of nodes in the cluster";

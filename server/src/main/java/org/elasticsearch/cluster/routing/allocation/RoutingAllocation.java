@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
@@ -63,7 +62,6 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
 
     protected final long currentNanoTime;
     protected final boolean isSimulating;
-    private boolean isReconciling;
 
     private final Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets;
 
@@ -340,16 +338,7 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
      *                      path-dependent allocation blockers should be ignored.
      */
     public boolean isReconciling() {
-        return isReconciling;
-    }
-
-    /**
-     * Set the {@link #isReconciling} flag, and return a {@link Releasable} which clears it again.
-     */
-    public Releasable withReconcilingFlag() {
-        assert isReconciling == false : "already reconciling";
-        isReconciling = true;
-        return () -> isReconciling = false;
+        return false;
     }
 
     public abstract RoutingAllocation immutableClone();

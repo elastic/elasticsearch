@@ -71,7 +71,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         final ProjectId projectId = clusterState.metadata().projects().keySet().iterator().next();
 
         ShardRouting shard = clusterState.globalRoutingTable().routingTable(projectId).index("idx").shard(0).primaryShard();
-        RoutingAllocation routingAllocation = newRoutingAllocation(AllocationDeciders.EMPTY, clusterState);
+        MutableRoutingAllocation routingAllocation = newRoutingAllocation(AllocationDeciders.EMPTY, clusterState);
         routingAllocation.setHasPendingAsyncFetch();
         MoveDecision rebalanceDecision = allocator.explainShardAllocation(shard, routingAllocation).getMoveDecision();
         assertNotNull(rebalanceDecision.getClusterRebalanceDecision());
@@ -98,7 +98,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         final ProjectId projectId = clusterState.metadata().projects().keySet().iterator().next();
 
         ShardRouting shard = clusterState.globalRoutingTable().routingTable(projectId).index("idx").shard(0).primaryShard();
-        RoutingAllocation routingAllocation = newRoutingAllocation(
+        MutableRoutingAllocation routingAllocation = newRoutingAllocation(
             new AllocationDeciders(Collections.singleton(noRebalanceDecider)),
             clusterState
         );
@@ -229,7 +229,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
             }
         };
         List<AllocationDecider> allocationDeciders = Arrays.asList(rebalanceDecider, allocationDecider);
-        RoutingAllocation routingAllocation = newRoutingAllocation(new AllocationDeciders(allocationDeciders), clusterState);
+        MutableRoutingAllocation routingAllocation = newRoutingAllocation(new AllocationDeciders(allocationDeciders), clusterState);
         // allocate and get the node that is now relocating
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
         allocator.allocate(routingAllocation);
@@ -379,7 +379,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         final ProjectId projectId = clusterState.metadata().projects().keySet().iterator().next();
 
         ShardRouting shard = clusterState.routingTable(projectId).index("idx").shard(0).primaryShard();
-        RoutingAllocation routingAllocation = newRoutingAllocation(new AllocationDeciders(allocationDeciders), clusterState);
+        MutableRoutingAllocation routingAllocation = newRoutingAllocation(new AllocationDeciders(allocationDeciders), clusterState);
         MoveDecision rebalanceDecision = allocator.explainShardAllocation(shard, routingAllocation).getMoveDecision();
 
         if (rebalanceExpected == false) {
@@ -389,15 +389,15 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         return Tuple.tuple(clusterState, rebalanceDecision);
     }
 
-    private RoutingAllocation newRoutingAllocation(AllocationDeciders deciders, ClusterState state) {
-        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(state).allocationDeciders(deciders).mutable();
+    private MutableRoutingAllocation newRoutingAllocation(AllocationDeciders deciders, ClusterState state) {
+        MutableRoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(state).allocationDeciders(deciders).mutable();
         allocation.debugDecision(true);
         return allocation;
     }
 
     private void assertAssignedNodeRemainsSame(
         BalancedShardsAllocator allocator,
-        RoutingAllocation routingAllocation,
+        MutableRoutingAllocation routingAllocation,
         ShardRouting originalRouting
     ) {
         allocator.allocate(routingAllocation);

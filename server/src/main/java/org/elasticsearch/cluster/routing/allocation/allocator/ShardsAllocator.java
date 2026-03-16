@@ -38,7 +38,7 @@ public interface ShardsAllocator {
      *
      * @param allocation current node allocation
      */
-    void allocate(RoutingAllocation allocation);
+    void allocate(MutableRoutingAllocation allocation);
 
     /**
      * Allocates shards to nodes in the cluster. An implementation of this method should:
@@ -49,7 +49,7 @@ public interface ShardsAllocator {
      * @param allocation current node allocation
      * @param listener listener to be executed once async allocation is completed
      */
-    default void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
+    default void allocate(MutableRoutingAllocation allocation, ActionListener<Void> listener) {
         allocate(allocation);
         listener.onResponse(null);
     }

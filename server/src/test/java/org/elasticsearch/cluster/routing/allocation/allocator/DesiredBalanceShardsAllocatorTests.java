@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStrategy;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
@@ -389,7 +390,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         });
         var shardsAllocator = new ShardsAllocator() {
             @Override
-            public void allocate(RoutingAllocation allocation) {
+            public void allocate(MutableRoutingAllocation allocation) {
                 // simulate long computation
                 time.addAndGet(1_000);
                 var dataNodeId = allocation.nodes().getDataNodes().values().iterator().next().getId();
@@ -853,7 +854,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         final AtomicReference<ClusterInfo> clusterInfoUsedByAllocator = new AtomicReference<>();
         var delegateAllocator = new ShardsAllocator() {
             @Override
-            public void allocate(RoutingAllocation allocation) {
+            public void allocate(MutableRoutingAllocation allocation) {
                 allocation.routingNodes().setBalanceWeightStatsPerNode(Map.of());
                 clusterInfoUsedByAllocator.set(allocation.clusterInfo());
                 if (relocated.compareAndSet(false, true)) {
@@ -885,7 +886,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             new ShardRelocationOrder.DefaultOrder()
         ) {
             @Override
-            protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+            protected void reconcile(DesiredBalance desiredBalance, MutableRoutingAllocation allocation) {
                 logger.info("--> reconcile called");
                 super.reconcile(desiredBalance, allocation);
             }
@@ -1250,13 +1251,13 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             private ActionListener<Void> lastListener;
 
             @Override
-            public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
+            public void allocate(MutableRoutingAllocation allocation, ActionListener<Void> listener) {
                 lastListener = listener;
                 super.allocate(allocation, listener);
             }
 
             @Override
-            protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+            protected void reconcile(DesiredBalance desiredBalance, MutableRoutingAllocation allocation) {
                 fail("should not call reconcile");
             }
 
@@ -1350,7 +1351,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
     private static ShardsAllocator createShardsAllocator() {
         return new ShardsAllocator() {
             @Override
-            public void allocate(RoutingAllocation allocation) {
+            public void allocate(MutableRoutingAllocation allocation) {
                 var dataNodeId = allocation.nodes().getDataNodes().values().iterator().next().getId();
                 var unassignedIterator = allocation.routingNodes().unassigned().iterator();
                 while (unassignedIterator.hasNext()) {

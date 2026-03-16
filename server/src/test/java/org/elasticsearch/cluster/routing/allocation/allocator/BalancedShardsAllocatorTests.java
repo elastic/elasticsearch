@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
@@ -127,7 +128,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         final ProjectId projectId = clusterState.metadata().projects().keySet().iterator().next();
 
         ShardRouting shard = clusterState.globalRoutingTable().routingTable(projectId).index("idx_new").shard(0).primaryShard();
-        RoutingAllocation allocation = createRoutingAllocation(clusterState);
+        MutableRoutingAllocation allocation = createRoutingAllocation(clusterState);
 
         allocation.debugDecision(false);
         AllocateUnassignedDecision allocateDecision = allocator.explainShardAllocation(shard, allocation).getAllocateDecision();
@@ -221,7 +222,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         }
 
         final BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
-        final RoutingAllocation allocation = createRoutingAllocation(clusterState);
+        final MutableRoutingAllocation allocation = createRoutingAllocation(clusterState);
         final ShardRouting shard = clusterState.globalRoutingTable()
             .routingTable(origProject.id())
             .index(indexName)
@@ -1313,7 +1314,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             .putRoutingTable(ProjectId.DEFAULT, routingTableBuilder.build())
             .build();
 
-        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+        MutableRoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
             .allocationDeciders(new AllocationDeciders(List.of(notPreferredDecider)))
             .currentNanoTime(randomNonNegativeLong())
             .mutable();
@@ -1494,7 +1495,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         return counts;
     }
 
-    private RoutingAllocation createRoutingAllocation(ClusterState clusterState) {
+    private MutableRoutingAllocation createRoutingAllocation(ClusterState clusterState) {
         return TestRoutingAllocationFactory.forClusterState(clusterState).mutable();
     }
 

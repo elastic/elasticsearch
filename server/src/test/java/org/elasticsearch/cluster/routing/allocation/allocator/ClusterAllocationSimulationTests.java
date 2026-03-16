@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -500,7 +500,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             new ShardRelocationOrder.DefaultOrder()
         ) {
             @Override
-            public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
+            public void allocate(MutableRoutingAllocation allocation, ActionListener<Void> listener) {
                 super.allocate(allocation, listener);
                 runAllTasks.run();
             }

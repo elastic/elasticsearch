@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
@@ -482,7 +483,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         var allocateCalled = new AtomicBoolean();
         var desiredBalanceComputer = createDesiredBalanceComputer(new ShardsAllocator() {
             @Override
-            public void allocate(RoutingAllocation allocation) {
+            public void allocate(MutableRoutingAllocation allocation) {
                 assertTrue(allocateCalled.compareAndSet(false, true));
                 // whatever the allocation in the current cluster state, the desired balance service should start by moving all the
                 // known shards to their desired locations before delegating to the inner allocator
@@ -623,7 +624,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     public void testAppliesMoveCommands() {
         var desiredBalanceComputer = createDesiredBalanceComputer(new ShardsAllocator() {
             @Override
-            public void allocate(RoutingAllocation allocation) {
+            public void allocate(MutableRoutingAllocation allocation) {
                 // This runs after the move commands have been applied, we assert that the relocating shards caused by the move
                 // commands are all started by the simulation.
                 assertThat(
@@ -691,7 +692,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     public void testCannotApplyMoveCommand() {
         var desiredBalanceComputer = createDesiredBalanceComputer(new ShardsAllocator() {
             @Override
-            public void allocate(RoutingAllocation allocation) {
+            public void allocate(MutableRoutingAllocation allocation) {
                 // This runs after the move commands have been executed and failed, we assert that no movement should be seen
                 // in the routing nodes.
                 assertThat(
@@ -1479,7 +1480,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         );
         var desiredBalanceComputer = new DesiredBalanceComputer(clusterSettings, timeProvider, new ShardsAllocator() {
             @Override
-            public void allocate(RoutingAllocation allocation) {
+            public void allocate(MutableRoutingAllocation allocation) {
                 final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
                 while (unassignedIterator.hasNext()) {
                     final var shardRouting = unassignedIterator.next();
@@ -2061,7 +2062,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     private static DesiredBalanceComputer createDesiredBalanceComputer() {
         return createDesiredBalanceComputer(new ShardsAllocator() {
             @Override
-            public void allocate(RoutingAllocation allocation) {
+            public void allocate(MutableRoutingAllocation allocation) {
                 final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
                 while (unassignedIterator.hasNext()) {
                     final var shardRouting = unassignedIterator.next();

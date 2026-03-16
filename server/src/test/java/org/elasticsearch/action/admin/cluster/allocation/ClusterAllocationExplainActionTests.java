@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.Explanations;
+import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
@@ -369,7 +370,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             true,
             new AllocationService(null, new TestGatewayAllocator(), new ShardsAllocator() {
                 @Override
-                public void allocate(RoutingAllocation allocation) {
+                public void allocate(MutableRoutingAllocation allocation) {
                     // no-op
                 }
 

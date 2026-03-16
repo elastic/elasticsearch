@@ -69,9 +69,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final DesiredBalanceReconcilerAction reconciler;
     private final DesiredBalanceComputer desiredBalanceComputer;
     /**
-     * Reconciliation ({@link DesiredBalanceReconciler#reconcile(DesiredBalance, RoutingAllocation)}) takes the {@link DesiredBalance}
-     * output of {@link DesiredBalanceComputer#compute} and identifies how shards need to be added, moved or removed to go from the current
-     * cluster shard allocation to the new desired allocation.
+     * Reconciliation ({@link DesiredBalanceReconciler#reconcile(DesiredBalance, MutableRoutingAllocation)}) takes the
+     * {@link DesiredBalance} output of {@link DesiredBalanceComputer#compute} and identifies how shards need to be added, moved or
+     * removed to go from the current cluster shard allocation to the new desired allocation.
      */
     private final DesiredBalanceReconciler desiredBalanceReconciler;
     private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;
@@ -270,12 +270,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     @Override
-    public void allocate(RoutingAllocation allocation) {
+    public void allocate(MutableRoutingAllocation allocation) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
+    public void allocate(MutableRoutingAllocation allocation, ActionListener<Void> listener) {
         assert MasterService.assertMasterUpdateOrTestThread() : Thread.currentThread().getName();
         assert allocation.ignoreDisable() == false;
 
@@ -376,7 +376,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         masterServiceTaskQueue.submitTask("reconcile-desired-balance", new ReconcileDesiredBalanceTask(desiredBalance), null);
     }
 
-    protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+    protected void reconcile(DesiredBalance desiredBalance, MutableRoutingAllocation allocation) {
         if (logger.isTraceEnabled()) {
             logger.trace("Reconciling desired balance: {}", desiredBalance);
         } else {
@@ -406,7 +406,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             }
 
             @Override
-            public void execute(RoutingAllocation allocation) {
+            public void execute(MutableRoutingAllocation allocation) {
                 reconcile(desiredBalance, allocation);
             }
         };

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
@@ -30,6 +31,7 @@ public final class MutableRoutingAllocation extends RoutingAllocation {
 
     private final RoutingChangesObserver routingChangesObserver;
     private final RoutingNodes routingNodes;
+    private boolean isReconciling;
 
     /**
      * Creates a new {@link RoutingAllocation}
@@ -153,5 +155,22 @@ public final class MutableRoutingAllocation extends RoutingAllocation {
     @Override
     public boolean routingNodesChanged() {
         return nodesChangedObserver.isChanged();
+    }
+
+    /**
+     * @return {@code true} if this allocation computation is trying to reconcile towards a previously-computed allocation and therefore
+     *                      path-dependent allocation blockers should be ignored.
+     */
+    public boolean isReconciling() {
+        return isReconciling;
+    }
+
+    /**
+     * Set the {@link #isReconciling} flag, and return a {@link Releasable} which clears it again.
+     */
+    public Releasable withReconcilingFlag() {
+        assert isReconciling == false : "already reconciling";
+        isReconciling = true;
+        return () -> isReconciling = false;
     }
 }

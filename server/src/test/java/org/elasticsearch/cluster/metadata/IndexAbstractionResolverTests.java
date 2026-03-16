@@ -277,14 +277,8 @@ public class IndexAbstractionResolverTests extends ESTestCase {
 
         // these indices options are for the GET _data_streams case
         final IndicesOptions noHiddenNoAliases = IndicesOptions.builder()
-            .wildcardOptions(
-                IndicesOptions.WildcardOptions.builder()
-                    .matchOpen(true)
-                    .matchClosed(true)
-                    .includeHidden(false)
-                    .resolveAliases(false)
-                    .build()
-            )
+            .wildcardOptions(IndicesOptions.WildcardOptions.builder().matchOpen(true).matchClosed(true).includeHidden(false).build())
+            .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveAliases(false).build())
             .build();
 
         {

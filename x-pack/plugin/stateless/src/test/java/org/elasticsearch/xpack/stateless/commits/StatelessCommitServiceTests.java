@@ -73,6 +73,7 @@ import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.action.FetchShardCommitsInUseAction;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
@@ -651,6 +652,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit.getGeneration());
                 waitUntilBCCIsUploaded(testHarness.commitService, testHarness.shardId, commit.getGeneration());
             }
+            // waitUntilBCCIsUploaded returns after the generation listener fires, but before search node notification processing
+            // (which closes external readers on older BlobReferences) on the same shard write pool thread. Flush all threads
+            // to ensure notification processing is complete and external references released.
+            flushThreadPoolExecutor(testHarness.threadPool, StatelessPlugin.SHARD_WRITE_THREAD_POOL);
 
             final var future = new PlainActionFuture<Void>();
             ActionListener<Void> relocationListener = testHarness.commitService.markRelocating(

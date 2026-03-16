@@ -83,14 +83,14 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
             context
         );
 
-        var oAuthSettings = AzureOpenAiOAuth2Settings.fromMap(map, validationException);
+        var oAuth2Settings = AzureOpenAiOAuth2Settings.fromMap(map, validationException);
 
         return new AzureOpenAiCompletionServiceSettings.CommonFields(
             resourceName,
             deploymentId,
             apiVersion,
             rateLimitSettings,
-            oAuthSettings
+            oAuth2Settings
         );
     }
 

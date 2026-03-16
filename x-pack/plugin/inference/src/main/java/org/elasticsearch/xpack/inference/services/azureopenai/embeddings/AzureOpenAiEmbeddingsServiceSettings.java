@@ -105,7 +105,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
 
         Boolean dimensionsSetByUser = extractOptionalBoolean(map, ServiceFields.DIMENSIONS_SET_BY_USER, validationException);
 
-        var oAuthSettings = AzureOpenAiOAuth2Settings.fromMap(map, validationException);
+        var oAuth2Settings = AzureOpenAiOAuth2Settings.fromMap(map, validationException);
 
         switch (context) {
             case REQUEST -> {
@@ -134,7 +134,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
             maxTokens,
             similarity,
             rateLimitSettings,
-            oAuthSettings
+            oAuth2Settings
         );
     }
 
@@ -147,7 +147,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         @Nullable Integer maxInputTokens,
         @Nullable SimilarityMeasure similarity,
         RateLimitSettings rateLimitSettings,
-        @Nullable AzureOpenAiOAuth2Settings oAuthSettings
+        @Nullable AzureOpenAiOAuth2Settings oAuth2Settings
     ) {}
 
     private final CommonFields fields;
@@ -172,7 +172,6 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
                 maxInputTokens,
                 similarity,
                 Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS),
-                // TODO remove this constructor
                 null
             )
         );
@@ -187,7 +186,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         @Nullable Integer maxInputTokens,
         @Nullable SimilarityMeasure similarity,
         @Nullable RateLimitSettings rateLimitSettings,
-        @Nullable AzureOpenAiOAuth2Settings oAuthSettings
+        @Nullable AzureOpenAiOAuth2Settings oAuth2Settings
     ) {
         this(
             new CommonFields(
@@ -199,7 +198,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
                 maxInputTokens,
                 similarity,
                 Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS),
-                oAuthSettings
+                oAuth2Settings
             )
         );
     }
@@ -264,7 +263,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
     }
 
     public AzureOpenAiOAuth2Settings oAuth2Settings() {
-        return fields.oAuthSettings();
+        return fields.oAuth2Settings();
     }
 
     @Override
@@ -310,8 +309,8 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         }
         fields.rateLimitSettings().toXContent(builder, params);
 
-        if (fields.oAuthSettings() != null) {
-            fields.oAuthSettings().toXContent(builder, params);
+        if (fields.oAuth2Settings() != null) {
+            fields.oAuth2Settings().toXContent(builder, params);
         }
 
         return builder;
@@ -334,7 +333,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         fields.rateLimitSettings().writeTo(out);
 
         if (out.getTransportVersion().supports(AZURE_OPENAI_OAUTH_SETTINGS)) {
-            out.writeOptionalWriteable(fields.oAuthSettings());
+            out.writeOptionalWriteable(fields.oAuth2Settings());
         }
     }
 

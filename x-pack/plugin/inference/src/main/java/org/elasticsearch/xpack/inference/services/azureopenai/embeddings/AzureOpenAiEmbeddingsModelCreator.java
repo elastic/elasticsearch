@@ -14,22 +14,18 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ModelCreator;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModelCreator;
 
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Creates {@link AzureOpenAiEmbeddingsModel} instances from config maps
  * or {@link ModelConfigurations} and {@link ModelSecrets} objects.
  */
-public class AzureOpenAiEmbeddingsModelCreator implements ModelCreator<AzureOpenAiEmbeddingsModel> {
+public class AzureOpenAiEmbeddingsModelCreator extends AzureOpenAiModelCreator<AzureOpenAiEmbeddingsModel> {
 
-    public final ThreadPool threadPool;
-
-    // TODO pull up into a common base class
     public AzureOpenAiEmbeddingsModelCreator(ThreadPool threadPool) {
-        this.threadPool = Objects.requireNonNull(threadPool);
+        super(threadPool);
     }
 
     @Override

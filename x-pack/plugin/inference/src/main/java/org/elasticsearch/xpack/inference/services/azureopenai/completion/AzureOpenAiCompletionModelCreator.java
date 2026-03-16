@@ -14,21 +14,18 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ModelCreator;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModelCreator;
 
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Creates {@link AzureOpenAiCompletionModel} instances from config maps
  * or {@link ModelConfigurations} and {@link ModelSecrets} objects.
  */
-public class AzureOpenAiCompletionModelCreator implements ModelCreator<AzureOpenAiCompletionModel> {
-
-    private final ThreadPool threadPool;
+public class AzureOpenAiCompletionModelCreator extends AzureOpenAiModelCreator<AzureOpenAiCompletionModel> {
 
     public AzureOpenAiCompletionModelCreator(ThreadPool threadPool) {
-        this.threadPool = Objects.requireNonNull(threadPool);
+        super(threadPool);
     }
 
     @Override

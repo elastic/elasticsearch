@@ -46,9 +46,9 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AbstractBWCWireSe
     private static final String NEW_CLIENT_ID = "new-client";
     private static final List<String> NEW_SCOPES = List.of("new-scope1", "new-scope2");
 
-    private static final String ERROR_RESOURCE_NAME_REQUIRED = "[service_settings] does not contain the required setting [resource_name]";
-    private static final String ERROR_DEPLOYMENT_ID_REQUIRED = "[service_settings] does not contain the required setting [deployment_id]";
-    private static final String ERROR_API_VERSION_REQUIRED = "[service_settings] does not contain the required setting [api_version]";
+    public static final String ERROR_RESOURCE_NAME_REQUIRED = "[service_settings] does not contain the required setting [resource_name]";
+    public static final String ERROR_DEPLOYMENT_ID_REQUIRED = "[service_settings] does not contain the required setting [deployment_id]";
+    public static final String ERROR_API_VERSION_REQUIRED = "[service_settings] does not contain the required setting [api_version]";
 
     public static AzureOpenAiCompletionServiceSettings createRandom() {
         return createRandom(randomFrom(AzureOpenAiOAuth2SettingsTests.createRandom(), null));

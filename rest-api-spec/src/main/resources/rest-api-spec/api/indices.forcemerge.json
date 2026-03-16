@@ -36,6 +36,7 @@
     "params": {
       "flush": {
         "type": "boolean",
+        "default": true,
         "description": "Specify whether the index should be flushed after performing the operation (default: true)"
       },
       "ignore_unavailable": {
@@ -64,6 +65,7 @@
       },
       "only_expunge_deletes": {
         "type": "boolean",
+        "default": false,
         "description": "Specify whether the operation should only expunge deleted documents"
       },
       "wait_for_completion": {

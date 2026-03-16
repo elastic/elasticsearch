@@ -20,15 +20,15 @@ import java.io.IOException;
  * Vector that stores int values.
  * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
-public sealed interface IntVector extends Vector permits ConstantIntVector, IntArrayVector, IntBigArrayVector, ConstantNullVector {
-
+public sealed interface IntVector extends Vector permits ConstantIntVector, IntArrayVector, IntBigArrayVector, IntRangeVector,
+    ConstantNullVector {
     int getInt(int position);
 
     @Override
     IntBlock asBlock();
 
     @Override
-    IntVector filter(int... positions);
+    IntVector filter(boolean mayContainDuplicates, int... positions);
 
     @Override
     IntBlock keepMask(BooleanVector mask);
@@ -153,15 +153,6 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
         for (int i = 0; i < positions; i++) {
             out.writeInt(v.getInt(i));
         }
-    }
-
-    /** Create a vector for a range of ints. */
-    static IntVector range(int startInclusive, int endExclusive, BlockFactory blockFactory) {
-        int[] values = new int[endExclusive - startInclusive];
-        for (int i = 0; i < values.length; i++) {
-            values[i] = startInclusive + i;
-        }
-        return blockFactory.newIntArrayVector(values, values.length);
     }
 
     /**

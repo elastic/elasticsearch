@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.enrich;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -26,7 +27,7 @@ import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
-import java.util.function.IntFunction;
+import java.util.function.BiFunction;
 
 /**
  * A {@link QueryList} that generates a query for a binary comparison.
@@ -42,38 +43,27 @@ import java.util.function.IntFunction;
  */
 public class BinaryComparisonQueryList extends QueryList {
     private final EsqlBinaryComparison binaryComparison;
-    private final IntFunction<Object> blockValueReader;
-    private final SearchExecutionContext searchExecutionContext;
-    private final LucenePushdownPredicates lucenePushdownPredicates;
+    private final BiFunction<Block, Integer, Object> blockValueReader;
+    private final ClusterService clusterService;
 
     public BinaryComparisonQueryList(
         MappedFieldType field,
-        SearchExecutionContext searchExecutionContext,
-        Block leftHandSideBlock,
+        ElementType leftHandSideElementType,
+        int channelOffset,
         EsqlBinaryComparison binaryComparison,
         ClusterService clusterService,
         AliasFilter aliasFilter,
         Warnings warnings
     ) {
-        super(
-            field,
-            searchExecutionContext,
-            aliasFilter,
-            leftHandSideBlock,
-            new OnlySingleValueParams(warnings, "LOOKUP JOIN encountered multi-value")
-        );
+        super(field, aliasFilter, channelOffset, new OnlySingleValueParams(warnings, "LOOKUP JOIN encountered multi-value"));
         // swap left and right if the field is on the right
         // We get a filter in the form left_expr >= right_expr
         // here we will swap it to right_expr <= left_expr
         // and later in doGetQuery we will replace left_expr with the value from the leftHandSideBlock
         // We do that because binaryComparison expects the field to be on the left and the literal on the right to be translatable
         this.binaryComparison = (EsqlBinaryComparison) binaryComparison.swapLeftAndRight();
-        this.blockValueReader = QueryList.createBlockValueReader(leftHandSideBlock);
-        this.searchExecutionContext = searchExecutionContext;
-        lucenePushdownPredicates = LucenePushdownPredicates.from(
-            SearchContextStats.from(List.of(searchExecutionContext)),
-            new EsqlFlags(clusterService.getClusterSettings())
-        );
+        this.blockValueReader = QueryList.createBlockValueReaderForType(leftHandSideElementType);
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -82,8 +72,14 @@ public class BinaryComparisonQueryList extends QueryList {
     }
 
     @Override
-    public Query doGetQuery(int position, int firstValueIndex, int valueCount) {
-        Object value = blockValueReader.apply(firstValueIndex);
+    public Query doGetQuery(
+        int position,
+        int firstValueIndex,
+        int valueCount,
+        Block inputBlock,
+        SearchExecutionContext searchExecutionContext
+    ) {
+        Object value = blockValueReader.apply(inputBlock, firstValueIndex);
         // create a new comparison with the value from the block as a literal
         EsqlBinaryComparison comparison = binaryComparison.getFunctionType()
             .buildNewInstance(
@@ -91,6 +87,11 @@ public class BinaryComparisonQueryList extends QueryList {
                 binaryComparison.left(),
                 new Literal(binaryComparison.right().source(), value, binaryComparison.right().dataType())
             );
+        // Create LucenePushdownPredicates dynamically from the current SearchExecutionContext
+        LucenePushdownPredicates lucenePushdownPredicates = LucenePushdownPredicates.from(
+            SearchContextStats.from(List.of(searchExecutionContext)),
+            new EsqlFlags(clusterService.getClusterSettings())
+        );
         try {
             if (TranslationAware.Translatable.YES == comparison.translatable(lucenePushdownPredicates)) {
                 return comparison.asQuery(lucenePushdownPredicates, TranslatorHandler.TRANSLATOR_HANDLER)

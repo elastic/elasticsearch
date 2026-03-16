@@ -26,6 +26,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
@@ -45,14 +46,16 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.snapshots.SnapshotTestUtils.flushMasterQueue;
-import static org.elasticsearch.snapshots.SnapshotTestUtils.putShutdownForRemovalMetadata;
+import static org.elasticsearch.test.NodeShutdownTestUtils.clearShutdownMetadata;
+import static org.elasticsearch.test.NodeShutdownTestUtils.flushMasterQueue;
+import static org.elasticsearch.test.NodeShutdownTestUtils.putShutdownForRemovalMetadata;
 import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -140,6 +143,13 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, hasSize(numShards));
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, everyItem(lessThan(snapshotElapsedTime.secondsFrac())));
 
+        // Sanity check shard queue time observations
+        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_QUEUE_TIME, hasSize(numShards));
+        assertDoubleHistogramMetrics(
+            SnapshotMetrics.SNAPSHOT_SHARDS_QUEUE_TIME,
+            everyItem(allOf(greaterThanOrEqualTo(0.0), lessThan(snapshotElapsedTime.secondsFrac())))
+        );
+
         // Sanity check snapshot observations
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, hasSize(1));
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, everyItem(lessThan(snapshotElapsedTime.secondsFrac())));
@@ -182,6 +192,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertMetricsHaveAttributes(InstrumentType.LONG_GAUGE, SnapshotMetrics.SNAPSHOT_SHARDS_IN_PROGRESS, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_SHARDS_COMPLETED, expectedAttrsWithShardStage);
         assertMetricsHaveAttributes(InstrumentType.DOUBLE_HISTOGRAM, SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, expectedAttrsWithShardStage);
+        assertMetricsHaveAttributes(InstrumentType.DOUBLE_HISTOGRAM, SnapshotMetrics.SNAPSHOT_SHARDS_QUEUE_TIME, expectedAttrs);
 
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_UPLOAD_DURATION, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_BYTES_UPLOADED, expectedAttrs);
@@ -516,6 +527,100 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             SnapshotMetrics.SNAPSHOTS_BY_STATE,
             Map.of("repo_name", repositoryName, "repo_type", "mock")
         );
+    }
+
+    public void testSnapshotDurationIncludesFinalization() throws Exception {
+        final String indexName = randomIndexName();
+        createIndex(indexName, 1, 0);
+        indexRandom(true, indexName, randomIntBetween(10, 50));
+
+        final String repositoryName = randomRepoName();
+        createRepository(repositoryName, "mock");
+
+        final String masterNode = internalCluster().getMasterName();
+        blockMasterOnWriteIndexFile(repositoryName);
+
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            repositoryName,
+            randomSnapshotName()
+        ).setIndices(indexName).setWaitForCompletion(true).execute();
+
+        waitForBlock(masterNode, repositoryName);
+
+        final long delayMillis = between(50, 200);
+        safeSleep(delayMillis);
+
+        unblockNode(repositoryName, masterNode);
+        safeGet(snapshotFuture);
+
+        collectMetrics();
+
+        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, hasSize(1));
+        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, everyItem(greaterThanOrEqualTo(delayMillis / 1000.0)));
+    }
+
+    public void testSnapshotDurationDoesNotIncludeCleanup() throws Exception {
+        final String indexName = randomIndexName();
+        createIndex(indexName, 1, 0);
+        indexRandom(true, indexName, randomIntBetween(10, 50));
+
+        final String repositoryName = randomRepoName();
+        createRepository(repositoryName, "mock");
+
+        // First snapshot establishes an index-N blob that the second snapshot's cleanup will delete
+        createSnapshot(repositoryName, "first-snapshot", List.of(indexName));
+
+        final String masterNode = internalCluster().getMasterName();
+        blockMasterFromDeletingIndexNFile(repositoryName);
+
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            repositoryName,
+            randomSnapshotName()
+        ).setIndices(indexName).setWaitForCompletion(true).execute();
+
+        // Wait for cleanup to be blocked. The finalization listener has already fired (recording metrics)
+        // but onDone hasn't fired yet because cleanup is still in progress.
+        waitForBlock(masterNode, repositoryName);
+
+        collectMetrics();
+
+        // Both snapshots' metrics are already recorded even though the second snapshot's cleanup hasn't finished
+        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOTS_COMPLETED), equalTo(2L));
+        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, hasSize(2));
+
+        unblockNode(repositoryName, masterNode);
+        safeGet(snapshotFuture);
+    }
+
+    public void testSnapshotMetricsRecordedOnFinalizationFailure() throws Exception {
+        final String indexName = randomIndexName();
+        createIndex(indexName, 1, 0);
+        indexRandom(true, indexName, randomIntBetween(10, 50));
+
+        final String repositoryName = randomRepoName();
+        createRepository(repositoryName, "mock");
+
+        final String masterNode = internalCluster().getMasterName();
+        blockMasterFromFinalizingSnapshotOnIndexFile(repositoryName);
+
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            repositoryName,
+            randomSnapshotName()
+        ).setIndices(indexName).setWaitForCompletion(true).execute();
+
+        waitForBlock(masterNode, repositoryName);
+        unblockNode(repositoryName, masterNode);
+
+        expectThrows(SnapshotException.class, snapshotFuture);
+
+        awaitNoMoreRunningOperations();
+        collectMetrics();
+
+        assertThat(getTotalClusterLongCounterValue(SnapshotMetrics.SNAPSHOTS_COMPLETED), equalTo(1L));
+        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, hasSize(1));
     }
 
     private Map<SnapshotsInProgress.ShardState, Long> getShardStates() {

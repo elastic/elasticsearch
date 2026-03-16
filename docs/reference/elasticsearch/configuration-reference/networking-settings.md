@@ -667,11 +667,6 @@ It may also be possible to identify some reasons for delays from the server logs
 
 ## TCP readiness port [tcp-readiness-port]
 
-::::{warning}
-This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
-
 If configured, a node can open a TCP port when the node is in a ready state. A node is deemed ready when it has successfully joined a cluster. In a single node configuration, the node is said to be ready, when it’s able to accept requests.
 
 To enable the readiness TCP port, use the `readiness.port` setting. The readiness service will bind to all host addresses.

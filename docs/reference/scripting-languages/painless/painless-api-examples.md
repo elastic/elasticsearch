@@ -1,18 +1,67 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-execute-api.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
 
-# Painless API examples [painless-execute-api]
+# Painless execute API [painless-execute-api]
 
 ::::{warning}
 This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
 ::::
 
-
 The Painless execute API runs a script and returns a result.
+
+## Description
+
+Use this API to build and test scripts, such as when defining a script for a [runtime field](docs-content://manage-data/data-store/mapping/runtime-fields.md). This API requires very few dependencies and is especially useful if you don’t have the required permissions to write documents to a cluster. 
+
+## How it works
+
+The Painless execute API runs scripts in an isolated execution environment and returns results for development and testing purposes. The request body must include a `script` object, and additional parameters may be required depending on the selected context. For example, providing a `context_setup` parameter allows you to add a document to execute the script against.
+
+The API executes the script within the {{es}} Painless engine and does not perform write operations or modify indexed documents.
+
+## Supported contexts
+
+The API supports the following contexts for script execution:
+
+### Test context (`test`)
+
+Test scripts without additional parameters or context settings. Only the `params` variable is available, and results are always converted to a string. This is the default context when no other is specified.
+
+### Filter context (`filter`)
+
+Test scripts that return boolean values, such as those used in script queries for field comparisons or value checks. Scripts run as if inside a `script` query and have access to `_source`, stored fields, and doc values of the provided document.
+
+### Score context (`score`)
+
+Validate custom scoring functions for `function_score` queries, such as ranking calculations based on field values. Scripts run as if inside a `script_score` function and can access document fields for scoring calculations.
+
+### Runtime field contexts
+
+Test field context scripts using the `emit` function for runtime fields:
+
+* `boolean_field`: Return `true` or `false` values for boolean field types.  
+* `date_field`: Process and emit date values as long timestamps.  
+* `double_field`: Return sorted lists of double numeric values.  
+* `geo_point_field`: Emit latitude and longitude coordinates for geo-point fields.  
+* `ip_fields`: Process and return IP addresses from text data.  
+* `keyword_field`: Return sorted lists of string values.  
+* `long_field`: Return sorted lists of long numeric values.  
+* `composite_field`: Return maps of values for composite runtime fields.
+
+## When to use the Painless execute API
+
+Use the Painless execute API in the following scenarios:
+
+* To test script syntax and logic before deploying to production.  
+* When you do not have write permissions on a live cluster.  
+* To validate script behavior using specific test data.
 
 ## {{api-request-title}} [painless-execute-api-request]
 
@@ -856,6 +905,3 @@ The response includes the values that the script emitted:
   }
 }
 ```
-
-
-

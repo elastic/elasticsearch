@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 
 import java.util.Set;
 
@@ -17,7 +16,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class EsqlTestUtilsTests extends ESTestCase {
 
     public void testPromQL() {
-        assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
         assertThat(
             EsqlTestUtils.addRemoteIndices("PROMQL index=foo,bar step=1m (avg(foo_bar))", Set.of(), false),
             equalTo("PROMQL index=*:foo,foo,*:bar,bar step=1m (avg(foo_bar))")
@@ -41,7 +39,6 @@ public class EsqlTestUtilsTests extends ESTestCase {
     }
 
     public void testPromQLDefaultIndex() {
-        assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
         assertThat(
             EsqlTestUtils.addRemoteIndices("PROMQL step=1m (avg(baz))", Set.of(), false),
             equalTo("PROMQL index=*:*,* step=1m (avg(baz))")

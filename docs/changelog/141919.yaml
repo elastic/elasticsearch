@@ -1,0 +1,6 @@
+area: Aggregations
+issues:
+ - 141714
+pr: 141919
+summary: Fix `ClassCastException` when merging `TopHits` with mixed sort field types
+type: bug

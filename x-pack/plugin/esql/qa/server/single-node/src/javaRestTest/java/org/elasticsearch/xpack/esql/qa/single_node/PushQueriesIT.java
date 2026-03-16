@@ -14,6 +14,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -152,17 +153,20 @@ public class PushQueriesIT extends ESRestTestCase {
             | WHERE test == "%value" OR foo == 2
             """;
         // query rewrite optimizations apply to foo, since it's query value is always outside the range of indexed values
-        String luceneQuery = switch (type) {
-            case AUTO, TEXT_WITH_KEYWORD -> "#test.keyword:%value -_ignored:test.keyword";
-            case KEYWORD -> "test:%value";
-            case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD -> "*:*";
-            case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+        List<String> luceneQuery = switch (type) {
+            case AUTO, TEXT_WITH_KEYWORD -> List.of(
+                "#test.keyword:%value -_ignored:test.keyword",
+                "(#test.keyword:%value -_ignored:test.keyword) foo:[2 TO 2]"
+            );
+            case KEYWORD -> List.of("test:%value", "test:%value foo:[2 TO 2]");
+            case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD -> List.of("*:*");
+            case SEMANTIC_TEXT_WITH_KEYWORD -> List.of("FieldExistsQuery [field=_primary_term]");
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
             case MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
         };
-        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+        testPushQuery(value, esqlQuery, luceneQuery, dataNodeSignature, true);
     }
 
     public void testEqualityAndOther() throws IOException {
@@ -173,8 +177,11 @@ public class PushQueriesIT extends ESRestTestCase {
             """;
         // query rewrite optimizations apply to foo, since it's query value is always within the range of indexed values
         List<String> luceneQueryOptions = switch (type) {
-            case AUTO, TEXT_WITH_KEYWORD -> List.of("#test.keyword:%value -_ignored:test.keyword");
-            case KEYWORD -> List.of("test:%value");
+            case AUTO, TEXT_WITH_KEYWORD -> List.of(
+                "#test.keyword:%value -_ignored:test.keyword",
+                "#test.keyword:%value -_ignored:test.keyword foo:[2 TO 2]"
+            );
+            case KEYWORD -> List.of("test:%value", "test:%value foo:[2 TO 2]");
             case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD -> List.of("*:*");
             case SEMANTIC_TEXT_WITH_KEYWORD ->
                 /*
@@ -182,7 +189,7 @@ public class PushQueriesIT extends ESRestTestCase {
                  * that don't have the `foo` field. "*:*" is because sometimes we end up on
                  * a shard where all `foo = 1`.
                  */
-                List.of("FieldExistsQuery [field=foo]", "foo:[1 TO 1]", "*:*");
+                List.of("#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]", "foo:[1 TO 1]", "FieldExistsQuery [field=_primary_term]");
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
@@ -377,10 +384,7 @@ public class PushQueriesIT extends ESRestTestCase {
             equalTo(found ? List.of(List.of(value)) : List.of())
         );
         Matcher<String> luceneQueryMatcher = anyOf(
-            () -> Iterators.map(
-                luceneQueryOptions.iterator(),
-                (String s) -> equalTo(s.replaceAll("%value", value).replaceAll("%different_value", differentValue))
-            )
+            () -> Iterators.map(luceneQueryOptions.iterator(), (String s) -> queryMatcher(s, value, differentValue))
         );
 
         @SuppressWarnings("unchecked")
@@ -414,6 +418,14 @@ public class PushQueriesIT extends ESRestTestCase {
                 default -> throw new IllegalArgumentException("can't match " + description);
             }
         }
+    }
+
+    private Matcher<String> queryMatcher(String queryString, String value, String differentValue) {
+        queryString = queryString.replaceAll("%value", value).replaceAll("%different_value", differentValue);
+        if (queryString.length() <= LuceneOperator.Status.QUERY_STRING_TRUNCATION) {
+            return equalTo(queryString);
+        }
+        return startsWith(queryString.substring(0, LuceneOperator.Status.QUERY_STRING_TRUNCATION));
     }
 
     private void indexValue(String value) throws IOException {

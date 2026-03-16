@@ -74,7 +74,7 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
     public void testAggTwentyPercent() throws IOException {
         testQuery(null, """
             FROM test
-            | WHERE STARTS_WITH(test.keyword, "test1") OR STARTS_WITH(test.keyword, "test2")
+            | WHERE STARTS_WITH(testkw, "test1") OR STARTS_WITH(testkw, "test2")
             | STATS SUM(LENGTH(test))
             """, 200, true);
     }
@@ -98,7 +98,7 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
      */
     private void testAggTenPercent(Double percent, boolean sequential) throws IOException {
         String filter = IntStream.range(0, 10)
-            .mapToObj(i -> String.format(Locale.ROOT, "STARTS_WITH(test.keyword, \"test%s%s\")", i, i))
+            .mapToObj(i -> String.format(Locale.ROOT, "STARTS_WITH(testkw, \"test%s%s\")", i, i))
             .collect(Collectors.joining(" OR "));
         testQuery(percent, String.format(Locale.ROOT, """
             FROM test
@@ -184,7 +184,9 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
               },
               "mappings": {
                 "properties": {
-                  "i": {"type": "long"}
+                  "i": {"type": "long"},
+                  "test": {"type": "text"},
+                  "testkw": {"type": "keyword"}
                 }
               }
             }""");
@@ -200,8 +202,8 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
         for (int i = 0; i < 1000; i++) {
             b.append(String.format(Locale.ROOT, """
                 {"create":{"_index":"test"}}
-                {"test":"test%03d", "i": %d}
-                """, i, i));
+                {"test":"test%03d", "testkw": "test%03d", "i": %d}
+                """, i, i, i));
         }
         bulk.setJsonEntity(b.toString());
         Response bulkResponse = client().performRequest(bulk);

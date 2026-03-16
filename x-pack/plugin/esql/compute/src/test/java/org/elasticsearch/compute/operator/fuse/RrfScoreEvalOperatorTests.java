@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator.fuse;
 
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.WarningsTests.TestWarningsSource;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -40,7 +41,7 @@ public class RrfScoreEvalOperatorTests extends FuseOperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new RrfScoreEvalOperator.Factory(discriminatorPosition, scorePosition, config, null, 0, 0);
+        return new RrfScoreEvalOperator.Factory(discriminatorPosition, scorePosition, config, new TestWarningsSource(null));
     }
 
     @Override

@@ -28,6 +28,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -43,14 +44,14 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
-import org.elasticsearch.compute.lucene.LuceneCountOperator;
-import org.elasticsearch.compute.lucene.LuceneOperator;
-import org.elasticsearch.compute.lucene.LuceneSliceQueue;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
-import org.elasticsearch.compute.lucene.LuceneSourceOperatorTests;
 import org.elasticsearch.compute.lucene.ShardContext;
+import org.elasticsearch.compute.lucene.query.DataPartitioning;
+import org.elasticsearch.compute.lucene.query.LuceneCountOperator;
+import org.elasticsearch.compute.lucene.query.LuceneOperator;
+import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperatorTests;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -59,10 +60,10 @@ import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.CannedSourceOperator;
-import org.elasticsearch.compute.test.OperatorTestCase;
-import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -129,7 +130,7 @@ public class OperatorTests extends MapperServiceTestCase {
                     DriverContext driverContext = driverContext();
                     drivers.add(TestDriverFactory.create(driverContext, factory.get(driverContext), List.of(), docCollector));
                 }
-                OperatorTestCase.runDriver(drivers);
+                new TestDriverRunner().run(drivers);
                 Set<Integer> expectedDocIds = searchForDocIds(reader, query);
                 assertThat("query=" + query, actualDocIds, equalTo(expectedDocIds));
                 drivers.stream().map(Driver::driverContext).forEach(OperatorTests::assertDriverContext);
@@ -184,13 +185,15 @@ public class OperatorTests extends MapperServiceTestCase {
                         "v",
                         ElementType.LONG,
                         false,
-                        f -> ValuesSourceReaderOperator.load(new LongsBlockLoader("v"))
+                        (ctx, f) -> ValuesSourceReaderOperator.load(new LongsBlockLoader("v"))
                     )
                 ),
                 new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
                     throw new UnsupportedOperationException();
                 }, 0.8)),
-                0
+                randomBoolean(),
+                0,
+                randomDoubleBetween(0.1, 10.0, true)
             );
             List<Page> pages = new ArrayList<>();
             DriverContext driverContext = driverContext();
@@ -202,7 +205,7 @@ public class OperatorTests extends MapperServiceTestCase {
                     new TestResultPageSinkOperator(pages::add)
                 )
             ) {
-                OperatorTestCase.runDriver(driver);
+                new TestDriverRunner().run(driver);
             }
             assertDriverContext(driverContext);
 
@@ -355,7 +358,7 @@ public class OperatorTests extends MapperServiceTestCase {
                     })
                 )
             ) {
-                OperatorTestCase.runDriver(driver);
+                new TestDriverRunner().run(driver);
             }
 
             assertThat(actualValues, equalTo(expectedValues));
@@ -367,9 +370,9 @@ public class OperatorTests extends MapperServiceTestCase {
     }
 
     public void testPushRoundToCountToQuery() throws IOException {
-        int firstGroupDocs = randomIntBetween(0, 10_000);
-        int secondGroupDocs = randomIntBetween(0, 10_000);
-        int thirdGroupDocs = randomIntBetween(0, 10_000);
+        int firstGroupDocs = randomIntBetween(1, 10_000);
+        int secondGroupDocs = randomIntBetween(1, 10_000);
+        int thirdGroupDocs = randomIntBetween(1, 10_000);
 
         CheckedConsumer<DirectoryReader, IOException> verifier = reader -> {
             Query firstGroupQuery = LongPoint.newRangeQuery("g", Long.MIN_VALUE, 99);
@@ -397,7 +400,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         new TestResultPageSinkOperator(dataDriverPages::add)
                     )
                 ) {
-                    OperatorTestCase.runDriver(driver);
+                    new TestDriverRunner().run(driver);
                 }
                 assertDriverContext(driverContext);
             }
@@ -411,6 +414,8 @@ public class OperatorTests extends MapperServiceTestCase {
                         AggregatorMode.INTERMEDIATE,
                         List.of(CountAggregatorFunction.supplier().groupingAggregatorFactory(AggregatorMode.INTERMEDIATE, List.of(1, 2))),
                         Integer.MAX_VALUE,
+                        Integer.MAX_VALUE,
+                        1.0,
                         null
                     );
                 DriverContext driverContext = driverContext();
@@ -422,7 +427,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         new TestResultPageSinkOperator(reduceDriverPages::add)
                     )
                 ) {
-                    OperatorTestCase.runDriver(driver);
+                    new TestDriverRunner().run(driver);
                 }
                 assertDriverContext(driverContext);
             }
@@ -475,8 +480,8 @@ public class OperatorTests extends MapperServiceTestCase {
      * A {@link DriverContext} that won't throw {@link CircuitBreakingException}.
      */
     protected final DriverContext driverContext() {
-        var breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-        return new DriverContext(bigArrays(), BlockFactory.getInstance(breaker, bigArrays()));
+        var breaker = new LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
+        return new DriverContext(bigArrays(), BlockFactory.builder(bigArrays()).breaker(breaker).build(), null);
     }
 
     public static void assertDriverContext(DriverContext driverContext) {
@@ -508,6 +513,7 @@ public class OperatorTests extends MapperServiceTestCase {
             new IndexedByShardIdFromSingleton<>(searchContext),
             ctx -> queryAndTags,
             randomFrom(DataPartitioning.values()),
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
             randomIntBetween(1, 10),
             tagTypes,
             LuceneOperator.NO_LIMIT

@@ -44,7 +44,7 @@ setup:
   - requires:
       cluster_features: ["gte_v8.5.0"]
       reason: "rollup: unsupported aggregations errors added in 8.5.0"
-      test_runner_features: close_to
+      test_runner_features: [close_to, allowed_warnings]
 
   - do:
       indices.put_settings:
@@ -53,6 +53,8 @@ setup:
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample
@@ -235,6 +237,7 @@ timezone support - 15m:
   - requires:
       cluster_features: ["gte_v8.13.0"]
       reason: "timezone support added in 8.13"
+      test_runner_features: "allowed_warnings"
 
   - do:
       bulk:
@@ -281,6 +284,8 @@ timezone support - 15m:
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample
@@ -435,6 +440,7 @@ timezone support - 1h:
   - requires:
       cluster_features: ["gte_v8.13.0"]
       reason: "timezone support added in 8.13"
+      test_runner_features: [ "allowed_warnings" ]
 
   - do:
       bulk:
@@ -481,6 +487,8 @@ timezone support - 1h:
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample
@@ -635,6 +643,7 @@ timezone support - 1d:
   - requires:
       cluster_features: ["gte_v8.13.0"]
       reason: "timezone support added in 8.13"
+      test_runner_features: ["allowed_warnings"]
 
   - do:
       bulk:
@@ -674,6 +683,8 @@ timezone support - 1d:
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample

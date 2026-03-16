@@ -19,7 +19,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
@@ -56,6 +55,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -77,7 +77,8 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         IndexNameExpressionResolver indexNameExpressionResolver,
         BigArrays bigArrays,
         BlockFactory blockFactory,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        PlannerSettings.Holder plannerSettings
     ) {
         super(
             LOOKUP_ACTION_NAME,
@@ -90,7 +91,8 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             blockFactory,
             true,
             TransportRequest::readFrom,
-            projectResolver
+            projectResolver,
+            plannerSettings
         );
     }
 
@@ -114,21 +116,21 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         TransportRequest request,
         SearchExecutionContext context,
         AliasFilter aliasFilter,
-        Block inputBlock,
         Warnings warnings
     ) {
         DataType inputDataType = request.inputDataType;
         MappedFieldType fieldType = context.getFieldType(request.matchField);
         validateTypes(inputDataType, fieldType);
+        int channelOffset = 0;
         return switch (request.matchType) {
-            case "match", "range" -> termQueryList(fieldType, context, aliasFilter, inputBlock, inputDataType);
-            case "geo_match" -> QueryList.geoShapeQueryList(fieldType, context, aliasFilter, inputBlock);
+            case "match", "range" -> termQueryList(fieldType, aliasFilter, channelOffset, inputDataType);
+            case "geo_match" -> QueryList.geoShapeQueryList(fieldType, aliasFilter, channelOffset);
             default -> throw new EsqlIllegalArgumentException("illegal match type " + request.matchType);
         };
     }
 
     @Override
-    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) throws IOException {
+    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) {
         if (pages.size() != 1) {
             throw new UnsupportedOperationException("ENRICH always makes a single page of output");
         }
@@ -303,12 +305,15 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     @Override
     protected void sendChildRequest(
         CancellableTask parentTask,
-        ActionListener<List<Page>> delegate,
+        ActionListener<AbstractLookupService.LookupResponse> delegate,
         DiscoveryNode targetNode,
         TransportRequest transportRequest
     ) {
         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-        ActionListener<List<Page>> listener = ContextPreservingActionListener.wrapPreservingContext(delegate, threadContext);
+        ActionListener<AbstractLookupService.LookupResponse> listener = ContextPreservingActionListener.wrapPreservingContext(
+            delegate,
+            threadContext
+        );
         hasEnrichPrivilege(listener.delegateFailureAndWrap((l, ignored) -> {
             // Since we just checked the needed privileges
             // we can access the index regardless of the user/role that is executing the query

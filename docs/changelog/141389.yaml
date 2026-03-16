@@ -1,0 +1,5 @@
+pr: 141389
+summary: Increase the per-index limit for merges to half the CPUs
+area: "Distributed"
+type: enhancement
+issues: []

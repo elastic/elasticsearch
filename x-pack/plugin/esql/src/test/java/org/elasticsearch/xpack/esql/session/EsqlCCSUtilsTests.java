@@ -11,6 +11,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -596,11 +597,55 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         }
     }
 
+    public void testCheckForViewErrors() {
+        {
+            var viewEx = new RemoteViewNotSupportedException(List.of("r1:v"));
+            var wrapped = new RemoteTransportException("test failure", viewEx);
+            List<FieldCapabilitiesFailure> failures = List.of(new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped));
+            var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
+            expectThrows(
+                RemoteViewNotSupportedException.class,
+                containsString(
+                    "ES|QL queries with remote views are not supported. Matched [r1:v]."
+                        + " Remove them from the query pattern or exclude them with [r1:-v] if matched by a wildcard."
+                ),
+                () -> EsqlCCSUtils.checkForViewErrors(grouped)
+            );
+        }
+        {
+            var viewEx1 = new RemoteViewNotSupportedException(List.of("r1:v1"));
+            var viewEx2 = new RemoteViewNotSupportedException(List.of("r2:v2"));
+            var wrapped1 = new RemoteTransportException("test failure", viewEx1);
+            var wrapped2 = new RemoteTransportException("test failure", viewEx2);
+            List<FieldCapabilitiesFailure> failures = List.of(
+                new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped1),
+                new FieldCapabilitiesFailure(new String[] { "r2:logs-*" }, wrapped2)
+            );
+            var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
+            RemoteViewNotSupportedException ex = expectThrows(
+                RemoteViewNotSupportedException.class,
+                () -> EsqlCCSUtils.checkForViewErrors(grouped)
+            );
+            assertThat(ex.getMessage(), containsString("ES|QL queries with remote views are not supported."));
+            assertThat(ex.getMetadata("es.esql.view.names"), containsInAnyOrder("r1:v1", "r2:v2"));
+        }
+        {
+            List<FieldCapabilitiesFailure> failures = List.of(
+                new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, new RuntimeException("some other error"))
+            );
+            var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
+            EsqlCCSUtils.checkForViewErrors(grouped);
+        }
+        {
+            EsqlCCSUtils.checkForViewErrors(Map.of());
+        }
+    }
+
     public void testUpdateExecutionInfoAtEndOfPlanning() {
         String REMOTE1_ALIAS = "remote1";
         String REMOTE2_ALIAS = "remote2";
         EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(true);
-        executionInfo.planningProfile().planning().start();
+        executionInfo.queryProfile().planning().start();
         executionInfo.swapCluster(
             LOCAL_CLUSTER_ALIAS,
             (k, v) -> createEsqlExecutionInfoCluster(LOCAL_CLUSTER_ALIAS, "logs*", false, EsqlExecutionInfo.Cluster.Status.RUNNING)
@@ -618,14 +663,14 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 EsqlExecutionInfo.Cluster.Status.RUNNING
             )
         );
-        assertNull(executionInfo.planningProfile().planning().timeTook());
+        assertNull(executionInfo.queryProfile().planning().timeTook());
         assertNull(executionInfo.overallTook());
 
         safeSleep(1);
 
         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
 
-        assertThat(executionInfo.planningProfile().planning().timeTook().millis(), greaterThanOrEqualTo(0L));
+        assertThat(executionInfo.queryProfile().planning().timeTook().millis(), greaterThanOrEqualTo(0L));
         assertNull(executionInfo.overallTook());
 
         // only remote1 should be altered, since it is the only one marked as SKIPPED when passed into updateExecutionInfoAtEndOfPlanning
@@ -641,7 +686,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         assertThat(remote1Cluster.getSkippedShards(), equalTo(0));
         assertThat(remote1Cluster.getFailedShards(), equalTo(0));
         assertThat(remote1Cluster.getTook().millis(), greaterThanOrEqualTo(0L));
-        assertThat(remote1Cluster.getTook().millis(), equalTo(executionInfo.planningProfile().planning().timeTook().millis()));
+        assertThat(remote1Cluster.getTook().millis(), equalTo(executionInfo.queryProfile().planning().timeTook().millis()));
 
         EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE2_ALIAS);
         assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));

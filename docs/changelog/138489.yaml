@@ -1,5 +1,0 @@
-pr: 138489
-summary: Use existing `DocumentMapper` when creating new `MapperService`
-area: Mapping
-type: enhancement
-issues: []

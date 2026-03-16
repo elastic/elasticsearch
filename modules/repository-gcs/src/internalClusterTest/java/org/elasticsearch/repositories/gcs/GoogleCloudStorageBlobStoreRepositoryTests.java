@@ -114,10 +114,13 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         );
     }
 
+    // GCP Oauth2 client uses own retries: 1-second initial delay, 3-tries, 2x multiplier
+    // it can take long time to pass through(>10s) from multiple nodes, and trip tests with timeouts
+    // https://github.com/googleapis/google-auth-library-java/blob/main/oauth2_http/java/com/google/auth/oauth2/OAuth2Utils.java#L115-L118
     @Override
     protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
         if (delegate instanceof FakeOAuth2HttpHandler) {
-            return new GoogleErroneousHttpHandler(delegate, randomIntBetween(2, 3));
+            return new GoogleErroneousHttpHandler(delegate, 1);
         } else {
             return new GoogleCloudStorageStatsCollectorHttpHandler(new GoogleErroneousHttpHandler(delegate, randomIntBetween(2, 3)));
         }

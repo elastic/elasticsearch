@@ -7,17 +7,23 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -47,7 +53,7 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), DataStreamsPlugin.class);
+        return CollectionUtils.concatLists(List.of(MapperExtrasPlugin.class, DataStreamsPlugin.class), super.nodePlugins());
     }
 
     public void testResolvesConcreteIndex() {
@@ -76,6 +82,10 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
                 new TransportPutComposableIndexTemplateAction.Request("data-stream-1-template").indexTemplate(
                     ComposableIndexTemplate.builder()
                         .indexPatterns(List.of("data-stream-1*"))
+                        .template(
+                            Template.builder()
+                                .dataStreamOptions(new DataStreamOptions.Template(new DataStreamFailureStore.Template(true, null)))
+                        )
                         .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                         .build()
                 )
@@ -88,10 +98,19 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
             )
         );
 
+        client().bulk(
+            new BulkRequest() // create a valid and invalid document to initialize failure store
+                .add(prepareIndex("data-stream-1").setOpType(OpType.CREATE).setSource("@timestamp", 1).request())
+                .add(prepareIndex("data-stream-1").setOpType(OpType.CREATE).setSource("@timestamp", "invalid").request())
+        ).actionGet();
+
         try (var response = run(syncEsqlQueryRequest("FROM data-stream-1"))) {
             assertOk(response);
         }
         try (var response = run(syncEsqlQueryRequest("FROM data-stream-1::data"))) {
+            assertOk(response);
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM data-stream-1::failures"))) {
             assertOk(response);
         }
         expectThrows(

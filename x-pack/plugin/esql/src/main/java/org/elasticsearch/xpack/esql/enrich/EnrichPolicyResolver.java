@@ -74,7 +74,7 @@ import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.markClusterWithF
  * This approach requires at most one cross-cluster call for each cluster.
  */
 public class EnrichPolicyResolver {
-    private static final String RESOLVE_ACTION_NAME = "cluster:monitor/xpack/enrich/esql/resolve_policy";
+    public static final String RESOLVE_ACTION_NAME = "cluster:monitor/xpack/enrich/esql/resolve_policy";
 
     public static final TransportVersion ESQL_USE_MINIMUM_VERSION_FOR_ENRICH_RESOLUTION = TransportVersion.fromName(
         "esql_use_minimum_version_for_enrich_resolution"
@@ -337,7 +337,7 @@ public class EnrichPolicyResolver {
                     getRemoteConnection(cluster, skipOnFailure == false, new ActionListener<Transport.Connection>() {
                         @Override
                         public void onResponse(Transport.Connection connection) {
-                            executionInfo.planningProfile().incFieldCapsCalls();
+                            executionInfo.queryProfile().incFieldCapsCalls();
                             transportService.sendRequest(
                                 connection,
                                 RESOLVE_ACTION_NAME,
@@ -364,7 +364,7 @@ public class EnrichPolicyResolver {
                 .map(u -> u.name)
                 .collect(toSet());
             if (localPolicies.isEmpty() == false) {
-                executionInfo.planningProfile().incFieldCapsCalls();
+                executionInfo.queryProfile().incFieldCapsCalls();
                 transportService.sendRequest(
                     transportService.getLocalNode(),
                     RESOLVE_ACTION_NAME,
@@ -387,9 +387,9 @@ public class EnrichPolicyResolver {
         }
     }
 
-    private static class LookupRequest extends AbstractTransportRequest {
+    public static class LookupRequest extends AbstractTransportRequest {
         private final String clusterAlias;
-        private final Collection<String> policyNames;
+        public final Collection<String> policyNames;
         // The minimum version of all clusters involved in executing the ESQL query.
         final TransportVersion minimumVersion;
 

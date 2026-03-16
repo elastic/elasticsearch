@@ -1,5 +1,0 @@
-pr: 139854
-summary: Avoiding creating `DataStreamShardStats` objects with negative timestamps
-area: Stats
-type: bug
-issues: []

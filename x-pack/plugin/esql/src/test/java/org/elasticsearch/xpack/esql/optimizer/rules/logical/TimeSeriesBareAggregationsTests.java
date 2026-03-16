@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
@@ -33,6 +32,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
@@ -60,7 +61,7 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
         k8sAnalyzer = new Analyzer(
             new AnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 resolutions,
                 defaultLookupResolution(),
                 enrichResolution,
@@ -73,7 +74,7 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
     }
 
     protected LogicalPlan planK8s(String query) {
-        LogicalPlan analyzed = k8sAnalyzer.analyze(parser.parseQuery(query));
+        LogicalPlan analyzed = k8sAnalyzer.analyze(TEST_PARSER.parseQuery(query));
         return logicalOptimizer.optimize(analyzed);
     }
 
@@ -275,6 +276,47 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
                     + "[rate(network.total_bytes_out)] is not wrapped with another aggregation function. Found [region]."
             )
         );
+    }
+
+    public void testBucketWithRenamedTimestampThrowsError() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());
+
+        var error = expectThrows(IllegalArgumentException.class, () -> { planK8s("""
+            TS k8s
+            | EVAL renamed_ts = @timestamp
+            | STATS min = min(last_over_time(network.total_bytes_out)) BY bucket = bucket(renamed_ts, 1hour)
+            """); });
+
+        assertThat(
+            error.getMessage(),
+            equalTo(
+                "Time-series aggregations require direct use of @timestamp which was not found. "
+                    + "If @timestamp was renamed in EVAL, use the original @timestamp field instead."
+            )
+        );
+    }
+
+    public void testAliasedGroupingInTsStatsKeepsAliasName() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());
+
+        LogicalPlan plan = planK8s("""
+            TS k8s
+            | STATS max_bytes = max(to_long(network.total_bytes_in)) BY foobar = cluster
+            """);
+
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("max_bytes", "foobar")));
+    }
+
+    public void testAliasedGroupingInTsStatsCanBeUsedInKeep() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());
+
+        LogicalPlan plan = planK8s("""
+            TS k8s
+            | STATS max_bytes = max(to_long(network.total_bytes_in)) BY foobar = cluster
+            | KEEP max_bytes, foobar
+            """);
+
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("max_bytes", "foobar")));
     }
 
     private TimeSeriesAggregate findTimeSeriesAggregate(LogicalPlan plan) {

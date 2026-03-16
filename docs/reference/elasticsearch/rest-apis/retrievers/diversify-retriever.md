@@ -46,10 +46,13 @@ The ordering of results returned from the inner retriever is preserved.
     :::
 
 `query_vector`
-:   (Optional, array of `float` or `byte`)
+:   (Optional, array of `float` or `byte`, or string)
 
     Query vector. Must have the same number of dimensions as the vector field you are searching against.
-    Must be either an array of floats or a hex-encoded byte vector.
+    Must be one of:
+      - An array of floats
+      - A hex-encoded byte vector (one byte per dimension; for `bit`, one byte per 8 dimensions){applies_to}`stack: ga 9.0-9.3`
+      - A base64-encoded vector string. Base64 supports `float` and `bfloat16` (big-endian), `byte`, and `bit` encodings depending on the target field type. {applies_to}`stack: ga 9.4`
     If you provide a `query_vector`, you cannot also provide a `query_vector_builder`.
 
 `query_vector_builder`
@@ -83,7 +86,7 @@ GET my_index/_search
       "type": "mmr",
       "field": "my_dense_vector_field",
       "lambda": 0.7,
-      "size": 3
+      "size": 3,
       "query_vector": [0.1, 0.2, 0.3],
       "retriever": {
         "standard": {

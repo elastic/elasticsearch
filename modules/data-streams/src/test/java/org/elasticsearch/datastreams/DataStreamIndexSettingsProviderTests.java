@@ -59,7 +59,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName())
         );
         indexVersion = randomBoolean()
-            ? IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.TSID_CREATED_DURING_ROUTING)
+            ? IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.TSID_CREATED_DURING_ROUTING)
             : IndexVersionUtils.randomVersionBetween(IndexVersions.TSID_CREATED_DURING_ROUTING, IndexVersion.current());
         indexDimensionsTsidStrategyEnabledSetting = usually();
         expectedIndexDimensionsTsidOptimizationEnabled = indexDimensionsTsidStrategyEnabledSetting

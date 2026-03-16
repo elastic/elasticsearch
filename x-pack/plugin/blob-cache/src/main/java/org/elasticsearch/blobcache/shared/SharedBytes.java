@@ -9,6 +9,7 @@ package org.elasticsearch.blobcache.shared;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.Unwrappable;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -18,14 +19,16 @@ import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.nativeaccess.CloseableMappedByteBuffer;
 import org.elasticsearch.nativeaccess.NativeAccess;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
-import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.channels.FileChannel.MapMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -73,6 +76,9 @@ public class SharedBytes extends AbstractRefCounted {
 
     private final boolean mmap;
 
+    // parent mmap closeables whose arenas must be explicitly closed to unmap the shared cache file
+    private final Closeable[] mmapCloseables;
+
     SharedBytes(int numRegions, int regionSize, NodeEnvironment environment, IntConsumer writeBytes, IntConsumer readBytes, boolean mmap)
         throws IOException {
         this.numRegions = numRegions;
@@ -82,6 +88,8 @@ public class SharedBytes extends AbstractRefCounted {
         if (fileSize > 0) {
             cacheFile = findCacheSnapshotCacheFilePath(environment, fileSize);
             preallocate(cacheFile, fileSize);
+            // we need to unwrap our test-only file system layers
+            cacheFile = Unwrappable.unwrapAll(cacheFile);
             this.fileChannel = FileChannel.open(cacheFile, OPEN_OPTIONS);
             assert this.fileChannel.size() == fileSize : "expected file size " + fileSize + " but was " + fileChannel.size();
         } else {
@@ -98,25 +106,36 @@ public class SharedBytes extends AbstractRefCounted {
             int mapSize = regionsPerMmap * regionSize;
             int lastMapSize = Math.toIntExact(fileSize % mapSize);
             int mapCount = Math.toIntExact(fileSize / mapSize) + (lastMapSize == 0 ? 0 : 1);
-            MappedByteBuffer[] mmaps = new MappedByteBuffer[mapCount];
+            CloseableMappedByteBuffer[] parentMmaps = new CloseableMappedByteBuffer[mapCount];
             for (int i = 0; i < mapCount - 1; i++) {
-                mmaps[i] = fileChannel.map(FileChannel.MapMode.READ_ONLY, (long) mapSize * i, mapSize);
+                parentMmaps[i] = map(fileChannel, MapMode.READ_ONLY, (long) mapSize * i, mapSize);
             }
-            mmaps[mapCount - 1] = fileChannel.map(
-                FileChannel.MapMode.READ_ONLY,
+            parentMmaps[mapCount - 1] = map(
+                fileChannel,
+                MapMode.READ_ONLY,
                 (long) mapSize * (mapCount - 1),
                 lastMapSize == 0 ? mapSize : lastMapSize
             );
             for (int i = 0; i < numRegions; i++) {
-                ios[i] = new IO(i, mmaps[i / regionsPerMmap].slice((i % regionsPerMmap) * regionSize, regionSize));
+                ios[i] = new IO(i, parentMmaps[i / regionsPerMmap].slice((long) (i % regionsPerMmap) * regionSize, regionSize));
             }
+            this.mmapCloseables = getMmapCloseables(parentMmaps);
         } else {
             for (int i = 0; i < numRegions; i++) {
                 ios[i] = new IO(i, null);
             }
+            this.mmapCloseables = null;
         }
         this.writeBytes = writeBytes;
         this.readBytes = readBytes;
+    }
+
+    private Closeable[] getMmapCloseables(CloseableMappedByteBuffer[] mappedByteBuffers) {
+        Closeable[] closeables = new Closeable[mappedByteBuffers.length];
+        for (int i = 0; i < mappedByteBuffers.length; i++) {
+            closeables[i] = mappedByteBuffers[i]::close;
+        }
+        return closeables;
     }
 
     /**
@@ -300,9 +319,17 @@ public class SharedBytes extends AbstractRefCounted {
     @Override
     protected void closeInternal() {
         try {
-            IOUtils.close(fileChannel, path == null ? null : () -> Files.deleteIfExists(path));
+            if (mmapCloseables != null) {
+                IOUtils.close(mmapCloseables);
+            }
         } catch (IOException e) {
-            logger.warn("Failed to clean up shared bytes file", e);
+            logger.warn("Failed to unmap shared bytes", e);
+        } finally {
+            try {
+                IOUtils.close(fileChannel, path == null ? null : () -> Files.deleteIfExists(path));
+            } catch (IOException e) {
+                logger.warn("Failed to clean up shared bytes file", e);
+            }
         }
     }
 
@@ -315,13 +342,25 @@ public class SharedBytes extends AbstractRefCounted {
 
         private final long pageStart;
 
-        private final MappedByteBuffer mappedByteBuffer;
+        private final CloseableMappedByteBuffer mappedByteBuffer;
 
-        private IO(final int sharedBytesPos, MappedByteBuffer mappedByteBuffer) {
+        // Cached reference to the region's ByteBuffer
+        private final ByteBuffer mmapBuffer;
+
+        private IO(final int sharedBytesPos, CloseableMappedByteBuffer mappedByteBuffer) {
             long physicalOffset = (long) sharedBytesPos * regionSize;
             assert physicalOffset <= (long) numRegions * regionSize;
             this.pageStart = physicalOffset;
             this.mappedByteBuffer = mappedByteBuffer;
+            this.mmapBuffer = mappedByteBuffer != null ? mappedByteBuffer.buffer() : null;
+        }
+
+        public boolean prefetch(long offset, long length) {
+            if (mmap) {
+                mappedByteBuffer.prefetch(offset, length);
+                return true;
+            }
+            return false;
         }
 
         @SuppressForbidden(reason = "Use positional reads on purpose")
@@ -332,12 +371,28 @@ public class SharedBytes extends AbstractRefCounted {
             if (mmap) {
                 bytesRead = remaining;
                 int startPosition = dst.position();
-                dst.put(startPosition, mappedByteBuffer, position, bytesRead).position(startPosition + bytesRead);
+                dst.put(startPosition, mmapBuffer, position, bytesRead).position(startPosition + bytesRead);
             } else {
                 bytesRead = fileChannel.read(dst, pageStart + position);
             }
             readBytes.accept(bytesRead);
             return bytesRead;
+        }
+
+        /**
+         * Returns a read-only ByteBuffer slice of the memory-mapped region,
+         * or {@code null} if not memory-mapped.
+         *
+         * @param position the starting position within the region, must be non-negative
+         * @param length   the number of bytes, {@code position + length} must not exceed the region size
+         * @throws IllegalArgumentException if the position/length are out of bounds
+         */
+        public ByteBuffer byteBufferSlice(int position, int length) {
+            if (mmap) {
+                checkOffsets(position, length);
+                return mmapBuffer.slice(position, length);
+            }
+            return null;
         }
 
         @SuppressForbidden(reason = "Use positional writes on purpose")
@@ -363,4 +418,9 @@ public class SharedBytes extends AbstractRefCounted {
         }
     }
 
+    static final NativeAccess NATIVE_ACCESS = NativeAccess.instance();
+
+    private static CloseableMappedByteBuffer map(FileChannel fileChannel, MapMode mode, long position, long size) throws IOException {
+        return NATIVE_ACCESS.map(fileChannel, mode, position, size);
+    }
 }

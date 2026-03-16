@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator.fuse;
 
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.WarningsTests.TestWarningsSource;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -49,7 +50,7 @@ public class LinearScoreEvalOperatorTests extends FuseOperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new LinearScoreEvalOperator.Factory(discriminatorPosition, scorePosition, config, null, 0, 0);
+        return new LinearScoreEvalOperator.Factory(discriminatorPosition, scorePosition, config, new TestWarningsSource(null));
     }
 
     @Override

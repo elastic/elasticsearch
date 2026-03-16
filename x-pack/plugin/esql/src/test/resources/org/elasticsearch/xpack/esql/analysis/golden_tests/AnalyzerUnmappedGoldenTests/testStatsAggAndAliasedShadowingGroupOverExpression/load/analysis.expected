@@ -1,0 +1,4 @@
+Limit[1000[INTEGER],false,false]
+\_Aggregate[[TOINTEGER(does_not_exist1{f}#0) + TOINTEGER(does_not_exist2{f}#1) + language_code{f}#2 AS language_code#3, language_name{f}#4],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) + language_code{r}#3 AS c#5, language_code{r}#3, language_name{f}#4]]
+  \_Filter[language_code{f}#2 == 1[INTEGER]]
+    \_EsRelation[languages][language_code{f}#2, language_name{f}#4, does_not_exist1{f(PotentiallyUnmappedKeywordEsField)}#0, does_not_exist2{f(PotentiallyUnmappedKeywordEsField)}#1]

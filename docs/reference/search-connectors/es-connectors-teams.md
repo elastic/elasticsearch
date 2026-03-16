@@ -11,10 +11,6 @@ The Microsoft Teams connector is written in Python using the [Elastic connector 
 
 View the [source code for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/microsoft_teams) (branch *main*, compatible with Elastic *9.0*).
 
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
-
 ## **Self-managed connector reference** [es-connectors-teams-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-microsoft-teams-availability-and-prerequisites]

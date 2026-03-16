@@ -23,7 +23,7 @@ public class GetStoredScriptRequestTests extends ESTestCase {
         GetStoredScriptRequest request = new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "id");
 
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(randomVersion(random()));
+        out.setTransportVersion(randomVersion());
         request.writeTo(out);
 
         StreamInput in = out.bytes().streamInput();

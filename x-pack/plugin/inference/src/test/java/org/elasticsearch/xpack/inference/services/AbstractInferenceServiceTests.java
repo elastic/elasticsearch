@@ -53,7 +53,7 @@ public abstract class AbstractInferenceServiceTests extends AbstractInferenceSer
         try (var service = parseRequestConfigTestConfig.createService(threadPool, clientManager)) {
             var config = getRequestConfigMap(
                 parseRequestConfigTestConfig.createServiceSettingsMap(TaskType.TEXT_EMBEDDING, ConfigurationParseContext.REQUEST),
-                parseRequestConfigTestConfig.createTaskSettingsMap(),
+                parseRequestConfigTestConfig.createTaskSettingsMap(TaskType.TEXT_EMBEDDING),
                 parseRequestConfigTestConfig.createSecretSettingsMap()
             );
 
@@ -76,7 +76,7 @@ public abstract class AbstractInferenceServiceTests extends AbstractInferenceSer
             var chunkingSettingsMap = createRandomChunkingSettingsMap();
             var config = getRequestConfigMap(
                 parseRequestConfigTestConfig.createServiceSettingsMap(TaskType.TEXT_EMBEDDING, ConfigurationParseContext.REQUEST),
-                parseRequestConfigTestConfig.createTaskSettingsMap(),
+                parseRequestConfigTestConfig.createTaskSettingsMap(TaskType.TEXT_EMBEDDING),
                 chunkingSettingsMap,
                 parseRequestConfigTestConfig.createSecretSettingsMap()
             );
@@ -93,11 +93,12 @@ public abstract class AbstractInferenceServiceTests extends AbstractInferenceSer
 
     public void testParseRequestConfig_CreatesACompletionModel() throws Exception {
         var parseRequestConfigTestConfig = testConfiguration.commonConfig();
+        Assume.assumeTrue(testConfiguration.commonConfig().supportedTaskTypes().contains(TaskType.COMPLETION));
 
         try (var service = parseRequestConfigTestConfig.createService(threadPool, clientManager)) {
             var config = getRequestConfigMap(
                 parseRequestConfigTestConfig.createServiceSettingsMap(TaskType.COMPLETION, ConfigurationParseContext.REQUEST),
-                parseRequestConfigTestConfig.createTaskSettingsMap(),
+                parseRequestConfigTestConfig.createTaskSettingsMap(TaskType.COMPLETION),
                 parseRequestConfigTestConfig.createSecretSettingsMap()
             );
 
@@ -117,7 +118,7 @@ public abstract class AbstractInferenceServiceTests extends AbstractInferenceSer
                     parseRequestConfigTestConfig.targetTaskType(),
                     ConfigurationParseContext.REQUEST
                 ),
-                parseRequestConfigTestConfig.createTaskSettingsMap(),
+                parseRequestConfigTestConfig.createTaskSettingsMap(parseRequestConfigTestConfig.targetTaskType()),
                 parseRequestConfigTestConfig.createSecretSettingsMap()
             );
 
@@ -143,7 +144,7 @@ public abstract class AbstractInferenceServiceTests extends AbstractInferenceSer
                     parseRequestConfigTestConfig.targetTaskType(),
                     ConfigurationParseContext.REQUEST
                 ),
-                parseRequestConfigTestConfig.createTaskSettingsMap(),
+                parseRequestConfigTestConfig.createTaskSettingsMap(parseRequestConfigTestConfig.targetTaskType()),
                 parseRequestConfigTestConfig.createSecretSettingsMap()
             );
             config.put("extra_key", "value");
@@ -166,7 +167,7 @@ public abstract class AbstractInferenceServiceTests extends AbstractInferenceSer
             serviceSettings.put("extra_key", "value");
             var config = getRequestConfigMap(
                 serviceSettings,
-                parseRequestConfigTestConfig.createTaskSettingsMap(),
+                parseRequestConfigTestConfig.createTaskSettingsMap(parseRequestConfigTestConfig.targetTaskType()),
                 parseRequestConfigTestConfig.createSecretSettingsMap()
             );
 
@@ -181,7 +182,7 @@ public abstract class AbstractInferenceServiceTests extends AbstractInferenceSer
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInTaskSettingsMap() throws IOException {
         var parseRequestConfigTestConfig = testConfiguration.commonConfig();
         try (var service = parseRequestConfigTestConfig.createService(threadPool, clientManager)) {
-            var taskSettings = parseRequestConfigTestConfig.createTaskSettingsMap();
+            var taskSettings = parseRequestConfigTestConfig.createTaskSettingsMap(parseRequestConfigTestConfig.targetTaskType());
             taskSettings.put("extra_key", "value");
             var config = getRequestConfigMap(
                 parseRequestConfigTestConfig.createServiceSettingsMap(
@@ -210,7 +211,7 @@ public abstract class AbstractInferenceServiceTests extends AbstractInferenceSer
                     parseRequestConfigTestConfig.targetTaskType(),
                     ConfigurationParseContext.REQUEST
                 ),
-                parseRequestConfigTestConfig.createTaskSettingsMap(),
+                parseRequestConfigTestConfig.createTaskSettingsMap(parseRequestConfigTestConfig.targetTaskType()),
                 secretSettingsMap
             );
 

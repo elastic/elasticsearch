@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Before;
 
@@ -270,6 +271,26 @@ public class LagDetectorTests extends ESTestCase {
                 new LagDetector.HotThreadsLoggingTask(node, 1, 2, expectedBody, () -> {})::run
             ).utf8ToString()
         );
+    }
+
+    @TestLogging(reason = "testing LagDetector logging", value = LOGGER_NAME + ":DEBUG")
+    public void testLagDetectorDisabled() {
+        final var lagDetector = new LagDetector(
+            Settings.builder().put(CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.getKey(), randomFrom(TimeValue.ZERO, TimeValue.MINUS_ONE)).build(),
+            deterministicTaskQueue.getThreadPool(),
+            (discoveryNode, appliedVersion, expectedVersion) -> failedNodes.add(discoveryNode),
+            () -> localNode
+        );
+
+        lagDetector.setTrackedNodes(Collections.singletonList(node1));
+        lagDetector.setAppliedVersion(node1, 1);
+
+        MockLog.assertThatLogger(
+            () -> lagDetector.startLagDetector(2),
+            LagDetector.class,
+            new MockLog.SeenEventExpectation("boom", LOGGER_NAME, Level.DEBUG, "lag detector for version 2 skipped")
+        );
+        assertFalse(deterministicTaskQueue.hasAnyTasks());
     }
 
 }

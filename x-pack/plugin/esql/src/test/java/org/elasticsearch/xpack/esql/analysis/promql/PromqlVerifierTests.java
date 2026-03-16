@@ -8,13 +8,15 @@
 package org.elasticsearch.xpack.esql.analysis.promql;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
-import org.junit.BeforeClass;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.VerifierTests.error;
 import static org.hamcrest.Matchers.containsString;
@@ -23,11 +25,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class PromqlVerifierTests extends ESTestCase {
 
     private final Analyzer tsdb = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution());
-
-    @BeforeClass
-    public static void checkPromqlEnabled() {
-        assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
-    }
 
     public void testPromqlRangeVector() {
         assertThat(
@@ -44,10 +41,7 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testPromqlIllegalNameLabelMatcher() {
-        assertThat(
-            error("PROMQL index=test step=5m (avg({__name__=~\"*.foo.*\"}))", tsdb),
-            equalTo("1:32: regex label selectors on __name__ are not supported at this time [{__name__=~\"*.foo.*\"}]")
-        );
+        assertThat(error("PROMQL index=test step=5m (avg({__name__=~\"*.foo.*\"}))", tsdb), containsString("Unknown column [__name__]"));
     }
 
     public void testPromqlSubquery() {
@@ -97,7 +91,7 @@ public class PromqlVerifierTests extends ESTestCase {
         List.of("and", "or", "unless").forEach(op -> {
             assertThat(
                 error("PROMQL index=test step=5m foo " + op + " bar", tsdb),
-                containsString("VectorBinarySet queries are not supported at this time")
+                containsString("set operators are not supported at this time")
             );
         });
     }
@@ -105,7 +99,64 @@ public class PromqlVerifierTests extends ESTestCase {
     public void testPromqlInstantQuery() {
         assertThat(
             error("PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))", tsdb),
-            equalTo("1:48: instant queries are not supported at this time [PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))]")
+            containsString("unable to create a bucket; provide either [step] or all of [start], [end], and [buckets]")
+        );
+    }
+
+    public void testPromqlMissingBucketParameters() {
+        assertThat(
+            error("PROMQL index=test avg(foo)", tsdb),
+            containsString("unable to create a bucket; provide either [step] or all of [start], [end], and [buckets]")
+        );
+    }
+
+    public void testPromqlBucketsWithoutRange() {
+        assertThat(
+            error("PROMQL index=test buckets=10 avg(foo)", tsdb),
+            containsString("unable to create a bucket; provide either [step] or all of [start], [end], and [buckets]")
+        );
+    }
+
+    public void testPromqlBucketsWithTimestampBoundsFromContext() {
+        var now = Instant.now();
+        var bounds = new TimestampBounds(now.minus(1, ChronoUnit.HOURS), now);
+        var analyzer = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution(), bounds);
+        var plan = analyzer.analyze(TEST_PARSER.parseQuery("PROMQL index=test buckets=10 avg(network.bytes_in)"));
+        assertTrue("Plan should be resolved after timestamp bounds injection", plan.resolved());
+    }
+
+    public void testNoMetricNameMatcherNotSupported() {
+        assertThat(
+            error("PROMQL index=test step=5m {foo=\"bar\"}", tsdb),
+            containsString("__name__ label selector is required at this time [{foo=\"bar\"}]")
+        );
+    }
+
+    public void testWithoutNotSupported() {
+        assertThat(
+            error("PROMQL index=test step=5m avg(foo) without (bar)", tsdb),
+            containsString("'without' grouping is not supported at this time")
+        );
+    }
+
+    public void groupModifiersNotSupported() {
+        assertThat(
+            error("PROMQL index=test step=5m foo / on(bar) baz", tsdb),
+            containsString("queries with group modifiers are not supported at this time")
+        );
+    }
+
+    public void testNonScalarComparison() {
+        assertThat(
+            error("PROMQL index=test step=5m foo > bar", tsdb),
+            containsString("comparison operators with non-literal right-hand side are not supported at this time")
+        );
+    }
+
+    public void testNestedComparisons() {
+        assertThat(
+            error("PROMQL index=test step=5m avg(foo > 5)", tsdb),
+            containsString("comparison operators are only supported at the top-level at this time")
         );
     }
 

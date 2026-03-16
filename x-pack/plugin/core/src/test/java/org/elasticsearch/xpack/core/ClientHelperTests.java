@@ -422,7 +422,7 @@ public class ClientHelperTests extends ESTestCase {
         }
 
         // Rewritten for older version
-        final TransportVersion previousVersion = TransportVersionUtils.randomVersionNotSupporting(random(), TransportVersion.current());
+        final TransportVersion previousVersion = TransportVersionUtils.randomVersionNotSupporting(TransportVersion.current());
         when(clusterState.getMinTransportVersion()).thenReturn(previousVersion);
         final Map<String, String> headers2;
         if (randomBoolean()) {

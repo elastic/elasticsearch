@@ -1,8 +1,8 @@
-* [`CASE`](../../functions-operators/conditional-functions-and-expressions.md#esql-case)
-* [`COALESCE`](../../functions-operators/conditional-functions-and-expressions.md#esql-coalesce)
-* [`GREATEST`](../../functions-operators/conditional-functions-and-expressions.md#esql-greatest)
-* [`LEAST`](../../functions-operators/conditional-functions-and-expressions.md#esql-least)
-* [`CLAMP`](../../functions-operators/conditional-functions-and-expressions.md#esql-clamp) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
-* [`CLAMP_MIN`](../../functions-operators/conditional-functions-and-expressions.md#esql-clamp_min) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
-* [`CLAMP_MAX`](../../functions-operators/conditional-functions-and-expressions.md#esql-clamp_max) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
+* [`CASE`](../../functions-operators/conditional-functions-and-expressions/case.md)
+* [`COALESCE`](../../functions-operators/conditional-functions-and-expressions/coalesce.md)
+* [`GREATEST`](../../functions-operators/conditional-functions-and-expressions/greatest.md)
+* [`LEAST`](../../functions-operators/conditional-functions-and-expressions/least.md)
+* [`CLAMP`](../../functions-operators/conditional-functions-and-expressions/clamp.md) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
+* [`CLAMP_MIN`](../../functions-operators/conditional-functions-and-expressions/clamp_min.md) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
+* [`CLAMP_MAX`](../../functions-operators/conditional-functions-and-expressions/clamp_max.md) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
 

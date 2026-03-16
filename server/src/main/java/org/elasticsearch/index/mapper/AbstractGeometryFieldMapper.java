@@ -269,6 +269,11 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
                     bytesRefBuilder.appendBytesRef(value);
                 }
             }
+
+            @Override
+            public String toString() {
+                return "Geometry";
+            }
         }
     }
 

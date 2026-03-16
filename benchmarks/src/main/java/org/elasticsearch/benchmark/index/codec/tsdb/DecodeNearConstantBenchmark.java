@@ -49,15 +49,20 @@ public class DecodeNearConstantBenchmark {
     @Param({ "0.0", "0.01", "0.05", "0.1", "0.2" })
     private double outlierProbability;
 
+    /**
+     * Number of blocks decoded per measured benchmark invocation.
+     *
+     * <p>Default is 10: the smallest batch size that provides stable measurements with good
+     * signal-to-noise ratio for regression tracking. Exposed as a JMH parameter to allow
+     * tuning without code changes.
+     */
+    @Param({ "10" })
+    private int blocksPerInvocation;
+
     private final AbstractTSDBCodecBenchmark decode;
 
     public DecodeNearConstantBenchmark() {
         this.decode = new DecodeBenchmark();
-    }
-
-    @Setup(Level.Invocation)
-    public void setupInvocation() throws IOException {
-        decode.setupInvocation();
     }
 
     @Setup(Level.Trial)
@@ -65,11 +70,14 @@ public class DecodeNearConstantBenchmark {
         decode.setupTrial(
             NearConstantWithOutliersSupplier.builder(SEED, decode.getBlockSize()).withOutlierProbability(outlierProbability).build()
         );
+
+        decode.setBlocksPerInvocation(blocksPerInvocation);
+        decode.run();
     }
 
     @Benchmark
     public void throughput(Blackhole bh, ThroughputMetrics metrics) throws IOException {
         decode.benchmark(bh);
-        metrics.recordOperation(decode.getBlockSize(), decode.getEncodedSize());
+        metrics.recordOperation(decode.getBlockSize() * blocksPerInvocation, decode.getEncodedSize() * blocksPerInvocation);
     }
 }

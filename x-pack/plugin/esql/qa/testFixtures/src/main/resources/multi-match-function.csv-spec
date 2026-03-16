@@ -131,3 +131,142 @@ Return of the King Being the Third Part of The Lord of the Rings
 A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
 The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
 ;
+
+multiMatchBeforeMvExpand
+required_capability: multi_match_function
+
+from books
+| where multi_match("Faulkner", author, description) and book_no == "2378"
+| mv_expand author
+| keep book_no, author
+;
+ignoreOrder: true
+
+book_no:keyword | author:text
+2378            | Carol Faulkner
+2378            | Holly Byers Ochoa
+2378            | Lucretia Mott
+;
+
+multiMatchBeforeMvExpandWithStats
+required_capability: multi_match_function
+
+from books
+| where multi_match("Tolkien", author, title)
+| mv_expand author
+| stats count = count(*) by book_no
+| sort book_no
+| limit 5
+;
+
+   count:long  |    book_no:keyword
+1              |1463           
+2              |2130           
+1              |2301           
+1              |2675           
+1              |2714
+;
+
+multiMatchAfterSimpleRename
+required_capability: multi_match_function
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as writer
+| where multi_match("Faulkner", writer, description)
+| keep book_no, writer
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+multiMatchAfterChainedRename
+required_capability: multi_match_function
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as x
+| rename x as writer
+| where multi_match("Faulkner", writer, description)
+| keep book_no, writer
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+multiMatchAfterRenameMultipleFields
+required_capability: multi_match_function
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as writer, description as dsc
+| where multi_match("Faulkner", writer, dsc)
+| keep book_no, writer
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+multiMatchAfterEvalAndRename
+required_capability: multi_match_function
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| eval x = 1
+| rename author as writer
+| where multi_match("Faulkner", writer, description)
+| keep book_no, writer
+| sort book_no
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+
+multiMatchAfterRenameWithEvalAndSort
+required_capability: multi_match_function
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from books
+| rename author as writer
+| eval yr = year
+| sort book_no
+| where multi_match("Faulkner", writer, description)
+| keep book_no, writer
+| limit 5
+;
+
+book_no:keyword | writer:text
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
+2713            | William Faulkner
+2847            | Colleen Faulkner
+2883            | William Faulkner
+3293            | Danny Faulkner
+;
+

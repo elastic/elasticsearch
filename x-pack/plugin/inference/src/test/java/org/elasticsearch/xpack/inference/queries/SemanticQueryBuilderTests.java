@@ -221,11 +221,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         );
         if (sourceToParse != null) {
             ParsedDocument parsedDocument = mapperService.documentMapper().parse(sourceToParse);
-            mapperService.merge(
-                "_doc",
-                parsedDocument.dynamicMappingsUpdate().toCompressedXContent(),
-                MapperService.MergeReason.MAPPING_UPDATE
-            );
+            mapperService.merge("_doc", parsedDocument.dynamicMappingsUpdate(), MapperService.MergeReason.MAPPING_UPDATE);
         }
     }
 
@@ -439,7 +435,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         };
 
         for (int i = 0; i < 100; i++) {
-            TransportVersion transportVersion = TransportVersionUtils.randomCompatibleVersion(random());
+            TransportVersion transportVersion = TransportVersionUtils.randomCompatibleVersion();
             assertSingleInferenceResult.accept(inferenceResults1, transportVersion);
         }
 
@@ -486,7 +482,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         };
 
         for (int i = 0; i < 100; i++) {
-            TransportVersion transportVersion = TransportVersionUtils.randomCompatibleVersion(random());
+            TransportVersion transportVersion = TransportVersionUtils.randomCompatibleVersion();
             assertMultipleInferenceResults.accept(List.of(inferenceResults1, inferenceResults2), transportVersion);
         }
     }
@@ -501,7 +497,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLength(5), null, Map.of(), true);
 
         for (int i = 0; i < 100; i++) {
-            TransportVersion transportVersion = TransportVersionUtils.randomVersionNotSupporting(random(), TransportVersion.current());
+            TransportVersion transportVersion = TransportVersionUtils.randomVersionNotSupporting(TransportVersion.current());
 
             if (transportVersion.supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {
                 QueryBuilder deserializedQuery = copyNamedWriteable(

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -98,7 +99,7 @@ public class ClearScrollControllerTests extends ESTestCase {
         array.setOnce(1, testSearchPhaseResult2);
         array.setOnce(2, testSearchPhaseResult3);
         AtomicInteger numFreed = new AtomicInteger(0);
-        String scrollId = TransportSearchHelper.buildScrollId(array);
+        String scrollId = buildScrollId(array);
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).add(node3).build();
         CountDownLatch latch = new CountDownLatch(1);
         ActionListener<ClearScrollResponse> listener = new LatchedActionListener<>(
@@ -167,7 +168,7 @@ public class ClearScrollControllerTests extends ESTestCase {
         AtomicInteger numFreed = new AtomicInteger(0);
         AtomicInteger numFailures = new AtomicInteger(0);
         AtomicInteger numConnectionFailures = new AtomicInteger(0);
-        String scrollId = TransportSearchHelper.buildScrollId(array);
+        String scrollId = buildScrollId(array);
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).add(node3).build();
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -224,5 +225,11 @@ public class ClearScrollControllerTests extends ESTestCase {
         controller.run();
         latch.await();
         assertEquals(3 - numConnectionFailures.get(), nodesInvoked.size());
+    }
+
+    private static String buildScrollId(AtomicArray<SearchPhaseResult> array) {
+        try (var recycler = new MockBytesRefRecycler()) {
+            return TransportSearchHelper.buildScrollId(array, recycler);
+        }
     }
 }

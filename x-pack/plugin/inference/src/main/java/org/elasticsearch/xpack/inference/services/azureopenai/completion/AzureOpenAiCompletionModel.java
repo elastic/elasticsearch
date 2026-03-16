@@ -14,6 +14,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModel;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.action.AzureOpenAiActionVisitor;
 import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils;
@@ -28,8 +29,7 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
             return model;
         }
 
-        var requestTaskSettings = AzureOpenAiCompletionRequestTaskSettings.fromMap(taskSettings);
-        return new AzureOpenAiCompletionModel(model, AzureOpenAiCompletionTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+        return new AzureOpenAiCompletionModel(model, model.getTaskSettings().updatedTaskSettings(taskSettings));
     }
 
     public AzureOpenAiCompletionModel(
@@ -46,7 +46,7 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
             taskType,
             service,
             AzureOpenAiCompletionServiceSettings.fromMap(serviceSettings, context),
-            AzureOpenAiCompletionTaskSettings.fromMap(taskSettings),
+            AzureOpenAiCompletionTaskSettings.fromMap(taskSettings, context),
             AzureOpenAiSecretSettings.fromMap(secrets)
         );
     }
@@ -60,11 +60,11 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
         AzureOpenAiCompletionTaskSettings taskSettings,
         @Nullable AzureOpenAiSecretSettings secrets
     ) {
-        super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secrets),
-            serviceSettings
-        );
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+    }
+
+    public AzureOpenAiCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets, (AzureOpenAiRateLimitServiceSettings) modelConfigurations.getServiceSettings());
         try {
             this.uri = buildUriString();
         } catch (URISyntaxException e) {
@@ -88,11 +88,6 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
     @Override
     public AzureOpenAiCompletionTaskSettings getTaskSettings() {
         return (AzureOpenAiCompletionTaskSettings) super.getTaskSettings();
-    }
-
-    @Override
-    public AzureOpenAiSecretSettings getSecretSettings() {
-        return (AzureOpenAiSecretSettings) super.getSecretSettings();
     }
 
     @Override

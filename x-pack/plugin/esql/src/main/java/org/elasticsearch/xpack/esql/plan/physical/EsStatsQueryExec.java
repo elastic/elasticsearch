@@ -29,7 +29,7 @@ import static java.util.Arrays.asList;
  * Specialized query class for retrieving statistics about the underlying data and not the actual documents.
  * For that see {@link EsQueryExec}
  */
-public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
+public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize, DataSourceExec {
 
     public enum StatsType {
         COUNT,
@@ -164,7 +164,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     @Override
-    public String nodeString() {
+    public String nodeString(NodeStringFormat format) {
         return nodeName()
             + "["
             + indexPattern
@@ -173,9 +173,9 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize {
             + "], query["
             + (query != null ? Strings.toString(query, false, true) : "")
             + "]"
-            + NodeUtils.limitedToString(attrs)
+            + NodeUtils.toString(attrs, format)
             + ", limit["
-            + (limit != null ? limit.toString() : "")
+            + (limit != null ? limit.toString(format) : "")
             + "], ";
     }
 }

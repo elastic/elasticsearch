@@ -15,31 +15,31 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StartsWith}.
+ * {@link ExpressionEvaluator} implementation for {@link StartsWith}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class StartsWithEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StartsWithEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator str;
+  private final ExpressionEvaluator str;
 
-  private final EvalOperator.ExpressionEvaluator prefix;
+  private final ExpressionEvaluator prefix;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public StartsWithEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
-      EvalOperator.ExpressionEvaluator prefix, DriverContext driverContext) {
+  public StartsWithEvaluator(Source source, ExpressionEvaluator str, ExpressionEvaluator prefix,
+      DriverContext driverContext) {
     this.source = source;
     this.str = str;
     this.prefix = prefix;
@@ -132,25 +132,20 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory str;
+    private final ExpressionEvaluator.Factory str;
 
-    private final EvalOperator.ExpressionEvaluator.Factory prefix;
+    private final ExpressionEvaluator.Factory prefix;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str,
-        EvalOperator.ExpressionEvaluator.Factory prefix) {
+    public Factory(Source source, ExpressionEvaluator.Factory str,
+        ExpressionEvaluator.Factory prefix) {
       this.source = source;
       this.str = str;
       this.prefix = prefix;

@@ -88,7 +88,7 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
      * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
      * we no longer need to support calling this action remotely.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
     @SuppressWarnings("this-escape")
     @Inject
     public TransportGetDataStreamsAction(
@@ -422,6 +422,15 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
     ) {
         for (Index index : backingIndices) {
             IndexMetadata indexMetadata = metadata.index(index);
+            if (indexMetadata == null) {
+                // This should never happen that the index metadata is null,
+                // but protect against it defensively to prevent an NPE below regardless
+                String message = "backing index [" + index.getName() + "] has null metadata in data stream [" + dataStream.getName() + "]";
+                LOGGER.warn(message);
+                assert false : message;
+                backingIndicesSettingsValues.put(index, new IndexProperties(true, null, ManagedBy.UNMANAGED, null));
+                continue;
+            }
             Boolean preferIlm = PREFER_ILM_SETTING.get(indexMetadata.getSettings());
             assert preferIlm != null : "must use the default prefer ilm setting value, if nothing else";
             ManagedBy managedBy;

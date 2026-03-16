@@ -173,26 +173,24 @@ public class StandardRetrieverBuilderParsingTests extends AbstractXContentTestCa
     public void testTopDocsQuery() throws IOException {
         StandardRetrieverBuilder standardRetriever = createTestInstance();
         final int preFilters = standardRetriever.preFilterQueryBuilders.size();
-        if (standardRetriever.queryBuilder == null) {
-            if (preFilters > 0) {
-                expectThrows(IllegalArgumentException.class, standardRetriever::topDocsQuery);
-            }
-        } else {
-            QueryBuilder topDocsQuery = standardRetriever.topDocsQuery();
-            assertNotNull(topDocsQuery);
-            if (preFilters > 0) {
-                assertThat(topDocsQuery, instanceOf(BoolQueryBuilder.class));
-                assertThat(((BoolQueryBuilder) topDocsQuery).filter().size(), equalTo(1 + preFilters));
-                assertThat(((BoolQueryBuilder) topDocsQuery).filter().get(0), instanceOf(standardRetriever.queryBuilder.getClass()));
-                for (int i = 0; i < preFilters; i++) {
-                    assertThat(
-                        ((BoolQueryBuilder) topDocsQuery).filter().get(i + 1),
-                        instanceOf(standardRetriever.preFilterQueryBuilders.get(i).getClass())
-                    );
-                }
+        QueryBuilder topDocsQuery = standardRetriever.topDocsQuery();
+        assertNotNull(topDocsQuery);
+        if (preFilters > 0) {
+            assertThat(topDocsQuery, instanceOf(BoolQueryBuilder.class));
+            BoolQueryBuilder boolQuery = (BoolQueryBuilder) topDocsQuery;
+            assertThat(boolQuery.filter().size(), equalTo(1 + preFilters));
+            if (standardRetriever.queryBuilder != null) {
+                assertThat(boolQuery.filter().get(0), instanceOf(standardRetriever.queryBuilder.getClass()));
             } else {
-                assertThat(topDocsQuery, instanceOf(standardRetriever.queryBuilder.getClass()));
+                assertThat(boolQuery.filter().get(0), instanceOf(MatchAllQueryBuilder.class));
             }
+            for (int i = 0; i < preFilters; i++) {
+                assertThat(boolQuery.filter().get(i + 1), instanceOf(standardRetriever.preFilterQueryBuilders.get(i).getClass()));
+            }
+        } else if (standardRetriever.queryBuilder != null) {
+            assertThat(topDocsQuery, instanceOf(standardRetriever.queryBuilder.getClass()));
+        } else {
+            assertThat(topDocsQuery, instanceOf(MatchAllQueryBuilder.class));
         }
     }
 

@@ -6,7 +6,7 @@ navigation_title: "GPU vector indexing"
 
 # GPU accelerated vector indexing
 ```{applies_to}
-stack: preview 9.3
+stack: preview 9.3, ga 9.4
 ```
 
 {{es}} can use GPU acceleration to significantly speed up the indexing of
@@ -26,7 +26,9 @@ GPU vector indexing requires the following:
   >= 8.0) with a minimum 8GB of GPU memory
 * GPU driver, CUDA and
   [cuVS runtime libraries](https://docs.rapids.ai/api/cuvs/stable/build/)
-  installed on the node
+  installed on the node. Refer to the
+  [Elastic support matrix](https://www.elastic.co/support/matrix) for
+  supported CUDA and cuVS versions.
 * `LD_LIBRARY_PATH` environment variable configured to include the cuVS
   libraries path and its dependencies (CUDA, rmm, etc.)
 * Supported platform: Linux x86_64 only, Java 22 or higher
@@ -39,6 +41,85 @@ GPU vector indexing requires the following:
 GPU vector indexing is controlled by the
 [`vectors.indexing.use_gpu`](/reference/elasticsearch/configuration-reference/node-settings.md#gpu-vector-indexing-settings)
 node-level setting.
+
+## Elasticsearch Docker image with GPU support
+
+An example Dockerfile is provided that extends the official {{es}} Docker image
+to add the dependencies required for GPU support.
+
+::::{warning}
+This Dockerfile serves as an example implementation, and is not fully supported
+like our official Docker images.
+::::
+
+::::{dropdown} Example Dockerfile
+:::{include} _snippets/docker-gpu-indexing.md
+:::
+::::
+
+### Requirements
+
+The host machine running the Docker container needs
+[NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+installed and configured.
+
+### Build it
+
+```sh
+docker build -t es-gpu .
+```
+
+### Run it
+
+```sh
+docker run \
+  -p 9200:9200 \
+  -p 9300:9300 \
+  -e "discovery.type=single-node" \
+  -e "xpack.security.enabled=false" \
+  -e "xpack.license.self_generated.type=trial" \
+  -e "vectors.indexing.use_gpu=true" \
+  --user elasticsearch \
+  --gpus all \
+  --rm -it es-gpu
+```
+
+## Monitoring
+```{applies_to}
+stack: ga 9.3.2
+```
+
+Use the `GET _xpack/usage` API to monitor GPU vector indexing status and usage
+across all nodes in the cluster:
+
+```console
+GET _xpack/usage?filter_path=gpu_vector_indexing
+```
+% TEST[skip:Requires GPU hardware]
+
+```console-result
+{
+  "gpu_vector_indexing": {
+    "available": true, <1>
+    "enabled": true, <2>
+    "index_build_count": 30, <3>
+    "nodes_with_gpu": 3, <4>
+    "nodes": [ <5>
+      { "type": "NVIDIA L4", "memory_in_bytes": 24000000000,
+        "enabled": true, "index_build_count": 10 },
+      { "type": "NVIDIA L4", "memory_in_bytes": 24000000000,
+        "enabled": true, "index_build_count": 10 },
+      { "type": "NVIDIA A100", "memory_in_bytes": 80000000000,
+        "enabled": true, "index_build_count": 10 }
+    ]
+  }
+}
+```
+1. Whether the current license permits GPU indexing.
+2. Whether at least one node has GPU hardware configured and has not disabled it via `vectors.indexing.use_gpu=false`.
+3. Total number of GPU index builds across the cluster.
+4. Number of data nodes with GPU support.
+5. Per-node GPU details including type, memory, enabled status, and build count.
 
 ## Troubleshooting
 By default, {{es}} uses GPU indexing for supported vector types if a

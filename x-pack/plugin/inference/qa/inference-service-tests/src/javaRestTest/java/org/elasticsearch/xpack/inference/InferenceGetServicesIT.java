@@ -63,6 +63,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "deepseek",
                     "elastic",
                     "elasticsearch",
+                    "fireworksai",
                     "googleaistudio",
                     "googlevertexai",
                     "groq",
@@ -112,6 +113,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "cohere",
                     "elastic",
                     "elasticsearch",
+                    "fireworksai",
                     "googleaistudio",
                     "googlevertexai",
                     "hugging_face",
@@ -164,6 +166,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             containsInAnyOrder(
                 List.of(
                     "ai21",
+                    "fireworksai",
                     "llama",
                     "alibabacloud-ai-search",
                     "amazonbedrock",
@@ -196,6 +199,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                 List.of(
                     "ai21",
                     "azureopenai",
+                    "fireworksai",
                     "llama",
                     "deepseek",
                     "elastic",
@@ -208,7 +212,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "googlevertexai",
                     "mistral",
                     "nvidia",
-                    "watsonxai"
+                    "watsonxai",
+                    "amazonbedrock"
                 ).toArray()
             )
         );
@@ -233,7 +238,10 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     }
 
     public void testGetServicesWithEmbeddingTaskType() throws IOException {
-        assertThat(providersFor(TaskType.EMBEDDING), containsInAnyOrder(List.of("text_embedding_test_service", "jinaai").toArray()));
+        assertThat(
+            providersFor(TaskType.EMBEDDING),
+            containsInAnyOrder(List.of("text_embedding_test_service", "jinaai", "elastic").toArray())
+        );
     }
 
     private List<Object> getAllServices() throws IOException {

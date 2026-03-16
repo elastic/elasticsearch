@@ -9,15 +9,13 @@ package org.elasticsearch.compute.test;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.AbstractBlockBuilder;
 import org.elasticsearch.compute.data.AbstractVectorBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Block.MvOrdering;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockFactoryBuilder;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BooleanVectorFixedBuilder;
@@ -85,16 +83,12 @@ public class MockBlockFactory extends BlockFactory {
         }
     }
 
-    public MockBlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
-        this(breaker, bigArrays, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE);
+    public MockBlockFactory(BlockFactoryBuilder builder) {
+        this(builder, null);
     }
 
-    public MockBlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize) {
-        this(breaker, bigArrays, maxPrimitiveArraySize, null);
-    }
-
-    private MockBlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize, BlockFactory parent) {
-        super(breaker, bigArrays, maxPrimitiveArraySize, parent);
+    protected MockBlockFactory(BlockFactoryBuilder builder, BlockFactory parent) {
+        super(builder, parent);
     }
 
     @Override
@@ -102,7 +96,7 @@ public class MockBlockFactory extends BlockFactory {
         if (childBreaker.parentBreaker() != breaker()) {
             throw new IllegalStateException("Different parent breaker");
         }
-        return new MockBlockFactory(childBreaker, bigArrays(), ByteSizeValue.ofBytes(maxPrimitiveArrayBytes()), this);
+        return new MockBlockFactory(builder(bigArrays()).breaker(childBreaker).maxPrimitiveArraySize(maxPrimitiveArrayBytes()), this);
     }
 
     @Override

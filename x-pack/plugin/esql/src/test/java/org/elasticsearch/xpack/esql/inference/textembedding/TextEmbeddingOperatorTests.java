@@ -12,9 +12,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingResults;
@@ -130,13 +129,9 @@ public class TextEmbeddingOperatorTests extends InferenceOperatorTestCase<DenseE
             evaluatorFactory(inputChannel)
         );
 
-        DriverContext driverContext = driverContext();
-        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(1, 100)));
-        Exception actualException = expectThrows(
-            ElasticsearchException.class,
-            () -> drive(factory.get(driverContext), input.iterator(), driverContext)
-        );
-
+        var runner = new TestDriverRunner().builder(driverContext());
+        runner.input(simpleInput(runner.context().blockFactory(), between(1, 100)));
+        Exception actualException = expectThrows(ElasticsearchException.class, () -> runner.run(factory));
         assertThat(actualException.getMessage(), equalTo("Inference service unavailable"));
     }
 }

@@ -35,8 +35,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.node.tracker.FileSettingsHealthTracker;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
-import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthTracker;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -97,11 +97,6 @@ public class FileSettingsServiceTests extends ESTestCase {
     private FileSettingsHealthTracker healthIndicatorTracker;
     private Path watchedFile;
 
-    /**
-     * We're not testing health info publication here.
-     */
-    public static final FileSettingsHealthIndicatorPublisher NOOP_PUBLISHER = (f, a) -> {};
-
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -147,7 +142,7 @@ public class FileSettingsServiceTests extends ESTestCase {
                 List.of()
             )
         );
-        healthIndicatorTracker = spy(new FileSettingsHealthTracker(Settings.EMPTY, NOOP_PUBLISHER));
+        healthIndicatorTracker = spy(new FileSettingsHealthTracker(Settings.EMPTY));
         fileSettingsService = spy(new FileSettingsService(clusterService, controller, env, healthIndicatorTracker));
         watchedFile = fileSettingsService.watchedFile();
     }

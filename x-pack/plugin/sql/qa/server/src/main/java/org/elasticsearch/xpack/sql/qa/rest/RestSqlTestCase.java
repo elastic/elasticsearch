@@ -283,7 +283,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         deleteIndexWithProvisioningClient("test_date_timezone");
     }
 
-    @AwaitsFix(bugUrl = "Unclear status, https://github.com/elastic/x-pack-elasticsearch/issues/2074")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/144194")
     public void testTimeZone() throws IOException {
         String mode = randomMode();
         boolean columnar = randomBoolean();
@@ -1285,8 +1285,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                           },
                           "agg_metric": {
                               "type": "aggregate_metric_double",
-                              "metrics": ["max"],
-                              "default_metric": "max"
+                              "metrics": ["max"]
                           },
                           "k8s": {
                               "properties": {

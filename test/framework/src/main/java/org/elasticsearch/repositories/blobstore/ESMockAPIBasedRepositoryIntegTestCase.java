@@ -39,6 +39,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Collections;
@@ -262,6 +263,21 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         return InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
     }
 
+    protected static String httpServerUrlLocalhost() {
+        return "http://" + serverUrlLocalhost();
+    }
+
+    protected static String serverUrlLocalhost() {
+        InetSocketAddress address = httpServer.getAddress();
+        // Use "localhost" for loopback addresses to avoid issues with IPv6 addresses
+        // in URLs that some SDKs (like Azure) cannot properly parse
+        InetAddress inetAddress = address.getAddress();
+        String host = inetAddress.isLoopbackAddress() && inetAddress instanceof Inet6Address
+            ? "localhost"
+            : InetAddresses.toUriString(inetAddress);
+        return host + ":" + address.getPort();
+    }
+
     /**
      * Consumes and closes the given {@link InputStream}
      */
@@ -291,7 +307,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
             this.requests = new ConcurrentHashMap<>();
             this.delegate = delegate;
             this.maxErrorsPerRequest = maxErrorsPerRequest;
-            assert maxErrorsPerRequest > 1;
+            assert maxErrorsPerRequest > 0;
         }
 
         @Override

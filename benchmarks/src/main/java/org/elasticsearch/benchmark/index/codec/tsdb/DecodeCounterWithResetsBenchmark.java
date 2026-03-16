@@ -49,25 +49,33 @@ public class DecodeCounterWithResetsBenchmark {
     @Param({ "0.01", "0.02", "0.05" })
     private double resetProbability;
 
+    /**
+     * Number of blocks decoded per measured benchmark invocation.
+     *
+     * <p>Default is 10: the smallest batch size that provides stable measurements with good
+     * signal-to-noise ratio for regression tracking. Exposed as a JMH parameter to allow
+     * tuning without code changes.
+     */
+    @Param({ "10" })
+    private int blocksPerInvocation;
+
     private final AbstractTSDBCodecBenchmark decode;
 
     public DecodeCounterWithResetsBenchmark() {
         this.decode = new DecodeBenchmark();
     }
 
-    @Setup(Level.Invocation)
-    public void setupInvocation() throws IOException {
-        decode.setupInvocation();
-    }
-
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
         decode.setupTrial(CounterWithResetsSupplier.builder(SEED, decode.getBlockSize()).withResetProbability(resetProbability).build());
+
+        decode.setBlocksPerInvocation(blocksPerInvocation);
+        decode.run();
     }
 
     @Benchmark
     public void throughput(Blackhole bh, ThroughputMetrics metrics) throws IOException {
         decode.benchmark(bh);
-        metrics.recordOperation(decode.getBlockSize(), decode.getEncodedSize());
+        metrics.recordOperation(decode.getBlockSize() * blocksPerInvocation, decode.getEncodedSize() * blocksPerInvocation);
     }
 }

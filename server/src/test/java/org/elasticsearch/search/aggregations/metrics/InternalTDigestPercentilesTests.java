@@ -37,7 +37,7 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
         if (empty) {
             return new InternalTDigestPercentiles(name, percents, null, keyed, format, metadata);
         }
-        final TDigestState state = TDigestState.createWithoutCircuitBreaking(100);
+        final HistogramUnionState state = HistogramUnionState.create(HistogramUnionState.NOOP_BREAKER, 100.0);
         Arrays.stream(values).forEach(state::add);
 
         return new InternalTDigestPercentiles(name, percents, state, keyed, format, metadata);
@@ -45,7 +45,7 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
 
     @Override
     protected void assertReduced(InternalTDigestPercentiles reduced, List<InternalTDigestPercentiles> inputs) {
-        final TDigestState expectedState = TDigestState.createUsingParamsFrom(reduced.state);
+        final HistogramUnionState expectedState = HistogramUnionState.createUsingParamsFrom(reduced.state);
 
         long totalCount = 0;
         for (InternalTDigestPercentiles input : inputs) {
@@ -79,7 +79,7 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
     protected InternalTDigestPercentiles mutateInstance(InternalTDigestPercentiles instance) {
         String name = instance.getName();
         double[] percents = instance.keys;
-        TDigestState state = instance.state;
+        HistogramUnionState state = instance.state;
         boolean keyed = instance.keyed;
         DocValueFormat formatter = instance.formatter();
         Map<String, Object> metadata = instance.getMetadata();
@@ -91,7 +91,7 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
                 Arrays.sort(percents);
             }
             case 2 -> {
-                TDigestState newState = TDigestState.createUsingParamsFrom(state);
+                HistogramUnionState newState = HistogramUnionState.createUsingParamsFrom(state);
                 newState.add(state);
                 for (int i = 0; i < between(10, 100); i++) {
                     newState.add(randomDouble());

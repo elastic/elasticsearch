@@ -72,6 +72,8 @@ public class LimitOperator implements Operator {
     @Override
     public void addInput(Page page) {
         assert lastInput == null : "has pending input page";
+        rowsReceived += page.getPositionCount();
+
         final int acceptedRows = limiter.tryAccumulateHits(page.getPositionCount());
         if (acceptedRows == 0) {
             page.releaseBlocks();
@@ -81,7 +83,6 @@ public class LimitOperator implements Operator {
         } else {
             lastInput = page;
         }
-        rowsReceived += acceptedRows;
     }
 
     @Override
@@ -92,6 +93,11 @@ public class LimitOperator implements Operator {
     @Override
     public boolean isFinished() {
         return lastInput == null && (finished || limiter.remaining() == 0);
+    }
+
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return lastInput != null;
     }
 
     @Override
@@ -115,9 +121,9 @@ public class LimitOperator implements Operator {
         Page result = null;
         try {
             for (int b = 0; b < blocks.length; b++) {
-                blocks[b] = page.getBlock(b).filter(filter);
+                blocks[b] = page.getBlock(b).filter(false, filter);
             }
-            result = new Page(blocks);
+            result = new Page(upTo, blocks);
         } finally {
             if (result == null) {
                 Releasables.closeExpectNoException(page::releaseBlocks, Releasables.wrap(blocks));

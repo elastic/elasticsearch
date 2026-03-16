@@ -113,10 +113,7 @@ public class AuthenticationSerializationTests extends ESTestCase {
         );
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            final TransportVersion version = TransportVersionUtils.randomVersionNotSupporting(
-                random(),
-                SECURITY_CLOUD_API_KEY_REALM_AND_TYPE
-            );
+            final TransportVersion version = TransportVersionUtils.randomVersionNotSupporting(SECURITY_CLOUD_API_KEY_REALM_AND_TYPE);
             out.setTransportVersion(version);
 
             final var ex = expectThrows(IllegalArgumentException.class, () -> authentication.writeTo(out));

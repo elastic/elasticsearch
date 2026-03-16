@@ -22,12 +22,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
-import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
-import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
+import org.elasticsearch.compute.lucene.query.DataPartitioning;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -76,7 +77,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PLANNER_SETTINGS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -133,7 +133,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
             FoldContext.small(),
-            TEST_PLANNER_SETTINGS,
+            PlannerSettings.DEFAULTS,
             new EsQueryExec(
                 Source.EMPTY,
                 EsIndexGenerator.esIndex("test").name(),
@@ -165,7 +165,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
             FoldContext.small(),
-            TEST_PLANNER_SETTINGS,
+            PlannerSettings.DEFAULTS,
             new EsQueryExec(
                 Source.EMPTY,
                 EsIndexGenerator.esIndex("test").name(),
@@ -197,7 +197,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
             FoldContext.small(),
-            TEST_PLANNER_SETTINGS,
+            PlannerSettings.DEFAULTS,
             new EsQueryExec(
                 Source.EMPTY,
                 EsIndexGenerator.esIndex("test").name(),
@@ -222,7 +222,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
             FoldContext.small(),
-            TEST_PLANNER_SETTINGS,
+            PlannerSettings.DEFAULTS,
             new EsQueryExec(
                 Source.EMPTY,
                 EsIndexGenerator.esIndex("test").name(),
@@ -278,7 +278,22 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             10,
             null
         );
-        PlannerSettings plannerSettings = new PlannerSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1), 10_000, ByteSizeValue.ofMb(1));
+        PlannerSettings plannerSettings = new PlannerSettings(
+            DataPartitioning.AUTO,
+            ByteSizeValue.ofMb(1),
+            10_000,
+            ByteSizeValue.ofMb(1),
+            between(1, 10000),
+            randomDoubleBetween(0.1, 1.0, true),
+            between(0, 1000),
+            MappedFieldType.BlockLoaderContext.DEFAULT_ORDINALS_BYTE_SIZE,
+            MappedFieldType.BlockLoaderContext.DEFAULT_SCRIPT_BYTE_SIZE,
+            10,
+            PlannerSettings.SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY),
+            PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_THRESHOLD.getDefault(Settings.EMPTY),
+            PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR.getDefault(Settings.EMPTY),
+            PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY)
+        );
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
             FoldContext.small(),
@@ -315,10 +330,16 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             ),
             MappedFieldType.FieldExtractPreference.NONE
         );
-        var plan = planner().plan("test", FoldContext.small(), TEST_PLANNER_SETTINGS, fieldExtractExec, EmptyIndexedByShardId.instance());
+        var plan = planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            fieldExtractExec,
+            EmptyIndexedByShardId.instance()
+        );
         var p = plan.driverFactories.get(0).driverSupplier().physicalOperation();
         var fieldInfo = ((ValuesSourceReaderOperator.Factory) p.intermediateOperatorFactories.get(0)).fields().get(0);
-        return fieldInfo.loaderAndConverter().apply(0);
+        return fieldInfo.buildLoader().build(DriverContext.WarningsMode.COLLECT, 0);
     }
 
     private int randomEstimatedRowSize(boolean huge) {
@@ -351,7 +372,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             null,
             null,
-            esPhysicalOperationProviders(shardContexts)
+            esPhysicalOperationProviders(shardContexts),
+            null  // OperatorFactoryRegistry - not needed for these tests
         );
     }
 
@@ -372,7 +394,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             randomBoolean(),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(null),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(null),
-            null
+            null,
+            null,
+            Map.of()
         );
     }
 
@@ -381,7 +405,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             FoldContext.small(),
             new IndexedByShardIdFromList<>(shardContexts),
             null,
-            TEST_PLANNER_SETTINGS
+            PlannerSettings.DEFAULTS
         );
     }
 

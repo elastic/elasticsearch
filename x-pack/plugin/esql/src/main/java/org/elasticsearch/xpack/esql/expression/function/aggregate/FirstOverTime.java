@@ -15,6 +15,7 @@ import org.elasticsearch.compute.aggregation.FirstExponentialHistogramByTimestam
 import org.elasticsearch.compute.aggregation.FirstFloatByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FirstIntByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FirstLongByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstTDigestByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -52,7 +53,7 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
     // TODO: support all types
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
-        returnType = { "long", "integer", "double", "exponential_histogram" },
+        returnType = { "long", "integer", "double", "exponential_histogram", "tdigest" },
         description = "Calculates the earliest value of a field, where recency determined by the `@timestamp` field.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         preview = true,
@@ -62,7 +63,7 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
         Source source,
         @Param(
             name = "field",
-            type = { "counter_long", "counter_integer", "counter_double", "long", "integer", "double", "exponential_histogram" },
+            type = { "counter_long", "counter_integer", "counter_double", "long", "integer", "double", "exponential_histogram", "tdigest" },
             description = "the metric field to calculate the value for"
         ) Expression field,
         @Param(
@@ -122,7 +123,8 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
             field(),
             dt -> (dt.noCounter().isNumeric() && dt != DataType.UNSIGNED_LONG)
                 || dt == DataType.AGGREGATE_METRIC_DOUBLE
-                || dt == DataType.EXPONENTIAL_HISTOGRAM,
+                || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || dt == DataType.TDIGEST,
             sourceText(),
             DEFAULT,
             "numeric except unsigned_long"
@@ -142,6 +144,7 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
             case DOUBLE, COUNTER_DOUBLE -> new FirstDoubleByTimestampAggregatorFunctionSupplier();
             case FLOAT -> new FirstFloatByTimestampAggregatorFunctionSupplier();
             case EXPONENTIAL_HISTOGRAM -> new FirstExponentialHistogramByTimestampAggregatorFunctionSupplier();
+            case TDIGEST -> new FirstTDigestByTimestampAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

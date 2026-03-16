@@ -75,3 +75,16 @@ FROM books METADATA _score
 count:long | avg_completion_length:double
 4          | 50.75
 ;
+
+
+completionWithTaskSettings
+required_capability: completion
+
+ROW prompt="test prompt"
+| COMPLETION completion = prompt WITH { "inference_id": "test_completion", "task_settings": {"temperature": 1} }
+| KEEP completion
+;
+
+completion:keyword
+temperature:1 TEST PROMPT
+;

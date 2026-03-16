@@ -16,8 +16,8 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -134,9 +134,9 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
-        return new EvalOperator.ExpressionEvaluator.Factory() {
+        return new ExpressionEvaluator.Factory() {
 
             @Override
             public String toString() {
@@ -144,17 +144,15 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
             }
 
             @Override
-            public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-                final EvalOperator.ExpressionEvaluator eval = fieldEvaluator.get(context);
+            public ExpressionEvaluator get(DriverContext context) {
+                final ExpressionEvaluator eval = fieldEvaluator.get(context);
                 final int subFieldIndex = ((Number) subfieldIndex.fold(FoldContext.small())).intValue();
                 return new Evaluator(context.blockFactory(), eval, subFieldIndex);
             }
         };
     }
 
-    private record Evaluator(BlockFactory blockFactory, EvalOperator.ExpressionEvaluator eval, int subFieldIndex)
-        implements
-            EvalOperator.ExpressionEvaluator {
+    private record Evaluator(BlockFactory blockFactory, ExpressionEvaluator eval, int subFieldIndex) implements ExpressionEvaluator {
 
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Evaluator.class);
 

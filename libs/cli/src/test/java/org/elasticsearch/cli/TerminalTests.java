@@ -37,8 +37,7 @@ public class TerminalTests extends ESTestCase {
         PrintWriter stdOut = mock("stdOut");
         PrintWriter stdErr = mock("stdErr");
 
-        OutputStream out = new Terminal(mock("reader"), stdOut, stdErr) {
-        }.asLineOutputStream(StandardCharsets.UTF_8);
+        OutputStream out = new Terminal(mock("reader"), stdOut, stdErr) {}.asLineOutputStream(StandardCharsets.UTF_8);
 
         out.write("123".getBytes(StandardCharsets.UTF_8));
         out.write("456".getBytes(StandardCharsets.UTF_8));

@@ -1,5 +1,0 @@
-pr: 138745
-summary: Disk usage don't include synthetic `_id` postings
-area: Distributed
-type: enhancement
-issues: []

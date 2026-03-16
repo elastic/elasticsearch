@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -14,21 +15,35 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
+import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzeStatement;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class AnalyzerUnmappedTests extends ESTestCase {
@@ -515,6 +530,97 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             """);
         verificationFailure(query, "Subqueries and views are not supported with unmapped_fields=\"load\"");
         verificationFailure(query, "FORK is not supported with unmapped_fields=\"load\"");
+    }
+
+    /**
+     * When unmapped_fields=load and an index has a partially mapped field that is not KEYWORD (e.g. LONG),
+     * the query must fail with VerificationException.
+     */
+    public void testDisallowLoadWithPartiallyMappedNonKeyword() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
+
+        var esIndex = new EsIndex(
+            "partial_idx",
+            Map.of("partial_long", new EsField("partial_long", DataType.LONG, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)),
+            Map.of("partial_idx", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of("partial_long")
+        );
+        var analyzer = analyzer(
+            indexResolutions(esIndex),
+            defaultLookupResolution(),
+            defaultEnrichResolution(),
+            TEST_VERIFIER,
+            TEST_CFG,
+            UnmappedResolution.LOAD
+        );
+        var statement = EsqlParser.INSTANCE.createStatement("FROM partial_idx | KEEP partial_long");
+
+        var e = expectThrows(VerificationException.class, () -> analyzer.analyze(statement.plan()));
+        assertThat(e.getMessage(), containsString("unmapped_fields=\"load\""));
+        assertThat(e.getMessage(), containsString("partial_long"));
+    }
+
+    /**
+     * When unmapped_fields=load and the only partially mapped field is KEYWORD, the query is allowed.
+     */
+    public void testAllowLoadWithPartiallyMappedKeyword() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
+
+        var esIndex = new EsIndex(
+            "partial_idx",
+            Map.of(
+                "partial_type_keyword",
+                new EsField("partial_type_keyword", DataType.KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+            ),
+            Map.of("partial_idx", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of("partial_type_keyword")
+        );
+        var analyzer = analyzer(
+            indexResolutions(esIndex),
+            defaultLookupResolution(),
+            defaultEnrichResolution(),
+            TEST_VERIFIER,
+            TEST_CFG,
+            UnmappedResolution.LOAD
+        );
+        var statement = EsqlParser.INSTANCE.createStatement("FROM partial_idx | KEEP partial_type_keyword");
+
+        // Should not throw
+        var plan = analyzer.analyze(statement.plan());
+        assertThat(plan, not(nullValue()));
+    }
+
+    /**
+     * When unmapped_fields=nullify, partially mapped non-KEYWORD fields do not cause failure.
+     */
+    public void testNullifyWithPartiallyMappedNonKeywordDoesNotFail() {
+        assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
+
+        var esIndex = new EsIndex(
+            "partial_idx",
+            Map.of("partial_long", new EsField("partial_long", DataType.LONG, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)),
+            Map.of("partial_idx", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of("partial_long")
+        );
+        var analyzer = analyzer(
+            indexResolutions(esIndex),
+            defaultLookupResolution(),
+            defaultEnrichResolution(),
+            TEST_VERIFIER,
+            TEST_CFG,
+            UnmappedResolution.NULLIFY
+        );
+        var statement = EsqlParser.INSTANCE.createStatement("FROM partial_idx | KEEP partial_long");
+
+        // Should not throw
+        var plan = analyzer.analyze(statement.plan());
+        assertThat(plan, not(nullValue()));
     }
 
     private void verificationFailure(String statement, String expectedFailure) {

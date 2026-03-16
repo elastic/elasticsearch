@@ -1817,7 +1817,7 @@ small segments accumulate from successive flushes.
 segments into fewer, larger ones. Merges both reclaim space from obsolete documents and improve query performance by
 reducing the number of segments a search must visit.
 
-[MergePolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/MergePolicy.html)s decides
+[MergePolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/MergePolicy.html)s decide
 which segments to merge and when. Elasticsearch configures this through [MergePolicyConfig], which uses
 Lucene's [TieredMergePolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/TieredMergePolicy.html)
 as the default base policy, and
@@ -1828,14 +1828,14 @@ this base policy with several layers:
 
 - [SoftDeletesRetentionMergePolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/SoftDeletesRetentionMergePolicy.html):
   retains soft-deleted documents (more details about soft deletes in subsequent paragraphs).
-- [PrunePostingsMergePolicy]: drops the _id field postings for deleted documents during segment merges, maintaining
+- [PrunePostingsMergePolicy]: drops the `_id` field postings for deleted documents during segment merges, maintaining
   consistent update performance even when a large number of soft deleted/updated documents are retained.
 - [PruningMergePolicy]: prunes `_recovery_source` stored fields and `_seq_no`-related fields for documents
   that no longer need them for replication.
 - [ShuffleForcedMergePolicy]: randomizes segment ordering during force merges so that recently-indexed
   documents are not always co-located at the end, improving the efficiency of time-based queries.
 
-[MergeScheduler](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/MergeScheduler.html)s decides how
+[MergeScheduler](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/MergeScheduler.html)s decide how
 merges are executed. The default implementation is [ThreadPoolMergeScheduler], which runs merges on the
 [ThreadPoolMergeExecutorService] shared node-level thread pool with disk-aware I/O throttling.
 

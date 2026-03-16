@@ -1895,7 +1895,7 @@ public class InternalEngine extends Engine {
     /// can retain it during merges (used for peer-recovery and CCR).
     ///
     /// If the document is already deleted or this is a stale replay, the tombstone is added as a new
-    /// document instead of a soft-update (since there is no live document to replace).
+    /// document instead of a soft-update.
     private DeleteResult deleteInLucene(Delete delete, DeletionStrategy plan) throws IOException {
         assert assertMaxSeqNoOfUpdatesIsAdvanced(delete.uid(), delete.seqNo(), false, false);
         try {

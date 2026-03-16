@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.session.FieldNameUtils;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 
@@ -378,30 +379,60 @@ public class Verifier {
     }
 
     /**
-     * Reject sub-fields of flattened fields when {@code unmapped_fields="load"}, by checking if any
-     * {@link PotentiallyUnmappedKeywordEsField} is a sub-field of a parent field whose original type is flattened.
+     * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}, by checking if any
+     * {@link PotentiallyUnmappedKeywordEsField} is a sub-field of a parent field whose original type is flattened. The reason is that
+     * flattened subfields resolution may eventually differ from what happens when {@code unmapped_fields="load"}.
      */
     private static void checkFlattenedSubFieldLoad(LogicalPlan plan, Failures failures) {
-        if (plan instanceof EsRelation esRelation) {
+        plan.forEachDown(p -> {
+            if (p instanceof EsRelation == false) {
+                return;
+            }
+
+            EsRelation esRelation = (EsRelation) p;
+            Set<String> flattenedFieldNames = flattenedFieldNames(esRelation.output());
+
+            if (flattenedFieldNames.isEmpty()) {
+                return;
+            }
+
             for (Attribute attr : esRelation.output()) {
-                if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
-                    String name = fa.name();
-                    int dot = name.indexOf('.');
-                    while (dot > 0) {
-                        String parentName = name.substring(0, dot);
-                        for (Attribute parentAttr : esRelation.output()) {
-                            if (parentAttr instanceof FieldAttribute parentFa
-                                && parentAttr.name().equals(parentName)
-                                && parentFa.field() instanceof UnsupportedEsField uef
-                                && uef.getOriginalTypes().contains("flattened")) {
-                                failures.add(fail(fa, "Cannot load subfield [{}] from a flattened field type", name));
-                            }
-                        }
-                        dot = name.indexOf('.', dot + 1);
+                if ((attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) == false) {
+                    continue;
+                }
+
+                FieldAttribute fa = (FieldAttribute) attr;
+                String name = fa.name();
+                List<String> prefixes = FieldNameUtils.parentPrefixes(name).toList();
+                for (String parent : prefixes) {
+                    if (flattenedFieldNames.contains(parent)) {
+                        // It is sufficient to find "a" flattened field with a name matching the parent's.
+                        Failure failure = fail(
+                            fa,
+                            "Loading subfield [{}] when parent [{}] is of flattened field type is not supported with unmapped_fields=\"load\"",
+                            name,
+                            parent
+                        );
+                        failures.add(failure);
+                        break;
                     }
                 }
             }
+        });
+    }
+
+    private static Set<String> flattenedFieldNames(List<Attribute> attributes) {
+        Set<String> names = new HashSet<>();
+
+        for (Attribute attribute : attributes) {
+            if (attribute instanceof FieldAttribute fa
+                && fa.field() instanceof UnsupportedEsField uef
+                && uef.getOriginalTypes().contains("flattened")) {
+                names.add(fa.name());
+            }
         }
+
+        return names;
     }
 
     private void licenseCheck(LogicalPlan plan, Failures failures) {

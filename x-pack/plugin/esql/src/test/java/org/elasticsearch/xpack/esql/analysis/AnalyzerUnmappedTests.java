@@ -537,36 +537,45 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     public void testFlattenedSubFieldRejection() {
         Map<String, EsField> mapping = Map.of("field", new UnsupportedEsField("field", List.of("flattened")));
         EsIndex index = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Set.of());
-        String errorMessage = "Cannot load subfield [%s] from a flattened field type";
+        String errorMessage =
+            "Loading subfield [%s] when parent [%s] is of flattened field type is not supported with unmapped_fields=\"load\"";
 
-        verificationFailure(setUnmappedLoad("FROM test | KEEP field.a"), index, String.format(Locale.ROOT, errorMessage, "field.a"));
+        verificationFailure(
+            setUnmappedLoad("FROM test | KEEP field.a"),
+            index,
+            String.format(Locale.ROOT, errorMessage, "field.a", "field")
+        );
         verificationFailure(
             setUnmappedLoad("FROM test | STATS x = SAMPLE(field.a, 1)"),
             index,
-            String.format(Locale.ROOT, errorMessage, "field.a")
+            String.format(Locale.ROOT, errorMessage, "field.a", "field")
         );
         verificationFailure(
             setUnmappedLoad("FROM test | EVAL x = TO_STRING(field.a)"),
             index,
-            String.format(Locale.ROOT, errorMessage, "field.a")
+            String.format(Locale.ROOT, errorMessage, "field.a", "field")
         );
-        verificationFailure(setUnmappedLoad("FROM test | KEEP field.a.b"), index, String.format(Locale.ROOT, errorMessage, "field.a.b"));
+        verificationFailure(
+            setUnmappedLoad("FROM test | KEEP field.a.b"),
+            index,
+            String.format(Locale.ROOT, errorMessage, "field.a.b", "field")
+        );
         verificationFailure(
             setUnmappedLoad("FROM test | KEEP field.a.b.c"),
             index,
-            String.format(Locale.ROOT, errorMessage, "field.a.b.c")
+            String.format(Locale.ROOT, errorMessage, "field.a.b.c", "field")
         );
         verificationFailure(
             setUnmappedLoad("FROM test | SORT field.x, field.z"),
             index,
-            String.format(Locale.ROOT, errorMessage, "field.x"),
-            String.format(Locale.ROOT, errorMessage, "field.z")
+            String.format(Locale.ROOT, errorMessage, "field.x", "field"),
+            String.format(Locale.ROOT, errorMessage, "field.z", "field")
         );
         verificationFailure(
             setUnmappedLoad("FROM test | SORT field.x | KEEP field.z"),
             index,
-            String.format(Locale.ROOT, errorMessage, "field.x"),
-            String.format(Locale.ROOT, errorMessage, "field.z")
+            String.format(Locale.ROOT, errorMessage, "field.x", "field"),
+            String.format(Locale.ROOT, errorMessage, "field.z", "field")
         );
     }
 

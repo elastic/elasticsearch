@@ -303,18 +303,39 @@ public class FieldNameUtils {
         }
     }
 
+    /**
+     * Expands a field name into a set of names to request from field caps. For example, "a.b.c" will be expanded to:
+     * <ul>
+     * <li>The field itself: "a.b.c"</li>
+     * <li>Its multi-fields: "a.b.c.*"</li>
+     * <li>All dot-delimited parent prefixes: ["a", "a.b"]. This is needed to get back flattened parents, so the verifier can detect subfields of flattened.</li>
+     * </ul>
+     */
     private static Stream<String> withSubfields(String name) {
         if (name.endsWith(WILDCARD)) {
             return Stream.of(name);
         }
+
         Stream.Builder<String> builder = Stream.builder();
         builder.add(name);
         builder.add(name + ".*");
-        int dot = name.indexOf('.');
-        while (dot > 0) {
-            builder.add(name.substring(0, dot));
-            dot = name.indexOf('.', dot + 1);
+        parentPrefixes(name).forEach(builder::add);
+
+        return builder.build();
+    }
+
+    /**
+     * Returns the dot-delimited parent prefixes of a field name. For example, "a.b.c" will return ["a", "a.b"]
+     */
+    public static Stream<String> parentPrefixes(String name) {
+        Stream.Builder<String> builder = Stream.builder();
+
+        int pos = name.indexOf('.');
+        while (pos > 0) {
+            builder.add(name.substring(0, pos));
+            pos = name.indexOf('.', pos + 1);
         }
+
         return builder.build();
     }
 

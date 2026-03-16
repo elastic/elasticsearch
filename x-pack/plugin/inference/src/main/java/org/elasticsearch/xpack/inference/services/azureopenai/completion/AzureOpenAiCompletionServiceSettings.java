@@ -39,16 +39,16 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
 
     /**
      * Rate limit documentation can be found here:
-     *
+     * <p>
      * Limits per region per model id
      * https://learn.microsoft.com/en-us/azure/ai-services/openai/quotas-limits
-     *
+     * <p>
      * How to change the limits
      * https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/quota?tabs=rest
-     *
+     * <p>
      * Blog giving some examples
      * https://techcommunity.microsoft.com/t5/fasttrack-for-azure/optimizing-azure-openai-a-guide-to-limits-quotas-and-best/ba-p/4076268
-     *
+     * <p>
      * According to the docs 1000 tokens per minute (TPM) = 6 requests per minute (RPM). The limits change depending on the region
      * and model. The lowest chat completions limit is 20k TPM, so we'll default to that.
      * Calculation: 20K TPM = 20 * 6 = 120 requests per minute (used `francecentral` and `gpt-4` as basis for the calculation).
@@ -107,7 +107,7 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
     private final String apiVersion;
 
     private final RateLimitSettings rateLimitSettings;
-    private final AzureOpenAiOAuth2Settings oAuthSettings;
+    private final AzureOpenAiOAuth2Settings oAuth2Settings;
 
     public AzureOpenAiCompletionServiceSettings(
         String resourceName,
@@ -123,13 +123,13 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
         String deploymentId,
         String apiVersion,
         @Nullable RateLimitSettings rateLimitSettings,
-        @Nullable AzureOpenAiOAuth2Settings oAuthSettings
+        @Nullable AzureOpenAiOAuth2Settings oAuth2Settings
     ) {
         this.resourceName = resourceName;
         this.deploymentId = deploymentId;
         this.apiVersion = apiVersion;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
-        this.oAuthSettings = oAuthSettings;
+        this.oAuth2Settings = oAuth2Settings;
     }
 
     public AzureOpenAiCompletionServiceSettings(StreamInput in) throws IOException {
@@ -137,7 +137,7 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
         deploymentId = in.readString();
         apiVersion = in.readString();
         rateLimitSettings = new RateLimitSettings(in);
-        oAuthSettings = in.getTransportVersion().supports(AZURE_OPENAI_OAUTH_SETTINGS)
+        oAuth2Settings = in.getTransportVersion().supports(AZURE_OPENAI_OAUTH_SETTINGS)
             ? in.readOptionalWriteable(AzureOpenAiOAuth2Settings::new)
             : null;
     }
@@ -169,7 +169,7 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
     }
 
     public AzureOpenAiOAuth2Settings oAuth2Settings() {
-        return oAuthSettings;
+        return oAuth2Settings;
     }
 
     @Override
@@ -194,11 +194,22 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
         builder.field(API_VERSION, apiVersion);
         rateLimitSettings.toXContent(builder, params);
 
-        if (oAuthSettings != null) {
-            oAuthSettings.toXContent(builder, params);
+        if (oAuth2Settings != null) {
+            oAuth2Settings.toXContent(builder, params);
         }
 
         return builder;
+    }
+
+    @Override
+    public AzureOpenAiCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        if (oAuth2Settings == null) {
+            return this;
+        }
+
+        var newOAuth2Settings = oAuth2Settings.updateServiceSettings(serviceSettings);
+
+        return new AzureOpenAiCompletionServiceSettings(resourceName, deploymentId, apiVersion, rateLimitSettings, newOAuth2Settings);
     }
 
     @Override
@@ -214,7 +225,7 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
         rateLimitSettings.writeTo(out);
 
         if (out.getTransportVersion().supports(AZURE_OPENAI_OAUTH_SETTINGS)) {
-            out.writeOptionalWriteable(oAuthSettings);
+            out.writeOptionalWriteable(oAuth2Settings);
         }
     }
 
@@ -227,11 +238,11 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
             && Objects.equals(deploymentId, that.deploymentId)
             && Objects.equals(apiVersion, that.apiVersion)
             && Objects.equals(rateLimitSettings, that.rateLimitSettings)
-            && Objects.equals(oAuthSettings, that.oAuthSettings);
+            && Objects.equals(oAuth2Settings, that.oAuth2Settings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(resourceName, deploymentId, apiVersion, rateLimitSettings, oAuthSettings);
+        return Objects.hash(resourceName, deploymentId, apiVersion, rateLimitSettings, oAuth2Settings);
     }
 }

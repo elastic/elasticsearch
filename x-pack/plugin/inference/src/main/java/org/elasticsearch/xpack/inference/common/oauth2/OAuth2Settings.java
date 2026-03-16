@@ -14,11 +14,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -36,6 +40,9 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
 
     public static final String REQUIRED_FIELDS = String.join(", ", CLIENT_ID_FIELD, SCOPES_FIELD);
 
+    private static final String CLIENT_ID_CONFIG_DESCRIPTION = "ID of application registered with the authorization server.";
+    private static final String SCOPES_CONFIG_DESCRIPTION = "The permissions that the application is requesting.";
+
     private record UpdateSettings(@Nullable String clientId, @Nullable List<String> scopes) {}
 
     private final String clientId;
@@ -44,7 +51,8 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
     /**
      * Parses client_id and scopes from the map. Either both must be present or both absent.
      *
-     * @return a new instance if both fields are present, null if both are absent
+     * @return a new instance if both fields are present, null if both are absent.
+     * @throws ValidationException if only one of the fields is present or if there are parsing errors
      */
     public static OAuth2Settings fromMap(Map<String, Object> map, ValidationException validationException) {
         var clientId = extractOptionalString(map, CLIENT_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -158,5 +166,26 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(clientId, scopes);
+    }
+
+    public static Map<String, SettingsConfiguration> getOAuth2Configurations(EnumSet<TaskType> taskTypes) {
+        return Map.of(
+            CLIENT_ID_FIELD,
+            new SettingsConfiguration.Builder(taskTypes).setDescription(CLIENT_ID_CONFIG_DESCRIPTION)
+                .setLabel("OAuth2 Client ID")
+                .setRequired(false)
+                .setSensitive(false)
+                .setUpdatable(true)
+                .setType(SettingsConfigurationFieldType.STRING)
+                .build(),
+            SCOPES_FIELD,
+            new SettingsConfiguration.Builder(taskTypes).setDescription(SCOPES_CONFIG_DESCRIPTION)
+                .setLabel("OAuth2 Scopes")
+                .setRequired(false)
+                .setSensitive(false)
+                .setUpdatable(true)
+                .setType(SettingsConfigurationFieldType.LIST)
+                .build()
+        );
     }
 }

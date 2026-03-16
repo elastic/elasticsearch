@@ -15,16 +15,22 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.getOAuth2Configurations;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 
 public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable {
@@ -41,6 +47,8 @@ public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable 
     );
 
     public static final String REQUIRED_FIELDS_DESCRIPTION = Strings.format("OAuth2 requires the fields [%s], to be set.", REQUIRED_FIELDS);
+
+    private static final String TENANT_ID_CONFIG_DESCRIPTION = "The directory tenant that you want to request permission from.";
 
     private record UpdateSettings(OAuth2Settings oauth2Settings, @Nullable String tenantId) {
         UpdateSettings {
@@ -175,4 +183,22 @@ public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable 
         return Objects.hash(oauth2Settings, tenantId);
     }
 
+    public static Map<String, SettingsConfiguration> getAzureOAuth2Configurations() {
+        var supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
+        var config = new HashMap<>(
+            Map.of(
+                TENANT_ID_FIELD,
+                new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(TENANT_ID_CONFIG_DESCRIPTION)
+                    .setLabel("OAuth2 Tenant ID")
+                    .setRequired(false)
+                    .setSensitive(true)
+                    .setUpdatable(true)
+                    .setType(SettingsConfigurationFieldType.STRING)
+                    .build()
+            )
+        );
+
+        config.putAll(getOAuth2Configurations(supportedTaskTypes));
+        return config;
+    }
 }

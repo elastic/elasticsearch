@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ContextConstrainedAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.security.authz.PreAuthorizationUtils;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
@@ -59,6 +61,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final ThreadPool threadPool;
     private final SecurityContext securityContext;
     private final Settings settings;
+    private final Supplier<Map<String, String>> contextConstrainedActions;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -68,7 +71,8 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SSLService sslService,
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
-        RemoteClusterTransportInterceptor remoteClusterTransportInterceptor
+        RemoteClusterTransportInterceptor remoteClusterTransportInterceptor,
+        Supplier<Map<String, String>> contextConstrainedActions
     ) {
         this.remoteClusterTransportInterceptor = remoteClusterTransportInterceptor;
         this.securityContext = securityContext;
@@ -76,6 +80,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.settings = settings;
         this.authcService = authcService;
         this.authzService = authzService;
+        this.contextConstrainedActions = contextConstrainedActions;
         final Map<String, SslProfile> profileConfigurations = ProfileConfigurations.get(settings, sslService, false);
         this.profileFilters = initializeProfileFilters(profileConfigurations, destructiveOperations);
     }
@@ -134,6 +139,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 TransportRequestOptions options,
                 TransportResponseHandler<T> handler
             ) {
+                if (checkContextConstraint(connection, action, handler) == false) {
+                    return;
+                }
                 assert false == remoteClusterTransportInterceptor.hasRemoteClusterAccessHeadersInContext(securityContext)
                     : "remote cluster access headers should not be in security context";
                 final boolean isRemoteClusterConnection = remoteClusterTransportInterceptor.isRemoteClusterConnection(connection);
@@ -252,6 +260,46 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     // pkg-private method to allow overriding for tests
     void assertNoAuthentication(String action) {
         assert false : "there should always be a user when sending a message for action [" + action + "]";
+    }
+
+    /**
+     * Checks whether the action is context-constrained and, if so, whether the required
+     * invocation context marker is present in the thread context.
+     *
+     * @return {@code true} if the action is allowed to proceed, {@code false} if it was denied
+     *         (in which case the handler has already been notified of the failure)
+     */
+    private <T extends TransportResponse> boolean checkContextConstraint(
+        Transport.Connection connection,
+        String action,
+        TransportResponseHandler<T> handler
+    ) {
+        final Map<String, String> constraints = contextConstrainedActions.get();
+        if (constraints != null) {
+            final String requiredContext = constraints.get(action);
+            if (requiredContext != null) {
+                final String actualContext = threadPool.getThreadContext().getHeader(ContextConstrainedAction.HEADER_KEY);
+                if (requiredContext.equals(actualContext) == false) {
+                    handler.handleException(
+                        new SendRequestTransportException(
+                            connection.getNode(),
+                            action,
+                            new IllegalStateException(
+                                "action ["
+                                    + action
+                                    + "] requires invocation context ["
+                                    + requiredContext
+                                    + "] but context was ["
+                                    + actualContext
+                                    + "]"
+                            )
+                        )
+                    );
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     @Override

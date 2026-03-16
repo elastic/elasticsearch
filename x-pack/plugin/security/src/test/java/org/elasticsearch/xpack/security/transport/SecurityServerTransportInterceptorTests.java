@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -113,7 +114,8 @@ public class SecurityServerTransportInterceptorTests extends AbstractServerTrans
             mockSslService(),
             securityContext,
             destructiveOperations,
-            new TestNoopRemoteClusterTransportInterceptor()
+            new TestNoopRemoteClusterTransportInterceptor(),
+            Map::of
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -159,7 +161,8 @@ public class SecurityServerTransportInterceptorTests extends AbstractServerTrans
             mockSslService(),
             securityContext,
             destructiveOperations,
-            new TestNoopRemoteClusterTransportInterceptor()
+            new TestNoopRemoteClusterTransportInterceptor(),
+            Map::of
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -199,7 +202,8 @@ public class SecurityServerTransportInterceptorTests extends AbstractServerTrans
             mockSslService(),
             securityContext,
             destructiveOperations,
-            new TestNoopRemoteClusterTransportInterceptor()
+            new TestNoopRemoteClusterTransportInterceptor(),
+            Map::of
         ) {
             @Override
             void assertNoAuthentication(String action) {}
@@ -257,7 +261,8 @@ public class SecurityServerTransportInterceptorTests extends AbstractServerTrans
             mockSslService(),
             securityContext,
             destructiveOperations,
-            new TestNoopRemoteClusterTransportInterceptor()
+            new TestNoopRemoteClusterTransportInterceptor(),
+            Map::of
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -321,7 +326,8 @@ public class SecurityServerTransportInterceptorTests extends AbstractServerTrans
             mockSslService(),
             securityContext,
             destructiveOperations,
-            new TestNoopRemoteClusterTransportInterceptor()
+            new TestNoopRemoteClusterTransportInterceptor(),
+            Map::of
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -383,7 +389,8 @@ public class SecurityServerTransportInterceptorTests extends AbstractServerTrans
             mockSslService(),
             securityContext,
             destructiveOperations,
-            new TestNoopRemoteClusterTransportInterceptor()
+            new TestNoopRemoteClusterTransportInterceptor(),
+            Map::of
         );
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
@@ -529,6 +536,222 @@ public class SecurityServerTransportInterceptorTests extends AbstractServerTrans
         requestHandler.messageReceived(deleteIndexRequest, channel, mock(Task.class));
         assertTrue(decRefCalled.get());
         assertTrue(exceptionSent.get());
+    }
+
+    public void testContextConstrainedActionDeniedWithoutMarker() throws Exception {
+        final String constrainedAction = "indices:admin/test/constrained";
+        final String requiredContext = "test_context";
+        AuthenticationTestHelper.builder().build().writeToContext(threadContext);
+        AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, "indices:data/read/search");
+
+        SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
+            settings,
+            threadPool,
+            mock(AuthenticationService.class),
+            mock(AuthorizationService.class),
+            mockSslService(),
+            securityContext,
+            destructiveOperations,
+            new TestNoopRemoteClusterTransportInterceptor(),
+            () -> Map.of(constrainedAction, requiredContext)
+        );
+        ClusterServiceUtils.setState(clusterService, clusterService.state());
+
+        AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
+        AtomicReference<TransportException> caughtException = new AtomicReference<>();
+        AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
+            @Override
+            public <T extends TransportResponse> void sendRequest(
+                Transport.Connection connection,
+                String action,
+                TransportRequest request,
+                TransportRequestOptions options,
+                TransportResponseHandler<T> handler
+            ) {
+                calledWrappedSender.set(true);
+            }
+        });
+        Transport.Connection connection = mock(Transport.Connection.class);
+        when(connection.getTransportVersion()).thenReturn(TransportVersion.current());
+        sender.sendRequest(
+            connection,
+            constrainedAction,
+            mock(TransportRequest.class),
+            null,
+            new TransportResponseHandler<>() {
+                @Override
+                public TransportResponse read(org.elasticsearch.common.io.stream.StreamInput in) {
+                    return null;
+                }
+
+                @Override
+                public Executor executor() {
+                    return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+                }
+
+                @Override
+                public void handleResponse(TransportResponse response) {
+                    fail("should not succeed");
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    caughtException.set(exp);
+                }
+            }
+        );
+        assertFalse(calledWrappedSender.get());
+        assertThat(caughtException.get(), notNullValue());
+        assertThat(caughtException.get().getCause().getMessage(), org.hamcrest.Matchers.containsString("requires invocation context"));
+    }
+
+    public void testContextConstrainedActionDeniedWithWrongMarker() throws Exception {
+        final String constrainedAction = "indices:admin/test/constrained";
+        final String requiredContext = "test_context";
+        AuthenticationTestHelper.builder().build().writeToContext(threadContext);
+        AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, "indices:data/read/search");
+        threadContext.putHeader(
+            org.elasticsearch.action.ContextConstrainedAction.HEADER_KEY,
+            "wrong_context"
+        );
+
+        SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
+            settings,
+            threadPool,
+            mock(AuthenticationService.class),
+            mock(AuthorizationService.class),
+            mockSslService(),
+            securityContext,
+            destructiveOperations,
+            new TestNoopRemoteClusterTransportInterceptor(),
+            () -> Map.of(constrainedAction, requiredContext)
+        );
+        ClusterServiceUtils.setState(clusterService, clusterService.state());
+
+        AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
+        AtomicReference<TransportException> caughtException = new AtomicReference<>();
+        AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
+            @Override
+            public <T extends TransportResponse> void sendRequest(
+                Transport.Connection connection,
+                String action,
+                TransportRequest request,
+                TransportRequestOptions options,
+                TransportResponseHandler<T> handler
+            ) {
+                calledWrappedSender.set(true);
+            }
+        });
+        Transport.Connection connection = mock(Transport.Connection.class);
+        when(connection.getTransportVersion()).thenReturn(TransportVersion.current());
+        sender.sendRequest(
+            connection,
+            constrainedAction,
+            mock(TransportRequest.class),
+            null,
+            new TransportResponseHandler<>() {
+                @Override
+                public TransportResponse read(org.elasticsearch.common.io.stream.StreamInput in) {
+                    return null;
+                }
+
+                @Override
+                public Executor executor() {
+                    return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+                }
+
+                @Override
+                public void handleResponse(TransportResponse response) {
+                    fail("should not succeed");
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    caughtException.set(exp);
+                }
+            }
+        );
+        assertFalse(calledWrappedSender.get());
+        assertThat(caughtException.get(), notNullValue());
+        assertThat(caughtException.get().getCause().getMessage(), org.hamcrest.Matchers.containsString("requires invocation context"));
+    }
+
+    public void testContextConstrainedActionAllowedWithCorrectMarker() throws Exception {
+        final String constrainedAction = "indices:admin/test/constrained";
+        final String requiredContext = "test_context";
+        AuthenticationTestHelper.builder().build().writeToContext(threadContext);
+        AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, "indices:data/read/search");
+        threadContext.putHeader(
+            org.elasticsearch.action.ContextConstrainedAction.HEADER_KEY,
+            requiredContext
+        );
+
+        SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
+            settings,
+            threadPool,
+            mock(AuthenticationService.class),
+            mock(AuthorizationService.class),
+            mockSslService(),
+            securityContext,
+            destructiveOperations,
+            new TestNoopRemoteClusterTransportInterceptor(),
+            () -> Map.of(constrainedAction, requiredContext)
+        );
+        ClusterServiceUtils.setState(clusterService, clusterService.state());
+
+        AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
+        AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
+            @Override
+            public <T extends TransportResponse> void sendRequest(
+                Transport.Connection connection,
+                String action,
+                TransportRequest request,
+                TransportRequestOptions options,
+                TransportResponseHandler<T> handler
+            ) {
+                calledWrappedSender.set(true);
+            }
+        });
+        Transport.Connection connection = mock(Transport.Connection.class);
+        when(connection.getTransportVersion()).thenReturn(TransportVersion.current());
+        sender.sendRequest(connection, constrainedAction, mock(TransportRequest.class), null, null);
+        assertTrue(calledWrappedSender.get());
+    }
+
+    public void testNonConstrainedActionUnaffectedByConstraintMap() throws Exception {
+        AuthenticationTestHelper.builder().build().writeToContext(threadContext);
+        AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, "indices:data/read/search");
+
+        SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
+            settings,
+            threadPool,
+            mock(AuthenticationService.class),
+            mock(AuthorizationService.class),
+            mockSslService(),
+            securityContext,
+            destructiveOperations,
+            new TestNoopRemoteClusterTransportInterceptor(),
+            () -> Map.of("indices:admin/test/constrained", "test_context")
+        );
+        ClusterServiceUtils.setState(clusterService, clusterService.state());
+
+        AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
+        AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
+            @Override
+            public <T extends TransportResponse> void sendRequest(
+                Transport.Connection connection,
+                String action,
+                TransportRequest request,
+                TransportRequestOptions options,
+                TransportResponseHandler<T> handler
+            ) {
+                calledWrappedSender.set(true);
+            }
+        });
+        Transport.Connection connection = mock(Transport.Connection.class);
+        when(connection.getTransportVersion()).thenReturn(TransportVersion.current());
+        sender.sendRequest(connection, "cluster:admin/whatever", mock(TransportRequest.class), null, null);
+        assertTrue(calledWrappedSender.get());
     }
 
     private static class TestNoopRemoteClusterTransportInterceptor implements RemoteClusterTransportInterceptor {

@@ -97,6 +97,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -142,6 +143,7 @@ import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -1950,8 +1952,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(indexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()), equalTo("private_setting"));
     }
 
-    public void testBatchedIndexCreationOnlyReroutesOnce() {
-        withTemporaryClusterService(((clusterService, threadPool) -> {
+    public void testBatchedIndexCreationAndReroute() {
+        withTemporaryClusterService((clusterService, threadPool) -> {
             final var allocationService = mock(AllocationService.class);
             when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).thenAnswer(returnsFirstArg());
             when(allocationService.getShardRoutingRoleStrategy()).thenReturn(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
@@ -1970,12 +1972,18 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 IndexSettingProviders.EMPTY
             );
 
-            final int indexCount = randomIntBetween(2, 10);
-            final var indexNames = new ArrayList<String>(indexCount);
-            final var tasks = new ArrayList<MetadataCreateIndexService.CreateIndexClusterStateUpdateTask>(indexCount);
-            for (int i = 0; i < indexCount; i++) {
-                final var indexName = randomIndexName();
-                indexNames.add(indexName);
+            final int taskCount = randomIntBetween(2, 5);
+            final var validIndexNames = new ArrayList<String>();
+            final var tasks = new ArrayList<MetadataCreateIndexService.CreateIndexClusterStateUpdateTask>(taskCount);
+            for (int i = 0; i < taskCount; i++) {
+                final String indexName;
+                if (randomBoolean()) {
+                    indexName = randomIndexName();
+                    validIndexNames.add(indexName);
+                } else {
+                    // invalid index name
+                    indexName = "INVALID_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+                }
                 tasks.add(
                     new MetadataCreateIndexService.CreateIndexClusterStateUpdateTask(
                         new CreateIndexClusterStateUpdateRequest("test", projectId, indexName, indexName),
@@ -1984,22 +1992,31 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     )
                 );
             }
+            final ClusterState initialState = clusterService.state();
+            final ClusterState resultState;
             try {
-                final var resultState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+                resultState = ClusterStateTaskExecutorUtils.executeHandlingResults(
                     clusterService.state(),
                     service.createIndexTaskExecutor,
-                    tasks
+                    tasks,
+                    task -> {},
+                    (task, e) -> assertThat(e, instanceOf(InvalidIndexNameException.class))
                 );
+            } catch (Exception e) {
+                throw new AssertionError("Failed to test run cluster state update for batch index creation request", e);
+            }
+            if (validIndexNames.isEmpty()) {
+                assertSame("cluster state should not change when all requests are invalid", resultState, initialState);
+                verify(allocationService, never()).reroute(any(), any(), any());
+            } else {
                 final var stateIndices = resultState.metadata().getProject(projectId).indices().keySet();
                 assertTrue(
-                    "expected cluster state indices [" + stateIndices + "] to contain all [" + indexNames + "]",
-                    stateIndices.containsAll(indexNames)
+                    "expected cluster state indices [" + stateIndices + "] to contain all [" + validIndexNames + "]",
+                    stateIndices.containsAll(validIndexNames)
                 );
-                verify(allocationService, times(1)).reroute(any(ClusterState.class), eq("create-index"), any());
-            } catch (Exception e) {
-                throw new AssertionError("verify single reroute during batch index creation failed", e);
+                verify(allocationService, times(1)).reroute(any(), eq("create-index"), any());
             }
-        }));
+        });
     }
 
     private IndicesService mockIndicesService() {

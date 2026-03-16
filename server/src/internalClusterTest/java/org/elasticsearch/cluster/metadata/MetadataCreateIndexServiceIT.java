@@ -189,6 +189,7 @@ public class MetadataCreateIndexServiceIT extends ESIntegTestCase {
                         .count() == totalRequestCount
                 )
             );
+            final var initialState = masterClusterService.state();
             safeAwait(barrier);
 
             int successCount = 0;
@@ -213,6 +214,9 @@ public class MetadataCreateIndexServiceIT extends ESIntegTestCase {
             assertThat(invalidNameExceptionCount, equalTo(invalidNameCount));
             assertThat(alreadyExistsExceptionCount, equalTo(duplicateCount));
             assertThat(indexCreationExceptionCount, equalTo(invalidSettingsCount));
+            if (validIndicesNames.isEmpty()) {
+                assertSame("cluster state should not change when all requests failed", masterClusterService.state(), initialState);
+            }
         } finally {
             masterClusterService.removeListener(listener);
         }

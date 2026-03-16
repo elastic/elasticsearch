@@ -1025,7 +1025,6 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         // Let's verify the rollover
         List<String> backingIndices = waitForDataStreamIndices(dataStream, 2, false);
         String candidateIndex = backingIndices.get(0);
-        String writeIndex = backingIndices.get(1);
 
         AtomicLong twoDaysLater = new AtomicLong(clock.millis() + TimeValue.timeValueDays(2).millis());
         dataStreamLifecycleServices.forEach(dataStreamLifecycleService -> dataStreamLifecycleService.setNowSupplier(twoDaysLater::get));

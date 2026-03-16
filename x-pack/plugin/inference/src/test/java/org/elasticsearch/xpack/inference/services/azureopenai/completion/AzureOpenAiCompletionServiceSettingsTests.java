@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -50,6 +51,10 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AbstractBWCWireSe
     private static final String ERROR_API_VERSION_REQUIRED = "[service_settings] does not contain the required setting [api_version]";
 
     public static AzureOpenAiCompletionServiceSettings createRandom() {
+        return createRandom(randomFrom(AzureOpenAiOAuth2SettingsTests.createRandom(), null));
+    }
+
+    private static AzureOpenAiCompletionServiceSettings createRandom(@Nullable AzureOpenAiOAuth2Settings oAuth2Settings) {
         var resourceName = randomAlphaOfLength(8);
         var deploymentId = randomAlphaOfLength(8);
         var apiVersion = randomAlphaOfLength(8);
@@ -59,8 +64,12 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AbstractBWCWireSe
             deploymentId,
             apiVersion,
             RateLimitSettingsTests.createRandom(),
-            randomFrom(AzureOpenAiOAuth2SettingsTests.createRandom(), null)
+            oAuth2Settings
         );
+    }
+
+    public static AzureOpenAiCompletionServiceSettings createRandomWithoutOAuth2() {
+        return createRandom(null);
     }
 
     public void testFromMap_Request_CreatesSettingsCorrectly() {

@@ -51,7 +51,7 @@ public class AzureOpenAiRequestTests extends ESTestCase {
             TEST_INFERENCE_ID,
             threadPool,
             secretSettings,
-            AzureOpenAiCompletionServiceSettingsTests.createRandom()
+            AzureOpenAiCompletionServiceSettingsTests.createRandomWithoutOAuth2()
         );
 
         secretsApplier.applyTo(httpPost, ActionListener.noop());
@@ -68,7 +68,7 @@ public class AzureOpenAiRequestTests extends ESTestCase {
             TEST_INFERENCE_ID,
             threadPool,
             secretSettings,
-            AzureOpenAiCompletionServiceSettingsTests.createRandom()
+            AzureOpenAiCompletionServiceSettingsTests.createRandomWithoutOAuth2()
         );
 
         secretsApplier.applyTo(httpPost, ActionListener.noop());
@@ -78,7 +78,7 @@ public class AzureOpenAiRequestTests extends ESTestCase {
     }
 
     // TODO fix this one, we should have a test where it does set the header
-    public void testDecorateWithAuthHeader_oauthClientSecret_doesNotSetAuthHeaders() {
+    public void testDecorateWithAuthHeader_OAuth2ClientSecret_DoesNotSetAuthHeaders() {
         var secretSettings = new AzureOpenAiOAuth2Secrets(TEST_INFERENCE_ID, randomSecureStringOfLength(10));
         var thrownException = expectThrows(
             ValidationException.class,
@@ -86,7 +86,7 @@ public class AzureOpenAiRequestTests extends ESTestCase {
                 TEST_INFERENCE_ID,
                 threadPool,
                 secretSettings,
-                AzureOpenAiCompletionServiceSettingsTests.createRandom()
+                AzureOpenAiCompletionServiceSettingsTests.createRandomWithoutOAuth2()
             )
         );
 

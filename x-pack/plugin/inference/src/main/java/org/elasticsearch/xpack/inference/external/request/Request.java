@@ -14,10 +14,6 @@ import java.net.URI;
 public interface Request {
     void createHttpRequest(ActionListener<HttpRequest> listener);
 
-    default void createHttpRequestAsync(ActionListener<HttpRequest> listener) {
-        listener.onResponse(createHttpRequest());
-    }
-
     URI getURI();
 
     /**

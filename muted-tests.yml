@@ -342,9 +342,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasource.grpc.EmployeeFlightServerTests
   method: testMultiEndpointEachPartitionHasRows
   issue: https://github.com/elastic/elasticsearch/issues/144244
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {csv-spec:approximation.Approximate stats by with zero variance}
-  issue: https://github.com/elastic/elasticsearch/issues/144246
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testEndpointGetsUpdated_GivenFingerprintChanges_FromNull
   issue: https://github.com/elastic/elasticsearch/issues/144249

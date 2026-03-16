@@ -161,6 +161,7 @@ public final class MutableRoutingAllocation extends RoutingAllocation {
      * @return {@code true} if this allocation computation is trying to reconcile towards a previously-computed allocation and therefore
      *                      path-dependent allocation blockers should be ignored.
      */
+    @Override
     public boolean isReconciling() {
         return isReconciling;
     }

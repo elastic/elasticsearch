@@ -45,6 +45,11 @@ final class ImmutableRoutingAllocation extends RoutingAllocation {
     }
 
     @Override
+    public boolean isReconciling() {
+        return false;
+    }
+
+    @Override
     public RoutingAllocation immutableClone() {
         return this;
     }

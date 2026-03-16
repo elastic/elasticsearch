@@ -337,9 +337,7 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
      * @return {@code true} if this allocation computation is trying to reconcile towards a previously-computed allocation and therefore
      *                      path-dependent allocation blockers should be ignored.
      */
-    public boolean isReconciling() {
-        return false;
-    }
+    public abstract boolean isReconciling();
 
     public abstract RoutingAllocation immutableClone();
 

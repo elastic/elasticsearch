@@ -41,9 +41,21 @@ import java.util.Map;
 
 import static org.elasticsearch.health.node.selection.HealthNode.TASK_NAME;
 
-/**
- * Persistent task executor that is managing the {@link HealthNode}.
- */
+/// [PersistentTasksExecutor] responsible for the lifecycle of the [HealthNode] persistent task.
+///
+/// On every cluster state change the master node reconciles the desired state: when the feature is enabled
+/// (see [ENABLED_SETTING][#ENABLED_SETTING]) and no [HealthNode] task exists yet, one is created; when disabled,
+/// any existing task is removed. Non-master nodes ignore the event.
+///
+/// Once the persistent task framework assigns the task to a node, that node becomes the health node. The
+/// [LocalHealthMonitor][org.elasticsearch.health.node.LocalHealthMonitor] and
+/// [HealthInfoCache][org.elasticsearch.health.node.HealthInfoCache] use [HealthNode#findHealthNode(ClusterState)]
+/// to discover it.
+///
+/// @see HealthNode
+/// @see org.elasticsearch.health.node.LocalHealthMonitor
+/// @see org.elasticsearch.health.metadata.HealthMetadataService
+///
 public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<HealthNodeTaskParams> implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(HealthNodeTaskExecutor.class);
@@ -105,10 +117,8 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         return new HealthNode(id, type, action, getDescription(taskInProgress), parentTaskId, headers);
     }
 
-    /**
-     * Reconciles the health node task with the desired state on every cluster state update.
-     * Only the master node triggers the lifecycle update. Other nodes return early.
-     */
+    /// Reconciles the health node task with the desired state on every cluster state update.
+    /// Only the master node triggers the lifecycle update. Other nodes return early.
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.localNodeMaster() == false) {

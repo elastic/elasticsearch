@@ -285,15 +285,15 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
         List<List<Object>> rows = new ArrayList<>();
         // TSID "a": data every minute for 10 minutes, value=1
         for (int i = 0; i < 10; i++) {
-            rows.add(List.of(new BytesRef("a"), baseTime + TimeValue.timeValueMinutes(i).millis(), 1));
+            rows.add(List.of("a", baseTime + TimeValue.timeValueMinutes(i).millis(), 1));
         }
         // TSID "b": data every minute for 15 minutes, value=2
         for (int i = 0; i < 15; i++) {
-            rows.add(List.of(new BytesRef("b"), baseTime + TimeValue.timeValueMinutes(i).millis(), 2));
+            rows.add(List.of("b", baseTime + TimeValue.timeValueMinutes(i).millis(), 2));
         }
         // TSID "c": sparse data at minutes 0, 5, 10, value=100
         for (int i : new int[] { 0, 5, 10 }) {
-            rows.add(List.of(new BytesRef("c"), baseTime + TimeValue.timeValueMinutes(i).millis(), 100));
+            rows.add(List.of("c", baseTime + TimeValue.timeValueMinutes(i).millis(), 100));
         }
 
         var operatorFactory = new TimeSeriesAggregationOperator.Factory(
@@ -395,7 +395,7 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
         // One data point per 5-minute bucket for 20 minutes
         for (int i = 0; i < 4; i++) {
             long ts = baseTime + TimeValue.timeValueMinutes(i * 5L).millis();
-            rows.add(List.of(new BytesRef("s"), ts, 10));
+            rows.add(List.of("s", ts, 10));
         }
 
         // No outputTimeBucket → needsOutputFiltering() returns false → super.emit() → allGroupIds stays null

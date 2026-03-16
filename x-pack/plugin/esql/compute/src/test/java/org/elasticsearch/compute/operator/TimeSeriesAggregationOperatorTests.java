@@ -78,8 +78,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         List<List<Object>> rows = new ArrayList<>();
         for (int i = 0; i < 15; i++) {
             long ts = baseTime + TimeValue.timeValueMinutes(i).millis();
-            rows.add(List.of(new BytesRef("a"), ts, 1));
-            rows.add(List.of(new BytesRef("b"), ts, 10));
+            rows.add(List.of("a", ts, 1));
+            rows.add(List.of("b", ts, 10));
         }
 
         List<Page> results = runPipeline(oneMinBucket, fiveMinBucket, windowDuration, rows);
@@ -121,7 +121,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         List<List<Object>> rows = new ArrayList<>();
         for (int i = 0; i < 4; i++) {
             long ts = baseTime + TimeValue.timeValueMinutes(i * 5L).millis();
-            rows.add(List.of(new BytesRef("x"), ts, 3));
+            rows.add(List.of("x", ts, 3));
         }
 
         // internal bucket == output bucket → no sub-bucketing, all groups aligned
@@ -151,7 +151,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         List<List<Object>> rows = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             long ts = baseTime + TimeValue.timeValueMinutes(i).millis();
-            rows.add(List.of(new BytesRef("tsid1"), ts, 5));
+            rows.add(List.of("tsid1", ts, 5));
         }
 
         // Use both a window aggregator (sum) and a values aggregator (dimension values on tsid column)
@@ -233,7 +233,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         List<List<Object>> rows = new ArrayList<>();
         for (int i = 0; i < 9; i++) {
             long ts = baseTime + TimeValue.timeValueMinutes(i).millis();
-            rows.add(List.of(new BytesRef("z"), ts, 2));
+            rows.add(List.of("z", ts, 2));
         }
 
         // 4m window, 3m output bucket, 1m internal bucket → GCD = 1m sub-buckets, output every 3m

@@ -188,7 +188,9 @@ public class APMJvmOptionsTests extends ESTestCase {
         Properties properties = new Properties();
         Path configPath;
         try (var files = Files.list(tempDir)) {
-            configPath = files.findFirst().orElseThrow(() -> new AssertionError("expected temp APM config file"));
+            configPath = files.filter(Files::isRegularFile)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("expected temp APM config file"));
         }
         try (InputStream inputStream = Files.newInputStream(configPath)) {
             properties.load(inputStream);

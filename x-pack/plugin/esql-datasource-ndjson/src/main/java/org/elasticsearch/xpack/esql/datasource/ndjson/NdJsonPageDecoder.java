@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Instant;
 import java.util.BitSet;
 import java.util.HashMap;
 import java.util.List;
@@ -339,7 +338,7 @@ public class NdJsonPageDecoder implements Closeable {
                 }
                 case DATETIME -> {
                     try {
-                        var millis = Instant.parse(parser.getValueAsString()).toEpochMilli();
+                        var millis = NdJsonSchemaInferrer.DATE_FORMATTER.parseMillis(parser.getValueAsString());
                         ((LongBlock.Builder) blockBuilder).appendLong(millis);
                     } catch (Exception e) {
                         unexpectedValue(blockBuilder, parser, inArray);

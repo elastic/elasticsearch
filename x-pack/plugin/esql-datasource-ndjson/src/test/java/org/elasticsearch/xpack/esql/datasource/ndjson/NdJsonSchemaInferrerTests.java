@@ -138,6 +138,19 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
             """, field("mixed", DataType.KEYWORD));
     }
 
+    public void testDateTime() throws Exception {
+        check("""
+            {"timestamp": "2025-03-26T18:12:34Z"}
+            {"timestamp": "2023-03-26"}
+            """, field("timestamp", DataType.DATETIME));
+
+        // Numbers aren't implicitly interpreted as timestamps.
+        check("""
+            {"timestamp": "2025-03-26T18:12:34Z"}
+            {"timestamp": 1679854354000}
+            """, field("timestamp", DataType.KEYWORD));
+    }
+
     private void check(String ndjson, Attribute... expected) throws IOException {
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8))) {
             List<Attribute> result = NdJsonSchemaInferrer.inferSchema(inputStream, 100);

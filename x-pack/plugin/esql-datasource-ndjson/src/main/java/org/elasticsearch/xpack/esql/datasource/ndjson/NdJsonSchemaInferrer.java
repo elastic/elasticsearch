@@ -11,6 +11,7 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -21,7 +22,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -36,7 +36,7 @@ import java.util.Map;
  * - Detects arrays as multi-value fields
  * - Marks fields as nullable when null or missing values are encountered
  *
- * Types: KEYWORD, INTEGER, LONG, DOUBLE, BOOLEAN.
+ * Types: KEYWORD, INTEGER, LONG, DOUBLE, BOOLEAN, DATETIME.
  */
 public class NdJsonSchemaInferrer {
 
@@ -47,6 +47,11 @@ public class NdJsonSchemaInferrer {
     //
     // Accurately detecting this would require a more costly null/missing algorithm, and nulls are
     // not supported in arrays anyway.
+
+    // The default format for date fields in ES is "strict_date_optional_time||epoch_millis".
+    // Use the string part of this default for schema inference (we cannot assume that a number
+    // is a date)
+    public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
 
     private static final Logger logger = LogManager.getLogger(NdJsonSchemaInferrer.class);
 
@@ -137,9 +142,9 @@ public class NdJsonSchemaInferrer {
             case START_OBJECT -> inferObjectSchema(parser, field);
             case VALUE_STRING -> {
                 try {
-                    Instant.parse(parser.getText());
+                    DATE_FORMATTER.parse(parser.getText());
                     field.addType(DataType.DATETIME);
-                } catch (DateTimeParseException e) {
+                } catch (DateTimeParseException | IllegalArgumentException e) {
                     field.addType(DataType.KEYWORD);
                 }
             }

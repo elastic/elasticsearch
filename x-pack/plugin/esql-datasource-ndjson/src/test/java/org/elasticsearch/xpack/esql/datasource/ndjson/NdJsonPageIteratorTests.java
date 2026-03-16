@@ -370,6 +370,32 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    public void testDateParsing() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        String ndjson = """
+            {"timestamp": "2025-03-26T18:12:34Z"}
+            {"timestamp": "2025-03-26T00:00:00Z"}
+            {"timestamp": "2025-03-26"}
+            """;
+
+        var reader = new NdJsonFormatReader(blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        var schema = reader.metadata(object).schema();
+        assertSchema(schema, "timestamp:DATETIME");
+
+        try (var iterator = reader.read(object, List.of(), 100)) {
+            var page = iterator.next();
+            assertPage(page, """
+                     LONG     \s
+                ---------------
+                1743012754000 \s
+                1742947200000 \s
+                1742947200000 \s
+                """);
+        }
+    }
     // --- findNextRecordBoundary tests ---
 
     public void testFindNextRecordBoundaryNewline() throws IOException {

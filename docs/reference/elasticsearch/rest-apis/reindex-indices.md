@@ -834,7 +834,7 @@ POST _reindex
 When using `source.remote.host`, you can reindex from {{serverless-short}} projects or {{ech}} deployments that are not linked to the origin project.
 
 The `source.index` field on the remote side also resolves across the remote project and all of its linked projects.
-For {{cps}} to work on the remote side, you must authenticate with a Cloud API key. A stack API key only provides access to the remote project itself, not its linked projects.
+For {{cps}} to work on the remote side, you must authenticate with a Cloud API key. An {{es}} API key only provides access to the remote project itself, not its linked projects.
 
 The following request reindexes documents from the `logs` index on a remote project. The source targets the `logs` index on the remote project and any of its linked projects, but not the `logs` index on the origin project (the project you sent the reindex request to):
 

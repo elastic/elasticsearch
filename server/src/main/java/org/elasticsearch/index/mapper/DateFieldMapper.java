@@ -61,7 +61,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.LongScriptFieldDistanceFeatureQuery;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -71,6 +70,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -413,6 +413,11 @@ public final class DateFieldMapper extends FieldMapper {
                 return IndexType.archivedPoints();
             }
             return IndexType.points(index.get(), docValues.get());
+        }
+
+        @Override
+        public String contentType() {
+            return resolution.type();
         }
 
         @Override
@@ -1151,22 +1156,39 @@ public final class DateFieldMapper extends FieldMapper {
             timestamp = nullValue;
         } else if (isEpochMillis(context)) {
             timestamp = resolution.convert(context.parser().longValue());
-        } else {
-            try {
-                timestamp = fieldType().parse(context.parser().text());
-            } catch (IllegalArgumentException | ElasticsearchParseException | DateTimeException | ArithmeticException e) {
+        } else if (context.parser().currentToken() == XContentParser.Token.START_OBJECT
+            || context.parser().currentToken() == XContentParser.Token.START_ARRAY) {
+                // Objects and arrays cannot be parsed as dates; handle them here so that
+                // ignore_malformed can catch them. Without this check, parser.text() below
+                // throws an exception whose type is not in the catch list, bypassing ignore_malformed.
                 if (ignoreMalformed) {
                     context.addIgnoredField(mappedFieldType.name());
                     if (isSourceSynthetic) {
-                        // Save a copy of the field so synthetic source can load it
-                        context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
+                        IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
+                    } else {
+                        context.parser().skipChildren();
                     }
                     return;
                 } else {
-                    throw e;
+                    throw new IllegalArgumentException("Cannot parse object or array as a date value");
+                }
+            } else {
+                // Otherwise, attempt to parse the date as if it's a string
+                try {
+                    timestamp = fieldType().parse(context.parser().text());
+                } catch (IllegalArgumentException | ElasticsearchParseException | DateTimeException | ArithmeticException e) {
+                    if (ignoreMalformed) {
+                        context.addIgnoredField(mappedFieldType.name());
+                        if (isSourceSynthetic) {
+                            // Save a copy of the field so synthetic source can load it
+                            IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
+                        }
+                        return;
+                    } else {
+                        throw e;
+                    }
                 }
             }
-        }
 
         indexValue(context, timestamp);
     }
@@ -1237,14 +1259,19 @@ public final class DateFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasDocValues) {
-            return new SyntheticSourceSupport.Native(
-                () -> new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed) {
-                    @Override
-                    protected void writeValue(XContentBuilder b, long value) throws IOException {
-                        b.value(fieldType().format(value, fieldType().dateTimeFormatter()));
-                    }
+            return new SyntheticSourceSupport.Native(() -> {
+                var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
+                layers.add(
+                    new SortedNumericDocValuesSyntheticFieldLoaderLayer(
+                        fullPath(),
+                        (b, value) -> b.value(fieldType().format(value, fieldType().dateTimeFormatter()))
+                    )
+                );
+                if (ignoreMalformed) {
+                    layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
                 }
-            );
+                return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
+            });
         }
 
         return super.syntheticSourceSupport();

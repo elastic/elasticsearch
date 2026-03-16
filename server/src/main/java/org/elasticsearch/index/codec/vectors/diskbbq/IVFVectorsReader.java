@@ -42,11 +42,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.CENTROID_EXTENSION;
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION;
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO;
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.IVF_META_EXTENSION;
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO;
 
 /**
  * Reader for IVF vectors. This reader is used to read the IVF vectors from the index.
@@ -58,14 +53,33 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     private final FieldInfos fieldInfos;
     protected final IntObjectHashMap<FieldEntry> fields;
     private final GenericFlatVectorReaders genericReaders;
+    private final String centroidExtension;
+    private final String clusterExtension;
+    private final int versionDirectIo;
+    private final float dynamicVisitRatio;
 
     @SuppressWarnings("this-escape")
-    protected IVFVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader loadReader) throws IOException {
+    protected IVFVectorsReader(
+        SegmentReadState state,
+        GenericFlatVectorReaders.LoadFlatVectorsReader loadReader,
+        String codecName,
+        String centroidExtension,
+        String clusterExtension,
+        String metaExtension,
+        int versionStart,
+        int versionCurrent,
+        int versionDirectIo,
+        float dynamicVisitRatio
+    ) throws IOException {
         this.state = state;
         this.fieldInfos = state.fieldInfos;
         this.fields = new IntObjectHashMap<>();
         this.genericReaders = new GenericFlatVectorReaders();
-        String meta = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, IVF_META_EXTENSION);
+        this.centroidExtension = centroidExtension;
+        this.clusterExtension = clusterExtension;
+        this.versionDirectIo = versionDirectIo;
+        this.dynamicVisitRatio = dynamicVisitRatio;
+        String meta = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
 
         int versionMeta = -1;
         try (ChecksumIndexInput ivfMeta = state.directory.openChecksumInput(meta)) {
@@ -73,9 +87,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             try {
                 versionMeta = CodecUtil.checkIndexHeader(
                     ivfMeta,
-                    ES920DiskBBQVectorsFormat.NAME,
-                    ES920DiskBBQVectorsFormat.VERSION_START,
-                    ES920DiskBBQVectorsFormat.VERSION_CURRENT,
+                    codecName,
+                    versionStart,
+                    versionCurrent,
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );
@@ -85,8 +99,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             } finally {
                 CodecUtil.checkFooter(ivfMeta, priorE);
             }
-            ivfCentroids = openDataInput(state, versionMeta, CENTROID_EXTENSION, ES920DiskBBQVectorsFormat.NAME, state.context);
-            ivfClusters = openDataInput(state, versionMeta, CLUSTER_EXTENSION, ES920DiskBBQVectorsFormat.NAME, state.context);
+            ivfCentroids = openDataInput(state, versionMeta, centroidExtension, codecName, versionStart, versionCurrent, state.context);
+            ivfClusters = openDataInput(state, versionMeta, clusterExtension, codecName, versionStart, versionCurrent, state.context);
         } catch (Throwable t) {
             IOUtils.closeWhileHandlingException(this);
             throw t;
@@ -110,6 +124,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         int versionMeta,
         String fileExtension,
         String codecName,
+        int versionStart,
+        int versionCurrent,
         IOContext context
     ) throws IOException {
         final String fileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, fileExtension);
@@ -118,8 +134,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             final int versionVectorData = CodecUtil.checkIndexHeader(
                 in,
                 codecName,
-                ES920DiskBBQVectorsFormat.VERSION_START,
-                ES920DiskBBQVectorsFormat.VERSION_CURRENT,
+                versionStart,
+                versionCurrent,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
@@ -158,7 +174,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
     private FieldEntry readField(IndexInput input, FieldInfo info, int versionMeta) throws IOException {
         final String rawVectorFormat = input.readString();
-        final boolean useDirectIOReads = versionMeta >= VERSION_DIRECT_IO && input.readByte() == 1;
+        final boolean useDirectIOReads = versionMeta >= versionDirectIo && input.readByte() == 1;
         final VectorEncoding vectorEncoding = readVectorEncoding(input);
         final VectorSimilarityFunction similarityFunction = readSimilarityFunction(input);
         if (similarityFunction != info.getVectorSimilarityFunction()) {
@@ -268,12 +284,14 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 "vector query dimension: " + target.length + " differs from field dimension: " + fieldInfo.getVectorDimension()
             );
         }
+
         final ESAcceptDocs esAcceptDocs;
         if (acceptDocs instanceof ESAcceptDocs) {
             esAcceptDocs = (ESAcceptDocs) acceptDocs;
         } else {
             esAcceptDocs = null;
         }
+
         FloatVectorValues values = getReaderForField(field).getFloatVectorValues(field);
         int numVectors = values.size();
         // TODO returning cost 0 in ESAcceptDocs.ESAcceptDocsAll feels wrong? cost is related to the number of matching documents?
@@ -281,14 +299,14 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             : esAcceptDocs instanceof ESAcceptDocs.ESAcceptDocsAll ? numVectors
             : esAcceptDocs.approximateCost());
         float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / numVectors));
-        float visitRatio = DYNAMIC_VISIT_RATIO;
+        float visitRatio = dynamicVisitRatio;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
             visitRatio = ivfSearchStrategy.getVisitRatio();
         }
 
         FieldEntry entry = fields.get(fieldInfo.number);
-        if (visitRatio == DYNAMIC_VISIT_RATIO) {
+        if (visitRatio == dynamicVisitRatio) {
             // empirically based, and a good dynamic to get decent recall while scaling a la "efSearch"
             // scaling by the number of vectors vs. the nearest neighbors requested
             // not perfect, but a comparative heuristic.
@@ -367,7 +385,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             return raw;
         }
 
-        var centroidsClusters = Map.of(CENTROID_EXTENSION, fe.centroidLength, CLUSTER_EXTENSION, fe.postingListLength);
+        var centroidsClusters = Map.of(centroidExtension, fe.centroidLength, clusterExtension, fe.postingListLength);
         return KnnVectorsReader.mergeOffHeapByteSizeMaps(raw, centroidsClusters);
     }
 
@@ -392,7 +410,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         protected final float globalCentroidDp;
         protected final int bulkSize;
 
-        protected FieldEntry(
+        public FieldEntry(
             String rawVectorFormatName,
             boolean useDirectIOReads,
             VectorSimilarityFunction similarityFunction,

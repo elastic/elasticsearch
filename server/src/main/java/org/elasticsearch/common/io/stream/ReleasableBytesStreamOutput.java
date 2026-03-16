@@ -32,7 +32,8 @@ import org.elasticsearch.core.Releasables;
  * allocated and available.
  * <p>
  * This is different from a {@link RecyclerBytesStreamOutput} which <i>only</i> uses recycled 16kiB pages and never itself allocates a raw
- * {@code byte[]}.
+ * {@code byte[]}. However, note that by default a {@link ReleasableBytesStreamOutput} uses {@link PageCacheRecycler#PAGE_SIZE_IN_BYTES}
+ * for its {@code expectedSize} so that it also always starts by using a recycled page rather than a slow-growing fresh {@code byte[]}.
  * <p>
  * The resulting {@link ReleasableBytesReference} is a view over the underlying {@code byte[]} pages and involves no significant extra
  * allocation to obtain. It is oversized: The worst case for overhead is when the data is one byte more than a 16kiB page and therefore the
@@ -47,10 +48,23 @@ import org.elasticsearch.core.Releasables;
  */
 public class ReleasableBytesStreamOutput extends BytesStreamOutput implements Releasable {
 
+    /**
+     * Create a {@link ReleasableBytesStreamOutput}, acquiring from the given {@link BigArrays} a single recycled page for the initial
+     * buffer, and growing the buffer as needed.
+     */
     public ReleasableBytesStreamOutput(BigArrays bigarrays) {
         this(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigarrays);
     }
 
+    /**
+     * Create a {@link ReleasableBytesStreamOutput}, allocating an initial buffer of size {@code expectedSize} from the given
+     * {@link BigArrays}, and growing the buffer as needed.
+     * <p>
+     * Note that if {@code expectedSize < PageCacheRecycler.PAGE_SIZE_IN_BYTES / 2} then this will allocate a {@code new byte[]} rather than
+     * using a recycled page, and will keep on allocating {@code new byte[]} instances, copying the contents, until the contents reach
+     * {@code PageCacheRecycler.PAGE_SIZE_IN_BYTES / 2}. In the worst case this can be over 40 allocations before it gets big enough to
+     * start using recycled pages. This is probably not what you want.
+     */
     public ReleasableBytesStreamOutput(int expectedSize, BigArrays bigArrays) {
         super(expectedSize, bigArrays);
     }

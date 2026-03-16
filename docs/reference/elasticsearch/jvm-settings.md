@@ -177,7 +177,7 @@ To see further options not contained in the original JEP, see [Enable Logging wi
 Change the default GC log output location to `/opt/my-app/gc.log` by creating `$ES_HOME/config/jvm.options.d/gc.options` with some sample options:
 
 ```shell
-# Turn off all previous logging configuratons
+# Turn off all previous logging configurations
 -Xlog:disable
 
 # Default settings from JEP 158, but with `utctime` instead of `uptime` to match the next line

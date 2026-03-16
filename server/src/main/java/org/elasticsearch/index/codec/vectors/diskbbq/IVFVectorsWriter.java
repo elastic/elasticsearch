@@ -53,9 +53,10 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     private final IndexOutput ivfCentroids, ivfClusters;
     private final IndexOutput ivfMeta;
     private final String rawVectorFormatName;
-    private final int writeVersion;
     private final Boolean useDirectIOReads;
     private final FlatVectorsWriter rawVectorDelegate;
+    private final int flatVectorThreshold;
+    private final boolean shouldWriteDirectIoReads;
 
     @SuppressWarnings("this-escape")
     protected IVFVectorsWriter(
@@ -63,57 +64,29 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         String rawVectorFormatName,
         Boolean useDirectIOReads,
         FlatVectorsWriter rawVectorDelegate,
-        int writeVersion
+        int writeVersion,
+        String codecName,
+        String metaExtension,
+        String centroidExtension,
+        String clusterExtension,
+        boolean shouldWriteDirectIoReads,
+        int flatVectorThreshold
     ) throws IOException {
-        // if version >= VERSION_DIRECT_IO, useDirectIOReads should have a value
-        if ((writeVersion >= ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO) == (useDirectIOReads == null)) throw new IllegalArgumentException(
-            "Write version " + writeVersion + " does not match direct IO value " + useDirectIOReads
-        );
-
         this.rawVectorFormatName = rawVectorFormatName;
-        this.writeVersion = writeVersion;
         this.useDirectIOReads = useDirectIOReads;
         this.rawVectorDelegate = rawVectorDelegate;
-        final String metaFileName = IndexFileNames.segmentFileName(
-            state.segmentInfo.name,
-            state.segmentSuffix,
-            ES920DiskBBQVectorsFormat.IVF_META_EXTENSION
-        );
-        final String ivfCentroidsFileName = IndexFileNames.segmentFileName(
-            state.segmentInfo.name,
-            state.segmentSuffix,
-            ES920DiskBBQVectorsFormat.CENTROID_EXTENSION
-        );
-        final String ivfClustersFileName = IndexFileNames.segmentFileName(
-            state.segmentInfo.name,
-            state.segmentSuffix,
-            ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION
-        );
+        this.flatVectorThreshold = flatVectorThreshold;
+        this.shouldWriteDirectIoReads = shouldWriteDirectIoReads;
+        final String metaFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, metaExtension);
+        final String ivfCentroidsFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, centroidExtension);
+        final String ivfClustersFileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, clusterExtension);
         try {
             ivfMeta = state.directory.createOutput(metaFileName, state.context);
-            CodecUtil.writeIndexHeader(
-                ivfMeta,
-                ES920DiskBBQVectorsFormat.NAME,
-                writeVersion,
-                state.segmentInfo.getId(),
-                state.segmentSuffix
-            );
+            CodecUtil.writeIndexHeader(ivfMeta, codecName, writeVersion, state.segmentInfo.getId(), state.segmentSuffix);
             ivfCentroids = state.directory.createOutput(ivfCentroidsFileName, state.context);
-            CodecUtil.writeIndexHeader(
-                ivfCentroids,
-                ES920DiskBBQVectorsFormat.NAME,
-                writeVersion,
-                state.segmentInfo.getId(),
-                state.segmentSuffix
-            );
+            CodecUtil.writeIndexHeader(ivfCentroids, codecName, writeVersion, state.segmentInfo.getId(), state.segmentSuffix);
             ivfClusters = state.directory.createOutput(ivfClustersFileName, state.context);
-            CodecUtil.writeIndexHeader(
-                ivfClusters,
-                ES920DiskBBQVectorsFormat.NAME,
-                writeVersion,
-                state.segmentInfo.getId(),
-                state.segmentSuffix
-            );
+            CodecUtil.writeIndexHeader(ivfClusters, codecName, writeVersion, state.segmentInfo.getId(), state.segmentSuffix);
         } catch (Throwable t) {
             IOUtils.closeWhileHandlingException(this);
             throw t;
@@ -228,7 +201,11 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             );
 
             // build centroids
-            final CentroidAssignments centroidAssignments = calculateCentroids(fieldWriter.fieldInfo, floatVectorValues);
+            final CentroidAssignments centroidAssignments = floatVectorValues.size() > 0
+                && flatVectorThreshold > 0
+                && floatVectorValues.size() <= flatVectorThreshold
+                    ? buildFlatCentroidAssignments(fieldWriter.fieldInfo, floatVectorValues)
+                    : calculateCentroids(fieldWriter.fieldInfo, floatVectorValues);
             final CentroidSupplier centroidSupplier = createCentroidSupplier(
                 fieldWriter.fieldInfo,
                 centroidAssignments.centroids(),
@@ -296,6 +273,38 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         return KMeansFloatVectorValues.build(vectors, docIds, fieldInfo.getVectorDimension());
     }
 
+    /**
+     * Builds a flat centroid assignment for a small set of vectors.
+     * <p>
+     * When the number of vectors is below the IVF flush threshold, we do not
+     * build multiple clusters. Instead, we compute a single centroid as the
+     * arithmetic mean of all vectors and assign every vector to that single
+     * centroid, producing a flat vector storage layout.
+     *
+     * @param fieldInfo          field metadata providing the vector dimension
+     * @param floatVectorValues  the vectors to summarize into a single centroid
+     * @return a {@link CentroidAssignments} instance with one centroid and
+     *         all vectors assigned to it
+     */
+    private CentroidAssignments buildFlatCentroidAssignments(FieldInfo fieldInfo, FloatVectorValues floatVectorValues) throws IOException {
+        int dimension = fieldInfo.getVectorDimension();
+        int count = floatVectorValues.size();
+        float[] centroid = new float[dimension];
+        for (int i = 0; i < count; i++) {
+            float[] vector = floatVectorValues.vectorValue(i);
+            for (int d = 0; d < dimension; d++) {
+                centroid[d] += vector[d];
+            }
+        }
+        for (int d = 0; d < dimension; d++) {
+            centroid[d] /= count;
+        }
+        // For flat centroid assignments there is a single global centroid and no SOAR (secondary) centroid assignments,
+        // so we pass an empty array for soarAssignments.
+        int[] assignments = new int[count];
+        return new CentroidAssignments(dimension, new float[][] { centroid }, assignments, new int[0]);
+    }
+
     @Override
     public final void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
@@ -321,7 +330,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     ) throws IOException {
         ivfMeta.writeInt(field.number);
         ivfMeta.writeString(rawVectorFormatName);
-        if (writeVersion >= ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO) {
+        if (shouldWriteDirectIoReads) {
+            assert useDirectIOReads != null : "shouldWriteDirectIoReads is true but useDirectIOReads is null";
             ivfMeta.writeByte(useDirectIOReads ? (byte) 1 : 0);
         }
         ivfMeta.writeInt(field.getVectorEncoding().ordinal());

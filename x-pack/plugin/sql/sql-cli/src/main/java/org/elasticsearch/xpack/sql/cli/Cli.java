@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.sql.cli.command.FetchSeparatorCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.FetchSizeCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.LenientCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.PrintLogoCommand;
+import org.elasticsearch.xpack.sql.cli.command.ProjectRoutingCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.ServerInfoCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.ServerQueryCliCommand;
 import org.elasticsearch.xpack.sql.client.ClientException;
@@ -40,6 +41,7 @@ import java.util.logging.LogManager;
 
 public class Cli extends Command {
     private final OptionSpec<String> keystoreLocation;
+    private final OptionSpec<String> apiKeyOption;
     private final OptionSpec<Boolean> checkOption;
     private final OptionSpec<String> connectionString;
     private final OptionSpec<Boolean> binaryCommunication;
@@ -101,6 +103,12 @@ public class Cli extends Command {
                 + "If specified then the CLI will prompt for a keystore password. "
                 + "If specified when the uri isn't https then an error is thrown."
         ).withRequiredArg().ofType(String.class);
+        this.apiKeyOption = parser.acceptsAll(
+            Arrays.asList("apikey"),
+            "API key to use for authentication. "
+                + "The API key should be in the encoded format (base64 of id:api_key). "
+                + "Cannot be used together with basic authentication (user in the URI)."
+        ).withRequiredArg().ofType(String.class);
         this.checkOption = parser.acceptsAll(Arrays.asList("c", "check"), "Enable initial connection check on startup")
             .withRequiredArg()
             .ofType(Boolean.class)
@@ -123,23 +131,30 @@ public class Cli extends Command {
             throw new UserException(ExitCodes.USAGE, "expecting a single keystore file");
         }
         String keystoreLocationValue = args.size() == 1 ? args.get(0) : null;
-        execute(uri, debug, binary, keystoreLocationValue, checkConnection);
+        args = apiKeyOption.values(options);
+        if (args.size() > 1) {
+            throw new UserException(ExitCodes.USAGE, "expecting a single API key");
+        }
+        String apiKey = args.size() == 1 ? args.get(0) : null;
+        execute(uri, debug, binary, keystoreLocationValue, checkConnection, apiKey);
     }
 
-    private void execute(String uri, boolean debug, boolean binary, String keystoreLocation, boolean checkConnection) throws Exception {
+    private void execute(String uri, boolean debug, boolean binary, String keystoreLocation, boolean checkConnection, String apiKey)
+        throws Exception {
         CliCommand cliCommand = new CliCommands(
             new PrintLogoCommand(),
             new ClearScreenCliCommand(),
             new FetchSizeCliCommand(),
             new LenientCliCommand(),
             new AllowPartialResultsCliCommand(),
+            new ProjectRoutingCliCommand(),
             new FetchSeparatorCliCommand(),
             new ServerInfoCliCommand(),
             new ServerQueryCliCommand()
         );
         try {
             ConnectionBuilder connectionBuilder = new ConnectionBuilder(cliTerminal);
-            ConnectionConfiguration con = connectionBuilder.buildConnection(uri, keystoreLocation, binary);
+            ConnectionConfiguration con = connectionBuilder.buildConnection(uri, keystoreLocation, binary, apiKey);
             CliSession cliSession = new CliSession(new HttpClient(con));
             cliSession.cfg().setDebug(debug);
             if (checkConnection) {

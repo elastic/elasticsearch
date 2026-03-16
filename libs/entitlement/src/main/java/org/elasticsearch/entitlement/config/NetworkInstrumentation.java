@@ -298,9 +298,6 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             rule.callingVoid(MulticastSocket::leaveGroup, SocketAddress.class, NetworkInterface.class)
                 .enforce(Policies::allNetworkAccess)
                 .elseThrowNotEntitled();
-            rule.callingVoid(MulticastSocket::send, DatagramPacket.class, Byte.class)
-                .enforce(Policies::allNetworkAccess)
-                .elseThrowNotEntitled();
         });
 
         builder.on(SocketChannel.class, rule -> {

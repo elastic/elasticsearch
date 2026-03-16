@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
@@ -19,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -28,9 +28,11 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelationSerializationTests;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.hamcrest.BaseMatcher;
@@ -40,15 +42,25 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -61,6 +73,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     static InMemoryViewService viewService;
     static InMemoryViewResolver viewResolver;
+    PlanTelemetry telemetry = new PlanTelemetry(TEST_FUNCTION_REGISTRY);
+    QueryParams queryParams = new QueryParams();
+    ProjectId projectId = ProjectId.DEFAULT;
 
     @BeforeClass
     public static void setup() {
@@ -75,13 +90,11 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     @Before
     public void setupTest() {
-        viewService.clearAllViews();
-        viewResolver.clear();
+        viewService.clearAllViewsAndIndices();
+        for (String idx : List.of("emp", "emp1", "emp2", "emp3", "logs")) {
+            addIndex(idx);
+        }
     }
-
-    PlanTelemetry telemetry = new PlanTelemetry(new EsqlFunctionRegistry());
-    QueryParams queryParams = new QueryParams();
-    ProjectId projectId = ProjectId.fromId("1");
 
     public void testPutGet() {
         addView("view1", "FROM emp");
@@ -97,8 +110,187 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view2", "FROM view1");
         addView("view3", "FROM view2");
         LogicalPlan plan = query("FROM view3");
-        LogicalPlan rewritten = viewResolver.replaceViews(plan, this::parse).plan();
-        assertThat(rewritten, matchesPlan(query("FROM emp")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp")));
+    }
+
+    public void testViewExclusion() {
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        LogicalPlan plan = query("FROM view*, -view2");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1")));
+    }
+
+    public void testExclusionWithRemainingIndexMatch() {
+        addView("logs-nginx", "FROM logs-1 | WHERE logs.type == nginx");
+        addIndex("logs-1");
+        LogicalPlan plan = query("FROM logs*, -logs-nginx");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM logs*")));
+    }
+
+    public void testExclusionWithDuplicateViewWildcard() {
+        addView("logs-1", "FROM emp | WHERE logs.type == nginx");
+        LogicalPlan plan = query("FROM logs-*,-logs-1,logs-*");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp | WHERE logs.type == nginx")));
+    }
+
+    public void testExclusionWithDuplicateViewWildcardAndRemainingIndex() {
+        addView("logs-1", "FROM emp | WHERE logs.type == nginx");
+        addIndex("logs-2");
+        LogicalPlan plan = query("FROM logs-*,-logs-1,logs-*");
+        LogicalPlan rewritten = replaceViews(plan);
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        List<LogicalPlan> subqueries = rewritten.children();
+        assertThat(subqueries.size(), equalTo(2));
+        assertThat(
+            subqueries,
+            containsInAnyOrder(matchesPlan(query("FROM logs-*,logs-*")), matchesPlan(query("FROM emp | WHERE logs.type == nginx")))
+        );
+    }
+
+    public void testViewBodyWithExclusionCombined() {
+        addView("safe-logs", "FROM logs*,-logs-secret");
+        addIndex("logs-public");
+        addIndex("logs-secret");
+        LogicalPlan plan = query("FROM safe-logs,logs-secret");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM logs*,-logs-secret,logs-secret")));
+    }
+
+    public void testExclusionWithNoRemainingIndexMatch() {
+        addView("logs-nginx", "FROM logs | WHERE logs.type == nginx");
+        LogicalPlan plan = query("FROM logs*, -logs-nginx");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM logs*")));
+    }
+
+    public void testExclusionPreservedForIndexResolution() {
+        addView("logs1", "FROM logs2");
+        addIndex("logs2");
+        addIndex("logs3");
+        LogicalPlan plan = query("FROM logs*,-logs3");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM logs2,logs*,-logs3")));
+    }
+
+    public void testExclusionMultipleViews() {
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        addView("view3", "FROM emp3");
+        LogicalPlan plan = query("FROM view*, -view1, -view3");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp2")));
+    }
+
+    public void testExclusionAllViews() {
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        LogicalPlan plan = query("FROM view*, -view1, -view2");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM view*")));
+    }
+
+    public void testExclusionKeepingViewWithPipeBody() {
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2 | WHERE emp.age > 30");
+        LogicalPlan plan = query("FROM view*, -view1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp2 | WHERE emp.age > 30")));
+    }
+
+    public void testExclusionWithWildcardExclusionPattern() {
+        addView("view_a1", "FROM emp1");
+        addView("view_a2", "FROM emp2");
+        addView("view_b1", "FROM emp3");
+        LogicalPlan plan = query("FROM view_*, -view_a*");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp3")));
+    }
+
+    public void testExclusionPreservesNestedViewReference() {
+        addView("view_inner", "FROM emp1");
+        addView("view_outer", "FROM view_inner");
+        LogicalPlan plan = query("FROM view_*, -view_inner");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1")));
+    }
+
+    public void testExclusionWithMultiplePipeBodies() {
+        addView("view1", "FROM emp1 | WHERE emp.age > 30");
+        addView("view2", "FROM emp2 | WHERE emp.age < 40");
+        addView("view3", "FROM emp3 | WHERE emp.salary > 50000");
+        LogicalPlan plan = query("FROM view*, -view2");
+        LogicalPlan rewritten = replaceViews(plan);
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        List<LogicalPlan> subqueries = rewritten.children();
+        assertThat(subqueries.size(), equalTo(2));
+        assertThat(
+            subqueries,
+            containsInAnyOrder(
+                matchesPlan(query("FROM emp1 | WHERE emp.age > 30")),
+                matchesPlan(query("FROM emp3 | WHERE emp.salary > 50000"))
+            )
+        );
+    }
+
+    public void testExclusionWithMatchingIndexAndViewExclusion() {
+        addIndex("viewX");
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        LogicalPlan plan = query("FROM view*, -view2");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,view*")));
+    }
+
+    public void testExclusionAllViewsWithIndex() {
+        addIndex("viewX");
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        LogicalPlan plan = query("FROM view*, -view1, -view2");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM view*")));
+    }
+
+    public void testExclusionNonExistingResource() {
+        addIndex("viewX");
+        addView("view1", "FROM emp1");
+        LogicalPlan plan = query("FROM view*, -donotexist");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,view*,-donotexist")));
+    }
+
+    public void testFailureSelector() {
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        LogicalPlan plan = query("FROM view*::failures");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM view*::failures")));
+    }
+
+    public void testConcreteFailureSelector() {
+        addView("view1", "FROM emp1");
+        LogicalPlan plan = query("FROM view1::failures");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM view1::failures")));
+    }
+
+    public void testDataSelector() {
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        addIndex("view3");
+        LogicalPlan plan = query("FROM view*::data");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp2,view*::data")));
+    }
+
+    public void testConcreteDataSelector() {
+        addView("view1", "FROM emp1");
+        LogicalPlan plan = query("FROM view1::data");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1")));
+    }
+
+    public void testCCSRemoteWildcardNotResolvedAsView() {
+        addView("view1", "FROM emp1");
+        LogicalPlan plan = query("FROM *:view1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM *:view1")));
+    }
+
+    public void testCCSExpressionNotResolvedAsView() {
+        addIndex("remote:view1");
+        addView("view1", "FROM emp1");
+        LogicalPlan plan = query("FROM remote:view1, view1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,remote:view1")));
+    }
+
+    public void testCCSWildcardNotResolvedAsView() {
+        addView("view1", "FROM emp1");
+        LogicalPlan plan = query("FROM remote:view*");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM remote:view*")));
     }
 
     public void testReplaceViewPlans() {
@@ -106,8 +298,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view2", "FROM view1 | WHERE emp.age < 40");
         addView("view3", "FROM view2 | WHERE emp.salary > 50000");
         LogicalPlan plan = query("FROM view3");
-        LogicalPlan rewritten = viewResolver.replaceViews(plan, this::parse).plan();
-        assertThat(rewritten, matchesPlan(query("FROM emp | WHERE emp.age > 30 | WHERE emp.age < 40 | WHERE emp.salary > 50000")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp | WHERE emp.age > 30 | WHERE emp.age < 40 | WHERE emp.salary > 50000")));
     }
 
     public void testReplaceViews() {
@@ -115,8 +306,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view2", "FROM emp2");
         addView("view3", "FROM emp3");
         LogicalPlan plan = query("FROM view1, view2, view3");
-        LogicalPlan rewritten = viewResolver.replaceViews(plan, this::parse).plan();
-        assertThat(rewritten, matchesPlan(query("FROM emp1, emp2, emp3")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1, emp2, emp3")));
     }
 
     public void testReplaceViewsPlans() {
@@ -124,7 +314,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view2", "FROM emp2 | WHERE emp.age < 40");
         addView("view3", "FROM emp3 | WHERE emp.salary > 50000");
         LogicalPlan plan = query("FROM view1, view2, view3");
-        LogicalPlan rewritten = viewResolver.replaceViews(plan, this::parse).plan();
+        LogicalPlan rewritten = replaceViews(plan);
         // We cannot express the expected plan easily, so we check its structure instead
         assertThat(rewritten, instanceOf(UnionAll.class));
         List<LogicalPlan> subqueries = rewritten.children();
@@ -139,13 +329,33 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         );
     }
 
+    public void testReplaceViewsInForkMultipleBranches() {
+        addView("view1", "FROM emp | WHERE emp.age > 25");
+        LogicalPlan plan = query("FROM view1 | FORK (WHERE emp.age < 50) (WHERE emp.age > 35) (STATS count = COUNT(*))");
+        Fork fork = (Fork) replaceViews(plan);
+        List<LogicalPlan> children = fork.children();
+        assertThat(children.size(), equalTo(3));
+
+        assertThat(
+            as(children.get(0), Eval.class).child(),
+            equalToIgnoringIds(query("FROM emp | WHERE emp.age > 25 | WHERE emp.age < 50"))
+        );
+        assertThat(
+            as(children.get(1), Eval.class).child(),
+            equalToIgnoringIds(query("FROM emp | WHERE emp.age > 25 | WHERE emp.age > 35"))
+        );
+        assertThat(
+            as(children.get(2), Eval.class).child(),
+            equalToIgnoringIds(query("FROM emp | WHERE emp.age > 25 | STATS count = COUNT(*)"))
+        );
+    }
+
     public void testReplaceViewsWildcard() {
         addView("view1", "FROM emp1");
         addView("view2", "FROM emp2");
         addView("view3", "FROM emp3");
         LogicalPlan plan = query("FROM view*");
-        LogicalPlan rewritten = viewResolver.replaceViews(plan, this::parse).plan();
-        assertThat(rewritten, matchesPlan(query("FROM emp1, emp2, emp3")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1, emp2, emp3")));
     }
 
     public void testReplaceViewsWildcardWithIndex() {
@@ -154,8 +364,30 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view2", "FROM emp2");
         addView("view3", "FROM emp3");
         LogicalPlan plan = query("FROM view*");
-        LogicalPlan rewritten = viewResolver.replaceViews(plan, this::parse).plan();
-        assertThat(rewritten, matchesPlan(query("FROM view*, emp1, emp2, emp3")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp2,emp3,view*")));
+    }
+
+    public void testMixedViewAndIndexMergedUnresolvedRelation() {
+        addView("view1", "FROM emp");
+        addIndex("index1");
+        LogicalPlan plan = query("FROM view1, index1");
+        LogicalPlan rewritten = replaceViews(plan);
+        assertThat(rewritten, instanceOf(UnresolvedRelation.class));
+        assertThat(as(rewritten, UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("emp,index1"));
+    }
+
+    public void testMissingIndexPreservedWhenMixedWithView() {
+        addView("view1", "FROM emp");
+        LogicalPlan plan = query("FROM view1, missing-index");
+        LogicalPlan rewritten = replaceViews(plan);
+        assertThat(as(rewritten, UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("emp,missing-index"));
+    }
+
+    public void testMissingIndexPreservedWhenMixedWithViewWithPipes() {
+        addView("view1", "FROM emp | WHERE emp.age > 30");
+        LogicalPlan plan = query("FROM view1, missing-index");
+        LogicalPlan rewritten = replaceViews(plan);
+        assertThat(rewritten, instanceOf(UnionAll.class));
     }
 
     public void testReplaceViewsPlanWildcard() {
@@ -163,7 +395,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_2", "FROM emp2 | WHERE emp.age < 40");
         addView("view_3", "FROM emp3 | WHERE emp.salary > 50000");
         LogicalPlan plan = query("FROM view*");
-        LogicalPlan rewritten = viewResolver.replaceViews(plan, this::parse).plan();
+        LogicalPlan rewritten = replaceViews(plan);
         // We cannot express the expected plan easily, so we check its structure instead
         assertThat(rewritten, instanceOf(UnionAll.class));
         List<LogicalPlan> subqueries = rewritten.children();
@@ -184,7 +416,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_2", "FROM emp2 | WHERE emp.age < 40");
         addView("view_3", "FROM emp3 | WHERE emp.salary > 50000");
         LogicalPlan plan = query("FROM view*");
-        LogicalPlan rewritten = viewResolver.replaceViews(plan, this::parse).plan();
+        LogicalPlan rewritten = replaceViews(plan);
         // We cannot express the expected plan easily, so we check its structure instead
         assertThat(rewritten, instanceOf(UnionAll.class));
         List<LogicalPlan> subqueries = rewritten.children();
@@ -207,8 +439,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_1_2", "FROM view_1, view_2");
         addView("view_1_3", "FROM view_1, view_3");
         LogicalPlan plan = query("FROM view_1_*");
-        LogicalPlan rewritten = viewResolver.replaceViews(plan, this::parse).plan();
-        assertThat(rewritten, matchesPlan(query("FROM emp1,emp3,emp1,emp2")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp3,emp1,emp2")));
     }
 
     public void testReplaceViewsNestedWildcardWithIndex() {
@@ -219,8 +450,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_1_2", "FROM view_1, view_2");
         addView("view_1_3", "FROM view_1, view_3");
         LogicalPlan plan = query("FROM view_1_*");
-        LogicalPlan rewritten = viewResolver.replaceViews(plan, this::parse).plan();
-        assertThat(rewritten, matchesPlan(query("FROM view_1_*,emp1,emp3,emp1,emp2")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp3,emp1,emp2,view_1_*")));
     }
 
     public void testReplaceViewsNestedWildcards() {
@@ -234,8 +464,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_3_1", "FROM view_3, view_1");
         addView("view_3_2", "FROM view_3, view_2");
         LogicalPlan plan = query("FROM view_1_*, view_2_*, view_3_*");
-        LogicalPlan rewritten = viewResolver.replaceViews(plan, this::parse).plan();
-        assertThat(rewritten, matchesPlan(query("FROM emp1,emp3,emp1,emp2,emp2,emp1,emp2,emp3,emp3,emp1,emp3,emp2")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp3,emp1,emp2,emp2,emp1,emp2,emp3,emp3,emp1,emp3,emp2")));
     }
 
     public void testReplaceViewsNestedWildcardsWithIndex() {
@@ -250,8 +479,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_3_1", "FROM view_3, view_1");
         addView("view_3_2", "FROM view_3, view_2");
         LogicalPlan plan = query("FROM view_1_*, view_2_*, view_3_*");
-        LogicalPlan rewritten = viewResolver.replaceViews(plan, this::parse).plan();
-        assertThat(rewritten, matchesPlan(query("FROM view_2_*,emp1,emp3,emp1,emp2,emp2,emp1,emp2,emp3,emp3,emp1,emp3,emp2")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp3,emp1,emp2,emp2,emp1,emp2,emp3,emp3,emp1,emp3,emp2,view_2_*")));
     }
 
     public void testReplaceViewsNestedWildcardsWithIndexes() {
@@ -268,10 +496,10 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_3_1", "FROM view_3, view_1");
         addView("view_3_2", "FROM view_3, view_2");
         LogicalPlan plan = query("FROM view_1_*, view_2_*, view_3_*");
-        LogicalPlan rewritten = viewResolver.replaceViews(plan, this::parse).plan();
+        LogicalPlan rewritten = replaceViews(plan);
         assertThat(
             rewritten,
-            matchesPlan(query("FROM view_1_*,view_2_*,view_3_*,emp1,emp3,emp1,emp2,emp2,emp1,emp2,emp3,emp3,emp1,emp3,emp2"))
+            matchesPlan(query("FROM emp1,emp3,emp1,emp2,emp2,emp1,emp2,emp3,emp3,emp1,emp3,emp2,view_1_*,view_2_*,view_3_*"))
         );
     }
 
@@ -282,7 +510,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_1_2", "FROM view_1, view_2");
         addView("view_1_3", "FROM view_1, view_3");
         LogicalPlan plan = query("FROM view_1_*");
-        LogicalPlan rewritten = viewResolver.replaceViews(plan, this::parse).plan();
+        LogicalPlan rewritten = replaceViews(plan);
         // We cannot express the expected plan easily, so we check its structure instead
         assertThat(rewritten, instanceOf(UnionAll.class));
         List<LogicalPlan> subqueries = rewritten.children();
@@ -312,7 +540,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_1_2", "FROM view_1, view_2");
         addView("view_1_3", "FROM view_1, view_3");
         LogicalPlan plan = query("FROM view_1_*");
-        LogicalPlan rewritten = viewResolver.replaceViews(plan, this::parse).plan();
+        LogicalPlan rewritten = replaceViews(plan);
         // We cannot express the expected plan easily, so we check its structure instead
         assertThat(rewritten, instanceOf(UnionAll.class));
         List<LogicalPlan> subqueries = rewritten.children();
@@ -346,7 +574,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_3_1", "FROM view_3, view_1");
         addView("view_3_2", "FROM view_3, view_2");
         LogicalPlan plan = query("FROM view_1_*, view_2_*, view_3_*");
-        LogicalPlan rewritten = viewResolver.replaceViews(plan, this::parse).plan();
+        LogicalPlan rewritten = replaceViews(plan);
         // We cannot express the expected plan easily, so we check its structure instead
         assertThat(rewritten, instanceOf(UnionAll.class));
         List<LogicalPlan> subqueries = rewritten.children();
@@ -382,12 +610,122 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view11", "FROM view10");
 
         // FROM view11 should fail
-        Exception e = expectThrows(VerificationException.class, () -> viewResolver.replaceViews(query("FROM view11"), this::parse));
-        assertThat(e.getMessage(), startsWith("The maximum allowed view depth of 10 has been exceeded"));
-
+        {
+            Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM view11")));
+            assertThat(e.getMessage(), startsWith("The maximum allowed view depth of 10 has been exceeded"));
+        }
         // But FROM view10 should work
-        LogicalPlan rewritten = viewResolver.replaceViews(query("FROM view10"), this::parse).plan();
-        assertThat(rewritten, matchesPlan(query("FROM emp")));
+        {
+            LogicalPlan rewritten = replaceViews(query("FROM view10"));
+            assertThat(rewritten, matchesPlan(query("FROM emp")));
+        }
+    }
+
+    public void testCircularViewSelfReference() {
+        addView("view_a", "FROM view_a");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM view_a")));
+        assertThat(e.getMessage(), containsString("circular view reference 'view_a'"));
+    }
+
+    public void testCircularViewMutualReference() {
+        addView("view_a", "FROM view_b");
+        addView("view_b", "FROM view_a");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM view_a")));
+        assertThat(e.getMessage(), containsString("circular view reference 'view_a'"));
+        assertThat(e.getMessage(), containsString("view_a -> view_b"));
+    }
+
+    public void testCircularViewChain() {
+        addView("chain_a", "FROM chain_b");
+        addView("chain_b", "FROM chain_c");
+        addView("chain_c", "FROM chain_a");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM chain_a")));
+        assertThat(e.getMessage(), containsString("circular view reference 'chain_a'"));
+        assertThat(e.getMessage(), containsString("chain_a -> chain_b -> chain_c"));
+    }
+
+    public void testCircularViewViaWildcard() {
+        addView("v_1", "FROM v_*");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM v_*")));
+        assertThat(e.getMessage(), containsString("circular view reference 'v_1'"));
+    }
+
+    public void testCircularViewViaWildcardWithIndex() {
+        addIndex("v_idx");
+        addView("v_1", "FROM v_*");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM v_*")));
+        assertThat(e.getMessage(), containsString("circular view reference 'v_1'"));
+    }
+
+    public void testNonCircularViewInMultiSource() {
+        addView("view_a", "FROM emp");
+        addView("view_b", "FROM view_c");
+        addView("view_c", "FROM view_a");
+        // view_b -> view_c -> view_a -> emp is a valid chain, not circular.
+        // view_a appearing as both a direct source and a transitive dependency of view_b is fine.
+        assertThat(replaceViews(query("FROM view_a, view_b")), matchesPlan(query("FROM emp,emp")));
+    }
+
+    public void testCircularViewWithPipes() {
+        addView("view_a", "FROM view_b | WHERE emp.age > 30");
+        addView("view_b", "FROM view_a | WHERE emp.salary > 50000");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM view_a")));
+        assertThat(e.getMessage(), containsString("circular view reference 'view_a'"));
+        assertThat(e.getMessage(), containsString("view_a -> view_b"));
+    }
+
+    public void testCircularViewInFork() {
+        addView("view_a", "FROM view_b");
+        addView("view_b", "FROM view_a");
+        Exception e = expectThrows(
+            VerificationException.class,
+            () -> replaceViews(query("FROM view_a | FORK (WHERE emp.age > 30) (WHERE emp.age < 50)"))
+        );
+        assertThat(e.getMessage(), containsString("circular view reference 'view_a'"));
+    }
+
+    public void testCircularViewExcludedByWildcard() {
+        addView("v_1", "FROM v_*");
+        LogicalPlan plan = query("FROM v_*,-v_1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM v_*")));
+    }
+
+    public void testCircularViewExcludedByConcreteExclusion() {
+        addView("view_a", "FROM view_b");
+        addView("view_b", "FROM view_a");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM view_a,-view_b")));
+        assertThat(e.getMessage(), containsString("circular view reference 'view_a'"));
+    }
+
+    public void testCircularViewBodyWithSelfExclusion() {
+        addView("v_1", "FROM v_*,-v_1");
+        LogicalPlan plan = query("FROM v_1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM v_*")));
+    }
+
+    public void testCircularViewBodyWithSelfExclusionAndIndex() {
+        addIndex("v_idx");
+        addView("v_1", "FROM v_*,-v_1");
+        LogicalPlan plan = query("FROM v_1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM v_*")));
+    }
+
+    public void testCircularViewBodyWithSelfExclusionAndOtherView() {
+        addView("v_1", "FROM v_*,-v_1");
+        addView("v_2", "FROM emp");
+        LogicalPlan plan = query("FROM v_1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp")));
+    }
+
+    public void testWildcardNonCircularReferenceFromViewSibling() {
+        addIndex("idx_otel");
+        addIndex("idx_otel_linux");
+        addView("wired_otel", "FROM idx_otel, wired_otel_linux");
+        addView("wired_otel_linux", "FROM idx_otel_linux");
+        addView("wired_otel_query", "FROM wired_otel");
+
+        LogicalPlan plan = query("FROM wired_otel_*");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM idx_otel_linux,idx_otel_linux,idx_otel")));
     }
 
     public void testModifiedViewDepth() {
@@ -396,22 +734,26 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
                 Settings.builder().put(ViewResolver.MAX_VIEW_DEPTH_SETTING.getKey(), 1).build()
             )
         ) {
+            customViewService.addIndex(projectId, "emp");
             addView("view1", "FROM emp", customViewService);
             addView("view2", "FROM view1", customViewService);
             addView("view3", "FROM view2", customViewService);
 
             InMemoryViewResolver customViewResolver = customViewService.getViewResolver();
-
-            // FROM view2 should fail
-            Exception e = expectThrows(
-                VerificationException.class,
-                () -> customViewResolver.replaceViews(query("FROM view2"), this::parse)
-            );
-            assertThat(e.getMessage(), startsWith("The maximum allowed view depth of 1 has been exceeded"));
-
+            {
+                PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
+                customViewResolver.replaceViews(query("FROM view2"), this::parse, future);
+                // FROM view2 should fail
+                Exception e = expectThrows(VerificationException.class, future::actionGet);
+                assertThat(e.getMessage(), startsWith("The maximum allowed view depth of 1 has been exceeded"));
+            }
             // But FROM view1 should work
-            LogicalPlan rewritten = customViewResolver.replaceViews(query("FROM view1"), this::parse).plan();
-            assertThat(rewritten, matchesPlan(query("FROM emp")));
+            {
+                PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
+                customViewResolver.replaceViews(query("FROM view1"), this::parse, future);
+                LogicalPlan rewritten = future.actionGet().plan();
+                assertThat(rewritten, matchesPlan(query("FROM emp")));
+            }
         } catch (Exception e) {
             throw new AssertionError("unexpected exception", e);
         }
@@ -467,6 +809,89 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             assertThat(e.getMessage(), containsString("view query is too large: 7 characters, the maximum allowed is 6"));
         } catch (Exception e) {
             throw new AssertionError("unexpected exception", e);
+        }
+    }
+
+    public void testViewWithDateMathInBody() {
+        addDateMathIndex("logs-");
+        addView("view1", "FROM <logs-{now/d}>");
+        LogicalPlan plan = query("FROM view1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM <logs-{now/d}>")));
+    }
+
+    public void testNestedViewWithDateMathInBody() {
+        addDateMathIndex("logs-");
+        addView("view1", "FROM <logs-{now/d}>");
+        addView("view2", "FROM view1");
+        LogicalPlan plan = query("FROM view2");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM <logs-{now/d}>")));
+    }
+
+    public void testViewWithDateMathAndPipeInBody() {
+        addDateMathIndex("logs-");
+        addView("view1", "FROM <logs-{now/d}> | WHERE log.level == \"error\"");
+        LogicalPlan plan = query("FROM view1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM <logs-{now/d}> | WHERE log.level == \"error\"")));
+    }
+
+    public void testDateMathResolvesToViewName() {
+        var date = LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC);
+        var resolvedName = DateTimeFormatter.ofPattern("'view-'yyyy.MM.dd", Locale.ROOT).format(date);
+        addView(resolvedName, "FROM emp");
+        try {
+            LogicalPlan plan = query("FROM <view-{now/d{yyyy.MM.dd}}>");
+            assertThat(replaceViews(plan), matchesPlan(query("FROM emp")));
+        } catch (AssertionError e) {
+            assumeTrue("Date must stay the same during the test", Objects.equals(date, LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC)));
+            throw e;
+        }
+    }
+
+    public void testDateMathAlongsideConcreteView() {
+        var date = LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC);
+        var resolvedName = DateTimeFormatter.ofPattern("'logs-'yyyy.MM.dd", Locale.ROOT).format(date);
+        addIndex(resolvedName);
+        addView("view1", "FROM emp");
+        try {
+            LogicalPlan plan = query("FROM <logs-{now/d{yyyy.MM.dd}}>, view1");
+            assertThat(replaceViews(plan), matchesPlan(query("FROM emp,<logs-{now/d{yyyy.MM.dd}}>")));
+        } catch (AssertionError e) {
+            assumeTrue("Date must stay the same during the test", Objects.equals(date, LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC)));
+            throw e;
+        }
+    }
+
+    public void testDateMathAlongsideViewWildcard() {
+        var date = LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC);
+        var resolvedName = DateTimeFormatter.ofPattern("'logs-'yyyy.MM.dd", Locale.ROOT).format(date);
+        addIndex(resolvedName);
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        try {
+            LogicalPlan plan = query("FROM <logs-{now/d{yyyy.MM.dd}}>, view*");
+            assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp2,<logs-{now/d{yyyy.MM.dd}}>")));
+        } catch (AssertionError e) {
+            assumeTrue("Date must stay the same during the test", Objects.equals(date, LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC)));
+            throw e;
+        }
+    }
+
+    public void testDateMathAlongsideViewWithPipeBody() {
+        var date = LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC);
+        var resolvedName = DateTimeFormatter.ofPattern("'logs-'yyyy.MM.dd", Locale.ROOT).format(date);
+        addIndex(resolvedName);
+        addView("view1", "FROM emp | WHERE emp.age > 30");
+        try {
+            LogicalPlan plan = query("FROM <logs-{now/d{yyyy.MM.dd}}>, view1");
+            LogicalPlan rewritten = replaceViews(plan);
+            assertThat(rewritten, instanceOf(UnionAll.class));
+            List<LogicalPlan> subqueries = rewritten.children();
+            assertThat(subqueries.size(), equalTo(2));
+            assertThat(subqueries.getFirst(), matchesPlan(query("FROM <logs-{now/d{yyyy.MM.dd}}>")));
+            assertThat(subqueries.get(1), matchesPlan(query("FROM emp | WHERE emp.age > 30")));
+        } catch (AssertionError e) {
+            assumeTrue("Date must stay the same during the test", Objects.equals(date, LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC)));
+            throw e;
         }
     }
 
@@ -526,8 +951,20 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         );
     }
 
+    private LogicalPlan replaceViews(LogicalPlan plan) {
+        PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
+        viewResolver.replaceViews(plan, this::parse, future);
+        return future.actionGet().plan();
+    }
+
     private void addIndex(String name) {
-        viewResolver.addIndex(name);
+        viewService.addIndex(projectId, name);
+    }
+
+    private void addDateMathIndex(String prefix) {
+        addIndex(
+            prefix + LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC).format(DateTimeFormatter.ofPattern("yyyy.MM.dd", Locale.ROOT))
+        );
     }
 
     private void addView(String name, String query) {
@@ -554,7 +991,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan parse(String query, String viewName) {
-        return parser.parseView(
+        return TEST_PARSER.parseView(
             query,
             queryParams,
             new SettingsValidationContext(false, false),
@@ -634,5 +1071,13 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             generateCombinations(matchers, size, i + 1, current, result);
             current.remove(current.size() - 1);
         }
+    }
+
+    protected LogicalPlan query(String e) {
+        return query(e, new QueryParams());
+    }
+
+    LogicalPlan query(String e, QueryParams params) {
+        return TEST_PARSER.parseQuery(e, params);
     }
 }

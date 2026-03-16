@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 @SuppressWarnings("RegexpMultiline")
@@ -86,5 +87,48 @@ public class StoragePathTests extends ESTestCase {
     public void testGlobPartBraces() {
         StoragePath path = StoragePath.of("s3://b/data/*.{parquet,csv}");
         assertEquals("*.{parquet,csv}", path.globPart());
+    }
+
+    // -- file:// URI handling (including Windows paths) --
+
+    public void testFileUriUnixAbsolute() {
+        StoragePath path = StoragePath.of("file:///home/user/data.parquet");
+        assertEquals("file", path.scheme());
+        assertEquals("", path.host());
+        assertEquals(-1, path.port());
+        assertEquals("/home/user/data.parquet", path.path());
+    }
+
+    public void testFileUriWindowsDriveLetter() {
+        StoragePath path = StoragePath.of("file://C:/Users/data/file.txt");
+        assertEquals("file", path.scheme());
+        assertEquals("", path.host());
+        assertEquals("/C:/Users/data/file.txt", path.path());
+    }
+
+    public void testFileUriWindowsBackslashes() {
+        StoragePath path = StoragePath.of("file://C:\\Users\\data\\file.txt");
+        assertEquals("file", path.scheme());
+        assertEquals("", path.host());
+        assertEquals("/C:/Users/data/file.txt", path.path());
+    }
+
+    public void testFileUriWindowsTripleSlash() {
+        StoragePath path = StoragePath.of("file:///C:/path/to/file.parquet");
+        assertEquals("file", path.scheme());
+        assertEquals("", path.host());
+        assertEquals("/C:/path/to/file.parquet", path.path());
+    }
+
+    public void testFileUriFunction() {
+        java.nio.file.Path p = PathUtils.get("/tmp/test/data.parquet");
+        String uri = StoragePath.fileUri(p);
+        String absPath = p.toAbsolutePath().toString().replace('\\', '/');
+        if (absPath.startsWith("/") == false) {
+            absPath = "/" + absPath;
+        }
+        assertEquals("file://" + absPath, uri);
+        StoragePath sp = StoragePath.of(uri);
+        assertEquals(absPath, sp.path());
     }
 }

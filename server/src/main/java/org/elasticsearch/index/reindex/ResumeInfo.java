@@ -24,6 +24,12 @@ import java.util.Optional;
 /**
  * Holds resume state information for a {@link BulkByScrollTask} task to be resumed from a previous run. It may contain a WorkerResumeInfo
  * which keeps the state for a single worker task, or a map of SliceResumeInfo which keeps the state for each slice of a leader task.
+ *
+ * Note: For sliced tasks, resume info must include all slices, including those that are already completed. This ensures that the final
+ * task has a complete result from all slices. A task may be resumed multiple times, so information for completed slices must be carried
+ * forward to each subsequent resume until the task is fully completed.
+ *
+ * TODO: we can use List instead of Map for since the keys are required to be 0-based and contiguous.
  */
 public record ResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Integer, SliceStatus> slices) implements Writeable {
 
@@ -61,11 +67,19 @@ public record ResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Intege
         return slices == null ? Optional.empty() : Optional.ofNullable(slices.get(sliceId));
     }
 
+    public boolean isSliceCompleted(int sliceId) {
+        Optional<SliceStatus> slice = getSlice(sliceId);
+        if (slice.isEmpty()) {
+            throw new IllegalArgumentException("slice id " + sliceId + " does not exist in resume info");
+        }
+        return slice.get().isCompleted();
+    }
+
     /**
      * Resume information for a single worker of a BulkByScrollTask.
      */
     public interface WorkerResumeInfo extends NamedWriteable {
-        long startTime();
+        long startTimeEpochMillis();
 
         BulkByScrollTask.Status status();
     }
@@ -73,9 +87,12 @@ public record ResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Intege
     /**
      * Resume information for a scroll-based BulkByScrollTask worker.
      */
-    public record ScrollWorkerResumeInfo(String scrollId, long startTime, BulkByScrollTask.Status status, @Nullable Version remoteVersion)
-        implements
-            WorkerResumeInfo {
+    public record ScrollWorkerResumeInfo(
+        String scrollId,
+        long startTimeEpochMillis,
+        BulkByScrollTask.Status status,
+        @Nullable Version remoteVersion
+    ) implements WorkerResumeInfo {
         public static final String NAME = "ScrollWorkerResumeInfo";
 
         public ScrollWorkerResumeInfo {
@@ -90,7 +107,7 @@ public record ResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Intege
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(scrollId);
-            out.writeLong(startTime);
+            out.writeLong(startTimeEpochMillis);
             status.writeTo(out);
             out.writeOptional((output, version) -> Version.writeVersion(version, output), remoteVersion);
         }
@@ -123,6 +140,14 @@ public record ResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Intege
             out.writeOptionalWriteable(response);
             out.writeOptionalException(failure);
         }
+
+        public Optional<BulkByScrollResponse> getResponse() {
+            return Optional.ofNullable(response);
+        }
+
+        public Optional<Exception> getFailure() {
+            return Optional.ofNullable(failure);
+        }
     }
 
     /**
@@ -150,6 +175,10 @@ public record ResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Intege
             out.writeVInt(sliceId);
             out.writeOptionalNamedWriteable(resumeInfo);
             out.writeOptionalWriteable(result);
+        }
+
+        public boolean isCompleted() {
+            return result != null;
         }
     }
 

@@ -12,7 +12,8 @@ package org.elasticsearch.index.mapper.blockloader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOSupplier;
+import org.apache.lucene.util.IOFunction;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
@@ -33,13 +34,13 @@ public class ConstantBytes implements BlockLoader {
     }
 
     @Override
-    public IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
-        return () -> reader;
+    public IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
+        return breaker -> reader;
     }
 
     @Override
-    public RowStrideReader rowStrideReader(LeafReaderContext context) {
-        return reader;
+    public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) {
+        return null;
     }
 
     @Override
@@ -62,15 +63,10 @@ public class ConstantBytes implements BlockLoader {
         return "ConstantBytes[" + value + "]";
     }
 
-    private class Reader implements AllReader {
+    private class Reader implements ColumnAtATimeReader {
         @Override
         public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) {
             return factory.constantBytes(value, docs.count() - offset);
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) {
-            ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(value);
         }
 
         @Override
@@ -82,5 +78,8 @@ public class ConstantBytes implements BlockLoader {
         public String toString() {
             return "constant[" + value + "]";
         }
+
+        @Override
+        public void close() {}
     }
 }

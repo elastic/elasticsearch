@@ -35,13 +35,15 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
     private final CharacterRunAutomaton automaton;
     private final String pattern;
     // string representation without backquotes
-    private final String name;
+    // Cannot rely on NamedExpression.name: the UnresolvedNamedExpression superclass throws on name()
+    // and stores "<unresolved>" as the internal name field.
+    private final String actualName;
 
     public UnresolvedNamePattern(Source source, CharacterRunAutomaton automaton, String patternString, String name) {
         super(source, emptyList());
         this.automaton = automaton;
         this.pattern = patternString;
-        this.name = name;
+        this.actualName = name;
     }
 
     @Override
@@ -58,9 +60,10 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
         return automaton.run(string);
     }
 
+    // override because the super class throws
     @Override
     public String name() {
-        return name;
+        return actualName;
     }
 
     public String pattern() {
@@ -74,7 +77,7 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
 
     @Override
     protected NodeInfo<UnresolvedNamePattern> info() {
-        return NodeInfo.create(this, UnresolvedNamePattern::new, automaton, pattern, name);
+        return NodeInfo.create(this, UnresolvedNamePattern::new, automaton, pattern, actualName);
     }
 
     @Override
@@ -99,13 +102,13 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
 
     @Override
     protected int innerHashCode(boolean ignoreIds) {
-        return Objects.hash(super.innerHashCode(true), pattern);
+        return Objects.hash(super.innerHashCode(true), pattern, actualName);
     }
 
     @Override
     protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (UnresolvedNamePattern) o;
-        return super.innerEquals(other, true) && Objects.equals(pattern, other.pattern);
+        return super.innerEquals(other, true) && Objects.equals(pattern, other.pattern) && Objects.equals(actualName, other.actualName);
     }
 
     @Override

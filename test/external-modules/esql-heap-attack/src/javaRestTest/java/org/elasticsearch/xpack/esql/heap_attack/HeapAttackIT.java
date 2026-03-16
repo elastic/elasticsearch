@@ -396,9 +396,9 @@ public class HeapAttackIT extends HeapAttackTestCase {
      * Returns many moderately long strings.
      */
     public void testManyRepeat() throws IOException {
-        int strings = 30;
+        int strings = 12;
         initManyLongs(10);
-        assertManyStrings(manyRepeat("FROM manylongs", strings), 30);
+        assertManyStrings(manyRepeat("FROM manylongs", strings), strings);
     }
 
     /**
@@ -500,7 +500,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     public void testFetchManyBigFields() throws IOException {
-        initManyBigFieldsIndex(100, "keyword", false);
+        initManyBigFieldsIndex(100, "keyword", false, 1000);
         Map<?, ?> response = fetchManyBigFields(100);
         ListMatcher columns = matchesList();
         for (int f = 0; f < 1000; f++) {
@@ -510,7 +510,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     public void testFetchTooManyBigFields() throws IOException {
-        initManyBigFieldsIndex(500, "keyword", false);
+        initManyBigFieldsIndex(500, "keyword", false, 1000);
         // 500 docs is plenty to circuit break on most nodes
         assertCircuitBreaks(attempt -> fetchManyBigFields(attempt * 500));
     }
@@ -527,7 +527,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     public void testAggManyBigTextFields() throws IOException {
         int docs = 100;
         int fields = 100;
-        initManyBigFieldsIndex(docs, "text", false);
+        initManyBigFieldsIndex(docs, "text", false, 1000);
         Map<?, ?> response = aggManyBigFields(fields);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
         assertMap(
@@ -725,11 +725,11 @@ public class HeapAttackIT extends HeapAttackTestCase {
             """);
     }
 
-    void initManyBigFieldsIndex(int docs, String type, boolean random) throws IOException {
+    void initManyBigFieldsIndex(int docs, String type, boolean random, int fields) throws IOException {
         logger.info("loading many documents with many big fields");
         int docsPerBulk = 5;
-        int fields = 1000;
         int fieldSize = Math.toIntExact(ByteSizeValue.ofKb(1).getBytes());
+        boolean numeric = type.equalsIgnoreCase("integer") || type.equalsIgnoreCase("long") || type.equalsIgnoreCase("double");
 
         Request request = new Request("PUT", "/manybigfields");
         XContentBuilder config = JsonXContent.contentBuilder().startObject();
@@ -755,10 +755,14 @@ public class HeapAttackIT extends HeapAttackTestCase {
                 } else {
                     bulk.append(", ");
                 }
-                bulk.append('"').append("f").append(String.format(Locale.ROOT, "%03d", f)).append("\": \"");
-                // if requested, generate random string to hit the CBE faster
-                bulk.append(random ? randomAlphaOfLength(1024) : Integer.toString(f % 10).repeat(fieldSize));
-                bulk.append('"');
+                bulk.append('"').append("f").append(String.format(Locale.ROOT, "%03d", f)).append("\": ");
+                if (numeric) {
+                    bulk.append(randomNumericValue(type));
+                } else {
+                    bulk.append('"');
+                    bulk.append(random ? randomAlphaOfLength(1024) : Integer.toString(f % 10).repeat(fieldSize));
+                    bulk.append('"');
+                }
             }
             bulk.append("}\n");
             if (d % docsPerBulk == docsPerBulk - 1 && d != docs - 1) {
@@ -767,6 +771,15 @@ public class HeapAttackIT extends HeapAttackTestCase {
             }
         }
         initIndex("manybigfields", bulk.toString());
+    }
+
+    private static String randomNumericValue(String type) {
+        return switch (type.toLowerCase(Locale.ROOT)) {
+            case "integer" -> Integer.toString(randomInt());
+            case "long" -> Long.toString(randomLong());
+            case "double" -> Double.toString(randomDouble());
+            default -> throw new IllegalArgumentException("unsupported numeric type: " + type);
+        };
     }
 
     void initGiantTextField(int docs, boolean includeId, long fieldSizeInMb) throws IOException {

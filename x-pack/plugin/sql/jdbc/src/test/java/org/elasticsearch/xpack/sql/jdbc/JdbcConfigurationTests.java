@@ -25,6 +25,8 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.AUTH_API_KEY;
+import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.AUTH_USER;
 import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.CONNECT_TIMEOUT;
 import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.NETWORK_TIMEOUT;
 import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.PAGE_SIZE;
@@ -33,6 +35,7 @@ import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.PROPERT
 import static org.elasticsearch.xpack.sql.client.ConnectionConfiguration.QUERY_TIMEOUT;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcConfiguration.URL_FULL_PREFIX;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcConfiguration.URL_PREFIX;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -398,5 +401,41 @@ public class JdbcConfigurationTests extends ESTestCase {
     private void assertJdbcSqlException(String wrongSetting, String correctSetting, String url, Properties props) {
         JdbcSQLException ex = expectThrows(JdbcSQLException.class, () -> JdbcConfiguration.create(url, props, 0));
         assertEquals("Unknown parameter [" + wrongSetting + "]; did you mean [" + correctSetting + "]", ex.getMessage());
+    }
+
+    public void testApiKeyInUrl() throws Exception {
+        String apiKey = "test_api_key_encoded";
+        JdbcConfiguration ci = ci(jdbcPrefix() + "test:9200?apiKey=" + apiKey);
+        assertThat(ci.apiKey(), is(apiKey));
+        assertNull(ci.authUser());
+        assertNull(ci.authPass());
+    }
+
+    public void testApiKeyInProperties() throws Exception {
+        String apiKey = "test_api_key_encoded";
+        Properties props = new Properties();
+        props.setProperty(AUTH_API_KEY, apiKey);
+        JdbcConfiguration ci = JdbcConfiguration.create(jdbcPrefix() + "test:9200", props, 0);
+        assertThat(ci.apiKey(), is(apiKey));
+        assertNull(ci.authUser());
+        assertNull(ci.authPass());
+    }
+
+    public void testApiKeyAndUserMutuallyExclusive() {
+        String apiKey = "test_api_key_encoded";
+        Properties props = new Properties();
+        props.setProperty(AUTH_API_KEY, apiKey);
+        props.setProperty(AUTH_USER, "user");
+        JdbcSQLException ex = expectThrows(JdbcSQLException.class, () -> JdbcConfiguration.create(jdbcPrefix() + "test:9200", props, 0));
+        assertThat(ex.getMessage(), containsString("Cannot use both API key and basic authentication"));
+    }
+
+    public void testApiKeyAndUserInUrlMutuallyExclusive() {
+        String apiKey = "test_api_key_encoded";
+        JdbcSQLException ex = expectThrows(
+            JdbcSQLException.class,
+            () -> ci(jdbcPrefix() + "test:9200?apiKey=" + apiKey + "&user=testuser")
+        );
+        assertThat(ex.getMessage(), containsString("Cannot use both API key and basic authentication"));
     }
 }

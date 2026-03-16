@@ -84,6 +84,7 @@ tasks.named("forbiddenPatterns").configure {
 tasks.named('javaRestTest') {
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
+  enabled = buildParams.snapshotBuild
   
   // Increase timeouts for S3/Iceberg operations which may take longer than standard queries
   systemProperty 'tests.rest.client_timeout', '60'

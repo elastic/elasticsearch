@@ -8,6 +8,11 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 
+versions << [
+  'hadoop'  : '3.4.2',
+  'parquet' : '1.16.0',
+]
+
 esplugin {
   name = 'esql-datasource-parquet'
   description = 'Parquet format support for ESQL external data sources'
@@ -28,7 +33,7 @@ dependencies {
   compileOnly project(xpackModule('esql:compute'))
   
   // Parquet format support - using parquet-hadoop-bundle to avoid jar hell from duplicate shaded classes
-  implementation('org.apache.parquet:parquet-hadoop-bundle:1.16.0')
+  implementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
   
   // Hadoop dependencies - required at both compile time and runtime for Parquet operations.
   // 
@@ -37,8 +42,8 @@ dependencies {
   // 2. ParquetReadOptions.Builder() constructor creates HadoopParquetConfiguration internally,
   //    which requires the Configuration class to be present even when using non-Hadoop code paths
   // 3. parquet-hadoop-bundle includes shaded Parquet classes but not Hadoop Configuration
-  implementation('org.apache.hadoop:hadoop-client-api:3.4.1')
-  implementation('org.apache.hadoop:hadoop-client-runtime:3.4.1')
+  implementation('org.apache.hadoop:hadoop-client-api:3.4.2')
+  implementation('org.apache.hadoop:hadoop-client-runtime:3.4.2')
 
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))

@@ -439,24 +439,24 @@ aggregate_metric_double unsortable:
           query: 'FROM test2 | sort agg_metric'
 
 ---
-stats on aggregate_metric_double with partial submetrics:
+stats on aggregate_metric_double with partial submetrics missing sum and count:
   - requires:
       test_runner_features: [capabilities]
       capabilities:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
-      reason: "Support for partial submetrics in aggregate_metric_double"
+          capabilities: [aggregate_metric_double_avg_as_default_metric]
+      reason: "Support for using avg as default metric with std_dev"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test3 | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric) BY k8s.pod.uid | SORT k8s.pod.uid'
+          query: 'FROM test3 | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric), std_dev(agg_metric) BY k8s.pod.uid | SORT k8s.pod.uid'
 
   - length: {values: 2}
-  - length: {values.0: 5}
+  - length: {values.0: 6}
   - match: {columns.0.name: "max(agg_metric)"}
   - match: {columns.0.type: "double"}
   - match: {columns.1.name: "min(agg_metric)"}
@@ -465,18 +465,22 @@ stats on aggregate_metric_double with partial submetrics:
   - match: {columns.2.type: "double"}
   - match: {columns.3.name: "count(agg_metric)"}
   - match: {columns.3.type: "long"}
-  - match: {columns.4.name: "k8s.pod.uid"}
-  - match: {columns.4.type: "keyword"}
+  - match: {columns.4.name: "std_dev(agg_metric)"}
+  - match: {columns.4.type: "double"}
+  - match: {columns.5.name: "k8s.pod.uid"}
+  - match: {columns.5.type: "keyword"}
   - match: {values.0.0: 10.0}
   - match: {values.0.1: -3.0}
   - match: {values.0.2: null}
   - match: {values.0.3: null}
-  - match: {values.0.4: "947e4ced-1786-4e53-9e0c-5c447e959507"}
+  - match: {values.0.4: null}
+  - match: {values.0.5: "947e4ced-1786-4e53-9e0c-5c447e959507"}
   - match: {values.1.0: 17.0}
   - match: {values.1.1: 2.0}
   - match: {values.1.2: null}
   - match: {values.1.3: null}
-  - match: {values.1.4: "df3145b3-0563-4d3b-a0f7-897eb2876ea9"}
+  - match: {values.1.4: null}
+  - match: {values.1.5: "df3145b3-0563-4d3b-a0f7-897eb2876ea9"}
 
 ---
 stats on aggregate_metric_double missing min and max:
@@ -871,7 +875,7 @@ error on rename timestamp:
   - match: { error.reason: '/(verification_exception:\ )?Found\ 1\ problem\nline\ 3:13:\ \[rate\(k8s.pod.network.tx\)\]\ requires\ the\ \[@timestamp\]\ field,\ which\ was\ either\ not\ present\ in\ the\ source\ index,\ or\ has\ been\ dropped\ or\ renamed/' }
 
 ---
-Stats using default metric for aggregate metric double:
+Stats with partial submetrics for aggregate metric double with average as default:
   - requires:
       test_runner_features: [capabilities, cluster_features]
       cluster_features: ["aggregate_metric_double.default_metric.deprecated"]
@@ -879,26 +883,45 @@ Stats using default metric for aggregate metric double:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_default_metric]
-      reason: "Using max as the default metric was added in 9.4"
+          capabilities: [aggregate_metric_double_avg_as_default_metric]
+      reason: "Support for using avg as default metric with std_dev"
+
+  - do:
+      bulk:
+        refresh: true
+        index: test4
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T23:53:04.467Z", "agg_metric": {"sum": 4910, "value_count": 5}, "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507"}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T23:54:04.467Z", "agg_metric": {"sum": 2019, "value_count": 9}, "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507"}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T23:50:04.467Z", "agg_metric": {"sum": 1, "value_count": 10}, "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507"}}}'
+
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test3 | STATS max(agg_metric), min(agg_metric), std_dev = round(std_dev(agg_metric), 5)'
+          query: 'FROM test4 | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric), std_dev = round(std_dev(agg_metric), 5)'
 
   - length: {values: 1}
-  - length: {values.0: 3}
+  - length: {values.0: 5}
   - match: {columns.0.name: "max(agg_metric)"}
   - match: {columns.0.type: "double"}
   - match: {columns.1.name: "min(agg_metric)"}
   - match: {columns.1.type: "double"}
-  - match: {columns.2.name: "std_dev"}
+  - match: {columns.2.name: "sum(agg_metric)"}
   - match: {columns.2.type: "double"}
-  - match: {values.0.0: 17.0}
-  - match: {values.0.1: -3.0}
-  - match: {values.0.2: 6.54896}
+  - match: {columns.3.name: "count(agg_metric)"}
+  - match: {columns.3.type: "long"}
+  - match: {columns.4.name: "std_dev"}
+  - match: {columns.4.type: "double"}
+  - match: {values.0.0: null}
+  - match: {values.0.1: null}
+  - match: {values.0.2: 6930}
+  - match: {values.0.3: 24}
+  - match: {values.0.4: 420.11466}
 
 ---
 PromQL rate on counter field:

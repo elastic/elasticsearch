@@ -475,6 +475,15 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
             .setRequestsPerSecond(requestsPerSecond / totalSlices)
             // Sub requests don't have workers
             .setSlices(1);
+        // Copy resume info for the slice from leader to the slice request
+        if (this.getResumeInfo().isPresent()) {
+            ResumeInfo resumeInfo = this.getResumeInfo().get();
+            int sliceId = request.getSearchRequest().source().slice().getId();
+            if (resumeInfo.isSliceCompleted(sliceId) == false) {
+                request.setResumeInfo(new ResumeInfo(resumeInfo.getSlice(sliceId).get().resumeInfo(), null));
+            }
+        }
+
         if (maxDocs != MAX_DOCS_ALL_MATCHES) {
             // maxDocs is split between workers. This means the maxDocs might round
             // down!

@@ -44,6 +44,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.getEmbeddingLength;
 import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.getTextEmbeddingVectorFromChunk;
 
 /**
@@ -362,16 +363,29 @@ public record SemanticTextField(
             return null;
         }
 
+        Integer modelDims = this.inference().modelSettings().dimensions();
+        int dimensions = getEmbeddingLength(elementType, modelDims == null ? 0 : modelDims);
+
         List<VectorData> chunkVectors = new ArrayList<>();
         for (List<Chunk> fieldChunks : this.inference.chunks.values()) {
             for (Chunk chunk : fieldChunks) {
-                VectorData thisChunkVectorData = getTextEmbeddingVectorFromChunk(chunk, contentType, elementType);
-                if (thisChunkVectorData != null) {
-                    chunkVectors.add(thisChunkVectorData);
-                }
+                chunkVectors.add(getTextEmbeddingVectorFromChunk(chunk, contentType, elementType, dimensions));
             }
         }
 
         return chunkVectors;
+    }
+
+    @Override
+    public DenseVectorFieldMapper.ElementType getElementType() {
+        if (this.inference == null || this.inference.chunks() == null) {
+            return null;
+        }
+
+        if (this.inference().modelSettings() == null || this.inference().modelSettings().taskType() != TaskType.TEXT_EMBEDDING) {
+            return null;
+        }
+
+        return this.inference().modelSettings().elementType();
     }
 }

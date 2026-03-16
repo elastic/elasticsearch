@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.diversification;
 
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.VectorData;
 
 import java.io.IOException;
@@ -16,6 +17,6 @@ import java.util.List;
 
 public interface DenseVectorSupplier {
     List<VectorData> getDenseVectorData() throws IOException;
-
+    DenseVectorFieldMapper.ElementType getElementType();
     String getSupplierContentType();
 }

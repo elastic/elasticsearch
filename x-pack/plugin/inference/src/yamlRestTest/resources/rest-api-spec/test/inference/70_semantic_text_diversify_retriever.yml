@@ -244,6 +244,32 @@ setup:
   - match: { hits.hits.2._source.id: 7130674 }
 
 ---
+"MMR diversification using semantic_text field with string encoded query vector":
+  - do:
+      search:
+        index: test-result-diversification-semantic-text-index
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "content"
+              lambda: 0.9
+              size: 3
+              query_vector: "48656c6c"
+              retriever:
+                standard:
+                  query:
+                    match:
+                      content:
+                        query: "What causes muscle soreness after running?"
+
+  - match: { hits.total.value: 8 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._source.id: 7130348 }
+  - match: { hits.hits.1._source.id: 7130674 }
+  - match: { hits.hits.2._source.id: 8001869 }
+
+---
 "MMR diversification using semantic_text field with copy_to":
   - do:
       search:
@@ -305,7 +331,7 @@ setup:
               field: "content"
               lambda: 0.9
               size: 3
-              query_vector: "7e7e"
+              query_vector: [ 0.4, 0.2, 0.3, 0.3 ]
               retriever:
                 standard:
                   query:

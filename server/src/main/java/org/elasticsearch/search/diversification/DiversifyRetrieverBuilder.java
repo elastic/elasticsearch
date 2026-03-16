@@ -20,6 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.rest.RestStatus;
@@ -54,6 +55,7 @@ import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.search.diversification.ResultDiversification.getVectorComparisonScore;
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
 import static org.elasticsearch.search.vectors.VectorDataUtils.extractVectorDataFromObject;
+import static org.elasticsearch.search.vectors.VectorDataUtils.getDenseVectorElementType;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -62,6 +64,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
     public static final int DEFAULT_SIZE_VALUE = 10;
 
     public static final NodeFeature RETRIEVER_RESULT_DIVERSIFICATION_MMR_FEATURE = new NodeFeature("retriever.result_diversification_mmr");
+    private static final VectorSimilarityFunction QUERY_VECTOR_SIMILARITY_FUNCTION = VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
     public static final String NAME = "diversify";
     public static final ParseField RETRIEVER_FIELD = new ParseField("retriever");
@@ -376,7 +379,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             RankDocWithSearchHit asRankDoc = (RankDocWithSearchHit) scoreDocs[i];
             results[i] = asRankDoc;
             try {
-                VectorData vector = getFieldVectorForSearchHit(asRankDoc, diversificationContext.getQueryVector());
+                VectorData vector = getFieldVectorForSearchHit(asRankDoc, diversificationContext);
                 if (vector != null) {
                     fieldVectors.put(asRankDoc.rank, vector);
                 }
@@ -469,23 +472,31 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             && Objects.equals(this.queryVectorBuilder, other.queryVectorBuilder);
     }
 
-    private VectorData getFieldVectorForSearchHit(RankDocWithSearchHit doc, @Nullable VectorData queryVectorData)
+    private VectorData getFieldVectorForSearchHit(RankDocWithSearchHit doc, ResultDiversificationContext diversificationContext)
         throws IllegalArgumentException, IOException {
 
         // first try and see if it's an inference field
-        VectorData vector = tryGetVectorFromInferenceField(doc.hit, queryVectorData);
+        VectorData vector = tryGetVectorFromInferenceField(doc.hit, diversificationContext);
         if (vector != null) {
             return vector;
         }
 
-        var field = doc.hit.getFields().getOrDefault(diversificationField, null);
-        return field == null ? null : extractVectorDataFromObject(field.getValues());
+        var field = doc.hit.getFields().get(diversificationField);
+        if (field == null) {
+            return null;
+        }
+
+        VectorData ret = extractVectorDataFromObject(field.getValues());
+        if (ret == null) {
+            return null;
+        }
+
+        ensureQueryVectorIsDecoded(diversificationContext, getDenseVectorElementType(field), ret.size());
+        return ret;
     }
 
-    private static final VectorSimilarityFunction queryVectorSimilarityFunction = VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
-
-    private VectorData tryGetVectorFromInferenceField(SearchHit hit, @Nullable VectorData queryVectorData) throws IllegalArgumentException,
-        IOException {
+    private VectorData tryGetVectorFromInferenceField(SearchHit hit, ResultDiversificationContext diversificationContext)
+        throws IllegalArgumentException, IOException {
         var inferenceFields = hit.getFields().getOrDefault(InferenceMetadataFieldsMapper.NAME, null);
         if (inferenceFields == null) {
             return null;
@@ -497,9 +508,9 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         }
 
         if (fieldValues.getFirst() instanceof Map<?, ?> mappedValues) {
-            var fieldValue = mappedValues.getOrDefault(diversificationField, null);
+            var fieldValue = mappedValues.get(diversificationField);
             if (fieldValue instanceof DenseVectorSupplier vectorSupplier) {
-                if (queryVectorData == null) {
+                if (diversificationContext.getQueryVector() == null) {
                     throw new IllegalArgumentException(
                         Strings.format(
                             "[%s] or [%s] must be supplied when diversifying on a [%s] field.",
@@ -515,6 +526,9 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                     return null;
                 }
 
+                DenseVectorFieldMapper.ElementType elementType = vectorSupplier.getElementType();
+                ensureQueryVectorIsDecoded(diversificationContext, elementType, fieldVectors.getFirst().size());
+
                 int bestScoringVectorIndex = 0;
                 float currentHighestScore = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < fieldVectors.size(); i++) {
@@ -522,7 +536,11 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                     if (vector == null) {
                         continue;
                     }
-                    float score = getVectorComparisonScore(queryVectorSimilarityFunction, vector, queryVectorData);
+                    float score = getVectorComparisonScore(
+                        QUERY_VECTOR_SIMILARITY_FUNCTION,
+                        vector,
+                        diversificationContext.getQueryVector()
+                    );
                     if (score > currentHighestScore) {
                         bestScoringVectorIndex = i;
                         currentHighestScore = score;
@@ -534,5 +552,20 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         }
 
         return null;
+    }
+
+    private void ensureQueryVectorIsDecoded(
+        ResultDiversificationContext diversificationContext,
+        DenseVectorFieldMapper.ElementType elementType,
+        int dimensions
+    ) {
+        if (diversificationContext.getQueryVector() != null && diversificationContext.getQueryVector().isStringVector()) {
+            VectorData queryVectorData = VectorData.decodeQueryVector(
+                diversificationContext.getQueryVector().stringVector(),
+                elementType,
+                dimensions
+            );
+            diversificationContext.setQueryVector(() -> queryVectorData);
+        }
     }
 }

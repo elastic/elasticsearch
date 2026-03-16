@@ -33,18 +33,12 @@ public abstract class ResultDiversification<C extends ResultDiversificationConte
         VectorData thisDocVector,
         VectorData comparisonVector
     ) {
-        boolean docVectorIsFloat = thisDocVector.isFloat();
-
-        if (docVectorIsFloat == comparisonVector.isFloat()) {
-            return docVectorIsFloat
-                ? similarityFunction.compare(thisDocVector.floatVector(), comparisonVector.floatVector())
-                : similarityFunction.compare(thisDocVector.byteVector(), comparisonVector.byteVector());
+        if (thisDocVector.isStringVector() || comparisonVector.isStringVector()) {
+            throw new IllegalArgumentException("string vectors should be decoded before comparison");
         }
 
-        if (docVectorIsFloat) {
-            return similarityFunction.compare(thisDocVector.floatVector(), comparisonVector.asFloatVector());
-        }
-
-        return similarityFunction.compare(thisDocVector.asFloatVector(), comparisonVector.floatVector());
+        return thisDocVector.isFloat()
+            ? similarityFunction.compare(thisDocVector.asFloatVector(), comparisonVector.asFloatVector())
+            : similarityFunction.compare(thisDocVector.asByteVector(), comparisonVector.asByteVector());
     }
 }

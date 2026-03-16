@@ -60,10 +60,10 @@ FROM mmr_text_vector_keyword
 | KEEP keyword_field, text_body
 ;
 
-keyword_field:keyword | text_body:text     
-test1                 | first text
-test3                 | third text
-test6                 | sixth text
+keyword_field:keyword | text_body:text
+test4                 | fourth text
+test5                 | fifth text
+test8                 | eighth text
 ;
 
 

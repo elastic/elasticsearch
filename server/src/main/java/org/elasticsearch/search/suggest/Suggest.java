@@ -104,6 +104,26 @@ public final class Suggest implements Iterable<Suggest.Suggestion<? extends Entr
     }
 
     /**
+     * Acquire a ref on each completion suggestion option's SearchHit so the merged response can own them.
+     * Called when building a merged SearchResponse in CCS so per-cluster and merged response can both release.
+     */
+    public void incRefCompletionOptionHits() {
+        if (suggestions == null) {
+            return;
+        }
+        for (Suggestion<?> suggestion : suggestions) {
+            if (suggestion instanceof CompletionSuggestion completionSuggestion) {
+                for (CompletionSuggestion.Entry.Option option : completionSuggestion.getOptions()) {
+                    SearchHit hit = option.getHit();
+                    if (hit != null) {
+                        hit.mustIncRef();
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Release ref-counted resources held by completion suggestion options (their SearchHits).
      * Called when the owning SearchResponse is released.
      */

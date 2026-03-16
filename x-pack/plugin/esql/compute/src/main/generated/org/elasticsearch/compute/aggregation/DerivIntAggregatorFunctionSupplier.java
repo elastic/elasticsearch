@@ -34,13 +34,13 @@ public final class DerivIntAggregatorFunctionSupplier implements AggregatorFunct
   @Override
   public DerivIntAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return DerivIntAggregatorFunction.create(driverContext, channels, dateNanos);
+    return new DerivIntAggregatorFunction(driverContext, channels, dateNanos);
   }
 
   @Override
   public DerivIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return DerivIntGroupingAggregatorFunction.create(channels, driverContext, dateNanos);
+    return new DerivIntGroupingAggregatorFunction(channels, driverContext, dateNanos);
   }
 
   @Override

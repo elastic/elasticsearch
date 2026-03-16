@@ -308,7 +308,8 @@ public class FieldNameUtils {
      * <ul>
      * <li>The field itself: "a.b.c"</li>
      * <li>Its multi-fields: "a.b.c.*"</li>
-     * <li>All dot-delimited parent prefixes: ["a", "a.b"]. This is needed to get back flattened parents, so the verifier can detect subfields of flattened.</li>
+     * <li>All dot-delimited parent prefixes: ["a", "a.b"]. This is needed to get back flattened parents, so the verifier can
+     * detect subfields of flattened.</li>
      * </ul>
      */
     private static Stream<String> withSubfields(String name) {

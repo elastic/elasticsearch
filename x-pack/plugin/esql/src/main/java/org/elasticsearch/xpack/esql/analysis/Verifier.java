@@ -409,7 +409,8 @@ public class Verifier {
                         // It is sufficient to find "a" flattened field with a name matching the parent's.
                         Failure failure = fail(
                             fa,
-                            "Loading subfield [{}] when parent [{}] is of flattened field type is not supported with unmapped_fields=\"load\"",
+                            "Loading subfield [{}] when parent [{}] is of flattened field type is not supported with "
+                                + "unmapped_fields=\"load\"",
                             name,
                             parent
                         );

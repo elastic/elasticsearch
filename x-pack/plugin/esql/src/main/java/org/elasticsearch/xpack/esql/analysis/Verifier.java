@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
@@ -86,6 +87,13 @@ public class Verifier {
     }
 
     /**
+     * Verify that a {@link LogicalPlan} can be executed (no unmapped-field resolution context).
+     */
+    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics) {
+        return verify(plan, partialMetrics, null);
+    }
+
+    /**
      * Verify that a {@link LogicalPlan} can be executed.
      *
      * @param plan The logical plan to be verified
@@ -136,6 +144,19 @@ public class Verifier {
             checkLimitBeforeInlineStats(p, failures);
             checkLimitBy(p, failures);
         });
+
+        // Disallow full-text search when unmapped_fields=load. We do not restrict to "only when the FTF
+        // is applied to an unmapped field" because FTFs like KQL can reference unmapped fields inside the
+        // query string (e.g. KQL("author: Faulkner")), and the desired behavior there is unclear.
+        if (unmappedResolution == UnmappedResolution.LOAD) {
+            List<FullTextFunction> fullTextFunctions = new ArrayList<>();
+            plan.forEachExpressionDown(FullTextFunction.class, fullTextFunctions::add);
+            if (fullTextFunctions.isEmpty() == false) {
+                String message = "unmapped_fields=\"load\" is not allowed with full-text search (MATCH, match operator `:`, "
+                    + "MATCH_PHRASE, etc.); use FAIL or NULLIFY";
+                fullTextFunctions.forEach(f -> failures.add(fail(f, message)));
+            }
+        }
 
         if (failures.hasFailures() == false) {
             licenseCheck(plan, failures);

@@ -31,7 +31,9 @@ import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
@@ -45,6 +47,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
@@ -199,6 +202,77 @@ public final class AnalyzerTestUtils {
         var indexName = indexFromQuery(query);
         var indexResolutions = indexResolutions(indexName);
         return analyze(query, analyzer(indexResolutions, TEST_VERIFIER, TEST_CFG));
+    }
+
+    public static LogicalPlan analyze(String query, Map<String, String> views) {
+        var indexName = indexFromQuery(query);
+        var viewDefinitions = resolveViews(views);
+        var parsed = TEST_PARSER.parseQuery(query);
+        // This most primitive view resolution only works for the simple cases being tested
+        var plan = parsed.transformDown(UnresolvedRelation.class, ur -> {
+            List<LogicalPlan> resolved = Arrays.stream(ur.indexPattern().indexPattern().split("\\s*\\,\\s*")).map(indexPattern -> {
+                var view = viewDefinitions.get(indexPattern);
+                return view == null
+                    ? (LogicalPlan) (makeUnresolvedRelation(ur, indexPattern))
+                    : new NamedSubquery(view.source(), view, indexPattern);
+            }).toList();
+            if (resolved.size() == 1) {
+                var subplan = resolved.get(0);
+                if (subplan instanceof NamedSubquery n) {
+                    return n.child();
+                }
+                return subplan;
+            }
+            List<UnresolvedRelation> unresolvedRelations = new ArrayList<>();
+            List<NamedSubquery> namedSubqueries = new ArrayList<>();
+            for (LogicalPlan l : resolved) {
+                if (l instanceof UnresolvedRelation u) {
+                    unresolvedRelations.add(u);
+                } else if (l instanceof NamedSubquery n) {
+                    namedSubqueries.add(n);
+                } else {
+                    throw new IllegalArgumentException("Only support UnresolvedRelation and NamedSubquery in Views Analyzer Tests");
+                }
+            }
+            LinkedHashMap<String, LogicalPlan> subplans = new LinkedHashMap<>();
+            if (unresolvedRelations.size() == 1) {
+                subplans.put(null, unresolvedRelations.get(0));
+            } else if (unresolvedRelations.size() > 1) {
+                String indexPattern = unresolvedRelations.stream()
+                    .map(u -> u.indexPattern().indexPattern())
+                    .collect(Collectors.joining(","));
+                subplans.put(null, makeUnresolvedRelation(unresolvedRelations.get(0), indexPattern));
+            }
+            for (NamedSubquery namedSubquery : namedSubqueries) {
+                subplans.put(namedSubquery.name(), namedSubquery.child());
+            }
+            if (subplans.size() == 1) {
+                return namedSubqueries.get(0).child();
+            } else {
+                return new ViewUnionAll(ur.source(), subplans, List.of());
+            }
+        });
+        return analyzer(indexResolutions(indexName), TEST_VERIFIER, TEST_CFG).analyze(plan);
+    }
+
+    private static UnresolvedRelation makeUnresolvedRelation(UnresolvedRelation plan, String indexPattern) {
+        return new UnresolvedRelation(
+            plan.source(),
+            new IndexPattern(plan.source(), indexPattern),
+            plan.frozen(),
+            plan.metadataFields(),
+            plan.indexMode(),
+            plan.unresolvedMessage(),
+            plan.telemetryLabel()
+        );
+    }
+
+    private static Map<String, LogicalPlan> resolveViews(Map<String, String> views) {
+        var parsedViews = new HashMap<String, LogicalPlan>();
+        for (Map.Entry<String, String> entry : views.entrySet()) {
+            parsedViews.put(entry.getKey(), TEST_PARSER.parseQuery(entry.getValue()));
+        }
+        return parsedViews;
     }
 
     public static LogicalPlan analyzeStatement(String query) {

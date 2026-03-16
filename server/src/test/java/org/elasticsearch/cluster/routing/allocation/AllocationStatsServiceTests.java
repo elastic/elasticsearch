@@ -211,7 +211,7 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
     private ShardsAllocator createShardAllocator() {
         return new ShardsAllocator() {
             @Override
-            public void allocate(RoutingAllocation allocation) {
+            public void allocate(MutableRoutingAllocation allocation) {
 
             }
 

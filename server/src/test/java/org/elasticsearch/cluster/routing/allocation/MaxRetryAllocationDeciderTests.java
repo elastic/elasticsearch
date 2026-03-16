@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -31,7 +30,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDe
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.List;
@@ -316,20 +314,13 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         );
     }
 
-    private static ClusterState withRoutingAllocation(ClusterState clusterState, Consumer<RoutingAllocation> block) {
-        RoutingAllocation allocation = new RoutingAllocation(
-            null,
-            clusterState.mutableRoutingNodes(),
-            clusterState,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            0L
-        );
+    private static ClusterState withRoutingAllocation(ClusterState clusterState, Consumer<MutableRoutingAllocation> block) {
+        MutableRoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState).mutable();
         block.accept(allocation);
         return updateClusterState(clusterState, allocation);
     }
 
-    private static ClusterState updateClusterState(ClusterState state, RoutingAllocation allocation) {
+    private static ClusterState updateClusterState(ClusterState state, MutableRoutingAllocation allocation) {
         assert allocation.metadata() == state.metadata();
         if (allocation.routingNodesChanged() == false) {
             return state;
@@ -345,7 +336,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     private RoutingAllocation newRoutingAllocation(ClusterState clusterState) {
-        final var routingAllocation = new RoutingAllocation(null, clusterState, null, null, 0);
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).currentNanoTime(0).build();
         if (randomBoolean()) {
             routingAllocation.setDebugMode(randomFrom(RoutingAllocation.DebugMode.values()));
         }

@@ -30,6 +30,8 @@ import java.util.function.Function;
  */
 public class AllocationDeciders {
 
+    public static final AllocationDeciders EMPTY = new AllocationDeciders(Set.of());
+
     private static final Logger logger = LogManager.getLogger(AllocationDeciders.class);
 
     private static final Decision NO_IGNORING_SHARD_FOR_NODE = Decision.single(

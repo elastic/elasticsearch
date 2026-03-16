@@ -18,8 +18,8 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.FixForMultiProject;
@@ -105,7 +105,7 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
     }
 
     @Override
-    public RerouteExplanation execute(RoutingAllocation allocation, boolean explain) {
+    public RerouteExplanation execute(MutableRoutingAllocation allocation, boolean explain) {
         final DiscoveryNode discoNode;
         try {
             discoNode = allocation.nodes().resolveNode(node);

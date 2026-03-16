@@ -223,13 +223,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             );
         }
 
-        final RoutingAllocation allocation = new RoutingAllocation(
-            allocationDeciders,
-            currentState,
-            clusterInfoService.getClusterInfo(),
-            snapshotsInfoService.snapshotShardSizes(),
-            System.nanoTime()
-        );
+        final RoutingAllocation allocation = allocationService.createImmutableRoutingAllocation(currentState, System.nanoTime());
         allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
 
         // We also need the set of node IDs which are currently shutting down.

@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
@@ -141,7 +140,7 @@ public class AllocationServiceTests extends ESTestCase {
             ),
             new ShardsAllocator() {
                 @Override
-                public void allocate(RoutingAllocation allocation) {
+                public void allocate(MutableRoutingAllocation allocation) {
                     // all primaries are handled by existing shards allocators in these tests; even the invalid allocator prevents shards
                     // from falling through to here
                     assertThat(allocation.routingNodes().unassigned().getNumPrimaries(), equalTo(0));
@@ -298,13 +297,7 @@ public class AllocationServiceTests extends ESTestCase {
 
         assertThat(clusterState.metadata().projects(), aMapWithSize(1));
 
-        final RoutingAllocation allocation = new RoutingAllocation(
-            new AllocationDeciders(Collections.emptyList()),
-            clusterState,
-            ClusterInfo.EMPTY,
-            null,
-            0L
-        );
+        final RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState).build();
         allocation.setDebugMode(randomBoolean() ? RoutingAllocation.DebugMode.ON : RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
 
         final ShardAllocationDecision shardAllocationDecision = allocationService.explainShardAllocation(

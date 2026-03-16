@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.routing.allocation.shards;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
@@ -57,7 +56,6 @@ import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.health.node.ProjectIndexName;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -515,13 +513,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
      */
     private List<Diagnosis.Definition> explainAllocationsAndDiagnoseDeciders(ShardRouting shardRouting, ClusterState state) {
         LOGGER.trace("Executing allocation explain on shard [{}]", shardRouting.shardId());
-        RoutingAllocation allocation = new RoutingAllocation(
-            allocationService.getAllocationDeciders(),
-            state,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
-        );
+        RoutingAllocation allocation = allocationService.createImmutableRoutingAllocation(state, System.nanoTime());
         allocation.setDebugMode(RoutingAllocation.DebugMode.ON);
         ShardAllocationDecision shardAllocationDecision = allocationService.explainShardAllocation(shardRouting, allocation);
         AllocateUnassignedDecision allocateDecision = shardAllocationDecision.getAllocateDecision();

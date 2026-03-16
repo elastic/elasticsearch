@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
-import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -27,6 +26,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -38,7 +38,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 
@@ -222,13 +221,10 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
                 return allocation.decision(Decision.YES, "test_yes_decider", "Always says yes");
             }
         };
-        final var allocation = new RoutingAllocation(
-            new AllocationDeciders(List.of(alwaysSaysNo, alwaysSaysYes)),
-            state,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            randomNonNegativeLong()
-        );
+        final var allocation = TestRoutingAllocationFactory.forClusterState(state)
+            .allocationDeciders(new AllocationDeciders(List.of(alwaysSaysNo, alwaysSaysYes)))
+            .currentNanoTime(randomNonNegativeLong())
+            .build();
         final var currentNodeId = shardRouting.currentNodeId();
         final var otherNodeId = state.nodes().getNodes().keySet().stream().filter(n -> n.equals(currentNodeId) == false).findFirst().get();
 
@@ -370,12 +366,15 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
             clusterStateWithRoutingsAdded.globalRoutingTable(),
             clusterStateWithRoutingsAdded.nodes()
         );
-        final var allocation = new RoutingAllocation(new AllocationDeciders(List.<AllocationDecider>of(new AllocationDecider() {
-            @Override
-            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                return allocation.decision(Decision.NO, "test_no_decider", "role: " + shardRouting.role());
-            }
-        })), clusterStateWithRoutingsAdded, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, randomNonNegativeLong());
+        final var allocation = TestRoutingAllocationFactory.forClusterState(clusterStateWithRoutingsAdded)
+            .allocationDeciders(new AllocationDeciders(List.<AllocationDecider>of(new AllocationDecider() {
+                @Override
+                public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                    return allocation.decision(Decision.NO, "test_no_decider", "role: " + shardRouting.role());
+                }
+            })))
+            .currentNanoTime(randomNonNegativeLong())
+            .build();
 
         final int maxShardsToTrack = randomIntBetween(2, 8);
         final var warningThreshold = TimeValue.timeValueMinutes(randomIntBetween(1, 5));

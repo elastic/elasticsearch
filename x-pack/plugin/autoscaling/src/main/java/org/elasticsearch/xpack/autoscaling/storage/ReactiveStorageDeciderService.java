@@ -318,7 +318,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         public ShardsAllocationResults storagePreventsAllocation() {
-            RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, info, shardSizeInfo, System.nanoTime());
+            RoutingAllocation allocation = RoutingAllocation.immutable(allocationDeciders, state, info, shardSizeInfo, System.nanoTime());
             List<ShardNodeAllocationDecision> unassignedShards = state.getRoutingNodes()
                 .unassigned()
                 .stream()
@@ -339,7 +339,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         public ShardsAllocationResults storagePreventsRemainOrMove() {
-            RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, info, shardSizeInfo, System.nanoTime());
+            RoutingAllocation allocation = RoutingAllocation.immutable(allocationDeciders, state, info, shardSizeInfo, System.nanoTime());
 
             List<ShardRouting> candidates = new LinkedList<>();
             for (RoutingNode routingNode : state.getRoutingNodes()) {

@@ -12,6 +12,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
@@ -107,7 +108,7 @@ public class ClusterModuleTests extends ModuleTestCase {
 
     static class FakeShardsAllocator implements ShardsAllocator {
         @Override
-        public void allocate(RoutingAllocation allocation) {
+        public void allocate(MutableRoutingAllocation allocation) {
             // noop
         }
 

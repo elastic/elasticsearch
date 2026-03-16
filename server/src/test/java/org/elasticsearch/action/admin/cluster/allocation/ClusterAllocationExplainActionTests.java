@@ -26,8 +26,10 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.Explanations;
+import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -45,7 +47,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.time.Instant;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -61,8 +62,6 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests for the {@link TransportClusterAllocationExplainAction} class.
  */
 public class ClusterAllocationExplainActionTests extends ESTestCase {
-
-    private static final AllocationDeciders NOOP_DECIDERS = new AllocationDeciders(Collections.emptyList());
 
     private class CanAllocateNotPreferredAllocationDecider extends AllocationDecider {
         @Override
@@ -123,7 +122,10 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         AllocationDeciders allocationDeciders = new AllocationDeciders(
             List.of(new CanRemainNoAllocationDecider(), new CanAllocateNotPreferredAllocationDecider())
         );
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, clusterInfo, null, System.nanoTime());
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .allocationDeciders(allocationDeciders)
+            .clusterInfo(clusterInfo)
+            .build();
 
         ClusterAllocationExplanation allocationExplanation = TransportClusterAllocationExplainAction.explainShard(
             shardRouting,
@@ -182,7 +184,10 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         AllocationDeciders allocationDeciders = new AllocationDeciders(
             List.of(new CanRemainNotPreferredAllocationDecider(), new CanAllocateNotPreferredAllocationDecider())
         );
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, clusterInfo, null, System.nanoTime());
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .allocationDeciders(allocationDeciders)
+            .clusterInfo(clusterInfo)
+            .build();
 
         ClusterAllocationExplanation allocationExplanation = TransportClusterAllocationExplainAction.explainShard(
             shardRouting,
@@ -239,7 +244,10 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         // Set up allocation deciders that will say: 1) shard not-preferred to remain where it is and 2) shard can be allocated elsewhere
         // (the default without a decider to say no). Relocation should proceed, there should be a target node for the MoveDecision.
         AllocationDeciders allocationDeciders = new AllocationDeciders(List.of(new CanRemainNotPreferredAllocationDecider()));
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, clusterInfo, null, System.nanoTime());
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .allocationDeciders(allocationDeciders)
+            .clusterInfo(clusterInfo)
+            .build();
 
         ClusterAllocationExplanation allocationExplanation = TransportClusterAllocationExplainAction.explainShard(
             shardRouting,
@@ -294,7 +302,10 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         AllocationDeciders allocationDeciders = new AllocationDeciders(
             List.of(new CanRemainNotPreferredAllocationDecider(), new CanAllocateThrottledAllocationDecider())
         );
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, clusterInfo, null, System.nanoTime());
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
+            .allocationDeciders(allocationDeciders)
+            .clusterInfo(clusterInfo)
+            .build();
 
         ClusterAllocationExplanation allocationExplanation = TransportClusterAllocationExplainAction.explainShard(
             shardRouting,
@@ -350,13 +361,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         final ProjectId projectId = clusterState.metadata().projects().keySet().iterator().next();
 
         ShardRouting shard = clusterState.globalRoutingTable().routingTable(projectId).index("idx").shard(0).primaryShard();
-        RoutingAllocation allocation = new RoutingAllocation(
-            new AllocationDeciders(Collections.emptyList()),
-            clusterState,
-            null,
-            null,
-            System.nanoTime()
-        );
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState).build();
         ClusterAllocationExplanation cae = TransportClusterAllocationExplainAction.explainShard(
             shard,
             allocation,
@@ -365,7 +370,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             true,
             new AllocationService(null, new TestGatewayAllocator(), new ShardsAllocator() {
                 @Override
-                public void allocate(RoutingAllocation allocation) {
+                public void allocate(MutableRoutingAllocation allocation) {
                     // no-op
                 }
 
@@ -583,6 +588,6 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
     }
 
     private static RoutingAllocation routingAllocation(ClusterState clusterState) {
-        return new RoutingAllocation(NOOP_DECIDERS, clusterState, null, null, System.nanoTime());
+        return TestRoutingAllocationFactory.forClusterState(clusterState).build();
     }
 }

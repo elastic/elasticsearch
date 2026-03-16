@@ -65,6 +65,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Map.entry;
 import static java.util.function.Predicate.not;
 import static org.elasticsearch.test.cluster.local.distribution.DistributionType.DEFAULT;
 import static org.elasticsearch.test.cluster.util.OS.WINDOWS;
@@ -116,7 +117,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         private final Path logsDir;
         private final Path configDir;
         private final Path tempDir;
-        private final boolean usesSecureSecretsFile;
+        private final boolean usesFileBasedClusterSecrets;
         private final int debugPort;
 
         private Path distributionDir;
@@ -136,9 +137,9 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             DistributionResolver distributionResolver,
             LocalNodeSpec spec,
             String suffix,
-            boolean usesSecureSecretsFile
+            boolean usesFileBasedClusterSecrets
         ) {
-            this.usesSecureSecretsFile = usesSecureSecretsFile;
+            this.usesFileBasedClusterSecrets = usesFileBasedClusterSecrets;
             this.objectMapper = new ObjectMapper();
             this.baseWorkingDir = baseWorkingDir;
             this.distributionResolver = distributionResolver;
@@ -178,8 +179,8 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             }
 
             writeConfiguration();
-            if (usesSecureSecretsFile) {
-                writeSecureSecretsFile();
+            if (usesFileBasedClusterSecrets) {
+                writeFileBasedClusterSecrets();
             } else {
                 createKeystore();
                 addKeystoreSettings();
@@ -488,7 +489,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         public void updateStoredSecureSettings() {
-            if (usesSecureSecretsFile) {
+            if (usesFileBasedClusterSecrets) {
                 throw new UnsupportedOperationException("updating stored secure settings is not supported in serverless test clusters");
             }
             final Path keystoreFile = workingDir.resolve("config").resolve("elasticsearch.keystore");
@@ -556,7 +557,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             }
         }
 
-        private void writeSecureSecretsFile() {
+        private void writeFileBasedClusterSecrets() {
             if (spec.getKeystoreFiles().isEmpty() == false) {
                 throw new IllegalStateException(
                     "Non-string secure secrets are not supported in serverless. Secrets: ["
@@ -567,12 +568,13 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             Map<String, String> secrets = spec.resolveKeystore();
             if (secrets.isEmpty() == false) {
                 try {
-                    Path secretsFile = configDir.resolve("secrets/secrets.json");
-                    Files.createDirectories(secretsFile.getParent());
-                    Map<String, Object> secretsFileContent = new HashMap<>();
-                    secretsFileContent.put("secrets", secrets);
-                    secretsFileContent.put("metadata", Map.of("version", "1", "compatibility", spec.getVersion().toString()));
-                    Files.writeString(secretsFile, objectMapper.writeValueAsString(secretsFileContent));
+                    Path settingsFile = configDir.resolve("operator/settings.json");
+                    Files.createDirectories(settingsFile.getParent());
+                    Map<String, Object> settings = Map.ofEntries(
+                        entry("metadata", Map.of("version", "1", "compatibility", spec.getVersion().toString())),
+                        entry("state", Map.of("cluster_secrets", Map.of("string_secrets", secrets)))
+                    );
+                    Files.writeString(settingsFile, objectMapper.writeValueAsString(settings));
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -879,7 +881,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
             environment = environment.entrySet()
                 .stream()
-                .map(p -> Map.entry(p.getKey(), p.getValue().replace("${ES_PATH_CONF}", configDir.toString())))
+                .map(p -> entry(p.getKey(), p.getValue().replace("${ES_PATH_CONF}", configDir.toString())))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
             String featureFlagProperties = "";

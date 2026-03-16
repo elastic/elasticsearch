@@ -64,11 +64,11 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     TransportAction<Request, Response> {
 
     // How long to wait to see a shard routing update after receiving a stale request failure
+    // Deliberately is not registered in ClusterSettings.BUILT_IN_CLUSTER_SETTINGS because it is only for tests
     public static final Setting<TimeValue> ROUTE_REFRESH_TIMEOUT = Setting.timeSetting(
         "single_shard_action.route_refresh_timeout",
         TimeValue.timeValueSeconds(30),
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.NodeScope
     );
 
     protected final ThreadPool threadPool;
@@ -285,7 +285,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         // Called when a request has failed with a StaleRequestException
         // This indicates that request routing has changed since we resolved the shard,
         // e.g., due to a resharding operation.
-        // Waits for the routing table to refresh and restarts the request from the top
+        // Waits for the routing table to refresh, then restarts the request from the top
         private void waitForRoutingUpdateAndRestart(StaleRequestException staleRequestException) {
             if (internalRequest.request() instanceof SplitAwareRequest splitAwareRequest) {
                 final var staleSummary = splitAwareRequest.getSplitShardCountSummary();

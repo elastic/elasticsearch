@@ -16,6 +16,7 @@ import org.elasticsearch.compute.operator.Operator;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Thread-safe buffer for async external source data.
@@ -23,16 +24,22 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * This buffer provides:
  * - Thread-safe page queue for cross-thread communication
- * - Backpressure control via max buffer size
+ * - Byte-based backpressure control proportional to actual memory usage
  * - Notification via {@link SubscribableListener} when data becomes available
  * - Lifecycle management (finished state tracking)
  */
 public final class AsyncExternalSourceBuffer {
 
+    /**
+     * Default byte limit for the buffer, preserving the original "10 normal-sized pages" intent.
+     */
+    public static final long DEFAULT_MAX_BUFFER_BYTES = 10L * Operator.TARGET_PAGE_SIZE;
+
     private final Queue<Page> queue = new ConcurrentLinkedQueue<>();
     // uses a separate counter for size for CAS; and ConcurrentLinkedQueue#size is not a constant time operation.
     private final AtomicInteger queueSize = new AtomicInteger();
-    private final int maxSize;
+    private final AtomicLong bytesInBuffer = new AtomicLong();
+    private final long maxBufferBytes;
 
     private final Object notEmptyLock = new Object();
     private SubscribableListener<Void> notEmptyFuture = null;
@@ -45,11 +52,11 @@ public final class AsyncExternalSourceBuffer {
     private volatile boolean noMoreInputs = false;
     private volatile Throwable failure = null;
 
-    public AsyncExternalSourceBuffer(int maxSize) {
-        if (maxSize < 1) {
-            throw new IllegalArgumentException("max_buffer_size must be at least one; got=" + maxSize);
+    public AsyncExternalSourceBuffer(long maxBufferBytes) {
+        if (maxBufferBytes < 1) {
+            throw new IllegalArgumentException("max_buffer_bytes must be at least one; got=" + maxBufferBytes);
         }
-        this.maxSize = maxSize;
+        this.maxBufferBytes = maxBufferBytes;
     }
 
     /**
@@ -60,19 +67,23 @@ public final class AsyncExternalSourceBuffer {
             page.releaseBlocks();
             return;
         }
+        long pageBytes = page.ramBytesUsedByBlocks();
+        long prevBytes = bytesInBuffer.getAndAdd(pageBytes);
         queue.add(page);
-        if (queueSize.incrementAndGet() == 1) {
+        queueSize.incrementAndGet();
+        if (prevBytes == 0) {
             notifyNotEmpty();
         }
         if (noMoreInputs) {
             // O(N) but acceptable because it only occurs with finish(), and the queue size should be very small.
             if (queue.removeIf(p -> p == page)) {
                 page.releaseBlocks();
-                final int size = queueSize.decrementAndGet();
-                if (size == maxSize - 1) {
+                queueSize.decrementAndGet();
+                long afterRemove = bytesInBuffer.addAndGet(-pageBytes);
+                if (afterRemove < maxBufferBytes) {
                     notifyNotFull();
                 }
-                if (size == 0) {
+                if (queueSize.get() == 0) {
                     completionFuture.onResponse(null);
                 }
             }
@@ -85,8 +96,13 @@ public final class AsyncExternalSourceBuffer {
      */
     public Page pollPage() {
         final var page = queue.poll();
-        if (page != null && queueSize.decrementAndGet() == maxSize - 1) {
-            notifyNotFull();
+        if (page != null) {
+            queueSize.decrementAndGet();
+            long pageBytes = page.ramBytesUsedByBlocks();
+            long prevBytes = bytesInBuffer.getAndAdd(-pageBytes);
+            if (prevBytes >= maxBufferBytes && (prevBytes - pageBytes) < maxBufferBytes) {
+                notifyNotFull();
+            }
         }
         if (page == null && noMoreInputs && queueSize.get() == 0) {
             if (failure != null) {
@@ -125,12 +141,11 @@ public final class AsyncExternalSourceBuffer {
      * Used by background reader for backpressure.
      */
     public IsBlockedResult waitForWriting() {
-        // maxBufferSize check is not water-tight as more than one sink can pass this check at the same time.
-        if (queueSize.get() < maxSize || noMoreInputs) {
+        if (bytesInBuffer.get() < maxBufferBytes || noMoreInputs) {
             return Operator.NOT_BLOCKED;
         }
         synchronized (notFullLock) {
-            if (queueSize.get() < maxSize || noMoreInputs) {
+            if (bytesInBuffer.get() < maxBufferBytes || noMoreInputs) {
                 return Operator.NOT_BLOCKED;
             }
             if (notFullFuture == null) {
@@ -150,11 +165,11 @@ public final class AsyncExternalSourceBuffer {
      * @return a listener that completes when space is available, or an already-completed listener if space exists
      */
     public SubscribableListener<Void> waitForSpace() {
-        if (queueSize.get() < maxSize || noMoreInputs) {
+        if (bytesInBuffer.get() < maxBufferBytes || noMoreInputs) {
             return SubscribableListener.newSucceeded(null);
         }
         synchronized (notFullLock) {
-            if (queueSize.get() < maxSize || noMoreInputs) {
+            if (bytesInBuffer.get() < maxBufferBytes || noMoreInputs) {
                 return SubscribableListener.newSucceeded(null);
             }
             if (notFullFuture == null) {
@@ -185,9 +200,11 @@ public final class AsyncExternalSourceBuffer {
 
     private void discardPages() {
         Page p;
-        while ((p = pollPage()) != null) {
+        while ((p = queue.poll()) != null) {
+            queueSize.decrementAndGet();
             p.releaseBlocks();
         }
+        bytesInBuffer.set(0);
     }
 
     /**
@@ -238,5 +255,12 @@ public final class AsyncExternalSourceBuffer {
 
     public Throwable failure() {
         return failure;
+    }
+
+    /**
+     * Returns the current number of bytes buffered, as measured by {@link Page#ramBytesUsedByBlocks()}.
+     */
+    public long bytesInBuffer() {
+        return bytesInBuffer.get();
     }
 }

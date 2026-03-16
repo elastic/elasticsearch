@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
@@ -33,6 +32,8 @@ import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
@@ -78,7 +79,7 @@ public class CheckLicenseTests extends ESTestCase {
             }
         };
 
-        var plan = EsqlParser.INSTANCE.parseQuery(esql);
+        var plan = TEST_PARSER.parseQuery(esql);
         plan = plan.transformDown(
             Limit.class,
             l -> Objects.equals(l.limit().fold(FoldContext.small()), 10)
@@ -97,7 +98,7 @@ public class CheckLicenseTests extends ESTestCase {
                 defaultEnrichResolution(),
                 emptyInferenceResolution()
             ),
-            new Verifier(new Metrics(new EsqlFunctionRegistry(), true, true), getLicenseState(operationMode))
+            new Verifier(new Metrics(TEST_FUNCTION_REGISTRY, true, true), getLicenseState(operationMode))
         );
     }
 

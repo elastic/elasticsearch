@@ -123,6 +123,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -1038,8 +1039,13 @@ public class InternalEngine extends Engine {
         } else {
             // load from index
             assert incrementIndexVersionLookup();
+            final boolean loadSeqNo = engineConfig.getIndexSettings().sequenceNumbersDisabled() == false;
             try (Searcher searcher = acquireSearcher("load_seq_no", SearcherScope.INTERNAL)) {
-                final DocIdAndSeqNo docAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), op.uid());
+                final DocIdAndSeqNo docAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(
+                    searcher.getIndexReader(),
+                    op.uid(),
+                    loadSeqNo
+                );
                 if (docAndSeqNo == null) {
                     status = OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
                 } else if (op.seqNo() > docAndSeqNo.seqNo) {
@@ -2301,7 +2307,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
+    protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) throws EngineException {
         ensureOpen(); // best-effort, a concurrent failEngine() can still happen but that's ok
         if (force && waitIfOngoing == false) {
             final String message = "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing;
@@ -2383,6 +2389,7 @@ public class InternalEngine extends Engine {
                 } else {
                     generation = lastCommittedSegmentInfos.getGeneration();
                 }
+                listener.afterFlushWithLock(generation);
             } catch (FlushFailedEngineException ex) {
                 maybeFailEngine("flush", ex);
                 listener.onFailure(ex);
@@ -2622,11 +2629,28 @@ public class InternalEngine extends Engine {
         // the to a write lock when we fail the engine in this operation
         if (flushFirst) {
             logger.trace("start flush for snapshot");
+            final AtomicReference<IndexCommitRef> acquiredCommit = new AtomicReference<>();
             // TODO: Split acquireLastIndexCommit into two apis one with blocking flushes one without
             PlainActionFuture<FlushResult> future = new PlainActionFuture<>();
-            flush(false, true, future);
-            future.actionGet();
+            try {
+                flush(false, true, FlushResultListener.wrap(future, generation -> {
+                    acquiredCommit.set(acquireIndexCommitRef(() -> indexDeletionPolicy.acquireIndexCommit(false)));
+                    assert acquiredCommit.get().getIndexCommit().getGeneration() == generation
+                        : "acquired commit generation ["
+                            + acquiredCommit.get().getIndexCommit().getGeneration()
+                            + "] does not match flush generation ["
+                            + generation
+                            + "]";
+                }));
+                future.actionGet();
+            } catch (Exception e) {
+                IOUtils.closeWhileHandlingException(acquiredCommit.getAndSet(null));
+                throw e;
+            }
             logger.trace("finish flush for snapshot");
+            final IndexCommitRef commitRef = acquiredCommit.get();
+            assert commitRef != null : "flush succeeded but commit was not acquired";
+            return commitRef;
         }
         return acquireIndexCommitRef(() -> indexDeletionPolicy.acquireIndexCommit(false));
     }

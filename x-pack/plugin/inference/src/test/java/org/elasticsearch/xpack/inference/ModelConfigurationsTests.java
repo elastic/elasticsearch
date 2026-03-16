@@ -66,7 +66,7 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
                 instance.getServiceSettings(),
                 instance.getTaskSettings(),
                 instance.getChunkingSettings(),
-                instance.getEndpointMetadata()
+                instance.getEndpointMetadataOrEmpty()
             );
             case 1 -> new ModelConfigurations(
                 instance.getInferenceEntityId(),
@@ -75,7 +75,7 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
                 instance.getServiceSettings(),
                 instance.getTaskSettings(),
                 instance.getChunkingSettings(),
-                instance.getEndpointMetadata()
+                instance.getEndpointMetadataOrEmpty()
             );
             case 2 -> new ModelConfigurations(
                 instance.getInferenceEntityId(),
@@ -84,10 +84,10 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
                 instance.getServiceSettings(),
                 instance.getTaskSettings(),
                 instance.getChunkingSettings(),
-                instance.getEndpointMetadata()
+                instance.getEndpointMetadataOrEmpty()
             );
             case 3 -> {
-                var endpointMetadata = instance.getEndpointMetadata();
+                var endpointMetadata = instance.getEndpointMetadataOrEmpty();
                 if (endpointMetadata.equals(EndpointMetadata.EMPTY_INSTANCE)) {
                     endpointMetadata = EndpointMetadataTests.randomNonEmptyInstance();
                 } else {
@@ -110,7 +110,7 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
                 randomValueOtherThan(instance.getServiceSettings(), ModelConfigurationsTests::randomServiceSettings),
                 instance.getTaskSettings(),
                 instance.getChunkingSettings(),
-                instance.getEndpointMetadata()
+                instance.getEndpointMetadataOrEmpty()
             );
             case 5 -> new ModelConfigurations(
                 instance.getInferenceEntityId(),
@@ -119,7 +119,7 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
                 instance.getServiceSettings(),
                 randomValueOtherThan(instance.getTaskSettings(), ModelConfigurationsTests::randomTaskSettings),
                 instance.getChunkingSettings(),
-                instance.getEndpointMetadata()
+                instance.getEndpointMetadataOrEmpty()
             );
             case 6 -> {
                 var chunkingSettings = instance.getChunkingSettings();
@@ -138,7 +138,7 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
                     instance.getServiceSettings(),
                     instance.getTaskSettings(),
                     chunkingSettings,
-                    instance.getEndpointMetadata()
+                    instance.getEndpointMetadataOrEmpty()
                 );
             }
             default -> throw new IllegalStateException();
@@ -178,18 +178,25 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
 
     @Override
     protected ModelConfigurations mutateInstanceForVersion(ModelConfigurations instance, TransportVersion version) {
-        if (version.supports(EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED)) {
-            return instance;
-        } else {
-            return new ModelConfigurations(
-                instance.getInferenceEntityId(),
-                instance.getTaskType(),
-                instance.getService(),
-                instance.getServiceSettings(),
-                instance.getTaskSettings(),
-                instance.getChunkingSettings()
+        var metadata = instance.getEndpointMetadata();
+        if (version.supports(EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED) == false) {
+            metadata = null;
+        } else if (metadata != null && version.supports(EndpointMetadata.Display.MODEL_CREATOR_ADDED) == false) {
+            metadata = new EndpointMetadata(
+                metadata.heuristics(),
+                metadata.internal(),
+                new EndpointMetadata.Display(metadata.display().name(), null)
             );
         }
+        return new ModelConfigurations(
+            instance.getInferenceEntityId(),
+            instance.getTaskType(),
+            instance.getService(),
+            instance.getServiceSettings(),
+            instance.getTaskSettings(),
+            instance.getChunkingSettings(),
+            metadata
+        );
     }
 
     public void testToXContentDoesNotIncludeEmptyEndpointMetadata() throws IOException {
@@ -221,7 +228,7 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of("heuristic1", "heuristic2"), StatusHeuristic.BETA, "2025-01-01", "2025-12-31"),
                 new EndpointMetadata.Internal("fingerprint", 1L),
-                new EndpointMetadata.Display("name")
+                new EndpointMetadata.Display("name", "creator")
             )
         );
 
@@ -251,7 +258,8 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
                   "version": 1
                 },
                 "display": {
-                  "name": "name"
+                  "name": "name",
+                  "model_creator": "creator"
                 }
               }
             }

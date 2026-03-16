@@ -27,7 +27,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.action.support.master.MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
@@ -95,11 +94,11 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
                 .get();
             validateAddIndexBlockResponse(addIndexBlockRequest, resp);
             logger.debug("DLM successfully marked index [{}] as read-only", indexName);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new ElasticsearchException(e);
-        } catch (ExecutionException e) {
-            throw new ElasticsearchException(e);
+        } catch (Exception e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new ElasticsearchException("DLM unable to mark index [{}] with read only block", e, indexName);
         }
     }
 

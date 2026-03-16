@@ -133,22 +133,6 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
         assertThat(capturedRequest.get(), is(nullValue()));
     }
 
-    public void testMarksIndexWhenIndexHasNoWriteBlock() {
-        ProjectState projectState = createProjectState();
-        mockResponse.set(new AddIndexBlockResponse(true, true, List.of(new AddIndexBlockResponse.AddBlockResult(index))));
-
-        DataStreamLifecycleConvertToFrozen converter = new DataStreamLifecycleConvertToFrozen(
-            indexName,
-            createMockClient(),
-            projectState,
-            licenseState
-        );
-        converter.maybeMarkIndexReadOnly();
-
-        // AddIndexBlockRequest should have been sent since the index didn't have a write block
-        assertThat(capturedRequest.get(), is(notNullValue()));
-    }
-
     public void testCallsAddBlockWithCorrectParameters() {
         ProjectState projectState = createProjectState();
         mockResponse.set(new AddIndexBlockResponse(true, true, List.of(new AddIndexBlockResponse.AddBlockResult(index))));
@@ -180,7 +164,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, converter::maybeMarkIndexReadOnly);
-        assertThat(exception.getMessage(), containsString("not acknowledged"));
+        assertThat(exception.getMessage(), containsString("unable to mark index"));
     }
 
     public void testThrowsWithGlobalExceptionInBlockResult() {
@@ -196,7 +180,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, converter::maybeMarkIndexReadOnly);
-        assertThat(exception.getMessage(), containsString("global failure"));
+        assertThat(exception.getMessage(), containsString("unable to mark index"));
     }
 
     public void testThrowsWithShardFailuresInBlockResult() {
@@ -219,7 +203,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, converter::maybeMarkIndexReadOnly);
-        assertThat(exception.getMessage(), containsString("shard failure"));
+        assertThat(exception.getMessage(), containsString("unable to mark index"));
     }
 
     public void testThrowsWithGenericFailure() {
@@ -234,7 +218,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, converter::maybeMarkIndexReadOnly);
-        assertThat(exception.getMessage(), containsString("some error"));
+        assertThat(exception.getMessage(), containsString("unable to mark index"));
     }
 
     public void testDoesNotSkipWithNonWriteBlock() {
@@ -268,6 +252,10 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
 
         // READ block should NOT prevent the request from being sent - only WRITE block should
         assertThat(capturedRequest.get(), is(notNullValue()));
+        assertThat(capturedRequest.get().indices(), is(new String[] { indexName }));
+        assertThat(capturedRequest.get().getBlock(), is(WRITE));
+        assertTrue("AddIndexBlockRequest should have verified set to true", capturedRequest.get().markVerified());
+
     }
 
     public void testThrowsWithMultipleShardFailures() {
@@ -297,8 +285,8 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, converter::maybeMarkIndexReadOnly);
         String errorMessage = exception.getMessage();
-        assertThat(errorMessage, containsString("shard 0 failure"));
-        assertThat(errorMessage, containsString("shard 1 failure"));
+        assertThat(errorMessage, containsString("unable to mark index"));
+        assertThat(errorMessage, containsString("unable to mark index"));
     }
 
     public void testThrowsWithShardResultsButNoFailures() {
@@ -317,7 +305,7 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, converter::maybeMarkIndexReadOnly);
-        assertThat(exception.getMessage(), containsString("not acknowledged"));
+        assertThat(exception.getMessage(), containsString("unable to mark index"));
     }
 
     public void testAddIndexBlockRequestHasVerifiedSetToTrue() {

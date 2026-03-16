@@ -1164,14 +1164,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 """)
         );
 
-        expectThrows(
-            ParsingException.class,
-            containsString("mismatched input '*'"),
-            () -> query("""
-                FROM foo
-                | LIMIT -1 * 42 BY languages
-                """)
-        );
+        expectThrows(ParsingException.class, containsString("mismatched input '*'"), () -> query("""
+            FROM foo
+            | LIMIT -1 * 42 BY languages
+            """));
     }
 
     public void testBasicSortCommand() {
@@ -3857,10 +3853,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testRerankWithPositionalParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "statement text"), paramAsConstant(null, "reranker")));
-        var rerank = as(
-            query("row a = 1 | RERANK rerank_score = ? ON title WITH { \"inference_id\" : ? }", queryParams),
-            Rerank.class
-        );
+        var rerank = as(query("row a = 1 | RERANK rerank_score = ? ON title WITH { \"inference_id\" : ? }", queryParams), Rerank.class);
 
         assertThat(rerank.queryText(), equalTo(literalString("statement text")));
         assertThat(rerank.inferenceId(), equalTo(literalString("reranker")));
@@ -4049,10 +4042,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testCompletionWithPositionalParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "inferenceId")));
-        var plan = as(
-            query("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ? }", queryParams),
-            Completion.class
-        );
+        var plan = as(query("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ? }", queryParams), Completion.class);
 
         assertThat(plan.prompt(), equalToIgnoringIds(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceId")));
@@ -4062,10 +4052,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testCompletionWithNamedParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant("inferenceId", "myInference")));
-        var plan = as(
-            query("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ?inferenceId }", queryParams),
-            Completion.class
-        );
+        var plan = as(query("row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ?inferenceId }", queryParams), Completion.class);
 
         assertThat(plan.prompt(), equalToIgnoringIds(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("myInference")));

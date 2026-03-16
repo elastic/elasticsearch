@@ -53,8 +53,8 @@ public class XContentParserTsidFunnelTests extends ESTestCase {
             .addBooleanDimension("array", false);
         assertThat(xContentTsidBuilder.hash(), equalTo(manualTsidBuilder.hash()));
         IndexVersion indexVersion = randomBoolean()
-            ? IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.CLUSTERING_TSID)
-            : IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.CLUSTERING_TSID);
+            ? IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)
+            : IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG);
         assertThat(xContentTsidBuilder.buildTsid(indexVersion), equalTo(manualTsidBuilder.buildTsid(indexVersion)));
     }
 
@@ -76,8 +76,8 @@ public class XContentParserTsidFunnelTests extends ESTestCase {
             .addLongDimension("attributes.long", 1234567890123L);
         assertThat(xContentTsidBuilder.hash(), equalTo(manualTsidBuilder.hash()));
         IndexVersion indexVersion = randomBoolean()
-            ? IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.CLUSTERING_TSID)
-            : IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.CLUSTERING_TSID);
+            ? IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)
+            : IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG);
         assertThat(xContentTsidBuilder.buildTsid(indexVersion), equalTo(manualTsidBuilder.buildTsid(indexVersion)));
     }
 

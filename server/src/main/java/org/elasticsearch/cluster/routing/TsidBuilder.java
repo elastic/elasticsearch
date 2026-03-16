@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.RoutingPathFields;
@@ -32,6 +33,8 @@ import java.util.List;
  * At the same time, they should be short to be efficient in terms of storage and processing.
  */
 public class TsidBuilder {
+
+    public static final boolean SINGLE_PREFIX_BYTE_ENABLED = new FeatureFlag("tsid_layout_single_prefix_byte").isEnabled();
 
     /**
      * The maximum number of fields to use for the value similarity part of the TSID.
@@ -221,11 +224,15 @@ public class TsidBuilder {
     }
 
     public final BytesRef buildTsid(IndexVersion indexVersion) {
-        if (indexVersion.onOrAfter(IndexVersions.CLUSTERING_TSID)) {
-            return buildClusteringTsid();
+        if (useSingleBytePrefixLayout(indexVersion)) {
+            return buildSingleBytePrefixTsid();
         } else {
-            return buildLegacyTsid();
+            return buildMultiBytePrefixTsid();
         }
+    }
+
+    public static boolean useSingleBytePrefixLayout(IndexVersion indexVersion) {
+        return SINGLE_PREFIX_BYTE_ENABLED && indexVersion.onOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG);
     }
 
     /**
@@ -246,11 +253,9 @@ public class TsidBuilder {
      *         This is to avoid hash collisions.
      *     </li>
      * </ul>
-     *
-     * @return a BytesRef containing the TSID
-     * @throws IllegalArgumentException if no dimensions have been added
+     * Note that this layout has been used with indices created before {@link IndexVersions#TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG}
      */
-    public BytesRef buildLegacyTsid() {
+    private BytesRef buildMultiBytePrefixTsid() {
         throwIfEmpty();
         Collections.sort(dimensions);
 
@@ -293,7 +298,7 @@ public class TsidBuilder {
         return new BytesRef(hash, 0, index);
     }
 
-    private BytesRef buildClusteringTsid() {
+    private BytesRef buildSingleBytePrefixTsid() {
         throwIfEmpty();
         Collections.sort(dimensions);
 
@@ -307,30 +312,30 @@ public class TsidBuilder {
         murmur3Hasher.digestHash(hashBuffer);
         ByteUtils.writeLongLE(hashBuffer.h2, tsid, 0);
         ByteUtils.writeLongLE(hashBuffer.h1, tsid, 8);
-        tsid[0] = clusteringByte(hashBuffer);
+        tsid[0] = computeSingleBytePrefix(hashBuffer);
         return new BytesRef(tsid);
     }
 
-    private byte clusteringByte(MurmurHash3.Hash128 hashBuffer) {
+    private byte computeSingleBytePrefix(MurmurHash3.Hash128 scratch) {
         murmur3Hasher.reset();
-        Dimension otelMetric = findDimensionName(dimensions, OTEL_METRIC_FIELD);
+        Dimension otelMetric = findDimension(dimensions, OTEL_METRIC_FIELD);
         if (otelMetric != null) {
             murmur3Hasher.addLong(otelMetric.valueHash().h1 ^ otelMetric.valueHash().h2);
-            return (byte) murmur3Hasher.digestHash(hashBuffer).h1;
+            return (byte) murmur3Hasher.digestHash(scratch).h1;
         }
-        Dimension prometheusLabel = findDimensionName(dimensions, PROMETHEUS_LABEL_FIELD);
+        Dimension prometheusLabel = findDimension(dimensions, PROMETHEUS_LABEL_FIELD);
         if (prometheusLabel != null) {
             murmur3Hasher.addLong(prometheusLabel.valueHash().h1 ^ prometheusLabel.valueHash().h2);
-            return (byte) murmur3Hasher.digestHash(hashBuffer).h1;
+            return (byte) murmur3Hasher.digestHash(scratch).h1;
         }
         // similarity hash for dimension names
         for (Dimension dim : dimensions) {
             murmur3Hasher.addLong(dim.pathHash.h1 ^ dim.pathHash.h2);
         }
-        return (byte) murmur3Hasher.digestHash(hashBuffer).h1;
+        return (byte) murmur3Hasher.digestHash(scratch).h1;
     }
 
-    private static Dimension findDimensionName(List<Dimension> sortedDimensions, String name) {
+    private static Dimension findDimension(List<Dimension> sortedDimensions, String name) {
         for (Dimension dim : sortedDimensions) {
             int cmp = dim.path.compareTo(name);
             if (cmp > 0) {

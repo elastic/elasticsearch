@@ -68,7 +68,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
     private final DataPointGroupingContext dataPointGroupingContext = new DataPointGroupingContext(new BufferedByteStringAccessor());
     private final long timestamp = randomLong();
     private final long startTimestamp = randomLong();
-    private final IndexVersion indexVersion = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.CLUSTERING_TSID);
+    private final IndexVersion indexVersion = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG);
 
     public void testBuildMetricDocument() throws IOException {
         List<KeyValue> resourceAttributes = new ArrayList<>();

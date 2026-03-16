@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
@@ -686,7 +687,7 @@ public class IndexRoutingTests extends ESTestCase {
     public void testRoutingPathBwcAfterTsidBasedRouting() throws IOException {
         boolean useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean();
         TimeSeriesRoutingFixture fixture = indexRoutingForTimeSeriesDimensions(
-            IndexVersion.current(),
+            IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94),
             8,
             "dim.*,other.*,top",
             useSyntheticId
@@ -699,17 +700,31 @@ public class IndexRoutingTests extends ESTestCase {
          * versions of Elasticsearch must continue to route based on the
          * version on the index.
          */
-        assertIndexShard(fixture, Map.of("dim", Map.of("a", "a")), 5);
-        assertIndexShard(fixture, Map.of("dim", Map.of("a", "b")), 3);
-        assertIndexShard(fixture, Map.of("dim", Map.of("c", "d")), 7);
-        assertIndexShard(fixture, Map.of("other", Map.of("a", "a")), 1);
-        assertIndexShard(fixture, Map.of("top", "a"), 6);
-        assertIndexShard(fixture, Map.of("dim", Map.of("c", "d"), "top", "b"), 0);
-        assertIndexShard(fixture, Map.of("dim.a", "a"), 5);
-        assertIndexShard(fixture, Map.of("dim.a", 1), 2);
-        assertIndexShard(fixture, Map.of("dim.a", "1"), 0);
-        assertIndexShard(fixture, Map.of("dim.a", true), 3);
-        assertIndexShard(fixture, Map.of("dim.a", "true"), 1);
+        if (TsidBuilder.useSingleBytePrefixLayout(fixture.routing.creationVersion)) {
+            assertIndexShard(fixture, Map.of("dim", Map.of("a", "a")), 5);
+            assertIndexShard(fixture, Map.of("dim", Map.of("a", "b")), 3);
+            assertIndexShard(fixture, Map.of("dim", Map.of("c", "d")), 7);
+            assertIndexShard(fixture, Map.of("other", Map.of("a", "a")), 1);
+            assertIndexShard(fixture, Map.of("top", "a"), 6);
+            assertIndexShard(fixture, Map.of("dim", Map.of("c", "d"), "top", "b"), 0);
+            assertIndexShard(fixture, Map.of("dim.a", "a"), 5);
+            assertIndexShard(fixture, Map.of("dim.a", 1), 2);
+            assertIndexShard(fixture, Map.of("dim.a", "1"), 0);
+            assertIndexShard(fixture, Map.of("dim.a", true), 3);
+            assertIndexShard(fixture, Map.of("dim.a", "true"), 1);
+        } else {
+            assertIndexShard(fixture, Map.of("dim", Map.of("a", "a")), 7);
+            assertIndexShard(fixture, Map.of("dim", Map.of("a", "b")), 5);
+            assertIndexShard(fixture, Map.of("dim", Map.of("c", "d")), 5);
+            assertIndexShard(fixture, Map.of("other", Map.of("a", "a")), 0);
+            assertIndexShard(fixture, Map.of("top", "a"), 7);
+            assertIndexShard(fixture, Map.of("dim", Map.of("c", "d"), "top", "b"), 2);
+            assertIndexShard(fixture, Map.of("dim.a", "a"), 7);
+            assertIndexShard(fixture, Map.of("dim.a", 1), 0);
+            assertIndexShard(fixture, Map.of("dim.a", "1"), 5);
+            assertIndexShard(fixture, Map.of("dim.a", true), 5);
+            assertIndexShard(fixture, Map.of("dim.a", "true"), 6);
+        }
     }
 
     public void testRoutingPathReadWithInvalidString() {

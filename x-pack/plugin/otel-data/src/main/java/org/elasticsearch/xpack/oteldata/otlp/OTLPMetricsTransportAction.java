@@ -146,7 +146,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
                 .setDynamicTemplates(dynamicTemplates)
                 .setDynamicTemplateParams(dynamicTemplateParams);
             // For old write indices, let the indexing layer compute the TSID — avoids layout mismatch if a rollover occurs mid-request.
-            if (indexVersion.onOrAfter(IndexVersions.CLUSTERING_TSID)) {
+            if (indexVersion.onOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)) {
                 indexRequest.tsid(tsid);
             }
             bulkRequestBuilder.add(indexRequest);

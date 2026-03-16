@@ -352,13 +352,7 @@ public class IndexResolver {
         ResolvedIndexExpressions resolvedIndexExpressions,
         ActionListener<IndexResolution> listener
     ) {
-        IndicesOptions iOpts;
-        if (crossProjectEnabled) {
-            iOpts = CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(indicesOptions);
-        } else {
-            iOpts = indicesOptions;
-        }
-        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, iOpts, runtimeMappings);
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, indicesOptions, runtimeMappings);
         if (crossProjectEnabled) {
             fieldRequest.includeResolvedTo(true);
         }

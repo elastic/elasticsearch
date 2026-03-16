@@ -1,0 +1,6 @@
+Limit[1000[INTEGER],false,false]
+\_OrderBy[[Order[emp_no{f}#0,ASC,LAST], Order[emp_no_plus{r}#1,ASC,LAST]]]
+  \_Project[[avg_worked_seconds{f}#2, birth_date{f}#3, emp_no{f}#0, gender{f}#4, height{f}#5, height.float{f}#6, height.half_float{f}#7, height.scaled_float{f}#8, hire_date{f}#9, is_rehired{f}#10, job_positions{f}#11, languages{f}#12, languages.byte{f}#13, languages.long{f}#14, languages.short{f}#15, salary{f}#16, salary_change{f}#17, salary_change.int{f}#18, salary_change.keyword{f}#19, salary_change.long{f}#20, still_hired{f}#21, emp_no_foo{f}#22, emp_no_plus{r}#1]]
+    \_Filter[emp_no{f}#0 < 10003[INTEGER]]
+      \_Eval[[TOLONG(emp_no_foo{f}#22) + 1[INTEGER] AS emp_no_plus#1]]
+        \_EsRelation[employees][avg_worked_seconds{f}#2, birth_date{f}#3, emp_no{f}#0, first_name{f}#23, gender{f}#4, height{f}#5, height.float{f}#6, height.half_float{f}#7, height.scaled_float{f}#8, hire_date{f}#9, is_rehired{f}#10, job_positions{f}#11, languages{f}#12, languages.byte{f}#13, languages.long{f}#14, languages.short{f}#15, last_name{f}#24, salary{f}#16, salary_change{f}#17, salary_change.int{f}#18, salary_change.keyword{f}#19, salary_change.long{f}#20, still_hired{f}#21, emp_no_foo{f}#22]

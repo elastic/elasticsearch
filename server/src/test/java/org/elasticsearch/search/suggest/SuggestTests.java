@@ -306,7 +306,9 @@ public class SuggestTests extends ESTestCase {
         Suggest bwcSuggest = null;
         Suggest backAgain = null;
         try {
-            NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
+            NamedWriteableRegistry registry = new NamedWriteableRegistry(
+                new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables()
+            );
 
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.setTransportVersion(bwcVersion);

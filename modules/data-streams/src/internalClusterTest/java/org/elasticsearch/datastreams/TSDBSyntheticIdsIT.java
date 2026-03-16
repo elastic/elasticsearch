@@ -1352,7 +1352,6 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             IllegalArgumentException.class,
             () -> indicesAdmin().prepareCreate(indexName).setSettings(settings).setMapping(mapping).get()
         );
-        logger.info("--> {}", ThrowableUtil.stackTraceToString(e));
         assertThat(
             e.getMessage(),
             Matchers.containsString(

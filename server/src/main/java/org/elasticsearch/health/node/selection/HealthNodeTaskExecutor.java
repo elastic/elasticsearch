@@ -49,7 +49,7 @@ import static org.elasticsearch.health.node.selection.HealthNode.TASK_NAME;
 ///
 /// Once the persistent task framework assigns the task to a node, that node becomes the health node. The
 /// [LocalHealthMonitor][org.elasticsearch.health.node.LocalHealthMonitor] and
-/// [HealthInfoCache][org.elasticsearch.health.node.HealthInfoCache] use [HealthNode#findHealthNode(ClusterState)]
+/// [HealthInfoCache][org.elasticsearch.health.node.HealthInfoCache] use [HealthNode#findHealthNode]
 /// to discover it.
 ///
 /// @see HealthNode

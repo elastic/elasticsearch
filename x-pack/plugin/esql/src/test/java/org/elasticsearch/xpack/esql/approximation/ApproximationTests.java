@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.approximation;
 
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -214,17 +215,17 @@ public class ApproximationTests extends ApproximationTestCase {
         subplan = approximation.firstSubPlan();
         assertThat(subplan, hasPlan(Filter.class));
         assertThat(subplan, not(hasPlan(Aggregate.class)));
-        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-8), withAggs(Count.class)));
+        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-8), withAggs(CountApproximate.class)));
 
-        // Filtered count of 10, so increase the sample probability.
-        approximation.newMainPlan(newCountResult(10));
+        // Sampled-corrected filtered count of 10^9 (so actual count of 10), so increase the sample probability.
+        approximation.newMainPlan(newCountResult(1_000_000_000));
         subplan = approximation.firstSubPlan();
         assertThat(subplan, hasPlan(Filter.class));
         assertThat(subplan, not(hasPlan(Aggregate.class)));
-        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-5), withAggs(Count.class)));
+        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-5), withAggs(CountApproximate.class)));
 
-        // Filtered count of 10_000, so no more subplans.
-        mainPlan = approximation.newMainPlan(newCountResult(10_000));
+        // Sampled-corrected filtered count of 10^9 (so actual count of 10_000), so no more subplans.
+        mainPlan = approximation.newMainPlan(newCountResult(1_000_000_000));
         subplan = approximation.firstSubPlan();
         assertThat(subplan, nullValue());
 
@@ -253,28 +254,28 @@ public class ApproximationTests extends ApproximationTestCase {
         subplan = approximation.firstSubPlan();
         assertThat(subplan, hasPlan(Filter.class));
         assertThat(subplan, not(hasPlan(Aggregate.class)));
-        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-14), withAggs(Count.class)));
+        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-14), withAggs(CountApproximate.class)));
 
         // Filtered count of 0, so increase the sample probability.
         approximation.newMainPlan(newCountResult(0));
         subplan = approximation.firstSubPlan();
         assertThat(subplan, hasPlan(Filter.class));
         assertThat(subplan, not(hasPlan(Aggregate.class)));
-        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-10), withAggs(Count.class)));
+        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-10), withAggs(CountApproximate.class)));
 
         // Filtered count of 0, so increase the sample probability.
         approximation.newMainPlan(newCountResult(0));
         subplan = approximation.firstSubPlan();
         assertThat(subplan, hasPlan(Filter.class));
         assertThat(subplan, not(hasPlan(Aggregate.class)));
-        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-6), withAggs(Count.class)));
+        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-6), withAggs(CountApproximate.class)));
 
         // Filtered count of 0, so increase the sample probability.
         approximation.newMainPlan(newCountResult(0));
         subplan = approximation.firstSubPlan();
         assertThat(subplan, hasPlan(Filter.class));
         assertThat(subplan, not(hasPlan(Aggregate.class)));
-        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-2), withAggs(Count.class)));
+        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-2), withAggs(CountApproximate.class)));
 
         // Filtered count of 0, so no more subplans.
         mainPlan = approximation.newMainPlan(newCountResult(0));
@@ -397,10 +398,10 @@ public class ApproximationTests extends ApproximationTestCase {
         subplan = approximation.firstSubPlan();
         assertThat(subplan, hasPlan(MvExpand.class));
         assertThat(subplan, not(hasPlan(Aggregate.class)));
-        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-5), withAggs(Count.class)));
+        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-5), withAggs(CountApproximate.class)));
 
-        // sampled mv_expanded count of 10^7, so no more subplans.
-        mainPlan = approximation.newMainPlan(newCountResult(10_000_000));
+        // Sample-corrected mv_expanded count of 10^12 (so actual of 10^7), so no more subplans.
+        mainPlan = approximation.newMainPlan(newCountResult(1_000_000_000_000L));
         subplan = approximation.firstSubPlan();
         assertThat(subplan, nullValue());
 
@@ -454,7 +455,7 @@ public class ApproximationTests extends ApproximationTestCase {
         subplan = approximation.firstSubPlan();
         assertThat(subplan, hasPlan(Filter.class));
         assertThat(subplan, not(hasPlan(Aggregate.class)));
-        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-8), withAggs(Count.class)));
+        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-8), withAggs(CountApproximate.class)));
 
         // Sampled filtered count of 0, so increase the sample probability.
         approximation.newMainPlan(newCountResult(0));
@@ -462,7 +463,7 @@ public class ApproximationTests extends ApproximationTestCase {
         subplan = approximation.firstSubPlan();
         assertThat(subplan, hasPlan(Filter.class));
         assertThat(subplan, not(hasPlan(Aggregate.class)));
-        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-4), withAggs(Count.class)));
+        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-4), withAggs(CountApproximate.class)));
 
         // Sampled filtered count of 20, which would next to a sample probability of 0.2,
         // which is above the threshold, so no more subplans.

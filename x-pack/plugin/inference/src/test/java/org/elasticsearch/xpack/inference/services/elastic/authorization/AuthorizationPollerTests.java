@@ -403,7 +403,21 @@ public class AuthorizationPollerTests extends ESTestCase {
         // Since the registry is already aware of the sparse endpoint, the authorization poller will not consider it a new
         // one and not attempt to store it.
         when(mockRegistry.getMinimalServiceSettings(Set.of(sparseModel.id()), false)).thenReturn(
-            Map.of(sparseModel.id(), new MinimalServiceSettings("eis", TaskType.SPARSE_EMBEDDING, null, null, null))
+            Map.of(
+                sparseModel.id(),
+                new MinimalServiceSettings(
+                    "eis",
+                    TaskType.SPARSE_EMBEDDING,
+                    null,
+                    null,
+                    null,
+                    new EndpointMetadata(
+                        EndpointMetadata.Heuristics.EMPTY_INSTANCE,
+                        new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
+                        EndpointMetadata.Display.EMPTY_INSTANCE
+                    )
+                )
+            )
         );
         ccmFeature = createMockCCMFeature(true);
         ccmService = createMockCCMService(true);
@@ -554,7 +568,7 @@ public class AuthorizationPollerTests extends ESTestCase {
                             endpoint.endOfLifeDate()
                         ),
                         new EndpointMetadata.Internal(endpoint.fingerprint(), ENDPOINT_SCHEMA_VERSION),
-                        endpoint.displayName() != null ? new EndpointMetadata.Display(endpoint.displayName()) : null
+                        endpoint.display()
                     )
                 )
             )

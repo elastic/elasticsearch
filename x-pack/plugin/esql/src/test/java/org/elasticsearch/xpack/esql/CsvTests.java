@@ -332,6 +332,10 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.ENRICH_LOAD.capabilityName())
             );
             assumeFalseLogging(
+                "can't load flattened field values in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.LOAD_FLATTENED_FIELD.capabilityName())
+            );
+            assumeFalseLogging(
                 "can't use rereank in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.RERANK.capabilityName())
             );
@@ -799,6 +803,7 @@ public class CsvTests extends ESTestCase {
         var testDatasets = testDatasets(plan);
         // Specifically use the newest transport version; the csv tests correspond to a single node cluster on the current version.
         TransportVersion minimumVersion = TransportVersion.current();
+        var unmappedResolution = statement.setting(UNMAPPED_FIELDS);
 
         boolean hasExternalSources = plan.anyMatch(UnresolvedExternalRelation.class::isInstance);
         ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
@@ -835,7 +840,7 @@ public class CsvTests extends ESTestCase {
 
         LogicalPlan analyzed = analyzedPlan(
             plan,
-            statement.setting(UNMAPPED_FIELDS),
+            unmappedResolution,
             configuration,
             testDatasets,
             minimumVersion,

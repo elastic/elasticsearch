@@ -94,7 +94,10 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
             resp = client.projectClient(projectId).execute(TransportAddIndexBlockAction.TYPE, addIndexBlockRequest).get();
             validateAddIndexBlockResponse(addIndexBlockRequest, resp);
             logger.debug("DLM successfully marked index [{}] as read-only", indexName);
-        } catch (ExecutionException | InterruptedException e) {
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ElasticsearchException(e);
+        } catch (ExecutionException e) {
             throw new ElasticsearchException(e);
         }
     }

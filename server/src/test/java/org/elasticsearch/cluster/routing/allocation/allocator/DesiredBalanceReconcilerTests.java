@@ -212,7 +212,6 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         doTestUnassignedPrimariesBeforeUnassignedReplicas(false);
     }
 
-    @AwaitsFix(bugUrl = "ES-9109")
     public void testUnassignedPrimariesBeforeUnassignedReplicasOnMultipleProjects() {
         doTestUnassignedPrimariesBeforeUnassignedReplicas(true);
     }

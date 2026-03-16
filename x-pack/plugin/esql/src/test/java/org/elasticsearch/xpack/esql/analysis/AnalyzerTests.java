@@ -186,8 +186,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
-import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -5066,11 +5064,7 @@ public class AnalyzerTests extends ESTestCase {
 
         // No counter converters exist, so counter_integer + counter_long is not widened.
         // The unreferenced column gets a null alias with KEYWORD type.
-        Attribute counterAttr = unionAll.output()
-            .stream()
-            .filter(a -> a.name().equals("counter_field"))
-            .findFirst()
-            .orElseThrow();
+        Attribute counterAttr = unionAll.output().stream().filter(a -> a.name().equals("counter_field")).findFirst().orElseThrow();
         assertEquals(KEYWORD, counterAttr.dataType());
     }
 
@@ -5095,11 +5089,7 @@ public class AnalyzerTests extends ESTestCase {
         UnionAll unionAll = findUnionAll(project);
 
         // counter_integer + long must not be widened — the unreferenced column gets a null alias with KEYWORD type.
-        Attribute counterAttr = unionAll.output()
-            .stream()
-            .filter(a -> a.name().equals("counter_field"))
-            .findFirst()
-            .orElseThrow();
+        Attribute counterAttr = unionAll.output().stream().filter(a -> a.name().equals("counter_field")).findFirst().orElseThrow();
         assertEquals(KEYWORD, counterAttr.dataType());
     }
 
@@ -5123,20 +5113,14 @@ public class AnalyzerTests extends ESTestCase {
         UnionAll unionAll = findUnionAll(project);
 
         // counter_long + long → long (counter stripped, existing behaviour preserved)
-        Attribute counterAttr = unionAll.output()
-            .stream()
-            .filter(a -> a.name().equals("counter_field"))
-            .findFirst()
-            .orElseThrow();
+        Attribute counterAttr = unionAll.output().stream().filter(a -> a.name().equals("counter_field")).findFirst().orElseThrow();
         assertEquals(LONG, counterAttr.dataType());
     }
 
     /** Traverses the plan to find the first {@link UnionAll} node. */
     private static UnionAll findUnionAll(LogicalPlan plan) {
         List<UnionAll> found = new ArrayList<>();
-        plan.forEachDown(UnionAll.class, u -> {
-            if (found.isEmpty()) found.add(u);
-        });
+        plan.forEachDown(UnionAll.class, u -> { if (found.isEmpty()) found.add(u); });
         assertFalse("No UnionAll found in plan", found.isEmpty());
         return found.get(0);
     }

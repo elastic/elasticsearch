@@ -562,15 +562,33 @@ public final class AnalyzerTestUtils {
      */
     public static Map<IndexPattern, IndexResolution> counterTypeIndexResolutions() {
         Map<String, EsField> noProps = Map.of();
-        EsField timestamp = new EsField("@timestamp", org.elasticsearch.xpack.esql.core.type.DataType.DATETIME, noProps, true, EsField.TimeSeriesFieldType.NONE);
-        EsField pod = new EsField("pod", org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD, noProps, true, EsField.TimeSeriesFieldType.DIMENSION);
+        EsField timestamp = new EsField(
+            "@timestamp",
+            org.elasticsearch.xpack.esql.core.type.DataType.DATETIME,
+            noProps,
+            true,
+            EsField.TimeSeriesFieldType.NONE
+        );
+        EsField pod = new EsField(
+            "pod",
+            org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD,
+            noProps,
+            true,
+            EsField.TimeSeriesFieldType.DIMENSION
+        );
 
         Map<String, EsField> fields1 = new LinkedHashMap<>();
         fields1.put("@timestamp", timestamp);
         fields1.put("pod", pod);
         fields1.put(
             "counter_field",
-            new EsField("counter_field", org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER, noProps, true, EsField.TimeSeriesFieldType.METRIC)
+            new EsField(
+                "counter_field",
+                org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER,
+                noProps,
+                true,
+                EsField.TimeSeriesFieldType.METRIC
+            )
         );
         EsIndex ts1 = new EsIndex(
             "ts_counter_integer",
@@ -586,7 +604,13 @@ public final class AnalyzerTestUtils {
         fields2.put("pod", pod);
         fields2.put(
             "counter_field",
-            new EsField("counter_field", org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG, noProps, true, EsField.TimeSeriesFieldType.METRIC)
+            new EsField(
+                "counter_field",
+                org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG,
+                noProps,
+                true,
+                EsField.TimeSeriesFieldType.METRIC
+            )
         );
         EsIndex ts2 = new EsIndex(
             "ts_counter_long",
@@ -603,7 +627,13 @@ public final class AnalyzerTestUtils {
         fields3.put("pod", pod);
         fields3.put(
             "counter_field",
-            new EsField("counter_field", org.elasticsearch.xpack.esql.core.type.DataType.LONG, noProps, true, EsField.TimeSeriesFieldType.NONE)
+            new EsField(
+                "counter_field",
+                org.elasticsearch.xpack.esql.core.type.DataType.LONG,
+                noProps,
+                true,
+                EsField.TimeSeriesFieldType.NONE
+            )
         );
         EsIndex tsRegularLong = new EsIndex(
             "ts_regular_long",

@@ -95,6 +95,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -353,10 +354,24 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return routingTable.hasIndex(shardId.getIndex()) ? Optional.of(routingTable.shardRoutingTable(shardId)) : Optional.empty();
     }
 
-    public void markRecoveredBcc(ShardId shardId, BatchedCompoundCommit recoveredBcc, Set<BlobFile> otherBlobs) {
+    /**
+     * Initialises the shard's commit state from the recovered BCC chain read from the object store.
+     *
+     * @param shardId                the shard being recovered
+     * @param recoveredBcc           the latest batched compound commit recovered from the object store
+     * @param otherBlobs             additional blob files found from the object store
+     * @param extraReferenceConsumers consumers that each receive a {@link Releasable} which, while open, prevents deletion of all
+     *                               recovered BCC blob references. The caller is responsible for closing these releasables.
+     */
+    public void markRecoveredBcc(
+        ShardId shardId,
+        BatchedCompoundCommit recoveredBcc,
+        Set<BlobFile> otherBlobs,
+        Iterator<Consumer<Releasable>> extraReferenceConsumers
+    ) {
         assert recoveredBcc != null;
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
-        commitState.markBccRecovered(recoveredBcc, otherBlobs);
+        commitState.markBccRecovered(recoveredBcc, otherBlobs, extraReferenceConsumers);
     }
 
     public void setTrackedSearchNodesPerCommitOnRelocationTarget(
@@ -963,6 +978,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         commitState.close();
     }
 
+    public boolean isShardClosed(ShardId shardId) {
+        return getSafe(shardsCommitsStates, shardId).isClosed();
+    }
+
     public void unregister(ShardId shardId) {
         ShardCommitState removed = shardsCommitsStates.remove(shardId);
         assert removed != null : shardId + " not registered";
@@ -1263,7 +1282,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             return inititalizingNoSearchSupplier.getAsBoolean();
         }
 
-        private void markBccRecovered(BatchedCompoundCommit recoveredBcc, Set<BlobFile> otherBlobs) {
+        private void markBccRecovered(
+            BatchedCompoundCommit recoveredBcc,
+            Set<BlobFile> otherBlobs,
+            Iterator<Consumer<Releasable>> extraReferenceConsumers
+        ) {
             assert recoveredBcc != null;
             assert otherBlobs != null;
             assert primaryTermAndGenToBlobReference.isEmpty() : primaryTermAndGenToBlobReference;
@@ -1386,6 +1409,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 if (searchNodes != null && searchNodes.isEmpty() == false) {
                     trackOutstandingUnpromotableShardCommitRef(searchNodes, blobReference);
                 }
+            }
+
+            // Retaining all pre-recovery commits for any requested consumers
+            if (extraReferenceConsumers.hasNext()) {
+                final var recoveredBlobReferences = List.copyOf(primaryTermAndGenToBlobReference.values());
+                extraReferenceConsumers.forEachRemaining(consumer -> {
+                    recoveredBlobReferences.forEach(AbstractRefCounted::incRef);
+                    consumer.accept(Releasables.releaseOnce(() -> recoveredBlobReferences.forEach(AbstractRefCounted::decRef)));
+                });
             }
 
             // Decrement all of the non-recovered BCCs that are not referenced by the recovered commit
@@ -2354,14 +2386,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         )
                     );
             }
-        }
-
-        // Package private for testing only. Do not use it in production or other tests!!!
-        // Will be removed in https://github.com/elastic/elasticsearch-serverless/pull/5668
-        Releasable incRef(PrimaryTermAndGeneration primaryTermAndGeneration) {
-            final var blobReference = primaryTermAndGenToBlobReference.get(primaryTermAndGeneration);
-            blobReference.incRef();
-            return Releasables.releaseOnce(blobReference::decRef);
         }
 
         private void unregistered() {

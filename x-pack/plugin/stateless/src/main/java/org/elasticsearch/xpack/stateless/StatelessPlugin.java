@@ -318,10 +318,10 @@ public class StatelessPlugin extends Plugin
      */
     public static final Set<ShardRouting.Role> STATELESS_SHARD_ROLES = Set.of(ShardRouting.Role.INDEX_ONLY, ShardRouting.Role.SEARCH_ONLY);
 
-    /** Temporary feature flag setting for creating indices with a refresh block. Defaults to false. **/
+    /** Temporary feature flag setting for creating indices with a refresh block, TODO: remove once verified **/
     public static final Setting<Boolean> USE_INDEX_REFRESH_BLOCK_SETTING = Setting.boolSetting(
         MetadataCreateIndexService.USE_INDEX_REFRESH_BLOCK_SETTING_NAME,
-        false,
+        true,
         Setting.Property.NodeScope
     );
 

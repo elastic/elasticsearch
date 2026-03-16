@@ -64,7 +64,11 @@ public class StatelessSearchSkipBlockIT extends AbstractStatelessPluginIntegTest
         // - if USE_INDEX_REFRESH_BLOCK_SETTING_NAME is false, the response should be a 503
         // Once at least one search shard is ready, a subsequent request should succeed with the correct number of hits
         boolean useBlock = randomBoolean();
-        startMasterOnlyNode(Settings.builder().put(MetadataCreateIndexService.USE_INDEX_REFRESH_BLOCK_SETTING_NAME, useBlock).build());
+        if (useBlock && randomBoolean()) { // If useBlock is true, sometimes don't set the setting - it should default to true
+            startMasterOnlyNode();
+        } else {
+            startMasterOnlyNode(Settings.builder().put(MetadataCreateIndexService.USE_INDEX_REFRESH_BLOCK_SETTING_NAME, useBlock).build());
+        }
         startIndexNodes(numShards);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -102,7 +106,11 @@ public class StatelessSearchSkipBlockIT extends AbstractStatelessPluginIntegTest
         // - if USE_INDEX_REFRESH_BLOCK_SETTING_NAME is false, the responses should be null
         // Once at least one search shard is ready, a subsequent request should succeed with the correct number of hits
         boolean useBlock = randomBoolean();
-        startMasterOnlyNode(Settings.builder().put(MetadataCreateIndexService.USE_INDEX_REFRESH_BLOCK_SETTING_NAME, useBlock).build());
+        if (useBlock && randomBoolean()) { // If useBlock is true, sometimes don't set the setting - it should default to true
+            startMasterOnlyNode();
+        } else {
+            startMasterOnlyNode(Settings.builder().put(MetadataCreateIndexService.USE_INDEX_REFRESH_BLOCK_SETTING_NAME, useBlock).build());
+        }
         startIndexNodes(numShards);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -145,7 +153,11 @@ public class StatelessSearchSkipBlockIT extends AbstractStatelessPluginIntegTest
         // - if USE_INDEX_REFRESH_BLOCK_SETTING_NAME is false, there should be the correct number of shards in the response
         // Once at least one search shard is ready, a subsequent request should succeed with the correct number of shards in the response
         boolean useBlock = randomBoolean();
-        startMasterOnlyNode(Settings.builder().put(MetadataCreateIndexService.USE_INDEX_REFRESH_BLOCK_SETTING_NAME, useBlock).build());
+        if (useBlock && randomBoolean()) { // If useBlock is true, sometimes don't set the setting - it should default to true
+            startMasterOnlyNode();
+        } else {
+            startMasterOnlyNode(Settings.builder().put(MetadataCreateIndexService.USE_INDEX_REFRESH_BLOCK_SETTING_NAME, useBlock).build());
+        }
         startIndexNodes(numShards);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -192,7 +204,11 @@ public class StatelessSearchSkipBlockIT extends AbstractStatelessPluginIntegTest
         // Once at least one search shard is ready, a subsequent get PIT request should still have 0 hits, even if docs were indexed
         // - if USE_INDEX_REFRESH_BLOCK_SETTING_NAME is false, the response should be a 503
         boolean useBlock = randomBoolean();
-        startMasterOnlyNode(Settings.builder().put(MetadataCreateIndexService.USE_INDEX_REFRESH_BLOCK_SETTING_NAME, useBlock).build());
+        if (useBlock && randomBoolean()) { // If useBlock is true, sometimes don't set the setting - it should default to true
+            startMasterOnlyNode();
+        } else {
+            startMasterOnlyNode(Settings.builder().put(MetadataCreateIndexService.USE_INDEX_REFRESH_BLOCK_SETTING_NAME, useBlock).build());
+        }
         startIndexNodes(numShards);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);

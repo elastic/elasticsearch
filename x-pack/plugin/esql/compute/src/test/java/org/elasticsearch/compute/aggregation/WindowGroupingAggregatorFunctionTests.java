@@ -177,4 +177,94 @@ public class WindowGroupingAggregatorFunctionTests extends ForkingOperatorTestCa
     public void testMissingGroup() {
 
     }
+
+    /**
+     * Verifies that a 7-minute window over 1-minute sub-buckets (GCD of 7m window and 5m user bucket)
+     * produces correct sums, and that output filtering to 5-minute boundaries works.
+     * <p>
+     * Input: single TSID "x", one data point per minute from t+0 to t+14 (15 points), each with value 1.
+     * Internal bucket = 1 minute, window = 7 minutes (forward-looking).
+     * Output bucket filter = 5 minutes.
+     * <p>
+     * After window aggregation, each 1-minute bucket merges up to 7 sub-buckets of data.
+     * Only buckets at 5-minute boundaries (t+0, t+5, t+10) appear in output.
+     */
+    public void testNonMultipleWindowWithSubBucketing() {
+        Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
+        Rounding.Prepared fiveMinBucket = Rounding.builder(TimeValue.timeValueMinutes(5)).build().prepareForUnknown();
+        Duration windowDuration = Duration.ofMinutes(7);
+
+        final long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-11-13");
+        long baseTime = oneMinBucket.round(startTime);
+        BytesRef tsid = new BytesRef("x");
+
+        List<List<Object>> rows = new ArrayList<>();
+        for (int i = 0; i < 15; i++) {
+            long ts = baseTime + TimeValue.timeValueMinutes(i).millis();
+            rows.add(List.of(tsid, ts, 1));
+        }
+
+        var operatorFactory = new TimeSeriesAggregationOperator.Factory(
+            oneMinBucket,
+            false,
+            List.of(
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+            ),
+            AggregatorMode.SINGLE,
+            List.of(
+                new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
+                    AggregatorMode.SINGLE,
+                    List.of(HASH_CHANNEL_COUNT)
+                )
+            ),
+            10_000,
+            fiveMinBucket
+        );
+
+        var driverCtx = driverContext();
+        var source = new ListRowsBlockSourceOperator(
+            driverCtx.blockFactory(),
+            List.of(ElementType.BYTES_REF, ElementType.LONG, ElementType.INT),
+            rows
+        );
+        List<Page> results = new ArrayList<>();
+        try (
+            var driver = org.elasticsearch.compute.test.TestDriverFactory.create(
+                driverCtx,
+                source,
+                List.of(operatorFactory.get(driverCtx)),
+                new org.elasticsearch.compute.test.TestResultPageSinkOperator(results::add)
+            )
+        ) {
+            new org.elasticsearch.compute.test.TestDriverRunner().run(driver);
+        }
+
+        record OutputRow(String tsid, long bucket, long value) {}
+        List<OutputRow> outputRows = new ArrayList<>();
+        for (Page page : results) {
+            BytesRefBlock tsids = page.getBlock(0);
+            LongBlock buckets = page.getBlock(1);
+            LongBlock values = page.getBlock(2);
+            var scratch = new BytesRef();
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                outputRows.add(new OutputRow(tsids.getBytesRef(p, scratch).utf8ToString(), buckets.getLong(p), values.getLong(p)));
+            }
+        }
+        // Output should only contain rows at 5-minute boundaries
+        for (OutputRow row : outputRows) {
+            assertThat("output timestamp should be aligned to 5-minute boundary", fiveMinBucket.round(row.bucket()), equalTo(row.bucket()));
+        }
+        // We expect 3 output rows: at baseTime+0, baseTime+5m, baseTime+10m
+        assertThat("expected 3 output rows at 5-minute boundaries", outputRows.size(), equalTo(3));
+
+        // Verify the sums:
+        // bucket at baseTime+0: window covers [0,7m) → minutes 0..6 → 7 points → sum=7
+        // bucket at baseTime+5m: window covers [5m,12m) → minutes 5..11 → 7 points → sum=7
+        // bucket at baseTime+10m: window covers [10m,17m) → minutes 10..14 → 5 points → sum=5
+        outputRows.sort(Comparator.comparingLong(OutputRow::bucket));
+        assertThat("sum at baseTime+0m", outputRows.get(0).value(), equalTo(7L));
+        assertThat("sum at baseTime+5m", outputRows.get(1).value(), equalTo(7L));
+        assertThat("sum at baseTime+10m", outputRows.get(2).value(), equalTo(5L));
+    }
 }

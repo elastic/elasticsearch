@@ -26,6 +26,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -53,8 +54,21 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         List<BlockHash.GroupSpec> groups,
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
-        int maxPageSize
+        int maxPageSize,
+        Rounding.Prepared outputTimeBucket
     ) implements OperatorFactory {
+
+        public Factory(
+            Rounding.Prepared timeBucket,
+            boolean dateNanos,
+            List<BlockHash.GroupSpec> groups,
+            AggregatorMode aggregatorMode,
+            List<GroupingAggregator.Factory> aggregators,
+            int maxPageSize
+        ) {
+            this(timeBucket, dateNanos, groups, aggregatorMode, aggregators, maxPageSize, null);
+        }
+
         @Override
         public Operator get(DriverContext driverContext) {
             return new TimeSeriesAggregationOperator(
@@ -63,7 +77,6 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 aggregatorMode,
                 aggregators,
                 () -> {
-                    // Use TimeSeriesBlockHash for groups over the [tsid, timestamp] pair, to reduce the group overhead.
                     if (groups.size() == 2) {
                         var g1 = groups.get(0);
                         var g2 = groups.get(1);
@@ -73,9 +86,9 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                             return new TimeSeriesBlockHash(g2.channel(), g1.channel(), true, driverContext.blockFactory());
                         }
                     }
-                    // Broken optimizations are allowed as the inputs are vectors.
                     return BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, true);
                 },
+                outputTimeBucket,
                 driverContext
             );
         }
@@ -92,6 +105,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
     private final Rounding.Prepared timeBucket;
     private final DateFieldMapper.Resolution timeResolution;
+    private final Rounding.Prepared outputTimeBucket;
     private ExpandingGroups expandingGroups = null;
 
     public TimeSeriesAggregationOperator(
@@ -100,17 +114,87 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
         Supplier<BlockHash> blockHash,
+        Rounding.Prepared outputTimeBucket,
         DriverContext driverContext
     ) {
         super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, driverContext);
         this.timeBucket = timeBucket;
         this.timeResolution = timeResolution;
+        this.outputTimeBucket = outputTimeBucket;
     }
 
     @Override
     public void finish() {
         expandWindowBuckets();
         super.finish();
+    }
+
+    @Override
+    public Page getOutput() {
+        Page page = super.getOutput();
+        if (page != null
+            && aggregatorMode.isOutputPartial() == false
+            && outputTimeBucket != null
+            && blockHash instanceof TimeSeriesBlockHash) {
+            page = filterOutputPage(page);
+        }
+        return page;
+    }
+
+    /**
+     * Post-filters the output page to only keep rows whose timestamp is aligned to the output bucket boundary.
+     * Aggregation (including window merging) runs on ALL sub-bucket groups, then this strips the
+     * sub-bucket rows that are not aligned to the user-visible bucket boundaries.
+     */
+    private Page filterOutputPage(Page page) {
+        TimeSeriesBlockHash tsBlockHash = (TimeSeriesBlockHash) blockHash;
+        Rounding.Prepared optimizedOutput = optimizeOutputRoundingForTimeRange(tsBlockHash.minTimestamp(), tsBlockHash.maxTimestamp());
+        int positionCount = page.getPositionCount();
+        int alignedCount = 0;
+        for (int p = 0; p < positionCount; p++) {
+            long ts = tsBlockHash.timestampForGroup(p);
+            long millis = timeResolution.roundDownToMillis(ts);
+            if (optimizedOutput.round(millis) == millis) {
+                alignedCount++;
+            }
+        }
+        if (alignedCount == positionCount) {
+            return page;
+        }
+        int[] positions = new int[alignedCount];
+        int idx = 0;
+        for (int p = 0; p < positionCount; p++) {
+            long ts = tsBlockHash.timestampForGroup(p);
+            long millis = timeResolution.roundDownToMillis(ts);
+            if (optimizedOutput.round(millis) == millis) {
+                positions[idx++] = p;
+            }
+        }
+        Block[] filtered = new Block[page.getBlockCount()];
+        boolean success = false;
+        try {
+            for (int b = 0; b < page.getBlockCount(); b++) {
+                filtered[b] = page.getBlock(b).filter(false, positions);
+            }
+            Page result = new Page(filtered);
+            success = true;
+            return result;
+        } finally {
+            page.releaseBlocks();
+            if (success == false) {
+                Releasables.closeExpectNoException(filtered);
+            }
+        }
+    }
+
+    private Rounding.Prepared optimizeOutputRoundingForTimeRange(long minTimestamp, long maxTimestamp) {
+        if (minTimestamp <= maxTimestamp) {
+            long startMillis = timeResolution.roundDownToMillis(minTimestamp);
+            long endMillis = timeResolution.roundUpToMillis(maxTimestamp);
+            return outputTimeBucket.getUnprepared().prepare(startMillis, endMillis);
+        } else {
+            return outputTimeBucket;
+        }
     }
 
     @Override

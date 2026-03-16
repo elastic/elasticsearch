@@ -501,6 +501,10 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         return to;
     }
 
+    public Configuration configuration() {
+        return configuration;
+    }
+
     @Override
     public String toString() {
         return "Bucket{" + "field=" + field + ", buckets=" + buckets + ", from=" + from + ", to=" + to + '}';

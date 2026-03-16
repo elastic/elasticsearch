@@ -7625,7 +7625,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             assertTrue(holder.get().hasWindow());
             assertThat(holder.get().window().fold(FoldContext.small()), equalTo(Duration.ofHours(window)));
         }
-        // smaller window
+        // smaller window - still rejected
         {
             var query = """
                 TS k8s
@@ -7639,25 +7639,24 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 error.getMessage(),
                 equalTo(
                     "Unsupported window [1m] for aggregate function [rate(network.total_bytes_in, 1m)]; "
-                        + "the window must be larger than the time bucket [TBUCKET(5m)] and an exact multiple of it"
+                        + "the window must be larger than or equal to the time bucket [TBUCKET(5m)]"
                 )
             );
         }
-        // not supported
+        // non-multiple window (>= bucket) - now supported via GCD sub-bucketing
         {
-            int window = randomValueOtherThanMany(n -> n % 5 == 0, () -> between(1, 30));
+            int window = randomValueOtherThanMany(n -> n % 5 == 0 || n < 5, () -> between(6, 30));
             var query = String.format(Locale.ROOT, """
                 TS k8s
                 | STATS avg(last_over_time(network.bytes_in, %s minute)) BY tbucket(5 minute)
                 | LIMIT 10
                 """, window);
-            var error = expectThrows(IllegalArgumentException.class, () -> {
-                logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(TEST_PARSER.parseQuery(query)));
-            });
-            assertThat(
-                error.getMessage(),
-                containsString("the window must be larger than the time bucket [tbucket(5 minute)] and an exact multiple of it")
-            );
+            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(TEST_PARSER.parseQuery(query)));
+            Holder<LastOverTime> holder = new Holder<>();
+            plan.forEachExpressionDown(LastOverTime.class, holder::set);
+            assertNotNull(holder.get());
+            assertTrue(holder.get().hasWindow());
+            assertThat(holder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(window)));
         }
         // no time bucket
         {
@@ -7681,6 +7680,59 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     )
                 )
             );
+        }
+    }
+
+    public void testTranslateOverTimeWithNonMultipleWindow() {
+        // 7m window with 5m bucket -> GCD=1m internal bucket, 5m output bucket
+        {
+            var query = """
+                TS k8s
+                | STATS avg(last_over_time(network.bytes_in, 7 minute)) BY tbucket(5 minute)
+                | LIMIT 10
+                """;
+            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(TEST_PARSER.parseQuery(query)));
+            Holder<TimeSeriesAggregate> tsHolder = new Holder<>();
+            plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
+            assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
+            TimeSeriesAggregate tsAgg = tsHolder.get();
+            // Internal bucket should be GCD(7m, 5m) = 1m
+            assertNotNull(tsAgg.timeBucket());
+            assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+            // Output bucket should be the user-specified 5m
+            assertNotNull(tsAgg.outputTimeBucket());
+            assertThat(tsAgg.outputTimeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
+        }
+        // 12m window with 8m bucket -> GCD=4m internal bucket, 8m output bucket
+        {
+            var query = """
+                TS k8s
+                | STATS avg(last_over_time(network.bytes_in, 12 minute)) BY tbucket(8 minute)
+                | LIMIT 10
+                """;
+            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(TEST_PARSER.parseQuery(query)));
+            Holder<TimeSeriesAggregate> tsHolder = new Holder<>();
+            plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
+            assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
+            TimeSeriesAggregate tsAgg = tsHolder.get();
+            assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(4)));
+            assertThat(tsAgg.outputTimeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(8)));
+        }
+        // Exact multiple: 10m window with 5m bucket -> GCD=5m, internal == output (no sub-bucketing)
+        {
+            var query = """
+                TS k8s
+                | STATS avg(last_over_time(network.bytes_in, 10 minute)) BY tbucket(5 minute)
+                | LIMIT 10
+                """;
+            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(TEST_PARSER.parseQuery(query)));
+            Holder<TimeSeriesAggregate> tsHolder = new Holder<>();
+            plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
+            assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
+            TimeSeriesAggregate tsAgg = tsHolder.get();
+            // When window is an exact multiple, internal and output buckets should both be the user bucket
+            assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
+            assertThat(tsAgg.outputTimeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
         }
     }
 

@@ -2307,7 +2307,13 @@ public class EsqlCapabilities {
          * causing false type conflicts in ES|QL when querying across indices.
          * https://github.com/elastic/elasticsearch/issues/144179
          */
-        FIX_PASSTHROUGH_FIELD_CAPS_OBJECT_PARENT
+        FIX_PASSTHROUGH_FIELD_CAPS_OBJECT_PARENT,
+
+        /**
+         * Support window durations that are larger than but not exact multiples of the time bucket
+         * for time-series aggregations (e.g., rate(counter, 7 minutes) with TBUCKET(5 minutes)).
+         */
+        TIME_SERIES_WINDOW_NON_MULTIPLE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

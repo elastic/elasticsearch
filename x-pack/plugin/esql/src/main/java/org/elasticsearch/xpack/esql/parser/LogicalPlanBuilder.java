@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
@@ -593,7 +594,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx) {
         Source source = source(ctx);
         Object val = expression(ctx.constant()).fold(FoldContext.small() /* TODO remove me */);
+
         if (val instanceof Integer i && i >= 0) {
+            List<Expression> groupings;
+
+            var limitByGroupKey = ctx.limitByGroupKey();
+            if (limitByGroupKey != null) {
+                groupings = new ArrayList<>(visitGrouping(limitByGroupKey.grouping));
+                return input -> new LimitBy(source, new Literal(source, i, DataType.INTEGER), input, groupings);
+            }
+
             return input -> new Limit(source, new Literal(source, i, DataType.INTEGER), input);
         }
 

@@ -11,6 +11,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -27,9 +28,20 @@ import java.util.List;
 public class NdJsonFormatReader implements SegmentableFormatReader {
 
     private final BlockFactory blockFactory;
+    private final List<Attribute> resolvedSchema;
 
     public NdJsonFormatReader(BlockFactory blockFactory) {
+        this(blockFactory, null);
+    }
+
+    private NdJsonFormatReader(BlockFactory blockFactory, List<Attribute> resolvedSchema) {
         this.blockFactory = blockFactory;
+        this.resolvedSchema = resolvedSchema;
+    }
+
+    @Override
+    public NdJsonFormatReader withSchema(List<Attribute> schema) {
+        return new NdJsonFormatReader(blockFactory, schema);
     }
 
     @Override
@@ -42,39 +54,17 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     @Override
-    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
-        return new NdJsonPageIterator(object, projectedColumns, batchSize, blockFactory, false);
-    }
-
-    @Override
-    public CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        List<Attribute> resolvedAttributes
-    ) throws IOException {
-        return new NdJsonPageIterator(object, projectedColumns, batchSize, blockFactory, skipFirstLine, false, resolvedAttributes);
-    }
-
-    @Override
-    public CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        boolean lastSplit,
-        List<Attribute> resolvedAttributes
-    ) throws IOException {
-        boolean trimLastPartialLine = lastSplit == false;
+    public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+        boolean skipFirstLine = context.firstSplit() == false;
+        boolean trimLastPartialLine = context.lastSplit() == false;
         return new NdJsonPageIterator(
             object,
-            projectedColumns,
-            batchSize,
+            context.projectedColumns(),
+            context.batchSize(),
             blockFactory,
             skipFirstLine,
             trimLastPartialLine,
-            resolvedAttributes
+            resolvedSchema
         );
     }
 

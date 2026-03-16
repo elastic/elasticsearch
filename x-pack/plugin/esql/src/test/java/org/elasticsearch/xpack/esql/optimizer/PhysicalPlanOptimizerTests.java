@@ -69,7 +69,6 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -106,7 +105,6 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -191,6 +189,8 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -311,12 +311,11 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     @Before
     public void init() {
-        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         mapper = new Mapper();
         var enrichResolution = setupEnrichResolution();
         // Most tests used data from the test index, so we load it here, and use it in the plan() function.
-        this.testData = makeTestDataSource("test", "mapping-basic.json", functionRegistry, enrichResolution);
-        this.testDataLimitedRaw = makeTestDataSource("test", "mapping-basic-limited-raw.json", functionRegistry, enrichResolution);
+        this.testData = makeTestDataSource("test", "mapping-basic.json", enrichResolution);
+        this.testDataLimitedRaw = makeTestDataSource("test", "mapping-basic-limited-raw.json", enrichResolution);
         allFieldRowSize = testData.mapping.values()
             .stream()
             .mapToInt(
@@ -330,85 +329,70 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             .sum();
 
         // Some tests use data from the airports and countries indexes, so we load that here, and use it in the plan(q, airports) function.
-        this.airports = makeTestDataSource("airports", "mapping-airports.json", functionRegistry, enrichResolution);
+        this.airports = makeTestDataSource("airports", "mapping-airports.json", enrichResolution);
         this.airportsNoDocValues = makeTestDataSource(
             "airports-no-doc-values",
             "mapping-airports_no_doc_values.json",
-            functionRegistry,
             enrichResolution,
             new TestConfigurableSearchStats().exclude(Config.DOC_VALUES, "location").exclude(Config.DOC_VALUES, "city_location")
         );
         this.airportsNotIndexed = makeTestDataSource(
             "airports-not-indexed",
             "mapping-airports_not_indexed.json",
-            functionRegistry,
             enrichResolution,
             new TestConfigurableSearchStats().exclude(Config.INDEXED, "location")
         );
         this.airportsNotIndexedNorDocValues = makeTestDataSource(
             "airports-not-indexed-nor-doc-values",
             "mapping-airports_not_indexed_nor_doc_values.json",
-            functionRegistry,
             enrichResolution,
             new TestConfigurableSearchStats().exclude(Config.INDEXED, "location").exclude(Config.DOC_VALUES, "location")
         );
-        this.airportsWeb = makeTestDataSource("airports_web", "mapping-airports_web.json", functionRegistry, enrichResolution);
+        this.airportsWeb = makeTestDataSource("airports_web", "mapping-airports_web.json", enrichResolution);
         this.airportsCityBoundaries = makeTestDataSource(
             "airports_city_boundaries",
             "mapping-airport_city_boundaries.json",
-            functionRegistry,
             enrichResolution
         );
         this.airportsCityBoundariesNoPointDocValues = makeTestDataSource(
             "airports_city_boundaries",
             "mapping-airport_city_boundaries.json",
-            functionRegistry,
             enrichResolution,
             new TestConfigurableSearchStats().exclude(Config.DOC_VALUES, "location", "city_location")
         );
         this.airportsCityBoundariesNoShapeDocValues = makeTestDataSource(
             "airports_city_boundaries",
             "mapping-airport_city_boundaries.json",
-            functionRegistry,
             enrichResolution,
             new TestConfigurableSearchStats().exclude(Config.DOC_VALUES, "city_boundary")
         );
         this.airportsCityBoundariesNoDocValues = makeTestDataSource(
             "airports_city_boundaries",
             "mapping-airport_city_boundaries.json",
-            functionRegistry,
             enrichResolution,
             new TestConfigurableSearchStats().exclude(Config.DOC_VALUES, "city_boundary", "location", "city_location")
         );
         this.cartesianMultipolygons = makeTestDataSource(
             "cartesian_multipolygons",
             "mapping-cartesian_multipolygons.json",
-            functionRegistry,
             enrichResolution
         );
         this.cartesianMultipolygonsNoDocValues = makeTestDataSource(
             "cartesian_multipolygons_no_doc_values",
             "mapping-cartesian_multipolygons_no_doc_values.json",
-            functionRegistry,
             enrichResolution,
             new TestConfigurableSearchStats().exclude(Config.DOC_VALUES, "shape")
         );
-        this.countriesBbox = makeTestDataSource("countriesBbox", "mapping-countries_bbox.json", functionRegistry, enrichResolution);
-        this.countriesBboxWeb = makeTestDataSource(
-            "countriesBboxWeb",
-            "mapping-countries_bbox_web.json",
-            functionRegistry,
-            enrichResolution
-        );
-        this.metricsData = makeTestDataSource("k8s", "k8s-mappings.json", functionRegistry, enrichResolution);
+        this.countriesBbox = makeTestDataSource("countriesBbox", "mapping-countries_bbox.json", enrichResolution);
+        this.countriesBboxWeb = makeTestDataSource("countriesBboxWeb", "mapping-countries_bbox_web.json", enrichResolution);
+        this.metricsData = makeTestDataSource("k8s", "k8s-mappings.json", enrichResolution);
         this.plannerSettings = PlannerSettings.DEFAULTS;
-        this.testAllMapping = makeTestDataSource("test_all", "mapping-all-types.json", functionRegistry, enrichResolution);
+        this.testAllMapping = makeTestDataSource("test_all", "mapping-all-types.json", enrichResolution);
     }
 
     TestDataSource makeTestDataSource(
         String indexName,
         String mappingFileName,
-        EsqlFunctionRegistry functionRegistry,
         Map<String, IndexResolution> lookupResolution,
         EnrichResolution enrichResolution,
         SearchStats stats
@@ -422,7 +406,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         Analyzer analyzer = new Analyzer(
             testAnalyzerContext(
                 config,
-                functionRegistry,
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(indexes),
                 lookupResolution,
                 enrichResolution,
@@ -433,23 +417,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         return new TestDataSource(mapping, indexes[0], analyzer, stats);
     }
 
-    TestDataSource makeTestDataSource(
-        String indexName,
-        String mappingFileName,
-        EsqlFunctionRegistry functionRegistry,
-        EnrichResolution enrichResolution,
-        SearchStats stats
-    ) {
-        return makeTestDataSource(indexName, mappingFileName, functionRegistry, defaultLookupResolution(), enrichResolution, stats);
+    TestDataSource makeTestDataSource(String indexName, String mappingFileName, EnrichResolution enrichResolution, SearchStats stats) {
+        return makeTestDataSource(indexName, mappingFileName, defaultLookupResolution(), enrichResolution, stats);
     }
 
-    TestDataSource makeTestDataSource(
-        String indexName,
-        String mappingFileName,
-        EsqlFunctionRegistry functionRegistry,
-        EnrichResolution enrichResolution
-    ) {
-        return makeTestDataSource(indexName, mappingFileName, functionRegistry, enrichResolution, TEST_SEARCH_STATS);
+    TestDataSource makeTestDataSource(String indexName, String mappingFileName, EnrichResolution enrichResolution) {
+        return makeTestDataSource(indexName, mappingFileName, enrichResolution, TEST_SEARCH_STATS);
     }
 
     private static EnrichResolution setupEnrichResolution() {
@@ -8937,14 +8910,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             lookupIndices.put(lookupIndexName, IndexResolution.valid(lookupIndex));
         }
 
-        return makeTestDataSource(
-            "test",
-            "mapping-basic.json",
-            new EsqlFunctionRegistry(),
-            lookupIndices,
-            setupEnrichResolution(),
-            TEST_SEARCH_STATS
-        );
+        return makeTestDataSource("test", "mapping-basic.json", lookupIndices, setupEnrichResolution(), TEST_SEARCH_STATS);
     }
 
     private Map<String, EsField> fields(Collection<String> fieldNames) {
@@ -9435,7 +9401,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private PhysicalPlan physicalPlan(String query, TestDataSource dataSource, boolean assertSerialization) {
         var logicalOptimizer = dataSource.logicalOptimizer();
-        var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query)));
+        var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(TEST_PARSER.parseQuery(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(new Versioned<>(logical, dataSource.minimumVersion()));
         // System.out.println("Physical\n" + physical);

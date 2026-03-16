@@ -38,17 +38,12 @@ public final class CountDistinctLongGroupingAggregatorFunction implements Groupi
 
   private final int precision;
 
-  public CountDistinctLongGroupingAggregatorFunction(List<Integer> channels,
-      HllStates.GroupingState state, DriverContext driverContext, int precision) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
+  CountDistinctLongGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      int precision) {
     this.precision = precision;
-  }
-
-  public static CountDistinctLongGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, int precision) {
-    return new CountDistinctLongGroupingAggregatorFunction(channels, CountDistinctLongAggregator.initGrouping(driverContext, precision), driverContext, precision);
+    this.channels = channels;
+    this.state = CountDistinctLongAggregator.initGrouping(driverContext, precision);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

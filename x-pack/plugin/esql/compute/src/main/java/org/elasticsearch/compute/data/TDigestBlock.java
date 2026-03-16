@@ -34,6 +34,8 @@ public sealed interface TDigestBlock extends HistogramBlock permits ConstantNull
      */
     sealed interface Builder extends Block.Builder, BlockLoader.TDigestBuilder permits TDigestBlockBuilder {
 
+        Block.Builder appendTDigest(TDigestHolder tDigestHolder);
+
         /**
          * Copy the values in {@code block} from the given positon into this builder.
          */
@@ -43,7 +45,7 @@ public sealed interface TDigestBlock extends HistogramBlock permits ConstantNull
         TDigestBlock build();
     }
 
-    TDigestHolder getTDigestHolder(int offset);
+    TDigestHolder getTDigestHolder(int offset, TDigestHolder scratch);
 
     interface SerializedTDigestOutput {
         void appendDouble(double value);

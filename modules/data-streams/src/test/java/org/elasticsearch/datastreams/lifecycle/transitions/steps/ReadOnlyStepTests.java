@@ -42,6 +42,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Clock;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -389,6 +390,6 @@ public class ReadOnlyStepTests extends ESTestCase {
     }
 
     private DlmStepContext createStepContext(ProjectState projectState) {
-        return new DlmStepContext(index, projectState, deduplicator, errorStore, randomIntBetween(1, 10), client);
+        return new DlmStepContext(index, projectState, deduplicator, errorStore, randomIntBetween(1, 10), client, Clock.systemUTC());
     }
 }

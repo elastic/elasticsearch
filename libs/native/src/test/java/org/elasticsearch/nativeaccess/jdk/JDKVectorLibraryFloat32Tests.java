@@ -211,7 +211,7 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
         float[] expectedScores = new float[numVecs];
         scalarSimilarityBulkWithOffsets(values[queryOrd], values, offsets, expectedScores);
 
-        var nativeQuerySeg = segment.asSlice((long) queryOrd * dims * Float.BYTES, dims);
+        var nativeQuerySeg = segment.asSlice((long) queryOrd * dims * Float.BYTES, (long) dims * Float.BYTES);
 
         float[] bulkScores = new float[numVecs];
         similarityBulkWithOffsets(

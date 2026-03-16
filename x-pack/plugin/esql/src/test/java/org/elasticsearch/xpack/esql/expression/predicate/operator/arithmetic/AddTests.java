@@ -28,7 +28,6 @@ import java.time.ZoneOffset;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.function.Supplier;
@@ -377,20 +376,8 @@ public class AddTests extends AbstractConfigurationFunctionTestCase {
             (nullPosition, nullType, original) -> original.expectedType(),
             (nullPosition, nullData, original) -> nullData.isForceLiteral() ? equalTo("LiteralsEvaluator[lit=null]") : original
         );
-        suppliers = errorsForCasesWithoutExamples(suppliers, AddTests::addErrorMessageString);
-
         // Cannot use parameterSuppliersFromTypedDataWithDefaultChecks as error messages are non-trivial
         return parameterSuppliersFromTypedData(suppliers);
-    }
-
-    private static String addErrorMessageString(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
-        try {
-            return typeErrorMessage(includeOrdinal, validPerPosition, types, (a, b) -> "date_nanos, datetime, numeric or dense_vector");
-        } catch (IllegalStateException e) {
-            // This means all the positional args were okay, so the expected error is from the combination
-            return "[+] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";
-
-        }
     }
 
     private static List<TestCaseSupplier> suppliersForDate(

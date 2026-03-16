@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.reindex.ReindexPlugin;
@@ -51,7 +52,8 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
         Client client,
         TransportService transportService,
         Environment environment,
-        ResourceWatcherService watcherService
+        ResourceWatcherService watcherService,
+        FeatureService featureService
     ) {
         super(
             EnrichReindexAction.NAME,
@@ -68,7 +70,8 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
             new ReindexSslConfig(settings, environment, watcherService),
             null,
             // can't be injected due to different classloaders between enrich and reindex (enrich doesn't extend reindex).
-            ReindexPlugin.getReindexRelocationNodePicker(environment)
+            ReindexPlugin.getReindexRelocationNodePicker(environment),
+            featureService
         );
         this.bulkClient = new OriginSettingClient(client, ENRICH_ORIGIN);
     }

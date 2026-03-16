@@ -11,6 +11,9 @@ package org.elasticsearch.common.logging.activity;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+
+import java.util.Optional;
 
 /**
  * Context for {@link ActivityLogger}.
@@ -61,4 +64,26 @@ public abstract class ActivityLoggerContext {
     public String getOpaqueId() {
         return task.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
     }
+
+    public String getTraceId() {
+        return task.getHeader(Task.TRACE_ID);
+    }
+
+    /**
+     * Shard stats information. All fields are nullable.
+     */
+    public record ShardInfo(Integer successfulShards, Integer skippedShards, Integer failedShards) {}
+
+    public Optional<ShardInfo> shardInfo() {
+        return Optional.empty();
+    }
+
+    public long getTaskId() {
+        return task.getId();
+    }
+
+    public Optional<TaskId> getParentTaskId() {
+        return task.getParentTaskId().isSet() ? Optional.of(task.getParentTaskId()) : Optional.empty();
+    }
+
 }

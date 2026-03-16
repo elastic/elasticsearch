@@ -199,7 +199,7 @@ public class SetParserTests extends AbstractStatementParserTests {
     }
 
     public void testSetUnmappedFields_snapshot() {
-        assumeTrue("OPTIONAL_FIELDS option required", EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled());
+        assumeTrue("OPTIONAL_FIELDS_V2 option required", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
 
         var modes = List.of("FAIL", "NULLIFY", "LOAD");
         verifySetUnmappedFields(modes);
@@ -236,7 +236,7 @@ public class SetParserTests extends AbstractStatementParserTests {
             v -> Arrays.stream(UnmappedResolution.values()).anyMatch(x -> x.name().equalsIgnoreCase(v)),
             () -> randomAlphaOfLengthBetween(0, 10)
         );
-        var values = EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled()
+        var values = EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled()
             ? UnmappedResolution.values()
             : Arrays.stream(UnmappedResolution.values()).filter(e -> e != UnmappedResolution.LOAD).toArray();
         expectValidationError(

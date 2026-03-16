@@ -12,16 +12,10 @@ import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.ClassRule;
 
-import java.io.IOException;
-import java.util.Map;
-
 public class EsqlSpecIT extends EsqlSpecTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> {
-        spec.plugin("inference-service-test");
-        for (Map.Entry<String, String> entry : LOGGING_CLUSTER_SETTINGS.entrySet()) {
-            spec.setting(entry.getKey(), entry.getValue());
-        }
+        spec.plugin("inference-service-test").settings(nodeSpec -> LOGGING_CLUSTER_SETTINGS);
     });
 
     @Override
@@ -39,7 +33,12 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
-    protected boolean supportsSourceFieldMapping() throws IOException {
+    protected boolean supportsSourceFieldMapping() {
         return false;
+    }
+
+    @Override
+    protected String maybeRandomizeQuery(String query) {
+        return randomlyNullify(query);
     }
 }

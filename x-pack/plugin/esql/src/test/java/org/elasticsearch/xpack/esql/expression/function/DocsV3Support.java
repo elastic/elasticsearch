@@ -1896,8 +1896,17 @@ public abstract class DocsV3Support {
             if (i > 0) {
                 sb.append(" | ");
             }
+            String cell = columns[i].trim();
+            // Unescape RFC 4180 CSV-quoted values that contain doubled quotes ("").
+            // In CSV spec results, a value like "{""key"":""val""}" uses outer " as field delimiters
+            // and "" as escaped ". We strip the delimiters and unescape so JSON renders correctly
+            // in docs (e.g. {"key":"value"} instead of {""key"":""value""}).
+            // Simple quoted values like "POINT(...)" have no "" inside and are left unchanged.
+            if (cell.startsWith("\"") && cell.endsWith("\"") && cell.substring(1, cell.length() - 1).contains("\"\"")) {
+                cell = cell.substring(1, cell.length() - 1).replace("\"\"", "\"");
+            }
             // Some cells have regex content (see CATEGORIZE), so we need to escape this
-            sb.append(columns[i].trim().replaceAll("\\.\\*", ".\\\\*"));
+            sb.append(cell.replaceAll("\\.\\*", ".\\\\*"));
         }
         return sb.append(" |\n").toString();
     }

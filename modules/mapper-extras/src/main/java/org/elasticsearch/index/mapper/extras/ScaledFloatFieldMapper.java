@@ -41,7 +41,7 @@ import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
-import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoader;
+import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -858,17 +858,17 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             }
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         } else {
-            return new SortedNumericDocValuesSyntheticFieldLoader(
-                fullPath(),
-                leafName(),
-                ignoreMalformed.value(),
-                indexSettings.getIndexVersionCreated()
-            ) {
-                @Override
-                protected void writeValue(XContentBuilder b, long value) throws IOException {
-                    b.value(decodeForSyntheticSource(value, scalingFactor));
-                }
-            };
+            var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
+            layers.add(
+                new SortedNumericDocValuesSyntheticFieldLoaderLayer(
+                    fullPath(),
+                    (b, value) -> b.value(decodeForSyntheticSource(value, scalingFactor))
+                )
+            );
+            if (ignoreMalformed.value()) {
+                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
+            }
+            return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         }
     }
 

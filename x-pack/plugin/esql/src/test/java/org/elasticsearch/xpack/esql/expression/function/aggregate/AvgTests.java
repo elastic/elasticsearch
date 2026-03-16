@@ -129,10 +129,10 @@ public class AvgTests extends AbstractAggregationTestCase {
                     }
                     case TDIGEST -> {
                         var tDigest = (TDigestHolder) fieldData.get(0);
-                        if (tDigest.getValueCount() == 0) {
+                        if (tDigest.size() == 0) {
                             yield null;
                         }
-                        yield tDigest.getSum() / tDigest.getValueCount();
+                        yield tDigest.getSum() / tDigest.size();
                     }
                     default -> {
                         double value = ((Number) fieldData.get(0)).doubleValue();
@@ -169,7 +169,7 @@ public class AvgTests extends AbstractAggregationTestCase {
                     }
                     case TDIGEST -> {
                         double sum = fieldData.stream().mapToDouble(v -> ((TDigestHolder) v).getSum()).sum();
-                        double count = fieldData.stream().mapToLong(v -> ((TDigestHolder) v).getValueCount()).sum();
+                        double count = fieldData.stream().mapToLong(v -> ((TDigestHolder) v).size()).sum();
                         if (count == 0) {
                             yield null;
                         }

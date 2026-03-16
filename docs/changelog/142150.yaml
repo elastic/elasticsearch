@@ -1,0 +1,6 @@
+area: Search
+issues: []
+pr: 142150
+summary: Add circuit breaker for query construction to prevent OOM from automaton-based
+  queries
+type: bug

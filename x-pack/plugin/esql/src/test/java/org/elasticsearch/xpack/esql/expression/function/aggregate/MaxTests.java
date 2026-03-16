@@ -243,7 +243,7 @@ public class MaxTests extends AbstractAggregationTestCase {
                 expected = fieldTypedData.multiRowData()
                     .stream()
                     .map(obj -> (TDigestHolder) obj)
-                    .filter(histo -> histo.getValueCount() > 0) // only non-empty histograms have an influence
+                    .filter(histo -> histo.size() > 0) // only non-empty histograms have an influence
                     .map(TDigestHolder::getMax)
                     .max(Comparator.naturalOrder())
                     .orElse(null);

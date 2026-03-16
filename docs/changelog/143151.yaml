@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 143151
+summary: Support nested documents in time-series indices with synthetic id
+type: enhancement

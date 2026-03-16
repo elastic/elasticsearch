@@ -440,6 +440,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitLimitCommand(EsqlBaseParser.LimitCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#limitByGroupKey}.
+   * @param ctx the parse tree
+   */
+  void enterLimitByGroupKey(EsqlBaseParser.LimitByGroupKeyContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#limitByGroupKey}.
+   * @param ctx the parse tree
+   */
+  void exitLimitByGroupKey(EsqlBaseParser.LimitByGroupKeyContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#sortCommand}.
    * @param ctx the parse tree
    */
@@ -775,6 +785,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitMetricsInfoCommand(EsqlBaseParser.MetricsInfoCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#tsInfoCommand}.
+   * @param ctx the parse tree
+   */
+  void enterTsInfoCommand(EsqlBaseParser.TsInfoCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#tsInfoCommand}.
+   * @param ctx the parse tree
+   */
+  void exitTsInfoCommand(EsqlBaseParser.TsInfoCommandContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
    * @param ctx the parse tree

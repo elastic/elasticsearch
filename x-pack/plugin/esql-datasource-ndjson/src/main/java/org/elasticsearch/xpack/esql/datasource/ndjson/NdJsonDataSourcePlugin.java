@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
 import java.util.Map;
 import java.util.Set;
@@ -25,13 +26,8 @@ import java.util.Set;
 public class NdJsonDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
-    public Set<String> supportedFormats() {
-        return Set.of("ndjson");
-    }
-
-    @Override
-    public Set<String> supportedExtensions() {
-        return Set.of(".ndjson", ".jsonl");
+    public Set<FormatSpec> formatSpecs() {
+        return Set.of(new FormatSpec("ndjson", Set.of(".ndjson", ".jsonl", ".json")));
     }
 
     @Override

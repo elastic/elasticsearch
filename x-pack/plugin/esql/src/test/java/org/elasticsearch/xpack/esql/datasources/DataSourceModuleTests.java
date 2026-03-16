@@ -17,8 +17,10 @@ import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -46,7 +48,7 @@ public class DataSourceModuleTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        blockFactory = new BlockFactory(new NoopCircuitBreaker("test"), BigArrays.NON_RECYCLING_INSTANCE);
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
     }
 
     /**
@@ -60,13 +62,8 @@ public class DataSourceModuleTests extends ESTestCase {
         }
 
         @Override
-        public Set<String> supportedFormats() {
-            return Set.of("csv");
-        }
-
-        @Override
-        public Set<String> supportedExtensions() {
-            return Set.of(".csv", ".tsv");
+        public Set<FormatSpec> formatSpecs() {
+            return Set.of(FormatSpec.of("csv", ".csv"), FormatSpec.of("tsv", ".tsv"));
         }
 
         @Override
@@ -76,7 +73,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
         @Override
         public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-            return Map.of("csv", (s, bf) -> new MockCsvFormatReader());
+            return Map.of("csv", (s, bf) -> new MockCsvFormatReader("csv", List.of(".csv")), "tsv", (s, bf) -> new MockTsvFormatReader());
         }
     }
 
@@ -119,28 +116,63 @@ public class DataSourceModuleTests extends ESTestCase {
     }
 
     /**
-     * Mock CSV format reader for testing. Reports same format name and extensions
-     * as the real CsvFormatReader.
+     * Mock CSV format reader for testing.
      */
     private static class MockCsvFormatReader implements FormatReader {
+        private final String format;
+        private final List<String> extensions;
+
+        MockCsvFormatReader(String format, List<String> extensions) {
+            this.format = format;
+            this.extensions = extensions;
+        }
+
         @Override
         public SourceMetadata metadata(StorageObject object) {
             throw new UnsupportedOperationException("Mock reader");
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             throw new UnsupportedOperationException("Mock reader");
         }
 
         @Override
         public String formatName() {
-            return "csv";
+            return format;
         }
 
         @Override
         public List<String> fileExtensions() {
-            return List.of(".csv", ".tsv");
+            return extensions;
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * Mock TSV format reader for testing.
+     */
+    private static class MockTsvFormatReader implements FormatReader {
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            throw new UnsupportedOperationException("Mock reader");
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            throw new UnsupportedOperationException("Mock reader");
+        }
+
+        @Override
+        public String formatName() {
+            return "tsv";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".tsv");
         }
 
         @Override
@@ -207,10 +239,17 @@ public class DataSourceModuleTests extends ESTestCase {
         assertNotNull("CSV reader should be found by .csv extension", csvByExtension);
         assertTrue("CSV reader by extension should be MockCsvFormatReader", csvByExtension instanceof MockCsvFormatReader);
 
-        // Verify TSV extension also works (CSV reader handles TSV)
-        assertTrue("CSV reader should be registered for .tsv extension", registry.hasExtension(".tsv"));
+        // Verify TSV reader is registered separately
+        assertTrue("TSV format reader should be registered by name", registry.hasFormat("tsv"));
+        FormatReader tsvReader = registry.byName("tsv");
+        assertNotNull("TSV format reader should be retrievable by name", tsvReader);
+        assertTrue("TSV reader should be MockTsvFormatReader", tsvReader instanceof MockTsvFormatReader);
+
+        // Verify TSV extension maps to the TSV reader
+        assertTrue("TSV reader should be registered for .tsv extension", registry.hasExtension(".tsv"));
         FormatReader tsvByExtension = registry.byExtension("data.tsv");
-        assertNotNull("CSV reader should be found by .tsv extension", tsvByExtension);
+        assertNotNull("TSV reader should be found by .tsv extension", tsvByExtension);
+        assertTrue("TSV reader by extension should be MockTsvFormatReader", tsvByExtension instanceof MockTsvFormatReader);
     }
 
     /**
@@ -303,7 +342,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
         // file scheme + .csv extension should be handled
         assertTrue("Should handle file:///tmp/data.csv", fileFactory.canHandle("file:///tmp/data.csv"));
-        // file scheme + .tsv extension should be handled (registered by MockCsvFormatReader)
+        // file scheme + .tsv extension should be handled (registered by MockTsvFormatReader)
         assertTrue("Should handle file:///tmp/data.tsv", fileFactory.canHandle("file:///tmp/data.tsv"));
         // Unknown extension should not be handled
         assertFalse("Should not handle file:///tmp/data.xyz", fileFactory.canHandle("file:///tmp/data.xyz"));
@@ -382,11 +421,14 @@ public class DataSourceModuleTests extends ESTestCase {
         DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
 
         FormatReaderRegistry registry = module.formatReaderRegistry();
-        FormatReader csvReader = registry.byName("csv");
 
+        FormatReader csvReader = registry.byName("csv");
         assertEquals("CSV reader should report 'csv' as format name", "csv", csvReader.formatName());
         assertTrue("CSV reader should support .csv extension", csvReader.fileExtensions().contains(".csv"));
-        assertTrue("CSV reader should support .tsv extension", csvReader.fileExtensions().contains(".tsv"));
+
+        FormatReader tsvReader = registry.byName("tsv");
+        assertEquals("TSV reader should report 'tsv' as format name", "tsv", tsvReader.formatName());
+        assertTrue("TSV reader should support .tsv extension", tsvReader.fileExtensions().contains(".tsv"));
     }
 
     /**
@@ -428,7 +470,7 @@ public class DataSourceModuleTests extends ESTestCase {
         assertTrue("Custom provider should be registered", module.storageProviderRegistry().hasProvider("custom"));
         StorageProvider customProvider = module.storageProviderRegistry().provider(StoragePath.of("custom://bucket/file.txt"));
         assertNotNull("Custom provider should be retrievable", customProvider);
-        assertTrue("Custom provider should be MockStorageProvider", customProvider instanceof MockStorageProvider);
+        assertTrue("Custom provider should be wrapped with retry for non-file schemes", customProvider instanceof RetryableStorageProvider);
     }
 
     /**

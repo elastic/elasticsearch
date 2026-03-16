@@ -78,10 +78,9 @@ public class ValuesAggregatorBenchmark {
         assert KEYWORDS.length == UNIQUE_VALUES;
     }
 
-    private static final BlockFactory blockFactory = BlockFactory.getInstance(
-        new NoopCircuitBreaker("noop"),
-        BigArrays.NON_RECYCLING_INSTANCE  // TODO real big arrays?
-    );
+    private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     static {
         if (false == "true".equals(System.getProperty("skipSelfTest"))) {

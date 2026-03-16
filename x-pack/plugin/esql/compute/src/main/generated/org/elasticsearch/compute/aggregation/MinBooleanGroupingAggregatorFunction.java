@@ -34,16 +34,10 @@ public final class MinBooleanGroupingAggregatorFunction implements GroupingAggre
 
   private final DriverContext driverContext;
 
-  public MinBooleanGroupingAggregatorFunction(List<Integer> channels, BooleanArrayState state,
-      DriverContext driverContext) {
+  MinBooleanGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = new BooleanArrayState(driverContext.bigArrays(), MinBooleanAggregator.init());
     this.driverContext = driverContext;
-  }
-
-  public static MinBooleanGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new MinBooleanGroupingAggregatorFunction(channels, new BooleanArrayState(driverContext.bigArrays(), MinBooleanAggregator.init()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

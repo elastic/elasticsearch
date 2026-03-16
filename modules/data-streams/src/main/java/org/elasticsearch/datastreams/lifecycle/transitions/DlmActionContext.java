@@ -18,6 +18,8 @@ import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.transport.TransportRequest;
 
+import java.time.Clock;
+
 /**
  * Context and resources required for executing a DLM action.
  */
@@ -26,7 +28,8 @@ public record DlmActionContext(
     ResultDeduplicator<Tuple<ProjectId, TransportRequest>, Void> transportActionsDeduplicator,
     DataStreamLifecycleErrorStore errorStore,
     int signallingErrorRetryThreshold,
-    Client client
+    Client client,
+    Clock clock
 ) {
     /**
      * @return The project ID associated with this context.

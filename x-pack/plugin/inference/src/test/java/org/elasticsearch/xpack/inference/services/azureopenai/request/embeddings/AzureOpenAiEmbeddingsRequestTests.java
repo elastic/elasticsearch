@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiEmbeddingsRequest;
 
@@ -38,7 +39,7 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         var inputType = InputTypeTests.randomWithNull();
 
         var request = createRequest("resource", "deployment", "2024", apiKey, null, input, user, inputType);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -67,7 +68,7 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         var inputType = InputTypeTests.randomWithNull();
 
         var request = createRequest("resource", "deployment", "2024", null, entraId, input, user, inputType);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -93,7 +94,7 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         var request = createRequest("resource", "deployment", "apiVersion", "apikey", null, "abcd", null, null);
         var truncatedRequest = request.truncate();
 
-        var httpRequest = truncatedRequest.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();

@@ -28,10 +28,13 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class StoreDirectoryMetricsIT extends ESIntegTestCase {
     public void testDirectoryMetrics() throws IOException {
+        assumeTrue("directry metrics feature flag must be enabled for test", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
+
         final String indexName = randomIndexName();
         createIndex(indexName, 1, 0);
         IntStream.range(0, between(10, 100)).forEach(i -> indexDoc(indexName, "id " + i, "f", i));
         flushAndRefresh(indexName);
+        forceMerge(true);
 
         String node = internalCluster().nodesInclude(indexName).iterator().next();
 
@@ -61,12 +64,6 @@ public class StoreDirectoryMetricsIT extends ESIntegTestCase {
         });
         DirectoryMetrics metrics = tuple.v2();
         StoreMetrics storeMetrics = metrics.metrics("store").cast(StoreMetrics.class);
-        // In release builds the directory_metrics feature flag is disabled by default, so the store directory is not
-        // wrapped with StoreMetricsDirectory and bytes read are not tracked.
-        if (Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
-            assertThat(storeMetrics.getBytesRead(), equalTo(tuple.v1()));
-        } else {
-            assertThat(storeMetrics.getBytesRead(), equalTo(0L));
-        }
+        assertThat(storeMetrics.getBytesRead(), equalTo(tuple.v1()));
     }
 }

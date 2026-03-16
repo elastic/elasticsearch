@@ -28,7 +28,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
 
@@ -52,7 +51,11 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
             type = { "integer", "long", "double", "float" },
             description = "Expression that calculates the y-axis value of the sparkline graph for each datapoint."
         ) Expression field,
-        @Param(name = "field", type = { "date" }, description = "Numeric or date expression from which to derive buckets.") Expression key,
+        @Param(
+            name = "key",
+            type = { "integer", "long", "double", "date", "date_nanos" },
+            description = "Numeric or date expression from which to derive buckets."
+        ) Expression key,
         @Param(
             name = "buckets",
             type = { "integer" },
@@ -60,12 +63,12 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
         ) Expression buckets,
         @Param(
             name = "from",
-            type = { "keyword", "text", "date" },
+            type = { "integer", "long", "double", "date", "keyword", "text" },
             description = "Start of the range. Can be a number, a date or a date expressed as a string."
         ) Expression from,
         @Param(
             name = "to",
-            type = { "keyword", "text", "date" },
+            type = { "integer", "long", "double", "date", "keyword", "text" },
             description = "End of the range. Can be a number, a date or a date expressed as a string."
         ) Expression to
     ) {
@@ -93,28 +96,50 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
 
         TypeResolution resolution = isType(
             field(),
-            dt -> dt == DataType.LONG || dt == DataType.INTEGER,
+            dt -> dt == DataType.INTEGER || dt == DataType.LONG || dt == DataType.DOUBLE || dt == DataType.FLOAT,
             sourceText(),
             FIRST,
-            "long or integer"
-        ).and(isDate(key(), sourceText(), SECOND))
+            "integer or long or double or float"
+        ).and(
+            isType(
+                key(),
+                dt -> dt == DataType.INTEGER
+                    || dt == DataType.LONG
+                    || dt == DataType.DOUBLE
+                    || dt == DataType.DATETIME
+                    || dt == DataType.DATE_NANOS,
+                sourceText(),
+                SECOND,
+                "integer or long or double or datetime or date_nanos"
+            )
+        )
             .and(isWholeNumber(buckets(), sourceText(), THIRD))
             .and(
                 isType(
                     from(),
-                    dt -> dt == DataType.KEYWORD || dt == DataType.TEXT || dt == DataType.DATETIME,
+                    dt -> dt == DataType.INTEGER
+                        || dt == DataType.LONG
+                        || dt == DataType.DOUBLE
+                        || dt == DataType.DATETIME
+                        || dt == DataType.KEYWORD
+                        || dt == DataType.TEXT,
                     sourceText(),
                     FOURTH,
-                    "string or datetime"
+                    "integer or long or double or date or keyword or text"
                 )
             )
             .and(
                 isType(
                     to(),
-                    dt -> dt == DataType.KEYWORD || dt == DataType.TEXT || dt == DataType.DATETIME,
+                    dt -> dt == DataType.INTEGER
+                        || dt == DataType.LONG
+                        || dt == DataType.DOUBLE
+                        || dt == DataType.DATETIME
+                        || dt == DataType.KEYWORD
+                        || dt == DataType.TEXT,
                     sourceText(),
                     FIFTH,
-                    "string or datetime"
+                    "integer or long or double or date or keyword or text"
                 )
             );
 

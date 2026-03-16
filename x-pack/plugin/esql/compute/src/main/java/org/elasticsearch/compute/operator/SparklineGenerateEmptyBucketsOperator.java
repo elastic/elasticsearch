@@ -30,6 +30,9 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 
+/**
+ * This operator generates 0 values for all buckets that are not present in the input data for a sparkline graph.
+ */
 public class SparklineGenerateEmptyBucketsOperator implements Operator {
     public record Factory(int numValueColumns, Rounding.Prepared dateBucketRounding, long minDate, long maxDate)
         implements
@@ -91,6 +94,11 @@ public class SparklineGenerateEmptyBucketsOperator implements Operator {
     }
 
     @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return false;
+    }
+
+    @Override
     public Page getOutput() {
         if (finished == false || outputPages.isEmpty()) {
             return null;
@@ -146,7 +154,7 @@ public class SparklineGenerateEmptyBucketsOperator implements Operator {
                         }
 
                         Block[] sortBlocks = new Block[2];
-                        try (IntVector groupIds = IntVector.range(0, positionCount, driverContext.blockFactory())) {
+                        try (IntVector groupIds = driverContext.blockFactory().newIntRangeVector(0, positionCount)) {
                             outputBucketedSort.toBlocks(driverContext.blockFactory(), sortBlocks, groupIds);
                         }
                         sortBlocks[0].close();

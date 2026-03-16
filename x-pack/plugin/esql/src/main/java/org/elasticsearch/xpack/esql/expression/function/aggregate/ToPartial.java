@@ -83,7 +83,6 @@ public class ToPartial extends AggregateFunction implements ToAggregator {
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteableCollectionAsList(Expression.class).get(0)
         );
-        // TODO: Add back transport version checks
     }
 
     /*@Override
@@ -117,7 +116,7 @@ public class ToPartial extends AggregateFunction implements ToAggregator {
 
     @Override
     public ToPartial withFilter(Expression filter) {
-        return new ToPartial(source(), field(), filter(), window(), function);
+        return new ToPartial(source(), field(), filter, window(), function);
     }
 
     @Override

@@ -9,11 +9,10 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.operator.blocksource.AbstractBlockSourceOperator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.hamcrest.Matcher;
@@ -21,7 +20,6 @@ import org.hamcrest.Matcher;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.compute.test.RandomBlock.randomBlock;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
@@ -35,6 +33,7 @@ public class SparklineGenerateEmptyBucketsOperatorTests extends OperatorTestCase
     static final long T1 = T0 + TimeValue.timeValueHours(1).millis();
     static final long T2 = T0 + TimeValue.timeValueHours(2).millis();
     static final List<Long> DATE_BUCKETS = List.of(T0, T1, T2);
+    private final List<Long> EXPECTED_VALUE_LIST = List.of(42L, 0L, 99L);
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
@@ -54,13 +53,23 @@ public class SparklineGenerateEmptyBucketsOperatorTests extends OperatorTestCase
             @Override
             protected Page createPage(int positionOffset, int length) {
                 idx += length;
+                try (
+                    LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(length * 2);
+                    LongBlock.Builder dateBuilder = blockFactory.newLongBlockBuilder(length * 2)
+                ) {
+                    for (int i = 0; i < length; i++) {
+                        valueBuilder.beginPositionEntry();
+                        valueBuilder.appendLong(EXPECTED_VALUE_LIST.get(0));
+                        valueBuilder.appendLong(EXPECTED_VALUE_LIST.get(2));
+                        valueBuilder.endPositionEntry();
 
-                return new Page(
-                    randomBlock(blockFactory, ElementType.LONG, length, false, 1, 3, 0, 0).block(),
-                    randomBlock(blockFactory, ElementType.LONG, length, false, 1, 3, 0, 0).block()
-                );
-                // TODO: Check if this is the random input we want to generate. Seems this may cause inconsistent testSimpleSmallInput
-                // results.
+                        dateBuilder.beginPositionEntry();
+                        dateBuilder.appendLong(T0);
+                        dateBuilder.appendLong(T2);
+                        dateBuilder.endPositionEntry();
+                    }
+                    return new Page(valueBuilder.build(), dateBuilder.build());
+                }
             }
         };
     }
@@ -76,8 +85,8 @@ public class SparklineGenerateEmptyBucketsOperatorTests extends OperatorTestCase
 
             long[][] expectedValues = new long[inputPage.getPositionCount()][DATE_BUCKETS.size()];
             for (int pos = 0; pos < inputPage.getPositionCount(); pos++) {
-                for (int i = 0; i < DATE_BUCKETS.size(); i++) {
-                    expectedValues[pos][i] = 0L;
+                for (int dateBucketIndex = 0; dateBucketIndex < DATE_BUCKETS.size(); dateBucketIndex++) {
+                    expectedValues[pos][dateBucketIndex] = EXPECTED_VALUE_LIST.get(dateBucketIndex);
                 }
             }
             assertOutputMatchesExpected(resultPage.getBlock(0), expectedValues);

@@ -2076,10 +2076,6 @@ public class EsqlCapabilities {
         TS_STATS_BINARY_OPS,
 
         /**
-         * Support for the SPARKLINE aggregate function
-         */
-        AGG_SPARKLINE,
-
          * Fix for INLINE STATS GROUP BY null being incorrectly pruned by PruneLeftJoinOnNullMatchingField.
          * For INLINE STATS, the right side of the join can be Aggregate or LocalRelation (when optimized).
          * The join key is always the grouping, and since STATS supports GROUP BY null, pruning the join when

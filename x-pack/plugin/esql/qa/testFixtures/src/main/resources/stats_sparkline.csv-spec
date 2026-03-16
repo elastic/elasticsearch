@@ -1,5 +1,5 @@
 sparklineWithCountAll
-required_capability: agg_sparkline
+required_capability: fn_sparkline
 // tag::sparkline[]
 FROM employees
 | STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
@@ -13,7 +13,7 @@ sparkline:long
 ;
 
 sparklineWithIntegerAggregate
-required_capability: agg_sparkline
+required_capability: fn_sparkline
 FROM employees
 | STATS sparkline = SPARKLINE(MAX(salary), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
 ;
@@ -23,7 +23,7 @@ sparkline:integer
 ;
 
 sparklineWithLongAggregate
-required_capability: agg_sparkline
+required_capability: fn_sparkline
 FROM employees
 | STATS sparkline = SPARKLINE(SUM(salary), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
 ;
@@ -33,7 +33,7 @@ sparkline:long
 ;
 
 sparklineWithGrouping
-required_capability: agg_sparkline
+required_capability: fn_sparkline
 FROM employees
 | STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z") BY gender
 | SORT gender
@@ -46,7 +46,7 @@ sparkline:long                         | gender:keyword
 ;
 
 sparklineWithInlineFilter
-required_capability: agg_sparkline
+required_capability: fn_sparkline
 FROM employees
 | STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z") WHERE gender == "M"
 ;
@@ -56,7 +56,7 @@ sparkline:long
 ;
 
 sparklineWithMultipleSparklines
-required_capability: agg_sparkline
+required_capability: fn_sparkline
 FROM employees
 | STATS s1 = SPARKLINE(MAX(salary), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"),
         s2 = SPARKLINE(MIN(salary), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
@@ -67,7 +67,7 @@ s1:integer                                                      | s2:integer
 ;
 
 sparklineWithNonSparklineAggregates
-required_capability: agg_sparkline
+required_capability: fn_sparkline
 FROM employees
 | STATS s = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"),
         c = COUNT(*),
@@ -79,7 +79,7 @@ s:long                                 | c:long | m:integer
 ;
 
 sparklineWithNonSparklineAggregatesAndGrouping
-required_capability: agg_sparkline
+required_capability: fn_sparkline
 FROM employees
 | STATS s = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"),
         c = COUNT(*),
@@ -94,7 +94,7 @@ s:long                                 | c:long | m:integer | gender:keyword
 ;
 
 sparklineEmptyNoRows
-required_capability: agg_sparkline
+required_capability: fn_sparkline
 FROM employees
 | WHERE hire_date < "1900-01-01T00:00:00Z"
 | STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")

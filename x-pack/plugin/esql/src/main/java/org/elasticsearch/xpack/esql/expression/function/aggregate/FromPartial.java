@@ -60,7 +60,6 @@ public class FromPartial extends AggregateFunction implements ToAggregator {
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class)
-            // TODO: Add back transport versions
         );
     }
 

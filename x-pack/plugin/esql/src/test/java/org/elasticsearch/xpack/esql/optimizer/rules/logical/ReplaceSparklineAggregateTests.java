@@ -295,6 +295,18 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
         }
     }
 
+    public void testSparklineWithCommandAfterStats() {
+        plan("from test | stats s = " + SPARKLINE_EXPR + ", c = count(*) by last_name | sort c desc");
+    }
+
+    public void testSparklineWithCommandBeforeStats() {
+        plan("from test | sort last_name desc | stats s = " + SPARKLINE_EXPR + ", c = count(*) by last_name");
+    }
+
+    public void testSparklineWithCommandBeforeAndAfterStats() {
+        plan("from test | sort last_name desc | stats s = " + SPARKLINE_EXPR + ", c = count(*) by last_name | sort c desc");
+    }
+
     // TODO: Add test with different key. Currently there is no test mapping with 2 dates values
     /*public void testMultipleSparklinesDifferentKey() {
         var e = expectThrows(ParsingException.class, () -> plan("""

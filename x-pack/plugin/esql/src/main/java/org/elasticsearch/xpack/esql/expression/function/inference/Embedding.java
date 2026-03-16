@@ -14,6 +14,9 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -36,18 +39,27 @@ public class Embedding extends InferenceFunction<Embedding> {
 
     @FunctionInfo(
         returnType = "dense_vector",
-        description = "Generates dense vector embeddings from text input using a specified "
+        description = "Generates dense vector embeddings from multimodal input using a specified "
             + "[inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md) "
             + "with the {@code embedding} task type. "
             + "Use this function to generate query vectors for KNN searches against your vectorized data "
-            + "or other dense vector based operations."
+            + "or other dense vector based operations.",
+        appliesTo = {
+            @FunctionAppliesTo(version = "9.5.0", lifeCycle = FunctionAppliesToLifecycle.PREVIEW),
+        },
+        examples = {
+            @Example(
+                description = "Generate embeddings using the 'test_dense_inference' inference endpoint.",
+                file = "embedding",
+                tag = "embedding-knn"
+            ) }
     )
     public Embedding(
         Source source,
         @Param(
-            name = "text",
+            name = "value",
             type = { "keyword" },
-            description = "Text string to generate embeddings from. Must be a non-null literal string value."
+            description = "Value to generate embeddings from. Must be a non-null literal string value."
         ) Expression inputText,
         @Param(
             name = InferenceFunction.INFERENCE_ID_PARAMETER_NAME,

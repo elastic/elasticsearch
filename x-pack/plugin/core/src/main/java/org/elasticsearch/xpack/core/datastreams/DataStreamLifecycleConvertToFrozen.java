@@ -140,7 +140,6 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
             );
             return false;
         }
-        ;
 
         String repositoryName = resolveRepositoryName(projectState);
         boolean repoIsRegistered = RepositoriesMetadata.get(projectState.metadata())

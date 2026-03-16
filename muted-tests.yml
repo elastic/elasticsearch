@@ -294,33 +294,12 @@ tests:
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testOperationBasedRecovery {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/143802
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:approximation.Approximate stats with sample}
-  issue: https://github.com/elastic/elasticsearch/issues/144001
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:approximation.Approximate stats with sample}
-  issue: https://github.com/elastic/elasticsearch/issues/144007
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:approximation.Exact total single-valued field count}
-  issue: https://github.com/elastic/elasticsearch/issues/144014
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
-  method: test {csv-spec:approximation.Approximate stats with sample}
-  issue: https://github.com/elastic/elasticsearch/issues/144022
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteBlobWithRetries
   issue: https://github.com/elastic/elasticsearch/issues/144025
 - class: org.elasticsearch.snapshots.ConcurrentSnapshotsIT
   method: testDeletesAreBatched
   issue: https://github.com/elastic/elasticsearch/issues/144034
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {csv-spec:approximation.Approximate stats with sample}
-  issue: https://github.com/elastic/elasticsearch/issues/144022
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:approximation.Approximate stats with stats where}
-  issue: https://github.com/elastic/elasticsearch/issues/144051
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:approximation.Approximate stats with where on multi-valued data}
-  issue: https://github.com/elastic/elasticsearch/issues/144066
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
   issue: https://github.com/elastic/elasticsearch/issues/138012
@@ -360,12 +339,6 @@ tests:
 - class: org.elasticsearch.test.apmintegration.MetricsApmIT
   method: testJvmMetrics {withOTel=false}
   issue: https://github.com/elastic/elasticsearch/issues/144167
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:approximation.Approximate stats by on large multi-valued data}
-  issue: https://github.com/elastic/elasticsearch/issues/144169
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:approximation.Approximate stats by with zero variance}
-  issue: https://github.com/elastic/elasticsearch/issues/144240
 - class: org.elasticsearch.xpack.esql.datasource.grpc.EmployeeFlightServerTests
   method: testMultiEndpointEachPartitionHasRows
   issue: https://github.com/elastic/elasticsearch/issues/144244

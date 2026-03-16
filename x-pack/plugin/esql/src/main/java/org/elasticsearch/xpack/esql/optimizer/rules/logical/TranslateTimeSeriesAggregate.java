@@ -158,6 +158,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
     TimeSeriesAggregate,
     LogicalOptimizerContext> {
 
+    static final int MAX_SUB_BUCKETS = 128;
+
     public TranslateTimeSeriesAggregate() {
         super(OptimizerRules.TransformDirection.UP);
     }
@@ -501,6 +503,16 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         }
         if (hasWindow == false || gcdMillis == bucketMillis) {
             return userBucket;
+        }
+        long subBuckets = bucketMillis / gcdMillis;
+        if (subBuckets > MAX_SUB_BUCKETS) {
+            throw new IllegalArgumentException(
+                "The window and time bucket combination requires ["
+                    + subBuckets
+                    + "] sub-buckets per output bucket, which exceeds the limit of ["
+                    + MAX_SUB_BUCKETS
+                    + "]; use a larger time bucket or adjust the window to be an exact multiple of the time bucket"
+            );
         }
         Literal gcdInterval = Literal.timeDuration(userBucket.buckets().source(), Duration.ofMillis(gcdMillis));
         return new Bucket(userBucket.source(), userBucket.field(), gcdInterval, null, null, userBucket.configuration());

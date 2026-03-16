@@ -7736,6 +7736,20 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
     }
 
+    public void testTranslateOverTimeWithTooManySubBuckets() {
+        // 301s window with 300s (5m) bucket -> GCD=1s -> 300 sub-buckets, exceeds limit of 128
+        var e = expectThrows(IllegalArgumentException.class, () -> {
+            var query = """
+                TS k8s
+                | STATS avg(last_over_time(network.bytes_in, 301 second)) BY tbucket(5 minute)
+                | LIMIT 10
+                """;
+            logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(TEST_PARSER.parseQuery(query)));
+        });
+        assertThat(e.getMessage(), containsString("sub-buckets"));
+        assertThat(e.getMessage(), containsString("128"));
+    }
+
     public void testMvSortInvalidOrder() {
         VerificationException e = expectThrows(VerificationException.class, () -> plan("""
             from test

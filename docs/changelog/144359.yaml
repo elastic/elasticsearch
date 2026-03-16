@@ -1,0 +1,6 @@
+area: Mapping
+issues:
+ - 144354
+pr: 144359
+summary: Fix flattened rolling upgrade sort order
+type: bug

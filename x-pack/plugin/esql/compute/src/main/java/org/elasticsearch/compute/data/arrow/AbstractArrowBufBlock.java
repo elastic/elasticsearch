@@ -72,6 +72,9 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
             // Requires dealing with 64-bits offset buffers
             if (listVec.getDataVector() instanceof FixedWidthVector fwChild) {
                 valueVec = fwChild;
+                if (valueVec.getNullCount() != 0) {
+                    throw new IllegalArgumentException("Nulls multi-valued entries aren't supported.");
+                }
             } else {
                 throw new IllegalArgumentException(
                     "ListVector child must be a FixedWidthVector, got " + listVec.getDataVector().getClass().getSimpleName()

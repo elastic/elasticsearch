@@ -60,6 +60,7 @@ public final class BytesRefArrowBufBlock extends AbstractArrowBufBlock<BytesRefV
 
         BytesRefArrowBufBlock result;
 
+        // BaseVariableWidthVector is the parent of VarBinaryVector and VarCharVector
         if (arrowVector instanceof BaseVariableWidthVector base) {
             boolean hasNulls = base.getNullCount() > 0;
             result = new BytesRefArrowBufBlock(
@@ -74,6 +75,9 @@ public final class BytesRefArrowBufBlock extends AbstractArrowBufBlock<BytesRefV
 
         } else if (arrowVector instanceof ListVector listVec) {
             if (listVec.getDataVector() instanceof BaseVariableWidthVector base) {
+                if (base.getNullCount() > 0) {
+                    throw new IllegalArgumentException("Nulls multi-valued entries aren't supported.");
+                }
                 boolean hasNulls = listVec.getNullCount() > 0;
                 result = new BytesRefArrowBufBlock(
                     base.getDataBuffer(),

@@ -11,37 +11,32 @@ package org.elasticsearch.server.launcher;
 
 import org.elasticsearch.server.launcher.common.ProcessUtil;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.PrintStream;
-import java.nio.charset.StandardCharsets;
+import java.io.OutputStream;
 
 /**
- * A thread that reads the preparer process's stderr and dispatches each line to
- * either stdout or stderr of the launcher based on a tag prefix.
+ * A thread that reads the preparer process's stderr pipe and demultiplexes it into
+ * the launcher's stdout and stderr based on byte-level mode markers.
  *
- * <p> Lines starting with {@link #STDERR_LINE_TAG} ({@code \u0001}) are stderr-destined:
- * the tag is stripped and the line is written to the launcher's stderr. All other lines
- * are written to the launcher's stdout. This matches the tagging applied by
- * {@code StderrTaggingOutputStream} in the cli-launcher module.
+ * <p> The preparer uses an {@code OutputStreamMux} (in the cli-launcher module) to
+ * multiplex its stdout and stderr onto a single pipe. Mode byte {@link #STDOUT_MODE}
+ * ({@code 0x01}) switches to stdout; {@link #STDERR_MODE} ({@code 0x02}) switches to
+ * stderr. All bytes between mode markers belong to the currently active mode.
+ * The default mode is stdout, so any bytes before the first marker are routed there.
  */
 class PreparerOutputPump extends Thread {
 
-    /**
-     * Tag character prepended to stderr-destined lines by the preparer process.
-     * Must match {@code StderrTaggingOutputStream.STDERR_LINE_TAG} in the cli-launcher module.
-     */
-    static final char STDERR_LINE_TAG = '\u0001';
+    static final byte STDOUT_MODE = 0x01;
+    static final byte STDERR_MODE = 0x02;
 
-    private final BufferedReader reader;
-    private final PrintStream stdout;
-    private final PrintStream stderr;
+    private final InputStream input;
+    private final OutputStream stdout;
+    private final OutputStream stderr;
 
-    PreparerOutputPump(InputStream input, PrintStream stdout, PrintStream stderr) {
+    PreparerOutputPump(InputStream input, OutputStream stdout, OutputStream stderr) {
         super("server-launcher[preparer_output]");
-        this.reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8));
+        this.input = input;
         this.stdout = stdout;
         this.stderr = stderr;
     }
@@ -49,23 +44,39 @@ class PreparerOutputPump extends Thread {
     @Override
     public void run() {
         try {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (line.isEmpty() == false && line.charAt(0) == STDERR_LINE_TAG) {
-                    stderr.println(line.substring(1));
-                } else {
-                    stdout.println(line);
+            byte[] buf = new byte[8192];
+            byte currentMode = STDOUT_MODE;
+            int n;
+            while ((n = input.read(buf, 0, buf.length)) != -1) {
+                int start = 0;
+                for (int i = 0; i < n; i++) {
+                    if (buf[i] == STDOUT_MODE || buf[i] == STDERR_MODE) {
+                        if (i > start) {
+                            streamFor(currentMode).write(buf, start, i - start);
+                        }
+                        currentMode = buf[i];
+                        start = i + 1;
+                    }
+                }
+                if (start < n) {
+                    streamFor(currentMode).write(buf, start, n - start);
                 }
             }
+            stdout.flush();
+            stderr.flush();
         } catch (IOException e) {
             // stream closed, nothing to do
         } finally {
             try {
-                reader.close();
+                input.close();
             } catch (IOException e) {
                 // ignore
             }
         }
+    }
+
+    private OutputStream streamFor(byte mode) {
+        return mode == STDERR_MODE ? stderr : stdout;
     }
 
     /**

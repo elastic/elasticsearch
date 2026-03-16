@@ -157,7 +157,7 @@ public class CliToolLauncherTests extends ESTestCase {
         assertThat(stderr, containsString(RedirectTestCommand.USER_OUTPUT));
     }
 
-    public void testWithRedirectFlagStdoutOutputIsUntagged() throws Exception {
+    public void testWithRedirectFlagStdoutOutputInStdoutMode() throws Exception {
         Path esHome = createTempDir();
         ByteArrayOutputStream stdoutCapture = new ByteArrayOutputStream();
         ByteArrayOutputStream stderrCapture = new ByteArrayOutputStream();
@@ -183,16 +183,14 @@ public class CliToolLauncherTests extends ESTestCase {
             restoreOrClear("cli.libs", savedCliLibs);
             restoreOrClear("cli.redirectStdoutToStderr", savedRedirect);
         }
-        String stderr = stderrCapture.toString(StandardCharsets.UTF_8);
-        char tag = (char) StderrTaggingOutputStream.STDERR_LINE_TAG;
-        for (String line : stderr.split("\n")) {
-            if (line.contains(RedirectTestCommand.USER_OUTPUT)) {
-                assertThat("stdout-destined output should not be tagged", line.charAt(0) == tag, is(false));
-            }
-        }
+        byte[] raw = stderrCapture.toByteArray();
+        byte[] userOutputBytes = RedirectTestCommand.USER_OUTPUT.getBytes(StandardCharsets.UTF_8);
+        int idx = indexOf(raw, userOutputBytes);
+        assertThat("user output should appear in muxed stream", idx >= 0, is(true));
+        assertThat("stdout-destined output should be in STDOUT_MODE", activeModeAt(raw, idx), equalTo(OutputStreamMux.STDOUT_MODE));
     }
 
-    public void testWithRedirectFlagErrorOutputIsTagged() throws Exception {
+    public void testWithRedirectFlagErrorOutputInStderrMode() throws Exception {
         Path esHome = createTempDir();
         ByteArrayOutputStream stdoutCapture = new ByteArrayOutputStream();
         ByteArrayOutputStream stderrCapture = new ByteArrayOutputStream();
@@ -218,16 +216,39 @@ public class CliToolLauncherTests extends ESTestCase {
             restoreOrClear("cli.libs", savedCliLibs);
             restoreOrClear("cli.redirectStdoutToStderr", savedRedirect);
         }
-        String stderr = stderrCapture.toString(StandardCharsets.UTF_8);
-        char tag = (char) StderrTaggingOutputStream.STDERR_LINE_TAG;
-        boolean foundTaggedError = false;
-        for (String line : stderr.split("\n")) {
-            if (line.contains(RedirectTestCommand.ERROR_OUTPUT)) {
-                assertThat("stderr-destined output should be tagged", line.charAt(0), equalTo(tag));
-                foundTaggedError = true;
+        byte[] raw = stderrCapture.toByteArray();
+        byte[] errorOutputBytes = RedirectTestCommand.ERROR_OUTPUT.getBytes(StandardCharsets.UTF_8);
+        int idx = indexOf(raw, errorOutputBytes);
+        assertThat("error output should appear in muxed stream", idx >= 0, is(true));
+        assertThat("stderr-destined output should be in STDERR_MODE", activeModeAt(raw, idx), equalTo(OutputStreamMux.STDERR_MODE));
+    }
+
+    /**
+     * Returns the active mode at position {@code dataIdx} by scanning backwards for
+     * the most recent mode marker. Defaults to STDOUT_MODE if none found.
+     */
+    private static byte activeModeAt(byte[] raw, int dataIdx) {
+        for (int i = dataIdx - 1; i >= 0; i--) {
+            if (raw[i] == OutputStreamMux.STDOUT_MODE || raw[i] == OutputStreamMux.STDERR_MODE) {
+                return raw[i];
             }
         }
-        assertThat("should have found tagged error output", foundTaggedError, is(true));
+        return OutputStreamMux.STDOUT_MODE;
+    }
+
+    /**
+     * Finds the first occurrence of {@code needle} in {@code haystack}, or -1 if not found.
+     */
+    private static int indexOf(byte[] haystack, byte[] needle) {
+        outer: for (int i = 0; i <= haystack.length - needle.length; i++) {
+            for (int j = 0; j < needle.length; j++) {
+                if (haystack[i + j] != needle[j]) {
+                    continue outer;
+                }
+            }
+            return i;
+        }
+        return -1;
     }
 
     private static void restoreOrClear(String key, String value) {

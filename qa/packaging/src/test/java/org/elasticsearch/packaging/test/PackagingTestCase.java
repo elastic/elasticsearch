@@ -427,11 +427,7 @@ public abstract class PackagingTestCase extends Assert {
             assertThat(error.stdout(), anyOf(stringMatchers));
 
         } else {
-
-            // Error may appear on stdout or stderr depending on whether a prompt
-            // (e.g. keystore password) was written without a trailing newline,
-            // which can affect the launcher's stdout/stderr stream tagging.
-            assertThat(result.stdout() + "\n" + result.stderr(), anyOf(stringMatchers));
+            assertThat(result.stderr(), anyOf(stringMatchers));
         }
     }
 

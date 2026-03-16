@@ -15,12 +15,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
-import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 
 /**
  * Tests for {@link PreparerOutputPump}.
@@ -37,21 +34,29 @@ public class PreparerOutputPumpTests extends ESTestCase {
         PipedInputStream pumpInput = new PipedInputStream(input);
         capturedStdout = new ByteArrayOutputStream();
         capturedStderr = new ByteArrayOutputStream();
-        pump = new PreparerOutputPump(
-            pumpInput,
-            new PrintStream(capturedStdout, true, StandardCharsets.UTF_8),
-            new PrintStream(capturedStderr, true, StandardCharsets.UTF_8)
-        );
+        pump = new PreparerOutputPump(pumpInput, capturedStdout, capturedStderr);
         pump.start();
     }
 
-    private void writeLine(String line) throws IOException {
-        input.write((line + "\n").getBytes(StandardCharsets.UTF_8));
+    private void writeRaw(byte[] bytes) throws IOException {
+        input.write(bytes);
         input.flush();
     }
 
-    private void writeTaggedLine(String line) throws IOException {
-        writeLine(PreparerOutputPump.STDERR_LINE_TAG + line);
+    private void writeStdout(String s) throws IOException {
+        byte[] data = s.getBytes(StandardCharsets.UTF_8);
+        byte[] out = new byte[data.length + 1];
+        out[0] = PreparerOutputPump.STDOUT_MODE;
+        System.arraycopy(data, 0, out, 1, data.length);
+        writeRaw(out);
+    }
+
+    private void writeStderr(String s) throws IOException {
+        byte[] data = s.getBytes(StandardCharsets.UTF_8);
+        byte[] out = new byte[data.length + 1];
+        out[0] = PreparerOutputPump.STDERR_MODE;
+        System.arraycopy(data, 0, out, 1, data.length);
+        writeRaw(out);
     }
 
     private void closeAndDrain() throws IOException {
@@ -67,55 +72,62 @@ public class PreparerOutputPumpTests extends ESTestCase {
         return capturedStderr.toString(StandardCharsets.UTF_8);
     }
 
-    public void testUntaggedLinesGoToStdout() throws Exception {
+    public void testStdoutModeRoutesToStdout() throws Exception {
         startPump();
-        writeLine("hello world");
-        writeLine("version info");
+        writeStdout("hello world\n");
+        writeStdout("version info\n");
         closeAndDrain();
-        assertThat(stdout(), containsString("hello world"));
-        assertThat(stdout(), containsString("version info"));
+        assertThat(stdout(), equalTo("hello world\nversion info\n"));
         assertThat(stderr(), equalTo(""));
     }
 
-    public void testTaggedLinesGoToStderr() throws Exception {
+    public void testStderrModeRoutesToStderr() throws Exception {
         startPump();
-        writeTaggedLine("error message");
-        writeTaggedLine("warning message");
+        writeStderr("error message\n");
+        writeStderr("warning message\n");
         closeAndDrain();
-        assertThat(stderr(), containsString("error message"));
-        assertThat(stderr(), containsString("warning message"));
+        assertThat(stderr(), equalTo("error message\nwarning message\n"));
         assertThat(stdout(), equalTo(""));
     }
 
-    public void testTagIsStrippedFromStderrOutput() throws Exception {
+    public void testModeMarkersAreStrippedFromOutput() throws Exception {
         startPump();
-        writeTaggedLine("error message");
+        writeStdout("hello\n");
         closeAndDrain();
-        assertThat(stderr(), containsString("error message"));
-        assertThat(stderr(), not(containsString(String.valueOf(PreparerOutputPump.STDERR_LINE_TAG))));
+        byte[] out = capturedStdout.toByteArray();
+        for (byte b : out) {
+            assertNotEquals("mode byte should not appear in output", PreparerOutputPump.STDOUT_MODE, b);
+            assertNotEquals("mode byte should not appear in output", PreparerOutputPump.STDERR_MODE, b);
+        }
     }
 
-    public void testMixedTaggedAndUntaggedLines() throws Exception {
+    public void testModeSwitching() throws Exception {
         startPump();
-        writeLine("stdout line 1");
-        writeTaggedLine("stderr line 1");
-        writeLine("stdout line 2");
-        writeTaggedLine("stderr line 2");
+        writeStdout("stdout line 1\n");
+        writeStderr("stderr line 1\n");
+        writeStdout("stdout line 2\n");
+        writeStderr("stderr line 2\n");
         closeAndDrain();
-        assertThat(stdout(), containsString("stdout line 1"));
-        assertThat(stdout(), containsString("stdout line 2"));
-        assertThat(stderr(), containsString("stderr line 1"));
-        assertThat(stderr(), containsString("stderr line 2"));
-        assertThat(stdout(), not(containsString("stderr line")));
-        assertThat(stderr(), not(containsString("stdout line")));
+        assertThat(stdout(), equalTo("stdout line 1\nstdout line 2\n"));
+        assertThat(stderr(), equalTo("stderr line 1\nstderr line 2\n"));
     }
 
-    public void testEmptyLinesGoToStdout() throws Exception {
+    public void testDefaultModeIsStdout() throws Exception {
         startPump();
-        writeLine("");
+        writeRaw("no mode marker\n".getBytes(StandardCharsets.UTF_8));
         closeAndDrain();
-        assertThat(stdout(), equalTo(System.lineSeparator()));
+        assertThat(stdout(), equalTo("no mode marker\n"));
         assertThat(stderr(), equalTo(""));
+    }
+
+    public void testPartialLineInterleaving() throws Exception {
+        startPump();
+        writeStderr("Enter password: ");
+        writeStdout("Version: 9.0\n");
+        writeStderr("Bad password\n");
+        closeAndDrain();
+        assertThat(stdout(), equalTo("Version: 9.0\n"));
+        assertThat(stderr(), equalTo("Enter password: Bad password\n"));
     }
 
     public void testEmptyStream() throws Exception {
@@ -123,5 +135,14 @@ public class PreparerOutputPumpTests extends ESTestCase {
         closeAndDrain();
         assertThat(stdout(), equalTo(""));
         assertThat(stderr(), equalTo(""));
+    }
+
+    public void testConsecutiveModeSwitchesWithNoData() throws Exception {
+        startPump();
+        writeRaw(new byte[] { PreparerOutputPump.STDOUT_MODE, PreparerOutputPump.STDERR_MODE });
+        writeRaw("err\n".getBytes(StandardCharsets.UTF_8));
+        closeAndDrain();
+        assertThat(stdout(), equalTo(""));
+        assertThat(stderr(), equalTo("err\n"));
     }
 }

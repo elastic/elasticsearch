@@ -20,22 +20,19 @@ import java.nio.charset.Charset;
 
 /**
  * A terminal used when the process is run with ES_REDIRECT_STDOUT_TO_STDERR
- * (or cli.redirectStdoutToStderr). At construction time the calling code has already:
- * <ol>
- *     <li>Redirected {@code System.out} to the real stderr (untagged, stdout-destined)</li>
- *     <li>Replaced {@code System.err} with a {@link StderrTaggingOutputStream} wrapper
- *         (tagged, stderr-destined)</li>
- * </ol>
- * This terminal wires {@code outWriter} to {@code System.out} (untagged) and
- * {@code errWriter} to {@code System.err} (tagged), so the launcher can distinguish
- * the original destination of each line. Binary data (e.g. the launch descriptor)
- * is written via {@link #getOutputStream()} which returns the saved original stdout.
+ * (or cli.redirectStdoutToStderr). At construction time the calling code has already
+ * installed an {@link OutputStreamMux} so that both {@code System.out} and
+ * {@code System.err} write to the same underlying pipe with byte-level mode markers.
+ *
+ * <p> This terminal wires {@code outWriter} to {@code System.out} (stdout channel) and
+ * {@code errWriter} to {@code System.err} (stderr channel). Binary data (e.g. the launch
+ * descriptor) is written via {@link #getOutputStream()} which returns the saved original stdout.
  */
 class RedirectedStdoutTerminal extends Terminal {
 
     private final OutputStream stdoutForBinary;
 
-    @SuppressForbidden(reason = "System.out is untagged stderr (stdout-destined); System.err is tagged (stderr-destined)")
+    @SuppressForbidden(reason = "System.out and System.err are mux channels installed by CliToolLauncher")
     RedirectedStdoutTerminal(OutputStream stdoutForBinary) {
         super(
             new InputStreamReader(System.in, Charset.defaultCharset()),

@@ -7,17 +7,17 @@
 
 package org.elasticsearch.xpack.inference.services.voyageai.embeddings;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -37,8 +37,8 @@ import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS_SET_BY_USER;
 import static org.hamcrest.Matchers.is;
 
-public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<VoyageAIEmbeddingsServiceSettings> {
-    public static VoyageAIEmbeddingsServiceSettings createRandom() {
+public class VoyageAITextEmbeddingServiceSettingsTests extends AbstractBWCWireSerializationTestCase<VoyageAITextEmbeddingServiceSettings> {
+    public static VoyageAITextEmbeddingServiceSettings createRandom() {
         SimilarityMeasure similarityMeasure = SimilarityMeasure.DOT_PRODUCT;
         Integer dims = 1024;
         Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
@@ -46,7 +46,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
 
         var commonSettings = VoyageAIServiceSettingsTests.createRandom();
 
-        return new VoyageAIEmbeddingsServiceSettings(
+        return new VoyageAITextEmbeddingServiceSettings(
             commonSettings,
             VoyageAIEmbeddingType.FLOAT,
             similarityMeasure,
@@ -61,7 +61,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
         var dims = 1536;
         var maxInputTokens = 512;
         var model = "model";
-        var serviceSettings = VoyageAIEmbeddingsServiceSettings.fromMap(
+        var serviceSettings = VoyageAITextEmbeddingServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     ServiceFields.SIMILARITY,
@@ -80,7 +80,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
         MatcherAssert.assertThat(
             serviceSettings,
             is(
-                new VoyageAIEmbeddingsServiceSettings(
+                new VoyageAITextEmbeddingServiceSettings(
                     new VoyageAIServiceSettings(model, null),
                     VoyageAIEmbeddingType.FLOAT,
                     SimilarityMeasure.DOT_PRODUCT,
@@ -96,7 +96,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
         var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
         var maxInputTokens = 512;
         var model = "model";
-        var serviceSettings = VoyageAIEmbeddingsServiceSettings.fromMap(
+        var serviceSettings = VoyageAITextEmbeddingServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(ServiceFields.SIMILARITY, similarity, ServiceFields.MAX_INPUT_TOKENS, maxInputTokens, ServiceFields.MODEL_ID, model)
             ),
@@ -106,7 +106,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
         MatcherAssert.assertThat(
             serviceSettings,
             is(
-                new VoyageAIEmbeddingsServiceSettings(
+                new VoyageAITextEmbeddingServiceSettings(
                     new VoyageAIServiceSettings(model, null),
                     VoyageAIEmbeddingType.FLOAT,
                     SimilarityMeasure.DOT_PRODUCT,
@@ -123,7 +123,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
         var dims = 1536;
         var maxInputTokens = 512;
         var model = "model";
-        var serviceSettings = VoyageAIEmbeddingsServiceSettings.fromMap(
+        var serviceSettings = VoyageAITextEmbeddingServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     ServiceFields.SIMILARITY,
@@ -142,7 +142,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
         MatcherAssert.assertThat(
             serviceSettings,
             is(
-                new VoyageAIEmbeddingsServiceSettings(
+                new VoyageAITextEmbeddingServiceSettings(
                     new VoyageAIServiceSettings(model, null),
                     VoyageAIEmbeddingType.FLOAT,
                     SimilarityMeasure.DOT_PRODUCT,
@@ -158,7 +158,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
         var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
         var maxInputTokens = 512;
         var model = "model";
-        var serviceSettings = VoyageAIEmbeddingsServiceSettings.fromMap(
+        var serviceSettings = VoyageAITextEmbeddingServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     ServiceFields.SIMILARITY,
@@ -177,7 +177,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
         MatcherAssert.assertThat(
             serviceSettings,
             is(
-                new VoyageAIEmbeddingsServiceSettings(
+                new VoyageAITextEmbeddingServiceSettings(
                     new VoyageAIServiceSettings(model, null),
                     VoyageAIEmbeddingType.FLOAT,
                     SimilarityMeasure.DOT_PRODUCT,
@@ -194,7 +194,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
         var maxInputTokens = 512;
         var model = "model";
         var dimensionsSetByUser = randomBoolean();
-        var serviceSettings = VoyageAIEmbeddingsServiceSettings.fromMap(
+        var serviceSettings = VoyageAITextEmbeddingServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     ServiceFields.SIMILARITY,
@@ -213,7 +213,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
         MatcherAssert.assertThat(
             serviceSettings,
             is(
-                new VoyageAIEmbeddingsServiceSettings(
+                new VoyageAITextEmbeddingServiceSettings(
                     new VoyageAIServiceSettings(model, null),
                     VoyageAIEmbeddingType.FLOAT,
                     SimilarityMeasure.DOT_PRODUCT,
@@ -229,7 +229,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
         var similarity = "by_size";
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> VoyageAIEmbeddingsServiceSettings.fromMap(
+            () -> VoyageAITextEmbeddingServiceSettings.fromMap(
                 new HashMap<>(Map.of(ServiceFields.MODEL_ID, "model", ServiceFields.SIMILARITY, similarity)),
                 ConfigurationParseContext.PERSISTENT
             )
@@ -246,7 +246,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
 
     @SuppressWarnings("checkstyle:LineLength")
     public void testToXContent_WritesAllValues() throws IOException {
-        var serviceSettings = new VoyageAIEmbeddingsServiceSettings(
+        var serviceSettings = new VoyageAITextEmbeddingServiceSettings(
             new VoyageAIServiceSettings("model", new RateLimitSettings(3)),
             VoyageAIEmbeddingType.FLOAT,
             SimilarityMeasure.COSINE,
@@ -273,7 +273,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
 
     @SuppressWarnings("checkstyle:LineLength")
     public void testToXContent_WritesAllValues_DimensionSetByUser() throws IOException {
-        var serviceSettings = new VoyageAIEmbeddingsServiceSettings(
+        var serviceSettings = new VoyageAITextEmbeddingServiceSettings(
             new VoyageAIServiceSettings("model", new RateLimitSettings(3)),
             VoyageAIEmbeddingType.FLOAT,
             SimilarityMeasure.COSINE,
@@ -299,17 +299,17 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
     }
 
     @Override
-    protected Writeable.Reader<VoyageAIEmbeddingsServiceSettings> instanceReader() {
-        return VoyageAIEmbeddingsServiceSettings::new;
+    protected Writeable.Reader<VoyageAITextEmbeddingServiceSettings> instanceReader() {
+        return VoyageAITextEmbeddingServiceSettings::new;
     }
 
     @Override
-    protected VoyageAIEmbeddingsServiceSettings createTestInstance() {
+    protected VoyageAITextEmbeddingServiceSettings createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected VoyageAIEmbeddingsServiceSettings mutateInstance(VoyageAIEmbeddingsServiceSettings instance) throws IOException {
+    protected VoyageAITextEmbeddingServiceSettings mutateInstance(VoyageAITextEmbeddingServiceSettings instance) throws IOException {
         var commonSettings = instance.getCommonSettings();
         var embeddingType = instance.getEmbeddingType();
         var similarity = instance.similarity();
@@ -326,7 +326,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new VoyageAIEmbeddingsServiceSettings(
+        return new VoyageAITextEmbeddingServiceSettings(
             commonSettings,
             embeddingType,
             similarity,
@@ -344,7 +344,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
         return new NamedWriteableRegistry(entries);
     }
 
-    public static VoyageAIEmbeddingsServiceSettings createRandomWithNoNullValues() {
+    public static VoyageAITextEmbeddingServiceSettings createRandomWithNoNullValues() {
         SimilarityMeasure similarityMeasure = randomSimilarityMeasure();
         Integer dimensions = randomIntBetween(32, 256);
         Integer maxInputTokens = randomIntBetween(128, 256);
@@ -353,7 +353,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
         var embeddingType = randomFrom(VoyageAIEmbeddingType.values());
         var dimensionsSetByUser = randomBoolean();
 
-        return new VoyageAIEmbeddingsServiceSettings(
+        return new VoyageAITextEmbeddingServiceSettings(
             commonSettings,
             embeddingType,
             similarityMeasure,
@@ -364,8 +364,8 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
     }
 
     @Override
-    protected VoyageAIEmbeddingsServiceSettings mutateInstanceForVersion(
-        VoyageAIEmbeddingsServiceSettings instance,
+    protected VoyageAITextEmbeddingServiceSettings mutateInstanceForVersion(
+        VoyageAITextEmbeddingServiceSettings instance,
         TransportVersion version
     ) {
         return instance;
@@ -378,7 +378,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
 
         var newSettings = settings.update(similarity, dimensions);
 
-        var expectedSettings = new VoyageAIEmbeddingsServiceSettings(
+        var expectedSettings = new VoyageAITextEmbeddingServiceSettings(
             settings.getCommonSettings(),
             settings.getEmbeddingType(),
             similarity,

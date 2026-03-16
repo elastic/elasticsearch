@@ -83,9 +83,8 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
             "id",
             "service",
             url,
-            new VoyageAIEmbeddingsServiceSettings(
-                model,
-                null,
+            new VoyageAITextEmbeddingServiceSettings(
+                new VoyageAIServiceSettings(model, null),
                 VoyageAIEmbeddingType.FLOAT,
                 SimilarityMeasure.DOT_PRODUCT,
                 dimensions,
@@ -111,9 +110,8 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
             "id",
             "service",
             url,
-            new VoyageAIEmbeddingsServiceSettings(
-                model,
-                null,
+            new VoyageAITextEmbeddingServiceSettings(
+                new VoyageAIServiceSettings(model, null),
                 VoyageAIEmbeddingType.FLOAT,
                 SimilarityMeasure.DOT_PRODUCT,
                 dimensions,
@@ -140,7 +138,14 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
             "id",
             "service",
             url,
-            new VoyageAIEmbeddingsServiceSettings(model, null, embeddingType, SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit, false),
+            new VoyageAITextEmbeddingServiceSettings(
+                new VoyageAIServiceSettings(model, null),
+                embeddingType,
+                SimilarityMeasure.DOT_PRODUCT,
+                dimensions,
+                tokenLimit,
+                false
+            ),
             taskSettings,
             null,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
@@ -161,9 +166,8 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
             "id",
             "service",
             url,
-            new VoyageAIEmbeddingsServiceSettings(
-                model,
-                null,
+            new VoyageAITextEmbeddingServiceSettings(
+                new VoyageAIServiceSettings(model, null),
                 VoyageAIEmbeddingType.FLOAT,
                 similarityMeasure,
                 dimensions,
@@ -233,7 +237,7 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
     }
 
     public void testUri_ReturnsEmbeddingsEndpoint_ForTextModel() {
-        var serviceSettings = new VoyageAIEmbeddingsServiceSettings(
+        var serviceSettings = new VoyageAITextEmbeddingServiceSettings(
             new VoyageAIServiceSettings("voyage-3", null),
             VoyageAIEmbeddingType.FLOAT,
             SimilarityMeasure.DOT_PRODUCT,

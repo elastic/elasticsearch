@@ -145,7 +145,7 @@ public class VoyageAIEmbeddingsModel extends VoyageAIModel {
         ConfigurationParseContext context
     ) {
         return switch (taskType) {
-            case TEXT_EMBEDDING -> VoyageAIEmbeddingsServiceSettings.fromMap(serviceSettings, context);
+            case TEXT_EMBEDDING -> VoyageAITextEmbeddingServiceSettings.fromMap(serviceSettings, context);
             case EMBEDDING -> VoyageAIEmbeddingServiceSettings.fromMap(serviceSettings, context);
             default -> throw new IllegalArgumentException("Unsupported task type for VoyageAI embeddings: " + taskType);
         };

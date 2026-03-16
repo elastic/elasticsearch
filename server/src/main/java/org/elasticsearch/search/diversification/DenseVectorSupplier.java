@@ -17,6 +17,8 @@ import java.util.List;
 
 public interface DenseVectorSupplier {
     List<VectorData> getDenseVectorData() throws IOException;
+
     DenseVectorFieldMapper.ElementType getElementType();
+
     String getSupplierContentType();
 }

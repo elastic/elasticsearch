@@ -9,8 +9,6 @@
 
 package org.elasticsearch.datastreams;
 
-import io.netty.util.internal.ThrowableUtil;
-
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.search.join.ScoreMode;

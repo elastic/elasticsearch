@@ -121,7 +121,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     /// Only the master node triggers the lifecycle update. Other nodes return early.
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.localNodeMaster() == false || event.state().clusterRecovered()) {
+        if (event.localNodeMaster() == false || event.state().clusterRecovered() == false) {
             return;
         }
         final var healthTask = HealthNode.findTask(event.state());

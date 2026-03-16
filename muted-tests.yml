@@ -357,6 +357,9 @@ tests:
 - class: org.elasticsearch.server.cli.APMJvmOptionsTests
   method: testAPMAgentMetricsDisabledWhenOtelMetricsEnabled
   issue: https://github.com/elastic/elasticsearch/issues/144357
+- class: org.elasticsearch.server.cli.APMJvmOptionsTests
+  method: testAPMAgentAlwaysAttached
+  issue: https://github.com/elastic/elasticsearch/issues/144358
 
 # Examples:
 #

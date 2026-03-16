@@ -1,5 +1,6 @@
 keepUnmapped
 required_capability: optional_fields_nullify_tech_preview
+
 SET unmapped_fields="nullify"\;
 FROM employees
 | KEEP foo
@@ -12,12 +13,73 @@ null
 null
 ;
 
-keepMapped
-required_capability: date_nanos_type
+partialMappingUnmappedFromSource
 required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data
+| KEEP @timestamp, unmapped_message
+| SORT @timestamp DESC
+| LIMIT 3
+;
+
+@timestamp:date          | unmapped_message:null
+2024-10-23T13:55:01.543Z | null
+2024-10-23T13:53:55.832Z | null
+2024-10-23T13:52:55.015Z | null
+;
+
+fieldUnmappedInSourceButExcludedSingleIndex
+required_capability: optional_fields_nullify_tech_preview
+required_capability: source_field_mapping
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_excluded_source_sample_data
+| KEEP @timestamp, message
+| SORT @timestamp DESC
+;
+
+@timestamp:date          | message:null
+2024-10-23T13:55:01.543Z | null
+2024-10-23T13:53:55.832Z | null
+2024-10-23T13:52:55.015Z | null
+2024-10-23T13:51:54.732Z | null
+2024-10-23T13:33:34.937Z | null
+2024-10-23T12:27:28.948Z | null
+2024-10-23T12:15:03.360Z | null
+;
+
+fieldUnmappedInSourceButSourceDisabledSingleIndex
+required_capability: optional_fields_nullify_tech_preview
+required_capability: source_field_mapping
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_no_source_sample_data
+| KEEP @timestamp, message
+| SORT @timestamp DESC
+;
+
+@timestamp:date          | message:null
+2024-10-23T13:55:01.543Z | null
+2024-10-23T13:53:55.832Z | null
+2024-10-23T13:52:55.015Z | null
+2024-10-23T13:51:54.732Z | null
+2024-10-23T13:33:34.937Z | null
+2024-10-23T12:27:28.948Z | null
+2024-10-23T12:15:03.360Z | null
+;
+
+// Reproducer for https://github.com/elastic/elasticsearch/issues/141870
+keepMapped
 required_capability: optional_fields_fix_unmapped_field_detection
 
-SET unmapped_fields="nullify"; FROM date_nanos | SORT millis ASC | WHERE millis < "2000-01-01" | EVAL nanos = MV_MIN(nanos) | KEEP nanos; 
+SET unmapped_fields="nullify"\;
+FROM date_nanos
+| SORT millis ASC
+| WHERE millis < "2000-01-01"
+| EVAL nanos = MV_MIN(nanos)
+| KEEP nanos
+;
 
 nanos:date_nanos
 2023-03-23T12:15:03.360103847Z
@@ -34,8 +96,8 @@ FROM employees
 | LIMIT 1
 ;
 
-avg_worked_seconds:long|birth_date:date|emp_no:integer|first_name:keyword|gender:keyword|height:double|height.float:double|height.half_float:double|height.scaled_float:double|hire_date:date|is_rehired:boolean|job_positions:keyword|languages:integer|languages.byte:integer|languages.long:long|languages.short:integer|last_name:keyword|salary:integer|salary_change:double|salary_change.int:integer|salary_change.keyword:keyword|salary_change.long:long|still_hired:boolean|foo:null
-268728049         |1953-09-02T00:00:00.000Z|10001          |Georgi         |M              |2.03           |2.0299999713897705|2.029296875      |2.03               |1986-06-26T00:00:00.000Z|[false, true]  |[Accountant, Senior Python Developer]|2              |2              |2              |2              |Facello        |57305          |1.19           |1                |1.19                 |1                 |true           |null
+avg_worked_seconds:long | birth_date:date          | emp_no:integer | first_name:keyword | gender:keyword | height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date           | is_rehired:boolean | job_positions:keyword                 | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer | salary_change.keyword:keyword | salary_change.long:long | still_hired:boolean | foo:null
+268728049               | 1953-09-02T00:00:00.000Z | 10001          | Georgi             | M              | 2.03          | 2.0299999713897705  | 2.029296875              | 2.03                       | 1986-06-26T00:00:00.000Z | [false, true]      | [Accountant, Senior Python Developer] | 2                 | 2                      | 2                   | 2                       | Facello           | 57305          | 1.19                 | 1                         | 1.19                          | 1                       | true                | null
 ;
 
 
@@ -66,8 +128,8 @@ FROM employees
 | LIMIT 1
 ;
 
-avg_worked_seconds:long|birth_date:date|emp_no:integer|first_name:keyword|gender:keyword|height:double|height.float:double|height.half_float:double|height.scaled_float:double|hire_date:date|is_rehired:boolean|job_positions:keyword|languages:integer|languages.byte:integer|languages.long:long|languages.short:integer|last_name:keyword|salary:integer|salary_change:double|salary_change.int:integer|salary_change.keyword:keyword|salary_change.long:long|still_hired:boolean|does_not_exist_field:null|foo:integer
-268728049         |1953-09-02T00:00:00.000Z|10001          |Georgi         |M              |2.03           |2.0299999713897705|2.029296875      |2.03               |1986-06-26T00:00:00.000Z|[false, true]  |[Accountant, Senior Python Developer]|2              |2              |2              |2              |Facello        |57305          |1.19           |1                |1.19                 |1                 |true           |null |null
+avg_worked_seconds:long | birth_date:date          | emp_no:integer | first_name:keyword | gender:keyword | height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date           | is_rehired:boolean | job_positions:keyword                 | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer | salary_change.keyword:keyword | salary_change.long:long | still_hired:boolean | does_not_exist_field:null | foo:integer
+268728049               | 1953-09-02T00:00:00.000Z | 10001          | Georgi             | M              | 2.03          | 2.0299999713897705  | 2.029296875              | 2.03                       | 1986-06-26T00:00:00.000Z | [false, true]      | [Accountant, Senior Python Developer] | 2                 | 2                      | 2                   | 2                       | Facello           | 57305          | 1.19                 | 1                         | 1.19                          | 1                       | true                | null                      | null
 ;
 
 keepFieldStarEval
@@ -81,8 +143,8 @@ FROM employees
 | LIMIT 1
 ;
 
-emp_no:integer|avg_worked_seconds:long|birth_date:date         |first_name:keyword|gender:keyword|height:double|height.float:double|height.half_float:double|height.scaled_float:double|hire_date:date          |is_rehired:boolean|job_positions:keyword                |languages:integer|languages.byte:integer|languages.long:long|languages.short:integer|last_name:keyword|salary:integer|salary_change:double|salary_change.int:integer|salary_change.keyword:keyword|salary_change.long:long|still_hired:boolean|does_not_exist_field:null|foo:integer
-10001         |268728049              |1953-09-02T00:00:00.000Z|Georgi            |M             |2.03         |2.0299999713897705 |2.029296875             |2.03                      |1986-06-26T00:00:00.000Z|[false, true]     |[Accountant, Senior Python Developer]|2                |2                     |2                  |2                      |Facello          |57305         |1.19                |1                        |1.19                         |1                      |true               |null                     |null
+emp_no:integer | avg_worked_seconds:long | birth_date:date          | first_name:keyword | gender:keyword | height:double | height.float:double | height.half_float:double | height.scaled_float:double | hire_date:date           | is_rehired:boolean | job_positions:keyword                 | languages:integer | languages.byte:integer | languages.long:long | languages.short:integer | last_name:keyword | salary:integer | salary_change:double | salary_change.int:integer | salary_change.keyword:keyword | salary_change.long:long | still_hired:boolean | does_not_exist_field:null | foo:integer
+10001          | 268728049               | 1953-09-02T00:00:00.000Z | Georgi             | M              | 2.03          | 2.0299999713897705  | 2.029296875              | 2.03                       | 1986-06-26T00:00:00.000Z | [false, true]      | [Accountant, Senior Python Developer] | 2                 | 2                      | 2                   | 2                       | Facello           | 57305          | 1.19                 | 1                         | 1.19                          | 1                       | true                | null                      | null
 ;
 
 dropPatternSimpleKeep
@@ -130,8 +192,8 @@ FROM employees
 ;
 
 // tag::unmapped-nullify-simple-keep-result[]
-emp_no:integer|foo:null
-10001         |null
+emp_no:integer | foo:null
+10001          | null
 // end::unmapped-nullify-simple-keep-result[]
 ;
 
@@ -144,8 +206,8 @@ ROW x = 1
 | KEEP *, does_not_exist_field2
 ;
 
-x:integer      |does_not_exist_field1:null|y:integer      |does_not_exist_field2:null
-1              |null                      |null           |null
+x:integer      | does_not_exist_field1:null | y:integer      | does_not_exist_field2:null
+1              | null                       | null           | null
 ;
 
 rowDrop
@@ -169,7 +231,7 @@ ROW x = 1
 ;
 
 y:integer | bar:null
-1         |null
+1         | null
 ;
 
 fieldRename
@@ -229,7 +291,6 @@ foo:integer
 
 statsAggs
 required_capability: optional_fields_nullify_tech_preview
-required_capability: fix_agg_on_null_by_replacing_with_eval
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -254,7 +315,6 @@ null
 
 statsAggsGrouped
 required_capability: optional_fields_nullify_tech_preview
-required_capability: fix_agg_on_null_by_replacing_with_eval
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -513,25 +573,24 @@ FROM employees
 | SORT _fork, emp_no
 ;
 
-emp_no:integer |x:long         |y:long         |xyz:keyword    |_fork:keyword
-10001          |null           |null           |null           |fork1
-10002          |null           |null           |null           |fork1
-10003          |null           |null           |null           |fork1
-10001          |null           |null           |def            |fork2
-null           |1985           |null           |abc            |fork3
+emp_no:integer | x:long         | y:long         | xyz:keyword    | _fork:keyword
+10001          | null           | null           | null           | fork1
+10002          | null           | null           | null           | fork1
+10003          | null           | null           | null           | fork1
+10001          | null           | null           | def            | fork2
+null           | 1985           | null           | abc            | fork3
 ;
 
 inlinestatsCount
 required_capability: optional_fields_nullify_tech_preview
-required_capability: fix_inline_stats_group_by_null
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
 | INLINE STATS c = COUNT(*), s = SUM(does_not_exist) BY d = does_not_exist
 ;
 
-x:integer      |does_not_exist:null|c:long         |s:double       |d:null
-1              |null               |1              |null           |null
+x:integer      | does_not_exist:null | c:long         | s:double       | d:null
+1              | null                | 1              | null           | null
 ;
 
 lookupJoin
@@ -544,8 +603,8 @@ ROW x = 1
 | LOOKUP JOIN languages_lookup ON language_code
 ;
 
-x:integer      |does_not_exist:null |language_code:integer |language_name:keyword
-1              |null                |null                  |null
+x:integer      | does_not_exist:null | language_code:integer | language_name:keyword
+1              | null                | null                  | null
 ;
 
 // https://github.com/elastic/elasticsearch/issues/141978
@@ -574,10 +633,233 @@ ROW x = 1
 | ENRICH languages_policy ON y
 ;
 
-x:integer      |does_not_exist:null |y:keyword | language_name:keyword
-1              |null                |null      |null
+x:integer      | does_not_exist:null | y:keyword | language_name:keyword
+1              | null                | null      | null
 ;
 
+partiallyUnmappedKeywordMultiIndex
+required_capability: optional_fields_nullify_tech_preview
+required_capability: source_field_mapping
+
+SET unmapped_fields="nullify"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| KEEP _index, @timestamp, message
+| SORT _index, @timestamp DESC
+;
+
+_index:keyword         | @timestamp:date           | message:keyword
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+sample_data            | 2023-10-23T13:55:01.543Z  | Connected to 10.1.0.1
+sample_data            | 2023-10-23T13:53:55.832Z  | Connection error
+sample_data            | 2023-10-23T13:52:55.015Z  | Connection error
+sample_data            | 2023-10-23T13:51:54.732Z  | Connection error
+sample_data            | 2023-10-23T13:33:34.937Z  | Disconnected
+sample_data            | 2023-10-23T12:27:28.948Z  | Connected to 10.1.0.2
+sample_data            | 2023-10-23T12:15:03.360Z  | Connected to 10.1.0.3
+;
+
+partiallyUnmappedNonKeywordMultiIndexCast
+required_capability: optional_fields_nullify_tech_preview
+required_capability: source_field_mapping
+
+SET unmapped_fields="nullify"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| EVAL duration = event_duration::DOUBLE
+| KEEP _index, @timestamp, duration
+| SORT _index, @timestamp DESC
+;
+
+_index:keyword         | @timestamp:date           | duration:double
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+sample_data            | 2023-10-23T13:55:01.543Z  | 1756467.0
+sample_data            | 2023-10-23T13:53:55.832Z  | 5033755.0
+sample_data            | 2023-10-23T13:52:55.015Z  | 8268153.0
+sample_data            | 2023-10-23T13:51:54.732Z  | 725448.0
+sample_data            | 2023-10-23T13:33:34.937Z  | 1232382.0
+sample_data            | 2023-10-23T12:27:28.948Z  | 2764889.0
+sample_data            | 2023-10-23T12:15:03.360Z  | 3450233.0
+;
+
+partiallyUnmappedMixedTypesMultiIndexCast
+required_capability: optional_fields_nullify_tech_preview
+required_capability: source_field_mapping
+
+SET unmapped_fields="nullify"\;
+FROM sample_data, logs, no_mapping_sample_data METADATA _index
+| EVAL msg = message::KEYWORD
+| KEEP _index, @timestamp, msg
+| SORT _index, @timestamp DESC
+;
+
+_index:keyword         | @timestamp:date           | msg:keyword
+logs                   | 2023-10-23T13:57:01.544Z  | Running cats (cycle 3)
+logs                   | 2023-10-23T13:56:01.544Z  | Running cats (cycle 2)
+logs                   | 2023-10-23T13:56:01.543Z  | No response
+logs                   | 2023-10-23T13:55:01.546Z  | More java stuff
+logs                   | 2023-10-23T13:55:01.545Z  | Doing java stuff for 192.168.86.038
+logs                   | 2023-10-23T13:55:01.544Z  | Running cats (cycle 1)
+logs                   | 2023-10-23T13:55:01.543Z  | Pinging 192.168.86.046
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+sample_data            | 2023-10-23T13:55:01.543Z  | Connected to 10.1.0.1
+sample_data            | 2023-10-23T13:53:55.832Z  | Connection error
+sample_data            | 2023-10-23T13:52:55.015Z  | Connection error
+sample_data            | 2023-10-23T13:51:54.732Z  | Connection error
+sample_data            | 2023-10-23T13:33:34.937Z  | Disconnected
+sample_data            | 2023-10-23T12:27:28.948Z  | Connected to 10.1.0.2
+sample_data            | 2023-10-23T12:15:03.360Z  | Connected to 10.1.0.3
+;
+
+fieldIsPartiallyUnmappedPartiallySourceIsDisabledMultiIndex
+required_capability: optional_fields_nullify_tech_preview
+required_capability: source_field_mapping
+
+SET unmapped_fields="nullify"\;
+FROM sample_data,partial_mapping_no_source_sample_data METADATA _index
+| KEEP _index, @timestamp, message
+| SORT _index, @timestamp
+;
+
+_index:keyword                        | @timestamp:datetime      | message:keyword
+partial_mapping_no_source_sample_data | 2024-10-23T12:15:03.360Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T12:27:28.948Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T13:33:34.937Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T13:51:54.732Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T13:52:55.015Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T13:53:55.832Z | null
+partial_mapping_no_source_sample_data | 2024-10-23T13:55:01.543Z | null
+sample_data                           | 2023-10-23T12:15:03.360Z | Connected to 10.1.0.3
+sample_data                           | 2023-10-23T12:27:28.948Z | Connected to 10.1.0.2
+sample_data                           | 2023-10-23T13:33:34.937Z | Disconnected
+sample_data                           | 2023-10-23T13:51:54.732Z | Connection error
+sample_data                           | 2023-10-23T13:52:55.015Z | Connection error
+sample_data                           | 2023-10-23T13:53:55.832Z | Connection error
+sample_data                           | 2023-10-23T13:55:01.543Z | Connected to 10.1.0.1
+;
+
+fieldIsPartiallyUnmappedPartiallySourceExcludedMultiIndex
+required_capability: optional_fields_nullify_tech_preview
+required_capability: source_field_mapping
+
+SET unmapped_fields="nullify"\;
+FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data METADATA _index
+| KEEP _index, @timestamp, message
+| SORT _index, @timestamp
+;
+
+_index:keyword                              | @timestamp:date          | message:keyword
+partial_mapping_excluded_source_sample_data | 2024-10-23T12:15:03.360Z | null
+partial_mapping_excluded_source_sample_data | 2024-10-23T12:27:28.948Z | null
+partial_mapping_excluded_source_sample_data | 2024-10-23T13:33:34.937Z | null
+partial_mapping_excluded_source_sample_data | 2024-10-23T13:51:54.732Z | null
+partial_mapping_excluded_source_sample_data | 2024-10-23T13:52:55.015Z | null
+partial_mapping_excluded_source_sample_data | 2024-10-23T13:53:55.832Z | null
+partial_mapping_excluded_source_sample_data | 2024-10-23T13:55:01.543Z | null
+partial_mapping_sample_data                 | 2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!
+partial_mapping_sample_data                 | 2024-10-23T12:27:28.948Z | Connected to 10.1.0.2!
+partial_mapping_sample_data                 | 2024-10-23T13:33:34.937Z | 42
+partial_mapping_sample_data                 | 2024-10-23T13:51:54.732Z | Connection error?
+partial_mapping_sample_data                 | 2024-10-23T13:52:55.015Z | Connection error?
+partial_mapping_sample_data                 | 2024-10-23T13:53:55.832Z | Connection error?
+partial_mapping_sample_data                 | 2024-10-23T13:55:01.543Z | Connected to 10.1.0.1!
+;
+
+unmappedFieldNullifiedTsIndex
+required_capability: optional_fields_nullify_tech_preview
+required_capability: ts_command_v0
+
+SET unmapped_fields="nullify"\;
+TS k8s_unmapped
+| KEEP @timestamp, cluster, network.cost
+| SORT @timestamp
+| LIMIT 5
+;
+
+@timestamp:datetime      | cluster:null | network.cost:null
+2024-05-10T00:00:29.000Z | null         | null
+2024-05-10T00:00:33.000Z | null         | null
+2024-05-10T00:00:51.000Z | null         | null
+2024-05-10T00:00:57.000Z | null         | null
+2024-05-10T00:01:25.000Z | null         | null
+;
+
+rateOnUnmappedTsIndex
+required_capability: optional_fields_nullify_tech_preview
+required_capability: ts_command_v0
+
+SET unmapped_fields="nullify"\;
+TS k8s_unmapped
+| STATS r = MAX(RATE(nonexistent_counter)) BY tbucket = tbucket(1 hour)
+| SORT tbucket
+| LIMIT 3
+;
+
+r:double | tbucket:datetime
+null     | 2024-05-10T00:00:00.000Z
+;
+
+maxOverTimeOfDoubleNoGroupingUnmappedNullify
+required_capability: optional_fields_nullify_tech_preview
+required_capability: ts_command_v0
+
+SET unmapped_fields="nullify"\;
+TS k8s_unmapped
+| STATS cost=sum(max_over_time(network.cost)) BY time_bucket = bucket(@timestamp,1minute)
+| SORT time_bucket | LIMIT 10
+;
+
+cost:double | time_bucket:datetime
+null        | 2024-05-10T00:00:00.000Z
+null        | 2024-05-10T00:01:00.000Z
+null        | 2024-05-10T00:02:00.000Z
+null        | 2024-05-10T00:03:00.000Z
+null        | 2024-05-10T00:04:00.000Z
+null        | 2024-05-10T00:05:00.000Z
+null        | 2024-05-10T00:06:00.000Z
+null        | 2024-05-10T00:07:00.000Z
+null        | 2024-05-10T00:08:00.000Z
+null        | 2024-05-10T00:09:00.000Z
+;
+
+maxOverTimeOfKeyword
+SET unmapped_fields="nullify"\;
+required_capability: optional_fields_nullify_tech_preview
+required_capability: ts_command_v0
+
+TS k8s,k8s_unmapped METADATA _index
+| STATS pod = min(max_over_time(region)) BY time_bucket = bucket(@timestamp,1minute), _index
+| SORT time_bucket, _index
+| LIMIT 10;
+
+pod:keyword | time_bucket:datetime     | _index:keyword
+us          | 2024-05-10T00:00:00.000Z | k8s
+null        | 2024-05-10T00:00:00.000Z | k8s_unmapped
+us          | 2024-05-10T00:01:00.000Z | k8s
+null        | 2024-05-10T00:01:00.000Z | k8s_unmapped
+us          | 2024-05-10T00:02:00.000Z | k8s
+null        | 2024-05-10T00:02:00.000Z | k8s_unmapped
+us          | 2024-05-10T00:03:00.000Z | k8s
+null        | 2024-05-10T00:03:00.000Z | k8s_unmapped
+us          | 2024-05-10T00:04:00.000Z | k8s
+null        | 2024-05-10T00:04:00.000Z | k8s_unmapped
+;
 
 kqlWithUnmappedField
 required_capability: optional_fields_nullify_tech_preview
@@ -664,4 +946,117 @@ TS "k8s" | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster = doe
 
 max_bytes:long | cluster:null
 10797          | null
+;
+
+// https://github.com/elastic/elasticsearch/issues/143991
+statsFilteredAggAfterEvalWithDottedUnmappedField
+required_capability: optional_fields_detect_unmapped_fields_in_agg_filters
+
+SET unmapped_fields="nullify"\;
+ROW x = 1
+| EVAL entity.id = "foo"
+| STATS host.entity.id = VALUES(host.entity.id) WHERE host.entity.id IS NOT NULL BY entity.id
+;
+
+host.entity.id:null | entity.id:keyword
+null                | foo
+;
+
+// https://github.com/elastic/elasticsearch/issues/143991
+statsFilteredAggAfterEvalWithDottedUnmappedFieldFromIndex
+required_capability: optional_fields_detect_unmapped_fields_in_agg_filters
+
+SET unmapped_fields="nullify"\;
+FROM languages
+| EVAL entity.id = "foo"
+| STATS host.entity.id = VALUES(host.entity.id) WHERE host.entity.id IS NOT NULL BY entity.id
+;
+
+host.entity.id:null | entity.id:keyword
+null                | foo
+;
+
+
+forkWithRowAndUnmappedKeep
+required_capability: fork_v9
+required_capability: fix_fork_unmapped_nullify
+
+SET unmapped_fields="nullify"\;
+ROW a = 1
+| FORK  (where true)
+| WHERE a == 1
+| KEEP bar
+;
+
+bar:null
+null
+;
+
+
+forkWithFromAndUnmappedCoalesce
+required_capability: fork_v9
+required_capability: fix_fork_unmapped_nullify
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| FORK  (where foo != 84) (where true)
+| WHERE _fork == "fork1"
+| DROP _fork
+| EVAL y = coalesce(bar, baz)
+;
+
+avg_worked_seconds:long	| birth_date:date	| emp_no:integer	| first_name:keyword	| gender:keyword	| height:double	| height.float:double	| height.half_float:double	| height.scaled_float:double	| hire_date:date	| is_rehired:boolean	| job_positions:keyword	| languages:integer	| languages.byte:integer	| languages.long:long	| languages.short:integer	| last_name:keyword	| salary:integer	| salary_change:double	| salary_change.int:integer	| salary_change.keyword:keyword	| salary_change.long:long	| still_hired:boolean   | foo:null  | bar:null	| baz:null	| y:null 
+;
+
+
+forkWithUnmappedStatsEvalKeep
+required_capability: fork_v9
+required_capability: fix_fork_unmapped_nullify
+
+SET unmapped_fields="nullify"\;
+FROM alerts
+| KEEP kibana.alert.risk_score
+| FORK (WHERE true | MV_EXPAND kibana.alert.risk_score)
+| STATS kibana.alert.risk_score = COUNT(*)
+| EVAL x = LEAST(kibana.alert.risk_score, 52, 60)
+| KEEP kibana.alert.risk_score
+;
+
+kibana.alert.risk_score:long
+10
+;
+
+
+forkWithUnmappedStatsEvalKeepTwoBranches
+required_capability: fork_v9
+required_capability: fix_fork_unmapped_nullify
+required_capability: sample_v3
+
+SET unmapped_fields="nullify"\;
+FROM alerts
+| KEEP kibana.alert.risk_score
+| FORK (WHERE true | MV_EXPAND kibana.alert.risk_score) (WHERE true | SAMPLE 0.5) 
+| STATS kibana.alert.risk_score = COUNT(*)
+| EVAL x = LEAST(kibana.alert.risk_score, 52, 60)
+| KEEP kibana.alert.risk_score
+;
+
+kibana.alert.risk_score:long
+10..20                           
+;
+
+
+forkWithRowCoalesceAndDrop
+required_capability: fork_v9
+required_capability: fix_fork_unmapped_nullify
+
+SET unmapped_fields="nullify"\;
+ROW a = 12::long
+| FORK (WHERE true)
+| EVAL x = COALESCE(a, 5)
+| DROP a
+;
+
+_fork:keyword	| x:long
+fork1        	| 12     
 ;

@@ -298,6 +298,47 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         assertNull(response.get("_index"));
     }
 
+    public void testPassthroughFieldDoesNotAddIntermediateParentAsObject() throws IOException {
+        // Reproduce the scenario from https://github.com/elastic/elasticsearch/issues/144179:
+        // A passthrough field (subobjects: false) with a sub-field whose name contains a dot,
+        // e.g. "attributes.foo.bar". The intermediate segment "attributes.foo" must NOT be
+        // synthesized as an implicit "object" field in the field capabilities response.
+        MapperService mapperService = createMapperService("""
+            { "_doc" : {
+              "properties" : {
+                "attributes" : {
+                  "type" : "passthrough",
+                  "priority" : 0,
+                  "properties" : {
+                    "foo.bar" : { "type" : "keyword" }
+                  }
+                }
+              }
+            } }
+            """);
+        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+        Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+            sec,
+            s -> true,
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY,
+            FieldPredicate.ACCEPT_ALL,
+            getMockIndexShard(),
+            true
+        );
+
+        // The leaf field should be present as keyword
+        assertNotNull(response.get("attributes.foo.bar"));
+        assertEquals("keyword", response.get("attributes.foo.bar").type());
+        // The intermediate segment "attributes.foo" must NOT appear as an implicit object,
+        // because the passthrough mapper enforces subobjects:false
+        assertNull(
+            "attributes.foo must not be synthesized as an implicit object under a subobjects:false passthrough mapper",
+            response.get("attributes.foo")
+        );
+    }
+
     private IndexShard getMockIndexShard() {
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.getFieldInfos()).thenReturn(FieldInfos.EMPTY);

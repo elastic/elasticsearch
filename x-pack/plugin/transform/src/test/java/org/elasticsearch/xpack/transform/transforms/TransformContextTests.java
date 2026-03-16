@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
@@ -179,5 +180,16 @@ public class TransformContextTests extends ESTestCase {
         Instant from = Instant.ofEpochMilli(randomLongBetween(0, 1_000_000_000_000L));
         TransformContext context = new TransformContext(TransformTaskState.STARTED, null, 0, from, listener);
         assertThat(context.from(), is(equalTo(from)));
+    }
+
+    public void testProjectIdDefaultsToDefault() {
+        var context = new TransformContext(TransformTaskState.STARTED, null, 0, listener);
+        assertThat(context.projectId(), is(equalTo(ProjectId.DEFAULT)));
+    }
+
+    public void testProjectIdExplicit() {
+        ProjectId projectId = ProjectId.fromId("myproject123");
+        var context = new TransformContext(TransformTaskState.STARTED, null, 0, null, listener, projectId);
+        assertThat(context.projectId(), is(equalTo(projectId)));
     }
 }

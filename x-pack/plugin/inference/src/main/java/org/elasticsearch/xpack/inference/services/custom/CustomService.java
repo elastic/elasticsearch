@@ -60,7 +60,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
@@ -140,9 +139,7 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
             throwIfNotEmptyMap(serviceSettingsMap, NAME);
             throwIfNotEmptyMap(taskSettingsMap, NAME);
 
-            validateConfiguration(model);
-
-            parsedModelListener.onResponse(model);
+            validateConfigurationAsync(model, parsedModelListener);
         } catch (Exception e) {
             parsedModelListener.onFailure(e);
         }
@@ -151,14 +148,27 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
     /**
      * This does some initial validation with mock inputs to determine if any templates are missing a field to fill them.
      */
-    private static void validateConfiguration(CustomModel model) {
+    private static void validateConfigurationAsync(CustomModel model, ActionListener<Model> listener) {
         try {
-            new CustomRequest(createParameters(model), model).createHttpRequest();
-        } catch (IllegalStateException e) {
-            var validationException = new ValidationException();
-            validationException.addValidationError(Strings.format("Failed to validate model configuration: %s", e.getMessage()));
-            throw validationException;
+            var request = new CustomRequest(createParameters(model), model);
+
+            request.createHttpRequest(
+                ActionListener.wrap(httpRequest -> listener.onResponse(model), e -> listener.onFailure(wrapIllegalStateAsValidation(e)))
+            );
+        } catch (Exception e) {
+            listener.onFailure(wrapIllegalStateAsValidation(e));
         }
+    }
+
+    private static Exception wrapIllegalStateAsValidation(Exception e) {
+        if (e instanceof IllegalStateException illegalStateException) {
+            var validationException = new ValidationException();
+            validationException.addValidationError(
+                Strings.format("Failed to validate model configuration: %s", illegalStateException.getMessage())
+            );
+            return validationException;
+        }
+        return e;
     }
 
     private static RequestParameters createParameters(CustomModel model) {
@@ -225,21 +235,6 @@ public class CustomService extends SenderService<CustomModel> implements Reranki
             config.getService(),
             ConfigurationParseContext.PERSISTENT
         ).createFromModelConfigurationsAndSecrets(config, secrets);
-    }
-
-    private static ChunkingSettings extractPersistentChunkingSettings(Map<String, Object> config, TaskType taskType) {
-        if (TaskType.SPARSE_EMBEDDING.equals(taskType) || TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            /*
-             * There's a subtle difference between how the chunking settings are parsed for the request context vs the persistent context.
-             * For persistent context, to support backwards compatibility, if the chunking settings are not present, removeFromMap will
-             * return null which results in the older word boundary chunking settings being used as the default.
-             * For request context, removeFromMapOrDefaultEmpty returns an empty map which results in the newer sentence boundary chunking
-             * settings being used as the default.
-             */
-            return ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-
-        return null;
     }
 
     @Override

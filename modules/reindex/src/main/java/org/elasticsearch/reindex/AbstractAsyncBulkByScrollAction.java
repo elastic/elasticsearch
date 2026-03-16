@@ -735,6 +735,13 @@ public abstract class AbstractAsyncBulkByScrollAction<
     }
 
     /**
+     * Set the search_after values for the next batch. Exists entirely for testing.
+     */
+    void setSearchAfterValues(Object[] searchAfterValues) {
+        paginatedHitSource.setSearchAfterValues(searchAfterValues);
+    }
+
+    /**
      * Wrapper for the {@link DocWriteRequest} that are used in this action class.
      */
     public interface RequestWrapper<Self extends DocWriteRequest<Self>> {

@@ -11,6 +11,7 @@ package org.elasticsearch.reindex.remote;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
@@ -18,9 +19,11 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -472,12 +475,13 @@ public class RemoteRequestBuildersTests extends ESTestCase {
      */
     public void testPitSearchRequestStructure() {
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
-        BytesReference query = new BytesArray("{}");
-        BytesReference pitId = new BytesArray("pit-id".getBytes(StandardCharsets.UTF_8));
-        TimeValue keepAlive = randomPositiveTimeValue();
-        Version remoteVersion = Version.fromId(between(6030099, Version.CURRENT.id));
+        // BytesReference query = new BytesArray("{}");
+        // BytesReference pitId = new BytesArray("pit-id".getBytes(StandardCharsets.UTF_8));
+        // TimeValue keepAlive = randomPositiveTimeValue();
+        // Version remoteVersion = Version.fromId(between(6030099, Version.CURRENT.id));
 
-        Request request = pitSearch(searchRequest, query, pitId, keepAlive, null, remoteVersion);
+        // Request request = pitSearch(searchRequest, query, pitId, keepAlive, null, remoteVersion);
+        Request request = pitSearchWithDefaults(searchRequest, null);
         assertEquals("POST", request.getMethod());
         assertEquals("/_search", request.getEndpoint());
     }
@@ -508,11 +512,13 @@ public class RemoteRequestBuildersTests extends ESTestCase {
     /**
      * Verifies that pitSearch body contains pit.id (base64) and pit.keep_alive.
      */
-    public void testPitSearchBodyPitAndKeepAlive() throws IOException {
+    public void testPitSearchRequestBody() throws IOException {
         byte[] pitIdBytes = randomByteArrayOfLength(between(1, 32));
         BytesReference pitId = new BytesArray(pitIdBytes);
         TimeValue keepAlive = timeValueMillis(between(1000, 60000));
-        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
+        int size = between(1, 1000);
+        boolean version = randomBoolean();
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().size(size).version(version).sort("_shard_doc"));
         BytesReference query = new BytesArray("{}");
         Version remoteVersion = Version.fromId(between(6030099, Version.CURRENT.id));
 
@@ -522,43 +528,14 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertThat(body, containsString("\"pit\""));
         assertThat(body, containsString("\"id\":\"" + expectedPitId + "\""));
         assertThat(body, containsString("\"keep_alive\":\"" + keepAlive.getStringRep() + "\""));
-    }
-
-    /**
-     * Verifies that pitSearch body contains size and version from SearchRequest.
-     */
-    public void testPitSearchBodySizeAndVersion() throws IOException {
-        int size = between(1, 1000);
-        boolean version = randomBoolean();
-        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().size(size).version(version));
-        BytesReference query = new BytesArray("{}");
-        BytesReference pitId = new BytesArray("pit".getBytes(StandardCharsets.UTF_8));
-        TimeValue keepAlive = timeValueMillis(60000);
-        Version remoteVersion = Version.fromId(between(6030099, Version.CURRENT.id));
-
-        Request request = pitSearch(searchRequest, query, pitId, keepAlive, null, remoteVersion);
-        String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
         assertThat(body, containsString("\"size\":" + size));
         assertThat(body, containsString("\"version\":" + version));
-    }
-
-    /**
-     * Verifies that pitSearch body contains sort array when SearchRequest has sorts.
-     */
-    public void testPitSearchBodySort() throws IOException {
-        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().sort("_shard_doc"));
-        BytesReference query = new BytesArray("{}");
-        BytesReference pitId = new BytesArray("pit".getBytes(StandardCharsets.UTF_8));
-        TimeValue keepAlive = timeValueMillis(60000);
-        Version remoteVersion = Version.fromId(between(6030099, Version.CURRENT.id));
-
-        Request request = pitSearch(searchRequest, query, pitId, keepAlive, null, remoteVersion);
-        String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
         assertThat(body, containsString("\"sort\""));
+        assertThat(body, containsString("\"query\":"));
     }
 
     /**
-     * Verifies that pitSearch body contains query from BytesReference.
+     * Verifies that pitSearch body contains a query when one is set
      */
     public void testPitSearchBodyQuery() throws IOException {
         String queryStr = "{\"match_all\":{}}";
@@ -578,12 +555,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
      */
     public void testPitSearchBodySourceDefault() throws IOException {
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
-        BytesReference query = new BytesArray("{}");
-        BytesReference pitId = new BytesArray("pit".getBytes(StandardCharsets.UTF_8));
-        TimeValue keepAlive = timeValueMillis(60000);
-        Version remoteVersion = Version.fromId(between(6030099, Version.CURRENT.id));
-
-        Request request = pitSearch(searchRequest, query, pitId, keepAlive, null, remoteVersion);
+        Request request = pitSearchWithDefaults(searchRequest, null);
         String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
         assertThat(body, containsString("\"_source\":true"));
     }
@@ -595,12 +567,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest().source(
             new SearchSourceBuilder().fetchSource(new String[] { "in1", "in2" }, new String[] { "out" })
         );
-        BytesReference query = new BytesArray("{}");
-        BytesReference pitId = new BytesArray("pit".getBytes(StandardCharsets.UTF_8));
-        TimeValue keepAlive = timeValueMillis(60000);
-        Version remoteVersion = Version.fromId(between(6030099, Version.CURRENT.id));
-
-        Request request = pitSearch(searchRequest, query, pitId, keepAlive, null, remoteVersion);
+        Request request = pitSearchWithDefaults(searchRequest, null);
         String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
         assertThat(body, containsString("\"_source\""));
         assertThat(body, containsString("in1"));
@@ -613,25 +580,21 @@ public class RemoteRequestBuildersTests extends ESTestCase {
      */
     public void testPitSearchBodySearchAfter() throws IOException {
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
-        BytesReference query = new BytesArray("{}");
-        BytesReference pitId = new BytesArray("pit".getBytes(StandardCharsets.UTF_8));
-        TimeValue keepAlive = timeValueMillis(60000);
-        Version remoteVersion = Version.fromId(between(6030099, Version.CURRENT.id));
 
-        Request requestWithoutSearchAfter = pitSearch(searchRequest, query, pitId, keepAlive, null, remoteVersion);
+        Request requestWithoutSearchAfter = pitSearchWithDefaults(searchRequest, null);
         String bodyWithout = Streams.copyToString(
             new InputStreamReader(requestWithoutSearchAfter.getEntity().getContent(), StandardCharsets.UTF_8)
         );
         assertThat(bodyWithout, not(containsString("search_after")));
 
-        Request requestWithEmptySearchAfter = pitSearch(searchRequest, query, pitId, keepAlive, new Object[0], remoteVersion);
+        Request requestWithEmptySearchAfter = pitSearchWithDefaults(searchRequest, new Object[0]);
         String bodyEmpty = Streams.copyToString(
             new InputStreamReader(requestWithEmptySearchAfter.getEntity().getContent(), StandardCharsets.UTF_8)
         );
         assertThat(bodyEmpty, not(containsString("search_after")));
 
         Object[] searchAfter = new Object[] { 4294967396L, "sort-key" };
-        Request requestWithSearchAfter = pitSearch(searchRequest, query, pitId, keepAlive, searchAfter, remoteVersion);
+        Request requestWithSearchAfter = pitSearchWithDefaults(searchRequest, searchAfter);
         String bodyWith = Streams.copyToString(
             new InputStreamReader(requestWithSearchAfter.getEntity().getContent(), StandardCharsets.UTF_8)
         );
@@ -647,12 +610,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         String projectRouting = "_alias:linked";
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
         searchRequest.setProjectRouting(projectRouting);
-        BytesReference query = new BytesArray("{}");
-        BytesReference pitId = new BytesArray("pit".getBytes(StandardCharsets.UTF_8));
-        TimeValue keepAlive = timeValueMillis(60000);
-        Version remoteVersion = Version.fromId(between(6030099, Version.CURRENT.id));
-
-        Request request = pitSearch(searchRequest, query, pitId, keepAlive, null, remoteVersion);
+        Request request = pitSearchWithDefaults(searchRequest, null);
         String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
         assertThat(body, containsString("\"project_routing\":\"" + projectRouting + "\""));
     }
@@ -662,12 +620,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
      */
     public void testPitSearchBodyOmitsProjectRoutingWhenNull() throws IOException {
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
-        BytesReference query = new BytesArray("{}");
-        BytesReference pitId = new BytesArray("pit".getBytes(StandardCharsets.UTF_8));
-        TimeValue keepAlive = timeValueMillis(60000);
-        Version remoteVersion = Version.fromId(between(6030099, Version.CURRENT.id));
-
-        Request request = pitSearch(searchRequest, query, pitId, keepAlive, null, remoteVersion);
+        Request request = pitSearchWithDefaults(searchRequest, null);
         String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
         assertThat(body, not(containsString("project_routing")));
     }
@@ -695,19 +648,81 @@ public class RemoteRequestBuildersTests extends ESTestCase {
     }
 
     /**
-     * Verifies that pitSearch builds valid JSON entity with correct content type.
+     * Verifies that pitSearch throws when query contains more than a single JSON object
+     * (e.g. concatenated objects like {"a":1}{"b":2} which Jackson parses without failing).
      */
-    public void testPitSearchEntityContentType() throws IOException {
+    public void testPitSearchThrowsWhenQueryHasMultipleObjects() {
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
-        BytesReference query = new BytesArray("{}");
         BytesReference pitId = new BytesArray("pit".getBytes(StandardCharsets.UTF_8));
         TimeValue keepAlive = timeValueMillis(60000);
         Version remoteVersion = Version.fromId(between(6030099, Version.CURRENT.id));
 
-        Request request = pitSearch(searchRequest, query, pitId, keepAlive, null, remoteVersion);
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> pitSearch(searchRequest, new BytesArray("{\"match_all\":{}}{\"x\":1}"), pitId, keepAlive, null, remoteVersion)
+        );
+        assertThat(e.getMessage(), containsString("query was more than a single object"));
+    }
+
+    /**
+     * Verifies that pitSearch uses manual _source serialization for versions before 9.1
+     * when fetchSource has excludeVectors set and no includes/excludes.
+     */
+    public void testPitSearchBodySourceExcludeVectorsBefore91WithNoIncludesExcludes() throws IOException {
+        SearchRequest searchRequest = new SearchRequest().source(
+            new SearchSourceBuilder().fetchSource(FetchSourceContext.of(true, true, null, null))
+        );
+        Version remoteVersion = Version.fromId(between(6030099, Version.V_9_1_0.id - 1));
+
+        Request request = pitSearchWithDefaults(searchRequest, null, remoteVersion);
+        String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
+        assertThat(body, containsString("\"_source\":true"));
+        assertThat(body, not(containsString("exclude_vectors")));
+    }
+
+    /**
+     * Verifies that pitSearch uses manual _source serialization with includes/excludes
+     * for versions before 9.1 when fetchSource has excludeVectors set.
+     */
+    public void testPitSearchBodySourceExcludeVectorsBefore91WithIncludesExcludes() throws IOException {
+        SearchRequest searchRequest = new SearchRequest().source(
+            new SearchSourceBuilder().fetchSource(FetchSourceContext.of(true, true, new String[] { "in1", "in2" }, new String[] { "out" }))
+        );
+        Version remoteVersion = Version.fromId(between(6030099, Version.V_9_1_0.id - 1));
+
+        Request request = pitSearchWithDefaults(searchRequest, null, remoteVersion);
+        String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
+        assertThat(body, containsString("\"_source\""));
+        assertThat(body, containsString("in1"));
+        assertThat(body, containsString("in2"));
+        assertThat(body, containsString("out"));
+        assertThat(body, not(containsString("exclude_vectors")));
+    }
+
+    /**
+     * Verifies that pitSearch builds valid JSON entity with correct content type.
+     */
+    public void testPitSearchEntityContentType() throws IOException {
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
+        Request request = pitSearchWithDefaults(searchRequest, null);
         assertEquals(ContentType.APPLICATION_JSON.toString(), request.getEntity().getContentType().getValue());
         String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
         assertThat(body.trim(), startsWith("{"));
         assertThat(body.trim(), endsWith("}"));
+    }
+
+    private Request pitSearchWithDefaults(SearchRequest searchRequest, @Nullable Object[] searchAfter) {
+        return pitSearchWithDefaults(searchRequest, searchAfter, Version.fromId(between(6030099, Version.CURRENT.id)));
+    }
+
+    private Request pitSearchWithDefaults(SearchRequest searchRequest, @Nullable Object[] searchAfter, Version version) {
+        return pitSearch(
+            searchRequest,
+            new BytesArray("{}"),
+            new BytesArray("pit".getBytes(StandardCharsets.UTF_8)),
+            timeValueMillis(60000),
+            searchAfter,
+            version
+        );
     }
 }

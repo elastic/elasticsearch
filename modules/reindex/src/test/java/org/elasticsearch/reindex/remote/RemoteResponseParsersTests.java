@@ -126,7 +126,7 @@ public class RemoteResponseParsersTests extends ESTestCase {
      * Verifies that OPEN_PIT_PARSER throws when the id field has the wrong type (e.g. number instead of string).
      */
     public void testOpenPitParserIdWrongType() throws IOException {
-        XContentBuilder builder = jsonBuilder().startObject().field("id", 12345).endObject();
+        XContentBuilder builder = jsonBuilder().startObject().field("id", randomInt()).endObject();
         try (XContentParser parser = createParser(builder)) {
             XContentParseException e = expectThrows(XContentParseException.class, () -> OPEN_PIT_PARSER.apply(parser, XContentType.JSON));
             assertThat(e.getMessage(), Matchers.anyOf(Matchers.containsString("id doesn't support values of type")));
@@ -163,30 +163,8 @@ public class RemoteResponseParsersTests extends ESTestCase {
      * Verifies that HIT_PARSER parses sort values including integers.
      */
     public void testHitParserSortValuesInteger() throws IOException {
-        XContentBuilder builder = jsonBuilder().startObject()
-            .field("_index", "test")
-            .field("_id", "doc1")
-            .startObject("_source")
-            .endObject()
-            .startArray("sort")
-            .value(12345)
-            .value("sort-key")
-            .endArray()
-            .endObject();
-        try (XContentParser parser = createParser(builder)) {
-            PaginatedHitSource.BasicHit hit = HIT_PARSER.parse(parser, XContentType.JSON);
-            assertNotNull(hit.getSortValues());
-            assertEquals(2, hit.getSortValues().length);
-            assertEquals(12345, hit.getSortValues()[0]);
-            assertEquals("sort-key", hit.getSortValues()[1]);
-        }
-    }
-
-    /**
-     * Verifies that HIT_PARSER parses sort values that exceed int range as Long.
-     */
-    public void testHitParserSortValuesLong() throws IOException {
-        long sortValue = 4294967396L; // shard index 1, doc id 100
+        int sortValue = randomInt();
+        String sortKey = randomAlphaOfLength(between(1, 10));
         XContentBuilder builder = jsonBuilder().startObject()
             .field("_index", "test")
             .field("_id", "doc1")
@@ -194,7 +172,32 @@ public class RemoteResponseParsersTests extends ESTestCase {
             .endObject()
             .startArray("sort")
             .value(sortValue)
-            .value("sort-key")
+            .value(sortKey)
+            .endArray()
+            .endObject();
+        try (XContentParser parser = createParser(builder)) {
+            PaginatedHitSource.BasicHit hit = HIT_PARSER.parse(parser, XContentType.JSON);
+            assertNotNull(hit.getSortValues());
+            assertEquals(2, hit.getSortValues().length);
+            assertEquals(sortValue, hit.getSortValues()[0]);
+            assertEquals(sortKey, hit.getSortValues()[1]);
+        }
+    }
+
+    /**
+     * Verifies that HIT_PARSER parses sort values that exceed int range as Long.
+     */
+    public void testHitParserSortValuesLong() throws IOException {
+        long sortValue = 4294967396L; // shard index 1, doc id 100 - exceeds int range
+        String sortKey = randomAlphaOfLength(between(1, 10));
+        XContentBuilder builder = jsonBuilder().startObject()
+            .field("_index", "test")
+            .field("_id", "doc1")
+            .startObject("_source")
+            .endObject()
+            .startArray("sort")
+            .value(sortValue)
+            .value(sortKey)
             .endArray()
             .endObject();
         try (XContentParser parser = createParser(builder)) {
@@ -202,7 +205,7 @@ public class RemoteResponseParsersTests extends ESTestCase {
             assertNotNull(hit.getSortValues());
             assertEquals(2, hit.getSortValues().length);
             assertEquals(sortValue, ((Number) hit.getSortValues()[0]).longValue());
-            assertEquals("sort-key", hit.getSortValues()[1]);
+            assertEquals(sortKey, hit.getSortValues()[1]);
         }
     }
 
@@ -210,14 +213,16 @@ public class RemoteResponseParsersTests extends ESTestCase {
      * Verifies that HIT_PARSER parses sort values with mixed types (string, number, boolean, null).
      */
     public void testHitParserSortValuesMixedTypes() throws IOException {
+        String stringVal = randomAlphaOfLength(between(1, 20));
+        int intValue = randomInt();
         XContentBuilder builder = jsonBuilder().startObject()
             .field("_index", "test")
             .field("_id", "doc1")
             .startObject("_source")
             .endObject()
             .startArray("sort")
-            .value("string-val")
-            .value(42)
+            .value(stringVal)
+            .value(intValue)
             .value(true)
             .nullValue()
             .endArray()
@@ -226,8 +231,8 @@ public class RemoteResponseParsersTests extends ESTestCase {
             PaginatedHitSource.BasicHit hit = HIT_PARSER.parse(parser, XContentType.JSON);
             assertNotNull(hit.getSortValues());
             assertEquals(4, hit.getSortValues().length);
-            assertEquals("string-val", hit.getSortValues()[0]);
-            assertEquals(42, hit.getSortValues()[1]);
+            assertEquals(stringVal, hit.getSortValues()[0]);
+            assertEquals(intValue, hit.getSortValues()[1]);
             assertEquals(true, hit.getSortValues()[2]);
             assertNull(hit.getSortValues()[3]);
         }
@@ -271,13 +276,14 @@ public class RemoteResponseParsersTests extends ESTestCase {
      * Verifies that HIT_PARSER throws when sort array contains invalid value type (e.g. object).
      */
     public void testHitParserSortValuesInvalidType() throws IOException {
+        int sortValue = randomInt();
         XContentBuilder builder = jsonBuilder().startObject()
             .field("_index", "test")
             .field("_id", "doc1")
             .startObject("_source")
             .endObject()
             .startArray("sort")
-            .value(12345)
+            .value(sortValue)
             .startObject()
             .field("nested", "invalid")
             .endObject()
@@ -294,7 +300,7 @@ public class RemoteResponseParsersTests extends ESTestCase {
      * Verifies that RESPONSE_PARSER extracts and base64-decodes pit_id from a PIT search response.
      */
     public void testResponseParserPitId() throws IOException {
-        byte[] pitIdBytes = "pit-id".getBytes(StandardCharsets.UTF_8);
+        byte[] pitIdBytes = randomByteArrayOfLength(between(1, 32));
         String pitIdBase64 = Base64.getUrlEncoder().encodeToString(pitIdBytes);
         XContentBuilder builder = jsonBuilder().startObject()
             .field("pit_id", pitIdBase64)
@@ -357,23 +363,29 @@ public class RemoteResponseParsersTests extends ESTestCase {
      * Verifies that RESPONSE_PARSER parses a full PIT search response with hits and sort values.
      */
     public void testResponseParserFullPitResponse() throws IOException {
-        String pitIdBase64 = Base64.getUrlEncoder().encodeToString("pit-id".getBytes(StandardCharsets.UTF_8));
+        String pitId = randomAlphaOfLength(between(1, 20));
+        String pitIdBase64 = Base64.getUrlEncoder().encodeToString(pitId.getBytes(StandardCharsets.UTF_8));
+        String index = randomAlphaOfLength(between(1, 10));
+        String docId = randomAlphaOfLength(between(1, 24));
+        String sortKey = randomAlphaOfLength(between(1, 10));
+        int sortValue = randomInt();
+        int totalHits = between(1, 100);
         XContentBuilder builder = jsonBuilder().startObject()
             .field("pit_id", pitIdBase64)
             .field("timed_out", false)
             .startObject("hits")
-            .field("total", 4)
+            .field("total", totalHits)
             .startArray("hits")
             .startObject()
-            .field("_index", "test")
-            .field("_id", "AVToMiC250DjIiBO3yJ_")
+            .field("_index", index)
+            .field("_id", docId)
             .field("_version", 1)
             .startObject("_source")
             .field("test", "test2")
             .endObject()
             .startArray("sort")
-            .value(12345)
-            .value("sort-key")
+            .value(sortValue)
+            .value(sortKey)
             .endArray()
             .endObject()
             .endArray()
@@ -388,16 +400,16 @@ public class RemoteResponseParsersTests extends ESTestCase {
             PaginatedHitSource.Response response = RESPONSE_PARSER.apply(parser, XContentType.JSON);
             assertFalse(response.isTimedOut());
             assertNotNull(response.getPitId());
-            assertArrayEquals("pit-id".getBytes(StandardCharsets.UTF_8), BytesReference.toBytes(response.getPitId()));
-            assertEquals(4, response.getTotalHits());
+            assertArrayEquals(pitId.getBytes(StandardCharsets.UTF_8), BytesReference.toBytes(response.getPitId()));
+            assertEquals(totalHits, response.getTotalHits());
             assertThat(response.getHits(), Matchers.hasSize(1));
             PaginatedHitSource.Hit hit = response.getHits().getFirst();
-            assertEquals("test", hit.getIndex());
-            assertEquals("AVToMiC250DjIiBO3yJ_", hit.getId());
+            assertEquals(index, hit.getIndex());
+            assertEquals(docId, hit.getId());
             assertNotNull(hit.getSortValues());
             assertEquals(2, hit.getSortValues().length);
-            assertEquals(12345, hit.getSortValues()[0]);
-            assertEquals("sort-key", hit.getSortValues()[1]);
+            assertEquals(sortValue, hit.getSortValues()[0]);
+            assertEquals(sortKey, hit.getSortValues()[1]);
         }
     }
 }

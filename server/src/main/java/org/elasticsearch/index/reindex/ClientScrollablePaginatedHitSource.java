@@ -66,13 +66,11 @@ public class ClientScrollablePaginatedHitSource extends PaginatedHitSource {
         firstSearchRequest.allowPartialSearchResults(false);
     }
 
-    // TODO - Can we make this protected?
     @Override
-    public void doFirstSearch(RejectAwareActionListener<Response> searchListener) {
+    protected void doFirstSearch(RejectAwareActionListener<Response> searchListener) {
         if (logger.isDebugEnabled()) {
-            // TODO - Add the search type here if we can
             logger.debug(
-                "executing initial search against {}",
+                "executing initial local scroll search against {}",
                 isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices()
             );
         }
@@ -116,7 +114,6 @@ public class ClientScrollablePaginatedHitSource extends PaginatedHitSource {
     @Override
     protected void releaseSearchContext(Runnable onCompletion) {
         String scrollId = getScrollId();
-        // TODO - When would this run?
         if (Strings.hasLength(scrollId) == false) {
             onCompletion.run();
             return;

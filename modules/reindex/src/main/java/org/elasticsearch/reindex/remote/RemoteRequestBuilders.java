@@ -254,11 +254,9 @@ final class RemoteRequestBuilders {
             }
 
             entity.field("query");
-            {
-                entity.copyCurrentStructure(queryParser);
-                if (queryParser.nextToken() != null) {
-                    throw new ElasticsearchException("query was more than a single object");
-                }
+            entity.copyCurrentStructure(queryParser);
+            if (queryParser.nextToken() != null) {
+                throw new ElasticsearchException("query was more than a single object");
             }
 
             var fetchSource = searchRequest.source().fetchSource();

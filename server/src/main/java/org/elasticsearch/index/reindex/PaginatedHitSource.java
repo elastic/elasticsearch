@@ -185,8 +185,9 @@ public abstract class PaginatedHitSource {
 
     /**
      * Set the search_after values from the last response. Used for PIT-based pagination.
+     * Public for testing.
      */
-    protected final void setSearchAfterValues(Object[] searchAfterValues) {
+    public final void setSearchAfterValues(Object[] searchAfterValues) {
         this.searchAfterValues.set(searchAfterValues);
     }
 

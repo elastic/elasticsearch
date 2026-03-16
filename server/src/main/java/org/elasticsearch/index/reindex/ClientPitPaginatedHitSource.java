@@ -75,7 +75,7 @@ public class ClientPitPaginatedHitSource extends PaginatedHitSource {
     public void doFirstSearch(RejectAwareActionListener<Response> searchListener) {
         if (logger.isDebugEnabled()) {
             logger.debug(
-                "executing initial PIT search against {}",
+                "executing initial local PIT search against {}",
                 isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices()
             );
         }

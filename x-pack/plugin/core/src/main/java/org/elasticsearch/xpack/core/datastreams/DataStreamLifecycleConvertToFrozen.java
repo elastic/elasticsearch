@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -129,7 +130,7 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
      * @return true if the convert-to-frozen steps can proceed, false if they should be skipped due to missing index or repository
      * @throws org.elasticsearch.ElasticsearchSecurityException if the license does not allow searchable snapshots
      */
-    public boolean isEligibleForConvertToFrozen() {
+    boolean isEligibleForConvertToFrozen() {
         ProjectMetadata projectMetadata = projectState.metadata();
         if (projectMetadata.indices().containsKey(indexName) == false) {
             logger.debug(
@@ -178,9 +179,7 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
      */
     private void validateAddIndexBlockResponse(AddIndexBlockRequest addIndexBlockRequest, AddIndexBlockResponse addIndexBlockResponse) {
         String targetIndex = addIndexBlockRequest.indices()[0];
-        if (addIndexBlockResponse.isAcknowledged()) {
-            logger.info("DLM successfully added block [{}] for index [{}]", addIndexBlockRequest.getBlock(), targetIndex);
-        } else {
+        if (addIndexBlockResponse.isAcknowledged() == false) {
             Optional<AddIndexBlockResponse.AddBlockResult> resultForTargetIndex = addIndexBlockResponse.getIndices()
                 .stream()
                 .filter(blockResult -> blockResult.getIndex().getName().equals(targetIndex))

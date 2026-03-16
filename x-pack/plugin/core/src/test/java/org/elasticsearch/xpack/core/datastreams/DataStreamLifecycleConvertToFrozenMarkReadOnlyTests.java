@@ -163,6 +163,9 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
         converter.maybeMarkIndexReadOnly();
 
         assertThat(capturedRequest.get(), is(notNullValue()));
+        assertThat(capturedRequest.get().indices(), is(new String[] { indexName }));
+        assertThat(capturedRequest.get().getBlock(), is(WRITE));
+        assertTrue("AddIndexBlockRequest should have verified set to true", capturedRequest.get().markVerified());
     }
 
     public void testThrowsExceptionWithUnacknowledgedResponse() {

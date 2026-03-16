@@ -27,6 +27,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -44,12 +45,12 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("GroupedLimitOperator[limit = 100]");
+        return equalTo("GroupedLimitOperator[limitPerGroup = 100]");
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("GroupedLimitOperator[limit = 100, groups = 0]");
+        return equalTo("GroupedLimitOperator[limitPerGroup = 100, groupKeys = [0], groups = 0]");
     }
 
     @Override
@@ -419,7 +420,9 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
             .entry("group_count", greaterThanOrEqualTo(0))
             .entry("pages_processed", output.size())
             .entry("rows_received", allOf(greaterThanOrEqualTo(emittedRows), lessThanOrEqualTo(inputRows)))
-            .entry("rows_emitted", emittedRows);
+            .entry("rows_emitted", emittedRows)
+            .entry("ram_bytes_used", greaterThanOrEqualTo(0))
+            .entry("ram_used", notNullValue());
 
         assertMap(map, mapMatcher);
     }

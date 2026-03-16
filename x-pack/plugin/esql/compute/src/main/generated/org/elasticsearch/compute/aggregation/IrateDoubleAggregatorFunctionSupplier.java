@@ -42,7 +42,7 @@ public final class IrateDoubleAggregatorFunctionSupplier implements AggregatorFu
   @Override
   public IrateDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return IrateDoubleGroupingAggregatorFunction.create(channels, driverContext, isDelta, isDateNanos);
+    return new IrateDoubleGroupingAggregatorFunction(channels, driverContext, isDelta, isDateNanos);
   }
 
   @Override

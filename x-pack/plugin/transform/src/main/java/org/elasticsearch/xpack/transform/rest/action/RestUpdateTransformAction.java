@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,6 +29,12 @@ import static org.elasticsearch.xpack.transform.rest.action.RestPutTransformActi
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestUpdateTransformAction extends BaseRestHandler {
+
+    private final TransformParsingContext transformParsingContext;
+
+    public RestUpdateTransformAction(TransformParsingContext transformParsingContext) {
+        this.transformParsingContext = transformParsingContext;
+    }
 
     @Override
     public List<Route> routes() {
@@ -54,7 +61,7 @@ public class RestUpdateTransformAction extends BaseRestHandler {
         TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
 
         XContentParser parser = restRequest.contentParser();
-        UpdateTransformAction.Request request = UpdateTransformAction.Request.fromXContent(parser, id, deferValidation, timeout);
+        var request = UpdateTransformAction.Request.fromXContent(parser, id, deferValidation, timeout, transformParsingContext);
 
         return channel -> client.execute(UpdateTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

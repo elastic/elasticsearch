@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
 import java.util.Map;
 import java.util.Set;
@@ -28,13 +29,8 @@ import java.util.Set;
 public class OrcDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
-    public Set<String> supportedFormats() {
-        return Set.of("orc");
-    }
-
-    @Override
-    public Set<String> supportedExtensions() {
-        return Set.of(".orc");
+    public Set<FormatSpec> formatSpecs() {
+        return Set.of(FormatSpec.of("orc", ".orc"));
     }
 
     @Override

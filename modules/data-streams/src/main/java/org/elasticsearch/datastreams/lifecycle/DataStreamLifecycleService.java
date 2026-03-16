@@ -271,7 +271,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         this.markIndicesForFrozenQueue = clusterService.createTaskQueue(
             "dlm-mark-index-for-frozen",
             Priority.LOW,
-            new MarkIndexForFrozenExecutor()
+            new MarkIndicesForFrozenExecutor()
         );
         this.dslHealthInfoPublisher = dataStreamLifecycleHealthInfoPublisher;
         this.actions = actions;
@@ -1975,7 +1975,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     /**
      * Executor for marking indices for conversion to frozen
      */
-    public static class MarkIndexForFrozenExecutor implements ClusterStateTaskExecutor<MarkIndicesForFrozenTask> {
+    public static class MarkIndicesForFrozenExecutor implements ClusterStateTaskExecutor<MarkIndicesForFrozenTask> {
         @Override
         public ClusterState execute(BatchExecutionContext<MarkIndicesForFrozenTask> batchExecutionContext) {
             var state = batchExecutionContext.initialState();

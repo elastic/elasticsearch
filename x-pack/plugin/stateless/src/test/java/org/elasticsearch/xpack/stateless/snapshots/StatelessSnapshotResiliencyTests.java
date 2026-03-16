@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.stateless.AtomicRegisterPreVoteCollector;
 import org.elasticsearch.cluster.coordination.stateless.SingleNodeReconfigurator;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -146,6 +147,7 @@ import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.PITRelocationService;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
+import org.elasticsearch.xpack.stateless.recovery.RemoveRefreshClusterBlockService;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
@@ -380,6 +382,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING);
             res.add(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT);
             res.add(StatelessSnapshotShardContextFactory.STATELESS_SNAPSHOT_ENABLED_SETTING);
+            res.add(RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING);
             return Set.copyOf(res);
         }
 
@@ -817,6 +820,9 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 return null;
             }).when(reshardIndexService).maybeAwaitSplit(any(ShardId.class), anyActionListener());
 
+            if (hasMasterRole && MetadataCreateIndexService.useRefreshBlock(settings)) {
+                return List.of(new RemoveRefreshClusterBlockService(settings, clusterService, threadPool));
+            }
             return List.of();
         }
 

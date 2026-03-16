@@ -529,6 +529,26 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         }
     }
 
+    public void testContainsMultimodalContentWithNullContent() {
+        var messageWithNullContent = new Message(null, "user", null, null, null, null);
+        var request = UnifiedCompletionRequest.of(List.of(messageWithNullContent));
+        assertFalse(request.containsMultimodalContent());
+    }
+
+    public void testContainsMultimodalContentWithMixedNullAndMultimodalContent() {
+        var messageWithNullContent = new Message(null, "assistant", "call_1", null, null, null);
+        var messageWithMultimodalContent = new Message(
+            new ContentObjects(List.of(randomContentObjectImage())),
+            "user",
+            null,
+            null,
+            null,
+            null
+        );
+        var request = UnifiedCompletionRequest.of(List.of(messageWithNullContent, messageWithMultimodalContent));
+        assertTrue(request.containsMultimodalContent());
+    }
+
     public static UnifiedCompletionRequest randomUnifiedCompletionRequest() {
         return new UnifiedCompletionRequest(
             randomList(5, UnifiedCompletionRequestTests::randomMessage),

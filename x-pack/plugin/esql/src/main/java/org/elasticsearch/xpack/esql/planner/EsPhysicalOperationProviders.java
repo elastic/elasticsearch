@@ -227,7 +227,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     ) {
         DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
         if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField kf) {
-            shardContext = new DefaultShardContextForUnmappedField(shardContext, kf);
+            shardContext = wrapWithUnmappedFieldContext(shardContext, kf);
         }
 
         // Apply any block loader function if present
@@ -287,6 +287,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             plannerSettings.blockLoaderSizeScript()
         );
         return ValuesSourceReaderOperator.loadAndConvert(blockLoader, new TypeConverter((EsqlScalarFunction) conversion));
+    }
+
+    static DefaultShardContext wrapWithUnmappedFieldContext(DefaultShardContext ctx, PotentiallyUnmappedKeywordEsField unmappedField) {
+        return new DefaultShardContextForUnmappedField(ctx, unmappedField);
     }
 
     /** A hack to pretend an unmapped field still exists. */

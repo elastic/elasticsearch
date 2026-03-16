@@ -249,9 +249,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
   method: testTransform {class org.elasticsearch.xpack.esql.plan.logical.MMR}
   issue: https://github.com/elastic/elasticsearch/issues/142674
-- class: org.elasticsearch.xpack.core.termsenum.TermsEnumTests
-  method: testTermsEnumIPRandomized
-  issue: https://github.com/elastic/elasticsearch/issues/142811
 - class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
   method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
   issue: https://github.com/elastic/elasticsearch/issues/142079
@@ -351,15 +348,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/143023
-- class: org.elasticsearch.xpack.logsdb.FlattenedRollingUpgradeIT
-  method: testIndexingWithIndexFalse
-  issue: https://github.com/elastic/elasticsearch/issues/144354
 - class: org.elasticsearch.server.cli.APMJvmOptionsTests
   method: testAPMAgentMetricsDisabledWhenOtelMetricsEnabled
   issue: https://github.com/elastic/elasticsearch/issues/144357
 - class: org.elasticsearch.server.cli.APMJvmOptionsTests
   method: testAPMAgentAlwaysAttached
   issue: https://github.com/elastic/elasticsearch/issues/144358
+- class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
+  method: testGetReindexFollowsRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/144364
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
+  method: testGiantTextFieldInSubqueryIntermediateResults
+  issue: https://github.com/elastic/elasticsearch/issues/144367
 
 # Examples:
 #

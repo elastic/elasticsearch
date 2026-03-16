@@ -781,7 +781,9 @@ public class DockerTests extends PackagingTestCase {
         assertThat(
             dockerLogs.stderr(),
             containsString(
-                "ERROR: File /run/secrets/" + passwordFilename + " from ELASTIC_PASSWORD_FILE must have file permissions 400, 440, 600 or 640"
+                "ERROR: File /run/secrets/"
+                    + passwordFilename
+                    + " from ELASTIC_PASSWORD_FILE must have file permissions 400, 440, 600 or 640"
             )
         );
     }

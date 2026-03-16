@@ -14,29 +14,27 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
-import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.plan.EsqlStatement;
-import org.elasticsearch.xpack.esql.plan.IndexPattern;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
-
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzeStatement;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -574,11 +572,8 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     private void verificationFailureWithMapping(String mapping, String statement, String expectedFailure) {
-        var st = EsqlParser.INSTANCE.createStatement(statement);
-        var indexResolutions = Map.of(
-            new IndexPattern(Source.EMPTY, "test"),
-            loadMapping(mapping, "test")
-        );
+        var st = TEST_PARSER.createStatement(statement);
+        var indexResolutions = Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping(mapping, "test"));
         var analyzer = analyzer(
             indexResolutions,
             defaultLookupResolution(),

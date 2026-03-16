@@ -1343,7 +1343,7 @@ max:double | std_dev:double | pod:keyword
 DefaultMetricWithFromImplicitCasting
 required_capability: ts_command_v0
 required_capability: aggregate_metric_double_avg_as_default_metric
-FROM k8s*
+FROM k8s,k8s-downsampled
 | STATS min = min(network.eth0.tx), std_dev = ROUND(STD_DEV(network.eth0.tx), 7) by pod
 | sort pod
 ;
@@ -1357,7 +1357,7 @@ min:double | std_dev:double | pod:keyword
 DefaultMetricWithTSImplicitCasting
 required_capability: ts_command_v0
 required_capability: aggregate_metric_double_avg_as_default_metric
-TS k8s*
+TS k8s,k8s-downsampled
 | STATS min = min(network.eth0.tx), max = max(network.eth0.tx), std_dev = ROUND(STD_DEV(network.eth0.tx), 7) by pod
 | sort pod
 ;

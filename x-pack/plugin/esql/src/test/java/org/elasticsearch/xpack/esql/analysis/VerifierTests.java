@@ -3913,19 +3913,6 @@ public class VerifierTests extends ESTestCase {
             FROM test
             | LIMIT 5 BY made_up_attr * 2
             """, defaultAnalyzer, VerificationException.class), containsString("Unknown column [made_up_attr]"));
-
-        assertThat(
-            error("""
-                FROM test
-                | LIMIT -1 BY languages
-                """, defaultAnalyzer, ParsingException.class),
-            containsString("value of [LIMIT -1 BY languages] must be a non negative integer, found value [-1] type [integer]")
-        );
-
-        assertThat(error("""
-            FROM test
-            | LIMIT -1 * 42 BY languages
-            """, defaultAnalyzer, ParsingException.class), containsString("mismatched input '*'"));
     }
 
     public void testTopSnippetsQueryFoldableAfterOptimization() {

@@ -24,13 +24,14 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 
 public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOptimizerTests {
 
     /**
      * Grouping on a plain attribute needs no rewrite.
      * <pre>{@code
-     * Limit[1000[INTEGER],false,false]
+     * Limit[1000[INTEGER],[],false,false]
      * \_Limit[1[INTEGER],[emp_no{f}#N],false,false]
      *   \_EsRelation[test][...]
      * }</pre>
@@ -51,7 +52,7 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
     /**
      * Multiple plain-attribute groupings need no rewrite.
      * <pre>{@code
-     * Limit[1000[INTEGER],false,false]
+     * Limit[1000[INTEGER],[],false,false]
      * \_Limit[2[INTEGER],[emp_no{f}#N, salary{f}#M],false,false]
      *   \_EsRelation[test][...]
      * }</pre>
@@ -109,7 +110,7 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
     /**
      * Only foldable groupings are pruned; attribute groupings survive.
      * <pre>{@code
-     * Limit[1000[INTEGER],false,false]
+     * Limit[1000[INTEGER],[],false,false]
      * \_Limit[1[INTEGER],[emp_no{f}#N],false,false]
      *   \_EsRelation[test][...]
      * }</pre>
@@ -132,9 +133,9 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
      * preserved with a wrapping Project.
      * <pre>{@code
      * Project[[emp_no{f}#N]]
-     * \_Limit[1000[INTEGER],false,false]
-     *   \_Limit[1[INTEGER],[emp_no + 5{r}#M],false,false]
-     *     \_Eval[[emp_no{f}#N + 5[INTEGER] AS emp_no + 5#M]]
+     * \_Limit[1000[INTEGER],[],false,false]
+     *   \_LimitBy[1[INTEGER],[$$limit_by$0$N{r}#M],false,false]
+     *     \_Eval[[emp_no{f}#N + 5[INTEGER] AS $$limit_by$0$N]]
      *       \_EsRelation[test][...]
      * }</pre>
      */
@@ -150,11 +151,10 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
         var defaultLimit = as(project.child(), Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(1));
-        assertThat(Expressions.names(limit.groupings()), contains("emp_no + 5"));
         var eval = as(limit.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
         var alias = as(eval.fields().getFirst(), Alias.class);
-        assertThat(alias.name(), equalTo("emp_no + 5"));
+        assertThat(alias.name(), startsWith("$$limit_by$0$"));
         as(alias.child(), Add.class);
         as(eval.child(), EsRelation.class);
     }
@@ -163,9 +163,9 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
      * Multiple non-attribute expression groupings are all extracted into a single Eval.
      * <pre>{@code
      * Project[[emp_no{f}#N, salary{f}#M]]
-     * \_Limit[1000[INTEGER],false,false]
-     *   \_Limit[1[INTEGER],[emp_no + 5{r}#A, salary * 2{r}#B],false,false]
-     *     \_Eval[[emp_no{f}#N + 5[INTEGER] AS emp_no + 5#A, salary{f}#M * 2[INTEGER] AS salary * 2#B]]
+     * \_Limit[1000[INTEGER],[],false,false]
+     *   \_LimitBy[1[INTEGER],[$$limit_by$0$A{r}#X, $$limit_by$1$B{r}#Y],false,false]
+     *     \_Eval[[emp_no{f}#N + 5[INTEGER] AS $$limit_by$0$A, salary{f}#M * 2[INTEGER] AS $$limit_by$1$B]]
      *       \_EsRelation[test][...]
      * }</pre>
      */
@@ -181,14 +181,13 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
         var defaultLimit = as(project.child(), Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(1));
-        assertThat(Expressions.names(limit.groupings()), contains("emp_no + 5", "salary * 2"));
         var eval = as(limit.child(), Eval.class);
         assertThat(eval.fields(), hasSize(2));
         var alias0 = as(eval.fields().get(0), Alias.class);
-        assertThat(alias0.name(), equalTo("emp_no + 5"));
+        assertThat(alias0.name(), startsWith("$$limit_by$0$"));
         as(alias0.child(), Add.class);
         var alias1 = as(eval.fields().get(1), Alias.class);
-        assertThat(alias1.name(), equalTo("salary * 2"));
+        assertThat(alias1.name(), startsWith("$$limit_by$1$"));
         as(alias1.child(), Mul.class);
         as(eval.child(), EsRelation.class);
     }
@@ -197,9 +196,9 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
      * When groupings mix plain attributes and expressions, only the expressions are extracted to Eval.
      * <pre>{@code
      * Project[[emp_no{f}#N, salary{f}#M]]
-     * \_Limit[1000[INTEGER],false,false]
-     *   \_Limit[1[INTEGER],[emp_no{f}#N, salary * 2{r}#A],false,false]
-     *     \_Eval[[salary{f}#M * 2[INTEGER] AS salary * 2#A]]
+     * \_Limit[1000[INTEGER],[],false,false]
+     *   \_LimitBy[1[INTEGER],[emp_no{f}#N, $$limit_by$1$A{r}#X],false,false]
+     *     \_Eval[[salary{f}#M * 2[INTEGER] AS $$limit_by$1$A]]
      *       \_EsRelation[test][...]
      * }</pre>
      */
@@ -215,11 +214,13 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
         var defaultLimit = as(project.child(), Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(1));
-        assertThat(Expressions.names(limit.groupings()), contains("emp_no", "salary * 2"));
+        assertThat(limit.groupings(), hasSize(2));
+        assertThat(Expressions.name(limit.groupings().get(0)), equalTo("emp_no"));
+        assertThat(Expressions.name(limit.groupings().get(1)), startsWith("$$limit_by$1$"));
         var eval = as(limit.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
         var alias = as(eval.fields().getFirst(), Alias.class);
-        assertThat(alias.name(), equalTo("salary * 2"));
+        assertThat(alias.name(), startsWith("$$limit_by$1$"));
         as(alias.child(), Mul.class);
         as(eval.child(), EsRelation.class);
     }
@@ -228,9 +229,9 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
      * Foldable groupings are pruned and the surviving expression grouping is extracted to Eval.
      * <pre>{@code
      * Project[[emp_no{f}#N]]
-     * \_Limit[1000[INTEGER],false,false]
-     *   \_Limit[1[INTEGER],[emp_no + 5{r}#M],false,false]
-     *     \_Eval[[emp_no{f}#N + 5[INTEGER] AS emp_no + 5#M]]
+     * \_Limit[1000[INTEGER],[],false,false]
+     *   \_LimitBy[1[INTEGER],[$$limit_by$0$N{r}#M],false,false]
+     *     \_Eval[[emp_no{f}#N + 5[INTEGER] AS $$limit_by$0$N]]
      *       \_EsRelation[test][...]
      * }</pre>
      */
@@ -246,11 +247,10 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
         var defaultLimit = as(project.child(), Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(1));
-        assertThat(Expressions.names(limit.groupings()), contains("emp_no + 5"));
         var eval = as(limit.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
         var alias = as(eval.fields().getFirst(), Alias.class);
-        assertThat(alias.name(), equalTo("emp_no + 5"));
+        assertThat(alias.name(), startsWith("$$limit_by$0$"));
         as(alias.child(), Add.class);
         as(eval.child(), EsRelation.class);
     }
@@ -258,7 +258,7 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
     /**
      * All foldable groupings pruned, only attribute grouping survives. No Eval needed.
      * <pre>{@code
-     * Limit[1000[INTEGER],false,false]
+     * Limit[1000[INTEGER],[],false,false]
      * \_Limit[1[INTEGER],[emp_no{f}#N],false,false]
      *   \_EsRelation[test][...]
      * }</pre>
@@ -283,8 +283,8 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
      * <pre>{@code
      * Project[[_meta_field{f}#N, emp_no{f}#M, ..., x{r}#A]]
      * \_Limit[10000[INTEGER],[],false,false]
-     *   \_Limit[1[INTEGER],[x{r}#A, salary * 2{r}#B],false,false]
-     *     \_Eval[[emp_no{f}#M + 5[INTEGER] AS x, salary{f}#M * 2[INTEGER] AS salary * 2#B]]
+     *   \_LimitBy[1[INTEGER],[x{r}#A, $$limit_by$1$B{r}#Y],false,false]
+     *     \_Eval[[emp_no{f}#M + 5[INTEGER] AS x, salary{f}#M * 2[INTEGER] AS $$limit_by$1$B]]
      *       \_EsRelation[test][...]
      * }</pre>
      */
@@ -299,14 +299,16 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
         var defaultLimit = as(project.child(), Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(1));
-        assertThat(Expressions.names(limit.groupings()), contains("x", "salary * 2"));
+        assertThat(limit.groupings(), hasSize(2));
+        assertThat(Expressions.name(limit.groupings().get(0)), equalTo("x"));
+        assertThat(Expressions.name(limit.groupings().get(1)), startsWith("$$limit_by$1$"));
         var eval = as(limit.child(), Eval.class);
         assertThat(eval.fields(), hasSize(2));
         var xAlias = as(eval.fields().get(0), Alias.class);
         assertThat(xAlias.name(), equalTo("x"));
         assertThat(xAlias.child(), instanceOf(Add.class));
         var salaryAlias = as(eval.fields().get(1), Alias.class);
-        assertThat(salaryAlias.name(), equalTo("salary * 2"));
+        assertThat(salaryAlias.name(), startsWith("$$limit_by$1$"));
         assertThat(salaryAlias.child(), instanceOf(Mul.class));
         as(eval.child(), EsRelation.class);
     }
@@ -315,9 +317,9 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
      * Foldable grouping pruned, attribute and expression groupings survive.
      * <pre>{@code
      * Project[[emp_no{f}#N, salary{f}#M]]
-     * \_Limit[1000[INTEGER],false,false]
-     *   \_Limit[1[INTEGER],[emp_no{f}#N, salary * 2{r}#A],false,false]
-     *     \_Eval[[salary{f}#M * 2[INTEGER] AS salary * 2#A]]
+     * \_Limit[1000[INTEGER],[],false,false]
+     *   \_LimitBy[1[INTEGER],[emp_no{f}#N, $$limit_by$1$A{r}#X],false,false]
+     *     \_Eval[[salary{f}#M * 2[INTEGER] AS $$limit_by$1$A]]
      *       \_EsRelation[test][...]
      * }</pre>
      */
@@ -333,11 +335,13 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
         var defaultLimit = as(project.child(), Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(1));
-        assertThat(Expressions.names(limit.groupings()), contains("emp_no", "salary * 2"));
+        assertThat(limit.groupings(), hasSize(2));
+        assertThat(Expressions.name(limit.groupings().get(0)), equalTo("emp_no"));
+        assertThat(Expressions.name(limit.groupings().get(1)), startsWith("$$limit_by$1$"));
         var eval = as(limit.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
         var alias = as(eval.fields().getFirst(), Alias.class);
-        assertThat(alias.name(), equalTo("salary * 2"));
+        assertThat(alias.name(), startsWith("$$limit_by$1$"));
         as(alias.child(), Mul.class);
         as(eval.child(), EsRelation.class);
     }

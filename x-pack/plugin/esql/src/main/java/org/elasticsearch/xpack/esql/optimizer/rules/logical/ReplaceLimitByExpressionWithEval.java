@@ -31,24 +31,20 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporar
  * Foldable groupings are pruned separately by {@link PruneLiteralsInLimitBy} in the operators batch.
  */
 public final class ReplaceLimitByExpressionWithEval extends OptimizerRules.OptimizerRule<LimitBy> {
+    private static int counter = 0;
 
     @Override
     protected LogicalPlan rule(LimitBy limitBy) {
-        int counter = 0;
         int size = limitBy.groupings().size();
         List<Expression> newGroupings = new ArrayList<>(limitBy.groupings());
         List<Alias> evals = new ArrayList<>(size);
 
         for (int i = 0; i < size; i++) {
             Expression g = newGroupings.get(i);
-            Expression underlying = g instanceof Alias as ? as.child() : g;
-            if (underlying.foldable()) {
+            if (g.foldable()) {
                 continue;
             }
-            if (g instanceof Alias as) {
-                evals.add(as);
-                newGroupings.set(i, as.toAttribute());
-            } else if (g instanceof Attribute == false) {
+            if (g instanceof Attribute == false) {
                 var name = rawTemporaryName("limit_by", String.valueOf(i), String.valueOf(counter++));
                 var alias = new Alias(g.source(), name, g, null, true);
                 evals.add(alias);

@@ -196,7 +196,7 @@ public final class Expressions {
             Expression left = leftList.get(i);
             Expression right = rightList.get(i);
             if (left == null || right == null) {
-                return false;
+                throw new IllegalArgumentException("Unexpected null expression in list at index [" + i + "]");
             }
             if (left.semanticEquals(right) == false) {
                 return false;

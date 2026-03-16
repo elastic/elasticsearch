@@ -2307,7 +2307,12 @@ public class EsqlCapabilities {
          * causing false type conflicts in ES|QL when querying across indices.
          * https://github.com/elastic/elasticsearch/issues/144179
          */
-        FIX_PASSTHROUGH_FIELD_CAPS_OBJECT_PARENT
+        FIX_PASSTHROUGH_FIELD_CAPS_OBJECT_PARENT,
+
+        /**
+         * LIMIT n BY expr1, expr2 support for retaining at most n docs per group.
+         */
+        LIMIT_BY(Build.current().isSnapshot())
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

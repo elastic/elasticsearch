@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHand
 import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
+import org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -103,6 +104,7 @@ class StatelessIndexEventListener implements IndexEventListener {
     private final ProjectResolver projectResolver;
     private final Executor bccHeaderReadExecutor;
     private final boolean useInternalFilesReplicatedContentForSearchShards;
+    private final SnapshotsCommitService snapshotsCommitService;
 
     StatelessIndexEventListener(
         ThreadPool threadPool,
@@ -117,7 +119,8 @@ class StatelessIndexEventListener implements IndexEventListener {
         ProjectResolver projectResolver,
         Executor bccHeaderReadExecutor,
         ClusterSettings clusterSettings,
-        StatelessSharedBlobCacheService cacheService
+        StatelessSharedBlobCacheService cacheService,
+        SnapshotsCommitService snapshotsCommitService
     ) {
         this.threadPool = threadPool;
         this.statelessCommitService = statelessCommitService;
@@ -134,6 +137,7 @@ class StatelessIndexEventListener implements IndexEventListener {
         this.useInternalFilesReplicatedContentForSearchShards = clusterSettings.get(
             SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
         );
+        this.snapshotsCommitService = snapshotsCommitService;
     }
 
     @Override
@@ -336,7 +340,12 @@ class StatelessIndexEventListener implements IndexEventListener {
                         && reshardSplitRecoverySource.getSourceShardId().equals(batchedCompoundCommit.shardId())
                     : batchedCompoundCommit.shardId() + " vs " + indexShard.shardId();
 
-                statelessCommitService.markRecoveredBcc(indexShard.shardId(), batchedCompoundCommit, indexingShardState.otherBlobs());
+                statelessCommitService.markRecoveredBcc(
+                    indexShard.shardId(),
+                    batchedCompoundCommit,
+                    indexingShardState.otherBlobs(),
+                    snapshotsCommitService.getExtraReferenceConsumers(indexShard.shardId())
+                );
             }
             statelessCommitService.addConsumerForNewUploadedBcc(indexShard.shardId(), info -> {
                 Set<String> uploadedFiles = info.uploadedBcc()

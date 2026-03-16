@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
+import org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -106,7 +107,8 @@ public class TestUtils {
         ProjectResolver projectResolver,
         Executor bccHeaderReadExecutor,
         ClusterSettings clusterSettings,
-        StatelessSharedBlobCacheService cacheService
+        StatelessSharedBlobCacheService cacheService,
+        SnapshotsCommitService snapshotsCommitService
     ) {
         return new StatelessIndexEventListener(
             threadPool,
@@ -121,7 +123,8 @@ public class TestUtils {
             projectResolver,
             bccHeaderReadExecutor,
             clusterSettings,
-            cacheService
+            cacheService,
+            snapshotsCommitService
         );
     }
 

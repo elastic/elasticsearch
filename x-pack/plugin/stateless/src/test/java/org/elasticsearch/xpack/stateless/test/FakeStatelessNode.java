@@ -116,6 +116,7 @@ import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService;
 import org.elasticsearch.xpack.stateless.utils.TransferableCloseables;
 
 import java.io.Closeable;
@@ -167,6 +168,7 @@ public class FakeStatelessNode implements Closeable {
     public final ObjectStoreService objectStoreService;
     public final IndicesService indicesService;
     public final StatelessCommitService commitService;
+    public final SnapshotsCommitService snapshotsCommitService;
     public final NodeEnvironment nodeEnvironment;
     public final ThreadPool threadPool;
 
@@ -339,6 +341,8 @@ public class FakeStatelessNode implements Closeable {
                 () -> {}
             );
             localCloseables.add(commitService);
+            snapshotsCommitService = new SnapshotsCommitService(clusterService, commitService);
+            clusterService.addListener(snapshotsCommitService);
             indexingDirectory = localCloseables.add(
                 new IndexDirectory(
                     new FsDirectoryFactory().newDirectory(indexSettings, indexingShardPath),

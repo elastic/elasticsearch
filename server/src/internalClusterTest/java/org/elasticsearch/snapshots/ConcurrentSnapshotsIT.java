@@ -236,7 +236,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         // wait for snapshot deletions to batch, before unblocking the snapshot
         assertBusy(() -> {
             SnapshotDeletionsInProgress snapshotDeletionsInProgress = SnapshotDeletionsInProgress.get(
-                    clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).get().getState()
+                clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).get().getState()
             );
             for (var inProgressSnapshotDeletion : snapshotDeletionsInProgress.getEntries()) {
                 if (repoName.equals(inProgressSnapshotDeletion.repoName())) {

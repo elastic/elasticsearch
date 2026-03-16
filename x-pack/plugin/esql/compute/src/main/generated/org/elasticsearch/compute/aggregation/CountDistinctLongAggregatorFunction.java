@@ -36,17 +36,12 @@ public final class CountDistinctLongAggregatorFunction implements AggregatorFunc
 
   private final int precision;
 
-  public CountDistinctLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      HllStates.SingleState state, int precision) {
+  CountDistinctLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      int precision) {
+    this.precision = precision;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-    this.precision = precision;
-  }
-
-  public static CountDistinctLongAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, int precision) {
-    return new CountDistinctLongAggregatorFunction(driverContext, channels, CountDistinctLongAggregator.initSingle(driverContext, precision), precision);
+    this.state = CountDistinctLongAggregator.initSingle(driverContext, precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

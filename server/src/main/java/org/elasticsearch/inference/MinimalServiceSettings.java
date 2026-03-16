@@ -158,7 +158,7 @@ public record MinimalServiceSettings(
             model.getServiceSettings().dimensions(),
             model.getServiceSettings().similarity(),
             model.getServiceSettings().elementType(),
-            model.getConfigurations().getEndpointMetadata()
+            model.getConfigurations().getEndpointMetadataOrEmpty()
         );
     }
 

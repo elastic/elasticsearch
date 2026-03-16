@@ -300,9 +300,6 @@ tests:
 - class: org.elasticsearch.snapshots.ConcurrentSnapshotsIT
   method: testDeletesAreBatched
   issue: https://github.com/elastic/elasticsearch/issues/144034
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
-  method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
-  issue: https://github.com/elastic/elasticsearch/issues/138012
 - class: org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilderTests
   method: testRandomScoreWithExplicitFieldWhenSeqNoDisabled
   issue: https://github.com/elastic/elasticsearch/issues/144156
@@ -342,9 +339,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasource.grpc.EmployeeFlightServerTests
   method: testMultiEndpointEachPartitionHasRows
   issue: https://github.com/elastic/elasticsearch/issues/144244
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
-  method: testEndpointGetsUpdated_GivenFingerprintChanges_FromNull
-  issue: https://github.com/elastic/elasticsearch/issues/144249
 - class: org.elasticsearch.xpack.security.authc.service.ServiceAccountIT
   method: testAuthenticateShouldNotFallThroughInCaseOfFailure
   issue: https://github.com/elastic/elasticsearch/issues/144262

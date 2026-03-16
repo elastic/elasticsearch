@@ -11,13 +11,11 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexFeatures;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.hamcrest.Matchers;
@@ -37,47 +35,58 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
     public void testRollingUpgrade() throws IOException {
         int numNodes = getCluster().getNumNodes();
         boolean isServerless = isServerless();
+        boolean oldClusterHasSyntheticId = oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID);
 
-        if (oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID)) {
-            // Should be able to create synthetic id index throughout the rolling upgrade
-            String index_0 = indexName(0);
-            assertIndexCanBeCreated(index_0);
-            assertCanAddDocuments(index_0);
-            assertIndexRead(index_0, isServerless, 1);
-            clusterRollingUpgrade(i -> {
-                int nextIndexId = i + 1;
-                String indexName = indexName(nextIndexId);
-                assertIndexCanBeCreated(indexName);
-                for (int j = 0; j <= nextIndexId; j++) {
-                    assertCanAddDocuments(indexName(j));
-                    assertIndexRead(indexName(j), isServerless, nextIndexId + 1 - j);
-                }
-            });
-        } else {
-            // Cluster supports synthetic id index after all nodes have been upgraded, not before
-            assertNoWriteIndex(indexName(0));
-            clusterRollingUpgrade(i -> {
-                int nextIndexId = i + 1;
-                if (nextIndexId == numNodes) {
-                    // Last node has been upgraded, we should be able to write
-                    String indexName = indexName(nextIndexId);
-                    assertIndexCanBeCreated(indexName);
-                    assertCanAddDocuments(indexName);
-                    assertIndexRead(indexName(nextIndexId), isServerless, 1);
-                } else {
-                    assertNoWriteIndex(indexName(nextIndexId));
-                }
-            });
-        }
+        // This test upgrade all nodes in the cluster one by one,
+        // and create one new index in-between every upgrade,
+        // before upgrades start and after upgrade has finished.
+        // In every gap we write to all existing indices and test
+        // that we read the expected number of documents from them.
+        // The indices will use synthetic_id setting if the cluster
+        // is expected to have support for it at the time of index
+        // creation, otherwise it will not.
+        // If old cluster has support, then cluster will have support
+        // for it all through the upgrade.
+        // If old cluster doesn't have support, then cluster will
+        // only have support after the upgrade is finished, the
+        // last iteration in clusterRollingUpgrade.
+
+        String indexZero = indexName(0);
+        assertIndexCanBeCreated(indexZero, oldClusterHasSyntheticId);
+        assertCanAddDocuments(indexZero);
+        assertIndexRead(indexZero, isServerless, 1, oldClusterHasSyntheticId);
+
+        clusterRollingUpgrade(i -> {
+            int nextIndexId = i + 1;
+            String indexName = indexName(nextIndexId);
+            boolean allNodesUpgraded = nextIndexId == numNodes;
+            assertIndexCanBeCreated(indexName, oldClusterHasSyntheticId || allNodesUpgraded);
+
+            // For all indices we have created so far
+            for (int j = 0; j <= nextIndexId; j++) {
+                assertCanAddDocuments(indexName(j));
+                int expectedNbrOfBatchesInIndex = nextIndexId + 1 - j;
+                boolean lastIndex = j == nextIndexId && allNodesUpgraded;
+                assertIndexRead(indexName(j), isServerless, expectedNbrOfBatchesInIndex, oldClusterHasSyntheticId || lastIndex);
+            }
+        });
     }
 
-    private static void assertIndexRead(String indexName, boolean isServerless, int nbrOfBatches) throws IOException {
+    private static void assertIndexRead(String indexName, boolean isServerless, int nbrOfBatches, boolean expectSyntheticId)
+        throws IOException {
         assertTrue("Expected index [" + indexName + "] to exist, but did not", indexExists(indexName));
         Map<String, Object> indexSettingsAsMap = getIndexSettingsAsMap(indexName);
-        assertThat(indexSettingsAsMap.get(IndexSettings.SYNTHETIC_ID.getKey()), Matchers.equalTo("true"));
+        assertThat(
+            Boolean.parseBoolean((String) indexSettingsAsMap.get(IndexSettings.SYNTHETIC_ID.getKey())),
+            Matchers.equalTo(expectSyntheticId)
+        );
         assertDocCount(client(), indexName, (long) nbrOfBatches * DOC_COUNT);
         if (!isServerless) {
-            assertThat(invertedIndexSize(indexName), Matchers.equalTo(0));
+            if (expectSyntheticId) {
+                assertThat(invertedIndexSize(indexName), Matchers.equalTo(0));
+            } else {
+                assertThat(invertedIndexSize(indexName), Matchers.greaterThan(0));
+            }
         }
     }
 
@@ -88,11 +97,12 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
         return objectPath.evaluate(indexName + ".all_fields.inverted_index.total_in_bytes");
     }
 
-    private void assertIndexCanBeCreated(String indexName) throws IOException {
+    private void assertIndexCanBeCreated(String indexName, boolean useSyntheticId) throws IOException {
         logClusterStateBeforeCreate(indexName);
+        logger.info("--> Create index {} with synthetic id {}", indexName, useSyntheticId);
         CreateIndexResponse response = null;
         try {
-            response = createSyntheticIdIndex(indexName);
+            response = createSyntheticIdIndex(indexName, useSyntheticId);
             logger.info(
                 "Create index [{}] response: acknowledged={}, shards_acknowledged={}",
                 indexName,
@@ -227,7 +237,7 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
     /**
      * Log master's pending cluster tasks (e.g. cluster state updates). A backlog can delay shard allocation.
      */
-    private void logPendingClusterTasks(String indexName, String when) throws IOException {
+    private void logPendingClusterTasks(String indexName, String when) {
         try {
             Response response = client().performRequest(new Request("GET", "_cluster/pending_tasks"));
             logger.info("Index [{}] pending cluster tasks {}: {}", indexName, when, entityAsMap(response));
@@ -256,29 +266,14 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
             """, timestamp, randomByte()));
     }
 
-    private static void assertNoWriteIndex(String indexName) throws IOException {
-        String setting = IndexSettings.SYNTHETIC_ID.getKey();
-        String unknownSetting = "unknown setting [" + setting + "]";
-        String versionTooLow = String.format(
-            Locale.ROOT,
-            "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion:",
-            setting,
-            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94
-        );
-
-        ResponseException e = assertThrows(ResponseException.class, () -> createSyntheticIdIndex(indexName));
-        String reason = ObjectPath.createFromResponse(e.getResponse()).evaluate("error.reason");
-
-        assertThat(reason, Matchers.either(Matchers.containsString(unknownSetting)).or(Matchers.containsString(versionTooLow)));
-        assertThat(e.getMessage(), Matchers.containsString("illegal_argument_exception"));
-    }
-
-    private static CreateIndexResponse createSyntheticIdIndex(String indexName) throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+    private static CreateIndexResponse createSyntheticIdIndex(String indexName, boolean useSyntheticId) throws IOException {
+        Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
-            .build();
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname");
+        if (useSyntheticId) {
+            settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), true);
+        }
+        Settings settings = settingsBuilder.build();
         final var mapping = """
             {
                 "properties": {

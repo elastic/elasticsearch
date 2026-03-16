@@ -334,12 +334,29 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return Boolean.getBoolean("tests.esql.csv.timeseries_only");
     }
 
-    protected boolean supportsIndexModeLookup() throws IOException {
+    protected boolean supportsIndexModeLookup() {
         return true;
     }
 
-    protected boolean supportsSourceFieldMapping() throws IOException {
+    protected boolean supportsSourceFieldMapping() {
         return true;
+    }
+
+    protected String maybeRandomizeQuery(String query) {
+        return query;
+    }
+
+    /**
+     * Intended to be used in {@link #maybeRandomizeQuery(String)} except in test cases that do not support {@code nullify}
+     * (e.g. old test cases in bwc tests)
+     */
+    public String randomlyNullify(String query) {
+        return randomBoolean()
+            && testCase.expectedWarnings().isEmpty() // avoid shifting warnings positions in source query
+            && testCase.expectedWarningsRegex().isEmpty() // regexp might also contain line/position
+            && query.startsWith("SET") == false // avoid conflicts with provided settings
+                ? "SET unmapped_fields=\"nullify\"; " + query
+                : query;
     }
 
     /**
@@ -355,6 +372,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected final void doTest(String query) throws Throwable {
+        query = maybeRandomizeQuery(query);
+
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
 
         boolean checkTook = supportsTook() && rarely();
@@ -527,7 +546,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         });
     }
 
-    protected boolean supportsTook() throws IOException {
+    protected boolean supportsTook() {
         if (supportsTook == null) {
             supportsTook = hasCapabilities(adminClient(), List.of("usage_contains_took"));
         }

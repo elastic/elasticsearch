@@ -68,7 +68,7 @@ public class PerFieldFormatSupplier {
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private final KnnVectorsFormat knnVectorsFormat;
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
-    private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion101");
+    private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion104");
 
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
     private final MapperService mapperService;
@@ -95,7 +95,7 @@ public class PerFieldFormatSupplier {
             if (IndexSettings.USE_ES_812_POSTINGS_FORMAT.get(mapperService.getIndexSettings().getSettings())) {
                 return es812PostingsFormat;
             } else {
-                return Elasticsearch92Lucene103Codec.DEFAULT_POSTINGS_FORMAT;
+                return Elasticsearch93Lucene104Codec.DEFAULT_POSTINGS_FORMAT;
             }
         } else {
             // our own posting format using PFOR, used for logsdb and tsdb indices by default
@@ -120,7 +120,8 @@ public class PerFieldFormatSupplier {
             DEFAULT_BEAM_WIDTH,
             DenseVectorFieldMapper.ElementType.FLOAT,
             maxMergingWorkers,
-            mergingExecutorService
+            mergingExecutorService,
+            -1
         );
     }
 
@@ -196,8 +197,9 @@ public class PerFieldFormatSupplier {
 
         if (useTSDBDocValuesFormat(field)) {
             var indexCreatedVersion = mapperService.getIndexSettings().getIndexVersionCreated();
-            boolean useLargeBlockSize = mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBlockSize();
-            return TSDBDocValuesFormatFactory.createDocValuesFormat(indexCreatedVersion, useLargeBlockSize);
+            boolean useLargeNumericBlockSize = mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeNumericBlockSize();
+            boolean useLargeBinaryBlockSize = mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBinaryBlockSize();
+            return TSDBDocValuesFormatFactory.createDocValuesFormat(indexCreatedVersion, useLargeNumericBlockSize, useLargeBinaryBlockSize);
         }
 
         return docValuesFormat;

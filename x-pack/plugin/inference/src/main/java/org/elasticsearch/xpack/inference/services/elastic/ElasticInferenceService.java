@@ -213,6 +213,11 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     }
 
     @Override
+    protected boolean supportsChatCompletionReasoning() {
+        return true;
+    }
+
+    @Override
     protected void doInfer(
         Model model,
         InferenceInputs inputs,

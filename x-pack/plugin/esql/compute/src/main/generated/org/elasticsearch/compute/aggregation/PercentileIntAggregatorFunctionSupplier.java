@@ -34,13 +34,13 @@ public final class PercentileIntAggregatorFunctionSupplier implements Aggregator
   @Override
   public PercentileIntAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return PercentileIntAggregatorFunction.create(driverContext, channels, percentile);
+    return new PercentileIntAggregatorFunction(driverContext, channels, percentile);
   }
 
   @Override
   public PercentileIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return PercentileIntGroupingAggregatorFunction.create(channels, driverContext, percentile);
+    return new PercentileIntGroupingAggregatorFunction(channels, driverContext, percentile);
   }
 
   @Override

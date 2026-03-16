@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
@@ -160,6 +161,13 @@ public class PrivilegeTests extends ESTestCase {
             ClusterPermission.builder()
         ).build();
         assertTrue(allClusterPermission.implies(crossClusterReplicationClusterPermission));
+
+        ClusterPrivilege cloneApiKeyClusterPrivilege = ClusterPrivilegeResolver.resolve("clone_api_key");
+        assertThat(cloneApiKeyClusterPrivilege, is(ClusterPrivilegeResolver.CLONE_API_KEY));
+        verifyClusterActionAllowed(cloneApiKeyClusterPrivilege, CloneApiKeyAction.NAME);
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_SECURITY, CloneApiKeyAction.NAME);
+        verifyClusterActionAllowed(allClusterPrivilege, CloneApiKeyAction.NAME);
+
     }
 
     public void testClusterTemplateActions() throws Exception {

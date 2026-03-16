@@ -1,0 +1,2 @@
+SET unmapped_fields="nullify"; FROM employees
+| STATS cnt = COUNT(does_not_exist_field)

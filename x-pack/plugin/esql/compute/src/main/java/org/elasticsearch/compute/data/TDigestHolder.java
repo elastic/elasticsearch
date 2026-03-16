@@ -30,7 +30,7 @@ import java.util.Objects;
  * In addition, it stores the size as a dedicated field for faster access.
  * The TDigest is represented a list of centroids and their counts, encoded in a byte array.
  * This class does not own the underlying memory used to store the digest, it is merely a pointer/accessor for e.g.
- * a single value in a {@link TDigestBlock}.
+ * a single value in a {@link TDigestBlock} or in {@link BreakingTDigestHolder}.
  * <br>
  * This class supports serialization, but this is only intended for use in ES|QL Literals, as it uses untracked memory on deserialization.
  */

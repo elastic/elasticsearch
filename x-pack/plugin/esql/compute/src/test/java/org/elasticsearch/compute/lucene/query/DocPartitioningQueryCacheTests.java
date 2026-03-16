@@ -29,8 +29,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
+import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
@@ -46,6 +51,7 @@ import java.util.function.IntConsumer;
 
 import static org.elasticsearch.indices.IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class DocPartitioningQueryCacheTests extends ComputeTestCase {
 
@@ -244,6 +250,127 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
         @Override
         public boolean isCacheable(LeafReaderContext ctx) {
             return true;
+        }
+    }
+
+    public void testNullBulkScorerAfterCaching() throws Exception {
+        var dir = newDirectory();
+        var writer = new IndexWriter(dir, new IndexWriterConfig());
+        final int numDocs = 200;
+        for (int d = 0; d < numDocs; d++) {
+            writer.addDocument(new Document());
+        }
+        var reader = DirectoryReader.open(writer);
+        ShardId shard = new ShardId("index", "_na_", 0);
+        reader = ElasticsearchDirectoryReader.wrap(reader, shard);
+        writer.close();
+        var indicesQueryCache = new IndicesQueryCache(
+            Settings.builder().put(INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true).build()
+        );
+        var searcher = new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            indicesQueryCache,
+            TrivialQueryCachingPolicy.ALWAYS,
+            false
+        );
+        var shardContext = new LuceneSourceOperatorTests.MockShardContext(searcher, 0);
+        CountDownLatch scorerStarted = new CountDownLatch(1);
+        CountDownLatch scorerProceed = new CountDownLatch(1);
+        Query query = new NoMatchBlockingQuery(scorerStarted, scorerProceed);
+        LuceneSliceQueue queue = LuceneSliceQueue.create(
+            new IndexedByShardIdFromList<>(List.of(shardContext)),
+            c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
+            DataPartitioning.DOC,
+            q -> LuceneSliceQueue.PartitioningStrategy.DOC,
+            1,
+            2,
+            s -> ScoreMode.COMPLETE_NO_SCORES
+        );
+        assertThat("requires at least two slices", queue.totalSlices(), greaterThanOrEqualTo(2));
+        var shardContexts = new IndexedByShardIdFromSingleton<>(shardContext);
+        var op1 = new LuceneSourceOperator(shardContexts, blockFactory(), 100, queue, LuceneOperator.NO_LIMIT, Limiter.NO_LIMIT, false);
+        var op2 = new LuceneSourceOperator(shardContexts, blockFactory(), 100, queue, LuceneOperator.NO_LIMIT, Limiter.NO_LIMIT, false);
+        try {
+            Thread thread1 = new Thread(() -> {
+                Page output = op1.getOutput();
+                if (output != null) {
+                    assertThat(output.getPositionCount(), equalTo(0));
+                    Releasables.close(output);
+                }
+            });
+            thread1.start();
+            safeAwait(scorerStarted);
+            assertNull(op2.getOutput());
+            assertFalse(op2.isBlocked().listener().isDone());
+            scorerProceed.countDown();
+            thread1.join(30_000);
+            assertTrue(op2.isBlocked().listener().isDone());
+            assertNull(op2.getOutput());
+            assertTrue(op2.isFinished());
+        } finally {
+            Releasables.close(op1, op2);
+            IOUtils.close(reader, dir);
+        }
+    }
+
+    static class NoMatchBlockingQuery extends Query {
+        final CountDownLatch scorerStarted;
+        final CountDownLatch scorerProceed;
+
+        NoMatchBlockingQuery(CountDownLatch scorerStarted, CountDownLatch scorerProceed) {
+            this.scorerStarted = scorerStarted;
+            this.scorerProceed = scorerProceed;
+        }
+
+        @Override
+        public String toString(String field) {
+            return "NoMatchBlockingQuery";
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {}
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
+            return new Weight(this) {
+                @Override
+                public Explanation explain(LeafReaderContext context, int doc) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) {
+                    return new ScorerSupplier() {
+                        @Override
+                        public Scorer get(long leadCost) {
+                            scorerStarted.countDown();
+                            safeAwait(scorerProceed);
+                            return new ConstantScoreScorer(1f, ScoreMode.COMPLETE_NO_SCORES, DocIdSetIterator.empty());
+                        }
+
+                        @Override
+                        public long cost() {
+                            return 0;
+                        }
+                    };
+                }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return true;
+                }
+            };
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return sameClassAs(other);
+        }
+
+        @Override
+        public int hashCode() {
+            return classHash();
         }
     }
 }

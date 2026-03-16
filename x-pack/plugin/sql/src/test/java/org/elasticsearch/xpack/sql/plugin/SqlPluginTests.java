@@ -7,19 +7,12 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.rest.RestController;
+import org.elasticsearch.plugins.PluginTestUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.xpack.sql.session.Cursors;
-
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
@@ -40,19 +33,6 @@ public class SqlPluginTests extends ESTestCase {
             hasSize(3)
         );
         assertThat(plugin.getActions(), hasSize(8));
-        assertThat(
-            plugin.getRestHandlers(
-                Settings.EMPTY,
-                mock(NamedWriteableRegistry.class),
-                mock(RestController.class),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-                new SettingsFilter(Collections.emptyList()),
-                mock(IndexNameExpressionResolver.class),
-                () -> mock(DiscoveryNodes.class),
-                null
-            ),
-            hasSize(7)
-        );
+        assertThat(plugin.getRestHandlers(PluginTestUtil.emptyRestHandlersServices(), null, null), hasSize(7));
     }
 }

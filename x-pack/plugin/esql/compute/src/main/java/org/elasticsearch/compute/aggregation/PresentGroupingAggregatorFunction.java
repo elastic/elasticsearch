@@ -30,17 +30,13 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
     private final List<Integer> channels;
     private final DriverContext driverContext;
 
-    public static PresentGroupingAggregatorFunction create(DriverContext driverContext, List<Integer> inputChannels) {
-        return new PresentGroupingAggregatorFunction(inputChannels, new BitArray(1, driverContext.bigArrays()), driverContext);
-    }
-
     public static List<IntermediateStateDesc> intermediateStateDesc() {
         return INTERMEDIATE_STATE_DESC;
     }
 
-    private PresentGroupingAggregatorFunction(List<Integer> channels, BitArray state, DriverContext driverContext) {
+    PresentGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
         this.channels = channels;
-        this.state = state;
+        this.state = new BitArray(1, driverContext.bigArrays());
         this.driverContext = driverContext;
     }
 

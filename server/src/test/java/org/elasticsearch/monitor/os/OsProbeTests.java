@@ -291,7 +291,7 @@ public class OsProbeTests extends ESTestCase {
             "Inactive:        8130280 kB"
         );
         probe = buildStubOsProbe(cgroupsVersion, "", List.of(), meminfoLines);
-        assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(0L));
+        expectThrows(NumberFormatException.class, probe::getTotalMemFromProcMeminfo);
 
         // MemTotal line with invalid unit
         meminfoLines = Arrays.asList(
@@ -305,7 +305,7 @@ public class OsProbeTests extends ESTestCase {
             "Inactive:        8130280 kB"
         );
         probe = buildStubOsProbe(cgroupsVersion, "", List.of(), meminfoLines);
-        assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(0L));
+        expectThrows(StringIndexOutOfBoundsException.class, probe::getTotalMemFromProcMeminfo);
 
         // MemTotal line with random valid value
         long memTotalInKb = randomLongBetween(1, Long.MAX_VALUE / 1024L);
@@ -321,6 +321,23 @@ public class OsProbeTests extends ESTestCase {
         );
         probe = buildStubOsProbe(cgroupsVersion, "", List.of(), meminfoLines);
         assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(memTotalInKb * 1024L));
+    }
+
+    public void testGetActualFreePhysicalMemory() {
+        assumeTrue("meminfo parsing is Linux-specific", Constants.LINUX);
+        int cgroupsVersion = 1;
+        var meminfoLines = Arrays.asList(
+            "MemFree:         8467692 kB",
+            "MemAvailable:   39646240 kB",
+            "Buffers:         4699504 kB",
+            "Cached:         23290380 kB"
+        );
+        OsProbe probe = buildStubOsProbe(cgroupsVersion, "", List.of(), meminfoLines);
+        assertThat(probe.getActualFreePhysicalMemorySize(), equalTo(39646240 * 1024L));
+
+        meminfoLines = Arrays.asList("MemFree:         10 kB", "Buffers:         20 kB", "Cached:         30 kB");
+        probe = buildStubOsProbe(cgroupsVersion, "", List.of(), meminfoLines);
+        assertThat(probe.getActualFreePhysicalMemorySize(), equalTo((10 + 20 + 30) * 1024L));
     }
 
     public void testTotalMemoryOverride() {

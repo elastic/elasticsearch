@@ -37,16 +37,11 @@ public final class AllLastDoubleByLongGroupingAggregatorFunction implements Grou
 
   private final DriverContext driverContext;
 
-  public AllLastDoubleByLongGroupingAggregatorFunction(List<Integer> channels,
-      AllLastDoubleByLongAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static AllLastDoubleByLongGroupingAggregatorFunction create(List<Integer> channels,
+  AllLastDoubleByLongGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new AllLastDoubleByLongGroupingAggregatorFunction(channels, AllLastDoubleByLongAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = AllLastDoubleByLongAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

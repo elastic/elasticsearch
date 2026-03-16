@@ -81,6 +81,7 @@ import org.elasticsearch.script.Metadata;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 
 import java.time.Instant;
 import java.time.InstantSource;
@@ -242,6 +243,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<IngestPlugin> ingestPlugins,
         Client client,
         MatcherWatchdog matcherWatchdog,
+        UserAgentParserRegistry userAgentParserRegistry,
         FailureStoreMetrics failureStoreMetrics,
         ProjectResolver projectResolver,
         FeatureService featureService,
@@ -261,7 +263,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 this,
                 client,
                 threadPool.generic()::execute,
-                matcherWatchdog
+                matcherWatchdog,
+                userAgentParserRegistry
             )
         );
         this.threadPool = threadPool;
@@ -281,6 +284,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<IngestPlugin> ingestPlugins,
         Client client,
         MatcherWatchdog matcherWatchdog,
+        UserAgentParserRegistry userAgentParserRegistry,
         FailureStoreMetrics failureStoreMetrics,
         ProjectResolver projectResolver,
         FeatureService featureService
@@ -294,6 +298,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             ingestPlugins,
             client,
             matcherWatchdog,
+            userAgentParserRegistry,
             failureStoreMetrics,
             projectResolver,
             featureService,

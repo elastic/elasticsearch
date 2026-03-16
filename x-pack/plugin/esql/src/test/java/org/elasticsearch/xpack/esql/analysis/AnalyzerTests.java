@@ -5231,7 +5231,7 @@ public class AnalyzerTests extends ESTestCase {
         );
 
         var esIndex = new EsIndex(
-            "k8s*",
+            "k8s,k8s-downsampled",
             mapping,
             Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
             Map.of(),
@@ -5249,12 +5249,12 @@ public class AnalyzerTests extends ESTestCase {
             TEST_VERIFIER
         );
         var stddevPlan = analyze("""
-            from k8s* | stats std_dev = std_dev(metric_field)
+            from k8s,k8s-downsampled | stats std_dev = std_dev(metric_field)
             """, analyzer);
         assertProjection(stddevPlan, "std_dev");
 
         var plan = analyze("""
-            from k8s* | stats max = max(metric_field),
+            from k8s,k8s-downsampled | stats max = max(metric_field),
             avg = avg(metric_field),
             sum = sum(metric_field),
             min = min(metric_field),
@@ -5263,7 +5263,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection(plan, "max", "avg", "sum", "min", "count");
 
         var plan2 = analyze("""
-            TS k8s* | stats s1 = sum(sum_over_time(metric_field)),
+            TS k8s,k8s-downsampled | stats s1 = sum(sum_over_time(metric_field)),
             s2 = sum(avg_over_time(metric_field)),
             min = min(max_over_time(metric_field)),
             count = count(count_over_time(metric_field)),

@@ -814,13 +814,9 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             .put("index.mapping.source.mode", "synthetic")
             .build();
         var indexSettings = createIndexSettings(indexVersion, mapperSettings);
-        DocumentMapper mapper = createMapperService(
-            indexVersion,
-            mapperSettings,
-            mapping(b -> {
-                b.startObject("foo").field("type", "keyword").endObject();
-            })
-        ).documentMapper();
+        DocumentMapper mapper = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+            b.startObject("foo").field("type", "keyword").endObject();
+        })).documentMapper();
 
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = indexWriterForSyntheticSource(directory);

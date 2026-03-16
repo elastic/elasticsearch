@@ -44,6 +44,7 @@ import java.util.Set;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -238,8 +239,6 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         try (var searcher = indexService.getShard(0).acquireSearcher(getTestName())) {
             var reader = searcher.getDirectoryReader();
             var ignoredSourceDV = MultiDocValues.getBinaryValues(reader, IgnoredSourceFieldMapper.NAME);
-            assertThat(ignoredSourceDV, notNullValue());
-            ignoredSourceDV.advanceExact(0);
             assertThat(FieldInfos.getMergedFieldInfos(reader).fieldInfo("parent.field.offsets"), nullValue());
         }
     }
@@ -376,7 +375,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             for (int i = 0; i < documents.size(); i++) {
                 var document = reader.storedFields().document(i);
                 List<String> storedFieldNames = document.getFields().stream().map(IndexableField::name).toList();
-                assertThat(storedFieldNames, contains("_id"));
+                assertThat(storedFieldNames, hasItem("_id"));
 
                 // Verify that there is no offset field:
                 LeafReader leafReader = reader.leaves().get(0).reader();
@@ -387,11 +386,6 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
 
                 var binaryDocValues = leafReader.getBinaryDocValues("object.field.offsets");
                 assertThat(binaryDocValues, nullValue());
-
-                // Verify that _ignored_source binary doc values are present:
-                var ignoredSourceDV = leafReader.getBinaryDocValues(IgnoredSourceFieldMapper.NAME);
-                assertThat(ignoredSourceDV, notNullValue());
-                assertTrue(ignoredSourceDV.advanceExact(i));
             }
         }
     }

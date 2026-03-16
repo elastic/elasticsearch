@@ -12,6 +12,7 @@ setup:
         body:
           settings:
             index:
+              use_time_series_doc_values_format: true
               mapping.source.mode: synthetic
           mappings:
             properties:
@@ -220,6 +221,7 @@ ignored source array via fields:
         body:
           settings:
             index:
+              use_time_series_doc_values_format: true
               mapping:
                 source:
                   mode: synthetic
@@ -271,6 +273,7 @@ ignored source array via stored_fields:
         body:
           settings:
             index:
+              use_time_series_doc_values_format: true
               mapping:
                 source:
                   mode: synthetic

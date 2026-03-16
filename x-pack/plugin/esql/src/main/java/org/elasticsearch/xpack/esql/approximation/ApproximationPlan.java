@@ -60,7 +60,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * The approximation plan, that is substituted during logical plan optimization
@@ -533,8 +532,8 @@ public class ApproximationPlan {
         if (fieldBuckets != null) {
             for (Alias field : eval.fields()) {
                 // Don't create buckets for non-numeric or multivalued fields.
-                if (field.dataType().isNumeric() == false || field.child()
-                    .anyMatch(expr -> MULTIVALUED_OUTPUT_FUNCTIONS.contains(expr.getClass()))) {
+                if (field.dataType().isNumeric() == false
+                    || field.child().anyMatch(expr -> MULTIVALUED_OUTPUT_FUNCTIONS.contains(expr.getClass()))) {
                     continue;
                 }
                 // If any of the field's dependencies has buckets, create buckets for this field as well.
@@ -546,8 +545,11 @@ public class ApproximationPlan {
                             Source.EMPTY,
                             field.name() + "$bucket$" + bucketId,
                             field.child()
-                                .transformDown(e -> e instanceof NamedExpression ne && fieldBuckets.containsKey(ne.id()) ? fieldBuckets.get(
-                                    ne.id()).get(finalBucketId) : e)
+                                .transformDown(
+                                    e -> e instanceof NamedExpression ne && fieldBuckets.containsKey(ne.id())
+                                        ? fieldBuckets.get(ne.id()).get(finalBucketId)
+                                        : e
+                                )
                         );
                         fields.add(bucket);
                         buckets.add(bucket.toAttribute());

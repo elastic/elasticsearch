@@ -74,7 +74,11 @@ public record ApproximationSettings(boolean enabled, Integer rows, Double confid
 
     static {
         X_CONTENT_PARSER.declareIntOrNull(ApproximationSettingsBuilder::rows, EXPLICIT_NULL, new ParseField("rows"));
-        X_CONTENT_PARSER.declareDoubleOrNull(ApproximationSettingsBuilder::confidenceLevel, EXPLICIT_NULL, new ParseField("confidence_level"));
+        X_CONTENT_PARSER.declareDoubleOrNull(
+            ApproximationSettingsBuilder::confidenceLevel,
+            EXPLICIT_NULL,
+            new ParseField("confidence_level")
+        );
     }
 
     public static ApproximationSettings fromXContent(XContentParser parser) throws IOException {

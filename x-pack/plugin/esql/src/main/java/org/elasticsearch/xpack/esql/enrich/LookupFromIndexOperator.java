@@ -20,6 +20,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.lookup.RightChunkedLeftJoin;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,8 +60,15 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         Expression joinOnConditions,
         boolean useStreamingOperator,
         int exchangeBufferSize,
-        boolean profile
+        boolean profile,
+        @Nullable Configuration configuration
     ) implements OperatorFactory {
+
+        public Factory {
+            if (useStreamingOperator && configuration == null) {
+                throw new IllegalArgumentException("configuration is required for streaming lookup operator");
+            }
+        }
 
         private String operatorName() {
             return useStreamingOperator ? "StreamingLookupOperator" : "LookupOperator";
@@ -100,7 +109,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                     rightPreJoinPlan,
                     joinOnConditions,
                     exchangeBufferSize,
-                    profile
+                    profile,
+                    configuration
                 );
             } else {
                 return new LookupFromIndexOperator(
@@ -213,7 +223,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             joinOnConditions,
             null, // clientToServerId - set only by StreamingLookupFromIndexOperator
             null, // serverToClientId - set only by StreamingLookupFromIndexOperator
-            false // profile - non-streaming lookup doesn't support plan output
+            false, // profile - non-streaming lookup doesn't support plan output
+            null // configuration - non-streaming lookup doesn't use planning pipeline
         );
         lookupService.lookupAsync(request, parentTask, listener.map(response -> {
             List<Page> pages = response.takePages();
@@ -386,7 +397,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         }
 
         public long emittedRows() {
-            return emittedPages;
+            return emittedRows;
         }
 
         public long totalRows() {

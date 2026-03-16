@@ -8624,6 +8624,7 @@ public class EsqlBaseParser extends ParserConfig {
   public static class PromqlCommandContext extends ParserRuleContext {
     public TerminalNode PROMQL() { return getToken(EsqlBaseParser.PROMQL, 0); }
     public TerminalNode LP() { return getToken(EsqlBaseParser.LP, 0); }
+    public TerminalNode NAMED_OR_POSITIONAL_PARAM() { return getToken(EsqlBaseParser.NAMED_OR_POSITIONAL_PARAM, 0); }
     public TerminalNode RP() { return getToken(EsqlBaseParser.RP, 0); }
     public List<PromqlParamContext> promqlParam() {
       return getRuleContexts(PromqlParamContext.class);
@@ -8667,9 +8668,9 @@ public class EsqlBaseParser extends ParserConfig {
     int _la;
     try {
       int _alt;
-      setState(1061);
+      setState(1089);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,102,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,106,_ctx) ) {
       case 1:
         enterOuterAlt(_localctx, 1);
         {
@@ -8705,46 +8706,124 @@ public class EsqlBaseParser extends ParserConfig {
 
         setState(1041);
         match(LP);
-        setState(1043); 
-        _errHandler.sync(this);
-        _la = _input.LA(1);
-        do {
-          {
-          {
-          setState(1042);
-          promqlQueryPart();
-          }
-          }
-          setState(1045); 
-          _errHandler.sync(this);
-          _la = _input.LA(1);
-        } while ( ((((_la - 58)) & ~0x3f) == 0 && ((1L << (_la - 58)) & 37867180460606881L) != 0) || ((((_la - 155)) & ~0x3f) == 0 && ((1L << (_la - 155)) & 7L) != 0) );
-        setState(1047);
+        setState(1042);
+        match(NAMED_OR_POSITIONAL_PARAM);
+        setState(1043);
         match(RP);
         }
         break;
       case 2:
         enterOuterAlt(_localctx, 2);
         {
-        setState(1049);
+        setState(1044);
         match(PROMQL);
-        setState(1053);
+        setState(1048);
         _errHandler.sync(this);
-        _alt = getInterpreter().adaptivePredict(_input,100,_ctx);
+        _alt = getInterpreter().adaptivePredict(_input,99,_ctx);
         while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
           if ( _alt==1 ) {
             {
             {
-            setState(1050);
+            setState(1045);
             promqlParam();
             }
             } 
           }
-          setState(1055);
+          setState(1050);
           _errHandler.sync(this);
-          _alt = getInterpreter().adaptivePredict(_input,100,_ctx);
+          _alt = getInterpreter().adaptivePredict(_input,99,_ctx);
         }
-        setState(1057); 
+        setState(1054);
+        _errHandler.sync(this);
+        _la = _input.LA(1);
+        if (_la==UNQUOTED_IDENTIFIER || _la==QUOTED_IDENTIFIER) {
+          {
+          setState(1051);
+          valueName();
+          setState(1052);
+          match(ASSIGN);
+          }
+        }
+
+        setState(1056);
+        match(NAMED_OR_POSITIONAL_PARAM);
+        }
+        break;
+      case 3:
+        enterOuterAlt(_localctx, 3);
+        {
+        setState(1057);
+        match(PROMQL);
+        setState(1061);
+        _errHandler.sync(this);
+        _alt = getInterpreter().adaptivePredict(_input,101,_ctx);
+        while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
+          if ( _alt==1 ) {
+            {
+            {
+            setState(1058);
+            promqlParam();
+            }
+            } 
+          }
+          setState(1063);
+          _errHandler.sync(this);
+          _alt = getInterpreter().adaptivePredict(_input,101,_ctx);
+        }
+        setState(1067);
+        _errHandler.sync(this);
+        _la = _input.LA(1);
+        if (_la==UNQUOTED_IDENTIFIER || _la==QUOTED_IDENTIFIER) {
+          {
+          setState(1064);
+          valueName();
+          setState(1065);
+          match(ASSIGN);
+          }
+        }
+
+        setState(1069);
+        match(LP);
+        setState(1071); 
+        _errHandler.sync(this);
+        _la = _input.LA(1);
+        do {
+          {
+          {
+          setState(1070);
+          promqlQueryPart();
+          }
+          }
+          setState(1073); 
+          _errHandler.sync(this);
+          _la = _input.LA(1);
+        } while ( ((((_la - 58)) & ~0x3f) == 0 && ((1L << (_la - 58)) & 37867180460606881L) != 0) || ((((_la - 155)) & ~0x3f) == 0 && ((1L << (_la - 155)) & 7L) != 0) );
+        setState(1075);
+        match(RP);
+        }
+        break;
+      case 4:
+        enterOuterAlt(_localctx, 4);
+        {
+        setState(1077);
+        match(PROMQL);
+        setState(1081);
+        _errHandler.sync(this);
+        _alt = getInterpreter().adaptivePredict(_input,104,_ctx);
+        while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
+          if ( _alt==1 ) {
+            {
+            {
+            setState(1078);
+            promqlParam();
+            }
+            } 
+          }
+          setState(1083);
+          _errHandler.sync(this);
+          _alt = getInterpreter().adaptivePredict(_input,104,_ctx);
+        }
+        setState(1085); 
         _errHandler.sync(this);
         _alt = 1;
         do {
@@ -8752,7 +8831,7 @@ public class EsqlBaseParser extends ParserConfig {
           case 1:
             {
             {
-            setState(1056);
+            setState(1084);
             promqlQueryPart();
             }
             }
@@ -8760,9 +8839,9 @@ public class EsqlBaseParser extends ParserConfig {
           default:
             throw new NoViableAltException(this);
           }
-          setState(1059); 
+          setState(1087); 
           _errHandler.sync(this);
-          _alt = getInterpreter().adaptivePredict(_input,101,_ctx);
+          _alt = getInterpreter().adaptivePredict(_input,105,_ctx);
         } while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER );
         }
         break;
@@ -8810,7 +8889,7 @@ public class EsqlBaseParser extends ParserConfig {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(1063);
+      setState(1091);
       _la = _input.LA(1);
       if ( !(_la==UNQUOTED_IDENTIFIER || _la==QUOTED_IDENTIFIER) ) {
       _errHandler.recoverInline(this);
@@ -8870,11 +8949,11 @@ public class EsqlBaseParser extends ParserConfig {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(1065);
+      setState(1093);
       ((PromqlParamContext)_localctx).name = promqlParamName();
-      setState(1066);
+      setState(1094);
       match(ASSIGN);
-      setState(1067);
+      setState(1095);
       ((PromqlParamContext)_localctx).value = promqlParamValue();
       }
     }
@@ -8922,7 +9001,7 @@ public class EsqlBaseParser extends ParserConfig {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(1069);
+      setState(1097);
       _la = _input.LA(1);
       if ( !(((((_la - 58)) & ~0x3f) == 0 && ((1L << (_la - 58)) & 1697645953286145L) != 0)) ) {
       _errHandler.recoverInline(this);
@@ -8984,7 +9063,7 @@ public class EsqlBaseParser extends ParserConfig {
     enterRule(_localctx, 210, RULE_promqlParamValue);
     try {
       int _alt;
-      setState(1081);
+      setState(1109);
       _errHandler.sync(this);
       switch (_input.LA(1)) {
       case QUOTED_STRING:
@@ -8992,39 +9071,39 @@ public class EsqlBaseParser extends ParserConfig {
       case UNQUOTED_SOURCE:
         enterOuterAlt(_localctx, 1);
         {
-        setState(1071);
+        setState(1099);
         promqlIndexPattern();
-        setState(1076);
+        setState(1104);
         _errHandler.sync(this);
-        _alt = getInterpreter().adaptivePredict(_input,103,_ctx);
+        _alt = getInterpreter().adaptivePredict(_input,107,_ctx);
         while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
           if ( _alt==1 ) {
             {
             {
-            setState(1072);
+            setState(1100);
             match(COMMA);
-            setState(1073);
+            setState(1101);
             promqlIndexPattern();
             }
             } 
           }
-          setState(1078);
+          setState(1106);
           _errHandler.sync(this);
-          _alt = getInterpreter().adaptivePredict(_input,103,_ctx);
+          _alt = getInterpreter().adaptivePredict(_input,107,_ctx);
         }
         }
         break;
       case QUOTED_IDENTIFIER:
         enterOuterAlt(_localctx, 2);
         {
-        setState(1079);
+        setState(1107);
         match(QUOTED_IDENTIFIER);
         }
         break;
       case NAMED_OR_POSITIONAL_PARAM:
         enterOuterAlt(_localctx, 3);
         {
-        setState(1080);
+        setState(1108);
         match(NAMED_OR_POSITIONAL_PARAM);
         }
         break;
@@ -9084,7 +9163,7 @@ public class EsqlBaseParser extends ParserConfig {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(1083);
+      setState(1111);
       _la = _input.LA(1);
       if ( !(((((_la - 58)) & ~0x3f) == 0 && ((1L << (_la - 58)) & 37726442972251553L) != 0) || ((((_la - 155)) & ~0x3f) == 0 && ((1L << (_la - 155)) & 7L) != 0)) ) {
       _errHandler.recoverInline(this);
@@ -9149,7 +9228,7 @@ public class EsqlBaseParser extends ParserConfig {
     int _la;
     try {
       int _alt;
-      setState(1098);
+      setState(1126);
       _errHandler.sync(this);
       switch (_input.LA(1)) {
       case QUOTED_STRING:
@@ -9166,7 +9245,7 @@ public class EsqlBaseParser extends ParserConfig {
       case PROMQL_OTHER_QUERY_CONTENT:
         enterOuterAlt(_localctx, 1);
         {
-        setState(1086); 
+        setState(1114); 
         _errHandler.sync(this);
         _alt = 1;
         do {
@@ -9174,7 +9253,7 @@ public class EsqlBaseParser extends ParserConfig {
           case 1:
             {
             {
-            setState(1085);
+            setState(1113);
             promqlQueryContent();
             }
             }
@@ -9182,32 +9261,32 @@ public class EsqlBaseParser extends ParserConfig {
           default:
             throw new NoViableAltException(this);
           }
-          setState(1088); 
+          setState(1116); 
           _errHandler.sync(this);
-          _alt = getInterpreter().adaptivePredict(_input,105,_ctx);
+          _alt = getInterpreter().adaptivePredict(_input,109,_ctx);
         } while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER );
         }
         break;
       case LP:
         enterOuterAlt(_localctx, 2);
         {
-        setState(1090);
+        setState(1118);
         match(LP);
-        setState(1094);
+        setState(1122);
         _errHandler.sync(this);
         _la = _input.LA(1);
         while (((((_la - 58)) & ~0x3f) == 0 && ((1L << (_la - 58)) & 37867180460606881L) != 0) || ((((_la - 155)) & ~0x3f) == 0 && ((1L << (_la - 155)) & 7L) != 0)) {
           {
           {
-          setState(1091);
+          setState(1119);
           promqlQueryPart();
           }
           }
-          setState(1096);
+          setState(1124);
           _errHandler.sync(this);
           _la = _input.LA(1);
         }
-        setState(1097);
+        setState(1125);
         match(RP);
         }
         break;
@@ -9266,35 +9345,35 @@ public class EsqlBaseParser extends ParserConfig {
     PromqlIndexPatternContext _localctx = new PromqlIndexPatternContext(_ctx, getState());
     enterRule(_localctx, 216, RULE_promqlIndexPattern);
     try {
-      setState(1109);
+      setState(1137);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,108,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,112,_ctx) ) {
       case 1:
         enterOuterAlt(_localctx, 1);
         {
-        setState(1100);
+        setState(1128);
         promqlClusterString();
-        setState(1101);
+        setState(1129);
         match(COLON);
-        setState(1102);
+        setState(1130);
         promqlUnquotedIndexString();
         }
         break;
       case 2:
         enterOuterAlt(_localctx, 2);
         {
-        setState(1104);
+        setState(1132);
         promqlUnquotedIndexString();
-        setState(1105);
+        setState(1133);
         match(CAST_OP);
-        setState(1106);
+        setState(1134);
         promqlSelectorString();
         }
         break;
       case 3:
         enterOuterAlt(_localctx, 3);
         {
-        setState(1108);
+        setState(1136);
         promqlIndexString();
         }
         break;
@@ -9342,7 +9421,7 @@ public class EsqlBaseParser extends ParserConfig {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(1111);
+      setState(1139);
       _la = _input.LA(1);
       if ( !(_la==UNQUOTED_IDENTIFIER || _la==UNQUOTED_SOURCE) ) {
       _errHandler.recoverInline(this);
@@ -9396,7 +9475,7 @@ public class EsqlBaseParser extends ParserConfig {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(1113);
+      setState(1141);
       _la = _input.LA(1);
       if ( !(_la==UNQUOTED_IDENTIFIER || _la==UNQUOTED_SOURCE) ) {
       _errHandler.recoverInline(this);
@@ -9450,7 +9529,7 @@ public class EsqlBaseParser extends ParserConfig {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(1115);
+      setState(1143);
       _la = _input.LA(1);
       if ( !(_la==UNQUOTED_IDENTIFIER || _la==UNQUOTED_SOURCE) ) {
       _errHandler.recoverInline(this);
@@ -9505,7 +9584,7 @@ public class EsqlBaseParser extends ParserConfig {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(1117);
+      setState(1145);
       _la = _input.LA(1);
       if ( !(((((_la - 58)) & ~0x3f) == 0 && ((1L << (_la - 58)) & 36591746972385281L) != 0)) ) {
       _errHandler.recoverInline(this);
@@ -9651,7 +9730,7 @@ public class EsqlBaseParser extends ParserConfig {
   }
 
   public static final String _serializedATN =
-    "\u0004\u0001\u00a8\u0460\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001"+
+    "\u0004\u0001\u00a8\u047c\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001"+
     "\u0002\u0002\u0007\u0002\u0002\u0003\u0007\u0003\u0002\u0004\u0007\u0004"+
     "\u0002\u0005\u0007\u0005\u0002\u0006\u0007\u0006\u0002\u0007\u0007\u0007"+
     "\u0002\b\u0007\b\u0002\t\u0007\t\u0002\n\u0007\n\u0002\u000b\u0007\u000b"+
@@ -9771,46 +9850,49 @@ public class EsqlBaseParser extends ParserConfig {
     "a\u0001a\u0001b\u0001b\u0001b\u0001b\u0001b\u0001c\u0001c\u0001c\u0003"+
     "c\u03f6\bc\u0001c\u0001c\u0001c\u0003c\u03fb\bc\u0001d\u0001d\u0001d\u0001"+
     "d\u0005d\u0401\bd\nd\fd\u0404\td\u0001e\u0001e\u0005e\u0408\be\ne\fe\u040b"+
-    "\te\u0001e\u0001e\u0001e\u0003e\u0410\be\u0001e\u0001e\u0004e\u0414\b"+
-    "e\u000be\fe\u0415\u0001e\u0001e\u0001e\u0001e\u0005e\u041c\be\ne\fe\u041f"+
-    "\te\u0001e\u0004e\u0422\be\u000be\fe\u0423\u0003e\u0426\be\u0001f\u0001"+
-    "f\u0001g\u0001g\u0001g\u0001g\u0001h\u0001h\u0001i\u0001i\u0001i\u0005"+
-    "i\u0433\bi\ni\fi\u0436\ti\u0001i\u0001i\u0003i\u043a\bi\u0001j\u0001j"+
-    "\u0001k\u0004k\u043f\bk\u000bk\fk\u0440\u0001k\u0001k\u0005k\u0445\bk"+
-    "\nk\fk\u0448\tk\u0001k\u0003k\u044b\bk\u0001l\u0001l\u0001l\u0001l\u0001"+
-    "l\u0001l\u0001l\u0001l\u0001l\u0003l\u0456\bl\u0001m\u0001m\u0001n\u0001"+
-    "n\u0001o\u0001o\u0001p\u0001p\u0001p\u0000\u0005\u0004|\u00a0\u00a8\u00aa"+
-    "q\u0000\u0002\u0004\u0006\b\n\f\u000e\u0010\u0012\u0014\u0016\u0018\u001a"+
-    "\u001c\u001e \"$&(*,.02468:<>@BDFHJLNPRTVXZ\\^`bdfhjlnprtvxz|~\u0080\u0082"+
-    "\u0084\u0086\u0088\u008a\u008c\u008e\u0090\u0092\u0094\u0096\u0098\u009a"+
-    "\u009c\u009e\u00a0\u00a2\u00a4\u00a6\u00a8\u00aa\u00ac\u00ae\u00b0\u00b2"+
-    "\u00b4\u00b6\u00b8\u00ba\u00bc\u00be\u00c0\u00c2\u00c4\u00c6\u00c8\u00ca"+
-    "\u00cc\u00ce\u00d0\u00d2\u00d4\u00d6\u00d8\u00da\u00dc\u00de\u00e0\u0000"+
-    "\u000e\u0002\u0000::qq\u0001\u0000kl\u0002\u0000>>EE\u0002\u0000HHKK\u0002"+
-    "\u0000//::\u0001\u0000]^\u0001\u0000_a\u0002\u0000GGTT\u0002\u0000VVX"+
-    "\\\u0002\u0000\u001d\u001d\u001f \u0003\u0000::eekl\b\u0000::??ABDDee"+
-    "klqq\u009b\u009d\u0002\u0000kkqq\u0003\u0000::kkqq\u0491\u0000\u00e5\u0001"+
-    "\u0000\u0000\u0000\u0002\u00eb\u0001\u0000\u0000\u0000\u0004\u00ee\u0001"+
-    "\u0000\u0000\u0000\u0006\u0102\u0001\u0000\u0000\u0000\b\u0121\u0001\u0000"+
-    "\u0000\u0000\n\u0123\u0001\u0000\u0000\u0000\f\u0126\u0001\u0000\u0000"+
-    "\u0000\u000e\u0128\u0001\u0000\u0000\u0000\u0010\u012b\u0001\u0000\u0000"+
-    "\u0000\u0012\u0136\u0001\u0000\u0000\u0000\u0014\u013a\u0001\u0000\u0000"+
-    "\u0000\u0016\u013d\u0001\u0000\u0000\u0000\u0018\u0140\u0001\u0000\u0000"+
-    "\u0000\u001a\u0144\u0001\u0000\u0000\u0000\u001c\u0152\u0001\u0000\u0000"+
-    "\u0000\u001e\u0154\u0001\u0000\u0000\u0000 \u016a\u0001\u0000\u0000\u0000"+
-    "\"\u016c\u0001\u0000\u0000\u0000$\u016e\u0001\u0000\u0000\u0000&\u0170"+
-    "\u0001\u0000\u0000\u0000(\u0172\u0001\u0000\u0000\u0000*\u0174\u0001\u0000"+
-    "\u0000\u0000,\u017d\u0001\u0000\u0000\u0000.\u0180\u0001\u0000\u0000\u0000"+
-    "0\u0188\u0001\u0000\u0000\u00002\u0190\u0001\u0000\u0000\u00004\u01a1"+
-    "\u0001\u0000\u0000\u00006\u01a3\u0001\u0000\u0000\u00008\u01b7\u0001\u0000"+
-    "\u0000\u0000:\u01b9\u0001\u0000\u0000\u0000<\u01c1\u0001\u0000\u0000\u0000"+
-    ">\u01c9\u0001\u0000\u0000\u0000@\u01ce\u0001\u0000\u0000\u0000B\u01d2"+
-    "\u0001\u0000\u0000\u0000D\u01d6\u0001\u0000\u0000\u0000F\u01db\u0001\u0000"+
-    "\u0000\u0000H\u01df\u0001\u0000\u0000\u0000J\u01e1\u0001\u0000\u0000\u0000"+
-    "L\u01e6\u0001\u0000\u0000\u0000N\u01ea\u0001\u0000\u0000\u0000P\u01f3"+
-    "\u0001\u0000\u0000\u0000R\u01fb\u0001\u0000\u0000\u0000T\u01fe\u0001\u0000"+
-    "\u0000\u0000V\u0201\u0001\u0000\u0000\u0000X\u0212\u0001\u0000\u0000\u0000"+
-    "Z\u0214\u0001\u0000\u0000\u0000\\\u021a\u0001\u0000\u0000\u0000^\u0222"+
+    "\te\u0001e\u0001e\u0001e\u0003e\u0410\be\u0001e\u0001e\u0001e\u0001e\u0001"+
+    "e\u0005e\u0417\be\ne\fe\u041a\te\u0001e\u0001e\u0001e\u0003e\u041f\be"+
+    "\u0001e\u0001e\u0001e\u0005e\u0424\be\ne\fe\u0427\te\u0001e\u0001e\u0001"+
+    "e\u0003e\u042c\be\u0001e\u0001e\u0004e\u0430\be\u000be\fe\u0431\u0001"+
+    "e\u0001e\u0001e\u0001e\u0005e\u0438\be\ne\fe\u043b\te\u0001e\u0004e\u043e"+
+    "\be\u000be\fe\u043f\u0003e\u0442\be\u0001f\u0001f\u0001g\u0001g\u0001"+
+    "g\u0001g\u0001h\u0001h\u0001i\u0001i\u0001i\u0005i\u044f\bi\ni\fi\u0452"+
+    "\ti\u0001i\u0001i\u0003i\u0456\bi\u0001j\u0001j\u0001k\u0004k\u045b\b"+
+    "k\u000bk\fk\u045c\u0001k\u0001k\u0005k\u0461\bk\nk\fk\u0464\tk\u0001k"+
+    "\u0003k\u0467\bk\u0001l\u0001l\u0001l\u0001l\u0001l\u0001l\u0001l\u0001"+
+    "l\u0001l\u0003l\u0472\bl\u0001m\u0001m\u0001n\u0001n\u0001o\u0001o\u0001"+
+    "p\u0001p\u0001p\u0000\u0005\u0004|\u00a0\u00a8\u00aaq\u0000\u0002\u0004"+
+    "\u0006\b\n\f\u000e\u0010\u0012\u0014\u0016\u0018\u001a\u001c\u001e \""+
+    "$&(*,.02468:<>@BDFHJLNPRTVXZ\\^`bdfhjlnprtvxz|~\u0080\u0082\u0084\u0086"+
+    "\u0088\u008a\u008c\u008e\u0090\u0092\u0094\u0096\u0098\u009a\u009c\u009e"+
+    "\u00a0\u00a2\u00a4\u00a6\u00a8\u00aa\u00ac\u00ae\u00b0\u00b2\u00b4\u00b6"+
+    "\u00b8\u00ba\u00bc\u00be\u00c0\u00c2\u00c4\u00c6\u00c8\u00ca\u00cc\u00ce"+
+    "\u00d0\u00d2\u00d4\u00d6\u00d8\u00da\u00dc\u00de\u00e0\u0000\u000e\u0002"+
+    "\u0000::qq\u0001\u0000kl\u0002\u0000>>EE\u0002\u0000HHKK\u0002\u0000/"+
+    "/::\u0001\u0000]^\u0001\u0000_a\u0002\u0000GGTT\u0002\u0000VVX\\\u0002"+
+    "\u0000\u001d\u001d\u001f \u0003\u0000::eekl\b\u0000::??ABDDeeklqq\u009b"+
+    "\u009d\u0002\u0000kkqq\u0003\u0000::kkqq\u04b3\u0000\u00e5\u0001\u0000"+
+    "\u0000\u0000\u0002\u00eb\u0001\u0000\u0000\u0000\u0004\u00ee\u0001\u0000"+
+    "\u0000\u0000\u0006\u0102\u0001\u0000\u0000\u0000\b\u0121\u0001\u0000\u0000"+
+    "\u0000\n\u0123\u0001\u0000\u0000\u0000\f\u0126\u0001\u0000\u0000\u0000"+
+    "\u000e\u0128\u0001\u0000\u0000\u0000\u0010\u012b\u0001\u0000\u0000\u0000"+
+    "\u0012\u0136\u0001\u0000\u0000\u0000\u0014\u013a\u0001\u0000\u0000\u0000"+
+    "\u0016\u013d\u0001\u0000\u0000\u0000\u0018\u0140\u0001\u0000\u0000\u0000"+
+    "\u001a\u0144\u0001\u0000\u0000\u0000\u001c\u0152\u0001\u0000\u0000\u0000"+
+    "\u001e\u0154\u0001\u0000\u0000\u0000 \u016a\u0001\u0000\u0000\u0000\""+
+    "\u016c\u0001\u0000\u0000\u0000$\u016e\u0001\u0000\u0000\u0000&\u0170\u0001"+
+    "\u0000\u0000\u0000(\u0172\u0001\u0000\u0000\u0000*\u0174\u0001\u0000\u0000"+
+    "\u0000,\u017d\u0001\u0000\u0000\u0000.\u0180\u0001\u0000\u0000\u00000"+
+    "\u0188\u0001\u0000\u0000\u00002\u0190\u0001\u0000\u0000\u00004\u01a1\u0001"+
+    "\u0000\u0000\u00006\u01a3\u0001\u0000\u0000\u00008\u01b7\u0001\u0000\u0000"+
+    "\u0000:\u01b9\u0001\u0000\u0000\u0000<\u01c1\u0001\u0000\u0000\u0000>"+
+    "\u01c9\u0001\u0000\u0000\u0000@\u01ce\u0001\u0000\u0000\u0000B\u01d2\u0001"+
+    "\u0000\u0000\u0000D\u01d6\u0001\u0000\u0000\u0000F\u01db\u0001\u0000\u0000"+
+    "\u0000H\u01df\u0001\u0000\u0000\u0000J\u01e1\u0001\u0000\u0000\u0000L"+
+    "\u01e6\u0001\u0000\u0000\u0000N\u01ea\u0001\u0000\u0000\u0000P\u01f3\u0001"+
+    "\u0000\u0000\u0000R\u01fb\u0001\u0000\u0000\u0000T\u01fe\u0001\u0000\u0000"+
+    "\u0000V\u0201\u0001\u0000\u0000\u0000X\u0212\u0001\u0000\u0000\u0000Z"+
+    "\u0214\u0001\u0000\u0000\u0000\\\u021a\u0001\u0000\u0000\u0000^\u0222"+
     "\u0001\u0000\u0000\u0000`\u0228\u0001\u0000\u0000\u0000b\u022a\u0001\u0000"+
     "\u0000\u0000d\u0234\u0001\u0000\u0000\u0000f\u0237\u0001\u0000\u0000\u0000"+
     "h\u023a\u0001\u0000\u0000\u0000j\u023e\u0001\u0000\u0000\u0000l\u0241"+
@@ -9836,13 +9918,13 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0000\u0000\u00bc\u03e0\u0001\u0000\u0000\u0000\u00be\u03e5\u0001\u0000"+
     "\u0000\u0000\u00c0\u03e9\u0001\u0000\u0000\u0000\u00c2\u03eb\u0001\u0000"+
     "\u0000\u0000\u00c4\u03ed\u0001\u0000\u0000\u0000\u00c6\u03fa\u0001\u0000"+
-    "\u0000\u0000\u00c8\u03fc\u0001\u0000\u0000\u0000\u00ca\u0425\u0001\u0000"+
-    "\u0000\u0000\u00cc\u0427\u0001\u0000\u0000\u0000\u00ce\u0429\u0001\u0000"+
-    "\u0000\u0000\u00d0\u042d\u0001\u0000\u0000\u0000\u00d2\u0439\u0001\u0000"+
-    "\u0000\u0000\u00d4\u043b\u0001\u0000\u0000\u0000\u00d6\u044a\u0001\u0000"+
-    "\u0000\u0000\u00d8\u0455\u0001\u0000\u0000\u0000\u00da\u0457\u0001\u0000"+
-    "\u0000\u0000\u00dc\u0459\u0001\u0000\u0000\u0000\u00de\u045b\u0001\u0000"+
-    "\u0000\u0000\u00e0\u045d\u0001\u0000\u0000\u0000\u00e2\u00e4\u0003\u0098"+
+    "\u0000\u0000\u00c8\u03fc\u0001\u0000\u0000\u0000\u00ca\u0441\u0001\u0000"+
+    "\u0000\u0000\u00cc\u0443\u0001\u0000\u0000\u0000\u00ce\u0445\u0001\u0000"+
+    "\u0000\u0000\u00d0\u0449\u0001\u0000\u0000\u0000\u00d2\u0455\u0001\u0000"+
+    "\u0000\u0000\u00d4\u0457\u0001\u0000\u0000\u0000\u00d6\u0466\u0001\u0000"+
+    "\u0000\u0000\u00d8\u0471\u0001\u0000\u0000\u0000\u00da\u0473\u0001\u0000"+
+    "\u0000\u0000\u00dc\u0475\u0001\u0000\u0000\u0000\u00de\u0477\u0001\u0000"+
+    "\u0000\u0000\u00e0\u0479\u0001\u0000\u0000\u0000\u00e2\u00e4\u0003\u0098"+
     "L\u0000\u00e3\u00e2\u0001\u0000\u0000\u0000\u00e4\u00e7\u0001\u0000\u0000"+
     "\u0000\u00e5\u00e3\u0001\u0000\u0000\u0000\u00e5\u00e6\u0001\u0000\u0000"+
     "\u0000\u00e6\u00e8\u0001\u0000\u0000\u0000\u00e7\u00e5\u0001\u0000\u0000"+
@@ -10290,59 +10372,76 @@ public class EsqlBaseParser extends ParserConfig {
     "\u040a\u040f\u0001\u0000\u0000\u0000\u040b\u0409\u0001\u0000\u0000\u0000"+
     "\u040c\u040d\u0003\u00ccf\u0000\u040d\u040e\u0005?\u0000\u0000\u040e\u0410"+
     "\u0001\u0000\u0000\u0000\u040f\u040c\u0001\u0000\u0000\u0000\u040f\u0410"+
-    "\u0001\u0000\u0000\u0000\u0410\u0411\u0001\u0000\u0000\u0000\u0411\u0413"+
-    "\u0005i\u0000\u0000\u0412\u0414\u0003\u00d6k\u0000\u0413\u0412\u0001\u0000"+
-    "\u0000\u0000\u0414\u0415\u0001\u0000\u0000\u0000\u0415\u0413\u0001\u0000"+
-    "\u0000\u0000\u0415\u0416\u0001\u0000\u0000\u0000\u0416\u0417\u0001\u0000"+
-    "\u0000\u0000\u0417\u0418\u0005j\u0000\u0000\u0418\u0426\u0001\u0000\u0000"+
-    "\u0000\u0419\u041d\u0005\'\u0000\u0000\u041a\u041c\u0003\u00ceg\u0000"+
-    "\u041b\u041a\u0001\u0000\u0000\u0000\u041c\u041f\u0001\u0000\u0000\u0000"+
-    "\u041d\u041b\u0001\u0000\u0000\u0000\u041d\u041e\u0001\u0000\u0000\u0000"+
-    "\u041e\u0421\u0001\u0000\u0000\u0000\u041f\u041d\u0001\u0000\u0000\u0000"+
-    "\u0420\u0422\u0003\u00d6k\u0000\u0421\u0420\u0001\u0000\u0000\u0000\u0422"+
-    "\u0423\u0001\u0000\u0000\u0000\u0423\u0421\u0001\u0000\u0000\u0000\u0423"+
-    "\u0424\u0001\u0000\u0000\u0000\u0424\u0426\u0001\u0000\u0000\u0000\u0425"+
-    "\u0405\u0001\u0000\u0000\u0000\u0425\u0419\u0001\u0000\u0000\u0000\u0426"+
-    "\u00cb\u0001\u0000\u0000\u0000\u0427\u0428\u0007\u0001\u0000\u0000\u0428"+
-    "\u00cd\u0001\u0000\u0000\u0000\u0429\u042a\u0003\u00d0h\u0000\u042a\u042b"+
-    "\u0005?\u0000\u0000\u042b\u042c\u0003\u00d2i\u0000\u042c\u00cf\u0001\u0000"+
-    "\u0000\u0000\u042d\u042e\u0007\n\u0000\u0000\u042e\u00d1\u0001\u0000\u0000"+
-    "\u0000\u042f\u0434\u0003\u00d8l\u0000\u0430\u0431\u0005D\u0000\u0000\u0431"+
-    "\u0433\u0003\u00d8l\u0000\u0432\u0430\u0001\u0000\u0000\u0000\u0433\u0436"+
-    "\u0001\u0000\u0000\u0000\u0434\u0432\u0001\u0000\u0000\u0000\u0434\u0435"+
-    "\u0001\u0000\u0000\u0000\u0435\u043a\u0001\u0000\u0000\u0000\u0436\u0434"+
-    "\u0001\u0000\u0000\u0000\u0437\u043a\u0005l\u0000\u0000\u0438\u043a\u0005"+
-    "e\u0000\u0000\u0439\u042f\u0001\u0000\u0000\u0000\u0439\u0437\u0001\u0000"+
-    "\u0000\u0000\u0439\u0438\u0001\u0000\u0000\u0000\u043a\u00d3\u0001\u0000"+
-    "\u0000\u0000\u043b\u043c\u0007\u000b\u0000\u0000\u043c\u00d5\u0001\u0000"+
-    "\u0000\u0000\u043d\u043f\u0003\u00d4j\u0000\u043e\u043d\u0001\u0000\u0000"+
-    "\u0000\u043f\u0440\u0001\u0000\u0000\u0000\u0440\u043e\u0001\u0000\u0000"+
-    "\u0000\u0440\u0441\u0001\u0000\u0000\u0000\u0441\u044b\u0001\u0000\u0000"+
-    "\u0000\u0442\u0446\u0005i\u0000\u0000\u0443\u0445\u0003\u00d6k\u0000\u0444"+
-    "\u0443\u0001\u0000\u0000\u0000\u0445\u0448\u0001\u0000\u0000\u0000\u0446"+
-    "\u0444\u0001\u0000\u0000\u0000\u0446\u0447\u0001\u0000\u0000\u0000\u0447"+
-    "\u0449\u0001\u0000\u0000\u0000\u0448\u0446\u0001\u0000\u0000\u0000\u0449"+
-    "\u044b\u0005j\u0000\u0000\u044a\u043e\u0001\u0000\u0000\u0000\u044a\u0442"+
-    "\u0001\u0000\u0000\u0000\u044b\u00d7\u0001\u0000\u0000\u0000\u044c\u044d"+
-    "\u0003\u00dam\u0000\u044d\u044e\u0005B\u0000\u0000\u044e\u044f\u0003\u00de"+
-    "o\u0000\u044f\u0456\u0001\u0000\u0000\u0000\u0450\u0451\u0003\u00deo\u0000"+
-    "\u0451\u0452\u0005A\u0000\u0000\u0452\u0453\u0003\u00dcn\u0000\u0453\u0456"+
-    "\u0001\u0000\u0000\u0000\u0454\u0456\u0003\u00e0p\u0000\u0455\u044c\u0001"+
-    "\u0000\u0000\u0000\u0455\u0450\u0001\u0000\u0000\u0000\u0455\u0454\u0001"+
-    "\u0000\u0000\u0000\u0456\u00d9\u0001\u0000\u0000\u0000\u0457\u0458\u0007"+
-    "\f\u0000\u0000\u0458\u00db\u0001\u0000\u0000\u0000\u0459\u045a\u0007\f"+
-    "\u0000\u0000\u045a\u00dd\u0001\u0000\u0000\u0000\u045b\u045c\u0007\f\u0000"+
-    "\u0000\u045c\u00df\u0001\u0000\u0000\u0000\u045d\u045e\u0007\r\u0000\u0000"+
-    "\u045e\u00e1\u0001\u0000\u0000\u0000m\u00e5\u00f6\u0102\u0121\u0130\u0136"+
-    "\u0149\u014d\u0152\u015a\u0162\u0167\u016a\u017a\u0182\u0186\u018d\u0193"+
-    "\u0198\u01a1\u01a8\u01ae\u01b7\u01be\u01c6\u01ce\u01d2\u01d6\u01db\u01df"+
-    "\u01e4\u01f0\u01f5\u01f9\u0207\u0212\u0218\u021f\u0228\u0231\u0245\u024d"+
-    "\u0250\u0257\u0262\u0269\u0271\u027f\u0288\u0293\u029d\u02a3\u02a5\u02a9"+
-    "\u02ae\u02bc\u02c3\u02e4\u02e8\u02f2\u02fb\u0304\u030c\u0311\u0319\u031b"+
-    "\u0320\u0327\u032e\u0337\u033e\u0347\u034c\u0351\u035b\u0361\u0369\u036b"+
-    "\u0376\u037d\u0388\u038d\u038f\u0396\u039e\u03a1\u03ab\u03bc\u03c7\u03d2"+
-    "\u03d7\u03dd\u03e0\u03e5\u03f5\u03fa\u0402\u0409\u040f\u0415\u041d\u0423"+
-    "\u0425\u0434\u0439\u0440\u0446\u044a\u0455";
+    "\u0001\u0000\u0000\u0000\u0410\u0411\u0001\u0000\u0000\u0000\u0411\u0412"+
+    "\u0005i\u0000\u0000\u0412\u0413\u0005e\u0000\u0000\u0413\u0442\u0005j"+
+    "\u0000\u0000\u0414\u0418\u0005\'\u0000\u0000\u0415\u0417\u0003\u00ceg"+
+    "\u0000\u0416\u0415\u0001\u0000\u0000\u0000\u0417\u041a\u0001\u0000\u0000"+
+    "\u0000\u0418\u0416\u0001\u0000\u0000\u0000\u0418\u0419\u0001\u0000\u0000"+
+    "\u0000\u0419\u041e\u0001\u0000\u0000\u0000\u041a\u0418\u0001\u0000\u0000"+
+    "\u0000\u041b\u041c\u0003\u00ccf\u0000\u041c\u041d\u0005?\u0000\u0000\u041d"+
+    "\u041f\u0001\u0000\u0000\u0000\u041e\u041b\u0001\u0000\u0000\u0000\u041e"+
+    "\u041f\u0001\u0000\u0000\u0000\u041f\u0420\u0001\u0000\u0000\u0000\u0420"+
+    "\u0442\u0005e\u0000\u0000\u0421\u0425\u0005\'\u0000\u0000\u0422\u0424"+
+    "\u0003\u00ceg\u0000\u0423\u0422\u0001\u0000\u0000\u0000\u0424\u0427\u0001"+
+    "\u0000\u0000\u0000\u0425\u0423\u0001\u0000\u0000\u0000\u0425\u0426\u0001"+
+    "\u0000\u0000\u0000\u0426\u042b\u0001\u0000\u0000\u0000\u0427\u0425\u0001"+
+    "\u0000\u0000\u0000\u0428\u0429\u0003\u00ccf\u0000\u0429\u042a\u0005?\u0000"+
+    "\u0000\u042a\u042c\u0001\u0000\u0000\u0000\u042b\u0428\u0001\u0000\u0000"+
+    "\u0000\u042b\u042c\u0001\u0000\u0000\u0000\u042c\u042d\u0001\u0000\u0000"+
+    "\u0000\u042d\u042f\u0005i\u0000\u0000\u042e\u0430\u0003\u00d6k\u0000\u042f"+
+    "\u042e\u0001\u0000\u0000\u0000\u0430\u0431\u0001\u0000\u0000\u0000\u0431"+
+    "\u042f\u0001\u0000\u0000\u0000\u0431\u0432\u0001\u0000\u0000\u0000\u0432"+
+    "\u0433\u0001\u0000\u0000\u0000\u0433\u0434\u0005j\u0000\u0000\u0434\u0442"+
+    "\u0001\u0000\u0000\u0000\u0435\u0439\u0005\'\u0000\u0000\u0436\u0438\u0003"+
+    "\u00ceg\u0000\u0437\u0436\u0001\u0000\u0000\u0000\u0438\u043b\u0001\u0000"+
+    "\u0000\u0000\u0439\u0437\u0001\u0000\u0000\u0000\u0439\u043a\u0001\u0000"+
+    "\u0000\u0000\u043a\u043d\u0001\u0000\u0000\u0000\u043b\u0439\u0001\u0000"+
+    "\u0000\u0000\u043c\u043e\u0003\u00d6k\u0000\u043d\u043c\u0001\u0000\u0000"+
+    "\u0000\u043e\u043f\u0001\u0000\u0000\u0000\u043f\u043d\u0001\u0000\u0000"+
+    "\u0000\u043f\u0440\u0001\u0000\u0000\u0000\u0440\u0442\u0001\u0000\u0000"+
+    "\u0000\u0441\u0405\u0001\u0000\u0000\u0000\u0441\u0414\u0001\u0000\u0000"+
+    "\u0000\u0441\u0421\u0001\u0000\u0000\u0000\u0441\u0435\u0001\u0000\u0000"+
+    "\u0000\u0442\u00cb\u0001\u0000\u0000\u0000\u0443\u0444\u0007\u0001\u0000"+
+    "\u0000\u0444\u00cd\u0001\u0000\u0000\u0000\u0445\u0446\u0003\u00d0h\u0000"+
+    "\u0446\u0447\u0005?\u0000\u0000\u0447\u0448\u0003\u00d2i\u0000\u0448\u00cf"+
+    "\u0001\u0000\u0000\u0000\u0449\u044a\u0007\n\u0000\u0000\u044a\u00d1\u0001"+
+    "\u0000\u0000\u0000\u044b\u0450\u0003\u00d8l\u0000\u044c\u044d\u0005D\u0000"+
+    "\u0000\u044d\u044f\u0003\u00d8l\u0000\u044e\u044c\u0001\u0000\u0000\u0000"+
+    "\u044f\u0452\u0001\u0000\u0000\u0000\u0450\u044e\u0001\u0000\u0000\u0000"+
+    "\u0450\u0451\u0001\u0000\u0000\u0000\u0451\u0456\u0001\u0000\u0000\u0000"+
+    "\u0452\u0450\u0001\u0000\u0000\u0000\u0453\u0456\u0005l\u0000\u0000\u0454"+
+    "\u0456\u0005e\u0000\u0000\u0455\u044b\u0001\u0000\u0000\u0000\u0455\u0453"+
+    "\u0001\u0000\u0000\u0000\u0455\u0454\u0001\u0000\u0000\u0000\u0456\u00d3"+
+    "\u0001\u0000\u0000\u0000\u0457\u0458\u0007\u000b\u0000\u0000\u0458\u00d5"+
+    "\u0001\u0000\u0000\u0000\u0459\u045b\u0003\u00d4j\u0000\u045a\u0459\u0001"+
+    "\u0000\u0000\u0000\u045b\u045c\u0001\u0000\u0000\u0000\u045c\u045a\u0001"+
+    "\u0000\u0000\u0000\u045c\u045d\u0001\u0000\u0000\u0000\u045d\u0467\u0001"+
+    "\u0000\u0000\u0000\u045e\u0462\u0005i\u0000\u0000\u045f\u0461\u0003\u00d6"+
+    "k\u0000\u0460\u045f\u0001\u0000\u0000\u0000\u0461\u0464\u0001\u0000\u0000"+
+    "\u0000\u0462\u0460\u0001\u0000\u0000\u0000\u0462\u0463\u0001\u0000\u0000"+
+    "\u0000\u0463\u0465\u0001\u0000\u0000\u0000\u0464\u0462\u0001\u0000\u0000"+
+    "\u0000\u0465\u0467\u0005j\u0000\u0000\u0466\u045a\u0001\u0000\u0000\u0000"+
+    "\u0466\u045e\u0001\u0000\u0000\u0000\u0467\u00d7\u0001\u0000\u0000\u0000"+
+    "\u0468\u0469\u0003\u00dam\u0000\u0469\u046a\u0005B\u0000\u0000\u046a\u046b"+
+    "\u0003\u00deo\u0000\u046b\u0472\u0001\u0000\u0000\u0000\u046c\u046d\u0003"+
+    "\u00deo\u0000\u046d\u046e\u0005A\u0000\u0000\u046e\u046f\u0003\u00dcn"+
+    "\u0000\u046f\u0472\u0001\u0000\u0000\u0000\u0470\u0472\u0003\u00e0p\u0000"+
+    "\u0471\u0468\u0001\u0000\u0000\u0000\u0471\u046c\u0001\u0000\u0000\u0000"+
+    "\u0471\u0470\u0001\u0000\u0000\u0000\u0472\u00d9\u0001\u0000\u0000\u0000"+
+    "\u0473\u0474\u0007\f\u0000\u0000\u0474\u00db\u0001\u0000\u0000\u0000\u0475"+
+    "\u0476\u0007\f\u0000\u0000\u0476\u00dd\u0001\u0000\u0000\u0000\u0477\u0478"+
+    "\u0007\f\u0000\u0000\u0478\u00df\u0001\u0000\u0000\u0000\u0479\u047a\u0007"+
+    "\r\u0000\u0000\u047a\u00e1\u0001\u0000\u0000\u0000q\u00e5\u00f6\u0102"+
+    "\u0121\u0130\u0136\u0149\u014d\u0152\u015a\u0162\u0167\u016a\u017a\u0182"+
+    "\u0186\u018d\u0193\u0198\u01a1\u01a8\u01ae\u01b7\u01be\u01c6\u01ce\u01d2"+
+    "\u01d6\u01db\u01df\u01e4\u01f0\u01f5\u01f9\u0207\u0212\u0218\u021f\u0228"+
+    "\u0231\u0245\u024d\u0250\u0257\u0262\u0269\u0271\u027f\u0288\u0293\u029d"+
+    "\u02a3\u02a5\u02a9\u02ae\u02bc\u02c3\u02e4\u02e8\u02f2\u02fb\u0304\u030c"+
+    "\u0311\u0319\u031b\u0320\u0327\u032e\u0337\u033e\u0347\u034c\u0351\u035b"+
+    "\u0361\u0369\u036b\u0376\u037d\u0388\u038d\u038f\u0396\u039e\u03a1\u03ab"+
+    "\u03bc\u03c7\u03d2\u03d7\u03dd\u03e0\u03e5\u03f5\u03fa\u0402\u0409\u040f"+
+    "\u0418\u041e\u0425\u042b\u0431\u0439\u043f\u0441\u0450\u0455\u045c\u0462"+
+    "\u0466\u0471";
   public static final ATN _ATN =
     new ATNDeserializer().deserialize(_serializedATN.toCharArray());
   static {

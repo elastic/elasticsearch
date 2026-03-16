@@ -12,33 +12,25 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Settings;
-import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.API_VERSION;
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.DEPLOYMENT_ID;
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.RESOURCE_NAME;
 import static org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Settings.AZURE_OPENAI_OAUTH_SETTINGS;
 
-public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject implements ServiceSettings, AzureOpenAiServiceSettings {
+public class AzureOpenAiCompletionServiceSettings extends AzureOpenAiServiceSettings {
 
     public static final String NAME = "azure_openai_completions_service_settings";
-    public static final String OAUTH2_SETTINGS_NOT_CONFIGURED_ERROR =
-        "Cannot update OAuth2 fields as the service was not configured with OAuth2 settings. "
-            + "Please create a new Inference Endpoint with the OAuth2 settings instead.";
 
     /**
      * Rate limit documentation can be found here:
@@ -60,57 +52,13 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
 
     public static AzureOpenAiCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
-
-        var settings = fromMap(map, validationException, context);
+        var commonFields = parseCommonFields(map, validationException, context, DEFAULT_RATE_LIMIT_SETTINGS);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
-
-        return new AzureOpenAiCompletionServiceSettings(settings);
+        return new AzureOpenAiCompletionServiceSettings(commonFields);
     }
-
-    private static AzureOpenAiCompletionServiceSettings.CommonFields fromMap(
-        Map<String, Object> map,
-        ValidationException validationException,
-        ConfigurationParseContext context
-    ) {
-        String resourceName = extractRequiredString(map, RESOURCE_NAME, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String deploymentId = extractRequiredString(map, DEPLOYMENT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String apiVersion = extractRequiredString(map, API_VERSION, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            AzureOpenAiService.NAME,
-            context
-        );
-
-        var oAuth2Settings = AzureOpenAiOAuth2Settings.fromMap(map, validationException);
-
-        return new AzureOpenAiCompletionServiceSettings.CommonFields(
-            resourceName,
-            deploymentId,
-            apiVersion,
-            rateLimitSettings,
-            oAuth2Settings
-        );
-    }
-
-    private record CommonFields(
-        String resourceName,
-        String deploymentId,
-        String apiVersion,
-        RateLimitSettings rateLimitSettings,
-        @Nullable AzureOpenAiOAuth2Settings oauthSettings
-    ) {}
-
-    private final String resourceName;
-    private final String deploymentId;
-    private final String apiVersion;
-
-    private final RateLimitSettings rateLimitSettings;
-    private final AzureOpenAiOAuth2Settings oAuth2Settings;
 
     public AzureOpenAiCompletionServiceSettings(
         String resourceName,
@@ -128,52 +76,32 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
         @Nullable RateLimitSettings rateLimitSettings,
         @Nullable AzureOpenAiOAuth2Settings oAuth2Settings
     ) {
-        this.resourceName = resourceName;
-        this.deploymentId = deploymentId;
-        this.apiVersion = apiVersion;
-        this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
-        this.oAuth2Settings = oAuth2Settings;
+        super(
+            resourceName,
+            deploymentId,
+            apiVersion,
+            Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS),
+            oAuth2Settings
+        );
     }
 
     public AzureOpenAiCompletionServiceSettings(StreamInput in) throws IOException {
-        resourceName = in.readString();
-        deploymentId = in.readString();
-        apiVersion = in.readString();
-        rateLimitSettings = new RateLimitSettings(in);
-        oAuth2Settings = in.getTransportVersion().supports(AZURE_OPENAI_OAUTH_SETTINGS)
-            ? in.readOptionalWriteable(AzureOpenAiOAuth2Settings::new)
-            : null;
+        super(
+            in.readString(),
+            in.readString(),
+            in.readString(),
+            new RateLimitSettings(in),
+            in.getTransportVersion().supports(AZURE_OPENAI_OAUTH_SETTINGS) ? in.readOptionalWriteable(AzureOpenAiOAuth2Settings::new) : null
+        );
     }
 
-    private AzureOpenAiCompletionServiceSettings(AzureOpenAiCompletionServiceSettings.CommonFields fields) {
-        this(fields.resourceName(), fields.deploymentId(), fields.apiVersion(), fields.rateLimitSettings(), fields.oauthSettings());
-    }
-
-    public String resourceName() {
-        return resourceName;
-    }
-
-    public String deploymentId() {
-        return deploymentId;
+    private AzureOpenAiCompletionServiceSettings(CommonFields commonFields) {
+        super(commonFields);
     }
 
     @Override
     public String modelId() {
         return null;
-    }
-
-    @Override
-    public RateLimitSettings rateLimitSettings() {
-        return rateLimitSettings;
-    }
-
-    @Override
-    public String apiVersion() {
-        return apiVersion;
-    }
-
-    public AzureOpenAiOAuth2Settings oAuth2Settings() {
-        return oAuth2Settings;
     }
 
     @Override
@@ -184,43 +112,13 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-
         toXContentFragmentOfExposedFields(builder, params);
-
         builder.endObject();
         return builder;
     }
 
     @Override
-    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.field(RESOURCE_NAME, resourceName);
-        builder.field(DEPLOYMENT_ID, deploymentId);
-        builder.field(API_VERSION, apiVersion);
-        rateLimitSettings.toXContent(builder, params);
-
-        if (oAuth2Settings != null) {
-            oAuth2Settings.toXContent(builder, params);
-        }
-
-        return builder;
-    }
-
-    @Override
-    public AzureOpenAiCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        if (oAuth2Settings == null) {
-            // Switching the authentication method is not allowed. If the original settings did not have OAuth2 settings,
-            // then we should not allow updating OAuth2 fields as part of the service settings update.
-            // The reason it is not allowed is that the logic doesn't support setting the original authentication field to null
-            if (AzureOpenAiOAuth2Settings.hasAnyOAuth2Fields(serviceSettings)) {
-                var validationException = new ValidationException();
-                validationException.addValidationError(OAUTH2_SETTINGS_NOT_CONFIGURED_ERROR);
-                throw validationException;
-            }
-            return this;
-        }
-
-        var newOAuth2Settings = oAuth2Settings.updateServiceSettings(serviceSettings);
-
+    protected AzureOpenAiCompletionServiceSettings createInstance(@Nullable AzureOpenAiOAuth2Settings newOAuth2Settings) {
         return new AzureOpenAiCompletionServiceSettings(resourceName, deploymentId, apiVersion, rateLimitSettings, newOAuth2Settings);
     }
 
@@ -235,26 +133,8 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
         out.writeString(deploymentId);
         out.writeString(apiVersion);
         rateLimitSettings.writeTo(out);
-
         if (out.getTransportVersion().supports(AZURE_OPENAI_OAUTH_SETTINGS)) {
             out.writeOptionalWriteable(oAuth2Settings);
         }
-    }
-
-    @Override
-    public boolean equals(Object object) {
-        if (this == object) return true;
-        if (object == null || getClass() != object.getClass()) return false;
-        AzureOpenAiCompletionServiceSettings that = (AzureOpenAiCompletionServiceSettings) object;
-        return Objects.equals(resourceName, that.resourceName)
-            && Objects.equals(deploymentId, that.deploymentId)
-            && Objects.equals(apiVersion, that.apiVersion)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings)
-            && Objects.equals(oAuth2Settings, that.oAuth2Settings);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(resourceName, deploymentId, apiVersion, rateLimitSettings, oAuth2Settings);
     }
 }

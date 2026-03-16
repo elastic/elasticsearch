@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.azureopenai;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2SettingsTests;
@@ -24,7 +23,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
-public abstract class AzureOpenAiServiceSettingsTests<T extends AzureOpenAiServiceSettings & ServiceSettings> extends
+public abstract class AzureOpenAiServiceSettingsTests<T extends AzureOpenAiServiceSettings> extends
     AbstractBWCWireSerializationTestCase<T> {
 
     protected static final String RESOURCE_NAME = "resource";

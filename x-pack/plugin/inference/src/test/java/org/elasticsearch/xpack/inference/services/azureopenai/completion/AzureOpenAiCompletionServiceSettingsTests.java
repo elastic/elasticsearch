@@ -175,7 +175,7 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AzureOpenAiServic
         );
         var settings = new AzureOpenAiCompletionServiceSettings(RESOURCE_NAME, DEPLOYMENT_ID, API_VERSION, null, oAuth2Settings);
 
-        var updated = settings.updateServiceSettings(new HashMap<>());
+        var updated = (AzureOpenAiCompletionServiceSettings) settings.updateServiceSettings(new HashMap<>());
 
         assertThat(updated.resourceName(), is(settings.resourceName()));
         assertThat(updated.deploymentId(), is(settings.deploymentId()));
@@ -192,7 +192,9 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AzureOpenAiServic
         );
         var settings = new AzureOpenAiCompletionServiceSettings(RESOURCE_NAME, DEPLOYMENT_ID, API_VERSION, null, oAuth2Settings);
 
-        var updated = settings.updateServiceSettings(new HashMap<>(Map.of(AzureOpenAiOAuth2Settings.TENANT_ID_FIELD, NEW_TENANT_ID)));
+        var updated = (AzureOpenAiCompletionServiceSettings) settings.updateServiceSettings(
+            new HashMap<>(Map.of(AzureOpenAiOAuth2Settings.TENANT_ID_FIELD, NEW_TENANT_ID))
+        );
 
         assertThat(updated.resourceName(), is(settings.resourceName()));
         assertThat(updated.oAuth2Settings().getClientId(), is(OAuth2SettingsTests.CLIENT_ID));
@@ -207,7 +209,7 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AzureOpenAiServic
         );
         var settings = new AzureOpenAiCompletionServiceSettings(RESOURCE_NAME, DEPLOYMENT_ID, API_VERSION, null, oAuth2Settings);
 
-        var updated = settings.updateServiceSettings(
+        var updated = (AzureOpenAiCompletionServiceSettings) settings.updateServiceSettings(
             new HashMap<>(Map.of(OAuth2Settings.CLIENT_ID_FIELD, NEW_CLIENT_ID, OAuth2Settings.SCOPES_FIELD, NEW_SCOPES))
         );
 

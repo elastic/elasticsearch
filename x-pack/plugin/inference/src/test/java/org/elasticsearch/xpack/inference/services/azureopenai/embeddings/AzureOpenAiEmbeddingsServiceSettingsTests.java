@@ -551,14 +551,14 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AzureOpenAiServic
                 "resource_name":"%s",
                 "deployment_id":"%s",
                 "api_version":"%s",
-                "dimensions":%d,
-                "max_input_tokens":%d,
                 "rate_limit":{
                     "requests_per_minute":%d
                 },
+                "dimensions":%d,
+                "max_input_tokens":%d,
                 "dimensions_set_by_user":false
             }
-            """, RESOURCE_NAME, DEPLOYMENT_ID, API_VERSION, DIMENSIONS_1024, MAX_INPUT_TOKENS, RATE_LIMIT_REQUESTS_PER_MINUTE))));
+            """, RESOURCE_NAME, DEPLOYMENT_ID, API_VERSION, RATE_LIMIT_REQUESTS_PER_MINUTE, DIMENSIONS_1024, MAX_INPUT_TOKENS))));
     }
 
     public void testToFilteredXContent_WritesAllValues_Except_DimensionsSetByUser() throws IOException {
@@ -583,13 +583,13 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AzureOpenAiServic
                 "resource_name":"%s",
                 "deployment_id":"%s",
                 "api_version":"%s",
-                "dimensions":%d,
-                "max_input_tokens":%d,
                 "rate_limit":{
                     "requests_per_minute":%d
-                }
+                },
+                "dimensions":%d,
+                "max_input_tokens":%d
             }
-            """, RESOURCE_NAME, DEPLOYMENT_ID, API_VERSION, DIMENSIONS_1024, MAX_INPUT_TOKENS, RATE_LIMIT_REQUESTS_PER_MINUTE))));
+            """, RESOURCE_NAME, DEPLOYMENT_ID, API_VERSION, RATE_LIMIT_REQUESTS_PER_MINUTE, DIMENSIONS_1024, MAX_INPUT_TOKENS))));
     }
 
     public void testToXContent_WritesAllValues_WithOAuth2() throws IOException {
@@ -614,8 +614,6 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AzureOpenAiServic
                 "resource_name":"%s",
                 "deployment_id":"%s",
                 "api_version":"%s",
-                "dimensions":%d,
-                "max_input_tokens":%d,
                 "rate_limit":{
                     "requests_per_minute":%d
                 },
@@ -625,9 +623,11 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AzureOpenAiServic
                     "scope2"
                 ],
                 "tenant_id":"tenant_id",
+                "dimensions":%d,
+                "max_input_tokens":%d,
                 "dimensions_set_by_user":false
             }
-            """, RESOURCE_NAME, DEPLOYMENT_ID, API_VERSION, DIMENSIONS_1024, MAX_INPUT_TOKENS, RATE_LIMIT_REQUESTS_PER_MINUTE))));
+            """, RESOURCE_NAME, DEPLOYMENT_ID, API_VERSION, RATE_LIMIT_REQUESTS_PER_MINUTE, DIMENSIONS_1024, MAX_INPUT_TOKENS))));
     }
 
     @Override

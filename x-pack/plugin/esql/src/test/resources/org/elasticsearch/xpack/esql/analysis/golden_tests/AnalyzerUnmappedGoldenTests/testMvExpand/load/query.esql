@@ -1,0 +1,2 @@
+SET unmapped_fields="load"; FROM employees
+| MV_EXPAND does_not_exist

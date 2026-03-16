@@ -1,0 +1,2 @@
+SET unmapped_fields="nullify"; TS k8s
+| STATS r = RATE(does_not_exist) BY tbucket(1 hour)

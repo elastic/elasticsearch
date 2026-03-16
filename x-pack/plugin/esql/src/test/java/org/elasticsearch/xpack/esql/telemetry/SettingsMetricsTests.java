@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.esql.telemetry;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.telemetry.Metrics.SETTINGS_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -23,28 +23,28 @@ public class SettingsMetricsTests extends ESTestCase {
      * Creates a Metrics instance with all settings enabled (snapshot + serverless mode).
      */
     private Metrics createMetricsWithAllSettings() {
-        return new Metrics(new EsqlFunctionRegistry(), true, true);
+        return new Metrics(TEST_FUNCTION_REGISTRY, true, true);
     }
 
     /**
      * Creates a Metrics instance for stateful non-snapshot environment (most restrictive).
      */
     private Metrics createMetricsStatefulNonSnapshot() {
-        return new Metrics(new EsqlFunctionRegistry(), false, false);
+        return new Metrics(TEST_FUNCTION_REGISTRY, false, false);
     }
 
     /**
      * Creates a Metrics instance for stateful snapshot environment.
      */
     private Metrics createMetricsStatefulSnapshot() {
-        return new Metrics(new EsqlFunctionRegistry(), true, false);
+        return new Metrics(TEST_FUNCTION_REGISTRY, true, false);
     }
 
     /**
      * Creates a Metrics instance for serverless non-snapshot environment.
      */
     private Metrics createMetricsServerlessNonSnapshot() {
-        return new Metrics(new EsqlFunctionRegistry(), false, true);
+        return new Metrics(TEST_FUNCTION_REGISTRY, false, true);
     }
 
     /**

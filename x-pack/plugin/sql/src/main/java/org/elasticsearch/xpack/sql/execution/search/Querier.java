@@ -158,8 +158,8 @@ public class Querier {
             options = IndicesOptions.builder(options).crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true)).build();
         }
         final OpenPointInTimeRequest openPitRequest = new OpenPointInTimeRequest(search.indices()).indicesOptions(options)
-            .keepAlive(cfg.pageTimeout())
-            .allowPartialSearchResults(cfg.allowPartialSearchResults());
+            .allowPartialSearchResults(cfg.allowPartialSearchResults())
+            .keepAlive(cfg.pageTimeout());
         if (cfg.crossProject() && cfg.projectRouting() != null) {
             openPitRequest.projectRouting(cfg.projectRouting());
         }

@@ -143,8 +143,8 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                     "Entitlement test method [" + method + "] must have a return type when a default value is expected"
                 );
             }
-            if (isExpectedNoOp && method.getReturnType() != void.class) {
-                throw new AssertionError("Entitlement test method [" + method + "] must be void when isExpectedNoOp is set");
+            if (isExpectedNoOp && method.getReturnType() != boolean.class) {
+                throw new AssertionError("Entitlement test method [" + method + "] must return boolean when isExpectedNoOp is set");
             }
             final CheckedFunction<Environment, Object, Exception> call = createFunctionForMethod(method);
             CheckedFunction<Environment, Object, Exception> action = env -> {
@@ -299,7 +299,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                     response.addHeader("isExpectedDefaultNull", "true");
                 }
                 if (checkAction.isExpectedNoOp()) {
-                    response.addHeader("isExpectedNoOp", "true");
+                    response.addHeader("noOpChanged", result.toString());
                 }
             } catch (Exception e) {
                 var statusCode = checkAction.expectedExceptionIfDenied.isInstance(e)

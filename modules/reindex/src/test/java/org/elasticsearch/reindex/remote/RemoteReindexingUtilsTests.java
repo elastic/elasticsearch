@@ -21,11 +21,14 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -40,6 +43,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.net.URL;
+import java.util.Base64;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -57,6 +61,17 @@ import static org.mockito.Mockito.when;
 public class RemoteReindexingUtilsTests extends ESTestCase {
 
     private static final Logger logger = LogManager.getLogger(RemoteReindexingUtilsTests.class);
+
+    private static String getAllExceptionMessages(Throwable t) {
+        StringBuilder sb = new StringBuilder();
+        while (t != null) {
+            if (t.getMessage() != null) {
+                sb.append(t.getMessage()).append(" ");
+            }
+            t = t.getCause();
+        }
+        return sb.toString();
+    }
 
     private ThreadPool threadPool;
     private RestClient client;
@@ -351,7 +366,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
     /**
      * Verifies that lookupRemoteVersionWithRetries propagates failure when retries are exhausted.
      */
-    public void testLookupRemoteVersionWithRetriesExhaustedPropagatesFailure() throws Exception {
+    public void testLookupRemoteVersionWithRetriesExhaustedPropagatesFailure() {
         Response rejectionResponse = rejectionResponse429();
         doAnswer(inv -> {
             ((ResponseListener) inv.getArgument(1)).onFailure(new ResponseException(rejectionResponse));
@@ -427,6 +442,304 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
 
         assertTrue("listener should have received success", success.get());
         verify(client, times(1)).performRequestAsync(any(), any());
+    }
+
+    /**
+     * Verifies that openPit parses a valid open PIT response and invokes onResponse with the decoded PIT id.
+     */
+    public void testOpenPitSuccess() {
+        byte[] pitIdBytes = randomByteArrayOfLength(between(1, 64));
+        String base64Id = Base64.getUrlEncoder().encodeToString(pitIdBytes);
+        String json = "{\"id\":\"" + base64Id + "\"}";
+        Response response = mock(Response.class);
+        when(response.getEntity()).thenReturn(new StringEntity(json, ContentType.APPLICATION_JSON));
+        mockSuccess(response);
+
+        String index = randomAlphaOfLength(between(1, 10));
+        SearchRequest searchRequest = new SearchRequest().indices(index);
+        AtomicBoolean success = new AtomicBoolean(false);
+        BytesReference[] capturedPitId = new BytesReference[1];
+        RemoteReindexingUtils.openPit(
+            searchRequest,
+            new String[] { index },
+            TimeValue.timeValueMillis(between(1, 60000)),
+            RejectAwareActionListener.wrap(pitId -> {
+                capturedPitId[0] = pitId;
+                success.set(true);
+            }, e -> fail("unexpected failure"), e -> fail("unexpected rejection")),
+            threadPool,
+            client
+        );
+        assertTrue("listener should have received success", success.get());
+        assertArrayEquals(pitIdBytes, BytesReference.toBytes(capturedPitId[0]));
+    }
+
+    /**
+     * Verifies that openPit invokes onRejection when the remote returns HTTP 429.
+     */
+    public void testOpenPitTooManyRequestsTriggersRejection() throws Exception {
+        mockFailure(new ResponseException(rejectionResponse429()));
+
+        String index = randomAlphaOfLength(between(1, 10));
+        SearchRequest searchRequest = new SearchRequest().indices(index);
+        AtomicBoolean rejected = new AtomicBoolean(false);
+        RemoteReindexingUtils.openPit(
+            searchRequest,
+            new String[] { index },
+            randomPositiveTimeValue(),
+            RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> fail("unexpected failure"), e -> rejected.set(true)),
+            threadPool,
+            client
+        );
+        assertTrue("onRejection should have been called", rejected.get());
+    }
+
+    /**
+     * Verifies that openPit invokes onFailure when the remote returns a non-429 HTTP error.
+     */
+    public void testOpenPitHttpErrorTriggersFailure() throws Exception {
+        int statusCode = randomFrom(RestStatus.BAD_REQUEST, RestStatus.NOT_FOUND, RestStatus.INTERNAL_SERVER_ERROR).getStatus();
+        StatusLine statusLine = mock(StatusLine.class);
+        when(statusLine.getStatusCode()).thenReturn(statusCode);
+        Response response = mock(Response.class);
+        when(response.getStatusLine()).thenReturn(statusLine);
+        when(response.getEntity()).thenReturn(new StringEntity(randomAlphaOfLength(between(1, 20)), ContentType.TEXT_PLAIN));
+        RequestLine requestLine = mock(RequestLine.class);
+        when(requestLine.getMethod()).thenReturn("POST");
+        when(response.getRequestLine()).thenReturn(requestLine);
+        mockFailure(new ResponseException(response));
+
+        String index = randomAlphaOfLength(between(1, 10));
+        SearchRequest searchRequest = new SearchRequest().indices(index);
+        AtomicBoolean failed = new AtomicBoolean(false);
+        RemoteReindexingUtils.openPit(
+            searchRequest,
+            new String[] { index },
+            randomPositiveTimeValue(),
+            RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> {
+                assertTrue(e instanceof ElasticsearchStatusException);
+                assertEquals(statusCode, ((ElasticsearchStatusException) e).status().getStatus());
+                failed.set(true);
+            }, e -> fail("unexpected rejection")),
+            threadPool,
+            client
+        );
+        assertTrue("onFailure should have been called", failed.get());
+    }
+
+    /**
+     * Verifies that openPit invokes onFailure when the response body is invalid JSON.
+     */
+    public void testOpenPitInvalidJsonTriggersFailure() {
+        String invalidJson = randomAlphaOfLength(between(5, 20)) + "!!!";
+        Response response = mock(Response.class);
+        when(response.getEntity()).thenReturn(new StringEntity(invalidJson, ContentType.APPLICATION_JSON));
+        mockSuccess(response);
+
+        String index = randomAlphaOfLength(between(1, 10));
+        SearchRequest searchRequest = new SearchRequest().indices(index);
+        AtomicBoolean failed = new AtomicBoolean(false);
+        RemoteReindexingUtils.openPit(
+            searchRequest,
+            new String[] { index },
+            randomPositiveTimeValue(),
+            RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> {
+                assertTrue(e instanceof ElasticsearchException);
+                assertThat(e.getMessage(), containsString("remote is likely not an Elasticsearch instance"));
+                failed.set(true);
+            }, e -> fail("unexpected rejection")),
+            threadPool,
+            client
+        );
+        assertTrue("onFailure should have been called", failed.get());
+    }
+
+    /**
+     * Verifies that openPit invokes onFailure when the response is valid JSON but missing the required id field.
+     */
+    public void testOpenPitMissingIdFieldTriggersFailure() {
+        String json = "{\"other\":\"" + randomAlphaOfLength(between(1, 10)) + "\"}";
+        Response response = mock(Response.class);
+        when(response.getEntity()).thenReturn(new StringEntity(json, ContentType.APPLICATION_JSON));
+        mockSuccess(response);
+
+        String index = randomAlphaOfLength(between(1, 10));
+        SearchRequest searchRequest = new SearchRequest().indices(index);
+        AtomicBoolean failed = new AtomicBoolean(false);
+        RemoteReindexingUtils.openPit(
+            searchRequest,
+            new String[] { index },
+            randomPositiveTimeValue(),
+            RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> {
+                assertTrue(e instanceof ElasticsearchException);
+                assertThat(getAllExceptionMessages(e), containsString("open point-in-time response must contain [id] field"));
+                failed.set(true);
+            }, e -> fail("unexpected rejection")),
+            threadPool,
+            client
+        );
+        assertTrue("onFailure should have been called", failed.get());
+    }
+
+    /**
+     * Verifies that openPit throws AssertionError when the SearchRequest has routing set
+     */
+    public void testOpenPitFailsWhenRoutingSet() {
+        SearchRequest searchRequest = new SearchRequest().indices("index");
+        searchRequest.routing("some-routing");
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> RemoteReindexingUtils.openPit(
+                searchRequest,
+                new String[] { "index" },
+                randomPositiveTimeValue(),
+                RejectAwareActionListener.wrap(
+                    v -> fail("unexpected success"),
+                    err -> fail("unexpected failure"),
+                    err -> fail("unexpected rejection")
+                ),
+                threadPool,
+                client
+            )
+        );
+        assertThat(e.getMessage(), containsString("Routing is set"));
+    }
+
+    /**
+     * Verifies that openPit throws AssertionError when the SearchRequest has preference set
+     */
+    public void testOpenPitFailsWhenPreferenceSet() {
+        SearchRequest searchRequest = new SearchRequest().indices("index");
+        searchRequest.preference("_local");
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> RemoteReindexingUtils.openPit(
+                searchRequest,
+                new String[] { "index" },
+                randomPositiveTimeValue(),
+                RejectAwareActionListener.wrap(
+                    v -> fail("unexpected success"),
+                    err -> fail("unexpected failure"),
+                    err -> fail("unexpected rejection")
+                ),
+                threadPool,
+                client
+            )
+        );
+        assertThat(e.getMessage(), containsString("Preference is set"));
+    }
+
+    /**
+     * Verifies that openPit throws AssertionError when the SearchRequest has allowPartialSearchResults set to true
+     * since scroll search defaults to false
+     */
+    public void testOpenPitFailsWhenAllowPartialSearchResultsTrue() {
+        SearchRequest searchRequest = new SearchRequest().indices("index");
+        searchRequest.allowPartialSearchResults(true);
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> RemoteReindexingUtils.openPit(
+                searchRequest,
+                new String[] { "index" },
+                randomPositiveTimeValue(),
+                RejectAwareActionListener.wrap(
+                    v -> fail("unexpected success"),
+                    err -> fail("unexpected failure"),
+                    err -> fail("unexpected rejection")
+                ),
+                threadPool,
+                client
+            )
+        );
+        assertThat(e.getMessage(), containsString("allow_partial_search_results"));
+    }
+
+    /**
+     * Verifies that closePit invokes onResponse when the remote returns a successful close PIT response.
+     */
+    public void testClosePitSuccess() {
+        String json = "{\"succeeded\":" + randomBoolean() + "}";
+        Response response = mock(Response.class);
+        when(response.getEntity()).thenReturn(new StringEntity(json, ContentType.APPLICATION_JSON));
+        mockSuccess(response);
+
+        AtomicBoolean success = new AtomicBoolean(false);
+        BytesReference pitId = new BytesArray(randomByteArrayOfLength(between(1, 32)));
+        RemoteReindexingUtils.closePit(
+            pitId,
+            RejectAwareActionListener.wrap(v -> success.set(true), e -> fail("unexpected failure"), e -> fail("unexpected rejection")),
+            threadPool,
+            client
+        );
+        assertTrue("listener should have received success", success.get());
+    }
+
+    /**
+     * Verifies that closePit invokes onRejection when the remote returns HTTP 429.
+     */
+    public void testClosePitTooManyRequestsTriggersRejection() throws Exception {
+        mockFailure(new ResponseException(rejectionResponse429()));
+
+        AtomicBoolean rejected = new AtomicBoolean(false);
+        RemoteReindexingUtils.closePit(
+            new BytesArray(randomByteArrayOfLength(between(1, 32))),
+            RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> fail("unexpected failure"), e -> rejected.set(true)),
+            threadPool,
+            client
+        );
+        assertTrue("onRejection should have been called", rejected.get());
+    }
+
+    /**
+     * Verifies that closePit invokes onFailure when the remote returns a non-429 HTTP error.
+     */
+    public void testClosePitHttpErrorTriggersFailure() throws Exception {
+        int statusCode = randomFrom(RestStatus.BAD_REQUEST, RestStatus.NOT_FOUND, RestStatus.INTERNAL_SERVER_ERROR).getStatus();
+        StatusLine statusLine = mock(StatusLine.class);
+        when(statusLine.getStatusCode()).thenReturn(statusCode);
+        Response response = mock(Response.class);
+        when(response.getStatusLine()).thenReturn(statusLine);
+        when(response.getEntity()).thenReturn(new StringEntity(randomAlphaOfLength(between(1, 20)), ContentType.TEXT_PLAIN));
+        RequestLine requestLine = mock(RequestLine.class);
+        when(requestLine.getMethod()).thenReturn("DELETE");
+        when(response.getRequestLine()).thenReturn(requestLine);
+        mockFailure(new ResponseException(response));
+
+        AtomicBoolean failed = new AtomicBoolean(false);
+        RemoteReindexingUtils.closePit(
+            new BytesArray(randomByteArrayOfLength(between(1, 32))),
+            RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> {
+                assertTrue(e instanceof ElasticsearchStatusException);
+                assertEquals(statusCode, ((ElasticsearchStatusException) e).status().getStatus());
+                failed.set(true);
+            }, e -> fail("unexpected rejection")),
+            threadPool,
+            client
+        );
+        assertTrue("onFailure should have been called", failed.get());
+    }
+
+    /**
+     * Verifies that closePit invokes onFailure when the response body is invalid JSON.
+     */
+    public void testClosePitInvalidJsonTriggersFailure() {
+        String invalidJson = randomAlphaOfLength(between(5, 20)) + "!!!";
+        Response response = mock(Response.class);
+        when(response.getEntity()).thenReturn(new StringEntity(invalidJson, ContentType.APPLICATION_JSON));
+        mockSuccess(response);
+
+        AtomicBoolean failed = new AtomicBoolean(false);
+        RemoteReindexingUtils.closePit(
+            new BytesArray(randomByteArrayOfLength(between(1, 32))),
+            RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> {
+                assertTrue(e instanceof ElasticsearchException);
+                assertThat(e.getMessage(), containsString("remote is likely not an Elasticsearch instance"));
+                failed.set(true);
+            }, e -> fail("unexpected rejection")),
+            threadPool,
+            client
+        );
+        assertTrue("onFailure should have been called", failed.get());
     }
 
     private Response successResponse(String resource) throws Exception {

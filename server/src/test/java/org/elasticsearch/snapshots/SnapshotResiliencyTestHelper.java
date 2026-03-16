@@ -148,6 +148,7 @@ import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
@@ -946,7 +947,8 @@ public class SnapshotResiliencyTestHelper {
                         client,
                         usageService,
                         new IndicesServiceTests.TestActionActionLoggingFieldsProvider(),
-                        ActivityLogWriterProvider.NOOP
+                        ActivityLogWriterProvider.NOOP,
+                        CrossProjectModeDecider.NOOP
                     )
                 );
                 actions.put(

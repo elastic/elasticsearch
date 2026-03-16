@@ -110,10 +110,9 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
 
-        Settings settings = restHandlersServices.settings();
         return Arrays.asList(
-            new RestSqlQueryAction(settings),
-            new RestSqlTranslateAction(settings),
+            new RestSqlQueryAction(restHandlersServices.crossProjectModeDecider()),
+            new RestSqlTranslateAction(restHandlersServices.crossProjectModeDecider()),
             new RestSqlClearCursorAction(),
             new RestSqlStatsAction(),
             new RestSqlAsyncGetResultsAction(),

@@ -54,12 +54,20 @@ public class MarkIndicesForFrozenTaskTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(1)
             .creationDate(randomNonNegativeLong())
+            .putCustom(
+                DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
+                Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, "other-repo")
+            )
             .build();
         IndexMetadata alreadyMarkedSameRepo = IndexMetadata.builder(DataStream.getDefaultBackingIndexName("alreadyMarked", 1))
             .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .creationDate(randomNonNegativeLong())
+            .putCustom(
+                DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
+                Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, REPO)
+            )
             .build();
         Set<Index> allIndices = Set.of(
             vanilla.getIndex(),

@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -61,10 +62,14 @@ public class ResumeInfoWireSerializingTests extends AbstractWireSerializingTestC
 
     @Override
     protected Wrapper createTestInstance() {
+        final ResumeInfo.RelocationOrigin origin = new ResumeInfo.RelocationOrigin(
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
+            randomNonNegativeLong()
+        );
         if (randomBoolean()) {
-            return new Wrapper(new ResumeInfo(randomScrollWorkerResumeInfo(), null));
+            return new Wrapper(new ResumeInfo(origin, randomScrollWorkerResumeInfo(), null));
         } else {
-            return new Wrapper(new ResumeInfo(null, randomSlicesMap()));
+            return new Wrapper(new ResumeInfo(origin, null, randomSlicesMap()));
         }
     }
 

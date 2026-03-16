@@ -113,7 +113,7 @@ public class IpPrefixAutomatonUtilTests extends ESTestCase {
             assertEquals("::7f00:1", NetworkAddress.format(getByName("0000::127.0.0.1")));
             // same for more than one leading 0, those get condensed to "::" in the terms API output, so we shouldn't match them
             assertFalse(accepts(a, "0:0:0::127.0.0.1"));
-            assertEquals("::7f00:1", NetworkAddress.format(getByName("0000::127.0.0.1")));
+            assertEquals("::7f00:1", NetworkAddress.format(getByName("0:0:0::127.0.0.1")));
             assertFalse(accepts(a, "::1"));
             assertFalse(accepts(a, "::"));
             assertFalse(accepts(a, "::1:0:0:0:0:0"));

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.Matcher;
 import org.junit.BeforeClass;
 
 import java.time.Duration;
@@ -33,8 +34,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Supplier;
-
-import org.hamcrest.Matcher;
 
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
@@ -683,9 +682,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
      */
     @SuppressWarnings("unchecked")
     private static Matcher<Object> decayNumericMatcher(double expected) {
-        return Double.isFinite(expected)
-            ? (Matcher<Object>) (Matcher<?>) closeTo(expected, Math.ulp(expected))
-            : equalTo(expected);
+        return Double.isFinite(expected) ? (Matcher<Object>) (Matcher<?>) closeTo(expected, Math.ulp(expected)) : equalTo(expected);
     }
 
     private static double intDecayWithScoreScript(int value, int origin, int scale, int offset, double decay, String type) {

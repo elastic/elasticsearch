@@ -183,6 +183,13 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    public void testInlineStatsAggAndGroup() throws Exception {
+        runTests("""
+            FROM employees
+            | INLINE STATS s = SUM(does_not_exist1::DOUBLE) BY does_not_exist2
+            """);
+    }
+
     public void testStatsAggAndAliasedGroup() throws Exception {
         runTests("""
             FROM employees

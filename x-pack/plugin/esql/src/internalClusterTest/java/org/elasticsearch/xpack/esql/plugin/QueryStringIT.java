@@ -275,4 +275,16 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(error.getMessage(), containsString("line 3:3: [QSTR] function cannot be used after LOOKUP"));
     }
+
+    public void testWhereFalseBeforeLookupJoinWithQstr() {
+        var query = """
+            FROM test
+            | WHERE false
+            | LOOKUP JOIN test_lookup ON id
+            | WHERE qstr("lookup_content: fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[QSTR] function cannot be used after LOOKUP"));
+    }
 }

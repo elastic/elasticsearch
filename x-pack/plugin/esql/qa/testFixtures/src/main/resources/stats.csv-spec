@@ -3860,3 +3860,36 @@ SUM(salary_change):double   | salary_change:double
 14.69                       | 1.92           
 6.000000000000001           | 1.98           
 ;
+
+multiStatsAfterFalseFilter_ByComputedValues
+from employees
+| where false
+| stats c = count(*), s = avg(salary)
+| stats max(c), min(s) by s, c
+;
+
+  max(c):l     |    min(s):d   |       s:d     |       c:l
+0              |null           |null           |0              
+;
+
+multiStatsAfterFalseFilter_ByLiteralValue
+from employees
+| where false
+| stats c = count(*), s = avg(salary)
+| stats max(c), min(s) by x = "abc"
+;
+
+    max(c):l   |    min(s):d   |       x:keyword       
+0              |null           |abc            
+;
+
+multiStatsAfterFalseFilter_ByField
+from employees
+| where false
+| stats c = count(gender), s = avg(salary) by gender
+| stats max(c), min(c), min(s), avg(s)
+;
+
+    max(c):l   |    min(c):l   |    min(s):d   |    avg(s):d
+null           |null           |null           |null           
+;

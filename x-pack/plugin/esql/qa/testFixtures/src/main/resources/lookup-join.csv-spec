@@ -5737,3 +5737,181 @@ warning:Line 13:24: java.lang.IllegalArgumentException: single-value function en
 language_name:keyword | country:text | other2:integer | YEcxuCOHsGzb:keyword | other1:keyword | date:datetime | date_nanos:date_nanos | id_int:integer | ip_addr:ip | is_active_bool:boolean | name_str:keyword
 
 ;
+
+whereFalseBeforeLookupJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE false
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+whereFalseBeforeLookupJoinWithFilterAfter
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE false
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE emp_no > 100
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+whereFalseBeforeLookupJoinWithStatsAfter
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE false
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+impossibleFilterBeforeLookupJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| EVAL a = 1, b = a + 1, c = b + a
+| WHERE c > 10
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_name IS NOT NULL
+| KEEP emp_no, language_name
+;
+
+emp_no:integer | language_name:keyword
+;
+
+###############################################
+# Empty relation propagation through lookup joins with full-text functions
+# Covers the fix for https://github.com/elastic/elasticsearch/issues/144329
+
+whereFalseBeforeLookupJoinWithMatch
+required_capability: join_lookup_v12
+required_capability: match_function
+
+FROM sample_data
+| WHERE false
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE match(message, "Connection error")
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+
+whereFalseBeforeLookupJoinWithMatchPhrase
+required_capability: join_lookup_v12
+required_capability: match_phrase_function
+
+FROM sample_data
+| WHERE false
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE match_phrase(message, "Connection error")
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+
+whereFalseBeforeLookupJoinWithMatchOperator
+required_capability: join_lookup_v12
+required_capability: match_operator_colon
+
+FROM sample_data
+| WHERE false
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE message:"Connection error"
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+
+whereFalseWithEvalBeforeLookupJoinAndMatch
+required_capability: join_lookup_v12
+required_capability: match_function
+
+FROM sample_data
+| WHERE false
+| EVAL msg = message
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE match(message, "Connection error")
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+
+whereFalseBeforeLookupJoinWithFullTextDisjunction
+required_capability: join_lookup_v12
+required_capability: multi_match_function
+required_capability: full_text_functions_disjunctions_compute_engine
+
+FROM sample_data
+| WHERE false
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE multi_match("Connection error", message) OR type LIKE "Success"
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+
+whereFalseBeforeLookupJoinWithMatchAndStats
+required_capability: join_lookup_v12
+required_capability: match_function
+
+FROM sample_data
+| WHERE false
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE match(message, "Connection error")
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+whereFalseBeforeLookupJoinWithMultipleFullTextFunctions
+required_capability: join_lookup_v12
+required_capability: match_function
+required_capability: match_phrase_function
+
+FROM sample_data
+| WHERE false
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE match(message, "Connection") AND match_phrase(message, "Connection error")
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+
+whereFalseBeforeLookupJoinWithMatchOnEmployees
+required_capability: join_lookup_v12
+required_capability: match_function
+
+FROM employees
+| WHERE false
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE match(first_name, "Georgi")
+| KEEP emp_no, first_name, language_name
+;
+
+emp_no:integer | first_name:keyword | language_name:keyword
+;
+

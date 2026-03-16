@@ -27,6 +27,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.plugin.MatchFunctionIT.createAndPopulateLookupIndex;
 import static org.hamcrest.CoreMatchers.containsString;
 
 public class KqlFunctionIT extends AbstractEsqlIntegTestCase {
@@ -206,6 +207,18 @@ public class KqlFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("[KQL] function cannot be used after MV_EXPAND"));
     }
 
+    public void testWhereFalseBeforeLookupJoinWithKql() {
+        var query = """
+            FROM test
+            | WHERE false
+            | LOOKUP JOIN test_lookup ON id
+            | WHERE kql("lookup_content: fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[KQL] function cannot be used after LOOKUP"));
+    }
+
     private void createAndPopulateIndex() {
         var indexName = "test";
         var client = client().admin().indices();
@@ -250,7 +263,11 @@ public class KqlFunctionIT extends AbstractEsqlIntegTestCase {
             )
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
-        ensureYellow(indexName);
+
+        var lookupIndexName = "test_lookup";
+        createAndPopulateLookupIndex(client, lookupIndexName);
+
+        ensureYellow(indexName, lookupIndexName);
     }
 
     @Override

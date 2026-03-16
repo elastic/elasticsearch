@@ -117,6 +117,7 @@ public class Verifier {
 
         if (unmappedResolution == UnmappedResolution.LOAD) {
             checkLoadModeDisallowedCommands(plan, failures);
+            checkLoadModeDisallowedFunctions(plan, failures);
         }
 
         // collect plan checkers
@@ -144,19 +145,6 @@ public class Verifier {
             checkLimitBeforeInlineStats(p, failures);
             checkLimitBy(p, failures);
         });
-
-        // Disallow full-text search when unmapped_fields=load. We do not restrict to "only when the FTF
-        // is applied to an unmapped field" because FTFs like KQL can reference unmapped fields inside the
-        // query string (e.g. KQL("author: Faulkner")), and the desired behavior there is unclear.
-        if (unmappedResolution == UnmappedResolution.LOAD) {
-            List<FullTextFunction> fullTextFunctions = new ArrayList<>();
-            plan.forEachExpressionDown(FullTextFunction.class, fullTextFunctions::add);
-            if (fullTextFunctions.isEmpty() == false) {
-                String message = "unmapped_fields=\"load\" is not allowed with full-text search (MATCH, match operator `:`, "
-                    + "MATCH_PHRASE, etc.); use FAIL or NULLIFY";
-                fullTextFunctions.forEach(f -> failures.add(fail(f, message)));
-            }
-        }
 
         if (failures.hasFailures() == false) {
             licenseCheck(plan, failures);
@@ -391,6 +379,25 @@ public class Verifier {
                 failures.add(fail(p, "LOOKUP JOIN is not supported with unmapped_fields=\"load\""));
             }
         });
+    }
+
+    /**
+     * Disallow full-text search when unmapped_fields=load. We do not restrict to "only when the FTF
+     * is applied to an unmapped field" because FTFs like KQL can reference unmapped fields inside the
+     * query string (e.g. KQL("author: Faulkner")), and the desired behavior there is unclear.
+     */
+    private static void checkLoadModeDisallowedFunctions(LogicalPlan plan, Failures failures) {
+        List<FullTextFunction> fullTextFunctions = new ArrayList<>();
+        plan.forEachExpressionDown(FullTextFunction.class, fullTextFunctions::add);
+        fullTextFunctions.forEach(
+            f -> failures.add(
+                fail(
+                    f,
+                    "unmapped_fields=\"load\" does not support full-text search function [{}]; use \"fail\" or \"nullify\"",
+                    f.functionName()
+                )
+            )
+        );
     }
 
     private void licenseCheck(LogicalPlan plan, Failures failures) {

@@ -551,23 +551,42 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      * would cause this test to fail. When full-text function support grows, this test will need updates; see #144121.
      */
     public void testUnmappedFieldsLoadWithFullTextSearchFails() {
-        String failure = "unmapped_fields=\"load\" is not allowed with full-text search";
-        verificationFailure(setUnmappedLoad("FROM test | WHERE first_name:\"foo\" | KEEP first_name"), failure);
-        verificationFailure(setUnmappedLoad("FROM test | WHERE match(first_name, \"foo\") | KEEP first_name"), failure);
-        verificationFailure(setUnmappedLoad("FROM test | WHERE match_phrase(first_name, \"foo bar\") | KEEP first_name"), failure);
+        // Assert the new message format and that the specific full-text function is named in brackets
+        // Function names in error messages use Function.functionName() (class simple name upper-cased) or override (e.g. QSTR, :)
+        verificationFailure(
+            setUnmappedLoad("FROM test | WHERE first_name:\"foo\" | KEEP first_name"),
+            "does not support full-text search function [:]"
+        );
+        verificationFailure(
+            setUnmappedLoad("FROM test | WHERE match(first_name, \"foo\") | KEEP first_name"),
+            "does not support full-text search function [MATCH]"
+        );
+        verificationFailure(
+            setUnmappedLoad("FROM test | WHERE match_phrase(first_name, \"foo bar\") | KEEP first_name"),
+            "does not support full-text search function [MatchPhrase]"
+        );
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            verificationFailure(setUnmappedLoad("FROM test | WHERE multi_match(\"foo\", first_name) | KEEP first_name"), failure);
+            verificationFailure(
+                setUnmappedLoad("FROM test | WHERE multi_match(\"foo\", first_name) | KEEP first_name"),
+                "does not support full-text search function [MultiMatch]"
+            );
         }
         if (EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled()) {
-            verificationFailure(setUnmappedLoad("FROM test | WHERE qstr(\"first_name: foo\") | KEEP first_name"), failure);
+            verificationFailure(
+                setUnmappedLoad("FROM test | WHERE qstr(\"first_name: foo\") | KEEP first_name"),
+                "does not support full-text search function [QSTR]"
+            );
         }
         if (EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled()) {
-            verificationFailure(setUnmappedLoad("FROM test | WHERE kql(\"first_name: foo\") | KEEP first_name"), failure);
+            verificationFailure(
+                setUnmappedLoad("FROM test | WHERE kql(\"first_name: foo\") | KEEP first_name"),
+                "does not support full-text search function [KQL]"
+            );
         }
         verificationFailureWithMapping(
             "mapping-full_text_search.json",
             setUnmappedLoad("FROM test | WHERE knn(vector, [1, 2, 3]) | KEEP vector"),
-            failure
+            "does not support full-text search function [KNN]"
         );
     }
 

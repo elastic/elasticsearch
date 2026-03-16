@@ -273,8 +273,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         }
         try {
             // Now safe to shut down the event loop; use bounded wait so node shutdown does not hang
-            eventLoopGroup.shutdownGracefully(0, SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                .await(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            eventLoopGroup.shutdownGracefully().await(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             logger.warn("Interrupted waiting for Azure Netty event loop shutdown", e);

@@ -753,6 +753,231 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertAggregatableConsistency(mapperService.fieldType("field"));
     }
 
+    public void testPropertiesKeywordSubfield() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("properties");
+            {
+                b.startObject("host.name").field("type", "keyword").endObject();
+            }
+            b.endObject();
+        }));
+
+        ParsedDocument parsedDoc = mapper.parse(
+            source(b -> b.startObject("field").field("host.name", "my-host").field("other", "val").endObject())
+        );
+
+        // Only the unmapped key "other" should appear in the flattened root/keyed fields.
+        // The mapped key "host.name" is excluded from the flattened representation.
+        List<IndexableField> rootFields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(2, rootFields.size());
+        assertEquals(new BytesRef("val"), rootFields.get(0).binaryValue());
+
+        List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
+        assertEquals(2, keyedFields.size());
+        assertEquals(new BytesRef("other\0val"), keyedFields.get(0).binaryValue());
+
+        // The mapped sub-field should produce its own typed fields
+        List<IndexableField> subFields = parsedDoc.rootDoc().getFields("field.host.name");
+        assertThat(subFields.size(), greaterThan(0));
+        boolean foundKeywordIndex = false;
+        boolean foundDocValues = false;
+        for (IndexableField f : subFields) {
+            if (f.fieldType().docValuesType() == DocValuesType.SORTED_SET) {
+                foundDocValues = true;
+            }
+            if (f.binaryValue() != null && f.binaryValue().equals(new BytesRef("my-host"))) {
+                foundKeywordIndex = true;
+            }
+        }
+        assertTrue("Expected indexed keyword field", foundKeywordIndex);
+        assertTrue("Expected doc values on keyword field", foundDocValues);
+
+        // The unmapped key should NOT produce a sub-field
+        List<IndexableField> unmappedSubFields = parsedDoc.rootDoc().getFields("field.other");
+        assertEquals(0, unmappedSubFields.size());
+    }
+
+    public void testPropertiesMultipleTypes() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("properties");
+            {
+                b.startObject("host.name").field("type", "keyword").endObject();
+                b.startObject("host.ip").field("type", "ip").endObject();
+            }
+            b.endObject();
+        }));
+
+        ParsedDocument parsedDoc = mapper.parse(
+            source(b -> b.startObject("field").field("host.name", "my-host").field("host.ip", "192.168.1.1").endObject())
+        );
+
+        List<IndexableField> nameFields = parsedDoc.rootDoc().getFields("field.host.name");
+        assertThat(nameFields.size(), greaterThan(0));
+
+        List<IndexableField> ipFields = parsedDoc.rootDoc().getFields("field.host.ip");
+        assertThat(ipFields.size(), greaterThan(0));
+    }
+
+    public void testPropertiesFieldTypeResolution() throws Exception {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("properties");
+            {
+                b.startObject("host.name").field("type", "keyword").endObject();
+            }
+            b.endObject();
+        }));
+
+        // The mapped property should resolve to a keyword field type
+        MappedFieldType hostNameType = mapperService.fieldType("field.host.name");
+        assertNotNull(hostNameType);
+        assertEquals("keyword", hostNameType.typeName());
+
+        // An unmapped key should still resolve to a flattened keyed type
+        MappedFieldType unmappedType = mapperService.fieldType("field.unmapped_key");
+        assertNotNull(unmappedType);
+        assertEquals("flattened", unmappedType.typeName());
+    }
+
+    public void testPropertiesSerialization() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("properties");
+            {
+                b.startObject("host.name").field("type", "keyword").endObject();
+                b.startObject("service.name").field("type", "keyword").field("doc_values", false).endObject();
+            }
+            b.endObject();
+        }));
+
+        String serialized = mapper.mappingSource().toString();
+        assertThat(serialized, containsString("\"properties\""));
+        assertThat(serialized, containsString("host.name"));
+        assertThat(serialized, containsString("service.name"));
+
+        // Verify roundtrip: parse the serialized mapping and verify it produces the same output
+        MapperService reparsedService = createMapperService(mapper.mappingSource().toString());
+        assertEquals(mapper.mappingSource(), reparsedService.documentMapper().mappingSource());
+    }
+
+    public void testPropertiesMerge() throws Exception {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("properties");
+            {
+                b.startObject("host.name").field("type", "keyword").endObject();
+            }
+            b.endObject();
+        }));
+
+        // Add a new property
+        merge(mapperService, fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("properties");
+            {
+                b.startObject("host.name").field("type", "keyword").endObject();
+                b.startObject("service.name").field("type", "keyword").endObject();
+            }
+            b.endObject();
+        }));
+
+        MappedFieldType hostNameType = mapperService.fieldType("field.host.name");
+        assertNotNull(hostNameType);
+        assertEquals("keyword", hostNameType.typeName());
+
+        MappedFieldType serviceNameType = mapperService.fieldType("field.service.name");
+        assertNotNull(serviceNameType);
+        assertEquals("keyword", serviceNameType.typeName());
+    }
+
+    public void testPropertiesMergeTypeConflict() throws Exception {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("properties");
+            {
+                b.startObject("host.name").field("type", "keyword").endObject();
+            }
+            b.endObject();
+        }));
+
+        // Attempt to change the type of an existing property
+        Exception e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("properties");
+            {
+                b.startObject("host.name").field("type", "ip").endObject();
+            }
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("cannot be changed from type"));
+    }
+
+    public void testPropertiesDisallowedTypes() {
+        MapperParsingException e;
+
+        e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("properties");
+            b.startObject("sub").field("type", "object").endObject();
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("not supported as a property of flattened field"));
+
+        e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("properties");
+            b.startObject("sub").field("type", "nested").endObject();
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("not supported as a property of flattened field"));
+
+        e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("properties");
+            b.startObject("sub").field("type", "flattened").endObject();
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("not supported as a property of flattened field"));
+    }
+
+    public void testPropertiesTotalFieldsCount() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("properties");
+            {
+                b.startObject("a").field("type", "keyword").endObject();
+                b.startObject("b").field("type", "keyword").endObject();
+            }
+            b.endObject();
+        }));
+
+        FlattenedFieldMapper flattenedMapper = (FlattenedFieldMapper) mapper.mappers().getMapper("field");
+        // 1 (flattened) + 2 (keyword properties)
+        assertEquals(3, flattenedMapper.getTotalFieldsCount());
+    }
+
+    public void testPropertiesWithDocValuesOnly() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("properties");
+            {
+                b.startObject("sortfield").field("type", "keyword").field("index", false).endObject();
+            }
+            b.endObject();
+        }));
+
+        ParsedDocument parsedDoc = mapper.parse(
+            source(b -> b.startObject("field").field("sortfield", "value1").field("other", "value2").endObject())
+        );
+
+        List<IndexableField> subFields = parsedDoc.rootDoc().getFields("field.sortfield");
+        assertThat(subFields.size(), greaterThan(0));
+        boolean hasDocValues = subFields.stream().anyMatch(f -> f.fieldType().docValuesType() == DocValuesType.SORTED_SET);
+        assertTrue("Expected doc values on keyword sub-field", hasDocValues);
+    }
+
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         return new FlattenedFieldSyntheticSourceSupport();

@@ -121,10 +121,11 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     /// Only the master node triggers the lifecycle update. Other nodes return early.
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.localNodeMaster() == false) {
+        if (event.localNodeMaster() == false || event.state().clusterRecovered()) {
             return;
         }
-        if (enabled && event.state().clusterRecovered() && HealthNode.findTask(event.state()) == null) {
+        final var healthTask = HealthNode.findTask(event.state());
+        if (enabled && healthTask == null) {
             persistentTasksService.sendClusterStartRequest(
                 TASK_NAME,
                 TASK_NAME,
@@ -141,7 +142,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
                     }
                 })
             );
-        } else if (enabled == false && HealthNode.findTask(event.state()) != null) {
+        } else if (enabled == false && healthTask != null) {
             persistentTasksService.sendClusterRemoveRequest(
                 TASK_NAME,
                 TimeValue.THIRTY_SECONDS,

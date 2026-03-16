@@ -321,6 +321,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 }, ROUTE_REFRESH_TIMEOUT.get(clusterService.getSettings()), logger);
             } else {
                 assert false : "refreshRouting called without a SplitAwareRequest: " + internalRequest.request();
+                listener.onFailure(staleRequestException);
             }
         }
     }

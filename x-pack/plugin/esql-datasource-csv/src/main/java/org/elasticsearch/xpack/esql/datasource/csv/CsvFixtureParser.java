@@ -47,13 +47,8 @@ public final class CsvFixtureParser {
     /**
      * Parse a CSV file with custom delimiter, quote, escape, and comment prefix.
      */
-    public static CsvFixtureResult parseCsvFile(
-        Path path,
-        char delimiter,
-        char quote,
-        char escape,
-        String commentPrefix
-    ) throws IOException {
+    public static CsvFixtureResult parseCsvFile(Path path, char delimiter, char quote, char escape, String commentPrefix)
+        throws IOException {
         List<ColumnSpec> schema = new ArrayList<>();
         List<Object[]> rows = new ArrayList<>();
 

@@ -6,4 +6,7 @@
 * [`DAY_NAME`](../../functions-operators/date-time-functions/day_name.md) {applies_to}`stack: ga 9.2`
 * [`MONTH_NAME`](../../functions-operators/date-time-functions/month_name.md) {applies_to}`stack: ga 9.2`
 * [`NOW`](../../functions-operators/date-time-functions/now.md)
+* [`RANGE_MAX`](../../functions-operators/date-time-functions/range_max.md)
+* [`RANGE_MIN`](../../functions-operators/date-time-functions/range_min.md)
+* [`RANGE_WITHIN`](../../functions-operators/date-time-functions/range_within.md)
 * [`TRANGE`](../../functions-operators/date-time-functions/trange.md) {applies_to}`stack: ga 9.3`

@@ -1702,6 +1702,12 @@ public class EsqlCapabilities {
         DATE_RANGE_FIELD_TYPE(Build.current().isSnapshot()),
 
         /**
+         * Support for RANGE_WITHIN, TO_DATE_RANGE(string), RANGE_MIN, RANGE_MAX (date_range ESQL functions).
+         * When this is active, date_range_field_type is expected to be available too.
+         */
+        RANGE_WITHIN(Build.current().isSnapshot()),
+
+        /**
          * Network direction function.
          */
         NETWORK_DIRECTION(Build.current().isSnapshot()),

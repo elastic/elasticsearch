@@ -14,6 +14,14 @@ import org.elasticsearch.core.ReleasableIterator;
  * Block that stores long ranges.
  */
 public sealed interface LongRangeBlock extends Block permits LongRangeArrayBlock, ConstantNullBlock {
+
+    /**
+     * Returns {@code true} if the value at the given position is null. A position is null
+     * if the range is absent or if either the from or to bound is null.
+     */
+    @Override
+    boolean isNull(int position);
+
     @Override
     LongRangeBlock filter(boolean mayContainDuplicates, int... positions);
 

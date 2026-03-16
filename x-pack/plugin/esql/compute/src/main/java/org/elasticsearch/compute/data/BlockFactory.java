@@ -585,16 +585,7 @@ public class BlockFactory {
     public LongRangeBlock newConstantLongRangeBlock(LongRangeBlockBuilder.LongRange value, int positions) {
         try (var builder = newLongRangeBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                if (value.from() == null) {
-                    builder.from().appendNull();
-                } else {
-                    builder.from().appendLong(value.from());
-                }
-                if (value.to() == null) {
-                    builder.to().appendNull();
-                } else {
-                    builder.to().appendLong(value.to());
-                }
+                builder.appendLongRange(value);
             }
             return builder.build();
         }

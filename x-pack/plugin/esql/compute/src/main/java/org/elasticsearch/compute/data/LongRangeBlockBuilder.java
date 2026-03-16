@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 
@@ -80,18 +81,7 @@ public class LongRangeBlockBuilder extends AbstractBlockBuilder implements Block
             appendNull();
             return this;
         }
-
-        if (block.getFromBlock().isNull(pos)) {
-            from().appendNull();
-        } else {
-            from().appendLong(block.getFromBlock().getLong(pos));
-        }
-
-        if (block.getToBlock().isNull(pos)) {
-            to().appendNull();
-        } else {
-            to().appendLong(block.getToBlock().getLong(pos));
-        }
+        appendLongRange(block.getFromBlock().getLong(pos), block.getToBlock().getLong(pos));
         return this;
     }
 
@@ -102,17 +92,19 @@ public class LongRangeBlockBuilder extends AbstractBlockBuilder implements Block
         return this;
     }
 
-    public LongRangeBlockBuilder appendLongRange(LongRange lit) {
-        if (lit.from == null) {
-            fromBuilder.appendNull();
-        } else {
-            fromBuilder.appendLong(lit.from);
+    public LongRange appendLongRange(long from, long to) {
+        fromBuilder.appendLong(from);
+        toBuilder.appendLong(to);
+        return new LongRange(from, to);
+    }
+
+    public LongRangeBlockBuilder appendLongRange(@Nullable LongRange lit) {
+        if (lit == null) {
+            appendNull();
+            return this;
         }
-        if (lit.to == null) {
-            toBuilder.appendNull();
-        } else {
-            toBuilder.appendLong(lit.to);
-        }
+        fromBuilder.appendLong(lit.from());
+        toBuilder.appendLong(lit.to());
         return this;
     }
 
@@ -157,7 +149,7 @@ public class LongRangeBlockBuilder extends AbstractBlockBuilder implements Block
         return toBuilder;
     }
 
-    public record LongRange(Long from, Long to) implements GenericNamedWriteable {
+    public record LongRange(long from, long to) implements GenericNamedWriteable {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             GenericNamedWriteable.class,
             "LongRange",

@@ -22,9 +22,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 
 
 ## 9.3.1 [elasticsearch-9.3.1-release-notes]
-```{applies_to}
-stack: ga 9.3.1
-```
 
 ### Features and enhancements [elasticsearch-9.3.1-features-enhancements]
 
@@ -56,9 +53,6 @@ Vector Search:
 * [GPU] Handle segments too big for MSAI segment access [#141872](https://github.com/elastic/elasticsearch/pull/141872) (issue: [#141746](https://github.com/elastic/elasticsearch/issues/141746))
 
 ## 9.2.6 [elasticsearch-9.2.6-release-notes]
-```{applies_to}
-stack: ga 9.2.6
-```
 
 ### Features and enhancements [elasticsearch-9.2.6-features-enhancements]
 

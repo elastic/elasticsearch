@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.datastreams;
+package org.elasticsearch.xpack.dlm.frozen;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapsho
 /**
  * This class encapsulates the steps necessary to convert a data stream backing index to frozen.
  */
-public class DataStreamLifecycleConvertToFrozen implements Runnable {
+public class DataStreamLifecycleConvertToFrozen implements DlmFrozenTransitionRunnable {
 
     private static final Logger logger = LogManager.getLogger(DataStreamLifecycleConvertToFrozen.class);
 
@@ -221,5 +221,10 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
                 throw new ElasticsearchException("DLM's request to mark index [" + targetIndex + "] as read-only was not acknowledged");
             }
         }
+    }
+
+    @Override
+    public String getIndexName() {
+        return indexName;
     }
 }

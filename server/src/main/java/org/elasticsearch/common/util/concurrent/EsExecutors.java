@@ -28,6 +28,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -210,6 +211,9 @@ public class EsExecutors {
         if (queueCapacity < 0) {
             queue = ConcurrentCollections.newBlockingQueue();
             rejectedExecutionHandler = new RejectOnShutdownOnlyPolicy();
+        } else if (queueCapacity == 0) {
+            queue = new SynchronousQueue<>();
+            rejectedExecutionHandler = new EsAbortPolicy();
         } else {
             queue = new SizeBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity);
             rejectedExecutionHandler = new EsAbortPolicy();

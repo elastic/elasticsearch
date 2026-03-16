@@ -127,6 +127,10 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
             });
     }
 
+    public String getInferenceId() {
+        return inferenceId;
+    }
+
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
         return AzureOpenAiSecretSettings.fromMap(new HashMap<>(newSecrets), inferenceId);

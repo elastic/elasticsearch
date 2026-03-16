@@ -48,10 +48,9 @@ public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretSettings {
     }
 
     public AzureOpenAiOAuth2Secrets(StreamInput in) throws IOException {
-        this(in.readString(), in.readOptionalSecureString());
+        this(in.readString(), in.readSecureString());
     }
 
-    // TODO maybe make this default visibility only for testing
     public SecureString getClientSecret() {
         return clientSecret;
     }

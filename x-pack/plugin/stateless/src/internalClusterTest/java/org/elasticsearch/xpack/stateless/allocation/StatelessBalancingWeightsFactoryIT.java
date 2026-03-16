@@ -45,7 +45,12 @@ public class StatelessBalancingWeightsFactoryIT extends AbstractStatelessPluginI
 
     @Override
     protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(StatelessBalancingWeightsFactory.SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING.getKey(), true);
+        return super.nodeSettings().put(
+            randomBoolean()
+                ? StatelessBalancingWeightsFactory.SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING.getKey()
+                : StatelessBalancingWeightsFactory.SERVERLESS_SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING.getKey(),
+            true
+        );
     }
 
     public void testShardCountIsConfigurablePerTier() throws Exception {
@@ -58,7 +63,9 @@ public class StatelessBalancingWeightsFactoryIT extends AbstractStatelessPluginI
         final boolean zeroSearchTier = randomBoolean();
         final String setting = zeroSearchTier
             ? StatelessBalancingWeightsFactory.SEARCH_TIER_SHARD_BALANCE_FACTOR_SETTING.getKey()
-            : StatelessBalancingWeightsFactory.INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING.getKey();
+            : (randomBoolean()
+                ? StatelessBalancingWeightsFactory.INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING.getKey()
+                : StatelessBalancingWeightsFactory.SERVERLESS_INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING.getKey());
         updateClusterSettings(
             Settings.builder()
                 .put(setting, 0.0)
@@ -128,8 +135,12 @@ public class StatelessBalancingWeightsFactoryIT extends AbstractStatelessPluginI
         final boolean loosenSearchTier = randomBoolean();
 
         final String setting = loosenSearchTier
-            ? StatelessBalancingWeightsFactory.SEARCH_TIER_BALANCING_THRESHOLD_SETTING.getKey()
-            : StatelessBalancingWeightsFactory.INDEXING_TIER_BALANCING_THRESHOLD_SETTING.getKey();
+            ? (randomBoolean()
+                ? StatelessBalancingWeightsFactory.SEARCH_TIER_BALANCING_THRESHOLD_SETTING.getKey()
+                : StatelessBalancingWeightsFactory.SERVERLESS_SEARCH_TIER_BALANCING_THRESHOLD_SETTING.getKey())
+            : (randomBoolean()
+                ? StatelessBalancingWeightsFactory.INDEXING_TIER_BALANCING_THRESHOLD_SETTING.getKey()
+                : StatelessBalancingWeightsFactory.SERVERLESS_INDEXING_TIER_BALANCING_THRESHOLD_SETTING.getKey());
         updateClusterSettings(
             Settings.builder()
                 .put(setting, 100.0)

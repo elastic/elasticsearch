@@ -1300,6 +1300,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
             // PromQL expression supplied as a query parameter, e.g. value=(?query)
             QueryParam param = paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_PARAM());
+            if (param == null) {
+                throw new ParsingException(source, "No value found for parameter [{}]", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
+            }
             if (param.value() instanceof String s == false) {
                 throw new ParsingException(
                     source,

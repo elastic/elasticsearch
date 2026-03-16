@@ -74,7 +74,8 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent implement
         this.objectStoreService = objectStoreService;
     }
 
-    void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
+    // protected for testing
+    protected void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
         commitsBeingProcessed.computeIfAbsent(staleCompoundCommit.shardId(), k -> ConcurrentCollections.newConcurrentSet())
             .add(staleCompoundCommit);
         pendingCommitsToDelete.add(staleCompoundCommit);

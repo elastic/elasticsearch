@@ -277,7 +277,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     @Override
     public Task createTask(TaskId taskId, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        var status = new EsqlQueryStatus(new AsyncExecutionId(UUIDs.randomBase64UUID(), taskId));
+        var status = new EsqlQueryStatus(new AsyncExecutionId(UUIDs.randomBase64UUID(), taskId), keepAlive);
         return new EsqlQueryRequestTask(query, taskId.getId(), type, action, parentTaskId, headers, status);
     }
 

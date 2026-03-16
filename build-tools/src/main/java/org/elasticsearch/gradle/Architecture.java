@@ -9,6 +9,8 @@
 
 package org.elasticsearch.gradle;
 
+import java.util.Optional;
+
 public enum Architecture {
 
     X64("x86_64", "linux/amd64", "amd64", "x64"),
@@ -33,6 +35,25 @@ public enum Architecture {
             case "aarch64" -> AARCH64;
             default -> throw new IllegalArgumentException("can not determine architecture from [" + architecture + "]");
         };
+    }
+
+    /**
+     * Returns the architecture that matches the given Docker platform string (e.g. "linux/amd64").
+     *
+     * @param platform the Docker platform string from e.g. {@code docker buildx inspect}
+     * @return the matching architecture, or empty if unknown
+     */
+    public static Optional<Architecture> fromDockerPlatform(String platform) {
+        if (platform == null || platform.isBlank()) {
+            return Optional.empty();
+        }
+        String trimmed = platform.trim();
+        for (Architecture a : values()) {
+            if (a.dockerPlatform.equals(trimmed)) {
+                return Optional.of(a);
+            }
+        }
+        return Optional.empty();
     }
 
 }

@@ -455,7 +455,6 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/80160")
     public void testExcludeWildCardFields() throws IOException {
         Builder sample = builder -> builder.startObject()
             .startObject("include")

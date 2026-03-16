@@ -82,22 +82,9 @@ public class SpatialCentroidTests extends SpatialAggregationTestCase {
             var fieldTypedData = fieldSupplier.get();
             var values = fieldTypedData.multiRowData();
 
-            double[] expected = switch (fieldSupplier.type()) {
-                case GEO_SHAPE, CARTESIAN_SHAPE -> {
-                    // Shape aggregator quantizes per-document centroids through the CoordinateEncoder
-                    var encoder = DataType.isSpatialGeo(fieldSupplier.type()) ? CoordinateEncoder.GEO : CoordinateEncoder.CARTESIAN;
-                    yield computeQuantizedShapeCentroid(values, encoder);
-                }
-                default -> {
-                    var calculator = new CentroidCalculator();
-                    for (var value : values) {
-                        var wkb = (BytesRef) value;
-                        Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
-                        calculator.add(geometry);
-                    }
-                    yield new double[] { calculator.getX(), calculator.getY() };
-                }
-            };
+            // All spatial centroid aggregators quantize per-document centroids through the CoordinateEncoder
+            var encoder = DataType.isSpatialGeo(fieldSupplier.type()) ? CoordinateEncoder.GEO : CoordinateEncoder.CARTESIAN;
+            double[] expected = computeQuantizedCentroid(values, encoder);
 
             // The result type is always a point (geo_point or cartesian_point) based on the input type family
             DataType expectedType = DataType.isSpatialGeo(fieldTypedData.type()) ? DataType.GEO_POINT : DataType.CARTESIAN_POINT;
@@ -122,8 +109,9 @@ public class SpatialCentroidTests extends SpatialAggregationTestCase {
     /**
      * Computes the expected centroid by quantizing per-document centroids, matching the aggregator behavior.
      * Each document's centroid is encoded/decoded through the CoordinateEncoder before aggregation.
+     * Works for both point and shape types since CentroidCalculator handles all geometry types.
      */
-    private static double[] computeQuantizedShapeCentroid(List<Object> values, CoordinateEncoder encoder) {
+    private static double[] computeQuantizedCentroid(List<Object> values, CoordinateEncoder encoder) {
         CompensatedSum xSum = new CompensatedSum(0, 0);
         CompensatedSum ySum = new CompensatedSum(0, 0);
         double totalWeight = 0;

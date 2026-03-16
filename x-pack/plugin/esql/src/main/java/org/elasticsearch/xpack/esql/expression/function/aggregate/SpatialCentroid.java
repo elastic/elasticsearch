@@ -114,28 +114,24 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
     @Override
     public AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
+        var encoder = DataType.isSpatialGeo(type) ? CoordinateEncoder.GEO : CoordinateEncoder.CARTESIAN;
         return switch (type) {
             case DataType.GEO_POINT -> switch (fieldExtractPreference) {
-                case DOC_VALUES -> new SpatialCentroidGeoPointDocValuesAggregatorFunctionSupplier();
-                default -> new SpatialCentroidPointSourceValuesAggregatorFunctionSupplier();
+                case DOC_VALUES -> new SpatialCentroidGeoPointDocValuesAggregatorFunctionSupplier(encoder);
+                default -> new SpatialCentroidPointSourceValuesAggregatorFunctionSupplier(encoder);
             };
             case DataType.CARTESIAN_POINT -> switch (fieldExtractPreference) {
-                case DOC_VALUES -> new SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier();
-                default -> new SpatialCentroidPointSourceValuesAggregatorFunctionSupplier();
+                case DOC_VALUES -> new SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier(encoder);
+                default -> new SpatialCentroidPointSourceValuesAggregatorFunctionSupplier(encoder);
             };
-            case DataType.GEO_SHAPE, DataType.CARTESIAN_SHAPE -> {
-                var encoder = DataType.isSpatialGeo(type) ? CoordinateEncoder.GEO : CoordinateEncoder.CARTESIAN;
-                yield switch (fieldExtractPreference) {
-                    case EXTRACT_SPATIAL_CENTROID -> new SpatialCentroidShapeDocValuesAggregatorFunctionSupplier(encoder);
-                    case EXTRACT_SPATIAL_BOUNDS_AND_CENTROID -> new SpatialCentroidShapeCombinedDocValuesAggregatorFunctionSupplier(
-                        encoder
-                    );
-                    case NONE, STORED -> new SpatialCentroidShapeSourceValuesAggregatorFunctionSupplier(encoder);
-                    case DOC_VALUES, EXTRACT_SPATIAL_BOUNDS -> throw new EsqlIllegalArgumentException(
-                        "Unsupported field extraction preference [" + fieldExtractPreference + "] for shape type [" + type + "]"
-                    );
-                };
-            }
+            case DataType.GEO_SHAPE, DataType.CARTESIAN_SHAPE -> switch (fieldExtractPreference) {
+                case EXTRACT_SPATIAL_CENTROID -> new SpatialCentroidShapeDocValuesAggregatorFunctionSupplier(encoder);
+                case EXTRACT_SPATIAL_BOUNDS_AND_CENTROID -> new SpatialCentroidShapeCombinedDocValuesAggregatorFunctionSupplier(encoder);
+                case NONE, STORED -> new SpatialCentroidShapeSourceValuesAggregatorFunctionSupplier(encoder);
+                case DOC_VALUES, EXTRACT_SPATIAL_BOUNDS -> throw new EsqlIllegalArgumentException(
+                    "Unsupported field extraction preference [" + fieldExtractPreference + "] for shape type [" + type + "]"
+                );
+            };
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

@@ -18,7 +18,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -80,7 +79,6 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -206,7 +204,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         final int numSnapshots = randomIntBetween(1, 4);
         final Collection<String> snapshotNames = createNSnapshots(repoName, numSnapshots);
-        final Collection<String> snapshotNamesToDelete = new ArrayList<>(snapshotNames);
 
         createIndexWithContent("index-slow");
 
@@ -217,12 +214,12 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         );
 
         final Collection<ListenableFuture<AcknowledgedResponse>> deleteFutures = new ArrayList<>();
-        while (snapshotNamesToDelete.isEmpty() == false) {
-            final Collection<String> toDelete = randomSubsetOf(snapshotNamesToDelete);
+        while (snapshotNames.isEmpty() == false) {
+            final Collection<String> toDelete = randomSubsetOf(snapshotNames);
             if (toDelete.isEmpty()) {
                 continue;
             }
-            snapshotNamesToDelete.removeAll(toDelete);
+            snapshotNames.removeAll(toDelete);
             final ListenableFuture<AcknowledgedResponse> future = new ListenableFuture<>();
             clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, toDelete.toArray(Strings.EMPTY_ARRAY)).execute(future);
             deleteFutures.add(future);
@@ -233,22 +230,12 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final long repoGenAfterInitialSnapshots = getRepositoryData(repoName).getGenId();
         assertThat(repoGenAfterInitialSnapshots, is(numSnapshots - 1L));
 
-        // wait for snapshot deletions to batch, before unblocking the snapshot
-        assertBusy(() -> {
-            SnapshotDeletionsInProgress snapshotDeletionsInProgress = SnapshotDeletionsInProgress.get(
-                clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).get().getState()
-            );
-            for (var inProgressSnapshotDeletion : snapshotDeletionsInProgress.getEntries()) {
-                if (repoName.equals(inProgressSnapshotDeletion.repoName())) {
-                    assertThat(inProgressSnapshotDeletion.snapshots().size(), is(snapshotNames.size()));
-                    for (var snapshotId : inProgressSnapshotDeletion.snapshots()) {
-                        assertThat(snapshotNames, hasItem(snapshotId.getName()));
-                    }
-                    return;
-                }
-            }
-            fail("Expected snapshot deletions in progress, not found");
-        });
+        // wait for snapshot deletions to batch up, before unblocking the snapshot holding them up
+        safeAwait(
+            ClusterServiceUtils.addTemporaryStateListener(
+                cs -> SnapshotDeletionsInProgress.get(cs).getEntries().getFirst().snapshots().size() == numSnapshots
+            )
+        );
         unblockNode(repoName, dataNode);
 
         final SnapshotInfo slowSnapshotInfo = assertSuccessful(createSlowFuture);

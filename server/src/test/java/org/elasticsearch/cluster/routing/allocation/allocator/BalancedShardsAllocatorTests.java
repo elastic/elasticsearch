@@ -813,12 +813,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             .shardSizes(Map.of(shardIdentifierFromRouting(new ShardId(index.getIndex(), 0), true), ByteSizeValue.ofGb(8).getBytes()))
             .build();
         allocator.allocate(
-            TestRoutingAllocationFactory.forClusterState(clusterState)
-                .allocationDeciders(new AllocationDeciders(List.of()))
-                .clusterInfo(clusterInfo)
-                .currentNanoTime(0L)
-                .mutable()
-                .mutableCloneForSimulation()
+            TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).mutable().mutableCloneForSimulation()
         );
 
         final var modelNodes = modelNodesRef.get();
@@ -1081,20 +1076,17 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT)
         );
 
-        final var allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
-            .allocationDeciders(new AllocationDeciders(List.<AllocationDecider>of(new AllocationDecider() {
-                @Override
-                public Decision canRemain(
-                    IndexMetadata indexMetadata,
-                    ShardRouting shardRouting,
-                    RoutingNode node,
-                    RoutingAllocation allocation
-                ) {
-                    return allocation.decision(Decision.NOT_PREFERRED, "test_decider", "Always NOT_PREFERRED");
-                }
-            })))
-            .currentNanoTime(0L)
-            .mutable();
+        final var allocation = TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(new AllocationDecider() {
+            @Override
+            public Decision canRemain(
+                IndexMetadata indexMetadata,
+                ShardRouting shardRouting,
+                RoutingNode node,
+                RoutingAllocation allocation
+            ) {
+                return allocation.decision(Decision.NOT_PREFERRED, "test_decider", "Always NOT_PREFERRED");
+            }
+        }).mutable();
 
         final var notPreferredLoggerName = BalancedShardsAllocator.class.getName() + ".not_preferred";
         MockLog.assertThatLogger(
@@ -1315,8 +1307,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             .build();
 
         MutableRoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
-            .allocationDeciders(new AllocationDeciders(List.of(notPreferredDecider)))
-            .currentNanoTime(randomNonNegativeLong())
+            .allocationDeciders(notPreferredDecider)
             .mutable();
 
         // This would throw an assertion error when the bug was present

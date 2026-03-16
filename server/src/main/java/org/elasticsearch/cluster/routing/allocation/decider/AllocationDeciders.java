@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Optional;
 import java.util.Set;
@@ -41,6 +42,10 @@ public class AllocationDeciders {
     );
 
     private final AllocationDecider[] deciders;
+
+    public AllocationDeciders(AllocationDecider... deciders) {
+        this.deciders = Arrays.copyOf(deciders, deciders.length);
+    }
 
     public AllocationDeciders(Collection<? extends AllocationDecider> deciders) {
         this.deciders = deciders.toArray(AllocationDecider[]::new);

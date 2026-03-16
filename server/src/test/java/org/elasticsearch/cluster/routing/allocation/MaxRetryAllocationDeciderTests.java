@@ -336,7 +336,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     private RoutingAllocation newRoutingAllocation(ClusterState clusterState) {
-        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).currentNanoTime(0).build();
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).build();
         if (randomBoolean()) {
             routingAllocation.setDebugMode(randomFrom(RoutingAllocation.DebugMode.values()));
         }

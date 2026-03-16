@@ -191,10 +191,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
                 return decision;
             })).toList());
 
-            RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
-                .allocationDeciders(deciders)
-                .currentNanoTime(0L)
-                .build();
+            RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(deciders).build();
             allocation.setDebugMode(debugMode);
 
             var decision = operation.apply(allocation, deciders);
@@ -273,7 +270,6 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
     private static RoutingAllocation createRoutingAllocation(AllocationDeciders deciders) {
         return TestRoutingAllocationFactory.forClusterState(ClusterState.builder(new ClusterName("test")).build())
             .allocationDeciders(deciders)
-            .currentNanoTime(0L)
             .build();
     }
 

@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -118,7 +117,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
 
             balancingWeightsFactory.returnInvalidWeightsForRandomNodes(clusterState);
             final var allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
-                .allocationDeciders(new AllocationDeciders(List.of(allocationDecider)))
+                .allocationDeciders(allocationDecider)
                 .mutable();
             assertInvalidWeightsMessageIsLogged(() -> allocator.allocate(allocation));
             // A shard on the nominated node should have been moved (we stop after 1 move by default)

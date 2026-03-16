@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
-import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -108,7 +107,6 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
         // Set up RoutingAllocation in non-simulation mode.
         var routingAllocation = TestRoutingAllocationFactory.forClusterState(harness.clusterState)
             .routingNodes(harness.mutableRoutingNodes)
-            .clusterInfo(ClusterInfo.builder().build())
             .mutable();
 
         Settings settings = Settings.builder()
@@ -177,7 +175,6 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
         // Set up RoutingAllocation in simulation mode.
         var routingAllocation = TestRoutingAllocationFactory.forClusterState(harness.clusterState)
             .routingNodes(mutableRoutingNodes)
-            .clusterInfo(ClusterInfo.builder().build())
             .mutable()
             .mutableCloneForSimulation();
 

@@ -16,8 +16,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
-import java.util.Arrays;
-
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 
 public class TestRoutingAllocationFactory {
@@ -47,7 +45,7 @@ public class TestRoutingAllocationFactory {
         }
 
         public Builder allocationDeciders(AllocationDecider... allocationDeciders) {
-            this.allocationDeciders = new AllocationDeciders(Arrays.asList(allocationDeciders));
+            this.allocationDeciders = new AllocationDeciders(allocationDeciders);
             return this;
         }
 
@@ -76,6 +74,7 @@ public class TestRoutingAllocationFactory {
         }
 
         public RoutingAllocation immutable() {
+            assert routingNodes == null : "Attempted to specify RoutingNodes for an immutable RoutingAllocation";
             return new ImmutableRoutingAllocation(allocationDeciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
         }
 

@@ -97,10 +97,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         assertNull(routingTable.index("idx").shard(0).shard(0).currentNodeId());
 
         // after failing the shard we are unassigned since the node is blacklisted and we can't initialize on the other node
-        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(state)
-            .allocationDeciders(allocationDeciders)
-            .currentNanoTime(0)
-            .build();
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(state).allocationDeciders(allocationDeciders).build();
         allocation.debugDecision(true);
         Decision.Single decision = (Decision.Single) filterAllocationDecider.canAllocate(
             routingTable.index("idx").shard(0).primaryShard(),
@@ -166,7 +163,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         assertEquals(routingTable.index("idx").shard(0).primaryShard().state(), INITIALIZING);
         assertEquals(routingTable.index("idx").shard(0).primaryShard().currentNodeId(), "node1");
 
-        allocation = TestRoutingAllocationFactory.forClusterState(state).allocationDeciders(allocationDeciders).currentNanoTime(0).build();
+        allocation = TestRoutingAllocationFactory.forClusterState(state).allocationDeciders(allocationDeciders).build();
         allocation.debugDecision(true);
         decision = (Decision.Single) filterAllocationDecider.canAllocate(
             routingTable.index("idx").shard(0).shard(0),
@@ -321,10 +318,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
 
         var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         var decider = new FilterAllocationDecider(Settings.EMPTY, clusterSettings);
-        var allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
-            .allocationDeciders(new AllocationDeciders(List.of(decider)))
-            .currentNanoTime(0)
-            .build();
+        var allocation = TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(decider).build();
 
         var localRecoveryShard = ShardRouting.newUnassigned(
             new ShardId(index.getIndex(), 0),
@@ -403,7 +397,6 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         AllocationDeciders allocationDeciders = new AllocationDeciders(List.of(decider));
         RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
             .allocationDeciders(allocationDeciders)
-            .currentNanoTime(0)
             .build();
 
         // project 1, index-a: no special configuration, relies on cluster wide filtering

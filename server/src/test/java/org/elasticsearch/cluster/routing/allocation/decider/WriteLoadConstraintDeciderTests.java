@@ -360,7 +360,6 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         final var routingAllocation = TestRoutingAllocationFactory.forClusterState(state)
             .allocationDeciders(new AllocationDeciders(List.of(writeLoadConstraintDecider)))
             .clusterInfo(clusterInfo)
-            .currentNanoTime(randomLong())
             .mutable();
 
         // This should move a shard in an attempt to resolve the hot-spot
@@ -387,7 +386,6 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                 .routingNodes(routingAllocation.routingNodes())
                 .clusterInfo(simulatedClusterInfo)
                 .shardSizeInfo(routingAllocation.snapshotShardSizeInfo())
-                .currentNanoTime(randomLong())
                 .mutable()
         );
         assertEquals(1, routingAllocation.routingNodes().node(overloadedNode.getId()).numberOfOwningShards());
@@ -453,7 +451,6 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         final var routingAllocation = TestRoutingAllocationFactory.forClusterState(state)
             .allocationDeciders(new AllocationDeciders(List.of(writeLoadConstraintDecider)))
             .clusterInfo(clusterInfo)
-            .currentNanoTime(randomLong())
             .mutable();
         routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
 
@@ -611,7 +608,6 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         var routingAllocation = TestRoutingAllocationFactory.forClusterState(state)
             .allocationDeciders(new AllocationDeciders(List.of(decider)))
             .clusterInfo(clusterInfo)
-            .currentNanoTime(randomLong())
             .mutable();
         routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
         return routingAllocation;

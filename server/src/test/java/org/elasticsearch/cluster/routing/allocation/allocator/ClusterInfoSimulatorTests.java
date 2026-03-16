@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -46,7 +45,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -695,10 +693,9 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         AllocationDecider... deciders
     ) {
         return TestRoutingAllocationFactory.forClusterState(state)
-            .allocationDeciders(new AllocationDeciders(List.of(deciders)))
+            .allocationDeciders(deciders)
             .clusterInfo(clusterInfo)
             .shardSizeInfo(snapshotShardSizeInfo)
-            .currentNanoTime(0)
             .build();
     }
 

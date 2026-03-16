@@ -182,11 +182,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo snapshotShardSizeInfo
     ) {
-        return TestRoutingAllocationFactory.forClusterState(state)
-            .clusterInfo(clusterInfo)
-            .shardSizeInfo(snapshotShardSizeInfo)
-            .currentNanoTime(0)
-            .build();
+        return TestRoutingAllocationFactory.forClusterState(state).clusterInfo(clusterInfo).shardSizeInfo(snapshotShardSizeInfo).build();
     }
 
     private static IndexMetadata.Builder index(String name) {

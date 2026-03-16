@@ -239,10 +239,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     private RoutingAllocation createRoutingAllocation(ClusterState state) {
-        var allocation = TestRoutingAllocationFactory.forClusterState(state)
-            .allocationDeciders(allocationDeciders)
-            .currentNanoTime(0)
-            .build();
+        var allocation = TestRoutingAllocationFactory.forClusterState(state).allocationDeciders(allocationDeciders).build();
         allocation.debugDecision(true);
         return allocation;
     }

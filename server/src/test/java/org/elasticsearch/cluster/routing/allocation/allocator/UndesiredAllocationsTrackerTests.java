@@ -223,7 +223,6 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
         };
         final var allocation = TestRoutingAllocationFactory.forClusterState(state)
             .allocationDeciders(new AllocationDeciders(List.of(alwaysSaysNo, alwaysSaysYes)))
-            .currentNanoTime(randomNonNegativeLong())
             .build();
         final var currentNodeId = shardRouting.currentNodeId();
         final var otherNodeId = state.nodes().getNodes().keySet().stream().filter(n -> n.equals(currentNodeId) == false).findFirst().get();
@@ -367,13 +366,12 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
             clusterStateWithRoutingsAdded.nodes()
         );
         final var allocation = TestRoutingAllocationFactory.forClusterState(clusterStateWithRoutingsAdded)
-            .allocationDeciders(new AllocationDeciders(List.<AllocationDecider>of(new AllocationDecider() {
+            .allocationDeciders(new AllocationDecider() {
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                     return allocation.decision(Decision.NO, "test_no_decider", "role: " + shardRouting.role());
                 }
-            })))
-            .currentNanoTime(randomNonNegativeLong())
+            })
             .build();
 
         final int maxShardsToTrack = randomIntBetween(2, 8);

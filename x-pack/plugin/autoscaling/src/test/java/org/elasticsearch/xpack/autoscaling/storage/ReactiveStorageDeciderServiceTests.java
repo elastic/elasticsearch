@@ -673,7 +673,6 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
             .allocationDeciders(allocationDeciders)
-            .currentNanoTime(randomLong())
             .build();
         return allocationState.canRemainOnlyHighestTierPreference(shardRouting, allocation);
     }
@@ -782,7 +781,6 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
             .allocationDeciders(allocationDeciders)
-            .currentNanoTime(randomLong())
             .build();
 
         assertThat(allocationState.needsThisTier(shardRouting, allocation), is(expected));

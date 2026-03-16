@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
@@ -35,7 +34,6 @@ import org.elasticsearch.index.IndexVersion;
 
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.numberOfShardsWithState;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -188,8 +186,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                 .orElseThrow(AssertionError::new);
 
             final RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState)
-                .allocationDeciders(new AllocationDeciders(singletonList(decider)))
-                .currentNanoTime(0L)
+                .allocationDeciders(decider)
                 .build();
             routingAllocation.debugDecision(true);
 

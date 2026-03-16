@@ -53,7 +53,7 @@ public class NdJsonSchemaInferrer {
     // is a date)
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
 
-    private static final Logger logger = LogManager.getLogger(NdJsonSchemaInferrer.class);
+    private static final Logger log = LogManager.getLogger(NdJsonSchemaInferrer.class);
 
     private static final EnumSet<DataType> NUMBER_TYPES = EnumSet.of(DataType.DOUBLE, DataType.LONG, DataType.INTEGER);
 
@@ -81,7 +81,7 @@ public class NdJsonSchemaInferrer {
                         break; // End of stream
                     }
                 } catch (JsonParseException e) {
-                    logger.warn("Malformed NDJSON at line {}: {}", lineCount, e);
+                    log.warn("Malformed NDJSON at line {}: {}", lineCount, e);
                     inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
                     continue;
@@ -91,7 +91,7 @@ public class NdJsonSchemaInferrer {
                     inferObjectSchema(parser, root);
                     lineCount++;
                 } catch (JsonParseException e) {
-                    logger.warn("Malformed NDJSON at line {}: {}", lineCount, e);
+                    log.warn("Malformed NDJSON at line {}: {}", lineCount, e);
                     inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
                 }
@@ -149,11 +149,23 @@ public class NdJsonSchemaInferrer {
                 }
             }
             case VALUE_NUMBER_INT -> {
-                long value = parser.getLongValue();
-                if (value >= Integer.MIN_VALUE && value <= Integer.MAX_VALUE) {
-                    field.addType(DataType.INTEGER);
-                } else {
-                    field.addType(DataType.LONG);
+                switch (parser.getNumberType()) {
+                    case INT:
+                        field.addType(DataType.INTEGER);
+                        return;
+                    case LONG:
+                        field.addType(DataType.LONG);
+                        return;
+                    case BIG_INTEGER: {
+                        field.addType(DataType.DOUBLE);
+                        var location = parser.getTokenLocation();
+                        log.warn(
+                            "Big integers are not supported, falling back to double [{}, line: {}, column: {}]",
+                            parser.getText(),
+                            location.getLineNr(),
+                            location.getColumnNr()
+                        );
+                    }
                 }
             } // conservative size
             case VALUE_NUMBER_FLOAT -> field.addType(DataType.DOUBLE); // conservative size

@@ -396,6 +396,55 @@ public class NdJsonPageIteratorTests extends ESTestCase {
                 """);
         }
     }
+
+    public void testBigInteger() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        String ndjson = """
+            {"id": 1, "big": 18446744073709551615}
+            {"id": 2, "big": 42}
+            """;
+
+        var reader = new NdJsonFormatReader(blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        try (var iterator = reader.read(object, List.of("id", "big"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertPage(page, """
+                      INT      |       DOUBLE       \s
+                ---------------+---------------------
+                1              |1.8446744073709552E19
+                2              |42.0                \s
+                """);
+        }
+    }
+
+    public void testBigDecimal() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        // Extra large numeric values convert to Infinity
+        // DOUBLE.MAX_VALUE is 1.7976931348623157e+308
+        String ndjson = """
+            {"id": 1, "big": 1.23e+400}
+            {"id": 2, "big": 42}
+            """;
+
+        var reader = new NdJsonFormatReader(blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        try (var iterator = reader.read(object, List.of("id", "big"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertPage(page, """
+                      INT      |    DOUBLE    \s
+                ---------------+---------------
+                1              |Infinity      \s
+                2              |42.0          \s
+                """);
+        }
+    }
+
     // --- findNextRecordBoundary tests ---
 
     public void testFindNextRecordBoundaryNewline() throws IOException {

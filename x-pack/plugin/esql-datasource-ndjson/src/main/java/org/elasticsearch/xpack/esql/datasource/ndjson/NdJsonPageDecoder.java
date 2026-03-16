@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.core.exc.InputCoercionException;
 import com.fasterxml.jackson.core.io.JsonEOFException;
 
 import org.apache.lucene.util.BytesRef;
@@ -40,7 +41,7 @@ import java.util.Map;
 
 public class NdJsonPageDecoder implements Closeable {
 
-    private static final Logger LOGGER = LogManager.getLogger(NdJsonPageDecoder.class);
+    private static final Logger log = LogManager.getLogger(NdJsonPageDecoder.class);
 
     private InputStream input;
     private final BlockDecoder decoder;
@@ -98,9 +99,9 @@ public class NdJsonPageDecoder implements Closeable {
                     }
                 } catch (JsonParseException e) {
                     if (e instanceof JsonEOFException) {
-                        LOGGER.debug("Truncated NDJSON at line {} (expected at split boundaries): {}", lineCount, e.getOriginalMessage());
+                        log.debug("Truncated NDJSON at line {} (expected at split boundaries): {}", lineCount, e.getOriginalMessage());
                     } else {
-                        LOGGER.warn("Malformed NDJSON at line {}: {}", lineCount, e.getOriginalMessage());
+                        log.warn("Malformed NDJSON at line {}: {}", lineCount, e.getOriginalMessage());
                     }
                     this.input = NdJsonUtils.moveToNextLine(parser, this.input);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(this.input);
@@ -114,9 +115,9 @@ public class NdJsonPageDecoder implements Closeable {
                     decoder.decodeObject(parser, false);
                 } catch (JsonParseException e) {
                     if (e instanceof JsonEOFException) {
-                        LOGGER.debug("Truncated NDJSON at line {} (expected at split boundaries): {}", lineCount, e.getOriginalMessage());
+                        log.debug("Truncated NDJSON at line {} (expected at split boundaries): {}", lineCount, e.getOriginalMessage());
                     } else {
-                        LOGGER.warn("Malformed NDJSON at line {}: {}", lineCount, e.getOriginalMessage());
+                        log.warn("Malformed NDJSON at line {}: {}", lineCount, e.getOriginalMessage());
                     }
                     this.input = NdJsonUtils.moveToNextLine(parser, this.input);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(this.input);
@@ -317,21 +318,33 @@ public class NdJsonPageDecoder implements Closeable {
                 }
                 case INTEGER -> {
                     if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {
-                        ((IntBlock.Builder) blockBuilder).appendInt(parser.getIntValue());
+                        try {
+                            ((IntBlock.Builder) blockBuilder).appendInt(parser.getIntValue());
+                        } catch (InputCoercionException e) {
+                            unexpectedValue(blockBuilder, parser, inArray);
+                        }
                     } else {
                         unexpectedValue(blockBuilder, parser, inArray);
                     }
                 }
                 case LONG -> {
                     if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {
-                        ((LongBlock.Builder) blockBuilder).appendLong(parser.getLongValue());
+                        try {
+                            ((LongBlock.Builder) blockBuilder).appendLong(parser.getLongValue());
+                        } catch (InputCoercionException e) {
+                            unexpectedValue(blockBuilder, parser, inArray);
+                        }
                     } else {
                         unexpectedValue(blockBuilder, parser, inArray);
                     }
                 }
                 case DOUBLE -> {
                     if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {
-                        ((DoubleBlock.Builder) blockBuilder).appendDouble(parser.getDoubleValue());
+                        try {
+                            ((DoubleBlock.Builder) blockBuilder).appendDouble(parser.getDoubleValue());
+                        } catch (InputCoercionException e) {
+                            unexpectedValue(blockBuilder, parser, inArray);
+                        }
                     } else {
                         unexpectedValue(blockBuilder, parser, inArray);
                     }
@@ -364,7 +377,7 @@ public class NdJsonPageDecoder implements Closeable {
                 builder.appendNull();
             }
 
-            LOGGER.warn("Unexpected token type: {} for attribute: {} at {}", parser.currentToken(), name, parser.getTokenLocation());
+            log.warn("Unexpected token type: {} for attribute: {} at {}", parser.currentToken(), name, parser.getTokenLocation());
             // Ignore any children to keep reading other values
             parser.skipChildren();
         }

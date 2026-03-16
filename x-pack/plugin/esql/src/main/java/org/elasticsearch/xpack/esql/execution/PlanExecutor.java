@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
@@ -45,6 +46,7 @@ import static org.elasticsearch.action.ActionListener.wrap;
 public class PlanExecutor {
 
     private final IndexResolver indexResolver;
+    private final EsqlParser parser;
     private final PreAnalyzer preAnalyzer;
     private final EsqlFunctionRegistry functionRegistry;
     private final Mapper mapper;
@@ -61,11 +63,14 @@ public class PlanExecutor {
         EsqlQueryLog queryLog,
         List<BiConsumer<LogicalPlan, Failures>> extraCheckers,
         CrossProjectModeDecider crossProjectModeDecider,
-        DataSourceModule dataSourceModule
+        DataSourceModule dataSourceModule,
+        EsqlFunctionRegistry functionRegistry,
+        EsqlParser parser
     ) {
         this.indexResolver = indexResolver;
+        this.parser = parser;
         this.preAnalyzer = new PreAnalyzer();
-        this.functionRegistry = new EsqlFunctionRegistry();
+        this.functionRegistry = functionRegistry;
         this.mapper = new Mapper();
         this.metrics = new Metrics(functionRegistry, crossProjectModeDecider.crossProjectEnabled());
         this.verifier = new Verifier(metrics, licenseState, extraCheckers);
@@ -102,6 +107,7 @@ public class PlanExecutor {
             enrichPolicyResolver,
             viewResolver,
             externalSourceResolver,
+            parser,
             preAnalyzer,
             functionRegistry,
             mapper,

@@ -27,6 +27,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_RESULT_COUNT;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_SHARDS;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
@@ -100,6 +101,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
                 assertTrue("Expected profile field present: " + tookKey, message.containsKey(tookKey));
             }
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(hits)));
+            assertThat(message.get(QUERY_FIELD_INDICES), equalTo("index-*"));
         }
     }
 
@@ -153,6 +155,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThanOrEqualTo(1));
         assertThat(Integer.valueOf(message.getOrDefault(QUERY_FIELD_SHARDS + "skipped", "0")), equalTo(0));
         assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "failed")), greaterThanOrEqualTo(1));
+        assertThat(message.get(QUERY_FIELD_INDICES), equalTo("esql_partial_test"));
     }
 
 }

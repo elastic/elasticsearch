@@ -13,6 +13,7 @@ readonly PIPELINE_FILE="${PIPELINE_FILE:-/tmp/${JOB_NAME}-pipeline.yml}"
 readonly REPO="${BENCH_REPO:-elastic/grafana-dashboards-analysis}"
 readonly REPO_DIR="${REPO_DIR:-/tmp/${JOB_NAME}-repo}"
 readonly INPUT_SUBDIR="${INPUT_SUBDIR:-results}"
+readonly INPUT_GLOB="${INPUT_GLOB:-*_raw_queries_simple.csv}"
 
 readonly GRADLE_TASK="${GRADLE_TASK:-:x-pack:plugin:esql:analyzePromqlQueries}"
 
@@ -69,9 +70,12 @@ find_input_files() {
 
   [[ -d "${root}" ]] || die "input directory does not exist: ${root}"
 
-  mapfile -d '' -t INPUT_FILES < <(find "${root}" -type f -name '*.csv' -print0 | sort -z)
+  # The analyzer expects one query per line in the form "<dashboardId>;<query>".
+  # The dashboards-analysis repo exports that shape as *_raw_queries_simple.csv;
+  # the other CSVs are summaries and spreadsheet-oriented reports.
+  mapfile -d '' -t INPUT_FILES < <(find "${root}" -type f -name "${INPUT_GLOB}" -print0 | sort -z)
 
-  (( ${#INPUT_FILES[@]} > 0 )) || die "no CSV files found in ${root}"
+  (( ${#INPUT_FILES[@]} > 0 )) || die "no CSV files matching ${INPUT_GLOB} found in ${root}"
 
   log "found ${#INPUT_FILES[@]} input files"
 }

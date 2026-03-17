@@ -270,6 +270,9 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
 
         @Override
         protected GoogleCloudStorageService createStorageService(ClusterService clusterService, ProjectResolver projectResolver) {
+            // We generate the client ID here, otherwise it gets generated on each nodes' snapshot thread(s)
+            // and the chance of collision is greatly increased because of deterministic randomness
+            final String clientId = randomUUID();
             return new GoogleCloudStorageService(clusterService, projectResolver) {
                 @Override
                 StorageOptions createStorageOptions(
@@ -293,8 +296,6 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                              * Adding this header makes it easier for us to know how many times it's safe to fail
                              * a request without exceeding the configured max retries.
                              */
-                            private final String clientId = randomUUID();
-
                             @Override
                             public Map<String, String> getHeaders() {
                                 return Map.of(CLIENT_ID_HEADER, clientId);

@@ -1163,10 +1163,22 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 | LIMIT -1 BY languages
                 """)
         );
+    }
 
+    public void testLimitByExpressionForN() {
         expectThrows(ParsingException.class, containsString("mismatched input '*'"), () -> query("""
             FROM foo
             | LIMIT -1 * 42 BY languages
+            """));
+
+        expectThrows(ParsingException.class, containsString("mismatched input '*'"), () -> query("""
+            FROM foo
+            | LIMIT -1 * -42 BY languages
+            """));
+
+        expectThrows(ParsingException.class, containsString("mismatched input '+'"), () -> query("""
+            FROM foo
+            | LIMIT -1 + 5 BY languages
             """));
     }
 

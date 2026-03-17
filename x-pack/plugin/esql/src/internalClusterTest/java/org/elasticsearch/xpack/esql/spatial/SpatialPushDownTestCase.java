@@ -14,13 +14,19 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicense;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
+import org.hamcrest.TypeSafeMatcher;
 
+import java.io.IOException;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -30,6 +36,7 @@ import java.util.Locale;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.closeTo;
 
 /**
  * Base class to check that a query that can be pushed down gives the same result
@@ -265,6 +272,48 @@ public abstract class SpatialPushDownTestCase<T extends Geometry> extends ESInte
             return false;
         } else {
             return geometry.type() == ShapeType.LINESTRING || geometry.type() == ShapeType.MULTILINESTRING;
+        }
+    }
+
+    protected Matcher<CentroidCalculator> matchesCentroid(Object result) throws IOException, ParseException {
+        Point point = (Point) WellKnownText.fromWKT(GeometryValidator.NOOP, false, result.toString());
+        return matchesCentroid(point);
+    }
+
+    protected Matcher<CentroidCalculator> matchesCentroid(Point point) {
+        return new TestCentroidMatcher(point.getX(), point.getY());
+    }
+
+    protected static class TestCentroidMatcher extends TypeSafeMatcher<CentroidCalculator> {
+        private final Matcher<Double> xMatcher;
+        private final Matcher<Double> yMatcher;
+
+        protected TestCentroidMatcher(double x, double y) {
+            this.xMatcher = closeTo(x, 0.0000001);
+            this.yMatcher = closeTo(y, 0.0000001);
+        }
+
+        @Override
+        public boolean matchesSafely(CentroidCalculator actualCentroid) {
+            return xMatcher.matches(actualCentroid.getX()) && yMatcher.matches(actualCentroid.getY());
+        }
+
+        @Override
+        public void describeMismatchSafely(CentroidCalculator actualCentroid, Description description) {
+            describeSubMismatch(xMatcher, actualCentroid.getX(), "X value", description);
+            describeSubMismatch(yMatcher, actualCentroid.getY(), "Y value", description);
+        }
+
+        private void describeSubMismatch(Matcher<Double> matcher, double value, String name, Description description) {
+            if (matcher.matches(value) == false) {
+                description.appendText("\n\t" + name + " ");
+                matcher.describeMismatch(value, description);
+            }
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendText("Centroid (x:" + xMatcher + ", y:" + yMatcher + ")");
         }
     }
 }

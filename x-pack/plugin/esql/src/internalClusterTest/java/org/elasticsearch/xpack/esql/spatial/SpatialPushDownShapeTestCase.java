@@ -22,6 +22,7 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicense;
@@ -416,6 +417,128 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
             Object allIndexesExtent = responses.getResponse(ALL_INDEXES.length, 1);
             assertThat(prefix + expectedExtent + "] for all indexes", expectedExtent, matchesExtent(allIndexesExtent));
         }
+    }
+
+    public void testStatsCentroidOneShard() throws IOException, ParseException {
+        statsCentroidManyShards(1);
+    }
+
+    public void testStatsCentroidManyShards() throws IOException, ParseException {
+        statsCentroidManyShards(16);
+    }
+
+    /**
+     * Test ST_CENTROID_AGG on shapes. This verifies that results are the same with and without doc-values,
+     * testing the EXTRACT_SPATIAL_CENTROID optimization.
+     */
+    private void statsCentroidManyShards(int numShards) throws IOException, ParseException {
+        assumeTrue("Test for shapes only", fieldType().contains("shape"));
+        initIndexes(numShards);
+
+        ArrayList<CentroidTest> data = new ArrayList<>();
+        // Various shapes for centroid testing
+        data.add(new CentroidTest("POINT(5 5)", true, true));
+        data.add(new CentroidTest("POINT(-5 -5)", true, true));
+        data.add(new CentroidTest("LINESTRING(0 0, 10 0)", true, true));
+        data.add(new CentroidTest("LINESTRING(-5 -5, 5 5)", true, true));
+        data.add(new CentroidTest("POLYGON ((-5 -5, 5 -5, 5 5, -5 5, -5 -5))", true, true));
+        data.add(new CentroidTest("POLYGON ((0 0, 8 0, 8 8, 0 8, 0 0))", true, true));
+        // Shapes that intersect but are not within
+        data.add(new CentroidTest("LINESTRING(5 5, 15 15)", true, false));
+        data.add(new CentroidTest("POLYGON ((-15 -15, 15 -15, 15 15, -15 15, -15 -15))", true, false));
+        // Shapes outside the test polygon
+        data.add(new CentroidTest("POINT(20 20)", false, false));
+        data.add(new CentroidTest("LINESTRING(15 15, 25 25)", false, false));
+        data.add(new CentroidTest("POLYGON ((15 15, 25 15, 25 25, 15 25, 15 15))", false, false));
+        // Null data
+        data.add(new CentroidTest(null, false, false));
+        data.add(new CentroidTest(null, false, false));
+
+        int expectedIntersects = 0;
+        int expectedWithin = 0;
+        int expectedDisjoint = 0;
+        CentroidCalculator intersectsCentroid = new CentroidCalculator();
+        CentroidCalculator withinCentroid = new CentroidCalculator();
+        CentroidCalculator disjointCentroid = new CentroidCalculator();
+        CentroidCalculator totalCentroid = new CentroidCalculator();
+
+        for (int i = 0; i < data.size(); i++) {
+            CentroidTest test = data.get(i);
+            if (test.data == null) {
+                addEmptyToIndexes(i, "indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
+            } else {
+                addToIndexes(i, "\"" + test.data + "\"", "indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
+                Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, test.data);
+                totalCentroid.add(geometry);
+                if (test.intersects) {
+                    expectedIntersects++;
+                    intersectsCentroid.add(geometry);
+                } else {
+                    expectedDisjoint++;
+                    disjointCentroid.add(geometry);
+                }
+                if (test.within) {
+                    expectedWithin++;
+                    withinCentroid.add(geometry);
+                }
+            }
+        }
+        refresh("indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
+
+        for (String polygon : new String[] {
+            "POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))",
+            "POLYGON ((-10 -10, 10 -10, 10 10, -10 10, -10 -10))" }) {
+            assertCentroidFunction("ST_WITHIN", polygon, expectedWithin, withinCentroid, numShards);
+            assertCentroidFunction("ST_INTERSECTS", polygon, expectedIntersects, intersectsCentroid, numShards);
+            assertCentroidFunction("ST_DISJOINT", polygon, expectedDisjoint, disjointCentroid, numShards);
+            assertCentroidFunction(null, polygon, data.size(), totalCentroid, numShards);
+        }
+    }
+
+    private record CentroidTest(String data, boolean intersects, boolean within) {}
+
+    protected void assertCentroidFunction(
+        String spatialFunction,
+        String wkt,
+        long expected,
+        CentroidCalculator expectedCentroid,
+        int expectedShards
+    ) throws IOException, ParseException {
+        String prefix = spatialFunction == null ? "ALL[expected=" : spatialFunction + "[expected=";
+        String filter = spatialFunction == null
+            ? ""
+            : String.format(Locale.ROOT, " | WHERE %s(location, %s(\"%s\"))", spatialFunction, castingFunction(), wkt);
+        List<String> queries = getQueries("FROM indexed" + filter + " | STATS COUNT(*), ST_CENTROID_AGG(location)");
+        try (TestQueryResponseCollection responses = new TestQueryResponseCollection(queries)) {
+            for (int i = 0; i < ALL_INDEXES.length; i++) {
+                NumShards numShards = getNumShards(ALL_INDEXES[i]);
+                assertThat("Number of shards for " + ALL_INDEXES[i], numShards.numPrimaries, equalTo(expectedShards));
+                Object resultCount = responses.getResponse(i, 0);
+                Object resultCentroid = responses.getResponse(i, 1);
+                assertEquals(prefix + expected + "] for " + ALL_INDEXES[i], expected, resultCount);
+                if (expected > 0) {
+                    assertThat(
+                        prefix + centroidToString(expectedCentroid) + "] for " + ALL_INDEXES[i],
+                        expectedCentroid,
+                        matchesCentroid(resultCentroid)
+                    );
+                }
+            }
+            long allIndexesCount = (long) responses.getResponse(ALL_INDEXES.length, 0);
+            assertEquals(prefix + expected + "] for all indexes", expected * 4, allIndexesCount);
+            if (expected > 0) {
+                Object allIndexesCentroid = responses.getResponse(ALL_INDEXES.length, 1);
+                assertThat(
+                    prefix + centroidToString(expectedCentroid) + "] for all indexes",
+                    expectedCentroid,
+                    matchesCentroid(allIndexesCentroid)
+                );
+            }
+        }
+    }
+
+    private String centroidToString(CentroidCalculator centroid) {
+        return "Centroid (x:" + centroid.getX() + ", y:" + centroid.getY() + ")";
     }
 
     private record ExtentTest(String data, boolean intersects, boolean within, Rectangle extent) {

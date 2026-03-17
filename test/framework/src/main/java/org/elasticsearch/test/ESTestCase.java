@@ -336,8 +336,16 @@ public abstract class ESTestCase extends LuceneTestCase {
             @Override
             public void append(LogEvent event) {
                 if (Level.WARN.equals(event.getLevel())) {
+                    final String message = event.getMessage().getFormattedMessage();
+                    // gRPC's Netty transport can sometimes throw from an internal ChannelFutureListener during stream shutdown,
+                    // which Netty logs as a WARN on DefaultPromise:
+                    // "An exception was thrown by io.grpc.netty.NettyServerHandler$X.operationComplete()"
+                    // This is a known source of test flakiness for Arrow Flight based tests and is not actionable here.
+                    if (message.contains("An exception was thrown by io.grpc.netty.NettyServerHandler")) {
+                        return;
+                    }
                     synchronized (loggedLeaks) {
-                        loggedLeaks.add(event.getMessage().getFormattedMessage());
+                        loggedLeaks.add(message);
                     }
                 }
             }

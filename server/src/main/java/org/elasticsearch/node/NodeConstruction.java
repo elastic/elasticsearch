@@ -1368,6 +1368,7 @@ class NodeConstruction {
             b.bind(BigArrays.class).toInstance(bigArrays);
             b.bind(PageCacheRecycler.class).toInstance(pageCacheRecycler);
             b.bind(IngestService.class).toInstance(ingestService);
+            b.bind(UserAgentParserRegistry.class).toInstance(userAgentParserRegistry);
             b.bind(IndexingPressure.class).toInstance(indexingLimits);
             b.bind(IncrementalBulkService.class).toInstance(incrementalBulkService);
             b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());

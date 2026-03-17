@@ -19,53 +19,55 @@
 #include "vec_common.h"
 #include "aarch64/aarch64_vec_common.h"
 
-static inline int32_t doti4_inner(const int8_t* unpacked, const int8_t* packed, int32_t packed_len) {
+static inline int32_t doti4_inner(const int8_t* query, const int8_t* doc, int32_t packed_len) {
     const uint8x16_t mask_0f = vdupq_n_u8(0x0F);
 
-    // 4 accumulators to break dependency chains:
-    // hi0/hi1 for high-nibble products, lo0/lo1 for low-nibble products,
-    // each split across the low and high halves of the 128-bit vectors.
-    uint32x4_t acc_hi0 = vdupq_n_u32(0);
-    uint32x4_t acc_hi1 = vdupq_n_u32(0);
-    uint32x4_t acc_lo0 = vdupq_n_u32(0);
-    uint32x4_t acc_lo1 = vdupq_n_u32(0);
+    // 4 accumulators to break dependency chains, split across the low and high
+    // halves of each 128-bit vector for high-nibble and low-nibble products.
+    uint32x4_t acc_high0 = vdupq_n_u32(0);
+    uint32x4_t acc_high1 = vdupq_n_u32(0);
+    uint32x4_t acc_low0 = vdupq_n_u32(0);
+    uint32x4_t acc_low1 = vdupq_n_u32(0);
 
     constexpr int stride = sizeof(uint8x16_t);
     const int blk = packed_len & ~(stride - 1);
 
     for (int i = 0; i < blk; i += stride) {
-        uint8x16_t p = vld1q_u8((const uint8_t*)(packed + i));
-        uint8x16_t hi = vshrq_n_u8(p, 4);
-        uint8x16_t lo = vandq_u8(p, mask_0f);
+        uint8x16_t doc_bytes = vld1q_u8((const uint8_t*)(doc + i));
+        uint8x16_t doc_high = vshrq_n_u8(doc_bytes, 4);
+        uint8x16_t doc_low = vandq_u8(doc_bytes, mask_0f);
 
-        uint8x16_t u_hi = vld1q_u8((const uint8_t*)(unpacked + i));
-        uint8x16_t u_lo = vld1q_u8((const uint8_t*)(unpacked + i + packed_len));
+        uint8x16_t query_high = vld1q_u8((const uint8_t*)(query + i));
+        uint8x16_t query_low = vld1q_u8((const uint8_t*)(query + i + packed_len));
 
-        // vmull_u8 widens 8-bit -> 16-bit, vpadalq_u16 pairwise-adds 16-bit -> 32-bit
-        acc_hi0 = vpadalq_u16(acc_hi0, vmull_u8(vget_low_u8(hi), vget_low_u8(u_hi)));
-        acc_hi1 = vpadalq_u16(acc_hi1, vmull_u8(vget_high_u8(hi), vget_high_u8(u_hi)));
-        acc_lo0 = vpadalq_u16(acc_lo0, vmull_u8(vget_low_u8(lo), vget_low_u8(u_lo)));
-        acc_lo1 = vpadalq_u16(acc_lo1, vmull_u8(vget_high_u8(lo), vget_high_u8(u_lo)));
+        // Compute the dot product.
+        // vmull_u8 widens 8-bit -> 16-bit, vpadalq_u16 pairwise-adds 16-bit -> 32-bit;
+        // due to widening, we need to use vget_low/high_u8 to split the 128-bit register
+        // into its two 64-bit halves.
+        acc_high0 = vpadalq_u16(acc_high0, vmull_u8(vget_low_u8(doc_high), vget_low_u8(query_high)));
+        acc_high1 = vpadalq_u16(acc_high1, vmull_u8(vget_high_u8(doc_high), vget_high_u8(query_high)));
+        acc_low0 = vpadalq_u16(acc_low0, vmull_u8(vget_low_u8(doc_low), vget_low_u8(query_low)));
+        acc_low1 = vpadalq_u16(acc_low1, vmull_u8(vget_high_u8(doc_low), vget_high_u8(query_low)));
     }
 
-    int32_t total = (int32_t)vaddvq_u32(vaddq_u32(vaddq_u32(acc_hi0, acc_hi1), vaddq_u32(acc_lo0, acc_lo1)));
+    int32_t total = (int32_t)vaddvq_u32(vaddq_u32(vaddq_u32(acc_high0, acc_high1), vaddq_u32(acc_low0, acc_low1)));
 
     for (int i = blk; i < packed_len; i++) {
-        uint8_t p = (uint8_t)packed[i];
-        total += (p >> 4) * unpacked[i];
-        total += (p & 0x0F) * unpacked[i + packed_len];
+        uint8_t doc_byte = (uint8_t)doc[i];
+        total += (doc_byte >> 4) * query[i];
+        total += (doc_byte & 0x0F) * query[i + packed_len];
     }
     return total;
 }
 
-EXPORT int32_t vec_doti4(const int8_t* unpacked, const int8_t* packed, int32_t packed_len) {
-    return doti4_inner(unpacked, packed, packed_len);
+EXPORT int32_t vec_doti4(const int8_t* query, const int8_t* doc, int32_t packed_len) {
+    return doti4_inner(query, doc, packed_len);
 }
 
 template <int64_t(*mapper)(const int32_t, const int32_t*), int batches = 4>
 static inline void doti4_bulk_impl(
-    const int8_t* a,
-    const int8_t* b,
+    const int8_t* docs,
+    const int8_t* query,
     int32_t packed_len,
     int32_t pitch,
     const int32_t* offsets,
@@ -79,45 +81,47 @@ static inline void doti4_bulk_impl(
     int c = 0;
 
     for (; c + batches - 1 < count; c += batches) {
-        const int8_t* as[batches];
-        uint32x4_t acc0[batches];
-        uint32x4_t acc1[batches];
+        const int8_t* doc_ptrs[batches];
+        uint32x4_t acc_high[batches];
+        uint32x4_t acc_low[batches];
 
         apply_indexed<batches>([&](auto I) {
-            as[I] = a + mapper(c + I, offsets) * pitch;
-            acc0[I] = vdupq_n_u32(0);
-            acc1[I] = vdupq_n_u32(0);
+            doc_ptrs[I] = docs + mapper(c + I, offsets) * pitch;
+            acc_high[I] = vdupq_n_u32(0);
+            acc_low[I] = vdupq_n_u32(0);
         });
 
         int i = 0;
         for (; i < blk; i += stride) {
-            uint8x16_t u_hi = vld1q_u8((const uint8_t*)(b + i));
-            uint8x16_t u_lo = vld1q_u8((const uint8_t*)(b + i + packed_len));
+            uint8x16_t query_high = vld1q_u8((const uint8_t*)(query + i));
+            uint8x16_t query_low = vld1q_u8((const uint8_t*)(query + i + packed_len));
 
             apply_indexed<batches>([&](auto I) {
-                uint8x16_t p = vld1q_u8((const uint8_t*)(as[I] + i));
-                uint8x16_t hi = vshrq_n_u8(p, 4);
-                uint8x16_t lo = vandq_u8(p, mask_0f);
+                uint8x16_t doc_bytes = vld1q_u8((const uint8_t*)(doc_ptrs[I] + i));
+                uint8x16_t doc_high = vshrq_n_u8(doc_bytes, 4);
+                uint8x16_t doc_low = vandq_u8(doc_bytes, mask_0f);
 
-                acc0[I] = vpadalq_u16(acc0[I], vmull_u8(vget_low_u8(hi), vget_low_u8(u_hi)));
-                acc0[I] = vpadalq_u16(acc0[I], vmull_u8(vget_high_u8(hi), vget_high_u8(u_hi)));
-                acc1[I] = vpadalq_u16(acc1[I], vmull_u8(vget_low_u8(lo), vget_low_u8(u_lo)));
-                acc1[I] = vpadalq_u16(acc1[I], vmull_u8(vget_high_u8(lo), vget_high_u8(u_lo)));
+                // due to widening, we need to use vget_low/high_u8 to split the
+                // 128-bit register into its two 64-bit halves
+                acc_high[I] = vpadalq_u16(acc_high[I], vmull_u8(vget_low_u8(doc_high), vget_low_u8(query_high)));
+                acc_high[I] = vpadalq_u16(acc_high[I], vmull_u8(vget_high_u8(doc_high), vget_high_u8(query_high)));
+                acc_low[I] = vpadalq_u16(acc_low[I], vmull_u8(vget_low_u8(doc_low), vget_low_u8(query_low)));
+                acc_low[I] = vpadalq_u16(acc_low[I], vmull_u8(vget_high_u8(doc_low), vget_high_u8(query_low)));
             });
         }
 
         int32_t res[batches];
         apply_indexed<batches>([&](auto I) {
-            res[I] = (int32_t)vaddvq_u32(vaddq_u32(acc0[I], acc1[I]));
+            res[I] = (int32_t)vaddvq_u32(vaddq_u32(acc_high[I], acc_low[I]));
         });
 
         for (; i < packed_len; i++) {
-            uint8_t uhi = (uint8_t)b[i];
-            uint8_t ulo = (uint8_t)b[i + packed_len];
+            uint8_t query_high_val = (uint8_t)query[i];
+            uint8_t query_low_val = (uint8_t)query[i + packed_len];
             apply_indexed<batches>([&](auto I) {
-                uint8_t p = (uint8_t)as[I][i];
-                res[I] += (p >> 4) * uhi;
-                res[I] += (p & 0x0F) * ulo;
+                uint8_t doc_byte = (uint8_t)doc_ptrs[I][i];
+                res[I] += (doc_byte >> 4) * query_high_val;
+                res[I] += (doc_byte & 0x0F) * query_low_val;
             });
         }
 
@@ -127,23 +131,23 @@ static inline void doti4_bulk_impl(
     }
 
     for (; c < count; c++) {
-        const int8_t* doc = a + mapper(c, offsets) * pitch;
-        results[c] = (f32_t)doti4_inner(b, doc, packed_len);
+        const int8_t* doc = docs + mapper(c, offsets) * pitch;
+        results[c] = (f32_t)doti4_inner(query, doc, packed_len);
     }
 }
 
-EXPORT void vec_doti4_bulk(const int8_t* a, const int8_t* b, int32_t packed_len, int32_t count, f32_t* results) {
-    doti4_bulk_impl<identity_mapper>(a, b, packed_len, packed_len, NULL, count, results);
+EXPORT void vec_doti4_bulk(const int8_t* docs, const int8_t* query, int32_t packed_len, int32_t count, f32_t* results) {
+    doti4_bulk_impl<identity_mapper>(docs, query, packed_len, packed_len, NULL, count, results);
 }
 
 EXPORT void vec_doti4_bulk_offsets(
-    const int8_t* a,
-    const int8_t* b,
+    const int8_t* docs,
+    const int8_t* query,
     int32_t packed_len,
     int32_t pitch,
     const int32_t* offsets,
     int32_t count,
     f32_t* results
 ) {
-    doti4_bulk_impl<array_mapper>(a, b, packed_len, pitch, offsets, count, results);
+    doti4_bulk_impl<array_mapper>(docs, query, packed_len, pitch, offsets, count, results);
 }

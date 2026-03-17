@@ -14,6 +14,7 @@ import org.elasticsearch.server.launcher.common.ProcessUtil;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 
 /**
  * A thread that reads the preparer process's stderr pipe and demultiplexes it into
@@ -65,12 +66,12 @@ class PreparerOutputPump extends Thread {
             stdout.flush();
             stderr.flush();
         } catch (IOException e) {
-            // stream closed, nothing to do
+            throw new UncheckedIOException(e);
         } finally {
             try {
                 input.close();
             } catch (IOException e) {
-                // ignore
+                throw new UncheckedIOException(e);
             }
         }
     }

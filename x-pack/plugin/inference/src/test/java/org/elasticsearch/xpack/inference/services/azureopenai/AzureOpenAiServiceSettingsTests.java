@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2SettingsTests;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Settings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.HashMap;

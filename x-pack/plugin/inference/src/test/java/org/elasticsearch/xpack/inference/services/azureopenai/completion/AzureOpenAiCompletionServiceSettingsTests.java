@@ -20,8 +20,8 @@ import org.elasticsearch.xpack.inference.common.oauth2.OAuth2SettingsTests;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Settings;
-import org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2SettingsTests;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiOAuth2Settings;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiOAuth2SettingsTests;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
@@ -29,7 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Settings.AZURE_OPENAI_OAUTH_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiOAuth2Settings.AZURE_OPENAI_OAUTH_SETTINGS;
 import static org.hamcrest.Matchers.is;
 
 public class AzureOpenAiCompletionServiceSettingsTests extends AzureOpenAiServiceSettingsTests<AzureOpenAiCompletionServiceSettings> {
@@ -42,7 +42,7 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AzureOpenAiServic
         return createRandom(randomFrom(AzureOpenAiOAuth2SettingsTests.createRandom(), null));
     }
 
-    private static AzureOpenAiCompletionServiceSettings createRandom(@Nullable AzureOpenAiOAuth2Settings oAuth2Settings) {
+    public static AzureOpenAiCompletionServiceSettings createRandom(@Nullable AzureOpenAiOAuth2Settings oAuth2Settings) {
         var resourceName = randomAlphaOfLength(8);
         var deploymentId = randomAlphaOfLength(8);
         var apiVersion = randomAlphaOfLength(8);

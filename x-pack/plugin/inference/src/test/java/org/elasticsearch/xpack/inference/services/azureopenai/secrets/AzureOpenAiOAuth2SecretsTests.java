@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.azureopenai.oauth2;
+package org.elasticsearch.xpack.inference.services.azureopenai.secrets;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
@@ -17,15 +17,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettingsTests.CLIENT_SECRET_VALUE;
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettingsTests.TEST_INFERENCE_ID;
-import static org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Secrets.CLIENT_SECRET_FIELD;
+import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettingsTests.CLIENT_SECRET_VALUE;
+import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettingsTests.TEST_INFERENCE_ID;
+import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiOAuth2Secrets.CLIENT_SECRET_FIELD;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 

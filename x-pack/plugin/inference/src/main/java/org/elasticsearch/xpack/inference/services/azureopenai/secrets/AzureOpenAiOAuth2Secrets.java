@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.azureopenai.oauth2;
+package org.elasticsearch.xpack.inference.services.azureopenai.secrets;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
@@ -16,15 +16,14 @@ import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
 
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Settings.AZURE_OPENAI_OAUTH_SETTINGS;
-import static org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Settings.REQUIRED_FIELDS;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiOAuth2Settings.AZURE_OPENAI_OAUTH_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiOAuth2Settings.REQUIRED_FIELDS;
 
 public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretSettings {
 

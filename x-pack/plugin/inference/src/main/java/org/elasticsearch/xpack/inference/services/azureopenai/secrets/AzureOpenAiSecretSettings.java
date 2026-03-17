@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.azureopenai;
+package org.elasticsearch.xpack.inference.services.azureopenai.secrets;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
@@ -16,7 +16,6 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Secrets;
 
 import java.util.Collections;
 import java.util.EnumSet;
@@ -26,7 +25,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
-import static org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Secrets.CLIENT_SECRET_FIELD;
+import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiOAuth2Secrets.CLIENT_SECRET_FIELD;
 
 public abstract class AzureOpenAiSecretSettings implements SecretSettings {
 

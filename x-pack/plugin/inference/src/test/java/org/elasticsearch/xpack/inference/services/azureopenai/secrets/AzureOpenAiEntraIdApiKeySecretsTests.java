@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.azureopenai;
+package org.elasticsearch.xpack.inference.services.azureopenai.secrets;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
@@ -20,12 +20,12 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.API_KEY;
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.ENTRA_ID;
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettingsTests.TEST_API_KEY;
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettingsTests.TEST_ENTRA_ID;
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettingsTests.TEST_INFERENCE_ID;
-import static org.elasticsearch.xpack.inference.services.azureopenai.oauth2.AzureOpenAiOAuth2Settings.AZURE_OPENAI_OAUTH_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings.API_KEY;
+import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings.ENTRA_ID;
+import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettingsTests.TEST_API_KEY;
+import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettingsTests.TEST_ENTRA_ID;
+import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettingsTests.TEST_INFERENCE_ID;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiOAuth2Settings.AZURE_OPENAI_OAUTH_SETTINGS;
 import static org.hamcrest.Matchers.is;
 
 public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSerializationTestCase<AzureOpenAiEntraIdApiKeySecrets> {

@@ -87,7 +87,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 taskConcurrency,
                 limit,
                 needsScore,
-                scoreModeFunction(sorts, needsScore, contexts)
+                scoreModeFunction(sorts, needsScore)
             );
             this.contexts = contexts;
             this.maxPageSize = maxPageSize;
@@ -401,16 +401,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
     }
 
-    private static Function<ShardContext, ScoreMode> scoreModeFunction(
-        List<SortBuilder<?>> sorts,
-        boolean needsScore,
-        IndexedByShardId<? extends ShardContext> contexts
-    ) {
+    private static Function<ShardContext, ScoreMode> scoreModeFunction(List<SortBuilder<?>> sorts, boolean needsScore) {
         return ctx -> {
             try {
-                // we create a collector with a limit of 1 to determine the appropriate score mode to use.
-                PerShardCollectorProvider tempProvider = new PerShardCollectorProvider(1, needsScore, sorts, contexts);
-                return tempProvider.newPerShardCollector(ctx).collector.scoreMode();
+                Sort sort = PerShardCollectorProvider.getShardContextSort(ctx, sorts);
+                return PerShardCollectorProvider.scoreModeForSort(sort, needsScore);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -515,7 +510,16 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             return new PerShardCollector(context, getTopDocsCollectorForSort(sort));
         }
 
-        private static Sort getShardContextSort(ShardContext context, List<SortBuilder<?>> sorts) throws IOException {
+        static ScoreMode scoreModeForSort(Sort sort, boolean needsScore) {
+            if (needsScore && Sort.RELEVANCE.equals(sort)) {
+                return new TopScoreDocCollectorManager(1, null, 0).newCollector().scoreMode();
+            } else {
+                Sort effectiveSort = needsScore ? getSortForScore(sort) : sort;
+                return new TopFieldCollectorManager(effectiveSort, 1, null, 0).newCollector().scoreMode();
+            }
+        }
+
+        static Sort getShardContextSort(ShardContext context, List<SortBuilder<?>> sorts) throws IOException {
             Optional<SortAndFormats> sortAndFormats = context.buildSort(sorts);
             if (sortAndFormats.isEmpty()) {
                 throw new IllegalStateException("sorts must not be disabled in TopN");

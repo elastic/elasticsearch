@@ -157,11 +157,20 @@ public class ChangePoint extends UnaryPlan
     public void postAnalysisVerification(Failures failures) {
         // Key must be sortable
         if (DataType.isSortable(key.dataType()) == false) {
-            failures.add(fail(key, "CHANGE_POINT only supports sortable keys, found expression [{}] type [{}]", key.sourceText(), key.dataType()));
+            failures.add(
+                fail(key, "CHANGE_POINT only supports sortable keys, found expression [{}] type [{}]", key.sourceText(), key.dataType())
+            );
         }
         // Value must be a number
         if (value.dataType() != DataType.NULL && value.dataType().isNumeric() == false) {
-            failures.add(fail(value, "CHANGE_POINT only supports numeric values, found expression [{}] type [{}]", value.sourceText(), value.dataType()));
+            failures.add(
+                fail(
+                    value,
+                    "CHANGE_POINT only supports numeric values, found expression [{}] type [{}]",
+                    value.sourceText(),
+                    value.dataType()
+                )
+            );
         }
     }
 

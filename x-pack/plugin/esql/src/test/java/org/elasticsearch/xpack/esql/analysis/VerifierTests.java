@@ -2480,7 +2480,7 @@ public class VerifierTests extends ESTestCase {
         }
         for (DataType type : nonNumericTypes) {
             assertEquals(
-                "2:17: CHANGE_POINT only supports numeric values, found expression [value] type [" + type +"]",
+                "2:17: CHANGE_POINT only supports numeric values, found expression [value] type [" + type + "]",
                 error(Strings.format("ROW key=0, value=NULL::%s\n | CHANGE_POINT value ON key", type))
             );
         }

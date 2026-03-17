@@ -339,7 +339,15 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             int tsid = tsBlockHash.tsidForGroup(groupId);
             long endTimestamp = tsBlockHash.timestampForGroup(groupId);
             long bucket = optimizedTimeBucket.nextRoundingValue(endTimestamp - timeResolution.convert(largestWindowMillis()));
-            bucket = Math.max(bucket, tsBlockHash.minTimestamp());
+            long minBound = tsBlockHash.minTimestamp();
+            if (outputTimeBucket != null) {
+                Rounding.Prepared optimizedOutput = optimizeOutputRoundingForTimeRange(
+                    tsBlockHash.minTimestamp(),
+                    tsBlockHash.maxTimestamp()
+                );
+                minBound = optimizedOutput.round(minBound);
+            }
+            bucket = Math.max(bucket, minBound);
             // Fill the missing buckets between (timestamp-window, timestamp)
             while (bucket < endTimestamp) {
                 if (tsBlockHash.addGroup(tsid, bucket) >= 0) {

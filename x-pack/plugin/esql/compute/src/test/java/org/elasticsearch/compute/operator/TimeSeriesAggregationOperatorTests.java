@@ -218,6 +218,99 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
     }
 
     /**
+     * Sparse data where output-aligned sub-buckets have no direct data points.
+     * With 7m window, 5m output bucket, 1m internal bucket, and data only at minutes 2 and 8:
+     * - Output group at 00:00 is an expanded group (no direct data) — VALUES must still resolve
+     * - Output group at 05:00 is an expanded group (no direct data) — VALUES must still resolve
+     * This exercises the path where expandWindowBuckets creates groups that become output-aligned,
+     * and selectedForValuesAggregator must remap them to the original group that has dimension data.
+     */
+    public void testValuesAggregatorWithSparseDataAndNonMultipleWindow() {
+        Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
+        Rounding.Prepared fiveMinBucket = Rounding.builder(TimeValue.timeValueMinutes(5)).build().prepareForUnknown();
+        Duration windowDuration = Duration.ofMinutes(7);
+
+        final long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-11-13");
+        long baseTime = oneMinBucket.round(startTime);
+
+        List<List<Object>> rows = new ArrayList<>();
+        // Only two data points: minute 2 and minute 8
+        rows.add(List.of("s1", baseTime + TimeValue.timeValueMinutes(2).millis(), 5));
+        rows.add(List.of("s1", baseTime + TimeValue.timeValueMinutes(8).millis(), 10));
+
+        List<GroupingAggregator.Factory> aggregatorFactories = List.of(
+            new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
+                AggregatorMode.SINGLE,
+                List.of(HASH_CHANNEL_COUNT)
+            ),
+            new org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(
+                AggregatorMode.SINGLE,
+                List.of(0)
+            )
+        );
+
+        var operatorFactory = new TimeSeriesAggregationOperator.Factory(
+            oneMinBucket,
+            false,
+            List.of(
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+            ),
+            AggregatorMode.SINGLE,
+            aggregatorFactories,
+            10_000,
+            fiveMinBucket
+        );
+
+        BlockFactory blockFactory = blockFactory();
+        var driverCtx = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        var source = new ListRowsBlockSourceOperator(
+            driverCtx.blockFactory(),
+            List.of(ElementType.BYTES_REF, ElementType.LONG, ElementType.INT),
+            rows
+        );
+        List<Page> results = new ArrayList<>();
+        try (
+            var driver = TestDriverFactory.create(
+                driverCtx,
+                source,
+                List.of(operatorFactory.get(driverCtx)),
+                new TestResultPageSinkOperator(results::add)
+            )
+        ) {
+            new TestDriverRunner().run(driver);
+        }
+
+        BytesRef expectedTsid = new BytesRef("s1");
+        assertThat("should produce output rows", results.isEmpty(), equalTo(false));
+        List<OutputRow> outputRows = new ArrayList<>();
+        for (Page page : results) {
+            // block 0: tsid key, block 1: timestamp key, block 2: windowed sum, block 3: values(tsid)
+            assertThat("expected 4 blocks (2 keys + 2 agg results)", page.getBlockCount(), equalTo(4));
+            BytesRefBlock tsids = page.getBlock(0);
+            LongBlock buckets = page.getBlock(1);
+            LongBlock sums = page.getBlock(2);
+            BytesRefBlock valuesBlock = page.getBlock(3);
+            var scratch = new BytesRef();
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                long bucket = buckets.getLong(p);
+                assertThat("output must be aligned to 5m", fiveMinBucket.round(bucket), equalTo(bucket));
+                assertFalse("values block must not be null at position " + p, valuesBlock.isNull(p));
+                BytesRef val = valuesBlock.getBytesRef(valuesBlock.getFirstValueIndex(p), scratch);
+                assertThat("dimension value must be present for expanded output-aligned group", val, equalTo(expectedTsid));
+                outputRows.add(new OutputRow(tsids.getBytesRef(p, scratch).utf8ToString(), bucket, sums.getLong(p)));
+            }
+        }
+        // Output-aligned groups: 00:00 and 05:00
+        assertThat(outputRows.size(), equalTo(2));
+        outputRows.sort(Comparator.comparingLong(OutputRow::bucket));
+        // Window [00:00, 07:00) contains minute 2 (val=5)
+        assertThat(outputRows.get(0).value(), equalTo(5L));
+        // Window [05:00, 12:00) contains minute 8 (val=10)
+        assertThat(outputRows.get(1).value(), equalTo(10L));
+    }
+
+    /**
      * Verifies that the evaluation context resolves timestamps correctly when the keys blocks are
      * filtered (positions no longer match group IDs). This exercises the tsBlockHash-based lookup
      * introduced by the optimization, through a full pipeline with sub-bucketing.

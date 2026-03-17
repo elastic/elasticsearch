@@ -7809,6 +7809,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             // Output bucket should be the user-specified 5m
             assertNotNull(tsAgg.outputTimeBucket());
             assertThat(tsAgg.outputTimeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
+            // The 7m window must be preserved on the first-pass aggregate function
+            Holder<AggregateFunction> afHolder = new Holder<>();
+            tsAgg.forEachExpressionDown(AggregateFunction.class, af -> {
+                if (af.hasWindow()) {
+                    afHolder.set(af);
+                }
+            });
+            assertNotNull("expected an aggregate function with a window in the plan", afHolder.get());
+            assertThat(afHolder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(7)));
         }
         // 12m window with 8m bucket -> GCD=4m internal bucket, 8m output bucket
         {
@@ -7824,6 +7833,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             TimeSeriesAggregate tsAgg = tsHolder.get();
             assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(4)));
             assertThat(tsAgg.outputTimeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(8)));
+            // The 12m window must be preserved on the first-pass aggregate function
+            Holder<AggregateFunction> afHolder = new Holder<>();
+            tsAgg.forEachExpressionDown(AggregateFunction.class, af -> {
+                if (af.hasWindow()) {
+                    afHolder.set(af);
+                }
+            });
+            assertNotNull("expected an aggregate function with a window in the plan", afHolder.get());
+            assertThat(afHolder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(12)));
         }
         // Exact multiple: 10m window with 5m bucket -> GCD=5m, internal == output (no sub-bucketing)
         {
@@ -7840,6 +7858,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             // When window is an exact multiple, internal and output buckets should both be the user bucket
             assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
             assertThat(tsAgg.outputTimeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
+            // The 10m window must be preserved on the first-pass aggregate function
+            Holder<AggregateFunction> afHolder = new Holder<>();
+            tsAgg.forEachExpressionDown(AggregateFunction.class, af -> {
+                if (af.hasWindow()) {
+                    afHolder.set(af);
+                }
+            });
+            assertNotNull("expected an aggregate function with a window in the plan", afHolder.get());
+            assertThat(afHolder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
         }
     }
 

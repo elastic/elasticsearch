@@ -14,7 +14,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
@@ -520,10 +522,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     private static final String UNMAPPED_TIMESTAMP_SUFFIX = UnresolvedTimestamp.UNRESOLVED_SUFFIX + Verifier.UNMAPPED_TIMESTAMP_SUFFIX;
 
     public void testTbucketWithUnmappedTimestamp() {
-        unmappedTimestampFailure(
-            "FROM test | STATS c = COUNT(*) BY tbucket(1 hour)",
-            "[tbucket(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX
-        );
+        unmappedTimestampFailure("FROM test | STATS c = COUNT(*) BY tbucket(1 hour)", "[tbucket(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX);
     }
 
     public void testTrangeWithUnmappedTimestamp() {
@@ -563,17 +562,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testFirstOverTimeWithUnmappedTimestamp() {
-        unmappedTimestampFailure(
-            "FROM test | STATS first_over_time(salary)",
-            "[first_over_time(salary)] " + UNMAPPED_TIMESTAMP_SUFFIX
-        );
+        unmappedTimestampFailure("FROM test | STATS first_over_time(salary)", "[first_over_time(salary)] " + UNMAPPED_TIMESTAMP_SUFFIX);
     }
 
     public void testLastOverTimeWithUnmappedTimestamp() {
-        unmappedTimestampFailure(
-            "FROM test | STATS last_over_time(salary)",
-            "[last_over_time(salary)] " + UNMAPPED_TIMESTAMP_SUFFIX
-        );
+        unmappedTimestampFailure("FROM test | STATS last_over_time(salary)", "[last_over_time(salary)] " + UNMAPPED_TIMESTAMP_SUFFIX);
     }
 
     public void testRateAndTbucketWithUnmappedTimestamp() {
@@ -620,17 +613,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testTrangeWithUnmappedTimestampCompoundWhere() {
-        unmappedTimestampFailure(
-            "FROM test | WHERE trange(1 hour) AND emp_no > 10",
-            "[trange(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX
-        );
+        unmappedTimestampFailure("FROM test | WHERE trange(1 hour) AND emp_no > 10", "[trange(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX);
     }
 
     public void testTrangeWithUnmappedTimestampAfterEval() {
-        unmappedTimestampFailure(
-            "FROM test | EVAL x = salary + 1 | WHERE trange(1 hour)",
-            "[trange(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX
-        );
+        unmappedTimestampFailure("FROM test | EVAL x = salary + 1 | WHERE trange(1 hour)", "[trange(1 hour)] " + UNMAPPED_TIMESTAMP_SUFFIX);
     }
 
     public void testTbucketWithUnmappedTimestampInInlineStats() {
@@ -703,9 +690,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     public void testTbucketTimestampPresentButRenamedNullify() {
         var e = expectThrows(
             VerificationException.class,
-            () -> analyzeStatement(
-                setUnmappedNullify("FROM sample_data | RENAME @timestamp AS ts | STATS c = COUNT(*) BY tbucket(1 hour)")
-            )
+            () -> analyzeStatement(setUnmappedNullify("FROM sample_data | RENAME @timestamp AS ts | STATS c = COUNT(*) BY tbucket(1 hour)"))
         );
         assertThat(e.getMessage(), containsString(UnresolvedTimestamp.UNRESOLVED_SUFFIX));
         assertThat(e.getMessage(), not(containsString(Verifier.UNMAPPED_TIMESTAMP_SUFFIX)));

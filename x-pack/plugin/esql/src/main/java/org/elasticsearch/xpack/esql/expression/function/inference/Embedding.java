@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.esql.expression.function.inference;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -40,6 +43,9 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
     private final Expression inferenceId;
     private final Expression inputText;
     private final MapExpression inputOptions;
+
+    private org.elasticsearch.inference.DataType resolvedDataType = org.elasticsearch.inference.DataType.TEXT;
+    private DataFormat resolvedDataFormat = DataFormat.TEXT;
 
     @FunctionInfo(
         returnType = "dense_vector",
@@ -118,6 +124,14 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
         return inputOptions;
     }
 
+    public org.elasticsearch.inference.DataType inputDataType() {
+        return resolvedDataType;
+    }
+
+    public DataFormat inputDataFormat() {
+        return resolvedDataFormat;
+    }
+
     @Override
     public Expression inferenceId() {
         return inferenceId;
@@ -165,6 +179,33 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
 
         if (inferenceIdResolution.unresolved()) {
             return inferenceIdResolution;
+        }
+
+        if (inputOptions != null) {
+            // Validate keys
+            for (String key : inputOptions.keyFoldedMap().keySet()) {
+                if ("type".equals(key) == false && "format".equals(key) == false) {
+                    return new TypeResolution("Unknown option [" + key + "] in EMBEDDING, valid options are [type, format]");
+                }
+            }
+            // Validate and store "type"
+            Expression typeExpr = inputOptions.get("type");
+            if (typeExpr instanceof Literal l) {
+                try {
+                    resolvedDataType = org.elasticsearch.inference.DataType.fromString(BytesRefs.toString(l.value()));
+                } catch (IllegalArgumentException e) {
+                    return new TypeResolution(e.getMessage());
+                }
+            }
+            // Validate and store "format"
+            Expression formatExpr = inputOptions.get("format");
+            if (formatExpr instanceof Literal l) {
+                try {
+                    resolvedDataFormat = DataFormat.fromString(BytesRefs.toString(l.value()));
+                } catch (IllegalArgumentException e) {
+                    return new TypeResolution(e.getMessage());
+                }
+            }
         }
 
         return TypeResolution.TYPE_RESOLVED;

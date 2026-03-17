@@ -22,12 +22,12 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.Embedding;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.esql.inference.textembedding.EmbeddingOperator;
 import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * Evaluator for inference functions that performs constant folding by executing inference operations
@@ -217,32 +216,14 @@ public class InferenceFunctionEvaluator {
                         TaskType.TEXT_EMBEDDING,
                         expressionEvaluatorFactory(textEmbedding.inputText(), foldContext)
                     );
-                    case Embedding embedding -> {
-                        Map<String, Object> opts = embedding.inputOptions() != null
-                            ? embedding.inputOptions().toFoldedMap(foldContext)
-                            : Map.of();
-                        Object typeValue = opts.get("type");
-                        if (typeValue instanceof String typeStr) {
-                            org.elasticsearch.inference.DataType dataType = org.elasticsearch.inference.DataType.fromString(typeStr);
-                            org.elasticsearch.inference.DataFormat dataFormat = opts.get("format") instanceof String fmt
-                                ? org.elasticsearch.inference.DataFormat.fromString(fmt)
-                                : null;
-                            yield new EmbeddingOperator.Factory(
-                                inferenceService,
-                                inferenceId(inferenceFunction, foldContext),
-                                TaskType.EMBEDDING,
-                                expressionEvaluatorFactory(embedding.inputText(), foldContext),
-                                dataType,
-                                dataFormat
-                            );
-                        }
-                        yield new TextEmbeddingOperator.Factory(
-                            inferenceService,
-                            inferenceId(inferenceFunction, foldContext),
-                            TaskType.EMBEDDING,
-                            expressionEvaluatorFactory(embedding.inputText(), foldContext)
-                        );
-                    }
+                    case Embedding embedding -> new EmbeddingOperator.Factory(
+                        inferenceService,
+                        inferenceId(inferenceFunction, foldContext),
+                        TaskType.EMBEDDING,
+                        expressionEvaluatorFactory(embedding.inputText(), foldContext),
+                        embedding.inputDataType(),
+                        embedding.inputDataFormat()
+                    );
                     case CompletionFunction completion -> new CompletionOperator.Factory(
                         inferenceService,
                         inferenceId(inferenceFunction, foldContext),

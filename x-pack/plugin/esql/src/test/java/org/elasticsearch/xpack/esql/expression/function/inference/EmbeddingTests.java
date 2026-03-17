@@ -25,6 +25,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.containsString;
+
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.hamcrest.Matchers.equalTo;
@@ -117,5 +119,102 @@ public class EmbeddingTests extends AbstractFunctionTestCase {
         assertThat(replacedEmbedding.inputText(), equalTo(newText));
         assertThat(replacedEmbedding.inferenceId(), equalTo(newInferenceId));
         assertNull(replacedEmbedding.inputOptions());
+    }
+
+    public void testDataTypeDefaultsToText() {
+        Source source = Source.EMPTY;
+        Literal text = new Literal(source, new BytesRef("hello"), DataType.KEYWORD);
+        Literal inferenceId = new Literal(source, new BytesRef("my-endpoint"), DataType.KEYWORD);
+        Embedding embedding = new Embedding(source, text, inferenceId, null);
+        assertEquals(org.elasticsearch.inference.DataType.TEXT, embedding.inputDataType());
+    }
+
+    public void testDataFormatDefaultsToText() {
+        Source source = Source.EMPTY;
+        Literal text = new Literal(source, new BytesRef("hello"), DataType.KEYWORD);
+        Literal inferenceId = new Literal(source, new BytesRef("my-endpoint"), DataType.KEYWORD);
+        Embedding embedding = new Embedding(source, text, inferenceId, null);
+        assertEquals(org.elasticsearch.inference.DataFormat.TEXT, embedding.inputDataFormat());
+    }
+
+    public void testDataTypeFromOptions() {
+        Source source = Source.EMPTY;
+        Literal text = new Literal(source, new BytesRef("data"), DataType.KEYWORD);
+        Literal inferenceId = new Literal(source, new BytesRef("my-endpoint"), DataType.KEYWORD);
+        MapExpression options = new MapExpression(
+            source,
+            List.of(
+                new Literal(source, new BytesRef("type"), DataType.KEYWORD),
+                new Literal(source, new BytesRef("image"), DataType.KEYWORD)
+            )
+        );
+        Embedding embedding = new Embedding(source, text, inferenceId, options);
+        assertFalse(embedding.resolveType().unresolved());
+        assertEquals(org.elasticsearch.inference.DataType.IMAGE, embedding.inputDataType());
+    }
+
+    public void testDataFormatFromOptions() {
+        Source source = Source.EMPTY;
+        Literal text = new Literal(source, new BytesRef("data"), DataType.KEYWORD);
+        Literal inferenceId = new Literal(source, new BytesRef("my-endpoint"), DataType.KEYWORD);
+        MapExpression options = new MapExpression(
+            source,
+            List.of(
+                new Literal(source, new BytesRef("type"), DataType.KEYWORD),
+                new Literal(source, new BytesRef("image"), DataType.KEYWORD),
+                new Literal(source, new BytesRef("format"), DataType.KEYWORD),
+                new Literal(source, new BytesRef("base64"), DataType.KEYWORD)
+            )
+        );
+        Embedding embedding = new Embedding(source, text, inferenceId, options);
+        assertFalse(embedding.resolveType().unresolved());
+        assertEquals(org.elasticsearch.inference.DataFormat.BASE64, embedding.inputDataFormat());
+    }
+
+    public void testResolveTypeRejectsUnknownOptionKey() {
+        Source source = Source.EMPTY;
+        Literal text = new Literal(source, new BytesRef("data"), DataType.KEYWORD);
+        Literal inferenceId = new Literal(source, new BytesRef("my-endpoint"), DataType.KEYWORD);
+        MapExpression options = new MapExpression(
+            source,
+            List.of(
+                new Literal(source, new BytesRef("unknown"), DataType.KEYWORD),
+                new Literal(source, new BytesRef("foo"), DataType.KEYWORD)
+            )
+        );
+        Embedding embedding = new Embedding(source, text, inferenceId, options);
+        Expression.TypeResolution resolution = embedding.resolveType();
+        assertTrue(resolution.unresolved());
+        assertThat(resolution.message(), containsString("unknown"));
+    }
+
+    public void testResolveTypeRejectsInvalidDataType() {
+        Source source = Source.EMPTY;
+        Literal text = new Literal(source, new BytesRef("data"), DataType.KEYWORD);
+        Literal inferenceId = new Literal(source, new BytesRef("my-endpoint"), DataType.KEYWORD);
+        MapExpression options = new MapExpression(
+            source,
+            List.of(
+                new Literal(source, new BytesRef("type"), DataType.KEYWORD),
+                new Literal(source, new BytesRef("video"), DataType.KEYWORD)
+            )
+        );
+        Embedding embedding = new Embedding(source, text, inferenceId, options);
+        assertTrue(embedding.resolveType().unresolved());
+    }
+
+    public void testResolveTypeRejectsInvalidDataFormat() {
+        Source source = Source.EMPTY;
+        Literal text = new Literal(source, new BytesRef("data"), DataType.KEYWORD);
+        Literal inferenceId = new Literal(source, new BytesRef("my-endpoint"), DataType.KEYWORD);
+        MapExpression options = new MapExpression(
+            source,
+            List.of(
+                new Literal(source, new BytesRef("format"), DataType.KEYWORD),
+                new Literal(source, new BytesRef("xml"), DataType.KEYWORD)
+            )
+        );
+        Embedding embedding = new Embedding(source, text, inferenceId, options);
+        assertTrue(embedding.resolveType().unresolved());
     }
 }

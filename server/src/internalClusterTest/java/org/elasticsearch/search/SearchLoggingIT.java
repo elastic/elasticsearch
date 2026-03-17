@@ -68,9 +68,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_IS_SYSTEM;
+import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_SEARCH_ATTRIBUTES;
 import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_SEARCH_HITS;
 import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_SEARCH_HITS_GTE;
-import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_SEARCH_ATTRIBUTES;
 import static org.elasticsearch.action.search.SearchRequestAttributesExtractor.PIT_SCROLL_ATTRIBUTE;
 import static org.elasticsearch.action.search.SearchRequestAttributesExtractor.QUERY_TYPE_ATTRIBUTE;
 import static org.elasticsearch.action.search.SearchRequestAttributesExtractor.SORT_ATTRIBUTE;
@@ -479,7 +479,10 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         assertThat(message.get(QUERY_FIELD_SEARCH_ATTRIBUTES + PIT_SCROLL_ATTRIBUTE), equalTo("scroll"));
 
         // size=0: query_type=count_only
-        assertResponse(prepareSearch(INDEX_NAME).setSize(0).setQuery(matchQuery("field1", "quick")), ElasticsearchAssertions::assertNoFailures);
+        assertResponse(
+            prepareSearch(INDEX_NAME).setSize(0).setQuery(matchQuery("field1", "quick")),
+            ElasticsearchAssertions::assertNoFailures
+        );
         message = getMessageData(appender.getLastEventAndReset());
         assertMessageSuccess(message, SearchLogContext.TYPE, "quick");
         assertThat(message.get(QUERY_FIELD_SEARCH_ATTRIBUTES + QUERY_TYPE_ATTRIBUTE), equalTo("count_only"));

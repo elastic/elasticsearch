@@ -53,13 +53,12 @@ public class RangeMinEvaluator implements ExpressionEvaluator {
                 }
 
                 LongBlock fromBlock = rangeValues.getFromBlock();
-                if (fromBlock.isNull(p)) {
-                    result.appendNull();
-                    continue;
+                int first = rangeValues.getFirstValueIndex(p);
+                int valueCount = rangeValues.getValueCount(p);
+                long minValue = fromBlock.getLong(first);
+                for (int i = 1; i < valueCount; i++) {
+                    minValue = Math.min(minValue, fromBlock.getLong(first + i));
                 }
-
-                // Get the minimum (start) value from the range
-                long minValue = fromBlock.getLong(fromBlock.getFirstValueIndex(p));
                 result.appendLong(minValue);
             }
             return result.build();

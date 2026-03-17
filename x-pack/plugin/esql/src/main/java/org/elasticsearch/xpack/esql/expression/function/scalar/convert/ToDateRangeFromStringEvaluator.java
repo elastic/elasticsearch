@@ -22,6 +22,12 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.time.ZoneOffset;
 
+/**
+ * Evaluator for TO_DATE_RANGE(string). Parsing currently uses UTC only.
+ * Follow-up: make ConfigurationAware (like {@link ToDatetime}), use query timezone from Configuration,
+ * and pass a formatter to parseDateRange (instead of timezone) to avoid creating a formatter per value.
+ * Add tests for timezone handling. Same for range→string if/when added.
+ */
 public class ToDateRangeFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToDateRangeFromStringEvaluator.class);
 

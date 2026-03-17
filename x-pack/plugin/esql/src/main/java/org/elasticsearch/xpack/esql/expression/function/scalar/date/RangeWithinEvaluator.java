@@ -72,42 +72,93 @@ public class RangeWithinEvaluator implements ExpressionEvaluator {
         }
     }
 
+    /**
+     * Returns true if any (left value, right value) pair satisfies "left contains right"
+     * (Lucene CONTAINS semantics). Supports multivalued date_range and date at both sides.
+     */
     private boolean evalPosition(Block leftBlock, Block rightBlock, int p) {
         if (leftType == DataType.DATE_RANGE && rightType == DataType.DATE_RANGE) {
             LongRangeBlock leftRange = (LongRangeBlock) leftBlock;
             LongRangeBlock rightRange = (LongRangeBlock) rightBlock;
-            int leftIdx = leftRange.getFirstValueIndex(p);
-            int rightIdx = rightRange.getFirstValueIndex(p);
-            long aFrom = leftRange.getFromBlock().getLong(leftIdx);
-            long aTo = leftRange.getToBlock().getLong(leftIdx);
-            long bFrom = rightRange.getFromBlock().getLong(rightIdx);
-            long bTo = rightRange.getToBlock().getLong(rightIdx);
-            return bFrom >= aFrom && bTo <= aTo;
+            int leftFirst = leftRange.getFirstValueIndex(p);
+            int leftCount = leftRange.getValueCount(p);
+            int rightFirst = rightRange.getFirstValueIndex(p);
+            int rightCount = rightRange.getValueCount(p);
+            LongBlock leftFrom = leftRange.getFromBlock();
+            LongBlock leftTo = leftRange.getToBlock();
+            LongBlock rightFrom = rightRange.getFromBlock();
+            LongBlock rightTo = rightRange.getToBlock();
+            for (int i = 0; i < leftCount; i++) {
+                long aFrom = leftFrom.getLong(leftFirst + i);
+                long aTo = leftTo.getLong(leftFirst + i);
+                for (int j = 0; j < rightCount; j++) {
+                    long bFrom = rightFrom.getLong(rightFirst + j);
+                    long bTo = rightTo.getLong(rightFirst + j);
+                    if (bFrom >= aFrom && bTo <= aTo) {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
         if (leftType == DataType.DATE_RANGE && rightType == DataType.DATETIME) {
             LongRangeBlock leftRange = (LongRangeBlock) leftBlock;
             LongBlock rightLong = (LongBlock) rightBlock;
-            int leftIdx = leftRange.getFirstValueIndex(p);
-            long from = leftRange.getFromBlock().getLong(leftIdx);
-            long to = leftRange.getToBlock().getLong(leftIdx);
-            long point = rightLong.getLong(rightLong.getFirstValueIndex(p));
-            return point >= from && point <= to;
+            int leftFirst = leftRange.getFirstValueIndex(p);
+            int leftCount = leftRange.getValueCount(p);
+            LongBlock leftFrom = leftRange.getFromBlock();
+            LongBlock leftTo = leftRange.getToBlock();
+            int rightFirst = rightLong.getFirstValueIndex(p);
+            int rightCount = rightLong.getValueCount(p);
+            for (int i = 0; i < leftCount; i++) {
+                long from = leftFrom.getLong(leftFirst + i);
+                long to = leftTo.getLong(leftFirst + i);
+                for (int j = 0; j < rightCount; j++) {
+                    long point = rightLong.getLong(rightFirst + j);
+                    if (point >= from && point <= to) {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
         if (leftType == DataType.DATETIME && rightType == DataType.DATE_RANGE) {
             LongBlock leftLong = (LongBlock) leftBlock;
             LongRangeBlock rightRange = (LongRangeBlock) rightBlock;
-            long point = leftLong.getLong(leftLong.getFirstValueIndex(p));
-            int rightIdx = rightRange.getFirstValueIndex(p);
-            long rFrom = rightRange.getFromBlock().getLong(rightIdx);
-            long rTo = rightRange.getToBlock().getLong(rightIdx);
-            return point >= rFrom && point <= rTo;
+            int leftFirst = leftLong.getFirstValueIndex(p);
+            int leftCount = leftLong.getValueCount(p);
+            int rightFirst = rightRange.getFirstValueIndex(p);
+            int rightCount = rightRange.getValueCount(p);
+            LongBlock rightFrom = rightRange.getFromBlock();
+            LongBlock rightTo = rightRange.getToBlock();
+            for (int i = 0; i < leftCount; i++) {
+                long point = leftLong.getLong(leftFirst + i);
+                for (int j = 0; j < rightCount; j++) {
+                    long rFrom = rightFrom.getLong(rightFirst + j);
+                    long rTo = rightTo.getLong(rightFirst + j);
+                    if (point >= rFrom && point <= rTo) {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
-        // (date, date)
+        // (date, date): any left value equals any right value
         LongBlock leftLong = (LongBlock) leftBlock;
         LongBlock rightLong = (LongBlock) rightBlock;
-        long a = leftLong.getLong(leftLong.getFirstValueIndex(p));
-        long b = rightLong.getLong(rightLong.getFirstValueIndex(p));
-        return a == b;
+        int leftFirst = leftLong.getFirstValueIndex(p);
+        int leftCount = leftLong.getValueCount(p);
+        int rightFirst = rightLong.getFirstValueIndex(p);
+        int rightCount = rightLong.getValueCount(p);
+        for (int i = 0; i < leftCount; i++) {
+            long a = leftLong.getLong(leftFirst + i);
+            for (int j = 0; j < rightCount; j++) {
+                if (a == rightLong.getLong(rightFirst + j)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     @Override

@@ -704,7 +704,12 @@ public class EsqlDataTypeConverter {
         var ss = s.split("\\.\\.");
         assert ss.length == 2 : "can't parse range: " + s;
         var formatter = DEFAULT_DATE_TIME_FORMATTER.withZone(zoneId);
-        return new LongRangeBlockBuilder.LongRange(dateTimeToLong(ss[0], formatter), dateTimeToLong(ss[1], formatter) - 1);
+        long from = dateTimeToLong(ss[0], formatter);
+        long to = dateTimeToLong(ss[1], formatter) - 1;
+        if (from > to) {
+            throw new IllegalArgumentException("date range 'from' [" + ss[0] + "] must be less than or equal to 'to' [" + ss[1] + "]");
+        }
+        return new LongRangeBlockBuilder.LongRange(from, to);
     }
 
     public static String dateRangeToString(LongRangeBlockBuilder.LongRange range) {

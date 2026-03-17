@@ -68,11 +68,7 @@ public class RangeWithin extends EsqlScalarFunction {
     public RangeWithin(
         Source source,
         @Param(name = "left", type = { "date", "date_range" }, description = "Container (range or point).") Expression left,
-        @Param(
-            name = "right",
-            type = { "date", "date_range" },
-            description = "Value to test (range or point)."
-        ) Expression right
+        @Param(name = "right", type = { "date", "date_range" }, description = "Value to test (range or point).") Expression right
     ) {
         super(source, List.of(left, right));
         this.left = left;
@@ -162,22 +158,8 @@ public class RangeWithin extends EsqlScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution first = isType(
-            left,
-            dt -> dt == DATE_RANGE || dt == DATETIME,
-            sourceText(),
-            FIRST,
-            "date",
-            "date_range"
-        );
-        TypeResolution second = isType(
-            right,
-            dt -> dt == DATE_RANGE || dt == DATETIME,
-            sourceText(),
-            SECOND,
-            "date",
-            "date_range"
-        );
+        TypeResolution first = isType(left, dt -> dt == DATE_RANGE || dt == DATETIME, sourceText(), FIRST, "date", "date_range");
+        TypeResolution second = isType(right, dt -> dt == DATE_RANGE || dt == DATETIME, sourceText(), SECOND, "date", "date_range");
         return first.and(second);
     }
 

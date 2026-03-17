@@ -62,6 +62,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.core.type.DataType.suggestedCast;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseDateRange;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class EsqlDataTypeConverterTests extends ESTestCase {
@@ -118,6 +120,15 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
             DateUtils.toLong(Instant.parse("2023-05-01T22:00:00.000Z")),
             EsqlDataTypeConverter.convert("2023-05-02", DATE_NANOS, cetCestConfig)
         );
+    }
+
+    public void testParseDateRangeRejectsFromAfterTo() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> parseDateRange("2024-12-31T00:00:00.000Z..2024-01-01T00:00:00.000Z", ZoneOffset.UTC)
+        );
+        assertThat(e.getMessage(), containsString("'from'"));
+        assertThat(e.getMessage(), containsString("must be less than or equal to 'to'"));
     }
 
     public void testCommonTypeNull() {

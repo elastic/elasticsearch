@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
@@ -216,6 +217,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
@@ -7591,6 +7593,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             assertNotNull(holder.get());
             assertTrue(holder.get().hasWindow());
             assertThat(holder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(window)));
+            Holder<WindowFilter> windowFilterHolder = new Holder<>();
+            plan.forEachExpressionDown(WindowFilter.class, windowFilterHolder::set);
+            assertNull(windowFilterHolder.get());
         }
         {
             int window = between(1, 3);
@@ -7606,36 +7611,37 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             assertNotNull(holder.get());
             assertTrue(holder.get().hasWindow());
             assertThat(holder.get().window().fold(FoldContext.small()), equalTo(Duration.ofHours(window)));
+            Holder<WindowFilter> windowFilterHolder = new Holder<>();
+            plan.forEachExpressionDown(WindowFilter.class, windowFilterHolder::set);
+            assertNull(windowFilterHolder.get());
         }
         // smaller window
         {
-            var query = """
+            int window = randomIntBetween(1, 4);
+            var query = String.format(Locale.ROOT, """
                 TS k8s
-                | STATS sum(rate(network.total_bytes_in, 1m)) BY TBUCKET(5m)
+                | STATS sum(rate(network.total_bytes_in, %s minute)) BY TBUCKET(5m)
                 | LIMIT 10
-                """;
-            var error = expectThrows(IllegalArgumentException.class, () -> { planMetrics(query); });
-            assertThat(
-                error.getMessage(),
-                equalTo(
-                    "Unsupported window [1m] for aggregate function [rate(network.total_bytes_in, 1m)]; "
-                        + "the window must be larger than the time bucket [TBUCKET(5m)] and an exact multiple of it"
-                )
-            );
+                """, window);
+            var plan = planMetrics(query);
+            Holder<Rate> holder = new Holder<>();
+            plan.forEachExpressionDown(Rate.class, holder::set);
+            assertNotNull(holder.get());
+            assertFalse(holder.get().hasWindow());
+            assertTrue(holder.get().hasFilter());
+            WindowFilter windowFilter = (WindowFilter) holder.get().filter();
+            assertThat(((Duration) windowFilter.window().fold(FoldContext.small())).toMinutes(), equalTo((long) window));
         }
         // not supported
         {
-            int window = randomValueOtherThanMany(n -> n % 5 == 0, () -> between(1, 30));
+            int window = randomValueOtherThanMany(n -> n % 5 == 0, () -> between(6, 30));
             var query = String.format(Locale.ROOT, """
                 TS k8s
                 | STATS avg(last_over_time(network.bytes_in, %s minute)) BY tbucket(5 minute)
                 | LIMIT 10
                 """, window);
             var error = expectThrows(IllegalArgumentException.class, () -> { planMetrics(query); });
-            assertThat(
-                error.getMessage(),
-                containsString("the window must be larger than the time bucket [tbucket(5 minute)] and an exact multiple of it")
-            );
+            assertThat(error.getMessage(), containsString("the window must be an exact multiple of the time bucket [tbucket(5 minute)]"));
         }
         // no time bucket
         {
@@ -7695,7 +7701,102 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             var error = expectThrows(IllegalArgumentException.class, () -> {
                 logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query(query));
             });
-            assertThat(error.getMessage(), containsString("the window must be larger than the time bucket"));
+            assertThat(error.getMessage(), containsString("the window must be an exact multiple of the time bucket"));
+        }
+    }
+
+    public void testApplyWindowFilter() {
+        // single layer of aggregations
+        {
+            int window = randomIntBetween(1, 4);
+            var query = String.format(Locale.ROOT, """
+                TS k8s
+                | STATS max_over_time(network.bytes_in, %s minute) BY TBUCKET(5 minute)
+                | LIMIT 10
+                """, window);
+            var plan = planMetrics(query);
+            Holder<WindowFilter> holder = new Holder<>();
+            plan.forEachExpressionDown(WindowFilter.class, holder::set);
+            assertNotNull(holder.get());
+            assertThat(((Duration) holder.get().window().fold(FoldContext.small())).toMinutes(), equalTo((long) window));
+        }
+        // nested aggregation
+        {
+            int window = randomIntBetween(1, 4);
+            var query = String.format(Locale.ROOT, """
+                TS k8s
+                | STATS avg(sum_over_time(network.bytes_in, %s minute)) BY TBUCKET(5 minute)
+                | LIMIT 10
+                """, window);
+            var plan = planMetrics(query);
+            Holder<WindowFilter> holder = new Holder<>();
+            plan.forEachExpressionDown(WindowFilter.class, holder::set);
+            assertNotNull(holder.get());
+            assertThat(((Duration) holder.get().window().fold(FoldContext.small())).toMinutes(), equalTo((long) window));
+        }
+        // multiple aggregates with varying window sizes
+        {
+            int window1 = randomIntBetween(1, 4);
+            int window2 = randomIntBetween(1, 4);
+            var query = String.format(Locale.ROOT, """
+                TS k8s
+                | STATS min(max_over_time(network.bytes_in, %s minute)), sum(rate(network.total_bytes_in, %s minute)) BY TBUCKET(5 minute)
+                | LIMIT 10
+                """, window1, window2);
+            var plan = planMetrics(query);
+            Holder<Max> maxHolder = new Holder<>();
+            Holder<Rate> rateHolder = new Holder<>();
+            plan.forEachExpressionDown(Max.class, maxHolder::set);
+            plan.forEachExpressionDown(Rate.class, rateHolder::set);
+            assertNotNull(maxHolder.get());
+            assertNotNull(rateHolder.get());
+            assertFalse(maxHolder.get().hasWindow());
+            assertFalse(rateHolder.get().hasWindow());
+            assertTrue(maxHolder.get().hasFilter());
+            assertTrue(rateHolder.get().hasFilter());
+            WindowFilter lotWindowFilter = (WindowFilter) maxHolder.get().filter();
+            WindowFilter rateWindowFilter = (WindowFilter) rateHolder.get().filter();
+            assertThat(((Duration) lotWindowFilter.window().fold(FoldContext.small())).toMinutes(), equalTo((long) window1));
+            assertThat(((Duration) rateWindowFilter.window().fold(FoldContext.small())).toMinutes(), equalTo((long) window2));
+        }
+        // multiple aggregates with only one filter
+        {
+            boolean rateBigger = randomBoolean();
+            int window1 = rateBigger ? randomIntBetween(1, 4) : randomFrom(List.of(5, 10, 15, 20, 25, 30));
+            int window2 = rateBigger ? randomFrom(List.of(5, 10, 15, 20, 25, 30)) : randomIntBetween(1, 4);
+            var query = String.format(Locale.ROOT, """
+                TS k8s
+                | STATS min(max_over_time(network.bytes_in, %s minute)), sum(rate(network.total_bytes_in, %s minute)) BY TBUCKET(5 minute)
+                | LIMIT 10
+                """, window1, window2);
+            var plan = planMetrics(query);
+            Holder<Max> maxHolder = new Holder<>();
+            Holder<Rate> rateHolder = new Holder<>();
+            plan.forEachExpressionDown(Max.class, maxHolder::set);
+            plan.forEachExpressionDown(Rate.class, rateHolder::set);
+            assertNotNull(maxHolder.get());
+            assertNotNull(rateHolder.get());
+            if (rateBigger) {
+                // rate has no window filter (still has window); max_over_time has filter (window cleared)
+                assertFalse(maxHolder.get().hasWindow());
+                assertTrue(maxHolder.get().hasFilter());
+                WindowFilter windowFilter = (WindowFilter) maxHolder.get().filter();
+                assertThat(((Duration) windowFilter.window().fold(FoldContext.small())).toMinutes(), equalTo((long) window1));
+
+                assertTrue(rateHolder.get().hasWindow());
+                assertFalse(rateHolder.get().hasFilter());
+                assertThat(((Duration) rateHolder.get().window().fold(FoldContext.small())).toMinutes(), equalTo((long) window2));
+            } else {
+                // rate has window filter (window cleared); max_over_time no filter (still has window)
+                assertFalse(rateHolder.get().hasWindow());
+                assertTrue(rateHolder.get().hasFilter());
+                WindowFilter windowFilter = (WindowFilter) rateHolder.get().filter();
+                assertThat(((Duration) windowFilter.window().fold(FoldContext.small())).toMinutes(), equalTo((long) window2));
+
+                assertTrue(maxHolder.get().hasWindow());
+                assertFalse(maxHolder.get().hasFilter());
+                assertThat(((Duration) maxHolder.get().window().fold(FoldContext.small())).toMinutes(), equalTo((long) window1));
+            }
         }
     }
 

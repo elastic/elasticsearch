@@ -414,8 +414,8 @@ public class TDigestFieldMapperTests extends MapperTestCase {
             expected.field("centroids", new double[] { 1, 2, 3 });
             expected.field("counts", new int[] { 1, 2, 3 });
             expected.endObject();
-            expected.startObject().field("counts", new int[] { 4, 5, 6 }).field("centroids", new double[] { 4, 5, 6 }).endObject();
             expected.value(randomString);
+            expected.startObject().field("counts", new int[] { 4, 5, 6 }).field("centroids", new double[] { 4, 5, 6 }).endObject();
             expected.endArray();
         }
         expected.endObject();

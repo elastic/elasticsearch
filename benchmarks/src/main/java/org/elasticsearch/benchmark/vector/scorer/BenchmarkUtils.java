@@ -9,11 +9,12 @@
 
 package org.elasticsearch.benchmark.vector.scorer;
 
+import org.apache.lucene.backward_codecs.lucene99.OffHeapQuantizedByteVectorValues;
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
+import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorScorer;
 import org.apache.lucene.codecs.lucene95.OffHeapByteVectorValues;
 import org.apache.lucene.codecs.lucene95.OffHeapFloatVectorValues;
 import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorScorer;
-import org.apache.lucene.codecs.lucene99.OffHeapQuantizedByteVectorValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -33,6 +34,7 @@ import java.nio.ByteOrder;
 import java.util.concurrent.ThreadLocalRandom;
 
 class BenchmarkUtils {
+
     // Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
     static final byte MIN_INT7_VALUE = 0;
     static final byte MAX_INT7_VALUE = 127;
@@ -131,6 +133,21 @@ class BenchmarkUtils {
     static RandomVectorScorer luceneScorer(QuantizedByteVectorValues values, VectorSimilarityFunction sim, float[] queryVec)
         throws IOException {
         return new Lucene99ScalarQuantizedVectorScorer(null).getRandomVectorScorer(sim, values, queryVec);
+    }
+
+    static RandomVectorScorerSupplier lucene104ScoreSupplier(
+        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values,
+        VectorSimilarityFunction sim
+    ) throws IOException {
+        return new Lucene104ScalarQuantizedVectorScorer(null).getRandomVectorScorerSupplier(sim, values);
+    }
+
+    static RandomVectorScorer lucene104Scorer(
+        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values,
+        VectorSimilarityFunction sim,
+        float[] queryVec
+    ) throws IOException {
+        return new Lucene104ScalarQuantizedVectorScorer(null).getRandomVectorScorer(sim, values, queryVec);
     }
 
     static RuntimeException rethrow(Throwable t) {

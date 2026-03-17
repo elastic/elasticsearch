@@ -212,3 +212,34 @@ emp_no:integer | height:double | height_float_rounded:double | height.scaled_flo
 10004          | 1.78          | 1.78                        | 1.78                       | 1.78
 10005          | 2.05          | 2.05                        | 2.05                       | 2.05
 ;
+
+// Pipeline breaker distribution tests
+// These exercise distributed execution paths for pipeline breakers (STATS, TopN, LIMIT)
+// across all distribution modes via ExternalDistributedSpecIT
+
+topNSortBySalaryDesc
+required_capability: external_command
+EXTERNAL "{{employees}}"
+| KEEP emp_no, first_name, salary
+| SORT salary DESC
+| LIMIT 3;
+
+emp_no:integer | first_name:keyword | salary:integer
+10029          | "Otmar"            | 74999
+10045          | "Moss"             | 74970
+10007          | "Tzvetan"          | 74572
+;
+
+topNFilteredSortBySalary
+required_capability: external_command
+EXTERNAL "{{employees}}"
+| WHERE gender == "F"
+| KEEP emp_no, first_name, salary
+| SORT salary DESC
+| LIMIT 3;
+
+emp_no:integer | first_name:keyword | salary:integer
+10007          | "Tzvetan"          | 74572
+10027          | "Divier"           | 73851
+10099          | "Valter"           | 73578
+;

@@ -57,4 +57,6 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("downsample/10_basic/Downsample histogram as label", "Default metric has been removed")
   task.skipTest("downsample/10_basic/Downsample index", "Default metric has been removed")
   task.skipTest("downsample-with-security/10_basic/Downsample index", "Default metric has been removed")
+  task.skipTest("downsample/40_runtime_fields/Runtime fields accessing metric fields in downsample target index", "Using average as the value of an aggregate metric double")
+  task.skipTest("downsample-with-security/40_runtime_fields/Runtime fields accessing metric fields in downsample target index", "Using average as the value of an aggregate metric double")
 })

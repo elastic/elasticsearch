@@ -1,0 +1,15 @@
+# This pipeline detects regressions in PromQL query coverage.
+
+config:
+  allow-labels: ":StorageEngine/PromQL"
+  trigger-phrase: '.*run\W+elasticsearch-ci/promql-compliance-bench.*'
+steps:
+  - label: "promql-compliance-bench setup"
+    key: promql-compliance-bench-setup
+    command: .buildkite/scripts/promql-compliance-bench.sh setup
+    timeout_in_minutes: 10
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n1-standard-2
+      buildDirectory: /dev/shm/bk

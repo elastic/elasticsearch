@@ -113,6 +113,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         SearchRequest request,
         ActionListener<SearchResponse> listener,
         List<SearchShardIterator> shardsIts,
+        Map<String, Integer> skippedByClusterAlias,
         TransportSearchAction.SearchTimeProvider timeProvider,
         ClusterState clusterState,
         SearchTask task,
@@ -136,6 +137,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             request,
             listener,
             shardsIts,
+            skippedByClusterAlias,
             timeProvider,
             clusterState,
             task,
@@ -153,7 +155,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         this.batchQueryPhase = batchQueryPhase;
         // don't build the SearchShard list (can be expensive) if the SearchProgressListener won't use it
         if (progressListener != SearchProgressListener.NOOP) {
-            notifyListShards(progressListener, clusters, request, shardsIts);
+            notifyListShards(progressListener, clusters, request, skippedByClusterAlias);
         }
     }
 
@@ -874,7 +876,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 return;
             }
             var channelListener = new ChannelActionListener<>(channel);
-            RecyclerBytesStreamOutput out = dependencies.transportService.newNetworkBytesStream();
+            RecyclerBytesStreamOutput out = dependencies.transportService.newNetworkBytesStream(null);
             out.setTransportVersion(channel.getVersion());
 
             boolean success = false;
@@ -997,7 +999,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     }
                 }
                 final int resultCount = queryPhaseResultConsumer.getNumShards();
-                out = dependencies.transportService.newNetworkBytesStream();
+                out = dependencies.transportService.newNetworkBytesStream(null);
                 out.setTransportVersion(channel.getVersion());
                 try {
                     out.writeVInt(resultCount);

@@ -37,15 +37,15 @@ public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.D
     }
 
     @Override
-    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+    public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         TrackingBinaryDocValues dv = TrackingBinaryDocValues.get(breaker, context, fieldName);
         if (dv == null) {
-            return ConstantNull.READER;
+            return ConstantNull.COLUMN_READER;
         }
         return new BytesRefsFromCustomBinary(dv);
     }
 
-    public abstract static class AbstractBytesRefsFromBinary extends BlockDocValuesReader {
+    public abstract static class AbstractBytesRefsFromBinary extends BlockDocValuesReader implements RowStrideReader {
         protected final TrackingBinaryDocValues docValues;
 
         public AbstractBytesRefsFromBinary(TrackingBinaryDocValues docValues) {
@@ -65,7 +65,7 @@ public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.D
         }
 
         @Override
-        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
+        public final void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
             read(docId, (BytesRefBuilder) builder);
         }
 

@@ -83,9 +83,22 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         TaskExecutor mergeExec,
         int numMergeWorkers,
         int blockDimension,
-        boolean doPrecondition
+        boolean doPrecondition,
+        int flatVectorThreshold
     ) throws IOException {
-        super(state, rawVectorFormatName, useDirectIOReads, rawVectorDelegate, ESNextDiskBBQVectorsFormat.VERSION_CURRENT);
+        super(
+            state,
+            rawVectorFormatName,
+            useDirectIOReads,
+            rawVectorDelegate,
+            ESNextDiskBBQVectorsFormat.VERSION_CURRENT,
+            ESNextDiskBBQVectorsFormat.NAME,
+            ESNextDiskBBQVectorsFormat.IVF_META_EXTENSION,
+            ESNextDiskBBQVectorsFormat.CENTROID_EXTENSION,
+            ESNextDiskBBQVectorsFormat.CLUSTER_EXTENSION,
+            true,
+            flatVectorThreshold
+        );
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
         this.quantEncoding = encoding;

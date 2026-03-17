@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 141568
-summary: Fix TS bug when grouping on aliases
-type: bug

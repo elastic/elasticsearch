@@ -15,8 +15,8 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.inference.InferenceString.DataType.IMAGE;
-import static org.elasticsearch.inference.InferenceString.DataType.TEXT;
+import static org.elasticsearch.inference.DataType.IMAGE;
+import static org.elasticsearch.inference.DataType.TEXT;
 import static org.hamcrest.Matchers.is;
 
 public class EmbeddingsInputTests extends ESTestCase {

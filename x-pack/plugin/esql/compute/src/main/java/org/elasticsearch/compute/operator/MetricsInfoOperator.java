@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -177,9 +178,9 @@ public class MetricsInfoOperator implements Operator {
         }
     }
 
-    static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(MetricInfoKey.class) + RamUsageEstimator.shallowSizeOfInstance(
-        MetricInfo.class
-    );
+    /** Shallow size of a MetricInfoKey + MetricInfo pair (object headers and field slots only). */
+    static final long ENTRY_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(MetricInfoKey.class) + RamUsageEstimator
+        .shallowSizeOfInstance(MetricInfo.class);
 
     public enum Mode {
         INITIAL,
@@ -291,14 +292,14 @@ public class MetricsInfoOperator implements Operator {
                     MetricInfoKey key = new MetricInfoKey(metricName, ds);
                     MetricInfo info = metricsByKey.get(key);
                     if (info == null) {
-                        trackNewEntry();
+                        trackNewEntry(metricName, ds);
                         info = new MetricInfo(key.metricName(), key.dataStreamName());
                         metricsByKey.put(key, info);
                     }
-                    info.units.addAll(units);
-                    info.fieldTypes.addAll(fieldTypes);
-                    info.metricTypes.addAll(metricTypes);
-                    info.dimensionFieldKeys.addAll(dimensionFields);
+                    trackSetAddAll(info.units, units);
+                    trackSetAddAll(info.fieldTypes, fieldTypes);
+                    trackSetAddAll(info.metricTypes, metricTypes);
+                    trackSetAddAll(info.dimensionFieldKeys, dimensionFields);
                 }
             }
         } finally {
@@ -370,7 +371,7 @@ public class MetricsInfoOperator implements Operator {
 
         if (prefix == null && dimensionKeys.isEmpty() == false) {
             for (MetricInfo info : touchedMetrics) {
-                info.dimensionFieldKeys.addAll(dimensionKeys);
+                trackSetAddAll(info.dimensionFieldKeys, dimensionKeys);
             }
         }
     }
@@ -385,21 +386,15 @@ public class MetricsInfoOperator implements Operator {
         MetricInfoKey infoKey = new MetricInfoKey(fieldInfo.name(), dataStreamName);
         MetricInfo info = metricsByKey.get(infoKey);
         if (info == null) {
-            trackNewEntry();
+            trackNewEntry(fieldInfo.name(), dataStreamName);
             info = new MetricInfo(infoKey.metricName(), infoKey.dataStreamName());
             metricsByKey.put(infoKey, info);
         }
         touchedMetrics.add(info);
 
-        if (fieldInfo.unit() != null) {
-            info.units.add(fieldInfo.unit());
-        }
-        if (fieldInfo.fieldType() != null) {
-            info.fieldTypes.add(fieldInfo.fieldType());
-        }
-        if (fieldInfo.metricType() != null) {
-            info.metricTypes.add(fieldInfo.metricType());
-        }
+        trackSetAdd(info.units, fieldInfo.unit());
+        trackSetAdd(info.fieldTypes, fieldInfo.fieldType());
+        trackSetAdd(info.metricTypes, fieldInfo.metricType());
     }
 
     /**
@@ -417,10 +412,17 @@ public class MetricsInfoOperator implements Operator {
      * If the name matches the standard format produced by
      * {@code DataStream#getDefaultIndexName} ({@code .ds-{name}-{yyyy.MM.dd}-{000001}}),
      * the data-stream name is extracted. Otherwise the raw index name is returned unchanged.
+     * <p>
+     * Handles cluster-alias prefixed names (e.g. {@code remote:.ds-k8s-2024.01.15-000001})
+     * so that the output preserves the cluster qualifier (e.g. {@code remote:k8s}).
      */
     static String resolveDataStreamName(String indexName) {
-        Matcher m = BACKING_INDEX_PATTERN.matcher(indexName);
-        return m.matches() ? m.group(1) : indexName;
+        String[] split = RemoteClusterAware.splitIndexName(indexName);
+        String clusterAlias = split[0];
+        String localName = split[1];
+        Matcher m = BACKING_INDEX_PATTERN.matcher(localName);
+        String resolved = m.matches() ? m.group(1) : localName;
+        return RemoteClusterAware.buildRemoteIndexName(clusterAlias, resolved);
     }
 
     private List<MetricInfoRow> mergeRowsBySignature(Map<MetricInfoKey, MetricInfo> metricsByKey) {
@@ -538,13 +540,31 @@ public class MetricsInfoOperator implements Operator {
             parser.nextToken();
             return parser.mapOrdered();
         } catch (Exception e) {
-            return null;
+            throw new IllegalStateException("failed to parse _timeseries_metadata at position [" + position + "]", e);
         }
     }
 
-    private void trackNewEntry() {
-        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "MetricsInfoOperator");
-        trackedBytes += SHALLOW_SIZE;
+    private void trackBytes(long delta) {
+        breaker.addEstimateBytesAndMaybeBreak(delta, "MetricsInfoOperator");
+        trackedBytes += delta;
+    }
+
+    private void trackNewEntry(String name, String dataStream) {
+        trackBytes(ENTRY_SHALLOW_SIZE + RamUsageEstimator.sizeOf(name) + RamUsageEstimator.sizeOf(dataStream));
+    }
+
+    private void trackSetAddAll(Set<String> set, Set<String> values) {
+        for (String value : values) {
+            if (set.add(value)) {
+                trackBytes(RamUsageEstimator.sizeOf(value));
+            }
+        }
+    }
+
+    private void trackSetAdd(Set<String> set, String value) {
+        if (value != null && set.add(value)) {
+            trackBytes(RamUsageEstimator.sizeOf(value));
+        }
     }
 
     @Override

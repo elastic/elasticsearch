@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 143333
+summary: Add error handling and propagation for external source execution
+type: enhancement

@@ -71,23 +71,31 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     public abstract String reindexId(String id);
 
     /**
-     * Create a {@link Field} to store the provided {@code _id} that "stores"
-     * the {@code _id} so it can be fetched easily from the index.
+     * Create an indexed and stored {@link Field} for the provided {@code _id}.
      */
     public static Field standardIdField(String id) {
-        return new StringField(NAME, Uid.encodeId(id), Field.Store.YES);
+        return standardIdField(Uid.encodeId(id), Field.Store.YES);
     }
 
     /**
-     * Create a {@link Field} corresponding to a synthetic {@code _id} field, which is not indexed but instead resolved at runtime.
+     * Create an indexed {@link Field} for the provided {@code _id}, optionally stored.
+     * The id must already be encoded using {@link Uid#encodeId(String)}.
+     */
+    public static Field standardIdField(BytesRef uid, Field.Store stored) {
+        return new StringField(NAME, uid, stored);
+    }
+
+    /**
+     * Create a {@link Field} corresponding to a synthetic {@code _id} field, which is not indexed and not stored but instead computed at
+     * runtime.
      */
     public static Field syntheticIdField(String id) {
         return new SyntheticIdField(Uid.encodeId(id));
     }
 
     /**
-     * Create a {@link Field} corresponding to a synthetic {@code _id} field, which is not indexed but instead resolved at runtime. The id
-     * must be already encoded using {@link Uid#encodeId(String)}.
+     * Create a {@link Field} corresponding to a synthetic {@code _id} field, which is not indexed and not stored but instead resolved at
+     * runtime. The id must be already encoded using {@link Uid#encodeId(String)}.
      */
     public static Field syntheticIdField(BytesRef uid) {
         return new SyntheticIdField(uid);
@@ -135,8 +143,7 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return IdLoader.create(blContext.indexSettings(), blContext.mappingLookup())
-                .blockLoader(blContext.ordinalsByteSize().getBytes());
+            return IdLoader.create(blContext.indexSettings(), blContext.mappingLookup()).blockLoader(blContext.ordinalsByteSize());
         }
 
         @Override

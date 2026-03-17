@@ -61,13 +61,16 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -127,6 +130,7 @@ public class ApproximationSupportTests extends ESTestCase {
         // TODO: investigate whether these plans are supported or explain why not
         Fuse.class,
         FuseScoreEval.class,
+        LimitBy.class,
         Lookup.class,
         MMR.class,
         Subquery.class,
@@ -138,6 +142,7 @@ public class ApproximationSupportTests extends ESTestCase {
         Join.class,
         InlineJoin.class,
         LookupJoin.class,
+        ParameterizedQuery.class,
 
         // InlineStats is not supported yet.
         // Only a single Stats command is supported.
@@ -153,6 +158,7 @@ public class ApproximationSupportTests extends ESTestCase {
         LocalRelation.class,
         MetricsInfo.class,
         ExternalRelation.class,
+        TsInfo.class,
 
         // The plans are superclasses of other plans.
         LogicalPlan.class,

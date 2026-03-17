@@ -16,7 +16,10 @@ import software.amazon.awssdk.services.bedrockruntime.model.ToolResultBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolResultContentBlock;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentObject.ContentObjectText;
+import org.elasticsearch.inference.completion.ContentObjects;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.ToolCall;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.translation.ChatCompletionRole;
 
@@ -57,8 +60,8 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
 
     public void testConvertChatCompletionMessages_SystemMessage() {
         var messages = List.of(
-            new UnifiedCompletionRequest.Message(
-                new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObjectText(SYSTEM_TEXT))),
+            new org.elasticsearch.inference.completion.Message(
+                new ContentObjects(List.of(new ContentObjectText(SYSTEM_TEXT))),
                 ChatCompletionRole.SYSTEM.toString(),
                 null,
                 null
@@ -73,14 +76,14 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
 
     public void testConvertChatCompletionMessages_UserAndAssistantMessages() {
         var messages = List.of(
-            new UnifiedCompletionRequest.Message(
-                new UnifiedCompletionRequest.ContentString(USER_TEXT),
+            new org.elasticsearch.inference.completion.Message(
+                new ContentString(USER_TEXT),
                 ChatCompletionRole.USER.toString(),
                 null,
                 null
             ),
-            new UnifiedCompletionRequest.Message(
-                new UnifiedCompletionRequest.ContentString(ASSISTANT_TEXT),
+            new org.elasticsearch.inference.completion.Message(
+                new ContentString(ASSISTANT_TEXT),
                 ChatCompletionRole.ASSISTANT.toString(),
                 null,
                 null
@@ -104,8 +107,8 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
     public void testConvertChatCompletionMessages_ToolMessageWithToolsEnabled() {
         var toolCallId = TOOL_CALL_ID;
         var messages = List.of(
-            new UnifiedCompletionRequest.Message(
-                new UnifiedCompletionRequest.ContentString(RESULT),
+            new org.elasticsearch.inference.completion.Message(
+                new ContentString(RESULT),
                 ChatCompletionRole.TOOL.toString(),
                 toolCallId,
                 null
@@ -139,8 +142,8 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
 
     public void testConvertChatCompletionMessages_ToolMessageWithToolsDisabled() {
         var messages = List.of(
-            new UnifiedCompletionRequest.Message(
-                new UnifiedCompletionRequest.ContentString(RESULT),
+            new org.elasticsearch.inference.completion.Message(
+                new ContentString(RESULT),
                 ChatCompletionRole.TOOL.toString(),
                 TOOL_CALL_ID,
                 null
@@ -157,28 +160,22 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
     public void testConvertChatCompletionMessages_ToolChoiceNoneWithPreviousToolMessagesAndTextContent() {
         var toolCallId = TOOL_CALL_ID;
 
-        var toolMessage = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(PREVIOUS_TOOL_RESULT),
+        var toolMessage = new org.elasticsearch.inference.completion.Message(
+            new ContentString(PREVIOUS_TOOL_RESULT),
             ChatCompletionRole.TOOL.toString(),
             toolCallId,
             null
         );
 
-        var assistantMessage = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(ASSISTANT_REGULAR_MESSAGE),
+        var assistantMessage = new org.elasticsearch.inference.completion.Message(
+            new ContentString(ASSISTANT_REGULAR_MESSAGE),
             ChatCompletionRole.ASSISTANT.toString(),
             null,
-            List.of(
-                new UnifiedCompletionRequest.ToolCall(
-                    toolCallId,
-                    new UnifiedCompletionRequest.ToolCall.FunctionField("{\"test\":\"value\"}", "test_function"),
-                    FUNCTION_TYPE
-                )
-            )
+            List.of(new ToolCall(toolCallId, new ToolCall.FunctionField("{\"test\":\"value\"}", "test_function"), FUNCTION_TYPE))
         );
 
-        var userMessage = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(USER_MESSAGE),
+        var userMessage = new org.elasticsearch.inference.completion.Message(
+            new ContentString(USER_MESSAGE),
             ChatCompletionRole.USER.toString(),
             null,
             null
@@ -204,26 +201,15 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
     }
 
     public void testConvertChatCompletionMessages_UserAndAssistantMessagesWithEmptyContent() {
-        var userMessage = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentObjects(
-                List.of(
-                    new UnifiedCompletionRequest.ContentObjectText(""),
-                    new UnifiedCompletionRequest.ContentObjectText(VALID_TEXT),
-                    new UnifiedCompletionRequest.ContentObjectText("")
-                )
-            ),
+        var userMessage = new org.elasticsearch.inference.completion.Message(
+            new ContentObjects(List.of(new ContentObjectText(""), new ContentObjectText(VALID_TEXT), new ContentObjectText(""))),
             ChatCompletionRole.USER.toString(),
             null,
             null
         );
 
-        var assistantMessage = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentObjects(
-                List.of(
-                    new UnifiedCompletionRequest.ContentObjectText(""),
-                    new UnifiedCompletionRequest.ContentObjectText(ASSISTANT_RESPONSE)
-                )
-            ),
+        var assistantMessage = new org.elasticsearch.inference.completion.Message(
+            new ContentObjects(List.of(new ContentObjectText(""), new ContentObjectText(ASSISTANT_RESPONSE))),
             ChatCompletionRole.ASSISTANT.toString(),
             null,
             null
@@ -247,14 +233,8 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
     }
 
     public void testConvertChatCompletionMessages_SystemMessageWithEmptyContent() {
-        var systemMessage = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentObjects(
-                List.of(
-                    new UnifiedCompletionRequest.ContentObjectText(""),
-                    new UnifiedCompletionRequest.ContentObjectText(SYSTEM_INSTRUCTION),
-                    new UnifiedCompletionRequest.ContentObjectText("")
-                )
-            ),
+        var systemMessage = new org.elasticsearch.inference.completion.Message(
+            new ContentObjects(List.of(new ContentObjectText(""), new ContentObjectText(SYSTEM_INSTRUCTION), new ContentObjectText(""))),
             ChatCompletionRole.SYSTEM.toString(),
             null,
             null
@@ -267,14 +247,14 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
     }
 
     public void testConvertChatCompletionMessages_MergeConsecutiveUserMessages() {
-        var user1 = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(USER1_TEXT),
+        var user1 = new org.elasticsearch.inference.completion.Message(
+            new ContentString(USER1_TEXT),
             ChatCompletionRole.USER.toString(),
             null,
             null
         );
-        var user2 = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(USER2_TEXT),
+        var user2 = new org.elasticsearch.inference.completion.Message(
+            new ContentString(USER2_TEXT),
             ChatCompletionRole.USER.toString(),
             null,
             null
@@ -296,20 +276,20 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
     }
 
     public void testConvertChatCompletionMessages_MergeConsecutiveAssistantMessages() {
-        var user = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(HI_TEXT),
+        var user = new org.elasticsearch.inference.completion.Message(
+            new ContentString(HI_TEXT),
             ChatCompletionRole.USER.toString(),
             null,
             null
         );
-        var assistant1 = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(ASSISTANT1_TEXT),
+        var assistant1 = new org.elasticsearch.inference.completion.Message(
+            new ContentString(ASSISTANT1_TEXT),
             ChatCompletionRole.ASSISTANT.toString(),
             null,
             null
         );
-        var assistant2 = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(ASSISTANT2_TEXT),
+        var assistant2 = new org.elasticsearch.inference.completion.Message(
+            new ContentString(ASSISTANT2_TEXT),
             ChatCompletionRole.ASSISTANT.toString(),
             null,
             null
@@ -339,15 +319,15 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
     public void testConvertChatCompletionMessages_ToolFollowedByTextInsertsAssistantMessage() {
         var toolCallId = TOOL_CALL_ID;
 
-        var toolMessage = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(TOOL_RESULT),
+        var toolMessage = new org.elasticsearch.inference.completion.Message(
+            new ContentString(TOOL_RESULT),
             ChatCompletionRole.TOOL.toString(),
             toolCallId,
             null
         );
 
-        var userMessage = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(USER_TEXT),
+        var userMessage = new org.elasticsearch.inference.completion.Message(
+            new ContentString(USER_TEXT),
             ChatCompletionRole.USER.toString(),
             null,
             null
@@ -385,15 +365,15 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
     public void testConvertChatCompletionMessages_TextFollowedByToolInsertsAssistantMessage() {
         var toolCallId = TOOL_CALL_ID;
 
-        var userMessage = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(USER_TEXT),
+        var userMessage = new org.elasticsearch.inference.completion.Message(
+            new ContentString(USER_TEXT),
             ChatCompletionRole.USER.toString(),
             null,
             null
         );
 
-        var toolMessage = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(TOOL_RESULT),
+        var toolMessage = new org.elasticsearch.inference.completion.Message(
+            new ContentString(TOOL_RESULT),
             ChatCompletionRole.TOOL.toString(),
             toolCallId,
             null
@@ -429,20 +409,20 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
     }
 
     public void testConvertChatCompletionMessages_NonConsecutiveSameRoleMessagesDontMerge() {
-        var user1 = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(USER1_TEXT),
+        var user1 = new org.elasticsearch.inference.completion.Message(
+            new ContentString(USER1_TEXT),
             ChatCompletionRole.USER.toString(),
             null,
             null
         );
-        var assistant = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(ASSISTANT_TEXT),
+        var assistant = new org.elasticsearch.inference.completion.Message(
+            new ContentString(ASSISTANT_TEXT),
             ChatCompletionRole.ASSISTANT.toString(),
             null,
             null
         );
-        var user2 = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(USER2_TEXT),
+        var user2 = new org.elasticsearch.inference.completion.Message(
+            new ContentString(USER2_TEXT),
             ChatCompletionRole.USER.toString(),
             null,
             null
@@ -463,14 +443,14 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
     }
 
     public void testConvertChatCompletionMessages_PrependUserMessageWhenFirstMessageIsAssistant() {
-        var assistant = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(FIRST_ASSISTANT_MESSAGE),
+        var assistant = new org.elasticsearch.inference.completion.Message(
+            new ContentString(FIRST_ASSISTANT_MESSAGE),
             ChatCompletionRole.ASSISTANT.toString(),
             null,
             null
         );
-        var user = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(USER_RESPONSE),
+        var user = new org.elasticsearch.inference.completion.Message(
+            new ContentString(USER_RESPONSE),
             ChatCompletionRole.USER.toString(),
             null,
             null
@@ -502,14 +482,14 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
     }
 
     public void testConvertChatCompletionMessages_MixedRolesWithEmptyContent() {
-        var userMessage = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(""),
+        var userMessage = new org.elasticsearch.inference.completion.Message(
+            new ContentString(""),
             ChatCompletionRole.USER.toString(),
             null,
             null
         );
-        var assistantMessage = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(""),
+        var assistantMessage = new org.elasticsearch.inference.completion.Message(
+            new ContentString(""),
             ChatCompletionRole.ASSISTANT.toString(),
             null,
             null
@@ -525,14 +505,14 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
         var systemMessage1Text = "System message 1";
         var systemMessage2Text = "System message 2";
 
-        var systemMessage1 = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(systemMessage1Text),
+        var systemMessage1 = new org.elasticsearch.inference.completion.Message(
+            new ContentString(systemMessage1Text),
             ChatCompletionRole.SYSTEM.toString(),
             null,
             null
         );
-        var systemMessage2 = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(systemMessage2Text),
+        var systemMessage2 = new org.elasticsearch.inference.completion.Message(
+            new ContentString(systemMessage2Text),
             ChatCompletionRole.SYSTEM.toString(),
             null,
             null
@@ -547,8 +527,8 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
     }
 
     public void testConvertChatCompletionMessages_ToolMessageWithoutToolsEnabled() {
-        var toolMessage = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(TOOL_RESULT),
+        var toolMessage = new org.elasticsearch.inference.completion.Message(
+            new ContentString(TOOL_RESULT),
             ChatCompletionRole.TOOL.toString(),
             TOOL_CALL_ID,
             null
@@ -561,13 +541,9 @@ public class AmazonBedrockConverseUtilsTests extends ESTestCase {
     }
 
     public void testConvertChatCompletionMessages_AssistantMessageWithToolCalls() {
-        var toolCall = new UnifiedCompletionRequest.ToolCall(
-            TOOL_CALL_ID,
-            new UnifiedCompletionRequest.ToolCall.FunctionField("{\"key\":\"value\"}", FUNCTION_NAME),
-            "function"
-        );
-        var assistantMessage = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(ASSISTANT_RESPONSE),
+        var toolCall = new ToolCall(TOOL_CALL_ID, new ToolCall.FunctionField("{\"key\":\"value\"}", FUNCTION_NAME), "function");
+        var assistantMessage = new org.elasticsearch.inference.completion.Message(
+            new ContentString(ASSISTANT_RESPONSE),
             ChatCompletionRole.ASSISTANT.toString(),
             null,
             List.of(toolCall)

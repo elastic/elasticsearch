@@ -12,7 +12,7 @@ steps:
               - opensuse-leap-15
               - oraclelinux-8
               - oraclelinux-9
-              - orcalelinux-10
+              - oraclelinux-10
               - sles-15
               - ubuntu-2204
               - ubuntu-2404

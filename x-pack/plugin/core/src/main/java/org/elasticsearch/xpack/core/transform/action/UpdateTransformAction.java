@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -74,9 +75,10 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
             final XContentParser parser,
             final String id,
             final boolean deferValidation,
-            final TimeValue timeout
+            final TimeValue timeout,
+            final TransformParsingContext transformParsingContext
         ) {
-            return new Request(TransformConfigUpdate.fromXContent(parser), id, deferValidation, timeout);
+            return new Request(TransformConfigUpdate.fromXContent(parser, transformParsingContext), id, deferValidation, timeout);
         }
 
         /**

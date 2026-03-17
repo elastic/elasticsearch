@@ -12,8 +12,6 @@ package org.elasticsearch.inference;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.inference.InferenceString.DataFormat;
-import org.elasticsearch.inference.InferenceString.DataType;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -27,7 +25,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.inference.InferenceString.FORMAT_FIELD;
 import static org.elasticsearch.inference.InferenceString.TYPE_FIELD;
 import static org.elasticsearch.inference.InferenceString.VALUE_FIELD;
-import static org.elasticsearch.inference.InferenceString.supportedFormatsForType;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -38,8 +35,8 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
     }
 
     public void testSupportedFormatsForType() {
-        assertThat(supportedFormatsForType(DataType.TEXT), is(EnumSet.of(DataFormat.TEXT)));
-        assertThat(supportedFormatsForType(DataType.IMAGE), is(EnumSet.of(DataFormat.BASE64)));
+        assertThat(DataType.TEXT.getSupportedFormats(), is(EnumSet.of(DataFormat.TEXT)));
+        assertThat(DataType.IMAGE.getSupportedFormats(), is(EnumSet.of(DataFormat.BASE64)));
     }
 
     public void testParserWithText() throws IOException {
@@ -199,7 +196,7 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
     public void testParserWithInvalidTypeAndFormatCombination_throwsException() throws IOException {
         var type = randomFrom(DataType.values());
         var unsupportedDataFormats = EnumSet.allOf(DataFormat.class);
-        unsupportedDataFormats.removeAll(supportedFormatsForType(type));
+        unsupportedDataFormats.removeAll(type.getSupportedFormats());
         var invalidFormat = randomFrom(unsupportedDataFormats);
         var requestJson = Strings.format("""
             {
@@ -223,7 +220,7 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
                         "Data type [%s] does not support data format [%s], supported formats are %s",
                         type,
                         invalidFormat,
-                        supportedFormatsForType(type)
+                        type.getSupportedFormats()
                     )
                 )
             );
@@ -257,7 +254,7 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
 
     public static InferenceString createRandom() {
         DataType dataType = randomFrom(DataType.values());
-        DataFormat format = randomFrom(supportedFormatsForType(dataType));
+        DataFormat format = randomFrom(dataType.getSupportedFormats());
         return new InferenceString(dataType, format, randomAlphanumericOfLength(10));
     }
 
@@ -265,7 +262,7 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
     protected InferenceString mutateInstance(InferenceString instance) throws IOException {
         if (randomBoolean()) {
             DataType newDataType = randomValueOtherThan(instance.dataType(), () -> randomFrom(DataType.values()));
-            DataFormat format = randomFrom(supportedFormatsForType(newDataType));
+            DataFormat format = randomFrom(newDataType.getSupportedFormats());
             return new InferenceString(newDataType, format, instance.value());
         } else {
             String value = instance.value();

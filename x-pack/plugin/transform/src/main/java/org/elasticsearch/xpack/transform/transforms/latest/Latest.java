@@ -70,7 +70,7 @@ public class Latest extends AbstractCompositeAggFunction {
 
     @Override
     public ChangeCollector buildChangeCollector(String synchronizationField) {
-        return new LatestChangeCollector(synchronizationField);
+        return new LatestChangeCollector(synchronizationField, config.getUniqueKey());
     }
 
     private static Map<String, Object> convertBucketToDocument(

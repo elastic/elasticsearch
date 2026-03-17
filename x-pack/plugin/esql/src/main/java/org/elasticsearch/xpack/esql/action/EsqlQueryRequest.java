@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.IndicesRequest.CrossProjectCandidate;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -37,10 +36,7 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest
-    implements
-        CompositeIndicesRequest,
-        CrossProjectCandidate {
+public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest implements CompositeIndicesRequest {
 
     public static TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
     public static TimeValue DEFAULT_WAIT_FOR_COMPLETION = TimeValue.timeValueSeconds(1);
@@ -281,7 +277,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     @Override
     public Task createTask(TaskId taskId, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        var status = new EsqlQueryStatus(new AsyncExecutionId(UUIDs.randomBase64UUID(), taskId));
+        var status = new EsqlQueryStatus(new AsyncExecutionId(UUIDs.randomBase64UUID(), taskId), keepAlive);
         return new EsqlQueryRequestTask(query, taskId.getId(), type, action, parentTaskId, headers, status);
     }
 
@@ -324,10 +320,5 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     public String projectRouting() {
         return projectRouting;
-    }
-
-    @Override
-    public boolean allowsCrossProject() {
-        return true;
     }
 }

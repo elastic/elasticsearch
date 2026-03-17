@@ -64,6 +64,7 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.ByteLengthFromBytesRefDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromOrdsBlockLoader;
@@ -125,7 +126,8 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
         true,
-        DocValuesParameter.Values.Cardinality.LOW
+        DocValuesParameter.Values.Cardinality.LOW,
+        DocValuesParameter.Values.MultiValue.SORTED_SET
     );
 
     public static class Defaults {
@@ -191,7 +193,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> indexed;
-        private final DocValuesParameter docValuesParameters = new DocValuesParameter(
+        private final DocValuesParameter docValuesParameters = DocValuesParameter.sortedSetWithCardinality(
             DEFAULT_DOC_VALUES_PARAMS,
             m -> toType(m).docValuesParameters()
         );
@@ -336,7 +338,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         public Builder docValues(DocValuesParameter.Values.Cardinality cardinality) {
-            this.docValuesParameters.setValue(new DocValuesParameter.Values(true, cardinality));
+            this.docValuesParameters.setValue(new DocValuesParameter.Values(true, cardinality, DEFAULT_DOC_VALUES_PARAMS.multiValue()));
             return this;
         }
 
@@ -877,16 +879,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                     }
                 }
                 return switch (cfg.function()) {
-                    case BYTE_LENGTH -> new ByteLengthFromBytesRefDocValuesBlockLoader(
-                        ((BlockLoaderFunctionConfig.JustWarnings) cfg).warnings(),
-                        name()
-                    );
-                    case LENGTH -> new Utf8CodePointsFromOrdsBlockLoader(
-                        ((BlockLoaderFunctionConfig.JustWarnings) cfg).warnings(),
-                        name(),
-                        blContext.ordinalsByteSize()
-                    );
-                    case MV_MAX -> new MvMaxBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
+                    case BYTE_LENGTH -> new ByteLengthFromBytesRefDocValuesBlockLoader(blContext.warnings(), name());
+                    case LENGTH -> new Utf8CodePointsFromOrdsBlockLoader(blContext.warnings(), name(), blContext.ordinalsByteSize());
+                    case MV_MAX -> usesBinaryDocValues
+                        ? new MvMaxBytesRefsFromBinaryBlockLoader(name())
+                        : new MvMaxBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                     case MV_MIN -> usesBinaryDocValues
                         ? new MvMinBytesRefsFromBinaryBlockLoader(name())
                         : new MvMinBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());

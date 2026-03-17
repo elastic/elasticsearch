@@ -78,7 +78,7 @@ public class OperatorFactoryRegistry {
                     context.batchSize(),
                     null
                 );
-                return new AsyncConnectorSourceOperatorFactory(connector, request, context.maxBufferSize(), executor);
+                return new AsyncConnectorSourceOperatorFactory(connector, request, context.maxBufferSize(), executor, context.sliceQueue());
             }
             SourceOperatorFactoryProvider opFactory = sf.operatorFactory();
             if (opFactory != null) {
@@ -96,6 +96,10 @@ public class OperatorFactoryRegistry {
 
     public boolean hasPluginFactory(String sourceType) {
         return sourceType != null && (sourceFactories.containsKey(sourceType) || pluginFactories.containsKey(sourceType));
+    }
+
+    public Map<String, ExternalSourceFactory> sourceFactories() {
+        return sourceFactories;
     }
 
     public Executor executor() {

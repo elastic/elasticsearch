@@ -9,6 +9,9 @@ package org.elasticsearch.compute.lucene.query;
 
 import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
@@ -46,6 +49,7 @@ public class LuceneCountOperator extends LuceneOperator {
             IndexedByShardId<? extends ShardContext> contexts,
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
+            int docThresholdForAutoStrategy,
             int taskConcurrency,
             List<ElementType> tagTypes,
             int limit
@@ -53,8 +57,10 @@ public class LuceneCountOperator extends LuceneOperator {
             super(
                 contexts,
                 queryFunction,
-                dataPartitioning,
-                query -> LuceneSliceQueue.PartitioningStrategy.SHARD,
+                // don't enable doc-partitioning for count see #partitioningStrategyForCount
+                dataPartitioning == DataPartitioning.DOC ? DataPartitioning.AUTO : dataPartitioning,
+                LuceneCountOperator::partitioningStrategyForCount,
+                docThresholdForAutoStrategy,
                 taskConcurrency,
                 limit,
                 false,
@@ -141,19 +147,11 @@ public class LuceneCountOperator extends LuceneOperator {
         PerTagsState state = tagsToState.computeIfAbsent(scorer.tags(), t -> new PerTagsState());
         Weight weight = scorer.weight();
         var leafReaderContext = scorer.leafReaderContext();
-        // see org.apache.lucene.search.TotalHitCountCollector
         int leafCount = weight.count(leafReaderContext);
         if (leafCount != -1) {
-            // make sure to NOT multi count as the count _shortcut_ (which is segment wide)
-            // handle doc partitioning where the same leaf can be seen multiple times
-            // since the count is global, consider it only for the first partition and skip the rest
-            // SHARD, SEGMENT and the first DOC_ reader in data partitioning contain the first doc (position 0)
-            if (scorer.position() == 0) {
-                // check to not count over the desired number of docs/limit
-                var count = Math.min(leafCount, remainingDocs);
-                state.totalHits += count;
-                remainingDocs -= count;
-            }
+            var count = Math.min(leafCount, remainingDocs);
+            state.totalHits += count;
+            remainingDocs -= count;
             scorer.markAsDone();
         } else {
             // could not apply shortcut, trigger the search
@@ -250,5 +248,20 @@ public class LuceneCountOperator extends LuceneOperator {
                 totalHits++;
             }
         }
+    }
+
+    /**
+     * We can't use Weight.count() with doc-partitioning because if the query gets cached mid-way, the count becomes incorrect.
+     * Over-counting occurs when some parts are counted doc-by-doc while the first part is counted entirely via the cached shortcut.
+     * Under-counting occurs when the first part is not cached but later parts are, causing those parts to be skipped.
+     * To make doc-partitioning work properly for count, we would need coordination between threads.
+     */
+    static LuceneSliceQueue.PartitioningStrategy partitioningStrategyForCount(Query q) {
+        final Query unwrapped = LuceneSourceOperator.Factory.unwrapQuery(q);
+        return switch (unwrapped) {
+            case MatchAllDocsQuery unused -> LuceneSliceQueue.PartitioningStrategy.SHARD;
+            case MatchNoDocsQuery unused -> LuceneSliceQueue.PartitioningStrategy.SHARD;
+            default -> LuceneSliceQueue.PartitioningStrategy.SEGMENT;
+        };
     }
 }

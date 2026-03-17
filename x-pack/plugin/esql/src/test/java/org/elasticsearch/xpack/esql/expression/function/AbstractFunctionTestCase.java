@@ -22,8 +22,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
@@ -79,7 +80,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
@@ -98,9 +99,6 @@ import static org.hamcrest.Matchers.nullValue;
  */
 @ESTestCase.EntitledTestPackages({ "sun.font", "sun.awt" }) // For renderDocs
 public abstract class AbstractFunctionTestCase extends ESTestCase {
-
-    private static EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry().snapshotRegistry();
-
     protected TestCaseSupplier.TestCase testCase;
 
     /**
@@ -126,7 +124,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * </p>
      *
      * @param entirelyNullPreservesType should a test case that only contains parameters
-     *                                  with the {@code null} type keep it’s expected type?
+     *                                  with the {@code null} type keep it's expected type?
      *                                  This is <strong>mostly</strong> going to be {@code true}
      *                                  except for functions that base their type entirely
      *                                  on input types like {@link Greatest} or {@link Coalesce}.
@@ -164,7 +162,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
          *
          * Also, if this was the first time we saw the signature we copy it
          * *again*, replacing the argument with null, but annotating the
-         * argument’s type as `null` explicitly.
+         * argument's type as `null` explicitly.
          */
         Set<List<DataType>> uniqueSignatures = new HashSet<>();
         for (TestCaseSupplier original : testCaseSuppliers) {
@@ -190,7 +188,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                         nullValue(),
                         null,
                         null,
-                        oc.getExpectedTypeError(),
                         null,
                         null,
                         null,
@@ -224,7 +221,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                                 nullValue(),
                                 null,
                                 null,
-                                oc.getExpectedTypeError(),
                                 null,
                                 null,
                                 null,
@@ -255,19 +251,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     /**
-     * Adds test cases containing unsupported parameter types that assert
-     * that they throw type errors.
-     * @deprecated make a subclass of {@link ErrorsForCasesWithoutExamplesTestCase} instead
-     */
-    @Deprecated
-    protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(
-        List<TestCaseSupplier> testCaseSuppliers,
-        PositionalErrorMessageSupplier positionalErrorMessageSupplier
-    ) {
-        return errorsForCasesWithoutExamples(testCaseSuppliers, (i, v, t) -> typeErrorMessage(i, v, t, positionalErrorMessageSupplier));
-    }
-
-    /**
      * Build the expected error message for an invalid type signature.
      */
     protected static String typeErrorMessage(
@@ -294,42 +277,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return ordinal + "argument of [source] must be [" + expectedTypeString + "], found value [" + name + "] type [" + name + "]";
     }
 
-    @FunctionalInterface
-    protected interface TypeErrorMessageSupplier {
-        String apply(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types);
-    }
-
-    /**
-     * @deprecated make a subclass of {@link ErrorsForCasesWithoutExamplesTestCase} instead
-     */
-    @Deprecated
-    protected static List<TestCaseSupplier> errorsForCasesWithoutExamples(
-        List<TestCaseSupplier> testCaseSuppliers,
-        TypeErrorMessageSupplier typeErrorMessageSupplier
-    ) {
-        List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
-        suppliers.addAll(testCaseSuppliers);
-
-        Set<List<DataType>> valid = testCaseSuppliers.stream().map(TestCaseSupplier::types).collect(Collectors.toSet());
-        List<Set<DataType>> validPerPosition = validPerPosition(valid);
-
-        testCaseSuppliers.stream()
-            .map(s -> s.types().size())
-            .collect(Collectors.toSet())
-            .stream()
-            .flatMap(AbstractFunctionTestCase::allPermutations)
-            .filter(types -> valid.contains(types) == false)
-            /*
-             * Skip any cases with more than one null. Our tests don't generate
-             * the full combinatorial explosions of all nulls - just a single null.
-             * Hopefully <null>, <null> cases will function the same as <null>, <valid>
-             * cases.
-             */.filter(types -> types.stream().filter(t -> t == DataType.NULL).count() <= 1)
-            .map(types -> typeErrorSupplier(validPerPosition.size() != 1, validPerPosition, types, typeErrorMessageSupplier))
-            .forEach(suppliers::add);
-        return suppliers;
-    }
-
     private static List<DataType> append(List<DataType> orig, DataType extra) {
         List<DataType> longer = new ArrayList<>(orig.size() + 1);
         longer.addAll(orig);
@@ -337,55 +284,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return longer;
     }
 
-    protected static TestCaseSupplier typeErrorSupplier(
-        boolean includeOrdinal,
-        List<Set<DataType>> validPerPosition,
-        List<DataType> types,
-        PositionalErrorMessageSupplier errorMessageSupplier
-    ) {
-        return typeErrorSupplier(includeOrdinal, validPerPosition, types, (o, v, t) -> typeErrorMessage(o, v, t, errorMessageSupplier));
-    }
-
-    /**
-     * Build a test case that asserts that the combination of parameter types is an error.
-     * @deprecated use an extension of {@link ErrorsForCasesWithoutExamplesTestCase}
-     */
-    @Deprecated
-    protected static TestCaseSupplier typeErrorSupplier(
-        boolean includeOrdinal,
-        List<Set<DataType>> validPerPosition,
-        List<DataType> types,
-        TypeErrorMessageSupplier errorMessageSupplier
-    ) {
-        return new TestCaseSupplier(
-            "type error for " + TestCaseSupplier.nameFromTypes(types),
-            types,
-            () -> TestCaseSupplier.TestCase.typeError(
-                types.stream().map(type -> new TestCaseSupplier.TypedData(randomLiteral(type).value(), type, type.typeName())).toList(),
-                errorMessageSupplier.apply(includeOrdinal, validPerPosition, types)
-            )
-        );
-    }
-
-    static List<Set<DataType>> validPerPosition(Set<List<DataType>> valid) {
-        int max = valid.stream().mapToInt(List::size).max().getAsInt();
-        List<Set<DataType>> result = new ArrayList<>(max);
-        for (int i = 0; i < max; i++) {
-            result.add(new HashSet<>());
-        }
-        for (List<DataType> signature : valid) {
-            for (int i = 0; i < signature.size(); i++) {
-                result.get(i).add(signature.get(i));
-            }
-        }
-        return result;
-    }
-
     protected static Stream<List<DataType>> allPermutations(int argumentCount) {
         if (argumentCount == 0) {
             return Stream.of(List.of());
         }
-        if (argumentCount > 3) {
+        if (argumentCount > 4) {
             throw new IllegalArgumentException("would generate too many combinations");
         }
         Stream<List<DataType>> stream = validFunctionParameters().map(List::of);
@@ -428,7 +331,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             if (DataType.UNDER_CONSTRUCTION.contains(t)) {
                 /*
                  * Types under construction aren't checked because we're actively
-                 * adding support for them to functions. That’s *why* they are
+                 * adding support for them to functions. That's *why* they are
                  * under construction.
                  */
                 return false;
@@ -436,7 +339,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             if (t.isCounter()) {
                 /*
                  * For now, we're assuming no functions take counters
-                 * as parameters. That’s not true - some do. But we'll
+                 * as parameters. That's not true - some do. But we'll
                  * need to update the tests to handle that.
                  */
                 return false;
@@ -571,6 +474,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 e = surrogate;
             }
         }
+        assertThat("expression required surrogates", e, not(instanceOf(OnlySurrogateExpression.class)));
         Layout.Builder builder = new Layout.Builder();
         buildLayout(builder, e);
         Expression.TypeResolution resolution = e.typeResolved();
@@ -934,14 +838,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
     }
 
-    protected final void assertTypeResolutionFailure(Expression expression) {
-        assertTrue("expected unresolved", expression.typeResolved().unresolved());
-        assertThat(expression.typeResolved().message(), equalTo(testCase.getExpectedTypeError()));
-    }
-
     private static Class<?> classGeneratingSignatures = null;
     /**
-     * Unique signatures in this test’s parameters.
+     * Unique signatures in this test's parameters.
      */
     private static Set<DocsV3Support.TypeSignature> signatures;
 
@@ -964,9 +863,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             TestCaseSupplier tcs = (TestCaseSupplier) ((Object[]) p)[0];
             try {
                 TestCaseSupplier.TestCase tc = tcs.get();
-                if (tc.getExpectedTypeError() != null) {
-                    continue;
-                }
                 if (tc.getData().stream().anyMatch(t -> t.type() == DataType.NULL)) {
                     continue;
                 }
@@ -1000,7 +896,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         DocsV3Support.renderDocs(functionName(), getTestClass());
     }
 
-    protected static Constructor<?> constructorWithFunctionInfo(Class<?> clazz) {
+    public static Constructor<?> constructorWithFunctionInfo(Class<?> clazz) {
         for (Constructor<?> ctor : clazz.getConstructors()) {
             FunctionInfo functionInfo = ctor.getAnnotation(FunctionInfo.class);
             if (functionInfo != null) {
@@ -1021,12 +917,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     static boolean functionRegistered(String name) {
-        return functionRegistry.functionExists(name);
+        return TEST_FUNCTION_REGISTRY.snapshotRegistry().functionExists(name);
     }
 
     static FunctionDefinition definition(String name) {
-        if (functionRegistry.functionExists(name)) {
-            return functionRegistry.resolveFunction(name);
+        if (functionRegistered(name)) {
+            return TEST_FUNCTION_REGISTRY.snapshotRegistry().resolveFunction(name);
         }
         return null;
     }
@@ -1035,17 +931,15 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     protected final DriverContext driverContext() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        breakers.add(breaker);
-        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays), null);
+        breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
+        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
     }
 
     protected final DriverContext crankyContext() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService())
             .withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        breakers.add(breaker);
-        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays), null);
+        breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
+        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
     }
 
     @After
@@ -1053,16 +947,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         for (CircuitBreaker breaker : breakers) {
             assertThat(breaker.getUsed(), equalTo(0L));
         }
-    }
-
-    /**
-     * Returns true if the current test case is for an aggregation function.
-     * <p>
-     *     This method requires reflection, as it’s called from a static context (@AfterClass documentation rendering).
-     * </p>
-     */
-    private static boolean isAggregation() {
-        return AbstractAggregationTestCase.class.isAssignableFrom(getTestClass());
     }
 
     /**

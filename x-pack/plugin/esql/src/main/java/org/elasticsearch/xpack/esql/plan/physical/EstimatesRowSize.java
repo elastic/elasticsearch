@@ -31,7 +31,6 @@ public interface EstimatesRowSize {
     /**
      * Estimate the number of bytes that'll be loaded per position before
      * the stream of pages is consumed.
-     * @return
      */
     PhysicalPlan estimateRowSize(State state);
 

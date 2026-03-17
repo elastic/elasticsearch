@@ -132,7 +132,8 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregatorFactories,
         List<BlockHash.GroupSpec> groupSpecs,
-        LocalExecutionPlannerContext context
+        LocalExecutionPlannerContext context,
+        int maxPageSize
     ) {
         return new TimeSeriesAggregationOperator.Factory(
             ts.timeBucketRounding(context.foldCtx()),
@@ -140,7 +141,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             groupSpecs,
             aggregatorMode,
             aggregatorFactories,
-            context.pageSize(ts, ts.estimatedRowSize())
+            maxPageSize
         );
     }
 
@@ -289,6 +290,10 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                     case BlockResultMissing unused -> getNullsBlock(doc);
                     case BlockResultSuccess success -> success.block;
                 };
+            }
+            // For NULL-typed fields (unmapped fields with NULLIFY mode), return nulls
+            if (fa.dataType() == DataType.NULL) {
+                return (doc, copier) -> getNullsBlock(doc);
             }
         }
         return (indexDoc, blockCopier) -> switch (extractBlockForSingleDoc(indexDoc, attribute.name(), blockCopier)) {

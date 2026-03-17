@@ -16,20 +16,20 @@ import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets;
 
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiOAuth2Settings.AZURE_OPENAI_OAUTH_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiOAuth2Settings.REQUIRED_FIELDS;
 
 public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretSettings {
 
     public static final String NAME = "azure_openai_oauth2_client_secret";
-
-    public static final String CLIENT_SECRET_FIELD = "client_secret";
 
     public static final String USE_CLIENT_SECRET_ERROR = Strings.format(
         "To use OAuth2 the [%s] field must be set, " + "either remove fields [%s], or provide the [%s] field.",
@@ -38,18 +38,22 @@ public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretSettings {
         CLIENT_SECRET_FIELD
     );
 
-    private final SecureString clientSecret;
+    private final OAuth2Secrets secrets;
 
     public AzureOpenAiOAuth2Secrets(SecureString clientSecrets) {
-        this.clientSecret = Objects.requireNonNull(clientSecrets);
+        this(new OAuth2Secrets(clientSecrets));
     }
 
     public AzureOpenAiOAuth2Secrets(StreamInput in) throws IOException {
-        this(in.readSecureString());
+        this(new OAuth2Secrets(in));
+    }
+
+    private AzureOpenAiOAuth2Secrets(OAuth2Secrets oAuth2Secrets) {
+        this.secrets = Objects.requireNonNull(oAuth2Secrets);
     }
 
     public SecureString getClientSecret() {
-        return clientSecret;
+        return secrets.getClientSecret();
     }
 
     @Override
@@ -64,32 +68,29 @@ public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeSecureString(clientSecret);
+        secrets.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(CLIENT_SECRET_FIELD, clientSecret.toString());
-        builder.endObject();
-        return builder;
+        return secrets.toXContent(builder, params);
     }
 
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         AzureOpenAiOAuth2Secrets that = (AzureOpenAiOAuth2Secrets) o;
-        return Objects.equals(clientSecret, that.clientSecret);
+        return Objects.equals(secrets, that.secrets);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(clientSecret);
+        return Objects.hash(secrets);
     }
 
     public static Map<String, SettingsConfiguration> getClientSecretConfiguration() {
         return Map.of(
-            AzureOpenAiOAuth2Secrets.CLIENT_SECRET_FIELD,
+            CLIENT_SECRET_FIELD,
             new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION))
                 .setDescription(EXACTLY_ONE_CONFIG_DESCRIPTION)
                 .setLabel("OAuth2 Client Secret")

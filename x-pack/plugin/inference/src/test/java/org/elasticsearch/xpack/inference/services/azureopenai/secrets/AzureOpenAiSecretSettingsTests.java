@@ -16,18 +16,17 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2SecretsTests.CLIENT_SECRET_VALUE;
 import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings.API_KEY;
 import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings.ENTRA_ID;
-import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiOAuth2Secrets.CLIENT_SECRET_FIELD;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class AzureOpenAiSecretSettingsTests extends ESTestCase {
-    public static final String TEST_INFERENCE_ID = "test-inference-id";
     public static final String TEST_ENTRA_ID = "test-entra-id";
     public static final String TEST_API_KEY = "test-api-key";
-    public static final String CLIENT_SECRET_VALUE = "secret";
 
     public void testFromMap_ApiKey_Only() {
         var result = AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(API_KEY, TEST_API_KEY)));
@@ -52,10 +51,7 @@ public class AzureOpenAiSecretSettingsTests extends ESTestCase {
     }
 
     public void testFromMap_MissingApiKeyAndEntraId_ThrowsError() {
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> AzureOpenAiSecretSettings.fromMap(new HashMap<>())
-        );
+        var thrownException = expectThrows(ValidationException.class, () -> AzureOpenAiSecretSettings.fromMap(new HashMap<>()));
 
         assertThat(thrownException.getMessage(), containsString("must have exactly one of"));
         assertThat(thrownException.getMessage(), containsString(API_KEY));
@@ -65,10 +61,7 @@ public class AzureOpenAiSecretSettingsTests extends ESTestCase {
 
     public void testFromMap_HasBothApiKeyAndEntraId_ThrowsError() {
         var mapValues = getAzureOpenAiSecretSettingsMap(TEST_API_KEY, TEST_ENTRA_ID, null);
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> AzureOpenAiSecretSettings.fromMap(mapValues)
-        );
+        var thrownException = expectThrows(ValidationException.class, () -> AzureOpenAiSecretSettings.fromMap(mapValues));
 
         assertThat(thrownException.getMessage(), containsString("must have exactly one of"));
         assertThat(thrownException.getMessage(), containsString("received:"));

@@ -22,8 +22,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiOAuth2Secrets.CLIENT_SECRET_FIELD;
-import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettingsTests.CLIENT_SECRET_VALUE;
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2SecretsTests.CLIENT_SECRET_VALUE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -83,9 +83,7 @@ public class AzureOpenAiOAuth2SecretsTests extends AbstractBWCWireSerializationT
 
     @Override
     protected AzureOpenAiOAuth2Secrets mutateInstance(AzureOpenAiOAuth2Secrets instance) throws IOException {
-        var clientSecret = randomValueOtherThan(instance.getClientSecret(), () -> randomSecureStringOfLength(15));
-
-        return new AzureOpenAiOAuth2Secrets(clientSecret);
+        return new AzureOpenAiOAuth2Secrets(randomValueOtherThan(instance.getClientSecret(), () -> randomSecureStringOfLength(15)));
     }
 
     @Override

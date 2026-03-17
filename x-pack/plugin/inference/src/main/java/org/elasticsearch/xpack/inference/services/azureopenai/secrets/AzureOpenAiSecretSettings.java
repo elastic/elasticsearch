@@ -23,8 +23,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
-import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiOAuth2Secrets.CLIENT_SECRET_FIELD;
 
 public abstract class AzureOpenAiSecretSettings implements SecretSettings {
 

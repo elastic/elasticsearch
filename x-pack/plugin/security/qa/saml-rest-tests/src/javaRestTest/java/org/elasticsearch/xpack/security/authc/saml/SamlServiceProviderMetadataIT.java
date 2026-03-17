@@ -12,13 +12,17 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.ClassRule;
+import org.junit.rules.TestRule;
 
+import java.io.IOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -26,25 +30,31 @@ import static org.hamcrest.Matchers.is;
 public class SamlServiceProviderMetadataIT extends SamlRestTestCase {
 
     /**
-     * Within this class we the metadata not to be enabled at the start of each test
+     * Metadata must be unavailable at cluster startup so that "metadata has never been loaded" holds.
      */
-    @Override
-    protected boolean isMetadataAvailable() {
-        return false;
-    }
+    @ClassRule
+    public static TestRule ruleChain = SamlRestTestCase.buildRuleChain(false);
 
     public void testAuthenticationWhenMetadataIsUnreliable() throws Exception {
         // initially, metadata in unavailable for all realms
 
         final String username = randomAlphaOfLengthBetween(4, 12);
         for (int realmNumber : shuffledList(List.of(1, 2, 3))) {
-            // Authc fails because metadata has never been loaded.
+            // Authc fails because metadata has never been loaded (it was never made available for this realm).
             var ex = expectThrows(ResponseException.class, () -> samlAuthUser(realmNumber, username));
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), is(401));
 
-            // Authc works once metadata is available.
+            // Make metadata available. The next auth will probably fail because the background thread hasn't tried to refresh yet.
+            // But when that auth fails, it will trigger a background refresh of the metadata, which will then meet that future auth
+            // attempts succeed (maybe not immediately, but within a short period of time).
             makeMetadataAvailable(realmNumber);
-            samlAuthUser(realmNumber, username);
+            assertBusy(() -> {
+                try {
+                    samlAuthUser(realmNumber, username);
+                } catch (IOException e) {
+                    fail(e);
+                }
+            }, 15, TimeUnit.SECONDS);
         }
 
         // Switch off all metadata

@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Predicate;
 
@@ -27,6 +28,8 @@ public class SearchLogContext extends ActivityLoggerContext {
     private final SearchRequest request;
     private final @Nullable SearchResponse response;
     private final NamedWriteableRegistry namedWriteableRegistry;
+    // Search request attributes
+    private final Map<String, Object> attributes;
     // Cached index names
     private String[] indexNames = null;
     // Cached "isSystem" flag
@@ -46,6 +49,9 @@ public class SearchLogContext extends ActivityLoggerContext {
         this.request = request;
         this.response = response;
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.attributes = request != null ? SearchRequestAttributesExtractor.extractAttributes(request, new String[0]) : Map.of();
+        this.attributes.computeIfPresent(SearchRequestAttributesExtractor.TARGET_ATTRIBUTE, (k, v) -> null);
+        this.attributes.computeIfPresent(SearchRequestAttributesExtractor.SYSTEM_THREAD_ATTRIBUTE_NAME, (k, v) -> null);
     }
 
     SearchLogContext(
@@ -154,5 +160,9 @@ public class SearchLogContext extends ActivityLoggerContext {
                 .filter(alias -> alias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false)
                 .count()
             : 0;
+    }
+
+    public Map<String, Object> getAttributes() {
+        return attributes;
     }
 }

@@ -31,6 +31,7 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
     public static final String QUERY_FIELD_IS_SYSTEM = ES_QUERY_FIELDS_PREFIX + "is_system";
     public static final String QUERY_FIELD_SEARCH_HITS = ES_QUERY_FIELDS_PREFIX + "search.total_count";
     public static final String QUERY_FIELD_SEARCH_HITS_GTE = ES_QUERY_FIELDS_PREFIX + "search.total_count_partial";
+    public static final String QUERY_FIELD_SEARCH_ATTRIBUTES = ES_QUERY_FIELDS_PREFIX + "search.attribute.";
 
     private boolean logSystemSearches = false;
     private final Predicate<String> systemChecker;
@@ -83,6 +84,7 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
         if (context.isFromRemote()) {
             msg.field(QueryLogging.QUERY_FIELD_IS_REMOTE, true);
         }
+        context.getAttributes().forEach((k, v) -> msg.field(QUERY_FIELD_SEARCH_ATTRIBUTES + k, v));
         return Optional.of(msg);
     }
 

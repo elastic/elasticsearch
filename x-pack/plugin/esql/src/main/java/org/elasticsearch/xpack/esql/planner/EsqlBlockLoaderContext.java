@@ -18,6 +18,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * {@link MappedFieldType.BlockLoaderContext} implementation for ESQL.
@@ -29,6 +30,7 @@ class EsqlBlockLoaderContext implements MappedFieldType.BlockLoaderContext {
     private final Warnings warnings;
     private final ByteSizeValue blockLoaderSizeOrdinals;
     private final ByteSizeValue blockLoaderSizeScript;
+    private final Function<String, Set<String>> sourcePathResolver;
 
     EsqlBlockLoaderContext(
         SearchExecutionContext ctx,
@@ -38,12 +40,25 @@ class EsqlBlockLoaderContext implements MappedFieldType.BlockLoaderContext {
         ByteSizeValue blockLoaderSizeOrdinals,
         ByteSizeValue blockLoaderSizeScript
     ) {
+        this(ctx, fieldExtractPreference, blockLoaderFunctionConfig, warnings, blockLoaderSizeOrdinals, blockLoaderSizeScript, null);
+    }
+
+    EsqlBlockLoaderContext(
+        SearchExecutionContext ctx,
+        MappedFieldType.FieldExtractPreference fieldExtractPreference,
+        BlockLoaderFunctionConfig blockLoaderFunctionConfig,
+        Warnings warnings,
+        ByteSizeValue blockLoaderSizeOrdinals,
+        ByteSizeValue blockLoaderSizeScript,
+        Function<String, Set<String>> sourcePathResolver
+    ) {
         this.ctx = ctx;
         this.fieldExtractPreference = fieldExtractPreference;
         this.blockLoaderFunctionConfig = blockLoaderFunctionConfig;
         this.warnings = warnings;
         this.blockLoaderSizeOrdinals = blockLoaderSizeOrdinals;
         this.blockLoaderSizeScript = blockLoaderSizeScript;
+        this.sourcePathResolver = sourcePathResolver;
     }
 
     @Override
@@ -68,7 +83,7 @@ class EsqlBlockLoaderContext implements MappedFieldType.BlockLoaderContext {
 
     @Override
     public Set<String> sourcePaths(String name) {
-        return ctx.sourcePath(name);
+        return sourcePathResolver != null ? sourcePathResolver.apply(name) : ctx.sourcePath(name);
     }
 
     @Override

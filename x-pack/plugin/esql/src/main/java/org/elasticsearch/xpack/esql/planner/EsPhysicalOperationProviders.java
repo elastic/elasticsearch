@@ -84,6 +84,7 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -259,7 +260,15 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
         Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
         if (conversion == null) {
-            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+            Expression potentiallyUnmapped = unionTypes.getPotentiallyUnmappedExpression();
+            if (potentiallyUnmapped != null && potentiallyUnmapped instanceof AbstractConvertFunction convert) {
+                String unmappedFieldName = ((FieldAttribute) convert.field()).fieldName().string();
+                shardContext = wrapWithUnmappedFieldContext(shardContext, new PotentiallyUnmappedKeywordEsField(unmappedFieldName));
+                conversion = potentiallyUnmapped;
+                fieldName = unmappedFieldName;
+            } else {
+                return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+            }
         }
         if (conversion instanceof BlockLoaderExpression ble) {
             BlockLoaderExpression.PushedBlockLoaderExpression e = ble.tryPushToFieldLoading(SearchStats.EMPTY);
@@ -313,6 +322,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         public @Nullable MappedFieldType fieldType(String name) {
             var superResult = super.fieldType(name);
             return superResult == null && name.equals(unmappedEsField.getName()) ? createUnmappedFieldType(name, this) : superResult;
+        }
+
+        @Override
+        protected Set<String> resolveSourcePaths(String name) {
+            var result = super.resolveSourcePaths(name);
+            return result.isEmpty() && name.equals(unmappedEsField.getName()) ? Set.of(name) : result;
         }
 
         static MappedFieldType createUnmappedFieldType(String name, DefaultShardContext context) {
@@ -624,7 +639,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                     blockLoaderFunctionConfig,
                     warnings,
                     blockLoaderSizeOrdinals,
-                    blockLoaderSizeScript
+                    blockLoaderSizeScript,
+                    this::resolveSourcePaths
                 )
             );
             if (loader == null) {
@@ -648,6 +664,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public double storedFieldsSequentialProportion() {
             return EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.get(ctx.getIndexSettings().getSettings());
+        }
+
+        protected Set<String> resolveSourcePaths(String name) {
+            return ctx.sourcePath(name);
         }
 
         @Override

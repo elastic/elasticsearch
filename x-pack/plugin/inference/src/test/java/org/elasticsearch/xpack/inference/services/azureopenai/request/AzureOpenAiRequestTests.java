@@ -28,6 +28,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils.API_KEY_HEADER;
 import static org.hamcrest.Matchers.is;
 
 public class AzureOpenAiRequestTests extends ESTestCase {
@@ -118,6 +119,34 @@ public class AzureOpenAiRequestTests extends ESTestCase {
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
         assertThat(httpPost.getLastHeader(CUSTOM_HEADER_NAME).getValue(), is(CUSTOM_HEADER_VALUE));
+    }
+
+    public void testCreateHttpRequest_AppliesTaskSettingsHeadersWhenPresent_DoesNotOverwriteAuthHeader() {
+        var baseModel = AzureOpenAiEmbeddingsModelTests.createModel(
+            RESOURCE_NAME,
+            DEPLOYMENT_ID,
+            API_VERSION,
+            null,
+            API_KEY,
+            null,
+            TEST_INFERENCE_ID,
+            threadPool
+        );
+        var modelWithHeaders = AzureOpenAiEmbeddingsModel.of(
+            baseModel,
+            Map.of(Headers.HEADERS_FIELD, Map.of(API_KEY_HEADER, CUSTOM_HEADER_VALUE))
+        );
+        var request = new AzureOpenAiEmbeddingsRequest(
+            TruncatorTests.createTruncator(),
+            new Truncator.TruncationResult(List.of(INPUT_TEXT), new boolean[] { false }),
+            InputType.INGEST,
+            modelWithHeaders
+        );
+
+        HttpRequest httpRequest = RequestTests.getHttpRequestSync(request);
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        assertThat(httpPost.getLastHeader(API_KEY_HEADER).getValue(), is(API_KEY));
     }
 
     public void testCreateHttpRequest_DoesNotAddTaskSettingsHeadersWhenAbsent() {

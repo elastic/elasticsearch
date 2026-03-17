@@ -43,14 +43,14 @@ public abstract class AzureOpenAiRequest<M extends AzureOpenAiModel> implements 
 
         httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
 
-        model.secretsApplier().applyTo(httpPost, listener.delegateFailureAndWrap((httpRequestActionListener, httpRequestBase) -> {
-            var headers = taskSettings.headers();
-            if (headers.mapValue().isPresent()) {
-                for (var entry : headers.mapValue().get().entrySet()) {
-                    httpPost.setHeader(entry.getKey(), entry.getValue());
-                }
+        var headers = taskSettings.headers();
+        if (headers.mapValue().isPresent()) {
+            for (var entry : headers.mapValue().get().entrySet()) {
+                httpPost.setHeader(entry.getKey(), entry.getValue());
             }
+        }
 
+        model.secretsApplier().applyTo(httpPost, listener.delegateFailureAndWrap((httpRequestActionListener, httpRequestBase) -> {
             httpRequestActionListener.onResponse(new HttpRequest(httpRequestBase, getInferenceEntityId()));
         }));
     }

@@ -57,8 +57,13 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
@@ -147,6 +152,22 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         long value = randomLongBetween(0, Long.MAX_VALUE);
         try (EsqlQueryResponse response = run("row " + value)) {
             assertEquals(List.of(List.of(value)), getValuesList(response));
+        }
+    }
+
+    /**
+     * Verifies that a pre-built {@link EsqlStatement} supplied via
+     * {@link EsqlQueryRequest#syncEsqlQueryRequestWithPlan} is executed
+     * without going through ES|QL string parsing.
+     */
+    public void testRowWithParsedStatement() {
+        var plan = new Row(Source.EMPTY, List.of(new Alias(Source.EMPTY, "x", new Literal(Source.EMPTY, 1, DataType.INTEGER))));
+        var statement = new EsqlStatement(plan, List.of());
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequestWithPlan(statement);
+        request.pragmas(getPragmas());
+        try (EsqlQueryResponse response = run(request)) {
+            assertThat(response.columns(), equalTo(List.of(new ColumnInfoImpl("x", "integer", null))));
+            assertEquals(List.of(List.of(1)), getValuesList(response));
         }
     }
 

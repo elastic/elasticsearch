@@ -245,7 +245,7 @@ public class EsqlSession {
         LOGGER.debug("ESQL query:\n{}", request.query());
         TimeSpanMarker parsingProfile = executionInfo.queryProfile().parsing();
         parsingProfile.start();
-        EsqlStatement statement = parse(request);
+        EsqlStatement statement = request.parsedStatement() != null ? request.parsedStatement() : parse(request);
         gatherSettingsMetrics(statement);
         parsingProfile.stop();
         viewResolver.replaceViews(

@@ -24,6 +24,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -66,12 +67,31 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      */
     private final Map<String, Map<String, Column>> tables = new TreeMap<>();
 
+    /**
+     * An optional pre-built statement that bypasses ES|QL string parsing.
+     * This is transient and never serialized over the wire. It's used by internal callers
+     * (such as the Prometheus REST endpoints) that construct a {@link EsqlStatement} directly
+     * instead of going through ES|QL string construction and parsing.
+     */
+    private EsqlStatement parsedStatement;
+
     public static EsqlQueryRequest syncEsqlQueryRequest(String query) {
         return new EsqlQueryRequest(false, query);
     }
 
     public static EsqlQueryRequest asyncEsqlQueryRequest(String query) {
         return new EsqlQueryRequest(true, query);
+    }
+
+    /**
+     * Creates a synchronous request with a pre-built statement, bypassing ES|QL string parsing.
+     * The query string is only used for logging/display since the plan is already built.
+     */
+    public static EsqlQueryRequest syncEsqlQueryRequestWithPlan(EsqlStatement statement) {
+        String queryText = statement.plan().sourceText();
+        EsqlQueryRequest request = new EsqlQueryRequest(false, queryText.isEmpty() ? "[pre-built plan]" : queryText);
+        request.parsedStatement = statement;
+        return request;
     }
 
     private EsqlQueryRequest(boolean async, String query) {
@@ -117,6 +137,13 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     @Override
     public String query() {
         return query;
+    }
+
+    /**
+     * Returns the pre-built statement, or {@code null} if the query string should be parsed.
+     */
+    public EsqlStatement parsedStatement() {
+        return parsedStatement;
     }
 
     public boolean async() {

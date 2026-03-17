@@ -39,12 +39,16 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 
 import java.io.IOException;
@@ -73,6 +77,19 @@ import static org.hamcrest.Matchers.is;
 
 public class EsqlQueryRequestTests extends ESTestCase {
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(List.of(EsqlQueryStatus.ENTRY));
+
+    public void testSyncRequestWithPlanCarriesParsedStatement() {
+        var plan = new Row(Source.EMPTY, List.of(new Alias(Source.EMPTY, "x", new Literal(Source.EMPTY, 1, DataType.INTEGER))));
+        var statement = new EsqlStatement(plan, List.of());
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequestWithPlan(statement);
+        assertFalse(request.async());
+        assertSame(statement, request.parsedStatement());
+    }
+
+    public void testSyncRequestFromStringHasNullParsedStatement() {
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest("ROW x = 1");
+        assertNull(request.parsedStatement());
+    }
 
     public void testParseFields() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);

@@ -52,6 +52,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.AbstractSearchCancellationTestCase;
 import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -69,6 +70,10 @@ import java.util.Map;
 import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_IS_SYSTEM;
 import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_SEARCH_HITS;
 import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_SEARCH_HITS_GTE;
+import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_SEARCH_ATTRIBUTES;
+import static org.elasticsearch.action.search.SearchRequestAttributesExtractor.PIT_SCROLL_ATTRIBUTE;
+import static org.elasticsearch.action.search.SearchRequestAttributesExtractor.QUERY_TYPE_ATTRIBUTE;
+import static org.elasticsearch.action.search.SearchRequestAttributesExtractor.SORT_ATTRIBUTE;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_OUTCOME_FIELD;
 import static org.elasticsearch.common.logging.activity.QueryLogging.ES_QUERY_FIELDS_PREFIX;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
@@ -430,6 +435,74 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         assertThat(messageWithAgg.get(QUERY_FIELD_SEARCH_HITS), equalTo("3"));
         assertNull(messageWithAgg.get(QUERY_FIELD_SEARCH_HITS_GTE));
         assertThat(messageWithAgg.get(SearchLogProducer.QUERY_FIELD_HAS_AGGREGATIONS), equalTo("true"));
+    }
+
+    /**
+     * Verifies that SearchLogProducer logs attributes from {@link org.elasticsearch.action.search.SearchLogContext#getAttributes()}
+     * under the {@code elasticsearch.querylog.search.attribute.<name>} prefix. Covers: sort and query_type (default and _doc sort),
+     * pit_scroll (PIT and scroll), and query_type variants (count_only, aggs_only).
+     */
+    public void testSearchLogAttributes() {
+        setupIndex();
+
+        // Simple search: sort=_score, query_type=hits_only
+        assertSearchHitsWithoutFailures(prepareSearch(INDEX_NAME).setQuery(matchQuery("field1", "quick")), "1", "2", "3");
+        Map<String, String> message = getMessageData(appender.getLastEventAndReset());
+        assertMessageSuccess(message, SearchLogContext.TYPE, "quick");
+        assertThat(message.get(QUERY_FIELD_SEARCH_ATTRIBUTES + SORT_ATTRIBUTE), equalTo("_score"));
+        assertThat(message.get(QUERY_FIELD_SEARCH_ATTRIBUTES + QUERY_TYPE_ATTRIBUTE), equalTo("hits_only"));
+
+        // Point-in-time search: pit_scroll=pit
+        OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(INDEX_NAME).keepAlive(TimeValue.THIRTY_SECONDS);
+        final OpenPointInTimeResponse pitResponse = client().execute(TransportOpenPointInTimeAction.TYPE, pitRequest).actionGet();
+        var pitId = pitResponse.getPointInTimeId();
+        try {
+            assertSearchHitsWithoutFailures(
+                prepareSearch().setQuery(simpleQueryStringQuery("fox")).setPointInTime(new PointInTimeBuilder(pitId)),
+                "1"
+            );
+            message = getMessageData(appender.getLastEventAndReset());
+            assertMessageSuccess(message, SearchLogContext.TYPE, "fox");
+            assertThat(message.get(QUERY_FIELD_SEARCH_ATTRIBUTES + PIT_SCROLL_ATTRIBUTE), equalTo("pit"));
+        } finally {
+            pitResponse.decRef();
+            client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
+        }
+
+        // Scroll search: pit_scroll=scroll
+        assertResponse(
+            prepareSearch(INDEX_NAME).setQuery(matchAllQuery()).setScroll(TimeValue.timeValueMinutes(1)).setSize(1),
+            ElasticsearchAssertions::assertNoFailures
+        );
+        message = getMessageData(appender.getLastEventAndReset());
+        assertMessageSuccess(message, SearchLogContext.TYPE, "match_all");
+        assertThat(message.get(QUERY_FIELD_SEARCH_ATTRIBUTES + PIT_SCROLL_ATTRIBUTE), equalTo("scroll"));
+
+        // size=0: query_type=count_only
+        assertResponse(prepareSearch(INDEX_NAME).setSize(0).setQuery(matchQuery("field1", "quick")), ElasticsearchAssertions::assertNoFailures);
+        message = getMessageData(appender.getLastEventAndReset());
+        assertMessageSuccess(message, SearchLogContext.TYPE, "quick");
+        assertThat(message.get(QUERY_FIELD_SEARCH_ATTRIBUTES + QUERY_TYPE_ATTRIBUTE), equalTo("count_only"));
+
+        // size=0 with only aggs: query_type=aggs_only
+        assertResponse(
+            prepareSearch(INDEX_NAME).setSize(0).setQuery(matchAllQuery()).addAggregation(filter("agg_filter", matchAllQuery())),
+            ElasticsearchAssertions::assertNoFailures
+        );
+        message = getMessageData(appender.getLastEventAndReset());
+        assertMessageSuccess(message, SearchLogContext.TYPE, "match_all");
+        assertThat(message.get(QUERY_FIELD_SEARCH_ATTRIBUTES + QUERY_TYPE_ATTRIBUTE), equalTo("aggs_only"));
+
+        // Sort by _doc: sort=_doc (avoids fielddata on text fields)
+        assertSearchHitsWithoutFailures(
+            prepareSearch(INDEX_NAME).setQuery(matchQuery("field1", "quick")).addSort("_doc", SortOrder.ASC),
+            "1",
+            "2",
+            "3"
+        );
+        message = getMessageData(appender.getLastEventAndReset());
+        assertMessageSuccess(message, SearchLogContext.TYPE, "quick");
+        assertThat(message.get(QUERY_FIELD_SEARCH_ATTRIBUTES + SORT_ATTRIBUTE), equalTo("_doc"));
     }
 
     public void testSearchTimedOutLog() {

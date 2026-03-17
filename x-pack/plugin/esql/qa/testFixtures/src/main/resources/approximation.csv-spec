@@ -435,7 +435,9 @@ SET approximation=true\;
 FROM many_numbers | STATS max=MAX(sv) BY sv | SORT max | LIMIT 3
 ;
 
-warning:line 2:31: approximation not supported: aggregation function [MAX(sv)] cannot be approximated
+// MultiClusterSpecIT adds remote indices, so the index "*:many_numbers" can
+// be added. Therefore the position of the aggregation function varies a bit.
+warningRegex:line 2:[\d]*: approximation not supported: aggregation function \[MAX\(sv\)\] cannot be approximated
 
 max:integer | sv:integer
 1           | 1

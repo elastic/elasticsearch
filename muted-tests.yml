@@ -294,15 +294,6 @@ tests:
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteBlobWithRetries
   issue: https://github.com/elastic/elasticsearch/issues/144025
-- class: org.elasticsearch.upgrades.MappingSupplementaryCharacterRollingUpgradeIT
-  method: testMappingWithSupplementaryCharacterFieldName {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/144163
-- class: org.elasticsearch.upgrades.MappingSupplementaryCharacterRollingUpgradeIT
-  method: testMappingWithSupplementaryCharacterFieldName {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/144164
-- class: org.elasticsearch.upgrades.MappingSupplementaryCharacterRollingUpgradeIT
-  method: testMappingWithSupplementaryCharacterFieldName {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/144165
 - class: org.elasticsearch.test.apmintegration.MetricsApmIT
   method: testJvmMetrics {withOTel=true}
   issue: https://github.com/elastic/elasticsearch/issues/144166

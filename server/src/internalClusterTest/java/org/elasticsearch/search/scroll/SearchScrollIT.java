@@ -59,6 +59,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -715,6 +716,212 @@ public class SearchScrollIT extends ESIntegTestCase {
             containsString("No search context found for id [" + shardSearchContextId + "]")
         );
         client().prepareSearchScroll(respFromProdIndexScrollId).get().decRef();
+    }
+
+    /**
+     * Verifies that a sorted scroll across multiple indices with non-overlapping
+     * time ranges returns results in strictly ascending timestamp order, even when
+     * the CanMatch pre-filter phase skips shards for each page's time window.
+     * This exercises the interaction between CanMatch shard skipping and the
+     * scroll's cross-shard merge-sort.
+     */
+    public void testSortedScrollAcrossMultipleIndicesWithCanMatch() throws Exception {
+        int numIndices = randomIntBetween(3, 5);
+        long now = System.currentTimeMillis();
+        long intervalMs = 604800000L; // 1 week per index
+
+        long totalDocs = 0;
+        for (int idx = 0; idx < numIndices; idx++) {
+            String indexName = "ts-data-" + idx;
+            indicesAdmin().prepareCreate(indexName)
+                .setMapping("@timestamp", "type=date")
+                .setSettings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 3)))
+                .get();
+            long start = now - (long) (numIndices - idx) * intervalMs;
+            long end = start + intervalMs;
+            int numDocs = randomIntBetween(200, 500);
+            totalDocs += numDocs;
+            for (int i = 0; i < numDocs; i++) {
+                long ts = start + randomLongBetween(0, end - start - 1);
+                prepareIndex(indexName).setSource("@timestamp", ts).get();
+            }
+        }
+        indicesAdmin().prepareRefresh("ts-data-*").get();
+
+        int scrollSize = randomIntBetween(10, 50);
+        SearchResponse searchResponse = prepareSearch("ts-data-*").setQuery(matchAllQuery())
+            .setSize(scrollSize)
+            .setScroll(TimeValue.timeValueMinutes(2))
+            .addSort("@timestamp", SortOrder.ASC)
+            .setAllowPartialSearchResults(false)
+            .get();
+        try {
+            long retrieved = 0;
+            long previousTimestamp = -1;
+            while (searchResponse.getHits().getHits().length > 0) {
+                assertNoFailures(searchResponse);
+                for (SearchHit hit : searchResponse.getHits()) {
+                    long ts = ((Number) hit.getSortValues()[0]).longValue();
+                    if (retrieved > 0) {
+                        assertThat(
+                            "Result at position " + retrieved + " has timestamp " + ts + " before previous " + previousTimestamp,
+                            ts,
+                            greaterThanOrEqualTo(previousTimestamp)
+                        );
+                    }
+                    previousTimestamp = ts;
+                    retrieved++;
+                }
+                String scrollId = searchResponse.getScrollId();
+                searchResponse.decRef();
+                searchResponse = client().prepareSearchScroll(scrollId).setScroll(TimeValue.timeValueMinutes(2)).get();
+            }
+            assertThat(retrieved, equalTo(totalDocs));
+        } finally {
+            clearScroll(searchResponse.getScrollId());
+            searchResponse.decRef();
+        }
+    }
+
+    /**
+     * Same as above but uses a range query on @timestamp so that the CanMatch
+     * pre-filter can determine which indices/shards are relevant for each query.
+     * This more closely matches the ML datafeed pattern where each search chunk
+     * targets a specific time window.
+     */
+    public void testSortedScrollWithTimeRangeAcrossMultipleIndices() throws Exception {
+        int numIndices = 5;
+        long now = System.currentTimeMillis();
+        long intervalMs = 604800000L; // 1 week per index
+        long totalStart = now - (long) numIndices * intervalMs;
+
+        long totalDocs = 0;
+        for (int idx = 0; idx < numIndices; idx++) {
+            String indexName = "ts-range-" + idx;
+            indicesAdmin().prepareCreate(indexName)
+                .setMapping("@timestamp", "type=date")
+                .setSettings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 3)))
+                .get();
+            long start = totalStart + (long) idx * intervalMs;
+            long end = start + intervalMs;
+            int numDocs = randomIntBetween(200, 500);
+            totalDocs += numDocs;
+            for (int i = 0; i < numDocs; i++) {
+                long ts = start + randomLongBetween(0, end - start - 1);
+                prepareIndex(indexName).setSource("@timestamp", ts).get();
+            }
+        }
+        indicesAdmin().prepareRefresh("ts-range-*").get();
+
+        int scrollSize = randomIntBetween(10, 50);
+        RangeQueryBuilder rangeQuery = QueryBuilders.rangeQuery("@timestamp").gte(totalStart).lt(now);
+        SearchResponse searchResponse = prepareSearch("ts-range-*").setQuery(rangeQuery)
+            .setSize(scrollSize)
+            .setScroll(TimeValue.timeValueMinutes(2))
+            .addSort("@timestamp", SortOrder.ASC)
+            .setAllowPartialSearchResults(false)
+            .get();
+        try {
+            long retrieved = 0;
+            long previousTimestamp = -1;
+            while (searchResponse.getHits().getHits().length > 0) {
+                assertNoFailures(searchResponse);
+                for (SearchHit hit : searchResponse.getHits()) {
+                    long ts = ((Number) hit.getSortValues()[0]).longValue();
+                    if (retrieved > 0) {
+                        assertThat(
+                            "Result at position " + retrieved + " has timestamp " + ts + " before previous " + previousTimestamp,
+                            ts,
+                            greaterThanOrEqualTo(previousTimestamp)
+                        );
+                    }
+                    previousTimestamp = ts;
+                    retrieved++;
+                }
+                String scrollId = searchResponse.getScrollId();
+                searchResponse.decRef();
+                searchResponse = client().prepareSearchScroll(scrollId).setScroll(TimeValue.timeValueMinutes(2)).get();
+            }
+            assertThat(retrieved, equalTo(totalDocs));
+        } finally {
+            clearScroll(searchResponse.getScrollId());
+            searchResponse.decRef();
+        }
+    }
+
+    /**
+     * Simulates the ML datafeed pattern: performs multiple sequential sorted scroll
+     * searches across multiple indices, each covering a different time chunk.
+     * Verifies that timestamps from consecutive chunks are monotonically increasing,
+     * catching issues where CanMatch shard skipping might affect cross-chunk ordering.
+     */
+    public void testChunkedSortedScrollsAcrossMultipleIndices() throws Exception {
+        int numIndices = 5;
+        long now = System.currentTimeMillis();
+        long intervalMs = 604800000L; // 1 week per index
+        long totalStart = now - (long) numIndices * intervalMs;
+
+        for (int idx = 0; idx < numIndices; idx++) {
+            String indexName = "ts-chunk-" + idx;
+            indicesAdmin().prepareCreate(indexName)
+                .setMapping("@timestamp", "type=date")
+                .setSettings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 3)))
+                .get();
+            long start = totalStart + (long) idx * intervalMs;
+            long end = start + intervalMs;
+            int numDocs = randomIntBetween(200, 500);
+            for (int i = 0; i < numDocs; i++) {
+                long ts = start + randomLongBetween(0, end - start - 1);
+                prepareIndex(indexName).setSource("@timestamp", ts).get();
+            }
+        }
+        indicesAdmin().prepareRefresh("ts-chunk-*").get();
+
+        long previousTimestamp = -1;
+        boolean first = true;
+        long chunkSpan = intervalMs / 2;
+        for (long chunkStart = totalStart; chunkStart < now; chunkStart += chunkSpan) {
+            long chunkEnd = Math.min(chunkStart + chunkSpan, now);
+            RangeQueryBuilder rangeQuery = QueryBuilders.rangeQuery("@timestamp").gte(chunkStart).lt(chunkEnd);
+
+            SearchResponse searchResponse = prepareSearch("ts-chunk-*").setQuery(rangeQuery)
+                .setSize(100)
+                .setScroll(TimeValue.timeValueMinutes(1))
+                .addSort("@timestamp", SortOrder.ASC)
+                .setAllowPartialSearchResults(false)
+                .get();
+            try {
+                while (searchResponse.getHits().getHits().length > 0) {
+                    assertNoFailures(searchResponse);
+                    for (SearchHit hit : searchResponse.getHits()) {
+                        long ts = ((Number) hit.getSortValues()[0]).longValue();
+                        if (first == false) {
+                            assertThat(
+                                "Timestamp "
+                                    + ts
+                                    + " before previous "
+                                    + previousTimestamp
+                                    + " in chunk ["
+                                    + chunkStart
+                                    + ","
+                                    + chunkEnd
+                                    + ")",
+                                ts,
+                                greaterThanOrEqualTo(previousTimestamp)
+                            );
+                        }
+                        first = false;
+                        previousTimestamp = ts;
+                    }
+                    String scrollId = searchResponse.getScrollId();
+                    searchResponse.decRef();
+                    searchResponse = client().prepareSearchScroll(scrollId).setScroll(TimeValue.timeValueMinutes(1)).get();
+                }
+            } finally {
+                clearScroll(searchResponse.getScrollId());
+                searchResponse.decRef();
+            }
+        }
     }
 
     private void assertToXContentResponse(ClearScrollResponse response, boolean succeed, int numFreed) throws IOException {

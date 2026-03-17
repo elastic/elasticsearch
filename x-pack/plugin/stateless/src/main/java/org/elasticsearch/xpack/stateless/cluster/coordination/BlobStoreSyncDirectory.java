@@ -19,6 +19,7 @@ package org.elasticsearch.xpack.stateless.cluster.coordination;
 
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -142,7 +143,7 @@ class BlobStoreSyncDirectory extends FilterDirectory {
                         }
                         blobContainer.deleteBlobsIgnoringIfNotExists(OperationPurpose.CLUSTER_STATE, filesToDeleteInTask.iterator());
                         onFilesDeleted(filesToDeleteInTask);
-                    } catch (IOException e) {
+                    } catch (IOException | AlreadyClosedException e) {
                         logger.debug("Unable to delete cluster state stale files {}", filesToDeleteInTask);
                     }
                 }

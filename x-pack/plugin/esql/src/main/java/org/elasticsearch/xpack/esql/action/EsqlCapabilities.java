@@ -2298,11 +2298,6 @@ public class EsqlCapabilities {
         TOP_SNIPPETS_FOLDABLE_QUERY_CHECK,
 
         /**
-         * Enables LIMIT N BY without a preceding SORT.
-         */
-        LIMIT_BY,
-
-        /**
          * Fixes an analysis bug in {@code FORK} with {@code unmapped_fields="nullify"}.
          * Preserve existing attribute {@code NameId}s so that references from upper plan nodes remain valid after
          * sub-plans are updated. Only genuinely new attributes get fresh NameIds.
@@ -2326,6 +2321,8 @@ public class EsqlCapabilities {
 
         /**
          * LIMIT n BY expr1, expr2 support for retaining at most n docs per group.
+         * Enables the feature without a preceding SORT.
+         *
          */
         LIMIT_BY(Build.current().isSnapshot()),
 

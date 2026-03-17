@@ -172,8 +172,8 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     }
 
     public static InferenceStringGroup createRandom() {
-        var inferenceStrings = new ArrayList<InferenceString>();
-        int inferenceStringsToCreate = randomInt(5);
+        int inferenceStringsToCreate = randomIntBetween(1, 5);
+        var inferenceStrings = new ArrayList<InferenceString>(inferenceStringsToCreate);
         for (int j = 0; j < inferenceStringsToCreate; ++j) {
             inferenceStrings.add(InferenceStringTests.createRandom());
         }

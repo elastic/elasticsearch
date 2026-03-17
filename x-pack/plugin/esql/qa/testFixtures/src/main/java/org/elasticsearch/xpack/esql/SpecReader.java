@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 import static org.junit.Assert.assertNull;
@@ -21,11 +20,6 @@ import static org.junit.Assert.assertNull;
 public final class SpecReader {
 
     private SpecReader() {}
-
-    public static List<Object[]> readScriptSpec(URL source, String url, Parser parser) throws Exception {
-        Objects.requireNonNull(source, "Cannot find resource " + url);
-        return readURLSpec(source, parser);
-    }
 
     public static List<Object[]> readScriptSpec(List<URL> urls, Parser parser) throws Exception {
         List<Object[]> results = emptyList();
@@ -64,7 +58,9 @@ public final class SpecReader {
                                     + line
                                     + "' at line "
                                     + lineNumber
-                                    + " (previously seen at line "
+                                    + " in file '"
+                                    + fileName
+                                    + "' (previously seen at line "
                                     + testNames.get(line)
                                     + ")"
                             );

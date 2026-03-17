@@ -4642,7 +4642,7 @@ emp_no:integer |first_name:keyword|sal:integer    |language_code:keyword | langu
 10058          |Berhard           |38376          |3                     |Spanish                |17             |3
 ;
 
-inlineStatsAfterSortDropped
+inlineStatsAfterSortDroppedWithLimit
 required_capability: inline_stats_preceeded_by_sort
 
 FROM employees

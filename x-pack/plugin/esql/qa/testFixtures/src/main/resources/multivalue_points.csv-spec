@@ -222,17 +222,6 @@ id:l | within:boolean | contains:boolean | centroid:geo_point | location:geo_poi
 12   | true           | true             | "POINT(0.0 0.0)"   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
 ;
 
-whereWithinPolygonStats
-required_capability: st_contains_within
-
-FROM multivalue_points
-| WHERE ST_WITHIN(location, TO_GEOSHAPE("POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))")) | STATS c=COUNT(*)
-;
-
-c:l
-4
-;
-
 literalPointContainsPoint
 required_capability: st_contains_within
 

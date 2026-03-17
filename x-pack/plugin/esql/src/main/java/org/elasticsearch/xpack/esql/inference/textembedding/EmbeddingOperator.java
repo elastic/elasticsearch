@@ -14,6 +14,8 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 
+import java.util.Map;
+
 /**
  * {@link EmbeddingOperator} is an {@link InferenceOperator} that performs text embedding inference.
  * It evaluates a text expression for each input row, constructs text embedding inference requests,
@@ -31,18 +33,20 @@ public class EmbeddingOperator extends InferenceOperator {
      * @param inferenceId      The ID of the embedding model to invoke.
      * @param taskType         The task type to use for inference requests.
      * @param inputEvaluator   Evaluator for computing input text from rows.
+     * @param inputOptions     Optional metadata for the input (e.g. type, format).
      */
     EmbeddingOperator(
         DriverContext driverContext,
         InferenceService inferenceService,
         String inferenceId,
         TaskType taskType,
-        ExpressionEvaluator inputEvaluator
+        ExpressionEvaluator inputEvaluator,
+        Map<String, Object> inputOptions
     ) {
         super(
             driverContext,
             inferenceService,
-            new EmbeddingRequestIterator.Factory(inferenceId, taskType, inputEvaluator),
+            new EmbeddingRequestIterator.Factory(inferenceId, taskType, inputEvaluator, inputOptions),
             new TextEmbeddingOutputBuilder(driverContext.blockFactory())
         );
 
@@ -56,9 +60,26 @@ public class EmbeddingOperator extends InferenceOperator {
     /**
      * Factory for creating {@link EmbeddingOperator} instances.
      */
-    public record Factory(InferenceService inferenceService, String inferenceId, TaskType taskType, ExpressionEvaluator.Factory textEvaluatorFactory)
-        implements
-            OperatorFactory {
+    public record Factory(
+        InferenceService inferenceService,
+        String inferenceId,
+        TaskType taskType,
+        ExpressionEvaluator.Factory textEvaluatorFactory,
+        Map<String, Object> inputOptions
+    ) implements OperatorFactory {
+
+        /**
+         * Convenience constructor for factories without input options.
+         */
+        public Factory(
+            InferenceService inferenceService,
+            String inferenceId,
+            TaskType taskType,
+            ExpressionEvaluator.Factory textEvaluatorFactory
+        ) {
+            this(inferenceService, inferenceId, taskType, textEvaluatorFactory, Map.of());
+        }
+
         @Override
         public String describe() {
             return "EmbeddingOperator[inference_id=[" + inferenceId + "]]";
@@ -66,7 +87,14 @@ public class EmbeddingOperator extends InferenceOperator {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new EmbeddingOperator(driverContext, inferenceService, inferenceId, taskType, textEvaluatorFactory.get(driverContext));
+            return new EmbeddingOperator(
+                driverContext,
+                inferenceService,
+                inferenceId,
+                taskType,
+                textEvaluatorFactory.get(driverContext),
+                inputOptions
+            );
         }
     }
 

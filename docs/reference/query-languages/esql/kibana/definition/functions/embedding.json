@@ -30,7 +30,7 @@
     }
   ],
   "examples" : [
-    "FROM dense_vector_text METADATA _score\n| EVAL query_embedding = EMBEDDING(\"be excellent to each other\", \"test_dense_inference\")\n| WHERE KNN(text_embedding_field, query_embedding)"
+    "FROM dense_vector_text METADATA _score\n| EVAL query_embedding = EMBEDDING(\"be excellent to each other\", \"test_embedding_inference\")\n| WHERE KNN(text_embedding_field, query_embedding)"
   ],
   "preview" : false,
   "snapshot_only" : false

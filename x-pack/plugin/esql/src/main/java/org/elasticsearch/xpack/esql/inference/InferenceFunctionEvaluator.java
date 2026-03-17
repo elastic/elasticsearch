@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.textembedding.EmbeddingOperator;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Evaluator for inference functions that performs constant folding by executing inference operations
@@ -219,7 +220,8 @@ public class InferenceFunctionEvaluator {
                         inferenceService,
                         inferenceId(inferenceFunction, foldContext),
                         TaskType.EMBEDDING,
-                        expressionEvaluatorFactory(embedding.inputText(), foldContext)
+                        expressionEvaluatorFactory(embedding.inputText(), foldContext),
+                        embedding.inputOptions() != null ? embedding.inputOptions().toFoldedMap(foldContext) : Map.of()
                     );
                     case CompletionFunction completion -> new CompletionOperator.Factory(
                         inferenceService,

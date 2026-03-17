@@ -43,7 +43,12 @@ public class EmbeddingOperatorTests extends InferenceOperatorTestCase<DenseEmbed
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new EmbeddingOperator.Factory(mockedInferenceService(), SIMPLE_INFERENCE_ID, TaskType.EMBEDDING, evaluatorFactory(inputChannel));
+        return new EmbeddingOperator.Factory(
+            mockedInferenceService(),
+            SIMPLE_INFERENCE_ID,
+            TaskType.EMBEDDING,
+            evaluatorFactory(inputChannel)
+        );
     }
 
     @Override

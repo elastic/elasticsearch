@@ -10,13 +10,18 @@ package org.elasticsearch.xpack.esql.expression.function.inference;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matchers;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -32,31 +37,85 @@ public class EmbeddingTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(
-            List.of(
-                new TestCaseSupplier(
-                    List.of(KEYWORD, KEYWORD),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), KEYWORD, "text"),
-                            new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), KEYWORD, "inference_id")
-                        ),
-                        Matchers.blankOrNullString(),
-                        DENSE_VECTOR,
-                        equalTo(true)
-                    )
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+
+        // Two-argument case (no options)
+        suppliers.add(
+            new TestCaseSupplier(
+                List.of(KEYWORD, KEYWORD),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), KEYWORD, "text"),
+                        new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), KEYWORD, "inference_id")
+                    ),
+                    Matchers.blankOrNullString(),
+                    DENSE_VECTOR,
+                    equalTo(true)
                 )
             )
         );
+
+        return parameterSuppliersFromTypedData(suppliers);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Embedding(source, args.get(0), args.get(1));
+        MapExpression options = args.size() > 2 ? (MapExpression) args.get(2) : null;
+        return new Embedding(source, args.get(0), args.get(1), options);
     }
 
     @Override
     protected boolean canSerialize() {
         return false;
+    }
+
+    public void testFoldableWithNoOptions() {
+        Source source = Source.EMPTY;
+        Literal text = new Literal(source, new BytesRef("hello world"), DataType.KEYWORD);
+        Literal inferenceId = new Literal(source, new BytesRef("my-endpoint"), DataType.KEYWORD);
+        Embedding embedding = new Embedding(source, text, inferenceId, null);
+        assertTrue(embedding.foldable());
+        assertNull(embedding.inputOptions());
+    }
+
+    public void testFoldableWithOptions() {
+        Source source = Source.EMPTY;
+        Literal text = new Literal(source, new BytesRef("image data"), DataType.KEYWORD);
+        Literal inferenceId = new Literal(source, new BytesRef("my-endpoint"), DataType.KEYWORD);
+        MapExpression options = new MapExpression(
+            source,
+            List.of(
+                new Literal(source, new BytesRef("type"), DataType.KEYWORD),
+                new Literal(source, new BytesRef("image"), DataType.KEYWORD)
+            )
+        );
+        Embedding embedding = new Embedding(source, text, inferenceId, options);
+        assertTrue(embedding.foldable());
+        assertNotNull(embedding.inputOptions());
+    }
+
+    public void testToStringWithNoOptions() {
+        Source source = Source.EMPTY;
+        Literal text = new Literal(source, new BytesRef("hello"), DataType.KEYWORD);
+        Literal inferenceId = new Literal(source, new BytesRef("my-endpoint"), DataType.KEYWORD);
+        Embedding embedding = new Embedding(source, text, inferenceId, null);
+        assertThat(embedding.toString(), Matchers.startsWith("EMBEDDING("));
+        assertThat(embedding.toString(), Matchers.not(Matchers.containsString("null")));
+    }
+
+    public void testReplaceChildrenWithNoOptions() {
+        Source source = Source.EMPTY;
+        Literal text = new Literal(source, new BytesRef("hello"), DataType.KEYWORD);
+        Literal inferenceId = new Literal(source, new BytesRef("my-endpoint"), DataType.KEYWORD);
+        Embedding embedding = new Embedding(source, text, inferenceId, null);
+
+        Literal newText = new Literal(source, new BytesRef("world"), DataType.KEYWORD);
+        Literal newInferenceId = new Literal(source, new BytesRef("other-endpoint"), DataType.KEYWORD);
+        Expression replaced = embedding.replaceChildren(List.of(newText, newInferenceId));
+        assertThat(replaced, Matchers.instanceOf(Embedding.class));
+        Embedding replacedEmbedding = (Embedding) replaced;
+        assertThat(replacedEmbedding.inputText(), equalTo(newText));
+        assertThat(replacedEmbedding.inferenceId(), equalTo(newInferenceId));
+        assertNull(replacedEmbedding.inputOptions());
     }
 }

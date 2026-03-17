@@ -11,7 +11,15 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.EmbeddingRequest;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringGroup;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
+import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem.PositionValueCountsBuilder;
@@ -19,12 +27,14 @@ import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceReq
 import org.elasticsearch.xpack.esql.inference.InputTextReader;
 
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 
 /**
  * Iterator that converts a block of text strings into inference request items for text embedding.
  * <p>
  * Each position in the text block is converted into a {@link InferenceAction.Request}
+ * (or {@link EmbeddingAction.Request} when input options specify type/format)
  * for embedding inference. Null text inputs are preserved as null requests.
  * For multi-valued text fields, only the first value is used.
  * </p>
@@ -34,6 +44,7 @@ class EmbeddingRequestIterator implements BulkInferenceRequestItemIterator {
     private final InputTextReader textReader;
     private final String inferenceId;
     private final TaskType taskType;
+    private final Map<String, Object> inputOptions;
     private final int size;
     private int currentPos = 0;
 
@@ -42,15 +53,17 @@ class EmbeddingRequestIterator implements BulkInferenceRequestItemIterator {
     /**
      * Constructs a new iterator from the given block of text inputs.
      *
-     * @param inferenceId The ID of the inference model to invoke.
-     * @param taskType    The task type to use for inference requests.
-     * @param textBlock   The input block containing text to embed.
+     * @param inferenceId  The ID of the inference model to invoke.
+     * @param taskType     The task type to use for inference requests.
+     * @param textBlock    The input block containing text to embed.
+     * @param inputOptions Optional metadata for the input value (e.g. type, format).
      */
-    EmbeddingRequestIterator(String inferenceId, TaskType taskType, BytesRefBlock textBlock) {
+    EmbeddingRequestIterator(String inferenceId, TaskType taskType, BytesRefBlock textBlock, Map<String, Object> inputOptions) {
         this.textReader = new InputTextReader(textBlock);
         this.size = textBlock.getPositionCount();
         this.inferenceId = inferenceId;
         this.taskType = taskType;
+        this.inputOptions = inputOptions;
     }
 
     @Override
@@ -88,11 +101,30 @@ class EmbeddingRequestIterator implements BulkInferenceRequestItemIterator {
     }
 
     /**
-     * Wraps a single text string into an {@link InferenceAction.Request} for embedding.
+     * Wraps a single text string into an inference request for embedding.
+     * When {@code inputOptions} specifies a {@code type} (and optionally a {@code format}),
+     * builds an {@link EmbeddingAction.Request} with typed content via {@link InferenceStringGroup}.
+     * Otherwise, falls back to a plain {@link InferenceAction.Request} with a string input.
      */
-    private InferenceAction.Request inferenceRequest(String text) {
+    private BaseInferenceActionRequest inferenceRequest(String text) {
         if (text == null) {
             return null;
+        }
+
+        Object typeValue = inputOptions.get("type");
+        if (typeValue instanceof String typeStr) {
+            DataType dataType = DataType.fromString(typeStr);
+            DataFormat dataFormat = null;
+            Object formatValue = inputOptions.get("format");
+            if (formatValue instanceof String formatStr) {
+                dataFormat = DataFormat.fromString(formatStr);
+            }
+            InferenceString inferenceString = dataFormat != null
+                ? new InferenceString(dataType, dataFormat, text)
+                : new InferenceString(dataType, text);
+            InferenceStringGroup group = new InferenceStringGroup(inferenceString);
+            EmbeddingRequest embeddingRequest = new EmbeddingRequest(List.of(group), InputType.UNSPECIFIED, Map.of());
+            return new EmbeddingAction.Request(inferenceId, taskType, embeddingRequest, InferenceAction.Request.DEFAULT_TIMEOUT);
         }
 
         return InferenceAction.Request.builder(inferenceId, taskType).setInput(List.of(text)).build();
@@ -111,13 +143,18 @@ class EmbeddingRequestIterator implements BulkInferenceRequestItemIterator {
     /**
      * Factory for creating {@link EmbeddingRequestIterator} instances.
      */
-    record Factory(String inferenceId, TaskType taskType, ExpressionEvaluator textEvaluator)
+    record Factory(String inferenceId, TaskType taskType, ExpressionEvaluator textEvaluator, Map<String, Object> inputOptions)
         implements
             BulkInferenceRequestItemIterator.Factory {
 
         @Override
         public BulkInferenceRequestItemIterator create(Page inputPage) {
-            return new EmbeddingRequestIterator(inferenceId, taskType, (BytesRefBlock) textEvaluator.eval(inputPage));
+            return new EmbeddingRequestIterator(
+                inferenceId,
+                taskType,
+                (BytesRefBlock) textEvaluator.eval(inputPage),
+                inputOptions
+            );
         }
 
         @Override

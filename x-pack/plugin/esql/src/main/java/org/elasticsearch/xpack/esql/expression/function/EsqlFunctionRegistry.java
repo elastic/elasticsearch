@@ -590,7 +590,7 @@ public class EsqlFunctionRegistry {
                 defTS3(FirstOverTime.class, FirstOverTime::new, "first_over_time"),
                 def(PercentileOverTime.class, bi(PercentileOverTime::new), "percentile_over_time"),
                 // dense vector functions
-                def(Embedding.class, bi(Embedding::new), "embedding"),
+                def(Embedding.class, tri((src, a, b, c) -> new Embedding(src, a, b, (MapExpression) c)), "embedding"),
                 def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding"),
                 def(CosineSimilarity.class, CosineSimilarity::new, "v_cosine"),
                 def(DotProduct.class, DotProduct::new, "v_dot_product"),

@@ -33,7 +33,7 @@ public class EmbeddingErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Embedding(source, args.get(0), args.get(1));
+        return new Embedding(source, args.get(0), args.get(1), null);
     }
 
     @Override

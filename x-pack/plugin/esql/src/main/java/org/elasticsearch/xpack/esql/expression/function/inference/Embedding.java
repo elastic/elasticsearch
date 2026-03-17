@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.inference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -18,6 +19,8 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.MapParam;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
@@ -32,10 +35,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 /**
  * EMBEDDING function converts text to dense vector embeddings using an inference endpoint with the {@code embedding} task type.
  */
-public class Embedding extends InferenceFunction<Embedding> {
+public class Embedding extends InferenceFunction<Embedding> implements OptionalArgument {
 
     private final Expression inferenceId;
     private final Expression inputText;
+    private final MapExpression inputOptions;
 
     @FunctionInfo(
         returnType = "dense_vector",
@@ -71,11 +75,29 @@ public class Embedding extends InferenceFunction<Embedding> {
                 entityType = Param.Hint.ENTITY_TYPE.INFERENCE_ENDPOINT,
                 constraints = { @Param.Hint.Constraint(name = "task_type", value = "embedding") }
             )
-        ) Expression inferenceId
+        ) Expression inferenceId,
+        @MapParam(
+            name = "options",
+            description = "(Optional) Options for the input value.",
+            params = {
+                @MapParam.MapParamEntry(
+                    name = "type",
+                    type = { "keyword" },
+                    description = "Content type of the input (e.g. \"text\", \"image\")."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "format",
+                    type = { "keyword" },
+                    description = "Format of the input content (e.g. \"text\", \"base64\")."
+                )
+            },
+            optional = true
+        ) MapExpression inputOptions
     ) {
-        super(source, List.of(inputText, inferenceId));
+        super(source, inputOptions == null ? List.of(inputText, inferenceId) : List.of(inputText, inferenceId, inputOptions));
         this.inferenceId = inferenceId;
         this.inputText = inputText;
+        this.inputOptions = inputOptions;
     }
 
     @Override
@@ -92,6 +114,10 @@ public class Embedding extends InferenceFunction<Embedding> {
         return inputText;
     }
 
+    public MapExpression inputOptions() {
+        return inputOptions;
+    }
+
     @Override
     public Expression inferenceId() {
         return inferenceId;
@@ -99,7 +125,20 @@ public class Embedding extends InferenceFunction<Embedding> {
 
     @Override
     public boolean foldable() {
-        return inferenceId.foldable() && inputText.foldable();
+        if (inferenceId.foldable() == false || inputText.foldable() == false) {
+            return false;
+        }
+        if (inputOptions != null) {
+            if (inputOptions.resolved() == false) {
+                return false;
+            }
+            for (Expression e : inputOptions.children()) {
+                if (e.foldable() == false) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     @Override
@@ -138,21 +177,28 @@ public class Embedding extends InferenceFunction<Embedding> {
 
     @Override
     public Embedding withInferenceResolutionError(String inferenceId, String error) {
-        return new Embedding(source(), inputText, new UnresolvedAttribute(inferenceId().source(), inferenceId, error));
+        return new Embedding(source(), inputText, new UnresolvedAttribute(inferenceId().source(), inferenceId, error), inputOptions);
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Embedding(source(), newChildren.get(0), newChildren.get(1));
+        return new Embedding(
+            source(),
+            newChildren.get(0),
+            newChildren.get(1),
+            newChildren.size() > 2 ? (MapExpression) newChildren.get(2) : null
+        );
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Embedding::new, inputText, inferenceId);
+        return NodeInfo.create(this, Embedding::new, inputText, inferenceId, inputOptions);
     }
 
     @Override
     public String toString() {
-        return "EMBEDDING(" + inputText + ", " + inferenceId + ")";
+        return inputOptions == null
+            ? "EMBEDDING(" + inputText + ", " + inferenceId + ")"
+            : "EMBEDDING(" + inputText + ", " + inferenceId + ", " + inputOptions + ")";
     }
 }

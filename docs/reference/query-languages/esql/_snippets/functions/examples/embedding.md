@@ -6,7 +6,7 @@ Generate embeddings using the 'test_dense_inference' inference endpoint.
 
 ```esql
 FROM dense_vector_text METADATA _score
-| EVAL query_embedding = EMBEDDING("be excellent to each other", "test_dense_inference")
+| EVAL query_embedding = EMBEDDING("be excellent to each other", "test_embedding_inference")
 | WHERE KNN(text_embedding_field, query_embedding)
 ```
 

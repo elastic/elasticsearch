@@ -21,5 +21,8 @@ stack: preview 9.5.0
 :::{include} ../types/embedding.md
 :::
 
+:::{include} ../functionNamedParams/embedding.md
+:::
+
 :::{include} ../examples/embedding.md
 :::

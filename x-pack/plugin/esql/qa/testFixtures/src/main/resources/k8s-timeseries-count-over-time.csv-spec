@@ -730,7 +730,7 @@ events:double | step:datetime            | pod:keyword
 count_over_time_aggregate_metric_double_implicit_casting
 required_capability: ts_command_v0
 required_capability: aggregate_metric_double_v0
-TS k8s* | STATS bytes = sum(count_over_time(network.eth0.rx)) by pod, time_bucket = bucket(@timestamp, 10minute) | SORT bytes, pod, time_bucket | LIMIT 10 ;
+TS k8s,k8s-downsampled | STATS bytes = sum(count_over_time(network.eth0.rx)) by pod, time_bucket = bucket(@timestamp, 10minute) | SORT bytes, pod, time_bucket | LIMIT 10 ;
 
 bytes:long | pod:keyword | time_bucket:datetime
 7          | two         | 2024-05-10T00:20:00.000Z
@@ -750,7 +750,7 @@ count_over_time_aggregate_metric_double_implicit_casting_promql-Ignore
 required_capability: promql_command_v0
 required_capability: aggregate_metric_double_v0
 
-PROMQL index=k8s* step=10m bytes=(sum by (pod) (count_over_time(network.eth0.rx[10m])))
+PROMQL index=k8s,k8s-downsampled step=10m bytes=(sum by (pod) (count_over_time(network.eth0.rx[10m])))
 | SORT bytes, pod, step | LIMIT 10;
 
 bytes:double | step:datetime            | pod:keyword

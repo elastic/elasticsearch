@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.AfterClass;
@@ -464,6 +465,16 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     private static final Pattern RENAME_PAIR_PATTERN = Pattern.compile("\\s*(`[^`]+`|[^,\\s]+)\\s+[Aa][Ss]\\s+(`[^`]+`|[^,\\s]+)\\s*");
 
     /**
+     * Matches {@code | rename X as Y} segments embedded in a LOOKUP JOIN command string.
+     * {@link LookupJoinGenerator} prepends rename commands to align the left-side key columns
+     * with the lookup index key names; these renames are part of a single {@link CommandGenerator.CommandDescription}
+     * and must be accounted for when propagating {@link Column#indexMapped()} flags.
+     */
+    private static final Pattern EMBEDDED_RENAME_PATTERN = Pattern.compile(
+        "(?i)\\|\\s*rename\\s+(`[^`]+`|[^\\s|]+)\\s+as\\s+(`[^`]+`|[^\\s|]+)"
+    );
+
+    /**
      * Propagates the {@link Column#indexMapped()} flag through the pipeline after a command executes.
      * <p>
      * The REST API does not expose attribute-type information, so this method infers it from:
@@ -557,6 +568,20 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 Object enrichFieldsObj = command.context().get(EnrichGenerator.ENRICH_FIELDS);
                 if (enrichFieldsObj instanceof List<?> enrichFieldsList) {
                     enrichFieldsList.forEach(name -> createdColumns.add((String) name));
+                }
+            }
+            case "lookup join" -> {
+                // LookupJoinGenerator embeds RENAME commands before the actual LOOKUP JOIN to align
+                // left-side key columns with lookup index key names. Process these renames so that
+                // fields renamed from non-index-mapped sources correctly inherit indexMapped=false
+                // instead of picking up the old indexMapped status of a same-named existing field.
+                Matcher rm = EMBEDDED_RENAME_PATTERN.matcher(command.commandString());
+                while (rm.find()) {
+                    String oldName = unquote(rm.group(1).trim());
+                    String newName = unquote(rm.group(2).trim());
+                    boolean wasMapped = prevMapped.getOrDefault(oldName, false);
+                    prevMapped.remove(oldName);
+                    prevMapped.put(newName, wasMapped);
                 }
             }
             default -> {

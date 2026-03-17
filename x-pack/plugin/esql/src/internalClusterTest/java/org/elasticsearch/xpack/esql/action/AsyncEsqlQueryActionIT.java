@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
+import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.core.IsEqual;
 
@@ -284,6 +285,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
             }
             currentExpiration = getExpirationFromTask(asyncId);
             assertThat(currentExpiration, greaterThanOrEqualTo(nowInMillis + keepAlive.getMillis()));
+            assertThat(getTaskKeepAlive(asyncId), equalTo(keepAlive.getStringRep()));
             // update the expiration while the task is still running
             int iters = iterations(1, 5);
             for (int i = 0; i < iters; i++) {
@@ -298,6 +300,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                 long updatedExpiration = getExpirationFromTask(asyncId);
                 assertThat(updatedExpiration, greaterThanOrEqualTo(currentExpiration + extraKeepAlive));
                 assertThat(updatedExpiration, greaterThanOrEqualTo(nowInMillis + keepAlive.getMillis()));
+                assertThat(getTaskKeepAlive(asyncId), equalTo(keepAlive.getStringRep()));
                 currentExpiration = updatedExpiration;
             }
         } finally {
@@ -386,6 +389,14 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
         }
         assertThat(tasks, hasSize(1));
         return tasks.getFirst().getExpirationTimeMillis();
+    }
+
+    private String getTaskKeepAlive(String asyncId) throws Exception {
+        List<TaskInfo> tasks = getEsqlQueryTasks();
+        assertThat(tasks, hasSize(1));
+        EsqlQueryStatus status = (EsqlQueryStatus) tasks.getFirst().status();
+        assertThat(status.id().getEncoded(), equalTo(asyncId));
+        return status.keepAlive().getStringRep();
     }
 
     private static long getExpirationFromDoc(String asyncId) {

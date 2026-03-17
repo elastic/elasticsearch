@@ -50,6 +50,8 @@ import org.elasticsearch.snapshots.UpdateIndexShardSnapshotStatusRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotShardContextFactory;
+import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotShardContextFactory.StatelessSnapshotEnabledStatus;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -79,6 +81,21 @@ import static org.hamcrest.Matchers.is;
  * Integration tests for {@link org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService} types.
  */
 public abstract class AbstractObjectStoreIntegTestCase extends AbstractStatelessPluginIntegTestCase {
+
+    private static StatelessSnapshotEnabledStatus statelessSnapshotEnabledStatus;
+
+    @BeforeClass
+    public static void initStatelessSnapshotEnabledStatus() {
+        statelessSnapshotEnabledStatus = randomFrom(StatelessSnapshotEnabledStatus.values());
+    }
+
+    @Override
+    protected Settings.Builder nodeSettings() {
+        return super.nodeSettings().put(
+            StatelessSnapshotShardContextFactory.STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(),
+            statelessSnapshotEnabledStatus
+        );
+    }
 
     protected abstract String repositoryType();
 
@@ -138,17 +155,28 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
             blobContainer.delete(operationPurpose);
         }
 
+        final var indexName = randomIndexName();
+        createIndex(indexName, 1, 0);
+        final int numDocs = between(1, 100);
+        indexDocs(indexName, numDocs);
+
         // Create a repository and perform some snapshot actions
         createRepository("backup", repositorySettings());
         clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "backup", "snapshot")
             .setIncludeGlobalState(true)
             .setWaitForCompletion(true)
             .get();
+        safeGet(indicesAdmin().prepareDelete(indexName).execute());
         clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "backup", "snapshot")
             .setRestoreGlobalState(true)
             .setWaitForCompletion(true)
             .get();
         assertThat(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, "backup", "snapshot").get().isAcknowledged(), is(true));
+
+        assertThat(
+            safeGet(indicesAdmin().prepareStats(indexName).execute()).getIndex(indexName).getTotal().getDocs().getCount(),
+            equalTo((long) numDocs)
+        );
 
         final List<RepositoryStats> repositoryStats = getRepositoryStats();
 

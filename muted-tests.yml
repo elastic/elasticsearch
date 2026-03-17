@@ -318,12 +318,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasource.grpc.EmployeeFlightServerTests
   method: testGetFlightInfoReturnsSingleEndpoint
   issue: https://github.com/elastic/elasticsearch/issues/144263
-- class: org.elasticsearch.xpack.esql.parser.StatementParserTests
-  method: testLimitBy
-  issue: https://github.com/elastic/elasticsearch/issues/144267
-- class: org.elasticsearch.xpack.esql.parser.StatementParserTests
-  method: testLimitByQualifiedName
-  issue: https://github.com/elastic/elasticsearch/issues/144268
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/143023

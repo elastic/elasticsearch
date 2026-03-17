@@ -33,8 +33,16 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -141,6 +149,34 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
             var manager1 = sharedProvider.getTopScoreDocCollectorManager();
             var manager2 = sharedProvider.getTopScoreDocCollectorManager();
             assertThat(manager1, sameInstance(manager2));
+
+            // Concurrent section: multiple threads call newPerShardCollector simultaneously
+            var ctx = createMockShardContext(0, true);
+            int numThreads = randomIntBetween(4, 8);
+            int callsPerThread = randomIntBetween(5, 15);
+            CyclicBarrier barrier = new CyclicBarrier(numThreads);
+            ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+            var allCollectors = new CopyOnWriteArrayList<>();
+
+            try {
+                List<Future<?>> futures = new ArrayList<>();
+                for (int t = 0; t < numThreads; t++) {
+                    futures.add(executor.submit(() -> {
+                        barrier.await();
+                        for (int i = 0; i < callsPerThread; i++) {
+                            allCollectors.add(sharedProvider.newPerShardCollector(ctx).collector);
+                        }
+                        return null;
+                    }));
+                }
+                for (var f : futures) f.get();
+            } finally {
+                executor.shutdownNow();
+            }
+
+            Set<Object> distinct = Collections.newSetFromMap(new IdentityHashMap<>());
+            distinct.addAll(allCollectors);
+            assertThat(distinct.size(), equalTo(numThreads * callsPerThread));
         } finally {
             IOUtils.close(operators);
         }
@@ -180,6 +216,33 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
             var manager1 = sharedProvider.getTopDocsCollectorForSort(sort);
             var manager2 = sharedProvider.getTopDocsCollectorForSort(sort);
             assertNotSame(manager1, manager2);
+
+            // Concurrent section: multiple threads call getTopDocsCollectorForSort simultaneously
+            int numThreads = randomIntBetween(4, 8);
+            int callsPerThread = randomIntBetween(5, 15);
+            CyclicBarrier barrier = new CyclicBarrier(numThreads);
+            ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+            var allCollectors = new CopyOnWriteArrayList<>();
+
+            try {
+                List<Future<?>> futures = new ArrayList<>();
+                for (int t = 0; t < numThreads; t++) {
+                    futures.add(executor.submit(() -> {
+                        barrier.await();
+                        for (int i = 0; i < callsPerThread; i++) {
+                            allCollectors.add(sharedProvider.getTopDocsCollectorForSort(sort));
+                        }
+                        return null;
+                    }));
+                }
+                for (var f : futures) f.get();
+            } finally {
+                executor.shutdownNow();
+            }
+
+            Set<Object> distinct = Collections.newSetFromMap(new IdentityHashMap<>());
+            distinct.addAll(allCollectors);
+            assertThat(distinct.size(), equalTo(numThreads * callsPerThread));
         } finally {
             IOUtils.close(operators);
         }

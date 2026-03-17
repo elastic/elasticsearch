@@ -45,10 +45,10 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats.Config;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -189,23 +189,19 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.names;
 import static org.elasticsearch.xpack.esql.core.expression.function.scalar.FunctionTestUtils.l;
@@ -312,10 +308,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     @Before
     public void init() {
         mapper = new Mapper();
-        var enrichResolution = setupEnrichResolution();
         // Most tests used data from the test index, so we load it here, and use it in the plan() function.
-        this.testData = makeTestDataSource("test", "mapping-basic.json", enrichResolution);
-        this.testDataLimitedRaw = makeTestDataSource("test", "mapping-basic-limited-raw.json", enrichResolution);
+        this.testData = makeTestDataSource("test", "mapping-basic.json");
+        this.testDataLimitedRaw = makeTestDataSource("test", "mapping-basic-limited-raw.json");
         allFieldRowSize = testData.mapping.values()
             .stream()
             .mapToInt(
@@ -329,107 +324,82 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             .sum();
 
         // Some tests use data from the airports and countries indexes, so we load that here, and use it in the plan(q, airports) function.
-        this.airports = makeTestDataSource("airports", "mapping-airports.json", enrichResolution);
+        this.airports = makeTestDataSource("airports", "mapping-airports.json");
         this.airportsNoDocValues = makeTestDataSource(
             "airports-no-doc-values",
             "mapping-airports_no_doc_values.json",
-            enrichResolution,
             new TestConfigurableSearchStats().exclude(Config.DOC_VALUES, "location").exclude(Config.DOC_VALUES, "city_location")
         );
         this.airportsNotIndexed = makeTestDataSource(
             "airports-not-indexed",
             "mapping-airports_not_indexed.json",
-            enrichResolution,
             new TestConfigurableSearchStats().exclude(Config.INDEXED, "location")
         );
         this.airportsNotIndexedNorDocValues = makeTestDataSource(
             "airports-not-indexed-nor-doc-values",
             "mapping-airports_not_indexed_nor_doc_values.json",
-            enrichResolution,
             new TestConfigurableSearchStats().exclude(Config.INDEXED, "location").exclude(Config.DOC_VALUES, "location")
         );
-        this.airportsWeb = makeTestDataSource("airports_web", "mapping-airports_web.json", enrichResolution);
-        this.airportsCityBoundaries = makeTestDataSource(
-            "airports_city_boundaries",
-            "mapping-airport_city_boundaries.json",
-            enrichResolution
-        );
+        this.airportsWeb = makeTestDataSource("airports_web", "mapping-airports_web.json");
+        this.airportsCityBoundaries = makeTestDataSource("airports_city_boundaries", "mapping-airport_city_boundaries.json");
         this.airportsCityBoundariesNoPointDocValues = makeTestDataSource(
             "airports_city_boundaries",
             "mapping-airport_city_boundaries.json",
-            enrichResolution,
             new TestConfigurableSearchStats().exclude(Config.DOC_VALUES, "location", "city_location")
         );
         this.airportsCityBoundariesNoShapeDocValues = makeTestDataSource(
             "airports_city_boundaries",
             "mapping-airport_city_boundaries.json",
-            enrichResolution,
             new TestConfigurableSearchStats().exclude(Config.DOC_VALUES, "city_boundary")
         );
         this.airportsCityBoundariesNoDocValues = makeTestDataSource(
             "airports_city_boundaries",
             "mapping-airport_city_boundaries.json",
-            enrichResolution,
             new TestConfigurableSearchStats().exclude(Config.DOC_VALUES, "city_boundary", "location", "city_location")
         );
-        this.cartesianMultipolygons = makeTestDataSource(
-            "cartesian_multipolygons",
-            "mapping-cartesian_multipolygons.json",
-            enrichResolution
-        );
+        this.cartesianMultipolygons = makeTestDataSource("cartesian_multipolygons", "mapping-cartesian_multipolygons.json");
         this.cartesianMultipolygonsNoDocValues = makeTestDataSource(
             "cartesian_multipolygons_no_doc_values",
             "mapping-cartesian_multipolygons_no_doc_values.json",
-            enrichResolution,
             new TestConfigurableSearchStats().exclude(Config.DOC_VALUES, "shape")
         );
-        this.countriesBbox = makeTestDataSource("countriesBbox", "mapping-countries_bbox.json", enrichResolution);
-        this.countriesBboxWeb = makeTestDataSource("countriesBboxWeb", "mapping-countries_bbox_web.json", enrichResolution);
-        this.metricsData = makeTestDataSource("k8s", "k8s-mappings.json", enrichResolution);
+        this.countriesBbox = makeTestDataSource("countriesBbox", "mapping-countries_bbox.json");
+        this.countriesBboxWeb = makeTestDataSource("countriesBboxWeb", "mapping-countries_bbox_web.json");
+        this.metricsData = makeTestDataSource("k8s", "k8s-mappings.json");
         this.plannerSettings = PlannerSettings.DEFAULTS;
-        this.testAllMapping = makeTestDataSource("test_all", "mapping-all-types.json", enrichResolution);
+        this.testAllMapping = makeTestDataSource("test_all", "mapping-all-types.json");
     }
 
     TestDataSource makeTestDataSource(
         String indexName,
         String mappingFileName,
         Map<String, IndexResolution> lookupResolution,
-        EnrichResolution enrichResolution,
         SearchStats stats
     ) {
         Map<String, EsField> mapping = loadMapping(mappingFileName);
-        EsIndex[] indexes = new EsIndex[1 + lookupResolution.size()];
-        indexes[0] = EsIndexGenerator.esIndex(indexName, mapping, Map.of(indexName, IndexMode.STANDARD));
-        for (int i = 0; i < lookupResolution.size(); i++) {
-            indexes[i + 1] = lookupResolution.values().toArray(new IndexResolution[0])[i].get();
+        EsIndex index = EsIndexGenerator.esIndex(indexName, mapping, Map.of(indexName, IndexMode.STANDARD));
+        TestAnalyzer builder = analyzer().configuration(config).addIndex(index);
+        setupEnrichPolicies(builder);
+        for (IndexResolution lookupIndex : lookupResolution.values()) {
+            builder.addIndex(lookupIndex);
+            builder.addLookupIndex(lookupIndex);
         }
-        Analyzer analyzer = new Analyzer(
-            testAnalyzerContext(
-                config,
-                TEST_FUNCTION_REGISTRY,
-                indexResolutions(indexes),
-                lookupResolution,
-                enrichResolution,
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
-        return new TestDataSource(mapping, indexes[0], analyzer, stats);
+        Analyzer analyzer = builder.buildAnalyzer();
+        return new TestDataSource(mapping, index, analyzer, stats);
     }
 
-    TestDataSource makeTestDataSource(String indexName, String mappingFileName, EnrichResolution enrichResolution, SearchStats stats) {
-        return makeTestDataSource(indexName, mappingFileName, defaultLookupResolution(), enrichResolution, stats);
+    TestDataSource makeTestDataSource(String indexName, String mappingFileName, SearchStats stats) {
+        return makeTestDataSource(indexName, mappingFileName, defaultLookupResolution(), stats);
     }
 
-    TestDataSource makeTestDataSource(String indexName, String mappingFileName, EnrichResolution enrichResolution) {
-        return makeTestDataSource(indexName, mappingFileName, enrichResolution, TEST_SEARCH_STATS);
+    TestDataSource makeTestDataSource(String indexName, String mappingFileName) {
+        return makeTestDataSource(indexName, mappingFileName, TEST_SEARCH_STATS);
     }
 
-    private static EnrichResolution setupEnrichResolution() {
-        EnrichResolution enrichResolution = new EnrichResolution();
-        enrichResolution.addResolvedPolicy(
-            "foo",
+    private static void setupEnrichPolicies(TestAnalyzer builder) {
+        builder.addEnrichPolicy(
             Enrich.Mode.ANY,
+            "foo",
             new ResolvedEnrichPolicy(
                 "fld",
                 EnrichPolicy.MATCH_TYPE,
@@ -441,9 +411,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 )
             )
         );
-        enrichResolution.addResolvedPolicy(
-            "city_boundaries",
+        builder.addEnrichPolicy(
             Enrich.Mode.ANY,
+            "city_boundaries",
             new ResolvedEnrichPolicy(
                 "city_boundary",
                 EnrichPolicy.GEO_MATCH_TYPE,
@@ -460,9 +430,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 )
             )
         );
-        enrichResolution.addResolvedPolicy(
-            "departments",
+        builder.addEnrichPolicy(
             Enrich.Mode.ANY,
+            "departments",
             new ResolvedEnrichPolicy(
                 "employee_id",
                 EnrichPolicy.MATCH_TYPE,
@@ -471,9 +441,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
-        enrichResolution.addResolvedPolicy(
-            "departments",
+        builder.addEnrichPolicy(
             Enrich.Mode.COORDINATOR,
+            "departments",
             new ResolvedEnrichPolicy(
                 "employee_id",
                 EnrichPolicy.MATCH_TYPE,
@@ -482,9 +452,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
-        enrichResolution.addResolvedPolicy(
-            "departments",
+        builder.addEnrichPolicy(
             Enrich.Mode.REMOTE,
+            "departments",
             new ResolvedEnrichPolicy(
                 "employee_id",
                 EnrichPolicy.MATCH_TYPE,
@@ -493,9 +463,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
-        enrichResolution.addResolvedPolicy(
-            "supervisors",
+        builder.addEnrichPolicy(
             Enrich.Mode.ANY,
+            "supervisors",
             new ResolvedEnrichPolicy(
                 "department",
                 EnrichPolicy.MATCH_TYPE,
@@ -504,9 +474,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
-        enrichResolution.addResolvedPolicy(
-            "supervisors",
+        builder.addEnrichPolicy(
             Enrich.Mode.COORDINATOR,
+            "supervisors",
             new ResolvedEnrichPolicy(
                 "department",
                 EnrichPolicy.MATCH_TYPE,
@@ -515,9 +485,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
-        enrichResolution.addResolvedPolicy(
-            "supervisors",
+        builder.addEnrichPolicy(
             Enrich.Mode.REMOTE,
+            "supervisors",
             new ResolvedEnrichPolicy(
                 "department",
                 EnrichPolicy.MATCH_TYPE,
@@ -526,7 +496,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
-        return enrichResolution;
     }
 
     public void testSingleFieldExtractor() {
@@ -4651,6 +4620,280 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             assertAggregation(agg, "extent", "hasDocValues:" + hasDocValues, SpatialExtent.class, CARTESIAN_SHAPE, fieldExtractPreference);
             var exec = agg.child() instanceof FieldExtractExec ? agg : as(agg.child(), UnaryExec.class);
             // For cartesian_shape, the bounds extraction is done in the FieldExtractExec, so it does need to know about this
+            assertChildIsExtractedAs(exec, fieldExtractPreference, CARTESIAN_SHAPE);
+        }
+    }
+
+    /**
+     * Test that ST_CENTROID_AGG on geo_shape uses centroid extraction from doc-values when available.
+     * This is similar to bounds extraction for ST_EXTENT_AGG but extracts centroid data instead.
+     */
+    public void testSpatialTypesAndStatsCentroidOfGeoShapeUsesCentroidExtraction() {
+        var query = "FROM airports_city_boundaries | STATS centroid = ST_CENTROID_AGG(city_boundary)";
+        for (boolean useDocValues : new Boolean[] { true, false }) {
+            var testData = useDocValues ? airportsCityBoundaries : airportsCityBoundariesNoDocValues;
+            var plan = physicalPlan(query.replace("airports_city_boundaries", testData.index.name()), testData);
+
+            var limit = as(plan, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            // Before optimization the aggregation does not use centroid extraction
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_SHAPE, FieldExtractPreference.NONE);
+
+            var exchange = as(agg.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var partialAgg = as(fragment.fragment(), Aggregate.class);
+            as(partialAgg.child(), EsRelation.class);
+
+            var optimized = optimizedPlan(plan, testData.stats);
+            limit = as(optimized, LimitExec.class);
+            agg = as(limit.child(), AggregateExec.class);
+            // Above the exchange (in coordinator) the aggregation is not using doc-values
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_SHAPE, FieldExtractPreference.NONE);
+            exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            // below the exchange (in data node) the aggregation uses centroid extraction if doc-values are available
+            var fieldExtractPreference = useDocValues ? FieldExtractPreference.EXTRACT_SPATIAL_CENTROID : FieldExtractPreference.NONE;
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_SHAPE, fieldExtractPreference);
+            assertChildIsExtractedAs(agg, fieldExtractPreference, GEO_SHAPE);
+        }
+    }
+
+    /**
+     * This test verifies that the aggregation does not use spatial centroid extraction when the shape appears in an eval or filter.
+     */
+    public void testSpatialTypesAndStatsCentroidOfShapesNegativeCases() {
+        for (String query : new String[] { """
+            FROM airports_city_boundaries
+            | EVAL prefix = SUBSTRING(TO_STRING(city_boundary), 5)
+            | STATS centroid = ST_CENTROID_AGG(city_boundary) BY prefix""", """
+            FROM airports_city_boundaries
+            | WHERE STARTS_WITH(TO_STRING(city_boundary), "MULTIPOLYGON")
+            | STATS centroid = ST_CENTROID_AGG(city_boundary)""" }) {
+            var testData = airportsCityBoundaries;
+            var plan = physicalPlan(query, testData);
+
+            var limit = as(plan, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_SHAPE, FieldExtractPreference.NONE);
+
+            var optimized = optimizedPlan(plan, testData.stats);
+            limit = as(optimized, LimitExec.class);
+            agg = as(limit.child(), AggregateExec.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_SHAPE, FieldExtractPreference.NONE);
+            var exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            // Because the shape was used in EVAL/WHERE we cannot use doc-values centroid extraction optimization
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_SHAPE, FieldExtractPreference.NONE);
+            var exec = agg.child() instanceof FieldExtractExec ? agg : as(agg.child(), UnaryExec.class);
+            assertChildIsExtractedAs(exec, FieldExtractPreference.NONE, GEO_SHAPE);
+        }
+    }
+
+    /**
+     * Test cartesian_shape centroid extraction occurs when the shape has doc-values and not otherwise.
+     */
+    public void testSpatialTypesAndStatsCentroidOfCartesianShapesWithAndWithoutDocValues() {
+        for (boolean hasDocValues : new boolean[] { true, false }) {
+            var query = "FROM cartesian_multipolygons | STATS centroid = ST_CENTROID_AGG(shape)";
+            var testData = cartesianMultipolygons;
+            var fieldExtractPreference = FieldExtractPreference.EXTRACT_SPATIAL_CENTROID;
+            if (hasDocValues == false) {
+                query = "FROM cartesian_multipolygons_no_doc_values | STATS centroid = ST_CENTROID_AGG(shape)";
+                testData = cartesianMultipolygonsNoDocValues;
+                fieldExtractPreference = FieldExtractPreference.NONE;
+            }
+            var plan = physicalPlan(query, testData);
+
+            var limit = as(plan, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, CARTESIAN_SHAPE, FieldExtractPreference.NONE);
+
+            var optimized = optimizedPlan(plan, testData.stats);
+            limit = as(optimized, LimitExec.class);
+            agg = as(limit.child(), AggregateExec.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, CARTESIAN_SHAPE, FieldExtractPreference.NONE);
+            var exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            // We extract centroid from doc-values into a special double[] which the aggregation needs to know about.
+            assertAggregation(
+                agg,
+                "centroid",
+                "hasDocValues:" + hasDocValues,
+                SpatialCentroid.class,
+                CARTESIAN_SHAPE,
+                fieldExtractPreference
+            );
+            var exec = agg.child() instanceof FieldExtractExec ? agg : as(agg.child(), UnaryExec.class);
+            // For cartesian_shape, the centroid extraction is done in the FieldExtractExec
+            assertChildIsExtractedAs(exec, fieldExtractPreference, CARTESIAN_SHAPE);
+        }
+    }
+
+    /**
+     * Test combined ST_CENTROID_AGG and ST_EXTENT_AGG on the same geo_shape field.
+     * When both aggregations are used on the same shape field with doc-values,
+     * both should use EXTRACT_SPATIAL_BOUNDS_AND_CENTROID preference.
+     */
+    public void testSpatialTypesAndStatsBoundsAndCentroidOnSameGeoShape() {
+        var query =
+            "FROM airports_city_boundaries | STATS centroid = ST_CENTROID_AGG(city_boundary), extent = ST_EXTENT_AGG(city_boundary)";
+        for (boolean useDocValues : new Boolean[] { true, false }) {
+            var testData = useDocValues ? airportsCityBoundaries : airportsCityBoundariesNoDocValues;
+            var plan = physicalPlan(query.replace("airports_city_boundaries", testData.index.name()), testData);
+
+            var limit = as(plan, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            // Before optimization the aggregations do not use doc-values extraction
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_SHAPE, FieldExtractPreference.NONE);
+            assertAggregation(agg, "extent", SpatialExtent.class, GEO_SHAPE, FieldExtractPreference.NONE);
+
+            var exchange = as(agg.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var partialAgg = as(fragment.fragment(), Aggregate.class);
+            as(partialAgg.child(), EsRelation.class);
+
+            var optimized = optimizedPlan(plan, testData.stats);
+            limit = as(optimized, LimitExec.class);
+            agg = as(limit.child(), AggregateExec.class);
+            // Above the exchange (in coordinator) the aggregation is not using doc-values
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_SHAPE, FieldExtractPreference.NONE);
+            assertAggregation(agg, "extent", SpatialExtent.class, GEO_SHAPE, FieldExtractPreference.NONE);
+            exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            // Below the exchange (in data node) both aggregations use combined bounds+centroid extraction if doc-values are available
+            var fieldExtractPreference = useDocValues
+                ? FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS_AND_CENTROID
+                : FieldExtractPreference.NONE;
+            assertAggregation(agg, "centroid", "hasDocValues:" + useDocValues, SpatialCentroid.class, GEO_SHAPE, fieldExtractPreference);
+            assertAggregation(agg, "extent", "hasDocValues:" + useDocValues, SpatialExtent.class, GEO_SHAPE, fieldExtractPreference);
+            assertChildIsExtractedAs(agg, fieldExtractPreference, GEO_SHAPE);
+        }
+    }
+
+    /**
+     * Test combined ST_CENTROID_AGG and ST_EXTENT_AGG on different geo_shape and geo_point fields.
+     * When each aggregation on different fields with different extractions,
+     * the geo_point field should use DOC_VALUES preference and
+     * the geo_shape field should use either EXTRACT_SPATIAL_BOUNDS or EXTRACT_SPATIAL_CENTROID preference.
+     */
+    public void testSpatialTypesAndStatsBoundsAndCentroidOnGeoPointAndGeoShape() {
+        for (String query : new String[] {
+            "FROM airports_city_boundaries | STATS centroid = ST_CENTROID_AGG(city_location), extent = ST_EXTENT_AGG(city_boundary)",
+            "FROM airports_city_boundaries | STATS centroid = ST_CENTROID_AGG(city_boundary), extent = ST_EXTENT_AGG(city_location)" }) {
+            boolean centroidOnShapes = query.contains("ST_CENTROID_AGG(city_boundary)");
+            boolean extentOnShapes = query.contains("ST_EXTENT_AGG(city_boundary)");
+            DataType centroidType = centroidOnShapes ? GEO_SHAPE : GEO_POINT;
+            DataType extentType = extentOnShapes ? GEO_SHAPE : GEO_POINT;
+            for (boolean useDocValues : new Boolean[] { true, false }) {
+                var centroidExtractPreference = useDocValues
+                    ? (centroidOnShapes ? FieldExtractPreference.EXTRACT_SPATIAL_CENTROID : FieldExtractPreference.DOC_VALUES)
+                    : FieldExtractPreference.NONE;
+                var extentExtractPreference = useDocValues
+                    ? (extentOnShapes ? FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS : FieldExtractPreference.DOC_VALUES)
+                    : FieldExtractPreference.NONE;
+                var testData = useDocValues ? airportsCityBoundaries : airportsCityBoundariesNoDocValues;
+                var plan = physicalPlan(query.replace("airports_city_boundaries", testData.index.name()), testData);
+
+                var limit = as(plan, LimitExec.class);
+                var agg = as(limit.child(), AggregateExec.class);
+                // Before optimization the aggregations do not use doc-values extraction
+                assertAggregation(agg, "centroid", SpatialCentroid.class, centroidType, FieldExtractPreference.NONE);
+                assertAggregation(agg, "extent", SpatialExtent.class, extentType, FieldExtractPreference.NONE);
+
+                var exchange = as(agg.child(), ExchangeExec.class);
+                var fragment = as(exchange.child(), FragmentExec.class);
+                var partialAgg = as(fragment.fragment(), Aggregate.class);
+                as(partialAgg.child(), EsRelation.class);
+
+                var optimized = optimizedPlan(plan, testData.stats);
+                limit = as(optimized, LimitExec.class);
+                agg = as(limit.child(), AggregateExec.class);
+                // Above the exchange (in coordinator) the aggregation is not using doc-values
+                assertAggregation(agg, "centroid", SpatialCentroid.class, centroidType, FieldExtractPreference.NONE);
+                assertAggregation(agg, "extent", SpatialExtent.class, extentType, FieldExtractPreference.NONE);
+                exchange = as(agg.child(), ExchangeExec.class);
+                agg = as(exchange.child(), AggregateExec.class);
+                // Below the exchange (in data node) both aggregations use combined bounds+centroid extraction if doc-values are available
+                assertAggregation(
+                    agg,
+                    "centroid",
+                    "hasDocValues:" + useDocValues,
+                    SpatialCentroid.class,
+                    centroidType,
+                    centroidExtractPreference
+                );
+                assertAggregation(agg, "extent", "hasDocValues:" + useDocValues, SpatialExtent.class, extentType, extentExtractPreference);
+                var fieldExtractExec = as(agg.child(), FieldExtractExec.class);
+                // Check that field extraction of points is from doc-values, and shapes from bounds or centroid depending on test function
+                if (useDocValues) {
+                    assertThat(
+                        fieldExtractExec.docValuesAttributes().stream().map(Node::sourceText).toList(),
+                        equalTo(List.of("city_location"))
+                    );
+                    if (extentOnShapes) {
+                        assertThat(
+                            fieldExtractExec.boundsAttributes().stream().map(Node::sourceText).toList(),
+                            equalTo(List.of("city_boundary"))
+                        );
+                    }
+                    if (centroidOnShapes) {
+                        assertThat(
+                            fieldExtractExec.centroidAttributes().stream().map(Node::sourceText).toList(),
+                            equalTo(List.of("city_boundary"))
+                        );
+                    }
+                } else {
+                    assertThat(fieldExtractExec.docValuesAttributes(), equalTo(Set.of()));
+                    assertThat(fieldExtractExec.boundsAttributes(), equalTo(Set.of()));
+                    assertThat(fieldExtractExec.centroidAttributes(), equalTo(Set.of()));
+                }
+            }
+        }
+    }
+
+    /**
+     * Test combined ST_CENTROID_AGG and ST_EXTENT_AGG on the same cartesian_shape field.
+     * When both aggregations are used on the same shape field with doc-values,
+     * both should use EXTRACT_SPATIAL_BOUNDS_AND_CENTROID preference.
+     */
+    public void testSpatialTypesAndStatsBoundsAndCentroidOnSameCartesianShape() {
+        for (boolean hasDocValues : new boolean[] { true, false }) {
+            var query = "FROM cartesian_multipolygons | STATS centroid = ST_CENTROID_AGG(shape), extent = ST_EXTENT_AGG(shape)";
+            var testData = cartesianMultipolygons;
+            var fieldExtractPreference = FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS_AND_CENTROID;
+            if (hasDocValues == false) {
+                query =
+                    "FROM cartesian_multipolygons_no_doc_values | STATS centroid = ST_CENTROID_AGG(shape), extent = ST_EXTENT_AGG(shape)";
+                testData = cartesianMultipolygonsNoDocValues;
+                fieldExtractPreference = FieldExtractPreference.NONE;
+            }
+            var plan = physicalPlan(query, testData);
+
+            var limit = as(plan, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            // Before optimization the aggregations do not use doc-values extraction
+            assertAggregation(agg, "centroid", SpatialCentroid.class, CARTESIAN_SHAPE, FieldExtractPreference.NONE);
+            assertAggregation(agg, "extent", SpatialExtent.class, CARTESIAN_SHAPE, FieldExtractPreference.NONE);
+
+            var optimized = optimizedPlan(plan, testData.stats);
+            limit = as(optimized, LimitExec.class);
+            agg = as(limit.child(), AggregateExec.class);
+            // Above the exchange (in coordinator) the aggregation is not using doc-values
+            assertAggregation(agg, "centroid", SpatialCentroid.class, CARTESIAN_SHAPE, FieldExtractPreference.NONE);
+            assertAggregation(agg, "extent", SpatialExtent.class, CARTESIAN_SHAPE, FieldExtractPreference.NONE);
+            var exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            // Below the exchange (in data node) both aggregations use combined bounds+centroid extraction if doc-values are available
+            assertAggregation(
+                agg,
+                "centroid",
+                "hasDocValues:" + hasDocValues,
+                SpatialCentroid.class,
+                CARTESIAN_SHAPE,
+                fieldExtractPreference
+            );
+            assertAggregation(agg, "extent", "hasDocValues:" + hasDocValues, SpatialExtent.class, CARTESIAN_SHAPE, fieldExtractPreference);
+            var exec = agg.child() instanceof FieldExtractExec ? agg : as(agg.child(), UnaryExec.class);
             assertChildIsExtractedAs(exec, fieldExtractPreference, CARTESIAN_SHAPE);
         }
     }
@@ -8910,7 +9153,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             lookupIndices.put(lookupIndexName, IndexResolution.valid(lookupIndex));
         }
 
-        return makeTestDataSource("test", "mapping-basic.json", lookupIndices, setupEnrichResolution(), TEST_SEARCH_STATS);
+        return makeTestDataSource("test", "mapping-basic.json", lookupIndices, TEST_SEARCH_STATS);
     }
 
     private Map<String, EsField> fields(Collection<String> fieldNames) {
@@ -9234,14 +9477,27 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             case NONE -> {
                 assertThat("Extracting without doc-values", extract.docValuesAttributes(), is(empty()));
                 assertThat("Extracting without doc-values", extract.boundsAttributes(), is(empty()));
+                assertThat("Extracting without doc-values", extract.centroidAttributes(), is(empty()));
             }
             case DOC_VALUES -> {
                 assertThat("Extracting from doc-values", extract.docValuesAttributes(), is(not(empty())));
                 assertThat("Extracting from doc-values", extract.boundsAttributes(), is(empty()));
+                assertThat("Extracting from doc-values", extract.centroidAttributes(), is(empty()));
             }
             case EXTRACT_SPATIAL_BOUNDS -> {
                 assertThat("Extracting spatial bounds from doc-values", extract.docValuesAttributes(), is(empty()));
                 assertThat("Extracting spatial bounds from doc-values", extract.boundsAttributes(), is(not(empty())));
+                assertThat("Extracting spatial bounds from doc-values", extract.centroidAttributes(), is(empty()));
+            }
+            case EXTRACT_SPATIAL_CENTROID -> {
+                assertThat("Extracting spatial centroid from doc-values", extract.docValuesAttributes(), is(empty()));
+                assertThat("Extracting spatial centroid from doc-values", extract.boundsAttributes(), is(empty()));
+                assertThat("Extracting spatial centroid from doc-values", extract.centroidAttributes(), is(not(empty())));
+            }
+            case EXTRACT_SPATIAL_BOUNDS_AND_CENTROID -> {
+                assertThat("Extracting spatial bounds and centroid from doc-values", extract.docValuesAttributes(), is(empty()));
+                assertThat("Extracting spatial bounds and centroid from doc-values", extract.boundsAttributes(), is(not(empty())));
+                assertThat("Extracting spatial bounds and centroid from doc-values", extract.centroidAttributes(), is(not(empty())));
             }
         }
         assertTrue(

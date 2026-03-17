@@ -25,6 +25,14 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.IntFunction;
 
+/// Records all current and historical [IndexVersion]s
+///
+/// The list serves as the single source of truth for version-to-Lucene mappings, minimum compatibility windows
+/// (`MINIMUM_COMPATIBLE`, `MINIMUM_READONLY_COMPATIBLE`), and build-time merge-conflict detection
+/// (duplicate ids are [rejected at class-initialisation time][#def(int, Version)]).
+///
+/// @see IndexVersion
+///
 @SuppressWarnings("deprecation")
 public class IndexVersions {
 

@@ -254,7 +254,8 @@ public class EmployeeFlightServer implements Closeable {
             // have pending ChannelFutureListener callbacks (e.g. NettyServerHandler.closeStreamWhenDone)
             // that can throw if the HTTP/2 stream was already closed. Netty's DefaultPromise logs
             // these as WARN which ESTestCase.checkStaticState() treats as a test failure.
-            // A brief sleep lets those callbacks drain on the event loop thread before the test ends.
+            // ESTestCase now filters this specific gRPC NettyServerHandler warning (see #144244, #144263).
+            // A brief sleep still helps reduce log noise.
             server.close();
             Thread.sleep(50);
         } catch (InterruptedException e) {

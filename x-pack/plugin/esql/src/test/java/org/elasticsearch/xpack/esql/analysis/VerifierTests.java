@@ -3890,6 +3890,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testLimitByNotEnabled() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         assertThat(error("""
             FROM test
             | LIMIT 5 BY languages

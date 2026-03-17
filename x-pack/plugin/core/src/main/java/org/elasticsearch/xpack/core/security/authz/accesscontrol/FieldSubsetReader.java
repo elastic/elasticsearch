@@ -314,7 +314,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
         BinaryDocValues dv = super.getBinaryDocValues(field);
         if (isIgnoredSourceDocValues(dv, field)) {
-            return new FilteredIgnoredSourceDocValues(in, dv);
+            return new FilteredIgnoredSourceDocValues(in, dv, ignoredSourceFormat, filter);
         }
         return dv;
     }
@@ -353,14 +353,24 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
      * the current user is authorised to see. Returning the integrated-count format allows the caller to treat
      * the counts numeric field as absent, avoiding stale count mismatches after filtering.
      */
-    private class FilteredIgnoredSourceDocValues extends BinaryDocValues {
+    private static final class FilteredIgnoredSourceDocValues extends BinaryDocValues {
 
         private final BinaryDocValues delegate;
         private final MultiValuedSortedBinaryDocValues multiValues;
+        private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
+        private final CharacterRunAutomaton filter;
+
         private BytesRef filteredValue;
 
-        FilteredIgnoredSourceDocValues(LeafReader reader, BinaryDocValues dv) throws IOException {
+        FilteredIgnoredSourceDocValues(
+            LeafReader reader,
+            BinaryDocValues dv,
+            IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat,
+            CharacterRunAutomaton filter
+        ) throws IOException {
             this.delegate = dv;
+            this.ignoredSourceFormat = ignoredSourceFormat;
+            this.filter = filter;
             // convert incoming binary doc values to reuse the code provided by MultiValuedSortedBinaryDocValues
             this.multiValues = MultiValuedSortedBinaryDocValues.from(reader, IgnoredSourceFieldMapper.NAME, dv);
         }

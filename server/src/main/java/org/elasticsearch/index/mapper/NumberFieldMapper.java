@@ -2434,7 +2434,21 @@ public class NumberFieldMapper extends FieldMapper {
         if (currentToken == Token.START_OBJECT) {
             throw new IllegalArgumentException("Cannot parse object as number");
         }
-        return type.parse(parser, coerce());
+        // Switch avoids megamorphic virtual dispatch on the NumberType enum (visible in flamegraphs for bulk indexing).
+        boolean coerce = coerce();
+        return switch (type) {
+            case BYTE -> {
+                int value = parser.intValue(coerce);
+                if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
+                    throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
+                }
+                yield (byte) value;
+            }
+            case SHORT -> parser.shortValue(coerce);
+            case INTEGER -> parser.intValue(coerce);
+            case LONG -> parser.longValue(coerce);
+            default -> type.parse(parser, coerce);
+        };
     }
 
     /**
@@ -2446,7 +2460,16 @@ public class NumberFieldMapper extends FieldMapper {
         if (dimension && numericValue != null) {
             context.getRoutingFields().addLong(fieldType().name(), numericValue.longValue());
         }
-        fieldType().type.addFields(context.doc(), fieldType().name(), numericValue, fieldType().indexType, stored);
+        // Switch avoids megamorphic virtual dispatch on the NumberType enum (visible in flamegraphs for bulk indexing).
+        final NumberFieldType ft = fieldType();
+        final LuceneDocument doc = context.doc();
+        final String name = ft.name();
+        final IndexType indexType = ft.indexType;
+        switch (type) {
+            case BYTE, SHORT, INTEGER -> addIntFields(doc, name, numericValue.intValue(), indexType);
+            case LONG -> addLongFields(doc, name, numericValue.longValue(), indexType);
+            default -> type.addFields(doc, name, numericValue, indexType, stored);
+        }
 
         if (false == allowMultipleValues && (indexed || docValuesParameters.enabled() || stored)) {
             // the last field is the current field, Add to the key map, so that we can validate if it has been added
@@ -2459,6 +2482,40 @@ public class NumberFieldMapper extends FieldMapper {
 
         if (docValuesParameters.enabled() == false && (stored || indexed)) {
             context.addToFieldNames(fieldType().name());
+        }
+    }
+
+    private void addIntFields(LuceneDocument document, String name, int i, IndexType indexType) {
+        if (indexType.hasPoints() && indexType.hasDocValues()) {
+            document.add(new IntField(name, i, Field.Store.NO));
+        } else if (indexType.hasDocValues()) {
+            if (indexType.hasDocValuesSkipper()) {
+                document.add(SortedNumericDocValuesField.indexedField(name, i));
+            } else {
+                document.add(new SortedNumericDocValuesField(name, i));
+            }
+        } else if (indexType.hasPoints()) {
+            document.add(new IntPoint(name, i));
+        }
+        if (stored) {
+            document.add(new StoredField(name, i));
+        }
+    }
+
+    private void addLongFields(LuceneDocument document, String name, long l, IndexType indexType) {
+        if (indexType.hasPoints() && indexType.hasDocValues()) {
+            document.add(new LongField(name, l, Field.Store.NO));
+        } else if (indexType.hasDocValues()) {
+            if (indexType.hasDocValuesSkipper()) {
+                document.add(SortedNumericDocValuesField.indexedField(name, l));
+            } else {
+                document.add(new SortedNumericDocValuesField(name, l));
+            }
+        } else if (indexType.hasPoints()) {
+            document.add(new LongPoint(name, l));
+        }
+        if (stored) {
+            document.add(new StoredField(name, l));
         }
     }
 

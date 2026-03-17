@@ -22,8 +22,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
-public abstract class AzureOpenAiServiceSettingsTests<T extends AzureOpenAiServiceSettings> extends
-    AbstractBWCWireSerializationTestCase<T> {
+public abstract class AzureOpenAiServiceSettingsTests<T extends AzureOpenAiServiceSettings> extends AbstractBWCWireSerializationTestCase<
+    T> {
 
     protected static final String RESOURCE_NAME = "resource";
     protected static final String DEPLOYMENT_ID = "deployment";

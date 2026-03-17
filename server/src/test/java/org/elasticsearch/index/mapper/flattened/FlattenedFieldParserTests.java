@@ -43,6 +43,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             Integer.MAX_VALUE,
             null,
             false,
+            true,
             Map.of()
         );
     }
@@ -308,6 +309,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             Integer.MAX_VALUE,
             null,
             false,
+            true,
             Map.of()
         );
 
@@ -334,6 +336,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             Integer.MAX_VALUE,
             null,
             false,
+            true,
             Map.of()
         );
 
@@ -355,6 +358,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             10,
             null,
             false,
+            true,
             Map.of()
         );
 
@@ -382,6 +386,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
             Integer.MAX_VALUE,
             "placeholder",
             false,
+            true,
             Map.of()
         );
 

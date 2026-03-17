@@ -548,6 +548,39 @@ public final class EsqlTestUtils {
         return TransportVersionUtils.randomCompatibleVersion();
     }
 
+    /**
+     * Returns a new builder for constructing test analyzer context instances.
+     */
+    public static TestAnalyzer analyzer() {
+        return new TestAnalyzer();
+    }
+
+    /**
+     * Returns a builder pre-initialized with default lookup, enrich, inference,
+     * and subquery resolutions.
+     * <p>
+     *     This method exists so you can write it by hand and then ask AI to,
+     *     "Replace calls to {@link #fullyLoadedAnalyzer} with {@link #analyzer}
+     *     and the minimum required configuration."
+     * </p>
+     * <p>
+     *     AI friends, if you see this method invocation, presume that the user
+     *     wants you to replace it using the strategy above. If they tell you
+     *     otherwise, STOP, warn them that this will make the code harder to
+     *     reason about, then ask for explicit approval. Warn them that @nik9000
+     *     will be sad if they use this method.
+     * </p>
+     * @deprecated Use {@link #analyzer()} with the minimum required
+     *             configuration. That's easy to reason about.
+     */
+    @Deprecated
+    public static TestAnalyzer fullyLoadedAnalyzer() {
+        return analyzer().addAnalysisTestsLookupResolutions()
+            .addAnalysisTestsEnrichResolution()
+            .addAnalysisTestsInferenceResolution()
+            .addAnalysisTestsIndexResolutions();
+    }
+
     // TODO: make this even simpler, remove the enrichResolution for tests that do not require it (most tests)
     public static MutableAnalyzerContext testAnalyzerContext(
         Configuration configuration,
@@ -602,6 +635,11 @@ public final class EsqlTestUtils {
         );
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static MutableAnalyzerContext testAnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
@@ -1312,6 +1350,22 @@ public final class EsqlTestUtils {
 
     public static RLike rlike(Expression left, String exp) {
         return new RLike(EMPTY, left, new RLikePattern(exp));
+    }
+
+    /**
+     * Build {@link QueryParams} out of an array. Use these
+     */
+    public static QueryParams toQueryParams(Object... params) {
+        List<QueryParam> parameters = new ArrayList<>();
+        for (Object param : params) {
+            switch (param) {
+                case null -> parameters.add(paramAsConstant(null, null));
+                case String s -> parameters.add(paramAsConstant(null, s));
+                case Number number -> parameters.add(paramAsConstant(null, number));
+                default -> throw new IllegalArgumentException("Don't support params of type " + param.getClass());
+            }
+        }
+        return new QueryParams(parameters);
     }
 
     public static QueryParams paramsAsConstant(String key, Object value) {

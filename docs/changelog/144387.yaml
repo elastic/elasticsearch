@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 144387
+summary: ES|QL - leanient full text filter execution without shard context
+type: enhancement

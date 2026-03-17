@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 
@@ -191,8 +192,8 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
             return;
         }
 
-        inferenceService.executeInference(
-            request.inferenceRequest(),
+        request.execute(
+            inferenceService,
             new ThreadedActionListener<>(
                 inferenceService.threadPool().executor(ThreadPool.Names.SEARCH),
                 ActionListener.runAfter(
@@ -217,12 +218,19 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
      * Represents a single inference request with metadata for result building.
      *
      * @param inferenceRequest   The inference request (may be null to represent a null input).
+     * @param executor           A function that dispatches the request to the appropriate InferenceService method.
+     *                           May be null when inferenceRequest is null.
      * @param positionValueCounts Array where each element indicates how many values the corresponding input position contributed.
      *                            For example, [1, 0, 2] means position 0 contributed 1 value, position 1 was null/empty,
      *                            and position 2 contributed 2 values (multi-valued field).
      * @param seqNo The sequence number for ordering.
      */
-    public record BulkInferenceRequestItem(BaseInferenceActionRequest inferenceRequest, int[] positionValueCounts, long seqNo) {
+    public record BulkInferenceRequestItem(
+        BaseInferenceActionRequest inferenceRequest,
+        BiConsumer<InferenceService, ActionListener<InferenceAction.Response>> executor,
+        int[] positionValueCounts,
+        long seqNo
+    ) {
 
         public static final int[] SINGLE_ZERO_POSITION_VALUE_COUNTS = new int[] { 0 };
         public static final int[] SINGLE_ONE_POSITION_VALUE_COUNTS = new int[] { 1 };
@@ -240,12 +248,24 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         /**
          * Constructor for batched requests without sequence number.
          */
-        public BulkInferenceRequestItem(BaseInferenceActionRequest inferenceRequest, PositionValueCountsBuilder positionValueCounts) {
-            this(inferenceRequest, positionValueCounts.build(), NO_SEQ_NO);
+        public BulkInferenceRequestItem(
+            BaseInferenceActionRequest inferenceRequest,
+            BiConsumer<InferenceService, ActionListener<InferenceAction.Response>> executor,
+            PositionValueCountsBuilder positionValueCounts
+        ) {
+            this(inferenceRequest, executor, positionValueCounts.build(), NO_SEQ_NO);
         }
 
         public BulkInferenceRequestItem withSeqNo(long seqNo) {
-            return new BulkInferenceRequestItem(this.inferenceRequest, this.positionValueCounts, seqNo);
+            return new BulkInferenceRequestItem(this.inferenceRequest, this.executor, this.positionValueCounts, seqNo);
+        }
+
+        /**
+         * Executes the inference request using the provided service and listener.
+         * Only call when inferenceRequest() is non-null.
+         */
+        public void execute(InferenceService service, ActionListener<InferenceAction.Response> listener) {
+            executor.accept(service, listener);
         }
 
         public BulkInferenceResponseItem createResponse(InferenceAction.Response inferenceResponse) {

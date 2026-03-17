@@ -17,6 +17,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItemIterator;
 
 import java.util.ArrayList;
@@ -100,7 +101,12 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
         fillBatchUpToBatchSize();
         consumeTrailingNullOrEmptyPositions();
 
-        return new BulkInferenceRequestItem(inferenceRequest(inputBuffer), positionValueCountsBuilder);
+        InferenceAction.Request req = inferenceRequest(inputBuffer);
+        return new BulkInferenceRequestItem(
+            req,
+            req != null ? (svc, lst) -> svc.executeInference(req, lst) : null,
+            positionValueCountsBuilder
+        );
     }
 
     /**

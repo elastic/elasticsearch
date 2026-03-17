@@ -10,8 +10,11 @@ package org.elasticsearch.xpack.esql.inference.textembedding;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
+import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItemIterator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 
 import java.util.Map;
@@ -46,7 +49,7 @@ public class EmbeddingOperator extends InferenceOperator {
         super(
             driverContext,
             inferenceService,
-            new EmbeddingRequestIterator.Factory(inferenceId, taskType, inputEvaluator, inputOptions),
+            requestIteratorFactory(inferenceId, taskType, inputEvaluator, inputOptions),
             new TextEmbeddingOutputBuilder(driverContext.blockFactory())
         );
 
@@ -55,6 +58,25 @@ public class EmbeddingOperator extends InferenceOperator {
 
     public String toString() {
         return "EmbeddingOperator[inference_id=[" + inferenceId() + "]]";
+    }
+
+    private static BulkInferenceRequestItemIterator.Factory requestIteratorFactory(
+        String inferenceId,
+        TaskType taskType,
+        ExpressionEvaluator textEvaluator,
+        Map<String, Object> inputOptions
+    ) {
+        Object typeValue = inputOptions.get("type");
+        if (typeValue instanceof String typeStr) {
+            DataType dataType = DataType.fromString(typeStr);
+            DataFormat dataFormat = null;
+            Object formatValue = inputOptions.get("format");
+            if (formatValue instanceof String formatStr) {
+                dataFormat = DataFormat.fromString(formatStr);
+            }
+            return new TypedEmbeddingRequestIterator.Factory(inferenceId, taskType, textEvaluator, dataType, dataFormat);
+        }
+        return new PlainEmbeddingRequestIterator.Factory(inferenceId, taskType, textEvaluator);
     }
 
     /**

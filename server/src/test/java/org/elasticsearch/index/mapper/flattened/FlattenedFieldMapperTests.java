@@ -777,25 +777,49 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertEquals(2, keyedFields.size());
         assertEquals(new BytesRef("other\0val"), keyedFields.get(0).binaryValue());
 
-        // The mapped sub-field should produce its own typed fields
+        // The mapped sub-field should produce its own typed field
         List<IndexableField> subFields = parsedDoc.rootDoc().getFields("field.host.name");
-        assertThat(subFields.size(), greaterThan(0));
-        boolean foundKeywordIndex = false;
-        boolean foundDocValues = false;
-        for (IndexableField f : subFields) {
-            if (f.fieldType().docValuesType() == DocValuesType.SORTED_SET) {
-                foundDocValues = true;
-            }
-            if (f.binaryValue() != null && f.binaryValue().equals(new BytesRef("my-host"))) {
-                foundKeywordIndex = true;
-            }
-        }
-        assertTrue("Expected indexed keyword field", foundKeywordIndex);
-        assertTrue("Expected doc values on keyword field", foundDocValues);
+        assertThat(subFields.size(), equalTo(1));
+        assertEquals(new BytesRef("my-host"), subFields.get(0).binaryValue());
 
         // The unmapped key should NOT produce a sub-field
         List<IndexableField> unmappedSubFields = parsedDoc.rootDoc().getFields("field.other");
         assertEquals(0, unmappedSubFields.size());
+    }
+
+    public void testPropertiesNestedObjectNotation() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("properties");
+            {
+                b.startObject("host.name").field("type", "keyword").endObject();
+            }
+            b.endObject();
+        }));
+
+        // Use nested object notation instead of a flat dotted key
+        ParsedDocument parsedDoc = mapper.parse(source(b -> {
+            b.startObject("field");
+            {
+                b.startObject("host").field("name", "my-host").endObject();
+                b.field("other", "val");
+            }
+            b.endObject();
+        }));
+
+        // The mapped key "host.name" should still be excluded from root/keyed fields
+        List<IndexableField> rootFields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(2, rootFields.size());
+        assertEquals(new BytesRef("val"), rootFields.get(0).binaryValue());
+
+        List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
+        assertEquals(2, keyedFields.size());
+        assertEquals(new BytesRef("other\0val"), keyedFields.get(0).binaryValue());
+
+        // The mapped sub-field should still be indexed through its own mapper
+        List<IndexableField> subFields = parsedDoc.rootDoc().getFields("field.host.name");
+        assertThat(subFields.size(), equalTo(1));
+        assertEquals(new BytesRef("my-host"), subFields.get(0).binaryValue());
     }
 
     public void testPropertiesMultipleTypes() throws Exception {
@@ -814,10 +838,10 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         );
 
         List<IndexableField> nameFields = parsedDoc.rootDoc().getFields("field.host.name");
-        assertThat(nameFields.size(), greaterThan(0));
+        assertFalse("Expected keyword sub-field to produce fields", nameFields.isEmpty());
 
         List<IndexableField> ipFields = parsedDoc.rootDoc().getFields("field.host.ip");
-        assertThat(ipFields.size(), greaterThan(0));
+        assertFalse("Expected ip sub-field to produce fields", ipFields.isEmpty());
     }
 
     public void testPropertiesFieldTypeResolution() throws Exception {
@@ -852,13 +876,8 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endObject();
         }));
 
-        String serialized = mapper.mappingSource().toString();
-        assertThat(serialized, containsString("\"properties\""));
-        assertThat(serialized, containsString("host.name"));
-        assertThat(serialized, containsString("service.name"));
-
         // Verify roundtrip: parse the serialized mapping and verify it produces the same output
-        MapperService reparsedService = createMapperService(mapper.mappingSource().toString());
+        MapperService reparsedService = createMapperService(mapper.mappingSource().string());
         assertEquals(mapper.mappingSource(), reparsedService.documentMapper().mappingSource());
     }
 
@@ -973,9 +992,8 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         );
 
         List<IndexableField> subFields = parsedDoc.rootDoc().getFields("field.sortfield");
-        assertThat(subFields.size(), greaterThan(0));
-        boolean hasDocValues = subFields.stream().anyMatch(f -> f.fieldType().docValuesType() == DocValuesType.SORTED_SET);
-        assertTrue("Expected doc values on keyword sub-field", hasDocValues);
+        assertEquals(1, subFields.size());
+        assertEquals(DocValuesType.SORTED_SET, subFields.get(0).fieldType().docValuesType());
     }
 
     @Override

@@ -209,7 +209,7 @@ Because `labels` is a `flattened` field type, the entire object is mapped as a s
 
 ## Mapped sub-fields [flattened-properties]
 
-By default, all keys in a flattened field are indexed as untyped keyword values. The `properties` parameter allows specific keys to be mapped as their own typed fields, such as `keyword`, `ip`, `long`, `date`, or any other leaf field type. Mapped keys are indexed exclusively through their sub-field and are excluded from the flattened field's root and keyed representations.
+By default, all keys in a flattened field are indexed as untyped keyword values. The `properties` parameter allows specific keys to be mapped as their own typed fields, such as `keyword`, `ip`, `long`, `date`, or any other leaf field type. Mapped keys are indexed exclusively through their sub-field and are excluded from the flattened field's representation.
 
 This is useful when certain keys within the flattened object need functionality that plain flattened indexing does not support, such as index sorting, field aliases, or typed queries (for example, IP range queries on an `ip` field).
 
@@ -238,7 +238,6 @@ POST events/_doc/1
   }
 }
 ```
-% TEST[continued]
 
 In this example, `attributes.host.name` is a keyword field and `attributes.host.ip` is an IP field, both with their full typed capabilities. The key `region` is not mapped, so it is indexed through the normal flattened mechanism. Searching on `attributes.host.ip` uses IP-aware queries:
 
@@ -250,7 +249,6 @@ POST events/_search
   }
 }
 ```
-% TEST[continued]
 
 Only leaf field types are allowed as sub-field types. Object, nested, and flattened types cannot be used as properties of a flattened field.
 

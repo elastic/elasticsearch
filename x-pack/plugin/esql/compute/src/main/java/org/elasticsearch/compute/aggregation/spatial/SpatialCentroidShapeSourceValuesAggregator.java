@@ -13,12 +13,17 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.lucene.spatial.CentroidCalculator;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 
 /**
  * This aggregator calculates the centroid of a set of shapes (geo_shape or cartesian_shape).
  * It is assumed that the shapes are encoded as WKB BytesRef.
  * This requires that the planner has NOT planned that shapes are loaded from the index as doc-values, but from source instead.
  * This is also used for final aggregations and aggregations in the coordinator node.
+ * <p>
+ * The per-document centroid coordinates are quantized through the {@link CoordinateEncoder} to match
+ * the precision of doc-values storage, ensuring consistent results regardless of whether the centroid
+ * is computed from source or doc-values.
  */
 @Aggregator(
     {
@@ -37,9 +42,9 @@ class SpatialCentroidShapeSourceValuesAggregator extends CentroidShapeAggregator
         calculator.add(geometry);
         double weight = calculator.sumWeight();
         if (weight > 0) {
-            // CentroidCalculator returns weighted x and y sums, so we need to pass them as-is
-            // The final centroid is computed as xSum/weight, ySum/weight
-            current.add(calculator.getX() * weight, 0d, calculator.getY() * weight, 0d, weight, calculator.getDimensionalShapeType());
+            double x = current.encoder.decodeX(current.encoder.encodeX(current.encoder.normalizeX(calculator.getX())));
+            double y = current.encoder.decodeY(current.encoder.encodeY(current.encoder.normalizeY(calculator.getY())));
+            current.add(x * weight, 0d, y * weight, 0d, weight, calculator.getDimensionalShapeType());
         }
     }
 
@@ -49,15 +54,9 @@ class SpatialCentroidShapeSourceValuesAggregator extends CentroidShapeAggregator
         calculator.add(geometry);
         double weight = calculator.sumWeight();
         if (weight > 0) {
-            current.add(
-                calculator.getX() * weight,
-                0d,
-                calculator.getY() * weight,
-                0d,
-                weight,
-                calculator.getDimensionalShapeType(),
-                groupId
-            );
+            double x = current.encoder.decodeX(current.encoder.encodeX(current.encoder.normalizeX(calculator.getX())));
+            double y = current.encoder.decodeY(current.encoder.encodeY(current.encoder.normalizeY(calculator.getY())));
+            current.add(x * weight, 0d, y * weight, 0d, weight, calculator.getDimensionalShapeType(), groupId);
         }
     }
 }

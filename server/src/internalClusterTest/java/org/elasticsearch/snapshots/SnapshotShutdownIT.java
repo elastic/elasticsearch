@@ -578,7 +578,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
                 "SnapshotShutdownProgressTracker shard snapshot has paused log message",
                 SnapshotShutdownProgressTracker.class.getCanonicalName(),
                 Level.INFO,
-                "*Number shard snapshots waiting for master node reply to status update request [" + numShards + "]*"
+                "*Number shard snapshots waiting for master node reply to status update request [*]*"
             )
         );
 

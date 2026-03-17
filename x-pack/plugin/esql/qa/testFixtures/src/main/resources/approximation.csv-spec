@@ -410,7 +410,7 @@ count:long     | _approximation_confidence_interval(count):long | _approximation
 ;
 
 
-warn on no stats
+Warn on no stats
 required_capability: approximation_v4
 
 SET approximation=true\;
@@ -428,7 +428,7 @@ mv:integer
 ;
 
 
-warn on max
+Warn on max
 required_capability: approximation_v4
 
 SET approximation=true\;
@@ -443,4 +443,42 @@ max:integer | sv:integer
 1           | 1
 2           | 2
 3           | 3
+;
+
+
+Example boolean for docs
+required_capability: approximation_v4
+
+// tag::approximationBooleanForDocs[]
+SET approximation=true\;
+FROM many_numbers | STATS sum=SUM(sv)
+// end::approximationBooleanForDocs[]
+// Hardcode the sample values to work around the limitations of the CSV tests in the 
+// presence of randomness, and be able to specify an expected result for the docs.
+| EVAL sum=42284250::long, `_approximation_confidence_interval(sum)`=[41622402, 43016433]::long, `_approximation_certified(sum)`=true
+;
+
+// tag::approximationBooleanForDocs-result[]
+sum:long | _approximation_confidence_interval(sum):long | _approximation_certified(sum):boolean
+42284250 | [41622402, 43016433]                         | true
+// end::approximationBooleanForDocs-result[]
+;
+
+
+Example map for docs
+required_capability: approximation_v4
+
+// tag::approximationMapForDocs[]
+SET approximation={"rows":10000}\;
+FROM many_numbers | STATS median=MEDIAN(sv)
+// end::approximationMapForDocs[]
+// Hardcode the sample values to work around the limitations of the CSV tests in the 
+// presence of randomness, and be able to specify an expected result for the docs.
+| EVAL median=356.0, `_approximation_confidence_interval(median)`=[353.73, 358.79], `_approximation_certified(median)`=true
+;
+
+// tag::approximationMapForDocs-result[]
+median:double | _approximation_confidence_interval(median):double | _approximation_certified(median):boolean
+356.0         | [353.73, 358.79]                                  | true
+// end::approximationMapForDocs-result[]
 ;

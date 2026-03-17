@@ -354,15 +354,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.FlattenedRollingUpgradeIT
   method: testIndexing
   issue: https://github.com/elastic/elasticsearch/issues/144372
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
-  method: testSubqueryKeepUnmapped
-  issue: https://github.com/elastic/elasticsearch/issues/144271
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
-  method: testSubqueryWithStats
-  issue: https://github.com/elastic/elasticsearch/issues/144270
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
-  method: testSubqueryKeepMultipleUnmapped
-  issue: https://github.com/elastic/elasticsearch/issues/144269
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=search.vectors/172_knn_query_base64_vectors/kNN query with ambiguous hex/base64 byte string prefers hex}
   issue: https://github.com/elastic/elasticsearch/issues/144379

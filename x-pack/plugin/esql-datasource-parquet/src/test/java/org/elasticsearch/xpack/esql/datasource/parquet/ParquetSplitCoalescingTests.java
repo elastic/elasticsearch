@@ -71,4 +71,3 @@ public class ParquetSplitCoalescingTests extends ESTestCase {
         }
     }
 }
-

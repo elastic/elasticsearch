@@ -15,12 +15,12 @@ import org.elasticsearch.compute.operator.DriverContext;
 /**
  * {@link ExpressionEvaluator}s returning constants and their {@link ExpressionEvaluator.Factory factories}.
  */
-public class ConstantExpressions {
+public class ConstantEvaluators {
     public static final ExpressionEvaluator.Factory CONSTANT_NULL_FACTORY = new ConstantNullEvaluator.Factory();
     public static final ExpressionEvaluator.Factory CONSTANT_TRUE_FACTORY = new ConstantTrueEvaluator.Factory();
     public static final ExpressionEvaluator.Factory CONSTANT_FALSE_FACTORY = new ConstantFalseEvaluator.Factory();
 
-    private ConstantExpressions() {}
+    private ConstantEvaluators() {}
 
     private record ConstantNullEvaluator(DriverContext context) implements ExpressionEvaluator {
         private static final String NAME = "ConstantNull";

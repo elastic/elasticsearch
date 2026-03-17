@@ -539,6 +539,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testIgnoredSourceAlwaysLoadedRegardlessOfSourceFilter() throws IOException {
+        assumeTrue("feature under test must be enabled", IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_DOC_VALUES_FF.isEnabled());
         MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("kwd").field("type", "keyword").field("ignore_above", 1).endObject();
             b.startObject("other").field("type", "keyword").field("ignore_above", 1).endObject();

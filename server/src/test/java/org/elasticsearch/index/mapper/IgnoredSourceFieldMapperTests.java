@@ -411,8 +411,8 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             XContentDataHelper.voidValue(),
             null
         );
-        final IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.LegacyIgnoredSourceEncoding.decodeAsMap(
-            IgnoredSourceFieldMapper.LegacyIgnoredSourceEncoding.encode(voidNameValue)
+        final IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.decodeAsMap(
+            IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(voidNameValue)
         );
         assertNull(mappedNameValue);
     }
@@ -2524,10 +2524,10 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     public void testDocValuesFormatEncodeDecodeRoundTrip() throws IOException {
         String name = "test_field";
         int parentOffset = 0;
-        var encoded = IgnoredSourceFieldMapper.LegacyIgnoredSourceEncoding.encode(
+        var encoded = IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(
             new IgnoredSourceFieldMapper.NameValue(name, parentOffset, new org.apache.lucene.util.BytesRef("test_value"), null)
         );
-        IgnoredSourceFieldMapper.NameValue decoded = IgnoredSourceFieldMapper.LegacyIgnoredSourceEncoding.decode(encoded);
+        IgnoredSourceFieldMapper.NameValue decoded = IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.decode(encoded);
         assertEquals(name, decoded.name());
         assertEquals(parentOffset, decoded.parentOffset());
         assertEquals("test_value", decoded.value().utf8ToString());
@@ -2536,10 +2536,10 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     public void testDocValuesFormatLegacyEncodeDecodePreservesParentOffset() throws IOException {
         String name = "parent.child_field";
         int parentOffset = 7;
-        var encoded = IgnoredSourceFieldMapper.LegacyIgnoredSourceEncoding.encode(
+        var encoded = IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.encode(
             new IgnoredSourceFieldMapper.NameValue(name, parentOffset, new org.apache.lucene.util.BytesRef("data"), null)
         );
-        IgnoredSourceFieldMapper.NameValue decoded = IgnoredSourceFieldMapper.LegacyIgnoredSourceEncoding.decode(encoded);
+        IgnoredSourceFieldMapper.NameValue decoded = IgnoredSourceFieldMapper.SingularIgnoredSourceEncoding.decode(encoded);
         assertEquals(name, decoded.name());
         assertEquals(parentOffset, decoded.parentOffset());
         assertEquals("data", decoded.value().utf8ToString());
@@ -2643,6 +2643,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testDocValuesFormatRequiresTimeSeriesDocValuesFormatSetting() {
+        assumeTrue("feature under test must be enabled", IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_DOC_VALUES_FF.isEnabled());
         Settings tsdbDocValuesFormatEnabled = Settings.builder()
             .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
             .build();

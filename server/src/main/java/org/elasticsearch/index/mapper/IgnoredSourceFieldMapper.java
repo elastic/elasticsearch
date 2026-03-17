@@ -80,6 +80,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     );
 
     public static final FeatureFlag COALESCE_IGNORED_SOURCE_ENTRIES = new FeatureFlag("ignored_source_fields_per_entry");
+    public static final FeatureFlag IGNORED_SOURCE_AS_DOC_VALUES_FF = new FeatureFlag("ignored_source_as_doc_values");
 
     /*
         Setting to disable encoding and writing values for this field.
@@ -232,7 +233,18 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         return fieldsToLoadForSyntheticSource;
     }
 
-    public static class LegacyIgnoredSourceEncoding {
+    /**
+     * Encodes/decodes a single ignored field/value pair to/from a {@link BytesRef} blob.
+     * <p>
+     * The blob itself is of the following format: {@code [header][field name][value]} where:
+     * <ul>
+     *     <li>{@code header} is a little-endian {@code int32} that packs {@code field-name.length} and the parent offset</li>
+     *     <li>{@code field name} is the full field path, as UTF-8 bytes</li>
+     *     <li>{@code value} is the ignored value encoded by {@link XContentDataHelper}</li>
+     * </ul>
+     */
+    public static class SingularIgnoredSourceEncoding {
+
         public static BytesRef encode(NameValue values) {
             assert values.parentOffset < PARENT_OFFSET_IN_NAME_OFFSET;
             assert values.parentOffset * (long) PARENT_OFFSET_IN_NAME_OFFSET < Integer.MAX_VALUE;
@@ -272,7 +284,26 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         }
     }
 
+    /**
+     * Encodes/decodes multiple ignored values for the same field path to/from a {@link BytesRef} blob.
+     * <p>
+     * Instead of storing one {@link SingularIgnoredSourceEncoding} blob per ignored value, all ignored values for a single field path are
+     * stored together and the field name is written only once.
+     * <p>
+     * The blob itself is of the following format: {@code [count][field name][(parent offset, value)*]} where:
+     * <ul>
+     *     <li>{@code count} is a {@link StreamInput#readVInt() vInt} number of values</li>
+     *     <li>{@code field name} is the full field path, written once as a {@link StreamInput#readString() string}</li>
+     *     <li>each {@code (parent offset, value)} pair contains:
+     *     <ul>
+     *         <li>{@code parent offset} as a {@link StreamInput#readVInt() vInt} offset into {@code field name} where the parent ends</li>
+     *         <li>{@code value} as a {@link StreamInput#readBytesRef() bytesRef} encoded by {@link XContentDataHelper}</li>
+     *     </ul>
+     *     </li>
+     * </ul>
+     */
     public static class CoalescedIgnoredSourceEncoding {
+
         public static BytesRef encode(List<NameValue> values) {
             assert values.isEmpty() == false;
             try {
@@ -336,7 +367,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
      */
     static BytesRef filterLegacyValue(BytesRef value, Function<Map<String, Object>, Map<String, Object>> filter) throws IOException {
         // for _ignored_source, parse, filter out the field and its contents, and serialize back downstream
-        MappedNameValue mappedNameValue = LegacyIgnoredSourceEncoding.decodeAsMap(value);
+        MappedNameValue mappedNameValue = SingularIgnoredSourceEncoding.decodeAsMap(value);
         if (mappedNameValue == null) {
             return null;
         }
@@ -352,7 +383,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         if (topValue instanceof Map<?, ?> || topValue instanceof List<?>) {
             // The field contains an object or an array, reconstruct it from the transformed map in case
             // any subfield has been filtered out.
-            return LegacyIgnoredSourceEncoding.encodeFromMap(mappedNameValue.withMap(transformedField));
+            return SingularIgnoredSourceEncoding.encodeFromMap(mappedNameValue.withMap(transformedField));
         } else {
             // The field contains a leaf value, and it hasn't been filtered out. It is safe to propagate the original value.
             return value;
@@ -396,7 +427,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 }
                 Map<String, List<NameValue>> objectsWithIgnoredFields = new HashMap<>();
                 for (Object value : ignoredStoredValues) {
-                    NameValue nv = LegacyIgnoredSourceEncoding.decode(value);
+                    NameValue nv = SingularIgnoredSourceEncoding.decode(value);
                     if (filter != null && filter.isPathFiltered(nv.name(), XContentDataHelper.isEncodedObject(nv.value()))) {
                         continue;
                     }
@@ -408,7 +439,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             @Override
             public void writeIgnoredFields(Collection<NameValue> ignoredFieldValues) {
                 for (NameValue nameValue : ignoredFieldValues) {
-                    nameValue.doc().add(new StoredField(NAME, LegacyIgnoredSourceEncoding.encode(nameValue)));
+                    nameValue.doc().add(new StoredField(NAME, SingularIgnoredSourceEncoding.encode(nameValue)));
                 }
             }
 
@@ -510,7 +541,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 Map<String, List<NameValue>> objectsWithIgnoredFields = new HashMap<>();
                 int count = docValues.docValueCount();
                 for (int i = 0; i < count; i++) {
-                    NameValue nv = LegacyIgnoredSourceEncoding.decode(docValues.nextValue());
+                    NameValue nv = SingularIgnoredSourceEncoding.decode(docValues.nextValue());
                     if (filter != null && filter.isPathFiltered(nv.name(), XContentDataHelper.isEncodedObject(nv.value()))) {
                         continue;
                     }
@@ -527,7 +558,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                         field = new MultiValuedBinaryDocValuesField.IntegratedCount(NAME, true, false);
                         nameValue.doc().addWithKey(NAME, field);
                     }
-                    field.add(LegacyIgnoredSourceEncoding.encode(nameValue));
+                    field.add(SingularIgnoredSourceEncoding.encode(nameValue));
                 }
             }
 
@@ -568,7 +599,9 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     public static IgnoredSourceFormat ignoredSourceFormat(IndexSettings indexSettings) {
         IndexVersion indexCreatedVersion = indexSettings.getIndexVersionCreated();
         // we need TSDB doc values format to use binary doc values for ignored source, otherwise the source will be uncompressed
-        if (indexCreatedVersion.onOrAfter(IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES) && indexSettings.useTimeSeriesDocValuesFormat()) {
+        if (IGNORED_SOURCE_AS_DOC_VALUES_FF.isEnabled()
+            && indexCreatedVersion.onOrAfter(IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES)
+            && indexSettings.useTimeSeriesDocValuesFormat()) {
             return IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE;
         }
 

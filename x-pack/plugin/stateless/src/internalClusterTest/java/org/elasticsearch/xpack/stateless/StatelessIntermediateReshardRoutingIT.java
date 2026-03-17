@@ -28,6 +28,8 @@ import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.action.get.TransportMultiGetAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -61,6 +63,8 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -127,13 +131,19 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractStatelessPlug
 
         // Isolate the search node from getting cluster state updates by blocking publication
         MockTransportService isolatedTransportService = MockTransportService.getInstance(isolatedSearchNode);
+        final var blockUpdates = new AtomicBoolean(true);
         isolatedTransportService.addRequestHandlingBehavior(
             PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
             (handler, request, channel, task) -> {
-                // Block cluster state updates by sending an error response
-                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(50));
-                logger.info("Blocking cluster state publication on isolated search node");
-                channel.sendResponse(new IllegalStateException("cluster state updates blocked"));
+                if (blockUpdates.get()) {
+                    // Block cluster state updates by sending an error response
+                    LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(50));
+                    logger.info("Blocking cluster state publication on isolated search node");
+                    channel.sendResponse(new IllegalStateException("cluster state updates blocked"));
+                } else {
+                    logger.info("Unblocking cluster state publication on isolated search node");
+                    handler.messageReceived(request, channel, task);
+                }
             }
         );
 
@@ -172,16 +182,15 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractStatelessPlug
             indexDocsToNode(isolatedSearchNode, docsToIndex, indexName);
 
             // Validate GET and MultiGet routing with stale coordinator
-            validateGetRoutingWithStaleCoordinator(isolatedSearchNode, indexName, shard0docId, shard1docId);
-
-            // Unblock reshard
-            blockSplit.countDown();
+            validateGetRoutingWithStaleCoordinator(isolatedSearchNode, indexName, shard0docId, shard1docId, () -> {
+                blockSplit.countDown();
+                blockUpdates.set(false);
+                publishTrivialClusterStateUpdate();
+            });
         } finally {
             indexTransportService.clearAllRules();
             isolatedTransportService.clearAllRules();
         }
-
-        publishTrivialClusterStateUpdate();
 
         // Wait for reshard to complete - account for the two specific documents we indexed
         finishReshardAndAssert(indexName, initialDocs, docsToIndex + 2, 2);
@@ -245,13 +254,19 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractStatelessPlug
                 && reshardingMetadata.getSplit().getTargetShardState(1) == IndexReshardingState.Split.TargetShardState.CLONE;
         }).actionGet();
 
+        final var blockUpdates = new AtomicBoolean(true);
         isolatedTransportService.addRequestHandlingBehavior(
             PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
             (handler, request, channel, task) -> {
-                // Block cluster state updates by sending an error response
-                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(50));
-                logger.info("Blocking cluster state publication on isolated search node");
-                channel.sendResponse(new IllegalStateException("cluster state updates blocked"));
+                if (blockUpdates.get()) {
+                    // Block cluster state updates by sending an error response
+                    LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(50));
+                    logger.info("Blocking cluster state publication on isolated search node");
+                    channel.sendResponse(new IllegalStateException("cluster state updates blocked"));
+                } else {
+                    logger.info("Unblocking cluster state publication on isolated search node");
+                    handler.messageReceived(request, channel, task);
+                }
             }
         );
 
@@ -278,16 +293,15 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractStatelessPlug
             indexDocsToNode(isolatedSearchNode, docsToIndex, indexName);
 
             // Validate GET and MultiGet routing with stale coordinator
-            validateGetRoutingWithStaleCoordinator(isolatedSearchNode, indexName, shard0docId, shard1docId);
-
-            // Unblock reshard
-            blockSplit.countDown();
+            validateGetRoutingWithStaleCoordinator(isolatedSearchNode, indexName, shard0docId, shard1docId, () -> {
+                blockSplit.countDown();
+                blockUpdates.set(false);
+                publishTrivialClusterStateUpdate();
+            });
         } finally {
             indexTransportService.clearAllRules();
             isolatedTransportService.clearAllRules();
         }
-
-        publishTrivialClusterStateUpdate();
 
         // Account for the two specific documents we indexed
         finishReshardAndAssert(indexName, initialDocs, docsToIndex + 2, 2);
@@ -844,12 +858,18 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractStatelessPlug
      * Validates GET and MultiGet behavior when coordinator has stale cluster state during reshard.
      * Tests that:
      * - Document on source shard (shard 0) can be retrieved via realtime GET
-     * - Document on target shard (shard 1) fails with realtime GET (forwarding not implemented)
+     * - Document on target shard (shard 1) can be retreived via realtime GET (retries after cluster state update)
      * - Document on target shard returns not found with non-realtime GET
-     * - MultiGet returns mixed results (success for shard 0, failure for shard 1)
+     * - MultiGet returns mixed results (success for shard 0, failure for shard 1) (retries not yet implemented)
      */
-    private void validateGetRoutingWithStaleCoordinator(String coordinatorNode, String indexName, String shard0docId, String shard1docId) {
-        // Perform realtime GET requests for both documents from the same stale coordinator
+    private void validateGetRoutingWithStaleCoordinator(
+        String coordinatorNode,
+        String indexName,
+        String shard0docId,
+        String shard1docId,
+        Runnable unblock
+    ) throws InterruptedException {
+        // Realtime get for a document still on the source shard should succeed without retry
         GetResponse getShard0Response = client(coordinatorNode).prepareGet(indexName, shard0docId)
             .setRouting(shard0docId)
             .setRealtime(true)
@@ -857,36 +877,66 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractStatelessPlug
         assertThat("Document routed to source shard should be found", getShard0Response.isExists(), equalTo(true));
         assertThat(getShard0Response.getSource().get("field"), equalTo("value_shard0"));
 
-        // The target shard forwarding and retries are not implemented yet.
-        expectThrows(
-            StaleRequestException.class,
-            () -> client(coordinatorNode).prepareGet(indexName, shard1docId).setRouting(shard1docId).setRealtime(true).get()
-        );
-
+        // Non-realtime GET for a document written to the target after handoff should return not found immediately
         GetResponse getShard1Response = client(coordinatorNode).prepareGet(indexName, shard1docId)
             .setRouting(shard1docId)
             .setRealtime(false)
             .get();
         assertThat("Target document not found on source shard", getShard1Response.isExists(), equalTo(false));
 
+        // install a handler that waits for requests with stale summaries to be queued for sending then unblocks cluster state updates
+        CountDownLatch getsArrived = new CountDownLatch(2);
+        MockTransportService.getInstance(coordinatorNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            // When gets have reached this point, they will be found stale at the shard.
+            // At this point we can unblock cluster state updates so that the coordinator picks up the fresh summary.
+            logger.info("sending request for action {}: {}", action, request);
+            if (action.equals(TransportGetAction.TYPE.name() + "[s]")
+                || action.equals(TransportMultiGetAction.TYPE.name() + "[shard][s]")) {
+                logger.info("GET shard request created: {}", request);
+                getsArrived.countDown();
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        // Should retry successfully when cluster state updates have been unblocked
+        final var realtimeGetShard1Response = new AtomicReference<GetResponse>();
+        final var getShard1Thread = new Thread(
+            () -> realtimeGetShard1Response.set(
+                client(coordinatorNode).prepareGet(indexName, shard1docId).setRouting(shard1docId).setRealtime(true).get()
+            )
+        );
+        getShard1Thread.start();
+
         // Perform realtime multiget request for both documents from the same stale coordinator
-        MultiGetResponse mgetResponse = client(coordinatorNode).prepareMultiGet()
-            .add(indexName, shard0docId)
-            .add(indexName, shard1docId)
-            .setRealtime(true)
-            .get();
+        final var mgetResponse = new AtomicReference<MultiGetResponse>();
+        final var mgetThread = new Thread(
+            () -> mgetResponse.set(
+                client(coordinatorNode).prepareMultiGet().add(indexName, shard0docId).add(indexName, shard1docId).setRealtime(true).get()
+            )
+        );
+        mgetThread.start();
+
+        getsArrived.await(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
+        logger.info("All GETs have arrived");
+        unblock.run();
+
+        getShard1Thread.join(SAFE_AWAIT_TIMEOUT.millis());
+        mgetThread.join(SAFE_AWAIT_TIMEOUT.millis());
+
+        assertThat("Document routed to target shard should be found", realtimeGetShard1Response.get().isExists(), equalTo(true));
+        assertThat(realtimeGetShard1Response.get().getSource().get("field"), equalTo("value_shard1"));
 
         // Verify we have results for both documents
-        assertThat(mgetResponse.getResponses().length, equalTo(2));
+        assertThat(mgetResponse.get().getResponses().length, equalTo(2));
 
         // Document that stays on shard 0 (source) should succeed
-        MultiGetItemResponse item0 = mgetResponse.getResponses()[0];
+        MultiGetItemResponse item0 = mgetResponse.get().getResponses()[0];
         assertThat("Document on source shard should succeed", item0.isFailed(), equalTo(false));
         assertThat(item0.getResponse().isExists(), equalTo(true));
         assertThat(item0.getResponse().getSource().get("field"), equalTo("value_shard0"));
 
         // Document that moves to shard 1 (target) should fail due to stale routing
-        MultiGetItemResponse item1 = mgetResponse.getResponses()[1];
+        MultiGetItemResponse item1 = mgetResponse.get().getResponses()[1];
         assertThat("Document moved to target shard should fail due to stale routing", item1.isFailed(), equalTo(true));
         assertThat(item1.getFailure().getFailure(), instanceOf(StaleRequestException.class));
     }

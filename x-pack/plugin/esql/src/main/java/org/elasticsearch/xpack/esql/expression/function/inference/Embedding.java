@@ -11,8 +11,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -24,13 +24,16 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -39,6 +42,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * EMBEDDING function converts text to dense vector embeddings using an inference endpoint with the {@code embedding} task type.
  */
 public class Embedding extends InferenceFunction<Embedding> implements OptionalArgument {
+
+    private static final String OPTION_TYPE = "type";
+    private static final String OPTION_FORMAT = "format";
+    private static final Map<String, DataType> ALLOWED_OPTIONS = Map.of(OPTION_TYPE, DataType.KEYWORD, OPTION_FORMAT, DataType.KEYWORD);
 
     private final Expression inferenceId;
     private final Expression inputText;
@@ -182,29 +189,32 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
         }
 
         if (inputOptions != null) {
-            // Validate keys
-            for (String key : inputOptions.keyFoldedMap().keySet()) {
-                if ("type".equals(key) == false && "format".equals(key) == false) {
-                    return new TypeResolution("Unknown option [" + key + "] in EMBEDDING, valid options are [type, format]");
+            TypeResolution optionsResolution = Options.resolve(
+                inputOptions,
+                source(),
+                THIRD,
+                ALLOWED_OPTIONS,
+                optionsMap -> {
+                    Object typeValue = optionsMap.get(OPTION_TYPE);
+                    if (typeValue != null) {
+                        try {
+                            resolvedDataType = org.elasticsearch.inference.DataType.fromString(BytesRefs.toString(typeValue));
+                        } catch (IllegalArgumentException e) {
+                            throw new InvalidArgumentException(e.getMessage());
+                        }
+                    }
+                    Object formatValue = optionsMap.get(OPTION_FORMAT);
+                    if (formatValue != null) {
+                        try {
+                            resolvedDataFormat = DataFormat.fromString(BytesRefs.toString(formatValue));
+                        } catch (IllegalArgumentException e) {
+                            throw new InvalidArgumentException(e.getMessage());
+                        }
+                    }
                 }
-            }
-            // Validate and store "type"
-            Expression typeExpr = inputOptions.get("type");
-            if (typeExpr instanceof Literal l) {
-                try {
-                    resolvedDataType = org.elasticsearch.inference.DataType.fromString(BytesRefs.toString(l.value()));
-                } catch (IllegalArgumentException e) {
-                    return new TypeResolution(e.getMessage());
-                }
-            }
-            // Validate and store "format"
-            Expression formatExpr = inputOptions.get("format");
-            if (formatExpr instanceof Literal l) {
-                try {
-                    resolvedDataFormat = DataFormat.fromString(BytesRefs.toString(l.value()));
-                } catch (IllegalArgumentException e) {
-                    return new TypeResolution(e.getMessage());
-                }
+            );
+            if (optionsResolution.unresolved()) {
+                return optionsResolution;
             }
         }
 

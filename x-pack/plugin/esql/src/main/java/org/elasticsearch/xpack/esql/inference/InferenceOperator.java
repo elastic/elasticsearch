@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiConsumer;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 
@@ -47,7 +46,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
     public static final int DEFAULT_MAX_OUTSTANDING_PAGES = 10;
     public static final int DEFAULT_MAX_OUTSTANDING_REQUESTS = 50;
 
-    private final InferenceService inferenceService;
+    protected final InferenceService inferenceService;
     private final OutputBuilder outputBuilder;
     private final BulkInferenceRequestItemIterator.Factory inferenceRequestsFactory;
     private final Queue<BulkInferenceOperation> ongoingBulkOperations;
@@ -179,6 +178,17 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
     }
 
     /**
+     * Dispatches an inference request to the appropriate InferenceService method.
+     * Subclasses may override this to route to a different service method (e.g. {@code executeEmbeddingInference}).
+     */
+    protected void dispatchInferenceRequest(
+        BaseInferenceActionRequest request,
+        ActionListener<InferenceAction.Response> listener
+    ) {
+        inferenceService.executeInference((InferenceAction.Request) request, listener);
+    }
+
+    /**
      * Executes a single inference request and handles the response.
      *
      * @param bulkOperation The bulk inference operation managing the request.
@@ -192,8 +202,8 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
             return;
         }
 
-        request.execute(
-            inferenceService,
+        dispatchInferenceRequest(
+            request.inferenceRequest(),
             new ThreadedActionListener<>(
                 inferenceService.threadPool().executor(ThreadPool.Names.SEARCH),
                 ActionListener.runAfter(
@@ -218,8 +228,6 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
      * Represents a single inference request with metadata for result building.
      *
      * @param inferenceRequest   The inference request (may be null to represent a null input).
-     * @param executor           A function that dispatches the request to the appropriate InferenceService method.
-     *                           May be null when inferenceRequest is null.
      * @param positionValueCounts Array where each element indicates how many values the corresponding input position contributed.
      *                            For example, [1, 0, 2] means position 0 contributed 1 value, position 1 was null/empty,
      *                            and position 2 contributed 2 values (multi-valued field).
@@ -227,7 +235,6 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
      */
     public record BulkInferenceRequestItem(
         BaseInferenceActionRequest inferenceRequest,
-        BiConsumer<InferenceService, ActionListener<InferenceAction.Response>> executor,
         int[] positionValueCounts,
         long seqNo
     ) {
@@ -250,22 +257,13 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
          */
         public BulkInferenceRequestItem(
             BaseInferenceActionRequest inferenceRequest,
-            BiConsumer<InferenceService, ActionListener<InferenceAction.Response>> executor,
             PositionValueCountsBuilder positionValueCounts
         ) {
-            this(inferenceRequest, executor, positionValueCounts.build(), NO_SEQ_NO);
+            this(inferenceRequest, positionValueCounts.build(), NO_SEQ_NO);
         }
 
         public BulkInferenceRequestItem withSeqNo(long seqNo) {
-            return new BulkInferenceRequestItem(this.inferenceRequest, this.executor, this.positionValueCounts, seqNo);
-        }
-
-        /**
-         * Executes the inference request using the provided service and listener.
-         * Only call when inferenceRequest() is non-null.
-         */
-        public void execute(InferenceService service, ActionListener<InferenceAction.Response> listener) {
-            executor.accept(service, listener);
+            return new BulkInferenceRequestItem(this.inferenceRequest, this.positionValueCounts, seqNo);
         }
 
         public BulkInferenceResponseItem createResponse(InferenceAction.Response inferenceResponse) {

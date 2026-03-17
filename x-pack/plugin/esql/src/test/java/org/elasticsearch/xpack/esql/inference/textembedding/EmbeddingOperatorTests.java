@@ -43,7 +43,7 @@ public class EmbeddingOperatorTests extends InferenceOperatorTestCase<DenseEmbed
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new EmbeddingOperator.Factory(
+        return new TextEmbeddingOperator.Factory(
             mockedInferenceService(),
             SIMPLE_INFERENCE_ID,
             TaskType.EMBEDDING,
@@ -121,7 +121,7 @@ public class EmbeddingOperatorTests extends InferenceOperatorTestCase<DenseEmbed
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("EmbeddingOperator[inference_id=[" + SIMPLE_INFERENCE_ID + "]]");
+        return equalTo("TextEmbeddingOperator[inference_id=[" + SIMPLE_INFERENCE_ID + "]]");
     }
 
     public void testInferenceFailure() {
@@ -129,7 +129,7 @@ public class EmbeddingOperatorTests extends InferenceOperatorTestCase<DenseEmbed
         Exception expectedException = new ElasticsearchException("Inference service unavailable");
         InferenceService failingService = mockedInferenceService(shouldFail, expectedException);
 
-        Operator.OperatorFactory factory = new EmbeddingOperator.Factory(
+        Operator.OperatorFactory factory = new TextEmbeddingOperator.Factory(
             failingService,
             SIMPLE_INFERENCE_ID,
             TaskType.EMBEDDING,

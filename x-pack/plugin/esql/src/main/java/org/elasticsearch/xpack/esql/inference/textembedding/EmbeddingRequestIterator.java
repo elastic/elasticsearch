@@ -55,7 +55,7 @@ class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
     @Override
     protected BulkInferenceRequestItem buildRequestItem(String text, PositionValueCountsBuilder pvcs) {
         if (text == null) {
-            return new BulkInferenceRequestItem(null, null, pvcs);
+            return new BulkInferenceRequestItem(null, pvcs);
         }
         InferenceString inferenceString = dataFormat != null
             ? new InferenceString(dataType, dataFormat, text)
@@ -65,13 +65,10 @@ class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
             InputType.UNSPECIFIED,
             Map.of()
         );
-        EmbeddingAction.Request req = new EmbeddingAction.Request(
-            inferenceId,
-            taskType,
-            embeddingRequest,
-            InferenceAction.Request.DEFAULT_TIMEOUT
+        return new BulkInferenceRequestItem(
+            new EmbeddingAction.Request(inferenceId, taskType, embeddingRequest, InferenceAction.Request.DEFAULT_TIMEOUT),
+            pvcs
         );
-        return new BulkInferenceRequestItem(req, (svc, lst) -> svc.executeEmbeddingInference(req, lst), pvcs);
     }
 
     /**

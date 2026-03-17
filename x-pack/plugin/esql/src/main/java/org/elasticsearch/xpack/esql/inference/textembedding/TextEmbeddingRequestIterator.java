@@ -35,10 +35,12 @@ class TextEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
     @Override
     protected BulkInferenceRequestItem buildRequestItem(String text, PositionValueCountsBuilder pvcs) {
         if (text == null) {
-            return new BulkInferenceRequestItem(null, null, pvcs);
+            return new BulkInferenceRequestItem(null, pvcs);
         }
-        InferenceAction.Request req = InferenceAction.Request.builder(inferenceId, taskType).setInput(List.of(text)).build();
-        return new BulkInferenceRequestItem(req, (svc, lst) -> svc.executeInference(req, lst), pvcs);
+        return new BulkInferenceRequestItem(
+            InferenceAction.Request.builder(inferenceId, taskType).setInput(List.of(text)).build(),
+            pvcs
+        );
     }
 
     /**

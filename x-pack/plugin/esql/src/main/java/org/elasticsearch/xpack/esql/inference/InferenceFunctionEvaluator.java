@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunct
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.textembedding.EmbeddingOperator;
+import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
 
 import java.util.List;
 import java.util.Map;
@@ -210,19 +211,38 @@ public class InferenceFunctionEvaluator {
         private InferenceOperatorProvider createInferenceOperatorProvider(FoldContext foldContext, InferenceService inferenceService) {
             return (inferenceFunction, driverContext) -> {
                 Operator.OperatorFactory operatorFactory = switch (inferenceFunction) {
-                    case TextEmbedding textEmbedding -> new EmbeddingOperator.Factory(
+                    case TextEmbedding textEmbedding -> new TextEmbeddingOperator.Factory(
                         inferenceService,
                         inferenceId(inferenceFunction, foldContext),
                         TaskType.TEXT_EMBEDDING,
                         expressionEvaluatorFactory(textEmbedding.inputText(), foldContext)
                     );
-                    case Embedding embedding -> new EmbeddingOperator.Factory(
-                        inferenceService,
-                        inferenceId(inferenceFunction, foldContext),
-                        TaskType.EMBEDDING,
-                        expressionEvaluatorFactory(embedding.inputText(), foldContext),
-                        embedding.inputOptions() != null ? embedding.inputOptions().toFoldedMap(foldContext) : Map.of()
-                    );
+                    case Embedding embedding -> {
+                        Map<String, Object> opts = embedding.inputOptions() != null
+                            ? embedding.inputOptions().toFoldedMap(foldContext)
+                            : Map.of();
+                        Object typeValue = opts.get("type");
+                        if (typeValue instanceof String typeStr) {
+                            org.elasticsearch.inference.DataType dataType = org.elasticsearch.inference.DataType.fromString(typeStr);
+                            org.elasticsearch.inference.DataFormat dataFormat = opts.get("format") instanceof String fmt
+                                ? org.elasticsearch.inference.DataFormat.fromString(fmt)
+                                : null;
+                            yield new EmbeddingOperator.Factory(
+                                inferenceService,
+                                inferenceId(inferenceFunction, foldContext),
+                                TaskType.EMBEDDING,
+                                expressionEvaluatorFactory(embedding.inputText(), foldContext),
+                                dataType,
+                                dataFormat
+                            );
+                        }
+                        yield new TextEmbeddingOperator.Factory(
+                            inferenceService,
+                            inferenceId(inferenceFunction, foldContext),
+                            TaskType.EMBEDDING,
+                            expressionEvaluatorFactory(embedding.inputText(), foldContext)
+                        );
+                    }
                     case CompletionFunction completion -> new CompletionOperator.Factory(
                         inferenceService,
                         inferenceId(inferenceFunction, foldContext),

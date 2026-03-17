@@ -15,7 +15,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
-import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem.PositionValueCountsBuilder;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItemIterator;
 import org.elasticsearch.xpack.esql.inference.InputTextReader;
@@ -85,12 +84,7 @@ class CompletionRequestIterator implements BulkInferenceRequestItemIterator {
             }
         }
 
-        InferenceAction.Request req = inferenceRequest(currentPrompt);
-        return new BulkInferenceRequestItem(
-            req,
-            req != null ? (svc, lst) -> svc.executeInference(req, lst) : null,
-            positionValueCountsBuilder
-        );
+        return new BulkInferenceRequestItem(inferenceRequest(currentPrompt), positionValueCountsBuilder);
     }
 
     /**

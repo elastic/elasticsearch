@@ -1,4 +1,0 @@
-SET unmapped_fields="load"; FROM employees
-| EVAL language_code = languages
-| LOOKUP JOIN languages_lookup ON language_code
-| WHERE does_not_exist::LONG > 0

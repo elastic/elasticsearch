@@ -235,12 +235,9 @@ public class MockGcsBlobStore {
         ongoingRewrites.compute(newRewriteToken, (token, rewrite) -> {
             if (rewrite == null) {
                 if (!newRewrite) {
-                    throw new GcsRestException(RestStatus.NOT_FOUND, "rewrite token not found");
+                    throw failAndThrow("rewrite token not found");
                 } else if (maxBytesRewrittenPerCall % ByteSizeValue.of(1, ByteSizeUnit.MB).getBytes() != 0) {
-                    throw new GcsRestException(
-                        RestStatus.BAD_REQUEST,
-                        "maxBytesRewrittenPerCall must be an integral multiple of 1 MiB (1048576)"
-                    );
+                    throw failAndThrow("maxBytesRewrittenPerCall must be an integral multiple of 1 MiB (1048576)");
                 }
                 BlobVersion srcBlob = getBlob(srcPath, null, null);
                 rewrite = new Rewrite(srcPath, dstPath, srcBlob.contents, 0, maxBytesRewrittenPerCall);
@@ -248,10 +245,10 @@ public class MockGcsBlobStore {
                 if (!srcPath.equals(rewrite.srcPath)
                     || !dstPath.equals(rewrite.dstPath)
                     || maxBytesRewrittenPerCall != rewrite.maxBytesRewrittenPerCall) {
-                    throw new GcsRestException(RestStatus.BAD_REQUEST, "rewrite parameters mismatch");
+                    throw failAndThrow("rewrite parameters mismatch");
                 }
                 if (rewrite.totalBytesRewritten == rewrite.srcContents.length()) {
-                    throw new GcsRestException(RestStatus.BAD_REQUEST, "rewrite already completed");
+                    throw failAndThrow("rewrite already completed");
                 }
             }
             long objectSize = rewrite.srcContents.length();

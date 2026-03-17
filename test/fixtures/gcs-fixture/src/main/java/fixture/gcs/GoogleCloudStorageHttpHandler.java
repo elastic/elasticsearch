@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
@@ -276,10 +277,14 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 if (matcher.find() == false) {
                     throw failAndThrow("Cannot parse rewrite request: " + request);
                 }
-
                 final String srcBucket = matcher.group("srcBucket");
+                if (bucket.equals(srcBucket) == false) {
+                    throw failAndThrow("Source bucket " + srcBucket + " does not match " + bucket);
+                }
                 final String dstBucket = matcher.group("dstBucket");
-                assert bucket.equals(srcBucket) && bucket.equals(dstBucket);
+                if (bucket.equals(dstBucket) == false) {
+                    throw failAndThrow("Destination bucket " + dstBucket + " does not match " + bucket);
+                }
                 final String srcObject = URLDecoder.decode(matcher.group("srcObject"), UTF_8);
                 final String dstObject = URLDecoder.decode(matcher.group("dstObject"), UTF_8);
 
@@ -300,9 +305,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     builder.field("done", done);
                     if (done) {
                         assert rewriteResponse.dstBlob() != null;
-                        builder.startObject("resource");
-                        writeBlobAsXContent(rewriteResponse.dstBlob(), builder, bucket);
-                        builder.endObject();
+                        writeBlobAsXContent(rewriteResponse.dstBlob(), builder, bucket, "resource");
                     } else {
                         builder.field("rewriteToken", rewriteResponse.rewriteToken());
                     }
@@ -325,9 +328,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
     private void writeBlobVersionAsJson(HttpExchange exchange, MockGcsBlobStore.BlobVersion newBlobVersion) throws IOException {
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject();
-            writeBlobAsXContent(newBlobVersion, builder, bucket);
-            builder.endObject();
+            writeBlobAsXContent(newBlobVersion, builder, bucket, null);
             BytesReference responseBytes = BytesReference.bytes(builder);
             exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
             exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseBytes.length());
@@ -461,9 +462,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
             }
             builder.startArray("items");
             for (MockGcsBlobStore.BlobVersion blobVersion : pageOfBlobs().blobs()) {
-                builder.startObject();
-                writeBlobAsXContent(blobVersion, builder, bucket);
-                builder.endObject();
+                writeBlobAsXContent(blobVersion, builder, bucket, null);
             }
             builder.endArray();
             builder.field("prefixes", pageOfBlobs.prefixes());
@@ -472,14 +471,24 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         }
     }
 
-    private static void writeBlobAsXContent(MockGcsBlobStore.BlobVersion blobVersion, XContentBuilder builder, String bucket)
-        throws IOException {
+    private static void writeBlobAsXContent(
+        MockGcsBlobStore.BlobVersion blobVersion,
+        XContentBuilder builder,
+        String bucket,
+        @Nullable String fieldName
+    ) throws IOException {
+        if (fieldName == null) {
+            builder.startObject();
+        } else {
+            builder.startObject(fieldName);
+        }
         builder.field("kind", "storage#object");
         builder.field("bucket", bucket);
         builder.field("name", blobVersion.path());
         builder.field("id", blobVersion.path());
         builder.field("size", String.valueOf(blobVersion.contents().length()));
         builder.field("generation", String.valueOf(blobVersion.generation()));
+        builder.endObject();
     }
 
     private void sendError(HttpExchange exchange, MockGcsBlobStore.GcsRestException e) throws IOException {

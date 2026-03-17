@@ -54,6 +54,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
@@ -3250,6 +3251,87 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("from test | EVAL embedding = TEXT_EMBEDDING(?, last_name)", defaultAnalyzer, "query text"),
             equalTo("1:30: second argument of [TEXT_EMBEDDING(?, last_name)] must be a constant, received [last_name]")
+        );
+    }
+
+    public void testEmbeddingFunctionInvalidQuery() {
+        assertThat(
+            error("from test | EVAL embedding = EMBEDDING(null, ?)", defaultAnalyzer, EMBEDDING_INFERENCE_ID),
+            equalTo("1:30: first argument of [EMBEDDING(null, ?)] cannot be null, received [null]")
+        );
+
+        assertThat(
+            error("from test | EVAL embedding = EMBEDDING(42, ?)", defaultAnalyzer, EMBEDDING_INFERENCE_ID),
+            equalTo("1:30: first argument of [EMBEDDING(42, ?)] must be [string], found value [42] type [integer]")
+        );
+
+        assertThat(
+            error("from test | EVAL embedding = EMBEDDING(last_name, ?)", defaultAnalyzer, EMBEDDING_INFERENCE_ID),
+            equalTo("1:30: first argument of [EMBEDDING(last_name, ?)] must be a constant, received [last_name]")
+        );
+    }
+
+    public void testEmbeddingFunctionInvalidInferenceId() {
+        assertThat(
+            error("from test | EVAL embedding = EMBEDDING(?, null)", defaultAnalyzer, "query text"),
+            equalTo("1:30: second argument of [EMBEDDING(?, null)] cannot be null, received [null]")
+        );
+
+        assertThat(
+            error("from test | EVAL embedding = EMBEDDING(?, 42)", defaultAnalyzer, "query text"),
+            equalTo("1:30: second argument of [EMBEDDING(?, 42)] must be [string], found value [42] type [integer]")
+        );
+
+        assertThat(
+            error("from test | EVAL embedding = EMBEDDING(?, last_name)", defaultAnalyzer, "query text"),
+            equalTo("1:30: second argument of [EMBEDDING(?, last_name)] must be a constant, received [last_name]")
+        );
+    }
+
+    public void testEmbeddingFunctionOptions() {
+        // valid options are accepted
+        query(
+            "from test | EVAL embedding = EMBEDDING(?, ?, {\"type\": \"text\", \"format\": \"text\"})",
+            "query text",
+            EMBEDDING_INFERENCE_ID
+        );
+        query(
+            "from test | EVAL embedding = EMBEDDING(?, ?, {\"type\": \"image\", \"format\": \"base64\"})",
+            "query text",
+            EMBEDDING_INFERENCE_ID
+        );
+
+        // unknown option key
+        assertThat(
+            error(
+                "from test | EVAL embedding = EMBEDDING(?, ?, {\"unknown\": \"value\"})",
+                defaultAnalyzer,
+                "query text",
+                EMBEDDING_INFERENCE_ID
+            ),
+            containsString("Invalid option [unknown]")
+        );
+
+        // invalid type value
+        assertThat(
+            error(
+                "from test | EVAL embedding = EMBEDDING(?, ?, {\"type\": \"invalid_type\"})",
+                defaultAnalyzer,
+                "query text",
+                EMBEDDING_INFERENCE_ID
+            ),
+            equalTo("1:30: Unrecognized type [invalid_type], must be one of [text, image]")
+        );
+
+        // invalid format value
+        assertThat(
+            error(
+                "from test | EVAL embedding = EMBEDDING(?, ?, {\"format\": \"invalid_format\"})",
+                defaultAnalyzer,
+                "query text",
+                EMBEDDING_INFERENCE_ID
+            ),
+            equalTo("1:30: Unrecognized format [invalid_format], must be one of [text, base64]")
         );
     }
 

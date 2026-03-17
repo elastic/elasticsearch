@@ -401,8 +401,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
     }
 
-    private static Function<ShardContext, ScoreMode> scoreModeFunction(List<SortBuilder<?>> sorts, boolean needsScore,
-                                                                       IndexedByShardId<? extends ShardContext> contexts) {
+    private static Function<ShardContext, ScoreMode> scoreModeFunction(
+        List<SortBuilder<?>> sorts,
+        boolean needsScore,
+        IndexedByShardId<? extends ShardContext> contexts
+    ) {
         return ctx -> {
             try {
                 // we create a collector with a limit of 1 to determine the appropriate score mode to use.

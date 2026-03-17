@@ -36,11 +36,12 @@ public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSeriali
         return new AzureOpenAiEntraIdApiKeySecrets(null, randomSecureStringOfLength(15));
     }
 
+    /**
+     * Creates a {@link AzureOpenAiEntraIdApiKeySecrets} instance with either the API key or Entra ID set,
+     * based on which parameter is non-null. API key takes precedence if both are provided,
+     * but typically only one should be provided as they are mutually exclusive.
+     */
     public static AzureOpenAiEntraIdApiKeySecrets createSecret(@Nullable String apiKey, @Nullable String entraId) {
-        if (apiKey != null && entraId != null) {
-            throw new IllegalArgumentException("Only one of apiKey or entraId can be provided");
-        }
-
         if (apiKey != null) {
             return new AzureOpenAiEntraIdApiKeySecrets(new SecureString(apiKey.toCharArray()), null);
         } else if (entraId != null) {

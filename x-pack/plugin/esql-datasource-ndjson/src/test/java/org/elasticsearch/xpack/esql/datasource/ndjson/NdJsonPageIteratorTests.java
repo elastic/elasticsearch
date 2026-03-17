@@ -54,7 +54,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testIterator() throws IOException {
-        var reader = new NdJsonFormatReader(blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory);
         var object = new BytesStorageObject("classpath://employees.ndjson", IOUtils.resourceToByteArray("/employees.ndjson"));
 
         List<Integer> sizes = new ArrayList<>();
@@ -78,12 +78,12 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testJsonExtensionRecognized() throws IOException {
-        var reader = new NdJsonFormatReader(blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory);
         assertTrue("NdJsonFormatReader should list .json as a supported extension", reader.fileExtensions().contains(".json"));
     }
 
     public void testJsonExtensionReadsData() throws IOException {
-        var reader = new NdJsonFormatReader(blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory);
         var object = new BytesStorageObject("file:///data.json", IOUtils.resourceToByteArray("/employees.ndjson"));
 
         try (var iterator = reader.read(object, List.of("emp_no"), 100)) {
@@ -99,7 +99,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         String data = "partial_first_line\n{\"id\":1}\n{\"id\":2}\n";
         var object = new BytesStorageObject("file:///split.ndjson", data.getBytes(StandardCharsets.UTF_8));
 
-        var reader = new NdJsonFormatReader(blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory);
         try (
             var iterator = reader.read(
                 object,
@@ -121,7 +121,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         String data = "{\"id\":1}\n{\"id\":2}\n";
         var object = new BytesStorageObject("file:///split.ndjson", data.getBytes(StandardCharsets.UTF_8));
 
-        var reader = new NdJsonFormatReader(blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory);
         try (
             var iterator = reader.read(
                 object,
@@ -135,7 +135,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testSampleData() throws Exception {
-        var reader = new NdJsonFormatReader(blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory);
         var object = new BytesStorageObject("classpath://employees.ndjson", IOUtils.resourceToByteArray("/employees.ndjson"));
 
         var metadata = reader.metadata(object);
@@ -174,7 +174,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             {"name":"charlie","age":40}
             """;
         var object = new BytesStorageObject("memory://test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = new NdJsonFormatReader(blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory);
 
         List<Page> pages = new ArrayList<>();
         try (var iterator = reader.read(object, List.of(), 100)) {
@@ -200,7 +200,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             {"x":3,"y":"c"}
             """;
         var object = new BytesStorageObject("memory://test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
-        var reader = new NdJsonFormatReader(blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory);
 
         try (var iterator = reader.read(object, List.of(), 100)) {
             while (iterator.hasNext()) {
@@ -253,7 +253,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             {"address": {"city": "London", "zip": "SW1A"}}
             """;
 
-        var reader = new NdJsonFormatReader(blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory);
         var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
 
         try (var iterator = reader.read(object, List.of("address.city", "address.zip"), 100)) {
@@ -278,7 +278,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             {"events": [{"type": "click", "page": 3}, {"type": "view", "page": null}], "id": 2}
             """;
 
-        var reader = new NdJsonFormatReader(blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory);
         var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
         var schema = reader.metadata(object).schema();
         assertSchema(schema, "events.type:KEYWORD, events.page:INTEGER?, id:INTEGER");
@@ -305,7 +305,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             {"tags": ["c", "d"], "id": 2}
             """;
 
-        var reader = new NdJsonFormatReader(blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory);
         var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
 
         try (var iterator = reader.read(object, List.of("tags", "id"), 100)) {
@@ -332,7 +332,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             {"matrix": [[5,6]], "id": 2}
             """;
 
-        var reader = new NdJsonFormatReader(blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory);
         var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
 
         try (var iterator = reader.read(object, List.of("matrix", "id"), 100)) {
@@ -379,7 +379,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             {"timestamp": "2025-03-26"}
             """;
 
-        var reader = new NdJsonFormatReader(blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory);
         var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
 
         var schema = reader.metadata(object).schema();
@@ -405,7 +405,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             {"id": 2, "big": 42}
             """;
 
-        var reader = new NdJsonFormatReader(blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory);
         var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
 
         try (var iterator = reader.read(object, List.of("id", "big"), 100)) {
@@ -430,7 +430,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             {"id": 2, "big": 42}
             """;
 
-        var reader = new NdJsonFormatReader(blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory);
         var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
 
         try (var iterator = reader.read(object, List.of("id", "big"), 100)) {
@@ -448,26 +448,26 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     // --- findNextRecordBoundary tests ---
 
     public void testFindNextRecordBoundaryNewline() throws IOException {
-        var reader = new NdJsonFormatReader(blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"key\":\"value\"}\n".getBytes(StandardCharsets.UTF_8);
         assertEquals(data.length, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextRecordBoundaryCRLF() throws IOException {
-        var reader = new NdJsonFormatReader(blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"key\":\"value\"}\r\n".getBytes(StandardCharsets.UTF_8);
         assertEquals(data.length, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextRecordBoundaryCROnly() throws IOException {
-        var reader = new NdJsonFormatReader(blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"key\":\"value\"}\rmore".getBytes(StandardCharsets.UTF_8);
         int expected = "{\"key\":\"value\"}\r".length();
         assertEquals(expected, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextRecordBoundaryCRLFAtBufferEdge() throws IOException {
-        var reader = new NdJsonFormatReader(blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] padding = new byte[8191];
         Arrays.fill(padding, (byte) 'x');
         byte[] suffix = "\r\nmore\n".getBytes(StandardCharsets.UTF_8);
@@ -479,13 +479,13 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     }
 
     public void testFindNextRecordBoundaryEofNoNewline() throws IOException {
-        var reader = new NdJsonFormatReader(blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory);
         byte[] data = "{\"key\":\"value\"}".getBytes(StandardCharsets.UTF_8);
         assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextRecordBoundaryEmptyStream() throws IOException {
-        var reader = new NdJsonFormatReader(blockFactory);
+        var reader = new NdJsonFormatReader(null, blockFactory);
         assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(new byte[0])));
     }
 

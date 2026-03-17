@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -33,8 +31,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     public static final String SCHEMA_SAMPLE_SIZE_SETTING = "esql.datasource.ndjson.schema_sample_size";
     public static final int DEFAULT_SCHEMA_SAMPLE_SIZE = 100;
 
-    private static final Logger log = LogManager.getLogger(NdJsonFormatReader.class);
-
     private final BlockFactory blockFactory;
     private final Settings settings;
     private final List<Attribute> resolvedSchema;
@@ -49,11 +45,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         this(settings, blockFactory, null);
     }
 
-    // For testing only
-    NdJsonFormatReader(BlockFactory blockFactory) {
-        this(null, blockFactory, null);
-    }
-
     @Override
     public NdJsonFormatReader withSchema(List<Attribute> schema) {
         return new NdJsonFormatReader(settings, blockFactory, schema);
@@ -63,7 +54,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         if (attributes != null && attributes.isEmpty() == false) {
             return attributes;
         }
-        log.info("Inferring missing schema for {}", object.path());
+
         try (var stream = object.newStream()) {
             return NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize(settings));
         }

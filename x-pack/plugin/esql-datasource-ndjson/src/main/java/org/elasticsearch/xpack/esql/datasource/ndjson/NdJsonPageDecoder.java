@@ -41,7 +41,7 @@ import java.util.Map;
 
 public class NdJsonPageDecoder implements Closeable {
 
-    private static final Logger log = LogManager.getLogger(NdJsonPageDecoder.class);
+    private static final Logger logger = LogManager.getLogger(NdJsonPageDecoder.class);
 
     private InputStream input;
     private final BlockDecoder decoder;
@@ -99,9 +99,9 @@ public class NdJsonPageDecoder implements Closeable {
                     }
                 } catch (JsonParseException e) {
                     if (e instanceof JsonEOFException) {
-                        log.debug("Truncated NDJSON at line {} (expected at split boundaries): {}", lineCount, e.getOriginalMessage());
+                        logger.debug("Truncated NDJSON at line {} (expected at split boundaries): {}", lineCount, e.getOriginalMessage());
                     } else {
-                        log.warn("Malformed NDJSON at line {}: {}", lineCount, e.getOriginalMessage());
+                        logger.debug("Malformed NDJSON at line {}: {}", lineCount, e.getOriginalMessage());
                     }
                     this.input = NdJsonUtils.moveToNextLine(parser, this.input);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(this.input);
@@ -115,9 +115,9 @@ public class NdJsonPageDecoder implements Closeable {
                     decoder.decodeObject(parser, false);
                 } catch (JsonParseException e) {
                     if (e instanceof JsonEOFException) {
-                        log.debug("Truncated NDJSON at line {} (expected at split boundaries): {}", lineCount, e.getOriginalMessage());
+                        logger.debug("Truncated NDJSON at line {} (expected at split boundaries): {}", lineCount, e.getOriginalMessage());
                     } else {
-                        log.warn("Malformed NDJSON at line {}: {}", lineCount, e.getOriginalMessage());
+                        logger.debug("Malformed NDJSON at line {}: {}", lineCount, e.getOriginalMessage());
                     }
                     this.input = NdJsonUtils.moveToNextLine(parser, this.input);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(this.input);
@@ -377,7 +377,7 @@ public class NdJsonPageDecoder implements Closeable {
                 builder.appendNull();
             }
 
-            log.warn("Unexpected token type: {} for attribute: {} at {}", parser.currentToken(), name, parser.getTokenLocation());
+            logger.debug("Unexpected token type: {} for attribute: {} at {}", parser.currentToken(), name, parser.getTokenLocation());
             // Ignore any children to keep reading other values
             parser.skipChildren();
         }

@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.EnumSet;
@@ -53,7 +52,7 @@ public class NdJsonSchemaInferrer {
     // is a date)
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
 
-    private static final Logger log = LogManager.getLogger(NdJsonSchemaInferrer.class);
+    private static final Logger logger = LogManager.getLogger(NdJsonSchemaInferrer.class);
 
     private static final EnumSet<DataType> NUMBER_TYPES = EnumSet.of(DataType.DOUBLE, DataType.LONG, DataType.INTEGER);
 
@@ -81,7 +80,7 @@ public class NdJsonSchemaInferrer {
                         break; // End of stream
                     }
                 } catch (JsonParseException e) {
-                    log.warn("Malformed NDJSON at line {}: {}", lineCount, e);
+                    logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
                     inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
                     continue;
@@ -91,7 +90,7 @@ public class NdJsonSchemaInferrer {
                     inferObjectSchema(parser, root);
                     lineCount++;
                 } catch (JsonParseException e) {
-                    log.warn("Malformed NDJSON at line {}: {}", lineCount, e);
+                    logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
                     inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
                 }
@@ -141,10 +140,9 @@ public class NdJsonSchemaInferrer {
             // Keep in sync with NdJsonPageIterator.Decoder
             case START_OBJECT -> inferObjectSchema(parser, field);
             case VALUE_STRING -> {
-                try {
-                    DATE_FORMATTER.parse(parser.getText());
+                if (DATE_FORMATTER.tryParse(parser.getText()) != null) {
                     field.addType(DataType.DATETIME);
-                } catch (DateTimeParseException | IllegalArgumentException e) {
+                } else {
                     field.addType(DataType.KEYWORD);
                 }
             }
@@ -159,7 +157,7 @@ public class NdJsonSchemaInferrer {
                     case BIG_INTEGER: {
                         field.addType(DataType.DOUBLE);
                         var location = parser.getTokenLocation();
-                        log.warn(
+                        logger.debug(
                             "Big integers are not supported, falling back to double [{}, line: {}, column: {}]",
                             parser.getText(),
                             location.getLineNr(),

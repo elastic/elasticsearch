@@ -21,12 +21,12 @@ import java.util.concurrent.Callable;
 /**
  * concurrent implementation of k-means
  */
-class KMeansLocalConcurrent extends KMeansLocal {
+class LloydKMeansLocalConcurrent extends LloydKMeansLocal {
 
     final TaskExecutor executor;
     final int numWorkers;
 
-    KMeansLocalConcurrent(TaskExecutor executor, int numWorkers, int sampleSize, int maxIterations) {
+    LloydKMeansLocalConcurrent(TaskExecutor executor, int numWorkers, int sampleSize, int maxIterations) {
         super(sampleSize, maxIterations);
         this.executor = executor;
         this.numWorkers = numWorkers;

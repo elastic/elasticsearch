@@ -76,6 +76,29 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
     }
 
     /**
+     * Compute the squared distances between a batch of contiguous vectors and all centroids.
+     *
+     * @param startOrd         the first vector ordinal (inclusive) to process
+     * @param endOrd           the last vector ordinal (exclusive) to process
+     * @param centroids        the centroid vectors to compare against
+     * @param ordTranslator  translate the vector ord to the position of the vector on the result array
+     * @param squaredDistances array of distances indexed by document ordinal
+     */
+    final void computeSquaredDistances(
+        int startOrd,
+        int endOrd,
+        float[][] centroids,
+        IntToIntFunction ordTranslator,
+        float[][] squaredDistances
+    ) throws IOException {
+        final float[] tempDistances = new float[4];
+        for (int i = startOrd; i < endOrd; i++) {
+            float[] vector = vectorValue(i);
+            computeSquaredDistances(vector, centroids, tempDistances, squaredDistances[i]);
+        }
+    }
+
+    /**
      * Find the closest centroid for a batch of contiguous vectors, restricting the search to each
      * vector's current centroid and its pre-computed neighborhood of nearby centroids.
      *
@@ -276,6 +299,26 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
             }
         }
         return bestCentroidOffset;
+    }
+
+    /**
+     * Computes the squared distances between a materialized vector and all centroids.
+     *
+     * @param vector    the vector to assign
+     * @param centroids the centroid vectors to compare against
+     * @param tempDistances scratch array of length 4 used for bulk distance results
+     * @param distances the computed distances
+     */
+    private static void computeSquaredDistances(float[] vector, float[][] centroids, float[] tempDistances, float[] distances) {
+        final int limit = centroids.length - 3;
+        int i = 0;
+        for (; i < limit; i += 4) {
+            ESVectorUtil.squareDistanceBulk(vector, centroids[i], centroids[i + 1], centroids[i + 2], centroids[i + 3], tempDistances);
+            System.arraycopy(tempDistances, 0, distances, i, tempDistances.length);
+        }
+        for (; i < centroids.length; i++) {
+            distances[i] = ESVectorUtil.squareDistance(vector, centroids[i]);
+        }
     }
 
     /**

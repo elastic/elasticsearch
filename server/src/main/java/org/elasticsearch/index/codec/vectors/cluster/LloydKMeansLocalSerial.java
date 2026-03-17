@@ -17,9 +17,9 @@ import java.io.IOException;
 /**
  * Single threaded implementation of k-means
  */
-class KMeansLocalSerial extends KMeansLocal {
+class LloydKMeansLocalSerial extends LloydKMeansLocal {
 
-    KMeansLocalSerial(int sampleSize, int maxIterations) {
+    LloydKMeansLocalSerial(int sampleSize, int maxIterations) {
         super(sampleSize, maxIterations);
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.huggingface.request.completio
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -43,10 +44,9 @@ public class HuggingFaceUnifiedChatCompletionRequest implements Request {
     /**
      * Creates an HTTP request to the Hugging Face API for chat completions.
      * The request includes the necessary headers and the input data as a JSON entity.
-     *
-     * @return an HttpRequest object containing the HTTP POST request
      */
-    public HttpRequest createHttpRequest() {
+    @Override
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(getURI());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -58,7 +58,7 @@ public class HuggingFaceUnifiedChatCompletionRequest implements Request {
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
         httpPost.setHeader(createAuthBearerHeader(model.apiKey()));
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     public URI getURI() {

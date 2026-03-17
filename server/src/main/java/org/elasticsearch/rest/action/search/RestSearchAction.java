@@ -29,6 +29,7 @@ import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.trace.RequestStatsListener;
 import org.elasticsearch.trace.RequestStatsService;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -39,12 +40,14 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.usage.SearchUsageHolder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.IntConsumer;
@@ -149,6 +152,8 @@ public class RestSearchAction extends BaseRestHandler {
                     new RestRefCountedChunkedToXContentListener<>(channel)
                 )
             );
+            var params = serializationParams(searchRequest, channel.request());
+            cancelClient.execute(TransportSearchAction.TYPE, searchRequest, new RestRefCountedChunkedToXContentListener<>(channel, params));
         };
     }
 
@@ -481,6 +486,15 @@ public class RestSearchAction extends BaseRestHandler {
                 "cannot set [search_type] when using [knn] search, since the search type is determined automatically"
             );
         }
+    }
+
+    private static ToXContent.Params serializationParams(SearchRequest searchRequest, ToXContent.Params channelParams) {
+        if (searchRequest.source() != null
+            && searchRequest.source().seqNoAndPrimaryTerm() != null
+            && searchRequest.source().seqNoAndPrimaryTerm()) {
+            return new ToXContent.DelegatingMapParams(Map.of(SearchHit.SEQ_NO_PRIMARY_TERM_PARAMS_KEY, "true"), channelParams);
+        }
+        return channelParams;
     }
 
     @Override

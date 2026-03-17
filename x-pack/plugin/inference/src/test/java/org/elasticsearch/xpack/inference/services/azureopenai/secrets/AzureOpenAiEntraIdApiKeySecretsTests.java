@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -33,6 +34,20 @@ public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSeriali
             return new AzureOpenAiEntraIdApiKeySecrets(randomSecureStringOfLength(15), null);
         }
         return new AzureOpenAiEntraIdApiKeySecrets(null, randomSecureStringOfLength(15));
+    }
+
+    public static AzureOpenAiEntraIdApiKeySecrets createSecret(@Nullable String apiKey, @Nullable String entraId) {
+        if (apiKey != null && entraId != null) {
+            throw new IllegalArgumentException("Only one of apiKey or entraId can be provided");
+        }
+
+        if (apiKey != null) {
+            return new AzureOpenAiEntraIdApiKeySecrets(new SecureString(apiKey.toCharArray()), null);
+        } else if (entraId != null) {
+            return new AzureOpenAiEntraIdApiKeySecrets(null, new SecureString(entraId.toCharArray()));
+        } else {
+            throw new IllegalArgumentException("Either apiKey or entraId must be provided");
+        }
     }
 
     public void testNewSecretSettingsApiKey() {

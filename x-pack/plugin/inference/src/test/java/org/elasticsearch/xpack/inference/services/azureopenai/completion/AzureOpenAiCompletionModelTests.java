@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.completion;
 
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -15,7 +14,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.parser.Headers;
 import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields;
-import org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiEntraIdApiKeySecrets;
+import org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiEntraIdApiKeySecretsTests;
 import org.junit.After;
 import org.junit.Before;
 
@@ -206,15 +205,7 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
         TaskType taskType,
         ThreadPool threadPool
     ) {
-        AzureOpenAiEntraIdApiKeySecrets secretSettings;
-        if (apiKey != null) {
-            secretSettings = new AzureOpenAiEntraIdApiKeySecrets(new SecureString(apiKey.toCharArray()), null);
-        } else if (entraId != null) {
-            secretSettings = new AzureOpenAiEntraIdApiKeySecrets(null, new SecureString(entraId.toCharArray()));
-        } else {
-            throw new IllegalArgumentException("Either apiKey or entraId must be provided");
-        }
-
+        var secretSettings = AzureOpenAiEntraIdApiKeySecretsTests.createSecret(apiKey, entraId);
         var userToUse = user == null ? StatefulValue.<String>undefined() : StatefulValue.of(user);
 
         return new AzureOpenAiCompletionModel(

@@ -38,8 +38,6 @@ module org.elasticsearch.inference {
     requires software.amazon.awssdk.services.sagemakerruntime;
     requires com.azure.identity;
     requires com.azure.core;
-    requires com.sun.jna;
-    requires com.sun.jna.platform;
 
     exports org.elasticsearch.xpack.inference.action;
     exports org.elasticsearch.xpack.inference.registry;

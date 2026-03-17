@@ -48,14 +48,13 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 
 public class FieldNameUtils {
@@ -297,7 +296,10 @@ public class FieldNameUtils {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
             return new PreAnalysisResult(IndexResolver.INDEX_METADATA_FIELD, wildcardJoinIndices);
         } else {
-            HashSet<String> allFields = new HashSet<>(fieldNames.stream().flatMap(FieldNameUtils::withSubfields).collect(toSet()));
+            Set<String> allFields = new HashSet<>();
+            for (String name : fieldNames) {
+                addSubfields(name, allFields);
+            }
             allFields.add(MetadataAttribute.INDEX);
             return new PreAnalysisResult(allFields, wildcardJoinIndices);
         }
@@ -312,32 +314,30 @@ public class FieldNameUtils {
      * detect subfields of flattened.</li>
      * </ul>
      */
-    private static Stream<String> withSubfields(String name) {
+    private static void addSubfields(String name, Set<String> allFields) {
+        allFields.add(name);
+
         if (name.endsWith(WILDCARD)) {
-            return Stream.of(name);
+            return;
         }
 
-        Stream.Builder<String> builder = Stream.builder();
-        builder.add(name);
-        builder.add(name + ".*");
-        parentPrefixes(name).forEach(builder::add);
-
-        return builder.build();
+        allFields.add(name + ".*");
+        allFields.addAll(parentPrefixes(name));
     }
 
     /**
      * Returns the dot-delimited parent prefixes of a field name. For example, "a.b.c" will return ["a", "a.b"]
      */
-    public static Stream<String> parentPrefixes(String name) {
-        Stream.Builder<String> builder = Stream.builder();
-
+    public static List<String> parentPrefixes(String name) {
+        List<String> prefixes = new ArrayList<>();
         int pos = name.indexOf('.');
+
         while (pos > 0) {
-            builder.add(name.substring(0, pos));
+            prefixes.add(name.substring(0, pos));
             pos = name.indexOf('.', pos + 1);
         }
 
-        return builder.build();
+        return prefixes;
     }
 
     /**

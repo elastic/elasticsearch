@@ -397,13 +397,12 @@ public class Verifier {
             }
 
             for (Attribute attr : esRelation.output()) {
-                if ((attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) == false) {
+                if (!(attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField)) {
                     continue;
                 }
 
-                FieldAttribute fa = (FieldAttribute) attr;
                 String name = fa.name();
-                List<String> prefixes = FieldNameUtils.parentPrefixes(name).toList();
+                List<String> prefixes = FieldNameUtils.parentPrefixes(name);
                 for (String parent : prefixes) {
                     if (flattenedFieldNames.contains(parent)) {
                         // It is sufficient to find "a" flattened field with a name matching the parent's.

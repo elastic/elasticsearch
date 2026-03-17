@@ -20,7 +20,7 @@
 #include "aarch64/aarch64_vec_common.h"
 
 static inline int32_t doti4_inner(const int8_t* query, const int8_t* doc, int32_t packed_len) {
-    const uint8x16_t mask_0f = vdupq_n_u8(0x0F);
+    const uint8x16_t mask_half_byte = vdupq_n_u8(0x0F);
 
     // 4 accumulators to break dependency chains, split across the low and high
     // halves of each 128-bit vector for high-nibble and low-nibble products.
@@ -35,7 +35,7 @@ static inline int32_t doti4_inner(const int8_t* query, const int8_t* doc, int32_
     for (int i = 0; i < blk; i += stride) {
         uint8x16_t doc_bytes = vld1q_u8((const uint8_t*)(doc + i));
         uint8x16_t doc_high = vshrq_n_u8(doc_bytes, 4);
-        uint8x16_t doc_low = vandq_u8(doc_bytes, mask_0f);
+        uint8x16_t doc_low = vandq_u8(doc_bytes, mask_half_byte);
 
         uint8x16_t query_high = vld1q_u8((const uint8_t*)(query + i));
         uint8x16_t query_low = vld1q_u8((const uint8_t*)(query + i + packed_len));
@@ -74,7 +74,7 @@ static inline void doti4_bulk_impl(
     int32_t count,
     f32_t* results
 ) {
-    const uint8x16_t mask_0f = vdupq_n_u8(0x0F);
+    const uint8x16_t mask_half_byte = vdupq_n_u8(0x0F);
     constexpr int stride = sizeof(uint8x16_t);
     const int blk = packed_len & ~(stride - 1);
 
@@ -99,7 +99,7 @@ static inline void doti4_bulk_impl(
             apply_indexed<batches>([&](auto I) {
                 uint8x16_t doc_bytes = vld1q_u8((const uint8_t*)(doc_ptrs[I] + i));
                 uint8x16_t doc_high = vshrq_n_u8(doc_bytes, 4);
-                uint8x16_t doc_low = vandq_u8(doc_bytes, mask_0f);
+                uint8x16_t doc_low = vandq_u8(doc_bytes, mask_half_byte);
 
                 // due to widening, we need to use vget_low/high_u8 to split the
                 // 128-bit register into its two 64-bit halves

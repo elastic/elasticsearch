@@ -20,32 +20,30 @@
 #include "amd64/amd64_vec_common.h"
 
 static inline int32_t doti4_inner(const int8_t* query, const int8_t* doc, int32_t packed_len) {
-    const __m128i mask_0f = _mm_set1_epi8(0x0F);
+    const __m256i mask_half_byte = _mm256_set1_epi8(0x0F);
+    const __m256i ones = _mm256_set1_epi16(1);
     __m256i acc_high = _mm256_setzero_si256();
     __m256i acc_low = _mm256_setzero_si256();
 
-    constexpr int stride = sizeof(__m128i);
+    constexpr int stride = sizeof(__m256i);
     const int blk = packed_len & ~(stride - 1);
 
     for (int i = 0; i < blk; i += stride) {
-        __m128i doc_bytes = _mm_loadu_si128((const __m128i*)(doc + i));
+        __m256i doc_bytes = _mm256_loadu_si256((const __m256i*)(doc + i));
 
-        // Extract nibbles: shift+mask for high, mask for low.
-        // _mm_srli_epi16 shifts 16-bit lanes; the 0x0F mask cleans cross-byte leakage.
-        __m128i doc_high = _mm_and_si128(_mm_srli_epi16(doc_bytes, 4), mask_0f);
-        __m128i doc_low = _mm_and_si128(doc_bytes, mask_0f);
+        // Extract nibbles at 256-bit width.
+        // _mm256_srli_epi16 shifts 16-bit lanes; the 0x0F mask cleans cross-byte leakage.
+        __m256i doc_high = _mm256_and_si256(_mm256_srli_epi16(doc_bytes, 4), mask_half_byte);
+        __m256i doc_low = _mm256_and_si256(doc_bytes, mask_half_byte);
 
-        __m128i query_high = _mm_loadu_si128((const __m128i*)(query + i));
-        __m128i query_low = _mm_loadu_si128((const __m128i*)(query + i + packed_len));
+        __m256i query_high = _mm256_loadu_si256((const __m256i*)(query + i));
+        __m256i query_low = _mm256_loadu_si256((const __m256i*)(query + i + packed_len));
 
-        // Zero-extend 16 bytes to 16 shorts, then madd pairs into 8 int32s
-        __m256i doc_high_16 = _mm256_cvtepu8_epi16(doc_high);
-        __m256i query_high_16 = _mm256_cvtepu8_epi16(query_high);
-        __m256i doc_low_16 = _mm256_cvtepu8_epi16(doc_low);
-        __m256i query_low_16 = _mm256_cvtepu8_epi16(query_low);
-
-        acc_high = _mm256_add_epi32(acc_high, _mm256_madd_epi16(doc_high_16, query_high_16));
-        acc_low = _mm256_add_epi32(acc_low, _mm256_madd_epi16(doc_low_16, query_low_16));
+        // _mm256_maddubs_epi16 multiplies unsigned*signed byte pairs and horizontally
+        // adds adjacent products into 16-bit results. Both operands are in [0,15] so
+        // signedness doesn't matter. _mm256_madd_epi16 with ones reduces to 32-bit.
+        acc_high = _mm256_add_epi32(acc_high, _mm256_madd_epi16(ones, _mm256_maddubs_epi16(doc_high, query_high)));
+        acc_low = _mm256_add_epi32(acc_low, _mm256_madd_epi16(ones, _mm256_maddubs_epi16(doc_low, query_low)));
     }
 
     int32_t total = mm256_reduce_epi32<_mm_add_epi32>(_mm256_add_epi32(acc_high, acc_low));
@@ -72,8 +70,9 @@ static inline void doti4_bulk_impl(
     int32_t count,
     f32_t* results
 ) {
-    const __m128i mask_0f = _mm_set1_epi8(0x0F);
-    constexpr int stride = sizeof(__m128i);
+    const __m256i mask_half_byte = _mm256_set1_epi8(0x0F);
+    const __m256i ones = _mm256_set1_epi16(1);
+    constexpr int stride = sizeof(__m256i);
     const int blk = packed_len & ~(stride - 1);
     const int lines_to_fetch = packed_len / CACHE_LINE_SIZE + 1;
 
@@ -98,18 +97,16 @@ static inline void doti4_bulk_impl(
 
         int i = 0;
         for (; i < blk; i += stride) {
-            __m128i query_high = _mm_loadu_si128((const __m128i*)(query + i));
-            __m128i query_low = _mm_loadu_si128((const __m128i*)(query + i + packed_len));
-            __m256i query_high_16 = _mm256_cvtepu8_epi16(query_high);
-            __m256i query_low_16 = _mm256_cvtepu8_epi16(query_low);
+            __m256i query_high = _mm256_loadu_si256((const __m256i*)(query + i));
+            __m256i query_low = _mm256_loadu_si256((const __m256i*)(query + i + packed_len));
 
             apply_indexed<batches>([&](auto I) {
-                __m128i doc_bytes = _mm_loadu_si128((const __m128i*)(current_doc_ptrs[I] + i));
-                __m128i doc_high = _mm_and_si128(_mm_srli_epi16(doc_bytes, 4), mask_0f);
-                __m128i doc_low = _mm_and_si128(doc_bytes, mask_0f);
+                __m256i doc_bytes = _mm256_loadu_si256((const __m256i*)(current_doc_ptrs[I] + i));
+                __m256i doc_high = _mm256_and_si256(_mm256_srli_epi16(doc_bytes, 4), mask_half_byte);
+                __m256i doc_low = _mm256_and_si256(doc_bytes, mask_half_byte);
 
-                acc_high[I] = _mm256_add_epi32(acc_high[I], _mm256_madd_epi16(_mm256_cvtepu8_epi16(doc_high), query_high_16));
-                acc_low[I] = _mm256_add_epi32(acc_low[I], _mm256_madd_epi16(_mm256_cvtepu8_epi16(doc_low), query_low_16));
+                acc_high[I] = _mm256_add_epi32(acc_high[I], _mm256_madd_epi16(ones, _mm256_maddubs_epi16(doc_high, query_high)));
+                acc_low[I] = _mm256_add_epi32(acc_low[I], _mm256_madd_epi16(ones, _mm256_maddubs_epi16(doc_low, query_low)));
             });
         }
 

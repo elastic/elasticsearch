@@ -9,8 +9,13 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
@@ -58,6 +63,102 @@ public class RoundToLongsFromDocValuesBlockLoaderTests extends AbstractLongsFrom
                 docs = TestBlock.docs(docsArray);
                 try (TestBlock longs = read(longsReader, docs); TestBlock rounded = read(roundToReader, docs)) {
                     checkBlocks(longs, rounded);
+                }
+            }
+        }
+    }
+
+    /**
+     * All docs have the same value so every block should be constant.
+     */
+    public void testSkipperConstantBlock() throws IOException {
+        long[] points = new long[] { 0, 100, 200, 300 };
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(5));
+        try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
+            int docCount = 500;
+            for (int i = 0; i < docCount; i++) {
+                iw.addDocument(List.of(SortedNumericDocValuesField.indexedField("field", 150)));
+            }
+            iw.forceMerge(1);
+            try (DirectoryReader dr = iw.getReader()) {
+                LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
+                assertNotNull(ctx.reader().getDocValuesSkipper("field"));
+                RoundToLongsFromDocValuesBlockLoader loader = new RoundToLongsFromDocValuesBlockLoader("field", points);
+                try (BlockLoader.ColumnAtATimeReader reader = loader.reader(breaker, ctx)) {
+                    BlockLoader.Docs docs = TestBlock.docs(ctx);
+                    try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs, 0, false)) {
+                        assertThat(block.size(), equalTo(docCount));
+                        for (int i = 0; i < docCount; i++) {
+                            assertThat(block.get(i), equalTo(100L));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Values span two rounding buckets so the skipper can't shortcircuit.
+     */
+    public void testSkipperFallsBackWhenValuesSpanBuckets() throws IOException {
+        long[] points = new long[] { 0, 100, 200, 300 };
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(5));
+        try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
+            int docCount = 200;
+            for (int i = 0; i < docCount; i++) {
+                long value = i < 100 ? 150 : 250;
+                iw.addDocument(List.of(SortedNumericDocValuesField.indexedField("field", value)));
+            }
+            iw.forceMerge(1);
+            try (DirectoryReader dr = iw.getReader()) {
+                LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
+                assertNotNull(ctx.reader().getDocValuesSkipper("field"));
+                RoundToLongsFromDocValuesBlockLoader loader = new RoundToLongsFromDocValuesBlockLoader("field", points);
+                try (BlockLoader.ColumnAtATimeReader reader = loader.reader(breaker, ctx)) {
+                    BlockLoader.Docs docs = TestBlock.docs(ctx);
+                    try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs, 0, false)) {
+                        assertThat(block.size(), equalTo(docCount));
+                        for (int i = 0; i < docCount; i++) {
+                            assertThat(block.get(i), equalTo(i < 100 ? 100L : 200L));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Some docs have no value. The skipper should detect gaps and fall back to doc-by-doc.
+     */
+    public void testSkipperFallsBackWithMissingValues() throws IOException {
+        long[] points = new long[] { 0, 100, 200, 300 };
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(5));
+        try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
+            int docCount = 200;
+            for (int i = 0; i < docCount; i++) {
+                if (i % 10 == 0) {
+                    iw.addDocument(List.of());
+                } else {
+                    iw.addDocument(List.of(SortedNumericDocValuesField.indexedField("field", 150)));
+                }
+            }
+            iw.forceMerge(1);
+            try (DirectoryReader dr = iw.getReader()) {
+                LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
+                assertNotNull(ctx.reader().getDocValuesSkipper("field"));
+                RoundToLongsFromDocValuesBlockLoader loader = new RoundToLongsFromDocValuesBlockLoader("field", points);
+                try (BlockLoader.ColumnAtATimeReader reader = loader.reader(breaker, ctx)) {
+                    BlockLoader.Docs docs = TestBlock.docs(ctx);
+                    try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs, 0, false)) {
+                        assertThat(block.size(), equalTo(docCount));
+                        for (int i = 0; i < docCount; i++) {
+                            if (i % 10 == 0) {
+                                assertThat("doc " + i, block.get(i), nullValue());
+                            } else {
+                                assertThat("doc " + i, block.get(i), equalTo(100L));
+                            }
+                        }
+                    }
                 }
             }
         }

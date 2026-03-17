@@ -423,6 +423,15 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
+            public BlockLoader.Block constantLong(long value, int count) {
+                BlockLoader.LongBuilder builder = longs(count);
+                for (int i = 0; i < count; i++) {
+                    builder.appendLong(value);
+                }
+                return builder.build();
+            }
+
+            @Override
             public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(
                 SortedDocValues ordinals,
                 int expectedCount,

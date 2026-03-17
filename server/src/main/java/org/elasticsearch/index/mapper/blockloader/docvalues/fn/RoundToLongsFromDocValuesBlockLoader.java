@@ -9,8 +9,14 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader;
+import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.NumericDvSingletonOrSorted;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
@@ -19,23 +25,34 @@ import java.util.Arrays;
 
 /**
  * Loads {@code long}s from doc values, rounding each value down to one of a sorted list of points.
+ * When a {@link DocValuesSkipper} is available, attempts to shortcircuit entire blocks by checking
+ * whether the min and max values for the block's doc ID range round to the same point.
  */
-public class RoundToLongsFromDocValuesBlockLoader extends AbstractLongsFromDocValuesBlockLoader {
+public class RoundToLongsFromDocValuesBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+    final String fieldName;
     private final long[] points;
 
     public RoundToLongsFromDocValuesBlockLoader(String fieldName, long[] points) {
-        super(fieldName);
+        this.fieldName = fieldName;
         this.points = points;
     }
 
     @Override
-    protected ColumnAtATimeReader singletonReader(TrackingNumericDocValues docValues) {
-        return new RoundToSingleton(docValues, points);
+    public Builder builder(BlockFactory factory, int expectedCount) {
+        return factory.longs(expectedCount);
     }
 
     @Override
-    protected ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues) {
-        return new RoundToSorted(docValues, points);
+    public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        NumericDvSingletonOrSorted dv = NumericDvSingletonOrSorted.get(breaker, context, fieldName);
+        if (dv == null) {
+            return ConstantNull.COLUMN_READER;
+        }
+        DocValuesSkipper skipper = context.reader().getDocValuesSkipper(fieldName);
+        if (dv.singleton() != null) {
+            return new RoundToSingleton(dv.singleton(), points, skipper);
+        }
+        return new RoundToSorted(dv.sorted(), points, skipper);
     }
 
     @Override
@@ -48,18 +65,57 @@ public class RoundToLongsFromDocValuesBlockLoader extends AbstractLongsFromDocVa
         return points[idx >= 0 ? idx : Math.max(0, -idx - 2)];
     }
 
+    /**
+     * Try to return a constant block by checking the skipper's min/max values for the doc range.
+     * Returns {@code null} if the optimization cannot be applied.
+     */
+    @Nullable
+    static Block tryConstantBlock(BlockFactory factory, Docs docs, int offset, long[] points, DocValuesSkipper skipper) throws IOException {
+        if (skipper == null || docs.count() - offset == 0) {
+            return null;
+        }
+        int minDocId = docs.get(offset);
+        int maxDocId = docs.get(docs.count() - 1);
+        skipper.advance(minDocId);
+        if (skipper.minDocID(0) == DocIdSetIterator.NO_MORE_DOCS) {
+            return null;
+        }
+        for (int level = 0; level < skipper.numLevels(); level++) {
+            if (skipper.maxDocID(level) >= maxDocId) {
+                if (skipper.docCount(level) != skipper.maxDocID(level) - skipper.minDocID(level) + 1) {
+                    // some docs are missing, so we have to go doc by doc to get the nulls right
+                    return null;
+                }
+                long roundedMin = roundTo(skipper.minValue(level), points);
+                long roundedMax = roundTo(skipper.maxValue(level), points);
+                if (roundedMin == roundedMax) {
+                    return factory.constantLong(roundedMin, docs.count() - offset);
+                }
+                return null;
+            }
+        }
+        return null;
+    }
+
     private static class RoundToSingleton extends BlockDocValuesReader {
         private final TrackingNumericDocValues numericDocValues;
         private final long[] points;
+        @Nullable
+        private final DocValuesSkipper skipper;
 
-        RoundToSingleton(TrackingNumericDocValues numericDocValues, long[] points) {
+        RoundToSingleton(TrackingNumericDocValues numericDocValues, long[] points, @Nullable DocValuesSkipper skipper) {
             super(null);
             this.numericDocValues = numericDocValues;
             this.points = points;
+            this.skipper = skipper;
         }
 
         @Override
         public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            Block constant = tryConstantBlock(factory, docs, offset, points, skipper);
+            if (constant != null) {
+                return constant;
+            }
             try (LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
@@ -92,15 +148,22 @@ public class RoundToLongsFromDocValuesBlockLoader extends AbstractLongsFromDocVa
     private static class RoundToSorted extends BlockDocValuesReader {
         private final TrackingSortedNumericDocValues numericDocValues;
         private final long[] points;
+        @Nullable
+        private final DocValuesSkipper skipper;
 
-        RoundToSorted(TrackingSortedNumericDocValues numericDocValues, long[] points) {
+        RoundToSorted(TrackingSortedNumericDocValues numericDocValues, long[] points, @Nullable DocValuesSkipper skipper) {
             super(null);
             this.numericDocValues = numericDocValues;
             this.points = points;
+            this.skipper = skipper;
         }
 
         @Override
         public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            Block constant = tryConstantBlock(factory, docs, offset, points, skipper);
+            if (constant != null) {
+                return constant;
+            }
             try (LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);

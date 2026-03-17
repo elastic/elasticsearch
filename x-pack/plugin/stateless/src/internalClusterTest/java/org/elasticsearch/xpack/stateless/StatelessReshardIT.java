@@ -1405,10 +1405,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
     // test GET during resharding
     // Two gets are issued before resharding starts, so they see only the original shard.
-    // They are blocked until resharding completes. The get that still routes to the original
-    // shard should succeed. The get that now routes to the new shard will be rejected at the
-    // original source because we don't have deferral yet (see ES-11536). A subsequent get
-    // for that document created after the split completes should succeed.
+    // They are blocked until resharding completes. Each routes to a different shard. Both should succeed
+    // but the one that routes to the target must retry after the coordinator sees the split.
     public void testGet() throws InterruptedException {
         startMasterOnlyNode();
         startSearchNode();
@@ -1449,7 +1447,6 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         final var SHARD_GET_ACTION = TransportGetAction.TYPE.name() + "[s]";
         final var getPrepared = new CountDownLatch(2);
         final var reshardDone = new CountDownLatch(1);
-        final var getComplete = new CountDownLatch(1);
         final var transportService = MockTransportService.getInstance(indexNode);
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {
             // block GET once it is prepared until resharding completes
@@ -1462,24 +1459,17 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         });
 
         final var getShard0Response = new AtomicReference<GetResponse>();
-        final var getShard0Thread = new Thread(() -> {
-            try {
-                // execute will block until getPrepared counts down
-                getShard0Response.set(
-                    client(indexNode).prepareGet(indexName, shard0docId).setRealtime(false).execute().actionGet(SAFE_AWAIT_TIMEOUT)
-                );
-                getComplete.countDown();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
+        final var getShard0Thread = new Thread(
+            () -> getShard0Response.set(
+                client(indexNode).prepareGet(indexName, shard0docId).setRealtime(false).execute().actionGet(SAFE_AWAIT_TIMEOUT)
+            )
+        );
         getShard0Thread.start();
 
-        // expect exception for doc that routes to shard 1 after delete-unowned completes
+        final var getShard1Response = new AtomicReference<GetResponse>();
         final var getShard1Thread = new Thread(
-            () -> assertThrows(
-                StaleRequestException.class,
-                () -> client(indexNode).prepareGet(indexName, shard1docId).setRealtime(false).execute().actionGet(SAFE_AWAIT_TIMEOUT)
+            () -> getShard1Response.set(
+                client(indexNode).prepareGet(indexName, shard1docId).setRealtime(false).execute().actionGet(SAFE_AWAIT_TIMEOUT)
             )
         );
         getShard1Thread.start();
@@ -1494,15 +1484,11 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         getShard0Thread.join(SAFE_AWAIT_TIMEOUT.millis());
         getShard1Thread.join(SAFE_AWAIT_TIMEOUT.millis());
 
-        response = getShard0Response.get();
-        assertThat("Document should exist on source shard", response.isExists(), is(true));
-        assertThat(response.getSource().get("field"), equalTo("shard0"));
+        assertThat("Document should exist on source shard", getShard0Response.get().isExists(), is(true));
+        assertThat(getShard0Response.get().getSource().get("field"), equalTo("shard0"));
 
-        // the pre-split request for the shard1 doc will have thrown an exception for stale routing but should be available
-        // with a fresh request
-        response = client(indexNode).prepareGet(indexName, shard1docId).setRealtime(false).execute().actionGet(SAFE_AWAIT_TIMEOUT);
-        assertThat("Document should exist on source shard", response.isExists(), is(true));
-        assertThat(response.getSource().get("field"), equalTo("shard1"));
+        assertThat("Document should be found on target shard after retry", getShard1Response.get().isExists(), is(true));
+        assertThat(getShard1Response.get().getSource().get("field"), equalTo("shard1"));
     }
 
     // test MultiGet during resharding - same pattern as testGet but with a single multiget request
@@ -1630,18 +1616,19 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         final var getPrepared = new CountDownLatch(1);
         final var atSplit = new CountDownLatch(1);
-        final var getComplete = new CountDownLatch(1);
+        final var docUpdated = new CountDownLatch(1);
 
         final var indexNodeTransportService = MockTransportService.getInstance(indexNode);
         final var searchNodeTransportService = MockTransportService.getInstance(searchNode);
 
         searchNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            // block GetFromTranslog until resharding reaches DONE
+            // block get_from_translog until resharding reaches SPLIT so that the arriving request will be stale
             if ((TransportGetFromTranslogAction.NAME).equals(action)) {
                 // signal that get has been prepared so resharding can start
                 getPrepared.countDown();
                 try {
-                    atSplit.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+                    docUpdated.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+                    logger.info("sending blocked get from translog");
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
@@ -1653,38 +1640,36 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                 TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
 
                 if (actualRequest instanceof SplitStateRequest splitStateRequest) {
-                    try {
-                        if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT) {
-                            // block SPLIT transition until get has been processed
-                            atSplit.countDown();
-                            getComplete.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
-                        }
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
+                    if (splitStateRequest.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT) {
+                        // block SPLIT transition until get has been prepared
+                        atSplit.countDown();
                     }
                 }
             }
             connection.sendRequest(requestId, action, request, options);
         });
 
-        // expect exception for realtime get that routes to shard 1 after HANDOFF (well, before SPLIT)
-        final var getShard1Thread = new Thread(() -> {
-            assertThrows(
-                StaleRequestException.class,
-                () -> client(searchNode).prepareGet(indexName, shard1docId).setRealtime(true).execute().actionGet(SAFE_AWAIT_TIMEOUT)
-            );
-            // unblock SPLIT transition
-            getComplete.countDown();
-        });
+        final var getShard1Response = new AtomicReference<GetResponse>();
+        final var getShard1Thread = new Thread(
+            () -> getShard1Response.set(
+                client(searchNode).prepareGet(indexName, shard1docId).setRealtime(true).execute().actionGet(SAFE_AWAIT_TIMEOUT)
+            )
+        );
         getShard1Thread.start();
 
         // don't start resharding until get is waiting on search shard
         getPrepared.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
         final var reshardRequest = new ReshardIndexRequest(indexName, 2);
         client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet(SAFE_AWAIT_TIMEOUT);
-        waitForReshardCompletion(indexName);
-
+        atSplit.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        indexDoc(indexName, shard1docId, "field", "shard1_v1");
+        docUpdated.countDown();
         getShard1Thread.join(SAFE_AWAIT_TIMEOUT.millis());
+
+        assertThat(getShard1Response.get().isExists(), is(true));
+        assertThat(getShard1Response.get().getSource().get("field"), equalTo("shard1_v1"));
+
+        waitForReshardCompletion(indexName);
     }
 
     // A successful realtime multiget should return the latest values of docs regardless of refresh.

@@ -283,6 +283,8 @@ public class Reindexer {
             // Inject PIT into the search request so workers can use it; PIT and scroll are mutually exclusive
             searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(pitKeepAlive(request)));
             searchRequest.scroll(null);
+            // PIT defines the index context; indices must not be set on the search request
+            searchRequest.indices(Strings.EMPTY_ARRAY);
             ActionListener<BulkByScrollResponse> listenerWithClosePit = ActionListener.runAfter(
                 l,
                 () -> client.execute(
@@ -366,6 +368,8 @@ public class Reindexer {
             // Inject PIT into the search request so workers can use it; PIT and scroll are mutually exclusive
             searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(pitKeepAlive(request)));
             searchRequest.scroll(null);
+            // PIT defines the index context; indices must not be set on the search request
+            searchRequest.indices(Strings.EMPTY_ARRAY);
             ActionListener<BulkByScrollResponse> listenerWithClosePit = ActionListener.runAfter(
                 listenerWithRelocations,
                 () -> closePit(pitId, RejectAwareActionListener.wrap(v -> closeRestClientAndRun(restClient, () -> {}), e -> {

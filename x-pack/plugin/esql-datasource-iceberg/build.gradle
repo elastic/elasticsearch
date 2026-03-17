@@ -170,12 +170,17 @@ dependencies {
   testImplementation project(xpackModule('esql-core'))
 }
 
+configurations.all {
+  resolutionStrategy.force "io.airlift:aircompressor:${versions.aircompressor}"
+}
+
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
   mapping from: /iceberg-.*/, to: 'iceberg'
   mapping from: /parquet-.*/, to: 'parquet'
   mapping from: /hadoop-.*/, to: 'hadoop'
   mapping from: /log4j-.*/, to: 'log4j'
+  mapping from: /aircompressor-.*/, to: 'iceberg'
 }
 
 tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).configureEach {
@@ -210,6 +215,7 @@ tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).confi
   mapping from: 'third-party-jackson-core', to: 'aws-sdk-2'
   mapping from: 'url-connection-client',    to: 'aws-sdk-2'
   mapping from: 'utils',                    to: 'aws-sdk-2'
+  mapping from: /aircompressor-.*/, to: 'iceberg'
 }
 
 tasks.named("thirdPartyAudit").configure {

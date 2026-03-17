@@ -160,3 +160,42 @@ setup:
           properties:
             embedding:
               type: rank_vectors
+
+---
+"Rank vectors dynamic template with dotted field name and intermediate object":
+  - requires:
+      cluster_features: "mapper.rank_vectors.dynamic_template_dotted_field_fix"
+      reason: "fix for dynamic template with dotted field names"
+  - do:
+      indices.put_template:
+        name: rank-vectors-dotted-template
+        body:
+          index_patterns: ["rank-vectors-dotted-*"]
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            dynamic_templates:
+              - rank_vectors_template:
+                  path_match: "my_vectors.*"
+                  mapping:
+                    type: rank_vectors
+
+  - do:
+      index:
+        index: rank-vectors-dotted-test
+        id: "1"
+        refresh: true
+        body:
+          my_vectors.vector1: [[0.12, -0.34, 0.56], [0.78, -0.91, 0.23]]
+
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+  - do:
+      indices.get_mapping:
+        index: rank-vectors-dotted-test
+
+  - match: { rank-vectors-dotted-test.mappings.properties.my_vectors.properties.vector1.type: rank_vectors }
+  - match: { rank-vectors-dotted-test.mappings.properties.my_vectors.properties.vector1.dims: 3 }

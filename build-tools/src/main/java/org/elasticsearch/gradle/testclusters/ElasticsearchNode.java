@@ -1370,6 +1370,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         baseConfig.put("path.repo", confPathRepo.toAbsolutePath().toString());
         baseConfig.put("path.data", confPathData.toAbsolutePath().toString());
         baseConfig.put("path.logs", confPathLogs.toAbsolutePath().toString());
+        if (Boolean.getBoolean("java.net.preferIPv6Addresses")) {
+            baseConfig.put("network.host", "_local:ipv6_");
+        }
         baseConfig.put("node.attr.testattr", "test");
         baseConfig.put("node.portsfile", "true");
         baseConfig.put("http.port", httpPort);

@@ -56,6 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REPLACE;
@@ -252,6 +253,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             balancingWeightsFactory.create(),
             balancerSettings.completeEarlyOnShardAssignmentChange()
         );
+        return explainShardAllocation(balancer, shard, allocation);
+    }
+
+    private ShardAllocationDecision explainShardAllocation(
+        final Balancer balancer,
+        final ShardRouting shard,
+        final RoutingAllocation allocation
+    ) {
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
         final ProjectIndex index = new ProjectIndex(allocation, shard);
@@ -264,6 +273,24 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
         }
         return new ShardAllocationDecision(allocateUnassignedDecision, moveDecision);
+    }
+
+    @Override
+    public Function<ShardRouting, ShardAllocationDecision> explainShardAllocationFunction(final RoutingAllocation allocation) {
+        final Balancer balancer = new Balancer(
+            writeLoadForecaster,
+            allocation,
+            balancerSettings.getThreshold(),
+            balancingWeightsFactory.create(),
+            balancerSettings.completeEarlyOnShardAssignmentChange()
+        );
+
+        return new Function<ShardRouting, ShardAllocationDecision>() {
+            @Override
+            public ShardAllocationDecision apply(ShardRouting shardRouting) {
+                return explainShardAllocation(balancer, shardRouting, allocation);
+            }
+        };
     }
 
     private void failAllocationOfNewPrimaries(RoutingAllocation allocation) {

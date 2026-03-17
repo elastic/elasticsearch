@@ -68,6 +68,11 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
         return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW.capabilityName()));
     }
 
+    @Override
+    protected String maybeRandomizeQuery(String query) {
+        return randomlyNullify(query);
+    }
+
     @Before
     public void configureChunks() throws IOException {
         assumeTrue("test clusters were broken", testClustersOk);

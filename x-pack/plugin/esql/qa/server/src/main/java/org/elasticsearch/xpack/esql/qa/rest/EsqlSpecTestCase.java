@@ -309,12 +309,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         ).anyMatch(testCase.requiredCapabilities::contains);
     }
 
-    protected boolean supportsIndexModeLookup() throws IOException {
+    protected boolean supportsIndexModeLookup() {
         return true;
     }
 
-    protected boolean supportsSourceFieldMapping() throws IOException {
+    protected boolean supportsSourceFieldMapping() {
         return true;
+    }
+
+    protected String maybeRandomizeQuery(String query) {
+        return query;
     }
 
     protected boolean supportsExponentialHistograms() {
@@ -336,11 +340,26 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.capabilityName()));
     }
 
+    /**
+     * Intended to be used in {@link #maybeRandomizeQuery(String)} except in test cases that do not support {@code nullify}
+     * (e.g. old test cases in bwc tests)
+     */
+    public String randomlyNullify(String query) {
+        return randomBoolean()
+            && testCase.expectedWarnings().isEmpty() // avoid shifting warnings positions in source query
+            && testCase.expectedWarningsRegex().isEmpty() // regexp might also contain line/position
+            && query.startsWith("SET") == false // avoid conflicts with provided settings
+                ? "SET unmapped_fields=\"nullify\"; " + query
+                : query;
+    }
+
     protected void doTest() throws Throwable {
         doTest(testCase.query);
     }
 
     protected final void doTest(String query) throws Throwable {
+        query = maybeRandomizeQuery(query);
+
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
 
         if (query.toUpperCase(Locale.ROOT).contains("LOOKUP_\uD83D\uDC14")) {
@@ -598,7 +617,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return tables;
     }
 
-    protected boolean supportsTook() throws IOException {
+    protected boolean supportsTook() {
         if (supportsTook == null) {
             supportsTook = hasCapabilities(adminClient(), List.of("usage_contains_took"));
         }

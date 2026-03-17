@@ -694,7 +694,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             long actionStartTime = nowSupplier.getAsLong();
 
-            List<Index> indicesEligibleForAction;
+            Set<Index> indicesEligibleForAction;
             if (action.appliesToFailureStore()) {
                 indicesEligibleForAction = dataStream.getIndicesOlderThan(
                     indexName -> projectState.metadata().index(indexName),
@@ -1281,7 +1281,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         }
         try {
             if (dataStream.isIndexManagedByDataStreamLifecycle(currentRunWriteIndex, project::index)) {
-                DataStreamLifecycle lifecycle = rolloverFailureStore ? dataStream.getFailuresLifecycle() : dataStream.getDataLifecycle();
                 RolloverRequest rolloverRequest = getDefaultRolloverRequest(
                     rolloverConfiguration,
                     dataStream.getName(),
@@ -1347,13 +1346,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         if (dataRetention == null && failureRetention == null) {
             return Set.of();
         }
-        List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesOlderThan(
+        Set<Index> backingIndicesOlderThanRetention = dataStream.getIndicesOlderThan(
             project::index,
             nowSupplier,
             dataRetention,
             BACKING_INDICES
         );
-        List<Index> failureIndicesOlderThanRetention = dataStream.getIndicesOlderThan(
+        Set<Index> failureIndicesOlderThanRetention = dataStream.getIndicesOlderThan(
             project::index,
             nowSupplier,
             failureRetention,

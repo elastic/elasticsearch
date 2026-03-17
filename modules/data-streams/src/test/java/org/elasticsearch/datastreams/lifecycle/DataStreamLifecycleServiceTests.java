@@ -258,9 +258,17 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             .stream()
             .map(transportRequest -> (DeleteIndexRequest) transportRequest)
             .toList();
-        assertThat(deleteRequests.get(0).indices()[0], is(dataStream.getIndices().get(0).getName()));
-        assertThat(deleteRequests.get(1).indices()[0], is(dataStream.getIndices().get(1).getName()));
-        assertThat(deleteRequests.get(2).indices()[0], is(dataStream.getFailureIndices().get(0).getName()));
+        Set<String> indicesToDelete = Set.of(
+            deleteRequests.get(0).indices()[0],
+            deleteRequests.get(1).indices()[0],
+            deleteRequests.get(2).indices()[0]
+        );
+        Set<String> indicesInDataStreamToDelete = Set.of(
+            dataStream.getIndices().get(0).getName(),
+            dataStream.getIndices().get(1).getName(),
+            dataStream.getFailureIndices().get(0).getName()
+        );
+        assertThat(indicesToDelete, equalTo(indicesInDataStreamToDelete));
 
         // on the second run the rollover and delete requests should not execute anymore
         // i.e. the count should *remain* 1 for rollover and 2 for deletes
@@ -2098,13 +2106,13 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         builder.put(dataStream);
         ProjectState projectState = projectStateFromProject(builder);
 
-        List<Index> indicesEligible = dataStream.getIndicesOlderThan(projectState.metadata()::index, () -> now, schedule, BACKING_INDICES);
+        Set<Index> indicesEligible = dataStream.getIndicesOlderThan(projectState.metadata()::index, () -> now, schedule, BACKING_INDICES);
 
         // Exclude only the first half of eligible indices
         Set<Index> indicesToExclude = new HashSet<>();
         Set<Index> expectedExcludedIndices = new HashSet<>();
         for (int i = 0; i < indicesEligible.size() / 2; i++) {
-            Index index = indicesEligible.get(i);
+            Index index = indicesEligible.stream().toList().get(i);
             indicesToExclude.add(index);
             expectedExcludedIndices.add(index);
         }
@@ -2122,7 +2130,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         }
 
         for (int i = indicesEligible.size() / 2; i < indicesEligible.size(); i++) {
-            Index nonExcludedIndex = indicesEligible.get(i);
+            Index nonExcludedIndex = indicesEligible.stream().toList().get(i);
             assertThat(
                 "Step should be executed for non-excluded index: " + nonExcludedIndex.getName(),
                 step.executedIndices.contains(nonExcludedIndex.getName()),
@@ -2292,7 +2300,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
 
         assertThat(action.actionScheduleChecked, equalTo(true));
         // When appliesToFailureStore is false, only backing indices should be processed
-        List<Index> backingIndicesEligible = dataStream.getIndicesOlderThan(
+        Set<Index> backingIndicesEligible = dataStream.getIndicesOlderThan(
             projectState.metadata()::index,
             () -> now,
             schedule,
@@ -2333,7 +2341,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
 
         assertThat(action.actionScheduleChecked, equalTo(true));
         // When appliesToFailureStore is true, failure indices should be included
-        List<Index> failureIndicesEligible = dataStream.getIndicesOlderThan(projectState.metadata()::index, () -> now, schedule, ALL);
+        Set<Index> failureIndicesEligible = dataStream.getIndicesOlderThan(projectState.metadata()::index, () -> now, schedule, ALL);
         // all but the write backing index, and write failure index
         assertThat(processedIndices, hasSize(numBackingIndices + numFailureIndices - 2));
         assertThat(step1.executeCount, equalTo(failureIndicesEligible.size()));

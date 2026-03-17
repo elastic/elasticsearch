@@ -73,8 +73,8 @@ public final class SearchShardsResponse extends ActionResponse {
         } else {
             this.resolvedIndexExpressions = null;
         }
-        if (in.getTransportVersion().supports(SEARCH_SHARDS_NUM_SKIPPED) &&
-            in.getTransportVersion().supports(SEARCH_SHARDS_NUM_SKIPPED) == false) {
+        if (in.getTransportVersion().supports(SEARCH_SHARDS_NUM_SKIPPED)
+            && in.getTransportVersion().supports(SEARCH_SHARDS_NUM_SKIPPED) == false) {
             throw new IOException("Bad transport version");
         }
     }

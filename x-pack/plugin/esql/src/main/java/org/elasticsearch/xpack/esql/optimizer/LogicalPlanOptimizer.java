@@ -147,7 +147,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return new Batch<>(
             "Substitutions",
             Limiter.ONCE,
-            new ReplaceSparklineAggregate(),
             new SubstituteSurrogatePlans(),
             // Translate filtered expressions into aggregate with filters - can't use surrogate expressions because it was
             // retrofitted for constant folding - this needs to be fixed.
@@ -166,6 +165,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceAggregateNestedExpressionWithEval(),
             // then extract nested aggs top-level
             new ReplaceAggregateAggExpressionWithEval(),
+            new ReplaceSparklineAggregate(),
             // lastly replace surrogate functions
             new SubstituteSurrogateAggregations(),
             // re-executing the next two rules is a relic of when time series aggregates were translated after surrogate substitution

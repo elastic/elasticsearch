@@ -307,13 +307,7 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
         plan("from test | sort last_name desc | stats s = " + SPARKLINE_EXPR + ", c = count(*) by last_name | sort c desc");
     }
 
-    // TODO: Add test with different key. Currently there is no test mapping with 2 dates values
-    /*public void testMultipleSparklinesDifferentKey() {
-        var e = expectThrows(ParsingException.class, () -> plan("""
-            from test
-            | stats s1 = sparkline(min(salary), hire_date, 10, "2024-01-01", "2024-12-31"),
-                    s2 = sparkline(max(salary), first_name, 10, "2024-01-01", "2024-12-31")
-            """));
-        assertThat(e.getMessage(), containsString("All SPARKLINE functions in a single STATS command must share the same"));
-    }*/
+    public void testSparklineWithCompoundAggregate() {
+        plan("from test | sort last_name desc | stats s = " + SPARKLINE_EXPR + ", c = count(*) / 0.001 by last_name | sort c desc");
+    }
 }

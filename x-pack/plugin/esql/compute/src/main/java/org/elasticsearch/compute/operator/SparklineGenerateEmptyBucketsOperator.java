@@ -50,7 +50,6 @@ public class SparklineGenerateEmptyBucketsOperator implements Operator {
 
     private final DriverContext driverContext;
     private boolean finished;
-    private final Deque<Page> inputPages;
     private final Deque<Page> outputPages;
     private final int numValueColumns;
     private final List<Long> dateBuckets;
@@ -64,7 +63,6 @@ public class SparklineGenerateEmptyBucketsOperator implements Operator {
     ) {
         this.driverContext = driverContext;
         this.finished = false;
-        inputPages = new ArrayDeque<>();
         outputPages = new ArrayDeque<>();
         this.numValueColumns = numValueColumns;
         this.dateBuckets = calculateDateBuckets(dateBucketRounding, minDate, maxDate);
@@ -77,14 +75,17 @@ public class SparklineGenerateEmptyBucketsOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
-        inputPages.add(page);
+        try {
+            createOutputPage(page);
+        } finally {
+            page.releaseBlocks();
+        }
     }
 
     @Override
     public void finish() {
         if (finished == false) {
             finished = true;
-            createOutputPages();
         }
     }
 
@@ -108,9 +109,6 @@ public class SparklineGenerateEmptyBucketsOperator implements Operator {
 
     @Override
     public void close() {
-        for (Page page : inputPages) {
-            page.releaseBlocks();
-        }
         for (Page page : outputPages) {
             page.releaseBlocks();
         }
@@ -121,61 +119,58 @@ public class SparklineGenerateEmptyBucketsOperator implements Operator {
         return "SparklineGenerateEmptyBucketsOperator[numValueColumns=" + numValueColumns + "]";
     }
 
-    private void createOutputPages() {
-        for (Page inputPage : inputPages) {
-            LongBlock dateBlock = inputPage.getBlock(numValueColumns);
-            int positionCount = inputPage.getBlock(0).getPositionCount();
+    private void createOutputPage(Page inputPage) {
+        LongBlock dateBlock = inputPage.getBlock(numValueColumns);
+        int positionCount = inputPage.getBlock(0).getPositionCount();
 
-            Block[] outputValueBlocks = new Block[numValueColumns];
-            try {
-                for (int v = 0; v < numValueColumns; v++) {
-                    Block valueBlock = inputPage.getBlock(v);
-                    try (
-                        OutputBucketedSort outputBucketedSort = new OutputBucketedSort(
-                            valueBlock,
-                            driverContext.bigArrays(),
-                            dateBuckets.size()
-                        )
-                    ) {
-                        for (int groupId = 0; groupId < positionCount; groupId++) {
-                            int startGroupIndex = valueBlock.getFirstValueIndex(groupId);
-                            int endGroupIndex = startGroupIndex + valueBlock.getValueCount(groupId);
-                            int currentIndex = startGroupIndex;
-                            for (long dateBucket : dateBuckets) {
-                                if (dateBlock.areAllValuesNull() == false
-                                    && currentIndex < endGroupIndex
-                                    && dateBucket == dateBlock.getLong(currentIndex)) {
-                                    outputBucketedSort.collectValueBlockValueAtIndex(dateBucket, groupId, currentIndex);
-                                    currentIndex++;
-                                } else {
-                                    outputBucketedSort.collectDefaultValue(dateBucket, groupId);
-                                }
+        Block[] outputValueBlocks = new Block[numValueColumns];
+        try {
+            for (int v = 0; v < numValueColumns; v++) {
+                Block valueBlock = inputPage.getBlock(v);
+                try (
+                    OutputBucketedSort outputBucketedSort = new OutputBucketedSort(
+                        valueBlock,
+                        driverContext.bigArrays(),
+                        dateBuckets.size()
+                    )
+                ) {
+                    for (int groupId = 0; groupId < positionCount; groupId++) {
+                        int startGroupIndex = valueBlock.getFirstValueIndex(groupId);
+                        int endGroupIndex = startGroupIndex + valueBlock.getValueCount(groupId);
+                        int currentIndex = startGroupIndex;
+                        for (long dateBucket : dateBuckets) {
+                            if (dateBlock.areAllValuesNull() == false
+                                && currentIndex < endGroupIndex
+                                && dateBucket == dateBlock.getLong(currentIndex)) {
+                                outputBucketedSort.collectValueBlockValueAtIndex(dateBucket, groupId, currentIndex);
+                                currentIndex++;
+                            } else {
+                                outputBucketedSort.collectDefaultValue(dateBucket, groupId);
                             }
                         }
-
-                        Block[] sortBlocks = new Block[2];
-                        try (IntVector groupIds = driverContext.blockFactory().newIntRangeVector(0, positionCount)) {
-                            outputBucketedSort.toBlocks(driverContext.blockFactory(), sortBlocks, groupIds);
-                        }
-                        sortBlocks[0].close();
-                        outputValueBlocks[v] = sortBlocks[1];
                     }
-                }
-            } catch (Exception e) {
-                Releasables.closeExpectNoException(outputValueBlocks);
-                throw e;
-            }
 
-            Page outputPage = new Page(outputValueBlocks);
-            int passthroughStart = numValueColumns + 1;
-            for (int i = passthroughStart; i < inputPage.getBlockCount(); i++) {
-                Block passthroughBlock = inputPage.getBlock(i);
-                passthroughBlock.incRef();
-                outputPage = outputPage.appendBlock(passthroughBlock);
-                // outputPage = outputPage.appendBlock(inputPage.getBlock(i));
+                    Block[] sortBlocks = new Block[2];
+                    try (IntVector groupIds = driverContext.blockFactory().newIntRangeVector(0, positionCount)) {
+                        outputBucketedSort.toBlocks(driverContext.blockFactory(), sortBlocks, groupIds);
+                    }
+                    sortBlocks[0].close();
+                    outputValueBlocks[v] = sortBlocks[1];
+                }
             }
-            outputPages.add(outputPage);
+        } catch (Exception e) {
+            Releasables.closeExpectNoException(outputValueBlocks);
+            throw e;
         }
+
+        Page outputPage = new Page(outputValueBlocks);
+        int passthroughStart = numValueColumns + 1;
+        for (int i = passthroughStart; i < inputPage.getBlockCount(); i++) {
+            Block passthroughBlock = inputPage.getBlock(i);
+            passthroughBlock.incRef();
+            outputPage = outputPage.appendBlock(passthroughBlock);
+        }
+        outputPages.add(outputPage);
     }
 
     private List<Long> calculateDateBuckets(Rounding.Prepared dateBucketRounding, long minDate, long maxDate) {

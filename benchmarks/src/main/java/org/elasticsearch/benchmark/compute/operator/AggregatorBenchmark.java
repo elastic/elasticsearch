@@ -197,14 +197,12 @@ public class AggregatorBenchmark {
             );
             default -> throw new IllegalArgumentException("unsupported grouping [" + grouping + "]");
         };
-        return new HashAggregationOperator(
-            AggregatorMode.SINGLE,
-            List.of(supplier(op, dataType, filter).groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(groups.size()))),
-            () -> BlockHash.build(groups, driverContext.blockFactory(), 16 * 1024, false),
-            Integer.MAX_VALUE,
-            1.0,
-            driverContext
-        );
+
+        return new HashAggregationOperator.Builder().mode(AggregatorMode.SINGLE)
+            .aggregators(List.of(supplier(op, dataType, filter).groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(groups.size()))))
+            .groups(groups)
+            .build()
+            .get(driverContext);
     }
 
     private static AggregatorFunctionSupplier supplier(String op, String dataType, String filter) {

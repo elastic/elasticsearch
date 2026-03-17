@@ -367,8 +367,7 @@ public class Verifier {
     }
 
     /**
-     * {@link TimestampAware} functions implicitly reference {@code @timestamp} and require the field to be present in the index mapping.
-     * The {@code unmapped_fields} setting does not apply to the implicit {@code @timestamp} reference.
+     * The {@code unmapped_fields} setting does not apply to the implicit {@code @timestamp} reference ({@link TimestampAware} functions).
      * Only emits the specific message when {@code @timestamp} is truly absent from all source index mappings;
      * if the field was present but dropped/renamed by the query, the generic unresolved-attribute message is more appropriate.
      * See https://github.com/elastic/elasticsearch/issues/142127

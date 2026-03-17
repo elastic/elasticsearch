@@ -395,6 +395,10 @@ dfs profile for search with dfs_query_then_fetch:
               keyword:
                 type: "keyword"
 
+  - do:
+      indices.refresh:
+        index: keywords
+
   # test with no indexed documents
   # expect both shards to have dfs profiles
   - do:

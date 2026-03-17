@@ -25,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 public class RedirectTestCommand extends Command {
 
     static final String USER_OUTPUT = "user-output";
+    static final String ERROR_OUTPUT = "error-output";
     static final byte[] SENTINEL_BYTES = "DESC".getBytes(StandardCharsets.UTF_8);
 
     RedirectTestCommand() {
@@ -34,6 +35,7 @@ public class RedirectTestCommand extends Command {
     @Override
     protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
         terminal.println(USER_OUTPUT);
+        terminal.errorPrintln(ERROR_OUTPUT);
         var out = terminal.getOutputStream();
         if (out != null) {
             out.write(SENTINEL_BYTES);

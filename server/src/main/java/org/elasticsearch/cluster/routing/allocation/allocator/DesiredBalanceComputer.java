@@ -584,8 +584,6 @@ public class DesiredBalanceComputer {
         for (var startedShard : startedShards) {
             // The source node is found by checking whether the ClusterInfo has a node hosting a shard with the same ShardId
             // and has compatible node role. If multiple nodes are found, simply pick the first one.
-            // TODO: this means that we might not pick the right source node, because might be multiple nodes that moved a copy of the
-            // same shard. Works in index tier, for write load, since only a single shard copy. Need to fix this soon.
             final var sourceNodeId = clusterInfo.getNodeIdsForShard(startedShard.shardId())
                 .stream()
                 // Do not use the same source node twice for the same shard

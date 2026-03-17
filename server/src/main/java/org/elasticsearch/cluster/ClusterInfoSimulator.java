@@ -131,7 +131,7 @@ public class ClusterInfoSimulator {
             }
         }
 
-        simulateHeapUsageChange(shard, includeIndexUsage);
+        simulateHeapUsageChangeAfterShardStarted(shard, includeIndexUsage);
         shardMovementWriteLoadSimulator.simulateShardStarted(shard);
     }
 
@@ -160,19 +160,18 @@ public class ClusterInfoSimulator {
     /**
      * Handles the simulated node heap usage change when a shard relocates / is newly assigned.
      */
-    private void simulateHeapUsageChange(ShardRouting shard, boolean includeIndexUsage) {
+    private void simulateHeapUsageChangeAfterShardStarted(ShardRouting shard, boolean includeIndexUsage) {
+        // Started on, or relocate to, the current node assignment.
+        modifyHeapUsage(allocation.routingNodes().node(shard.currentNodeId()), shard.shardId(), Modification.ADD, includeIndexUsage);
+
         if (shard.relocatingNodeId() != null) {
-            // Shard relocation
+            // Shard relocation from another node, so remove the stats from the previous node.
             modifyHeapUsage(
                 allocation.routingNodes().node(shard.relocatingNodeId()),
                 shard.shardId(),
                 Modification.REMOVE,
                 includeIndexUsage
             );
-            modifyHeapUsage(allocation.routingNodes().node(shard.currentNodeId()), shard.shardId(), Modification.ADD, includeIndexUsage);
-        } else {
-            // New shard
-            modifyHeapUsage(allocation.routingNodes().node(shard.currentNodeId()), shard.shardId(), Modification.ADD, includeIndexUsage);
         }
     }
 

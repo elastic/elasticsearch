@@ -571,14 +571,19 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         worker.rethrottle(1f);
         action.start();
 
-        // create a simulated response.
-        SearchHit hit = SearchHit.unpooled(0, "id").sourceRef(new BytesArray("{}"));
-        SearchHits hits = SearchHits.unpooled(
-            IntStream.range(0, 100).mapToObj(i -> hit).toArray(SearchHit[]::new),
-            new TotalHits(0, TotalHits.Relation.EQUAL_TO),
-            0
-        );
-        SearchResponse searchResponse = SearchResponseUtils.response(hits).scrollId(scrollId()).shards(5, 4, 0).build();
+        // create a simulated response with distinct pooled hits (one for initial search, one for scroll to avoid ref-count reuse)
+        SearchHit[] searchHitArray = IntStream.range(0, 100)
+            .mapToObj(i -> new SearchHit(i, "id").sourceRef(new BytesArray("{}")))
+            .toArray(SearchHit[]::new);
+        SearchHits searchHits = new SearchHits(searchHitArray, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0);
+        SearchResponse searchResponse = SearchResponseUtils.response(searchHits).scrollId(scrollId()).shards(5, 4, 0).build();
+        searchHits.decRef(); // transfer ownership to searchResponse
+        SearchHit[] scrollHitArray = IntStream.range(0, 100)
+            .mapToObj(i -> new SearchHit(i, "id").sourceRef(new BytesArray("{}")))
+            .toArray(SearchHit[]::new);
+        SearchHits scrollHits = new SearchHits(scrollHitArray, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0);
+        SearchResponse scrollResponse = SearchResponseUtils.response(scrollHits).scrollId(scrollId()).shards(5, 4, 0).build();
+        scrollHits.decRef(); // transfer ownership to scrollResponse
         try {
             client.lastSearch.get().listener.onResponse(searchResponse);
 
@@ -588,14 +593,14 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             // So the next request is going to have to wait an extra 100 seconds or so (base was 10 seconds, so 110ish)
             assertThat(client.lastScroll.get().request.scroll().seconds(), either(equalTo(110L)).or(equalTo(109L)));
 
-            // Now we can simulate a response and check the delay that we used for the task
+            // Now we can simulate a response and check the delay that we used for the task (use separate response for scroll)
             if (randomBoolean()) {
-                client.lastScroll.get().listener.onResponse(searchResponse);
+                client.lastScroll.get().listener.onResponse(scrollResponse);
                 assertEquals(99, capturedDelay.get().seconds());
             } else {
                 // Let's rethrottle between the starting the scroll and getting the response
                 worker.rethrottle(10f);
-                client.lastScroll.get().listener.onResponse(searchResponse);
+                client.lastScroll.get().listener.onResponse(scrollResponse);
                 // The delay uses the new throttle
                 assertEquals(9, capturedDelay.get().seconds());
             }
@@ -605,6 +610,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             assertEquals(capturedDelay.get(), testTask.getStatus().getThrottled());
         } finally {
             searchResponse.decRef();
+            scrollResponse.decRef();
         }
     }
 
@@ -625,14 +631,14 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             request.add(new IndexRequest("index").id("id" + i));
         }
         if (failWithRejection) {
-            action.sendBulkRequest(request, Assert::fail);
+            action.sendBulkRequest(request, emptyList(), Assert::fail);
             BulkByScrollResponse response = listener.get();
             assertThat(response.getBulkFailures(), hasSize(1));
             assertEquals(response.getBulkFailures().get(0).getStatus(), RestStatus.TOO_MANY_REQUESTS);
             assertThat(response.getSearchFailures(), empty());
             assertNull(response.getReasonCancelled());
         } else {
-            assertExactlyOnce(onSuccess -> action.sendBulkRequest(request, onSuccess));
+            assertExactlyOnce(onSuccess -> action.sendBulkRequest(request, emptyList(), onSuccess));
         }
     }
 
@@ -701,7 +707,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     public void testCancelBeforeSendBulkRequest() throws Exception {
-        cancelTaskCase((DummyAsyncBulkByScrollAction action) -> action.sendBulkRequest(new BulkRequest(), Assert::fail));
+        cancelTaskCase((DummyAsyncBulkByScrollAction action) -> action.sendBulkRequest(new BulkRequest(), emptyList(), Assert::fail));
     }
 
     public void testCancelBeforeOnBulkResponse() throws Exception {

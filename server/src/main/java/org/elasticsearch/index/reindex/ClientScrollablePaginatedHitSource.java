@@ -172,8 +172,14 @@ public class ClientScrollablePaginatedHitSource extends PaginatedHitSource {
         private final BytesReference source;
 
         ClientHit(SearchHit delegate) {
-            this.delegate = delegate.asUnpooled(); // TODO: use pooled version here
+            delegate.mustIncRef();
+            this.delegate = delegate;
             source = this.delegate.hasSource() ? this.delegate.getSourceRef() : null;
+        }
+
+        @Override
+        public void release() {
+            delegate.decRef();
         }
 
         @Override

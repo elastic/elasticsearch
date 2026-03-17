@@ -210,18 +210,23 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
             prepareSearch(sourceIndex).setSize(numDocs) // Get all indexed docs
                 .addSort(SORTING_FIELD, SortOrder.DESC),
             response -> {
-                // Modify a subset of the target documents concurrently
-                final List<SearchHit> originalDocs = Arrays.asList(response.getHits().asUnpooled().getHits());
-                docsModifiedConcurrently.addAll(randomSubsetOf(finalConflictingOps, originalDocs));
+                // Modify a subset of the target documents concurrently; take a ref on each hit we keep
+                final SearchHit[] hits = response.getHits().getHits();
+                final List<SearchHit> originalDocs = Arrays.asList(hits);
+                for (SearchHit hit : randomSubsetOf(finalConflictingOps, originalDocs)) {
+                    hit.mustIncRef();
+                    docsModifiedConcurrently.add(hit);
+                }
             }
         );
-        BulkRequest conflictingUpdatesBulkRequest = new BulkRequest();
-        for (SearchHit searchHit : docsModifiedConcurrently) {
-            if (scriptEnabled && searchHit.getSourceAsMap().containsKey(RETURN_NOOP_FIELD)) {
-                conflictingOps--;
+        try {
+            BulkRequest conflictingUpdatesBulkRequest = new BulkRequest();
+            for (SearchHit searchHit : docsModifiedConcurrently) {
+                if (scriptEnabled && searchHit.getSourceAsMap().containsKey(RETURN_NOOP_FIELD)) {
+                    conflictingOps--;
+                }
+                conflictingUpdatesBulkRequest.add(createUpdatedIndexRequest(searchHit, targetIndex, useOptimisticConcurrency));
             }
-            conflictingUpdatesBulkRequest.add(createUpdatedIndexRequest(searchHit, targetIndex, useOptimisticConcurrency));
-        }
 
         // The bulk request is enqueued before the update by query
         // Since #77731 TransportBulkAction is dispatched into the Write thread pool,
@@ -264,6 +269,11 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         int successfulOps = Math.min(candidateOps - conflictingOps, maxDocs);
         assertThat(bulkByScrollResponse.getNoops(), is((long) (scriptEnabled ? maxDocs : 0)));
         resultConsumer.accept(bulkByScrollResponse, successfulOps);
+        } finally {
+            for (SearchHit hit : docsModifiedConcurrently) {
+                hit.decRef();
+            }
+        }
     }
 
     private void createIndexWithSingleShard(String index) throws Exception {

@@ -62,6 +62,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 
@@ -112,6 +113,11 @@ public abstract class AbstractAsyncBulkByScrollAction<
      */
     private final BiFunction<RequestWrapper<?>, PaginatedHitSource.Hit, RequestWrapper<?>> scriptApplier;
     private int lastBatchSize;
+    /**
+     * The current scroll response being processed. Set atomically so that either {@link #prepareBulkRequest} or
+     * {@link #finishHim(Exception, List, List, boolean)} can claim exclusive ownership of the remaining hits and release them exactly once.
+     */
+    private final AtomicReference<ScrollConsumableHitsResponse> currentScrollResponse = new AtomicReference<>();
     /**
      * Keeps track of the total number of bulk operations performed
      * from a single scroll response. It is possible that
@@ -299,6 +305,12 @@ public abstract class AbstractAsyncBulkByScrollAction<
         return bulkRequest;
     }
 
+    private static void releaseHits(List<? extends PaginatedHitSource.Hit> hits) {
+        for (PaginatedHitSource.Hit hit : hits) {
+            hit.release();
+        }
+    }
+
     protected PaginatedHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
         return new ClientScrollablePaginatedHitSource(
             logger,
@@ -369,10 +381,14 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * @param asyncResponse the response to process from {@link PaginatedHitSource}
      */
     void onScrollResponse(long lastBatchStartTimeNS, int lastBatchSizeToUse, ScrollConsumableHitsResponse asyncResponse) {
+        currentScrollResponse.set(asyncResponse);
         PaginatedHitSource.Response response = asyncResponse.response();
         logger.debug("[{}]: got scroll response with [{}] hits", task.getId(), asyncResponse.remainingHits());
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
+            if (currentScrollResponse.compareAndSet(asyncResponse, null)) {
+                asyncResponse.releaseRemainingHits();
+            }
             finishHim(null);
             return;
         }
@@ -380,6 +396,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
         (response.getFailures().size() > 0)
             // Timeouts aren't shard failures but we still need to pass them back to the user.
             || response.isTimedOut()) {
+            if (currentScrollResponse.compareAndSet(asyncResponse, null)) {
+                asyncResponse.releaseRemainingHits();
+            }
             refreshAndFinish(emptyList(), response.getFailures(), response.isTimedOut());
             return;
         }
@@ -400,6 +419,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
 
             @Override
             public void onFailure(Exception e) {
+                if (currentScrollResponse.compareAndSet(asyncResponse, null)) {
+                    asyncResponse.releaseRemainingHits();
+                }
                 finishHim(e);
             }
         };
@@ -414,8 +436,14 @@ public abstract class AbstractAsyncBulkByScrollAction<
      */
     void prepareBulkRequest(long thisBatchStartTimeNS, ScrollConsumableHitsResponse asyncResponse) {
         logger.debug("[{}]: preparing bulk request", task.getId());
+        // Atomically claim ownership of the response. If finishHim already claimed it (CAS returns false),
+        // the hits have already been released — nothing to do here.
+        if (currentScrollResponse.compareAndSet(asyncResponse, null) == false) {
+            return;
+        }
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
+            asyncResponse.releaseRemainingHits();
             finishHim(null);
             return;
         }
@@ -436,23 +464,30 @@ public abstract class AbstractAsyncBulkByScrollAction<
             hits = asyncResponse.consumeRemainingHits();
         }
 
+        // If there are unconsumed hits (e.g. maxDocs truncated the batch), restore the reference so finishHim can release them
+        // if the operation ends before the next prepareBulkRequest runs (e.g. bulk failure, maxDocs reached in onBulkResponse).
+        if (asyncResponse.hasRemainingHits()) {
+            currentScrollResponse.set(asyncResponse);
+        }
+
         BulkRequest request = buildBulk(hits);
         if (request.requests().isEmpty()) {
             /*
              * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.
              */
+            releaseHits(hits);
             notifyDone(thisBatchStartTimeNS, asyncResponse, 0);
             return;
         }
         request.timeout(mainRequest.getTimeout());
         request.waitForActiveShards(mainRequest.getWaitForActiveShards());
-        sendBulkRequest(request, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size()));
+        sendBulkRequest(request, hits, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size()));
     }
 
     /**
-     * Send a bulk request, handling retries.
+     * Send a bulk request, handling retries. Releases {@code batchHits} on both success and failure so they are never leaked.
      */
-    void sendBulkRequest(BulkRequest request, Runnable onSuccess) {
+    void sendBulkRequest(BulkRequest request, List<? extends PaginatedHitSource.Hit> batchHits, Runnable onSuccess) {
         final int requestSize = request.requests().size();
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -464,6 +499,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
+            releaseHits(batchHits);
             finishHim(null);
             return;
         }
@@ -471,11 +507,13 @@ public abstract class AbstractAsyncBulkByScrollAction<
             @Override
             public void onResponse(BulkResponse response) {
                 logger.debug("[{}]: completed [{}] entry bulk request", task.getId(), requestSize);
+                releaseHits(batchHits);
                 onBulkResponse(response, onSuccess);
             }
 
             @Override
             public void onFailure(Exception e) {
+                releaseHits(batchHits);
                 finishHim(e);
             }
         });
@@ -651,6 +689,13 @@ public abstract class AbstractAsyncBulkByScrollAction<
      */
     protected void finishHim(Exception failure, List<Failure> indexingFailures, List<SearchFailure> searchFailures, boolean timedOut) {
         logger.debug("[{}]: finishing without any catastrophic failures", task.getId());
+        // Atomically claim the current response. If prepareBulkRequest already claimed it (null), this is a no-op.
+        // If we win the CAS, we release any hits that were not yet consumed (i.e. from consumedOffset to end).
+        // This covers: prepareBulkRequest hasn't run yet (consumedOffset == 0) and the maxDocs partial-batch case.
+        ScrollConsumableHitsResponse toRelease = currentScrollResponse.getAndSet(null);
+        if (toRelease != null) {
+            toRelease.releaseRemainingHits();
+        }
         paginatedHitSource.close(threadPool.getThreadContext().preserveContext(() -> {
             if (failure == null) {
                 BulkByScrollResponse response = buildResponse(
@@ -988,6 +1033,16 @@ public abstract class AbstractAsyncBulkByScrollAction<
 
         int remainingHits() {
             return hits.size() - consumedOffset;
+        }
+
+        /**
+         * Release only the unconsumed hits (from consumedOffset to end). Call before fetching the next scroll when there are remaining hits
+         * so they are not leaked.
+         */
+        void releaseRemainingHits() {
+            for (int i = consumedOffset; i < hits.size(); i++) {
+                hits.get(i).release();
+            }
         }
 
         void done(TimeValue extraKeepAlive) {

@@ -293,6 +293,12 @@ public abstract class PaginatedHitSource {
          */
         @Nullable
         String getRouting();
+
+        /**
+         * Release any ref-counted resources held by this hit. Call when the hit is no longer needed.
+         * Default is no-op; implementations that wrap ref-counted resources (e.g. {@link SearchHit}) override to release.
+         */
+        default void release() {}
     }
 
     /**

@@ -1,7 +1,7 @@
 ---
 "Coalesce and to_ip functions":
   - requires:
-      cluster_features: [ "gte_v8.12.0" ]
+      cluster_features: ["gte_v8.12.0"]
       reason: "fixes in 8.12 or later"
       test_runner_features: allowed_warnings_regex
   - do:
@@ -30,7 +30,7 @@
 
   - length: { values: 2 }
   - match: { values.0: [ 10, null ] }
-  - match: { values.1: [ 20, "255.255.255.255" ] }
+  - match: { values.1: [ 20, "255.255.255.255"] }
 
 
   - do:
@@ -53,12 +53,12 @@
 
   - length: { values: 2 }
   - match: { values.0: [ 10, "127.00.1", "127.00.1", null ] }
-  - match: { values.1: [ 20, null, "255.255.255.255", "255.255.255.255" ] }
+  - match: { values.1: [ 20, null, "255.255.255.255", "255.255.255.255"] }
 
 ---
 "unsupported and invalid mapped fields":
   - requires:
-      cluster_features: [ "gte_v8.13.0" ]
+      cluster_features: ["gte_v8.13.0"]
       reason: "fixes in 8.13 or later"
   - do:
       indices.create:
@@ -129,7 +129,7 @@
 ---
 "null MappedFieldType on single value detection #103141":
   - requires:
-      cluster_features: [ "gte_v8.13.0" ]
+      cluster_features: ["gte_v8.13.0"]
       reason: "fixes in 8.13 or later"
   - do:
       indices.create:
@@ -198,7 +198,7 @@
 ---
 "text in functions #105379":
   - requires:
-      cluster_features: [ "gte_v8.14.0" ]
+      cluster_features: ["gte_v8.14.0"]
       reason: "fixes in 8.13 or later"
   - do:
       indices.create:
@@ -222,7 +222,7 @@
         refresh: true
         body:
           - { "index": { "_index": "idx_with_date_ip_txt" } }
-          - { "id": 1, "date": "2024-03-22T14:50:00.000Z", "ip": "192.168.0.10", "text": "yyyy-MM-dd", "text2": "year" }
+          - { "id": 1, "date": "2024-03-22T14:50:00.000Z", "ip": "192.168.0.10", "text":"yyyy-MM-dd", "text2":"year" }
           - { "index": { "_index": "idx_with_date_ip_txt" } }
           - { "id": 2, "date": "2024-03-22T14:50:00.000Z", "ip": "192.168.0.10", "text": "192.168.0.0/16" }
           - { "index": { "_index": "idx_with_date_ip_txt" } }
@@ -267,10 +267,10 @@
                 type: boolean
               double:
                 type: double
-              integer:
-                type: integer
-              keyword:
-                type: keyword
+              integer :
+                type : integer
+              keyword :
+                type : keyword
               long:
                 type: long
 
@@ -279,7 +279,7 @@
         refresh: true
         body:
           - { "index": { "_index": "idx_with_multivalues" } }
-          - { "boolean": [ true,false,false,true ], "keyword": [ foo,bar,bar,foo ], "integer": [ 1,2,2,1 ], "long": [ 1,2,2,1 ], "double": [ 1.1,2.2,2.2,1.1 ] }
+          - { "boolean": [true,false,false,true], "keyword": [foo,bar,bar,foo], "integer": [1,2,2,1], "long": [1,2,2,1], "double": [1.1,2.2,2.2,1.1] }
   - do:
       esql.query:
         body:
@@ -295,22 +295,22 @@
   - match: { columns.4.name: d }
   - match: { columns.4.type: double }
   - length: { values: 1 }
-  - match: { values.0.0: [ false, true ] }
-  - match: { values.0.1: [ "bar", "foo" ] }
-  - match: { values.0.2: [ 1, 2 ] }
-  - match: { values.0.3: [ 1, 2 ] }
-  - match: { values.0.4: [ 1.1, 2.2 ] }
+  - match: { values.0.0: [false, true] }
+  - match: { values.0.1: ["bar", "foo"] }
+  - match: { values.0.2: [1, 2] }
+  - match: { values.0.3: [1, 2] }
+  - match: { values.0.4: [1.1, 2.2] }
 
 
 ---
 "grok with duplicate names and different types #110533":
   - requires:
-      test_runner_features: [ capabilities ]
+      test_runner_features: [capabilities]
       capabilities:
         - method: POST
           path: /_query
-          parameters: [ ]
-          capabilities: [ grok_validation ]
+          parameters: []
+          capabilities: [grok_validation]
       reason: "fixed grok validation with patterns containing the same attribute multiple times with different types"
   - do:
       indices.create:
@@ -318,8 +318,8 @@
         body:
           mappings:
             properties:
-              first_name:
-                type: keyword
+              first_name :
+                type : keyword
               last_name:
                 type: keyword
 
@@ -328,7 +328,7 @@
         refresh: true
         body:
           - { "index": { "_index": "test_grok" } }
-          - { "first_name": "Georgi", "last_name": "Facello" }
+          - { "first_name": "Georgi", "last_name":"Facello" }
 
   - do:
       catch: '/Invalid GROK pattern \[%\{NUMBER:foo\} %\{WORD:foo\}\]: the attribute \[foo\] is defined multiple times with different types/'
@@ -338,12 +338,12 @@
 ---
 "union types with null blocks from missing fields #125850":
   - requires:
-      test_runner_features: [ allowed_warnings_regex, capabilities ]
+      test_runner_features: [allowed_warnings_regex, capabilities]
       capabilities:
         - method: POST
           path: /_query
-          parameters: [ ]
-          capabilities: [ fix_doubly_released_null_blocks_in_valuesourcereader ]
+          parameters: []
+          capabilities: [fix_doubly_released_null_blocks_in_valuesourcereader]
       reason: "fixed handing out already closed null block references in ValueSourceReader"
   - do:
       indices.create:
@@ -351,9 +351,9 @@
         body:
           mappings:
             properties:
-              truefalse1:
-                type: boolean
-              truefalse2:
+              truefalse1 :
+                type : boolean
+              truefalse2 :
                 type: boolean
   - do:
       indices.create:
@@ -361,16 +361,16 @@
         body:
           mappings:
             properties:
-              truefalse1:
-                type: keyword
-              truefalse2:
+              truefalse1 :
+                type : keyword
+              truefalse2 :
                 type: keyword
   - do:
       bulk:
         refresh: true
         body:
           - { "index": { "_index": "test1" } }
-          - { "truefalse1": null }
+          - { "truefalse1": null}
           - { "index": { "_index": "test2" } }
           - { "truefalse1": null }
 
@@ -394,12 +394,12 @@
 ---
 "Limit truncation with zero columns #142473":
   - requires:
-      test_runner_features: [ capabilities ]
+      test_runner_features: [capabilities]
       capabilities:
         - method: POST
           path: /_query
-          parameters: [ ]
-          capabilities: [ fix_limit_truncation_with_zero_columns ]
+          parameters: []
+          capabilities: [fix_limit_truncation_with_zero_columns]
       reason: "fixed LimitOperator truncation with zero columns"
   - do:
       indices.create:

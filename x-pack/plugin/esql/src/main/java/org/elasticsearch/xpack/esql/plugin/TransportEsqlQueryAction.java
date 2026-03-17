@@ -450,7 +450,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             }
             // Quick way to get the approximation column metadata in the response
             // without a full implementation of a colum metadata service.
-            // TODO: remove this hack when we have a proper column metadata service
+            // TODO: remove this hack when we have a proper column metadata service,
+            // see https://github.com/elastic/elasticsearch/issues/138223
             Map<String, Object> columnMetadata = ApproximationPlan.columnMetadata(c);
             return new ColumnInfoImpl(c.name(), c.dataType(), originalTypes, columnMetadata);
         }).toList();

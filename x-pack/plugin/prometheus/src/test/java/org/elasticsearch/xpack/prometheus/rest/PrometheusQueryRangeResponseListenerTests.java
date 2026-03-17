@@ -35,17 +35,17 @@ public class PrometheusQueryRangeResponseListenerTests extends ESTestCase {
     public void testConvertRangeQueryWithIndividualLabels() throws IOException {
         List<TestColumnInfo> columns = List.of(
             new TestColumnInfo("value", "double"),
+            new TestColumnInfo("step", "long"),
             new TestColumnInfo("__name__", "keyword"),
             new TestColumnInfo("instance", "keyword"),
-            new TestColumnInfo("job", "keyword"),
-            new TestColumnInfo("step", "long")
+            new TestColumnInfo("job", "keyword")
         );
 
         List<List<Object>> rows = List.of(
-            List.of(1.5, "http_requests_total", "localhost:9090", "prometheus", 1735689600000L),
-            List.of(2.0, "http_requests_total", "localhost:9090", "prometheus", 1735689660000L),
-            List.of(3.0, "http_requests_total", "localhost:9091", "prometheus", 1735689600000L),
-            List.of(4.0, "http_requests_total", "localhost:9091", "prometheus", 1735689660000L)
+            List.of(1.5, 1735689600000L, "http_requests_total", "localhost:9090", "prometheus"),
+            List.of(2.0, 1735689660000L, "http_requests_total", "localhost:9090", "prometheus"),
+            List.of(3.0, 1735689600000L, "http_requests_total", "localhost:9091", "prometheus"),
+            List.of(4.0, 1735689660000L, "http_requests_total", "localhost:9091", "prometheus")
         );
 
         EsqlResponse response = new TestEsqlResponse(columns, rows);
@@ -72,13 +72,13 @@ public class PrometheusQueryRangeResponseListenerTests extends ESTestCase {
         // The listener extracts the inner labels as bare metric keys (no "labels." prefix)
         List<TestColumnInfo> columns = List.of(
             new TestColumnInfo("value", "double"),
-            new TestColumnInfo("_timeseries", "keyword"),
-            new TestColumnInfo("step", "long")
+            new TestColumnInfo("step", "long"),
+            new TestColumnInfo("_timeseries", "keyword")
         );
 
         List<List<Object>> rows = List.of(
-            List.of(1.5, "{\"labels\":{\"__name__\":\"http_requests_total\",\"job\":\"prometheus\"}}", 1735689600000L),
-            List.of(2.0, "{\"labels\":{\"__name__\":\"http_requests_total\",\"job\":\"prometheus\"}}", 1735689660000L)
+            List.of(1.5, 1735689600000L, "{\"labels\":{\"__name__\":\"http_requests_total\",\"job\":\"prometheus\"}}"),
+            List.of(2.0, 1735689660000L, "{\"labels\":{\"__name__\":\"http_requests_total\",\"job\":\"prometheus\"}}")
         );
 
         EsqlResponse response = new TestEsqlResponse(columns, rows);
@@ -100,13 +100,13 @@ public class PrometheusQueryRangeResponseListenerTests extends ESTestCase {
         // {"attributes":{"resource":{"service.name":"my-service"}}} → metric key "attributes.resource.service.name".
         List<TestColumnInfo> columns = List.of(
             new TestColumnInfo("value", "double"),
-            new TestColumnInfo("_timeseries", "keyword"),
-            new TestColumnInfo("step", "long")
+            new TestColumnInfo("step", "long"),
+            new TestColumnInfo("_timeseries", "keyword")
         );
 
         List<List<Object>> rows = List.of(
-            List.of(1.5, "{\"attributes\":{\"resource\":{\"service.name\":\"my-service\"}}}", 1735689600000L),
-            List.of(2.0, "{\"attributes\":{\"resource\":{\"service.name\":\"my-service\"}}}", 1735689660000L)
+            List.of(1.5, 1735689600000L, "{\"attributes\":{\"resource\":{\"service.name\":\"my-service\"}}}"),
+            List.of(2.0, 1735689660000L, "{\"attributes\":{\"resource\":{\"service.name\":\"my-service\"}}}")
         );
 
         EsqlResponse response = new TestEsqlResponse(columns, rows);
@@ -126,13 +126,13 @@ public class PrometheusQueryRangeResponseListenerTests extends ESTestCase {
         // {"host":"my-host"} → metric key "host".
         List<TestColumnInfo> columns = List.of(
             new TestColumnInfo("value", "double"),
-            new TestColumnInfo("_timeseries", "keyword"),
-            new TestColumnInfo("step", "long")
+            new TestColumnInfo("step", "long"),
+            new TestColumnInfo("_timeseries", "keyword")
         );
 
         List<List<Object>> rows = List.of(
-            List.of(1.5, "{\"host\":\"my-host\"}", 1735689600000L),
-            List.of(2.0, "{\"host\":\"my-host\"}", 1735689660000L)
+            List.of(1.5, 1735689600000L, "{\"host\":\"my-host\"}"),
+            List.of(2.0, 1735689660000L, "{\"host\":\"my-host\"}")
         );
 
         EsqlResponse response = new TestEsqlResponse(columns, rows);
@@ -207,21 +207,19 @@ public class PrometheusQueryRangeResponseListenerTests extends ESTestCase {
     }
 
     public void testMissingStepColumnThrows() {
-        // Only value column — step is missing (would need to be last)
         List<TestColumnInfo> columns = List.of(new TestColumnInfo("value", "double"));
         EsqlResponse response = new TestEsqlResponse(columns, List.of());
         expectThrows(IllegalStateException.class, () -> PrometheusQueryRangeResponseListener.convertToPrometheusJson(response));
     }
 
-    public void testWrongLastColumnNameThrows() {
-        // Last column is not named "step"
+    public void testWrongStepColumnNameThrows() {
         List<TestColumnInfo> columns = List.of(new TestColumnInfo("value", "double"), new TestColumnInfo("timestamp", "long"));
         EsqlResponse response = new TestEsqlResponse(columns, List.of());
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
             () -> PrometheusQueryRangeResponseListener.convertToPrometheusJson(response)
         );
-        assertThat(e.getMessage(), containsString("missing required 'step' column at last index"));
+        assertThat(e.getMessage(), containsString("missing required 'step' column at index"));
     }
 
     private static void assertSuccessMatrix(ObjectPath path) throws IOException {

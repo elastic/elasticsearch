@@ -46,10 +46,11 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
     static final String VALUE_COLUMN = "value";
     static final String STEP_PARAM = "step";
 
-    // Fixed column indices produced by the PROMQL command + EVAL step = TO_LONG(step).
-    // EVAL appends the new step column at the end, so dimension columns occupy indices 1..N-2.
+    // Fixed column indices produced by the PROMQL command, matching the original PromqlCommand output order
+    // restored by the Project node: value, step, dimensions...
     private static final int VALUE_COL_IDX = 0;
-    private static final int DIMENSION_COL_START_IDX = 1;
+    private static final int STEP_COL_IDX = 1;
+    private static final int DIMENSION_COL_START_IDX = 2;
 
     private final RestChannel channel;
 
@@ -93,13 +94,13 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
     /**
      * Converts an ES|QL response into a Prometheus-compatible JSON response.
      *
-     * <p>The ES|QL PROMQL command, combined with {@code | EVAL step = TO_LONG(step)}, produces
-     * rows with the following column order (EVAL appends the converted step at the end):
+     * <p>The ES|QL PROMQL command produces rows with the following column order
+     * (matching the original PromqlCommand output restored by the Project node):
      * <ol>
      *   <li>Column 0: value ({@code double})</li>
-     *   <li>Columns 1..N-2: either a single {@code _timeseries} keyword column (JSON labels)
+     *   <li>Column 1: step ({@code long}, epoch milliseconds)</li>
+     *   <li>Columns 2..N-1: either a single {@code _timeseries} keyword column (JSON labels)
      *       or individual dimension/label columns</li>
-     *   <li>Column N-1 (last): step ({@code long}, epoch milliseconds)</li>
      * </ol>
      */
     static XContentBuilder convertToPrometheusJson(EsqlResponse response) throws IOException {
@@ -107,12 +108,11 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
         if (columns.size() < 1 || VALUE_COLUMN.equals(columns.get(VALUE_COL_IDX).name()) == false) {
             throw new IllegalStateException("PROMQL response is missing required 'value' column at index " + VALUE_COL_IDX);
         }
-        final int stepColIdx = columns.size() - 1;
-        if (columns.size() < 2 || STEP_PARAM.equals(columns.get(stepColIdx).name()) == false) {
-            throw new IllegalStateException("PROMQL response is missing required 'step' column at last index " + stepColIdx);
+        if (columns.size() < 2 || STEP_PARAM.equals(columns.get(STEP_COL_IDX).name()) == false) {
+            throw new IllegalStateException("PROMQL response is missing required 'step' column at index " + STEP_COL_IDX);
         }
-        // Column 1 is either _timeseries (a JSON blob) or the first of the individual dimension columns
-        final boolean useSeriesCol = columns.size() > 2 && MetadataAttribute.TIMESERIES.equals(columns.get(DIMENSION_COL_START_IDX).name());
+        final boolean useSeriesCol = columns.size() > DIMENSION_COL_START_IDX
+            && MetadataAttribute.TIMESERIES.equals(columns.get(DIMENSION_COL_START_IDX).name());
 
         Map<String, SeriesData> seriesMap = new LinkedHashMap<>();
 
@@ -128,7 +128,7 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
             } else {
                 StringBuilder keyBuilder = new StringBuilder();
                 metric = new LinkedHashMap<>();
-                for (int i = DIMENSION_COL_START_IDX; i < stepColIdx; i++) {
+                for (int i = DIMENSION_COL_START_IDX; i < columns.size(); i++) {
                     String label = columns.get(i).name();
                     String value = values[i] != null ? values[i].toString() : "";
                     metric.put(label, value);
@@ -138,7 +138,7 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
             }
 
             String sampleValue = formatSampleValue(values[VALUE_COL_IDX]);
-            double timestamp = parseTimestamp(values[stepColIdx]);
+            double timestamp = parseTimestamp(values[STEP_COL_IDX]);
 
             SeriesData series = seriesMap.get(seriesKey);
             if (series == null) {

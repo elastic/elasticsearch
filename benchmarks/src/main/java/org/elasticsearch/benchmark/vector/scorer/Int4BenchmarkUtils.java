@@ -95,7 +95,7 @@ public class Int4BenchmarkUtils {
         Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding encoding = values.getScalarEncoding();
 
         byte[] queryQuantized = new byte[encoding.getDiscreteDimensions(dims)];
-        float[] queryCopy = Arrays.copyOf(queryVector, queryVector.length);
+        float[] queryCopy = queryVector.clone();
         if (similarityFunction == VectorSimilarityFunction.COSINE) {
             VectorUtil.l2normalize(queryCopy);
         }
@@ -148,7 +148,7 @@ public class Int4BenchmarkUtils {
         var encoding = values.getScalarEncoding();
 
         byte[] scratch = new byte[encoding.getDiscreteDimensions(dims)];
-        float[] queryCopy = Arrays.copyOf(queryVector, queryVector.length);
+        float[] queryCopy = queryVector.clone();
         if (sim == VectorSimilarityFunction.COSINE) {
             VectorUtil.l2normalize(queryCopy);
         }

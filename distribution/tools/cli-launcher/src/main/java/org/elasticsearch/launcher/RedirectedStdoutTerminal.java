@@ -19,21 +19,24 @@ import java.io.PrintWriter;
 import java.nio.charset.Charset;
 
 /**
- * A terminal that sends all print output to stderr and exposes the real stdout
- * via {@link #getOutputStream()}. Used when the process is run with
- * ES_REDIRECT_STDOUT_TO_STDERR (or cli.redirectStdoutToStderr) so that
- * binary data (e.g. the launch descriptor) can be written to stdout while
- * user-visible output goes to stderr.
+ * A terminal used when the process is run with ES_REDIRECT_STDOUT_TO_STDERR
+ * (or cli.redirectStdoutToStderr). At construction time the calling code has already
+ * installed an {@link OutputStreamMux} so that both {@code System.out} and
+ * {@code System.err} write to the same underlying pipe with byte-level mode markers.
+ *
+ * <p> This terminal wires {@code outWriter} to {@code System.out} (stdout channel) and
+ * {@code errWriter} to {@code System.err} (stderr channel). Binary data (e.g. the launch
+ * descriptor) is written via {@link #getOutputStream()} which returns the saved original stdout.
  */
 class RedirectedStdoutTerminal extends Terminal {
 
     private final OutputStream stdoutForBinary;
 
-    @SuppressForbidden(reason = "Use stderr for all print output; stdout reserved for binary (e.g. descriptor)")
+    @SuppressForbidden(reason = "System.out and System.err are mux channels installed by CliToolLauncher")
     RedirectedStdoutTerminal(OutputStream stdoutForBinary) {
         super(
             new InputStreamReader(System.in, Charset.defaultCharset()),
-            new PrintWriter(System.err, true),
+            new PrintWriter(System.out, true),
             new PrintWriter(System.err, true)
         );
         this.stdoutForBinary = stdoutForBinary;

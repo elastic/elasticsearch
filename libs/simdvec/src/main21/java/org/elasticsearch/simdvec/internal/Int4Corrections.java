@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec.internal;
 
+import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorScorer;
 import org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.simdvec.VectorSimilarityType;
@@ -20,6 +21,7 @@ import java.lang.foreign.ValueLayout;
 /**
  * Shared correction formulas for int4 packed-nibble scoring. Used by both the
  * scorer supplier (ordinal-vs-ordinal) and the query-time scorer paths.
+ * Correction formulas are the same as in {@link Lucene104ScalarQuantizedVectorScorer}, specialized for the INT4 case.
  */
 final class Int4Corrections {
 

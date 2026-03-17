@@ -69,7 +69,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
 
     // bounds of the range of values for int4 packed nibble (4-bit)
     static final byte MIN_INT4_VALUE = 0;
-    static final byte MAX_INT4_VALUE = 15;
+    static final byte MAX_INT4_VALUE = 0x0F;
 
     // Tests that the provider instance is present or not on expected platforms/architectures
     public void testSupport() {
@@ -122,13 +122,13 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
 
                     var luceneSupplier = luceneScoreSupplier(values, similarityType.function()).scorer();
                     luceneSupplier.setScoringOrdinal(1);
-                    assertFloatEquals(expected, luceneSupplier.score(0), 1e-6f);
+                    assertFloatEquals(expected, luceneSupplier.score(0), DELTA);
                     var supplier = factory.getInt4VectorScorerSupplier(similarityType, in, values).get();
                     var scorer = supplier.scorer();
                     scorer.setScoringOrdinal(1);
-                    assertFloatEquals(expected, scorer.score(0), 1e-6f);
+                    assertFloatEquals(expected, scorer.score(0), DELTA);
 
-                    if (supportsHeapSegments()) {
+                    if (SUPPORTS_HEAP_SEGMENTS) {
                         byte[] unpackedQuery = unpackNibbles(packed2, dims);
                         var qScorer = factory.getInt4VectorScorer(
                             similarityType.function(),
@@ -139,7 +139,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                             vec2Correction.additionalCorrection(),
                             vec2Correction.quantizedComponentSum()
                         ).get();
-                        assertFloatEquals(expected, qScorer.score(0), 1e-6f);
+                        assertFloatEquals(expected, qScorer.score(0), DELTA);
                     }
                 }
             }
@@ -231,7 +231,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                 var supplier = factory.getInt4VectorScorerSupplier(similarityType, in, values).get();
                 var scorer = supplier.scorer();
                 scorer.setScoringOrdinal(idx1);
-                assertFloatEquals(expected, scorer.score(idx0), 1e-6f);
+                assertFloatEquals(expected, scorer.score(idx0), DELTA);
             }
         }
     }
@@ -263,7 +263,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     void testRandomScorerImpl(Directory dir, IntFunction<float[]> floatArraySupplier) throws IOException {
-        assumeTrue("scorer only supported on JDK 22+", Runtime.version().feature() >= 22);
+        assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
         assumeTrue(notSupportedMsg(), supported());
         var factory = AbstractVectorTestCase.factory.get();
 
@@ -316,7 +316,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                     corrections[idx0].additionalCorrection(),
                     corrections[idx0].quantizedComponentSum()
                 ).get();
-                assertFloatEquals(expected, scorer.score(idx1), 1e-6f);
+                assertFloatEquals(expected, scorer.score(idx1), DELTA);
             }
         }
     }
@@ -371,7 +371,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                         var supplier = factory.getInt4VectorScorerSupplier(similarityType, in, values).get();
                         var scorer = supplier.scorer();
                         scorer.setScoringOrdinal(idx1);
-                        assertFloatEquals(expected, scorer.score(idx0), 1e-6f);
+                        assertFloatEquals(expected, scorer.score(idx0), DELTA);
                     }
                 }
             }
@@ -417,7 +417,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                     var supplier = factory.getInt4VectorScorerSupplier(similarityType, in, values).get();
                     var scorer = supplier.scorer();
                     scorer.setScoringOrdinal(idx1);
-                    assertFloatEquals(expected, scorer.score(idx0), 1e-6f);
+                    assertFloatEquals(expected, scorer.score(idx0), DELTA);
                 }
             }
         }
@@ -463,7 +463,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                     var supplier = factory.getInt4VectorScorerSupplier(similarityType, in, values).get();
                     var scorer = supplier.scorer();
                     scorer.setScoringOrdinal(idx1);
-                    assertFloatEquals(expected, scorer.score(idx0), 1e-6f);
+                    assertFloatEquals(expected, scorer.score(idx0), DELTA);
                 }
             }
         }
@@ -526,7 +526,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                 var testScorer = supplier.scorer();
                 testScorer.setScoringOrdinal(idx0);
                 testScorer.bulkScore(nodes, scores, nodes.length);
-                assertFloatArrayEquals(expected, scores, 2e-5f);
+                assertFloatArrayEquals(expected, scores, BULK_DELTA);
             }
         }
     }
@@ -576,14 +576,14 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                     var testScorer = supplier.scorer();
                     testScorer.setScoringOrdinal(idx0);
                     testScorer.bulkScore(nodes, scores, nodes.length);
-                    assertFloatArrayEquals(expected, scores, 2e-5f);
+                    assertFloatArrayEquals(expected, scores, BULK_DELTA);
                 }
             }
         }
     }
 
     public void testBulkScorerMMap() throws IOException {
-        assumeTrue("scorer only supported on JDK 22+", Runtime.version().feature() >= 22);
+        assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
         assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new MMapDirectory(createTempDir("testBulkScorerMMap"))) {
             testBulkScorerImpl(dir);
@@ -591,7 +591,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testBulkScorerNIO() throws IOException {
-        assumeTrue("scorer only supported on JDK 22+", Runtime.version().feature() >= 22);
+        assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
         assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new NIOFSDirectory(createTempDir("testBulkScorerNIO"))) {
             testBulkScorerImpl(dir);
@@ -649,7 +649,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                     corrections[queryIdx].quantizedComponentSum()
                 ).get();
                 scorer.bulkScore(nodes, scores, nodes.length);
-                assertFloatArrayEquals(expected, scores, 2e-5f);
+                assertFloatArrayEquals(expected, scores, BULK_DELTA);
             }
         }
     }
@@ -691,7 +691,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                             corrections[queryOrd],
                             corrections[targetOrd]
                         );
-                        assertFloatEquals(expected, scorer.score(targetOrd), 2e-5f);
+                        assertFloatEquals(expected, scorer.score(targetOrd), BULK_DELTA);
                     }
                 }
             }
@@ -721,7 +721,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
                 expectThrows(IllegalArgumentException.class, () -> scorer.setScoringOrdinal(-1));
                 expectThrows(IllegalArgumentException.class, () -> scorer.setScoringOrdinal(size));
 
-                if (supportsHeapSegments()) {
+                if (SUPPORTS_HEAP_SEGMENTS) {
                     byte[] packed0 = vector(0, dims);
                     byte[] unpackedQuery = unpackNibbles(packed0, dims);
                     var correction = randomCorrectionPacked(packed0);
@@ -833,7 +833,7 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
         public Optional<Throwable> call() {
             try {
                 for (int i = 0; i < 100; i++) {
-                    assertFloatEquals(expectedScore, scorer.score(ord), 1e-6f);
+                    assertFloatEquals(expectedScore, scorer.score(ord), DELTA);
                 }
             } catch (Throwable t) {
                 return Optional.of(t);

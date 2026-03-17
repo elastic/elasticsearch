@@ -80,6 +80,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS;
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_CENTROID;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
@@ -483,7 +484,11 @@ public class PlannerUtils {
             case DOC_DATA_TYPE -> ElementType.DOC;
             case TSID_DATA_TYPE -> ElementType.BYTES_REF;
             case GEO_POINT, CARTESIAN_POINT -> fieldExtractPreference == DOC_VALUES ? ElementType.LONG : ElementType.BYTES_REF;
-            case GEO_SHAPE, CARTESIAN_SHAPE -> fieldExtractPreference == EXTRACT_SPATIAL_BOUNDS ? ElementType.INT : ElementType.BYTES_REF;
+            case GEO_SHAPE, CARTESIAN_SHAPE -> switch (fieldExtractPreference) {
+                case EXTRACT_SPATIAL_BOUNDS -> ElementType.INT;
+                case EXTRACT_SPATIAL_CENTROID, EXTRACT_SPATIAL_BOUNDS_AND_CENTROID -> ElementType.DOUBLE;
+                default -> ElementType.BYTES_REF;
+            };
             case AGGREGATE_METRIC_DOUBLE -> ElementType.AGGREGATE_METRIC_DOUBLE;
             case EXPONENTIAL_HISTOGRAM -> ElementType.EXPONENTIAL_HISTOGRAM;
             case TDIGEST -> ElementType.TDIGEST;

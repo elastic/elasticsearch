@@ -108,7 +108,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
                         scorer.setScoringOrdinal(0);
                         assertThat(scorer.score(1), equalTo(expected));
 
-                        if (supportsHeapSegments()) {
+                        if (SUPPORTS_HEAP_SEGMENTS) {
                             var qScorer = factory.getInt7SQVectorScorer(sim.function(), values, query1).get();
                             assertThat(qScorer.score(1), equalTo(expected));
                         }
@@ -244,7 +244,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     void testRandomScorerImpl(long maxChunkSize, IntFunction<float[]> floatArraySupplier) throws IOException {
-        assumeTrue("scorer only supported on JDK 22+", Runtime.version().feature() >= 22);
+        assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
         assumeTrue(notSupportedMsg(), supported());
         var factory = AbstractVectorTestCase.factory.get();
         var scalarQuantizer = new ScalarQuantizer(0.1f, 0.9f, (byte) 7);
@@ -259,7 +259,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
                 final byte[][] qVectors = new byte[size][];
                 final float[] corrections = new float[size];
 
-                float delta = 1e-6f * dims;
+                float delta = DELTA * dims;
 
                 String fileName = "testRandom-" + sim + "-" + dims + ".vex";
                 logger.info("Testing " + fileName);
@@ -457,7 +457,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
                         var testScorer = supplier.scorer();
                         testScorer.setScoringOrdinal(idx0);
                         testScorer.bulkScore(nodes, scores, nodes.length);
-                        assertArrayEquals(expected, scores, 1e-6f);
+                        assertArrayEquals(expected, scores, DELTA);
                     }
                 }
             }
@@ -507,7 +507,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
                         var testScorer = supplier.scorer();
                         testScorer.setScoringOrdinal(idx0);
                         testScorer.bulkScore(nodes, scores, nodes.length);
-                        assertArrayEquals(expected, scores, 1e-6f);
+                        assertArrayEquals(expected, scores, DELTA);
                     }
                 }
             }

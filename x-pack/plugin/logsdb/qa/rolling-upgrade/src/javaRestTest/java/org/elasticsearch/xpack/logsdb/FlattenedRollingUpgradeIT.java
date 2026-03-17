@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -334,14 +335,14 @@ public class FlattenedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestC
         List<Map<String, Object>> hits = ObjectPath.evaluate(responseMap, "hits.hits");
         assertNotNull("sort returned null hits", hits);
 
-        String previousSortValue = null;
+        BytesRef previousSortValue = null;
         for (Map<String, Object> hit : hits) {
             List<Object> sortValues = (List<Object>) hit.get("sort");
             assertNotNull("hit missing sort values", sortValues);
-            String sortValue = (String) sortValues.get(0);
+            BytesRef sortValue = new BytesRef((String) sortValues.get(0));
             if (previousSortValue != null) {
                 assertTrue(
-                    "sort values not in ascending order: [" + previousSortValue + "] > [" + sortValue + "]",
+                    "sort values not in ascending order: [" + previousSortValue.utf8ToString() + "] > [" + sortValue.utf8ToString() + "]",
                     previousSortValue.compareTo(sortValue) <= 0
                 );
             }

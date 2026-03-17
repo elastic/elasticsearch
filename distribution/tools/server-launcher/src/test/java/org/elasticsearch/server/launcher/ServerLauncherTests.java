@@ -28,7 +28,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -390,20 +389,20 @@ public class ServerLauncherTests extends ESTestCase {
         };
         MockServerProcess mock = createMock(d, behavior);
         ServerProcess server = startServer(d, pb -> mock);
-        CompletableFuture<Integer> exitFuture = CompletableFuture.supplyAsync(() -> {
+        Thread stopThread = new Thread(() -> {
             ProcessUtil.nonInterruptibleVoid(mainReady::await);
             try {
                 server.stop();
-                return 0;
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
         });
+        stopThread.start();
         int exitCode = server.waitFor();
         assertThat(exitCode, equalTo(0));
         assertThat(mock.serverThread.isDone(), is(true));
         assertThat(getCapturedStderr(), containsString("final message"));
-        exitFuture.get();
+        stopThread.join();
     }
 
     public void testProcessDies() throws Exception {

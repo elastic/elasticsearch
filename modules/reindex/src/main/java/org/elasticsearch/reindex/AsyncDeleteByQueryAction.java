@@ -25,8 +25,6 @@ import org.elasticsearch.threadpool.ThreadPool;
  */
 public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<DeleteByQueryRequest, TransportDeleteByQueryAction> {
 
-    private final boolean useOptimisticConcurrencyControl;
-
     public AsyncDeleteByQueryAction(
         BulkByScrollTask task,
         Logger logger,
@@ -34,11 +32,9 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
         ThreadPool threadPool,
         DeleteByQueryRequest request,
         ScriptService scriptService,
-        boolean useOptimisticConcurrencyControl,
         ActionListener<BulkByScrollResponse> listener
     ) {
-        super(task, false, useOptimisticConcurrencyControl, false, logger, client, threadPool, request, listener, scriptService, null);
-        this.useOptimisticConcurrencyControl = useOptimisticConcurrencyControl;
+        super(task, false, true, false, logger, client, threadPool, request, listener, scriptService, null);
     }
 
     @Override
@@ -53,10 +49,8 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
         DeleteRequest delete = new DeleteRequest();
         delete.index(doc.getIndex());
         delete.id(doc.getId());
-        if (useOptimisticConcurrencyControl) {
-            delete.setIfSeqNo(doc.getSeqNo());
-            delete.setIfPrimaryTerm(doc.getPrimaryTerm());
-        }
+        delete.setIfSeqNo(doc.getSeqNo());
+        delete.setIfPrimaryTerm(doc.getPrimaryTerm());
         return wrap(delete);
     }
 

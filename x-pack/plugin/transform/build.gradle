@@ -18,6 +18,7 @@ dependencies {
   testImplementation project(":test:x-content")
 
   internalClusterTestImplementation project(":modules:reindex")
+  internalClusterTestImplementation project(":modules:data-streams")
 }
 
 restResources {

@@ -25,7 +25,6 @@ import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class DestConfigTests extends AbstractSerializingTransformTestCase<DestConfig> {
 
@@ -36,7 +35,7 @@ public class DestConfigTests extends AbstractSerializingTransformTestCase<DestCo
             randomAlphaOfLength(10),
             randomBoolean() ? null : randomList(5, DestAliasTests::randomDestAlias),
             randomBoolean() ? null : randomAlphaOfLength(10),
-            randomBoolean() ? null : randomFrom("index", "create")
+            randomFrom(DocWriteRequest.OpType.INDEX, DocWriteRequest.OpType.CREATE)
         );
     }
 
@@ -76,13 +75,14 @@ public class DestConfigTests extends AbstractSerializingTransformTestCase<DestCo
     }
 
     public static DestConfig mutateForVersion(DestConfig instance, TransportVersion version) {
-        if (version.supports(DestConfig.TRANSFORM_DEST_WRITE_ACTION)) {
+        if (version.supports(DestConfig.TRANSFORM_DEST_OP_TYPE)) {
             return instance;
         } else {
-            if (instance.getWriteAction() == null) {
+            if (instance.getOpType() == DocWriteRequest.OpType.INDEX) {
+                // Default value — no change needed after stripping the field
                 return instance;
             }
-            // Serialize at the BWC version and deserialize to get the expected object (writeAction stripped by version guard).
+            // Serialize at the BWC version and deserialize to get the expected object (op_type field omitted by version guard).
             // This avoids needing access to the raw aliases field (null vs empty list matters for equals).
             try {
                 return copyWriteable(instance, new NamedWriteableRegistry(List.of()), DestConfig::new, version);
@@ -104,35 +104,51 @@ public class DestConfigTests extends AbstractSerializingTransformTestCase<DestCo
         }
     }
 
-    public void testInvalidWriteAction() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new DestConfig("my-index", null, null, "invalid"));
-        assertThat(e.getMessage(), containsString("invalid write_action [invalid]"));
-    }
-
-    public void testWriteActionCreate() throws IOException {
-        String json = "{ \"index\": \"my-index\", \"write_action\": \"create\" }";
+    public void testInvalidOpType() throws IOException {
+        String json = "{ \"index\": \"my-index\", \"op_type\": \"invalid\" }";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            DestConfig dest = DestConfig.fromXContent(parser, false);
-            assertThat(dest.getWriteAction(), equalTo("create"));
-            assertThat(dest.getWriteOpType(), equalTo(DocWriteRequest.OpType.CREATE));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DestConfig.fromXContent(parser, false));
+            assertThat(e.getCause().getMessage(), containsString("invalid op_type [invalid]"));
         }
     }
 
-    public void testWriteActionIndex() throws IOException {
-        String json = "{ \"index\": \"my-index\", \"write_action\": \"index\" }";
+    public void testUnsupportedOpTypeUpdate() throws IOException {
+        String json = "{ \"index\": \"my-index\", \"op_type\": \"update\" }";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            DestConfig dest = DestConfig.fromXContent(parser, false);
-            assertThat(dest.getWriteAction(), equalTo("index"));
-            assertThat(dest.getWriteOpType(), equalTo(DocWriteRequest.OpType.INDEX));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DestConfig.fromXContent(parser, false));
+            assertThat(e.getCause().getMessage(), containsString("invalid op_type [update]"));
         }
     }
 
-    public void testWriteActionDefaultIsNull() throws IOException {
+    public void testUnsupportedOpTypeDelete() throws IOException {
+        String json = "{ \"index\": \"my-index\", \"op_type\": \"delete\" }";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DestConfig.fromXContent(parser, false));
+            assertThat(e.getCause().getMessage(), containsString("invalid op_type [delete]"));
+        }
+    }
+
+    public void testOpTypeCreate() throws IOException {
+        String json = "{ \"index\": \"my-index\", \"op_type\": \"create\" }";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            DestConfig dest = DestConfig.fromXContent(parser, false);
+            assertThat(dest.getOpType(), equalTo(DocWriteRequest.OpType.CREATE));
+        }
+    }
+
+    public void testOpTypeIndex() throws IOException {
+        String json = "{ \"index\": \"my-index\", \"op_type\": \"index\" }";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            DestConfig dest = DestConfig.fromXContent(parser, false);
+            assertThat(dest.getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
+        }
+    }
+
+    public void testOpTypeDefaultIsIndex() throws IOException {
         String json = "{ \"index\": \"my-index\" }";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             DestConfig dest = DestConfig.fromXContent(parser, false);
-            assertThat(dest.getWriteAction(), is(nullValue()));
-            assertThat(dest.getWriteOpType(), equalTo(DocWriteRequest.OpType.INDEX));
+            assertThat(dest.getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
         }
     }
 }

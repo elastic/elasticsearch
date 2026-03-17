@@ -21,10 +21,10 @@ public class XPackFeatures implements FeatureSpecification {
         "aggregate_metric_double.default_metric.deprecated"
     );
 
-    public static final NodeFeature TRANSFORM_DEST_WRITE_ACTION = new NodeFeature("transform.dest.write_action");
+    public static final NodeFeature TRANSFORM_DEST_OP_TYPE = new NodeFeature("transform.dest.op_type");
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(AGGREGATE_METRIC_DOUBLE_DEPRECATED_DEFAULT_METRIC, TRANSFORM_DEST_WRITE_ACTION);
+        return Set.of(AGGREGATE_METRIC_DOUBLE_DEPRECATED_DEFAULT_METRIC, TRANSFORM_DEST_OP_TYPE);
     }
 }

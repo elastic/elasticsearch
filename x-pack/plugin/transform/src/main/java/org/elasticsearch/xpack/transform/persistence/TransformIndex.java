@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
@@ -32,7 +33,6 @@ import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
-import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
@@ -114,13 +114,14 @@ public final class TransformIndex {
         Map<String, String> destIndexMappings,
         ActionListener<Boolean> listener
     ) {
-        if (DestConfig.WRITE_ACTION_CREATE.equals(config.getDestination().getWriteAction())) {
-            logger.debug("[{}] Skip destination index creation and alias setup because write_action is [create]", config.getId());
+        final String destinationIndex = config.getDestination().getIndex();
+        String[] dest = indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), destinationIndex);
+
+        if (config.getDestination().getOpType() == DocWriteRequest.OpType.CREATE) {
+            logger.debug("[{}] Skip destination index creation and alias setup because op_type is [create]", config.getId());
             listener.onResponse(false);
             return;
         }
-        final String destinationIndex = config.getDestination().getIndex();
-        String[] dest = indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), destinationIndex);
 
         // <3> Final listener
         ActionListener<Boolean> setUpDestinationAliasesListener = ActionListener.wrap(r -> {

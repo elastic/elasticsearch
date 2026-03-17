@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -362,6 +363,13 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         }
         if (retentionPolicyConfig != null) {
             validationException = retentionPolicyConfig.validate(validationException);
+        }
+        if (dest.getOpType() == DocWriteRequest.OpType.CREATE && retentionPolicyConfig != null) {
+            validationException = addValidationError(
+                "[dest.op_type: create] is incompatible with [retention_policy]. "
+                    + "A retention policy deletes documents from the destination index, which conflicts with create-only writes.",
+                validationException
+            );
         }
         return validationException;
     }

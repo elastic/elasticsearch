@@ -917,19 +917,19 @@ setup:
   - match: { transforms.0.description: "yaml test latest transform on airline-data" }
 
 ---
-"Test put transform with write_action create":
+"Test put transform with op_type create":
   - requires:
-      cluster_features: ["transform.dest.write_action"]
-      reason: "write_action parameter added in 9.4.0"
+      cluster_features: ["transform.dest.op_type"]
+      reason: "op_type parameter added in 9.4.0"
   - do:
       transform.put_transform:
-        transform_id: "transform-with-write-action-create"
+        transform_id: "transform-with-op-type-create"
         body: >
           {
             "source": {
               "index": "airline-data"
             },
-            "dest": { "index": "dest-airline-data", "write_action": "create" },
+            "dest": { "index": "dest-airline-data", "op_type": "create" },
             "pivot": {
               "group_by": { "airline": { "terms": { "field": "airline" } } },
               "aggregations": { "avg_response": { "avg": { "field": "responsetime" } } }
@@ -939,29 +939,53 @@ setup:
 
   - do:
       transform.get_transform:
-        transform_id: "transform-with-write-action-create"
+        transform_id: "transform-with-op-type-create"
   - match: { count: 1 }
-  - match: { transforms.0.id: "transform-with-write-action-create" }
+  - match: { transforms.0.id: "transform-with-op-type-create" }
   - match: { transforms.0.dest.index: "dest-airline-data" }
-  - match: { transforms.0.dest.write_action: "create" }
+  - match: { transforms.0.dest.op_type: "create" }
 
 ---
-"Test put transform with invalid write_action":
+"Test put transform with invalid op_type":
   - requires:
-      cluster_features: ["transform.dest.write_action"]
-      reason: "write_action parameter added in 9.4.0"
+      cluster_features: ["transform.dest.op_type"]
+      reason: "op_type parameter added in 9.4.0"
   - do:
       catch: bad_request
       transform.put_transform:
-        transform_id: "transform-with-invalid-write-action"
+        transform_id: "transform-with-invalid-op-type"
         body: >
           {
             "source": {
               "index": "airline-data"
             },
-            "dest": { "index": "dest-airline-data", "write_action": "invalid" },
+            "dest": { "index": "dest-airline-data", "op_type": "invalid" },
             "pivot": {
               "group_by": { "airline": { "terms": { "field": "airline" } } },
               "aggregations": { "avg_response": { "avg": { "field": "responsetime" } } }
+            }
+          }
+
+---
+"Test put transform with op_type create and retention_policy is rejected":
+  - requires:
+      cluster_features: ["transform.dest.op_type"]
+      reason: "op_type parameter added in 9.4.0"
+  - do:
+      catch: bad_request
+      transform.put_transform:
+        transform_id: "transform-with-op-type-create-and-retention"
+        body: >
+          {
+            "source": {
+              "index": "airline-data"
+            },
+            "dest": { "index": "dest-airline-data", "op_type": "create" },
+            "pivot": {
+              "group_by": { "airline": { "terms": { "field": "airline" } } },
+              "aggregations": { "avg_response": { "avg": { "field": "responsetime" } } }
+            },
+            "retention_policy": {
+              "time": { "field": "timestamp", "max_age": "1d" }
             }
           }

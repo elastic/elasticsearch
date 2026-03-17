@@ -13,7 +13,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -38,13 +37,12 @@ public class DestConfig implements Writeable, ToXContentObject {
     public static final ParseField INDEX = new ParseField("index");
     public static final ParseField ALIASES = new ParseField("aliases");
     public static final ParseField PIPELINE = new ParseField("pipeline");
-    public static final ParseField WRITE_ACTION = new ParseField("write_action");
+    public static final ParseField OP_TYPE = new ParseField("op_type");
 
-    public static final String WRITE_ACTION_INDEX = "index";
-    public static final String WRITE_ACTION_CREATE = "create";
-    private static final Set<String> VALID_WRITE_ACTIONS = Set.of(WRITE_ACTION_INDEX, WRITE_ACTION_CREATE);
+    private static final Set<DocWriteRequest.OpType> VALID_OP_TYPES = Set.of(DocWriteRequest.OpType.INDEX, DocWriteRequest.OpType.CREATE);
 
-    static final TransportVersion TRANSFORM_DEST_WRITE_ACTION = TransportVersion.fromName("transform_dest_write_action");
+    // The registered name must not change — it is the key used to look up the transport version at startup.
+    static final TransportVersion TRANSFORM_DEST_OP_TYPE = TransportVersion.fromName("transform_dest_write_action");
 
     public static final ConstructingObjectParser<DestConfig, Void> STRICT_PARSER = createParser(false);
     public static final ConstructingObjectParser<DestConfig, Void> LENIENT_PARSER = createParser(true);
@@ -54,40 +52,58 @@ public class DestConfig implements Writeable, ToXContentObject {
         ConstructingObjectParser<DestConfig, Void> parser = new ConstructingObjectParser<>(
             "data_frame_config_dest",
             lenient,
-            args -> new DestConfig((String) args[0], (List<DestAlias>) args[1], (String) args[2], (String) args[3])
+            args -> new DestConfig(
+                (String) args[0],
+                (List<DestAlias>) args[1],
+                (String) args[2],
+                args[3] == null ? DocWriteRequest.OpType.INDEX : parseOpType((String) args[3])
+            )
         );
         parser.declareString(constructorArg(), INDEX);
         parser.declareObjectArray(optionalConstructorArg(), lenient ? DestAlias.LENIENT_PARSER : DestAlias.STRICT_PARSER, ALIASES);
         parser.declareString(optionalConstructorArg(), PIPELINE);
-        parser.declareString(optionalConstructorArg(), WRITE_ACTION);
+        parser.declareString(optionalConstructorArg(), OP_TYPE);
         return parser;
+    }
+
+    private static DocWriteRequest.OpType parseOpType(String opTypeStr) {
+        DocWriteRequest.OpType parsed;
+        try {
+            parsed = DocWriteRequest.OpType.fromString(opTypeStr);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("invalid op_type [" + opTypeStr + "], must be one of [index, create]");
+        }
+        if (VALID_OP_TYPES.contains(parsed) == false) {
+            throw new IllegalArgumentException("invalid op_type [" + opTypeStr + "], must be one of [index, create]");
+        }
+        return parsed;
     }
 
     private final String index;
     private final List<DestAlias> aliases;
     private final String pipeline;
-    @Nullable
-    private final String writeAction;
+    private final DocWriteRequest.OpType opType;
 
     public DestConfig(String index, List<DestAlias> aliases, String pipeline) {
-        this(index, aliases, pipeline, null);
+        this(index, aliases, pipeline, DocWriteRequest.OpType.INDEX);
     }
 
-    public DestConfig(String index, List<DestAlias> aliases, String pipeline, @Nullable String writeAction) {
+    public DestConfig(String index, List<DestAlias> aliases, String pipeline, DocWriteRequest.OpType opType) {
         this.index = ExceptionsHelper.requireNonNull(index, INDEX.getPreferredName());
         this.aliases = aliases;
         this.pipeline = pipeline;
-        if (writeAction != null && VALID_WRITE_ACTIONS.contains(writeAction) == false) {
-            throw new IllegalArgumentException("invalid write_action [" + writeAction + "], must be one of " + VALID_WRITE_ACTIONS);
-        }
-        this.writeAction = writeAction;
+        this.opType = ExceptionsHelper.requireNonNull(opType, OP_TYPE.getPreferredName());
     }
 
     public DestConfig(final StreamInput in) throws IOException {
         index = in.readString();
         aliases = in.readOptionalCollectionAsList(DestAlias::new);
         pipeline = in.readOptionalString();
-        writeAction = in.getTransportVersion().supports(TRANSFORM_DEST_WRITE_ACTION) ? in.readOptionalString() : null;
+        if (in.getTransportVersion().supports(TRANSFORM_DEST_OP_TYPE)) {
+            opType = DocWriteRequest.OpType.fromId(in.readByte());
+        } else {
+            opType = DocWriteRequest.OpType.INDEX;
+        }
     }
 
     public String getIndex() {
@@ -102,16 +118,8 @@ public class DestConfig implements Writeable, ToXContentObject {
         return pipeline;
     }
 
-    @Nullable
-    public String getWriteAction() {
-        return writeAction;
-    }
-
-    public DocWriteRequest.OpType getWriteOpType() {
-        if (WRITE_ACTION_CREATE.equals(writeAction)) {
-            return DocWriteRequest.OpType.CREATE;
-        }
-        return DocWriteRequest.OpType.INDEX;
+    public DocWriteRequest.OpType getOpType() {
+        return opType;
     }
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
@@ -128,8 +136,8 @@ public class DestConfig implements Writeable, ToXContentObject {
         out.writeString(index);
         out.writeOptionalCollection(aliases);
         out.writeOptionalString(pipeline);
-        if (out.getTransportVersion().supports(TRANSFORM_DEST_WRITE_ACTION)) {
-            out.writeOptionalString(writeAction);
+        if (out.getTransportVersion().supports(TRANSFORM_DEST_OP_TYPE)) {
+            out.writeByte(opType.getId());
         }
     }
 
@@ -143,8 +151,9 @@ public class DestConfig implements Writeable, ToXContentObject {
         if (pipeline != null) {
             builder.field(PIPELINE.getPreferredName(), pipeline);
         }
-        if (writeAction != null) {
-            builder.field(WRITE_ACTION.getPreferredName(), writeAction);
+        // Only write op_type when it is non-default to preserve BWC in REST responses.
+        if (opType != DocWriteRequest.OpType.INDEX) {
+            builder.field(OP_TYPE.getPreferredName(), opType.getLowercase());
         }
         builder.endObject();
         return builder;
@@ -163,12 +172,12 @@ public class DestConfig implements Writeable, ToXContentObject {
         return Objects.equals(index, that.index)
             && Objects.equals(aliases, that.aliases)
             && Objects.equals(pipeline, that.pipeline)
-            && Objects.equals(writeAction, that.writeAction);
+            && opType == that.opType;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, aliases, pipeline, writeAction);
+        return Objects.hash(index, aliases, pipeline, opType);
     }
 
     public static DestConfig fromXContent(final XContentParser parser, boolean lenient) throws IOException {

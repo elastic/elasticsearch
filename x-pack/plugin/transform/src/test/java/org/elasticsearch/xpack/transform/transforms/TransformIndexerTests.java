@@ -903,7 +903,7 @@ public class TransformIndexerTests extends ESTestCase {
             .build();
 
         try {
-            DestConfig destConfig = new DestConfig("my-dest-index", null, null, DestConfig.WRITE_ACTION_CREATE);
+            DestConfig destConfig = new DestConfig("my-dest-index", null, null, DocWriteRequest.OpType.CREATE);
             TransformConfig config = new TransformConfig(
                 randomAlphaOfLength(10),
                 new SourceConfig(new String[] { "my-source-index" }, QueryConfig.matchAll(), Collections.emptyMap(), null),
@@ -961,11 +961,11 @@ public class TransformIndexerTests extends ESTestCase {
 
             for (DocWriteRequest<?> request : bulkRequest.requests()) {
                 assertEquals(
-                    "IndexRequest should have CREATE opType when write_action is 'create'",
+                    "IndexRequest should have CREATE opType when op_type is 'create'",
                     DocWriteRequest.OpType.CREATE,
                     request.opType()
                 );
-                assertNull("IndexRequest should have null id when write_action is 'create'", request.id());
+                assertNull("IndexRequest should have null id when op_type is 'create'", request.id());
             }
         } finally {
             compositeSearchResponse.decRef();

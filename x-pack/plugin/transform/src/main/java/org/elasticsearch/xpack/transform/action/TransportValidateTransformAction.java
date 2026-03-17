@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.transform.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -50,6 +52,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
     private final Settings nodeSettings;
     private final SourceDestValidator sourceDestValidator;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportValidateTransformAction(
@@ -79,6 +82,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             License.OperationMode.BASIC.description()
         );
         this.crossProjectModeDecider = transformServices.crossProjectModeDecider();
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
@@ -149,8 +153,34 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             }
         });
 
+        // <3.5> Validate that the destination index/data stream exists when op_type is create
+        ActionListener<Boolean> validateOpTypeListener = validateConfigListener.delegateFailureAndWrap((l, ignored) -> {
+            if (request.isDeferValidation() == false && config.getDestination().getOpType() == DocWriteRequest.OpType.CREATE) {
+                String destinationIndex = config.getDestination().getIndex();
+                String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(
+                    clusterState,
+                    IndicesOptions.lenientExpandOpen(),
+                    destinationIndex
+                );
+                boolean destExists = concreteIndices.length > 0
+                    || clusterState.metadata().getProject().dataStreams().containsKey(destinationIndex);
+                if (destExists == false) {
+                    l.onFailure(
+                        new ValidationException().addValidationError(
+                            "Destination index ["
+                                + destinationIndex
+                                + "] does not exist. When [dest.op_type] is [create], the destination index must exist before"
+                                + " starting the transform."
+                        )
+                    );
+                    return;
+                }
+            }
+            l.onResponse(true);
+        });
+
         // <3> Validate Project Routing is not set when CPS is not supported
-        ActionListener<Boolean> validateProjectRoutingListener = validateConfigListener.delegateFailureAndWrap((l, ignored) -> {
+        ActionListener<Boolean> validateProjectRoutingListener = validateOpTypeListener.delegateFailureAndWrap((l, ignored) -> {
             if (config.getSource().getProjectRouting() == null || crossProjectModeDecider.crossProjectEnabled()) {
                 l.onResponse(true);
             } else {

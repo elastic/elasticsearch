@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -411,7 +412,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         }
     }
 
-    void checkWindow(TimeSeriesAggregate agg) {
+    private void checkWindow(TimeSeriesAggregate agg) {
         boolean hasWindow = false;
         for (NamedExpression aggregate : agg.aggregates()) {
             if (Alias.unwrap(aggregate) instanceof AggregateFunction af && af.hasWindow()) {
@@ -433,7 +434,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                 Expression window = af.window();
                 if (window.foldable() && window.fold(FoldContext.small()) instanceof Duration d) {
                     final long windowInMills = d.toMillis();
-                    if (windowInMills >= bucketInMillis && windowInMills % bucketInMillis == 0) {
+                    if (windowInMills < bucketInMillis || windowInMills % bucketInMillis == 0) {
                         continue;
                     }
                 }
@@ -443,9 +444,9 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                         + "] for aggregate function ["
                         + af.sourceText()
                         + "]; "
-                        + "the window must be larger than the time bucket ["
+                        + "the window must be an exact multiple of the time bucket ["
                         + Objects.requireNonNull(agg.timeBucket()).sourceText()
-                        + "] and an exact multiple of it"
+                        + "]"
                 );
             }
         }
@@ -454,8 +455,21 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
 
     private long getTimeBucketInMillis(TimeSeriesAggregate agg) {
         final Bucket bucket = agg.timeBucket();
-        if (bucket != null && bucket.buckets().foldable() && bucket.buckets().fold(FoldContext.small()) instanceof Duration d) {
+        if (bucket == null) {
+            return -1L;
+        }
+        if (bucket.buckets().foldable() && bucket.buckets().fold(FoldContext.small()) instanceof Duration d) {
             return d.toMillis();
+        }
+        Rounding.Prepared prepared = bucket.getDateRoundingOrNull(FoldContext.small());
+        if (prepared != null) {
+            // Use epoch 0 as a stable reference. This is exact for fixed-duration intervals
+            // (minutes, hours) such as those produced by TBUCKET with a numeric target count.
+            // Calendar-based roundings (months, years) have variable-length buckets, so this
+            // would only be an approximation — but TBUCKET target-count never resolves to such
+            // roundings, so epoch 0 is a safe anchor here.
+            long ref = prepared.round(0L);
+            return prepared.nextRoundingValue(ref) - ref;
         }
         return -1L;
     }

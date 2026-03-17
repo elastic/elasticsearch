@@ -921,7 +921,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
             return dataStream.getDataStreamIndices(failureStore).getIndices().size() == expectedSize;
         });
-        safeAwait(listener);
+        safeAwait(listener, TimeValue.timeValueSeconds(30));
         final var backingIndexNames = getDataStreamBackingIndexNames(dataStreamName, failureStore);
         assertEquals(
             Strings.format(

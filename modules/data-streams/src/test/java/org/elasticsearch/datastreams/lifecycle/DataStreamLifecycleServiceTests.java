@@ -106,6 +106,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -2556,5 +2557,110 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
 
     public void testFormatExecutionTimeHours() {
         assertThat(DataStreamLifecycleService.formatExecutionTime(5400000), equalTo("5400000ms/1.5h"));
+    }
+
+    public void testIndexMarkedForFrozen() {
+        IndexMetadata plainIndex = IndexMetadata.builder("foo")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IndexMetadata indexWithOtherCustom = IndexMetadata.builder("foo")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, Map.of("foo", "bar"))
+            .build();
+        IndexMetadata indexWithFrozenCustom = IndexMetadata.builder("foo")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putCustom(
+                LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
+                Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, "my-repo")
+            )
+            .build();
+
+        assertFalse(DataStreamLifecycleService.indexMarkedForFrozen(plainIndex));
+        assertFalse(DataStreamLifecycleService.indexMarkedForFrozen(indexWithOtherCustom));
+        assertTrue(DataStreamLifecycleService.indexMarkedForFrozen(indexWithFrozenCustom));
+    }
+
+    public void testGatheringCandidatesForFrozen() {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        int backingIndices = randomIntBetween(3, 10);
+        DataStream dataStreamWithNoFrozen = createDataStream(
+            builder,
+            "my-datastream",
+            backingIndices,
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE,
+            now
+        );
+        DataStream dataStreamWithFrozen = createDataStream(
+            builder,
+            "my-datastream-with-frozen",
+            backingIndices,
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.dataLifecycleBuilder().enabled(true).frozenAfter(TimeValue.timeValueMinutes(1)).build(),
+            now
+        );
+        builder.put(dataStreamWithNoFrozen);
+        builder.put(dataStreamWithFrozen);
+        ProjectMetadata projectMetadata = builder.build();
+
+        assertThat(
+            DataStreamLifecycleService.candidatesForFrozen(projectMetadata, dataStreamWithNoFrozen, () -> now, List.of()),
+            equalTo(Set.of())
+        );
+        assertThat(
+            DataStreamLifecycleService.candidatesForFrozen(
+                projectMetadata,
+                dataStreamWithNoFrozen,
+                () -> now,
+                dataStreamWithNoFrozen.getIndices()
+            ),
+            equalTo(Set.of())
+        );
+        assertThat(
+            DataStreamLifecycleService.candidatesForFrozen(projectMetadata, dataStreamWithFrozen, () -> now, List.of()),
+            equalTo(Set.of())
+        );
+        assertThat(
+            DataStreamLifecycleService.candidatesForFrozen(
+                projectMetadata,
+                dataStreamWithFrozen,
+                () -> now,
+                dataStreamWithFrozen.getIndices()
+            ),
+            equalTo(Set.of())
+        );
+        assertThat(
+            DataStreamLifecycleService.candidatesForFrozen(
+                projectMetadata,
+                dataStreamWithFrozen,
+                () -> now + TimeValue.timeValueDays(2).millis(),
+                List.of()
+            ),
+            equalTo(Set.of())
+        );
+        Set<Index> candidates = DataStreamLifecycleService.candidatesForFrozen(
+            projectMetadata,
+            dataStreamWithFrozen,
+            () -> now + TimeValue.timeValueMinutes(2).millis(),
+            dataStreamWithFrozen.getIndices()
+        );
+        assertThat(
+            new TreeSet<>(candidates.stream().map(Index::getName).toList()),
+            equalTo(
+                new TreeSet<>(
+                    dataStreamWithFrozen.getIndices()
+                        .subList(0, (int) dataStreamWithFrozen.getGeneration() - 1)
+                        .stream()
+                        .map(Index::getName)
+                        .toList()
+                )
+            )
+        );
     }
 }

@@ -10,6 +10,17 @@ Prior to version *8.16.0*, the connector release notes were published as part of
 ====
 
 [discrete]
+[[es-connectors-release-notes-8-19-13]]
+=== 8.19.13
+
+[discrete]
+[[es-connectors-release-notes-8-19-13-bug-fixes]]
+===== Bug fixes
+
+* Fixed a bug where using `id_columns` in advanced sync rules with mixed-case table or column names caused all documents to receive the same `_id`, resulting in document overwrites and only 1 document being indexed instead of the expected count.
+See: https://github.com/elastic/connectors/pull/3885[*PR 3885*], https://github.com/elastic/connectors/issues/3884[*Issue 3884*]
+
+[discrete]
 [[es-connectors-release-notes-8-19-12]]
 === 8.19.12
 

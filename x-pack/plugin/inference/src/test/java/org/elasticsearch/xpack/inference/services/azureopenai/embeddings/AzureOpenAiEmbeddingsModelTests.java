@@ -134,9 +134,9 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
     ) {
         AzureOpenAiEntraIdApiKeySecrets secretSettings;
         if (apiKey != null) {
-            secretSettings = new AzureOpenAiEntraIdApiKeySecrets(inferenceEntityId, new SecureString(apiKey.toCharArray()), null);
+            secretSettings = new AzureOpenAiEntraIdApiKeySecrets(new SecureString(apiKey.toCharArray()), null);
         } else if (entraId != null) {
-            secretSettings = new AzureOpenAiEntraIdApiKeySecrets(inferenceEntityId, null, new SecureString(entraId.toCharArray()));
+            secretSettings = new AzureOpenAiEntraIdApiKeySecrets(null, new SecureString(entraId.toCharArray()));
         } else {
             throw new IllegalArgumentException("Either apiKey or entraId must be provided");
         }
@@ -166,9 +166,9 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
     ) {
         AzureOpenAiEntraIdApiKeySecrets secretSettings;
         if (apiKey != null) {
-            secretSettings = new AzureOpenAiEntraIdApiKeySecrets(inferenceEntityId, new SecureString(apiKey.toCharArray()), null);
+            secretSettings = new AzureOpenAiEntraIdApiKeySecrets(new SecureString(apiKey.toCharArray()), null);
         } else if (entraId != null) {
-            secretSettings = new AzureOpenAiEntraIdApiKeySecrets(inferenceEntityId, null, new SecureString(entraId.toCharArray()));
+            secretSettings = new AzureOpenAiEntraIdApiKeySecrets(null, new SecureString(entraId.toCharArray()));
         } else {
             throw new IllegalArgumentException("Either apiKey or entraId must be provided");
         }
@@ -202,9 +202,9 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
     ) {
         AzureOpenAiEntraIdApiKeySecrets secretSettings;
         if (apiKey != null) {
-            secretSettings = new AzureOpenAiEntraIdApiKeySecrets(inferenceEntityId, new SecureString(apiKey.toCharArray()), null);
+            secretSettings = new AzureOpenAiEntraIdApiKeySecrets(new SecureString(apiKey.toCharArray()), null);
         } else if (entraId != null) {
-            secretSettings = new AzureOpenAiEntraIdApiKeySecrets(inferenceEntityId, null, new SecureString(entraId.toCharArray()));
+            secretSettings = new AzureOpenAiEntraIdApiKeySecrets(null, new SecureString(entraId.toCharArray()));
         } else {
             throw new IllegalArgumentException("Either apiKey or entraId must be provided");
         }

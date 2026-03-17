@@ -21,7 +21,6 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
@@ -42,18 +41,10 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
     public static final String EXACTLY_ONE_CONFIG_DESCRIPTION =
         "You must provide exactly one of API key, Entra ID, or OAuth2 client secret.";
 
-    private static final String UNKNOWN_INFERENCE_ID = "unknown";
-
-    protected final String inferenceId;
-
-    protected AzureOpenAiSecretSettings(@Nullable String inferenceId) {
-        this.inferenceId = Objects.requireNonNullElse(inferenceId, UNKNOWN_INFERENCE_ID);
-    }
-
     /**
      * Parses the map, validates exactly one auth field, returns the matching secret type.
      */
-    public static AzureOpenAiSecretSettings fromMap(@Nullable Map<String, Object> map, String inferenceId) {
+    public static AzureOpenAiSecretSettings fromMap(@Nullable Map<String, Object> map) {
         if (map == null) {
             return null;
         }
@@ -83,12 +74,12 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
         validationException.throwIfValidationErrorsExist();
 
         if (secureApiToken != null) {
-            return new AzureOpenAiEntraIdApiKeySecrets(inferenceId, secureApiToken, null);
+            return new AzureOpenAiEntraIdApiKeySecrets(secureApiToken, null);
         }
         if (secureEntraId != null) {
-            return new AzureOpenAiEntraIdApiKeySecrets(inferenceId, null, secureEntraId);
+            return new AzureOpenAiEntraIdApiKeySecrets(null, secureEntraId);
         }
-        return new AzureOpenAiOAuth2Secrets(inferenceId, clientSecret);
+        return new AzureOpenAiOAuth2Secrets(clientSecret);
     }
 
     public static class Configuration {
@@ -126,12 +117,8 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
             });
     }
 
-    public String getInferenceId() {
-        return inferenceId;
-    }
-
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return AzureOpenAiSecretSettings.fromMap(new HashMap<>(newSecrets), inferenceId);
+        return AzureOpenAiSecretSettings.fromMap(new HashMap<>(newSecrets));
     }
 }

@@ -24,23 +24,21 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.Azu
 import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings.ENTRA_ID;
 import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettingsTests.TEST_API_KEY;
 import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettingsTests.TEST_ENTRA_ID;
-import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettingsTests.TEST_INFERENCE_ID;
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiOAuth2Settings.AZURE_OPENAI_OAUTH_SETTINGS;
 import static org.hamcrest.Matchers.is;
 
 public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSerializationTestCase<AzureOpenAiEntraIdApiKeySecrets> {
 
     public static AzureOpenAiEntraIdApiKeySecrets createRandomEntraIdApiKeySecrets() {
         if (randomBoolean()) {
-            return new AzureOpenAiEntraIdApiKeySecrets(randomAlphaOfLength(10), randomSecureStringOfLength(15), null);
+            return new AzureOpenAiEntraIdApiKeySecrets(randomSecureStringOfLength(15), null);
         }
-        return new AzureOpenAiEntraIdApiKeySecrets(randomAlphaOfLength(10), null, randomSecureStringOfLength(15));
+        return new AzureOpenAiEntraIdApiKeySecrets(null, randomSecureStringOfLength(15));
     }
 
     public void testNewSecretSettingsApiKey() {
         var initialSettings = createRandomEntraIdApiKeySecrets();
         var apiKey = randomSecureStringOfLength(15);
-        var newSettings = new AzureOpenAiEntraIdApiKeySecrets(initialSettings.getInferenceId(), apiKey, null);
+        var newSettings = new AzureOpenAiEntraIdApiKeySecrets(apiKey, null);
         var finalSettings = (AzureOpenAiEntraIdApiKeySecrets) initialSettings.newSecretSettings(Map.of(API_KEY, apiKey.toString()));
 
         assertThat(finalSettings, is(newSettings));
@@ -49,14 +47,14 @@ public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSeriali
     public void testNewSecretSettingsEntraId() {
         var initialSettings = createRandomEntraIdApiKeySecrets();
         var entraId = randomSecureStringOfLength(15);
-        var newSettings = new AzureOpenAiEntraIdApiKeySecrets(initialSettings.getInferenceId(), null, entraId);
+        var newSettings = new AzureOpenAiEntraIdApiKeySecrets(null, entraId);
         var finalSettings = (AzureOpenAiEntraIdApiKeySecrets) initialSettings.newSecretSettings(Map.of(ENTRA_ID, entraId.toString()));
 
         assertEquals(newSettings, finalSettings);
     }
 
     public void testToXContext_WritesApiKeyOnlyWhenApiKeySet() throws IOException {
-        var testSettings = new AzureOpenAiEntraIdApiKeySecrets(TEST_INFERENCE_ID, new SecureString(TEST_API_KEY.toCharArray()), null);
+        var testSettings = new AzureOpenAiEntraIdApiKeySecrets(new SecureString(TEST_API_KEY.toCharArray()), null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         testSettings.toXContent(builder, null);
@@ -70,7 +68,7 @@ public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSeriali
     }
 
     public void testToXContext_WritesEntraIdOnlyWhenEntraIdSet() throws IOException {
-        var testSettings = new AzureOpenAiEntraIdApiKeySecrets(TEST_INFERENCE_ID, null, new SecureString(TEST_ENTRA_ID.toCharArray()));
+        var testSettings = new AzureOpenAiEntraIdApiKeySecrets(null, new SecureString(TEST_ENTRA_ID.toCharArray()));
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         testSettings.toXContent(builder, null);
         var xContentResult = Strings.toString(builder);
@@ -94,42 +92,36 @@ public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSeriali
 
     @Override
     protected AzureOpenAiEntraIdApiKeySecrets mutateInstance(AzureOpenAiEntraIdApiKeySecrets instance) throws IOException {
-        var inferenceId = instance.getInferenceId();
         var apiKey = instance.apiKey();
         var entraId = instance.entraId();
 
-        switch (randomInt(2)) {
+        switch (randomInt(1)) {
             case 0 -> {
-                return new AzureOpenAiEntraIdApiKeySecrets(randomAlphaOfLength(10), apiKey, entraId);
-            }
-            case 1 -> {
                 if (apiKey == null) {
-                    return new AzureOpenAiEntraIdApiKeySecrets(inferenceId, randomSecureStringOfLength(15), null);
+                    return new AzureOpenAiEntraIdApiKeySecrets(randomSecureStringOfLength(15), null);
                 }
 
                 if (randomBoolean()) {
                     return new AzureOpenAiEntraIdApiKeySecrets(
-                        inferenceId,
                         randomValueOtherThan(instance.apiKey(), () -> randomSecureStringOfLength(15)),
                         null
                     );
                 } else {
-                    return new AzureOpenAiEntraIdApiKeySecrets(inferenceId, null, randomSecureStringOfLength(15));
+                    return new AzureOpenAiEntraIdApiKeySecrets(null, randomSecureStringOfLength(15));
                 }
             }
-            case 2 -> {
+            case 1 -> {
                 if (entraId == null) {
-                    return new AzureOpenAiEntraIdApiKeySecrets(inferenceId, null, randomSecureStringOfLength(15));
+                    return new AzureOpenAiEntraIdApiKeySecrets(null, randomSecureStringOfLength(15));
                 }
 
                 if (randomBoolean()) {
                     return new AzureOpenAiEntraIdApiKeySecrets(
-                        inferenceId,
                         null,
-                        randomValueOtherThan(instance.apiKey(), () -> randomSecureStringOfLength(15))
+                        randomValueOtherThan(instance.entraId(), () -> randomSecureStringOfLength(15))
                     );
                 } else {
-                    return new AzureOpenAiEntraIdApiKeySecrets(inferenceId, randomSecureStringOfLength(15), null);
+                    return new AzureOpenAiEntraIdApiKeySecrets(randomSecureStringOfLength(15), null);
                 }
             }
             default -> throw new AssertionError("Illegal randomization branch");
@@ -138,10 +130,6 @@ public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSeriali
 
     @Override
     protected AzureOpenAiEntraIdApiKeySecrets mutateInstanceForVersion(AzureOpenAiEntraIdApiKeySecrets instance, TransportVersion version) {
-        if (version.supports(AZURE_OPENAI_OAUTH_SETTINGS)) {
-            return instance;
-        }
-
-        return new AzureOpenAiEntraIdApiKeySecrets(null, instance.apiKey(), instance.entraId());
+        return instance;
     }
 }

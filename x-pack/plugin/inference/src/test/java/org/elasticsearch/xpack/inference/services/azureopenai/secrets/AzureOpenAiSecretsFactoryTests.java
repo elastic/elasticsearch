@@ -66,7 +66,7 @@ public class AzureOpenAiSecretsFactoryTests extends ESTestCase {
     public void testCreateSecretsApplier_ApiKey() {
         var apiKey = randomSecureStringOfLength(10);
         var httpPost = new HttpPost();
-        var secretSettings = new AzureOpenAiEntraIdApiKeySecrets(TEST_INFERENCE_ID, apiKey, null);
+        var secretSettings = new AzureOpenAiEntraIdApiKeySecrets(apiKey, null);
         var secretsApplier = AzureOpenAiSecretsFactory.createSecretsApplier(
             TEST_INFERENCE_ID,
             threadPool,
@@ -85,7 +85,7 @@ public class AzureOpenAiSecretsFactoryTests extends ESTestCase {
     public void testCreateSecretsApplier_EntraId() {
         var entraId = randomSecureStringOfLength(10);
         var httpPost = new HttpPost();
-        var secretSettings = new AzureOpenAiEntraIdApiKeySecrets(TEST_INFERENCE_ID, null, entraId);
+        var secretSettings = new AzureOpenAiEntraIdApiKeySecrets(null, entraId);
         var secretsApplier = AzureOpenAiSecretsFactory.createSecretsApplier(
             TEST_INFERENCE_ID,
             threadPool,
@@ -102,7 +102,7 @@ public class AzureOpenAiSecretsFactoryTests extends ESTestCase {
     }
 
     public void testCreateSecretsApplier_OAuth2ClientSecret_DoesNotSetAuthHeaders_WhenOAuth2SettingsAreAbsent() {
-        var secretSettings = new AzureOpenAiOAuth2Secrets(TEST_INFERENCE_ID, randomSecureStringOfLength(10));
+        var secretSettings = new AzureOpenAiOAuth2Secrets(randomSecureStringOfLength(10));
         var thrownException = expectThrows(
             ValidationException.class,
             () -> AzureOpenAiSecretsFactory.createSecretsApplier(

@@ -30,31 +30,31 @@ public class AzureOpenAiSecretSettingsTests extends ESTestCase {
     public static final String CLIENT_SECRET_VALUE = "secret";
 
     public void testFromMap_ApiKey_Only() {
-        var result = AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(API_KEY, TEST_API_KEY)), TEST_INFERENCE_ID);
+        var result = AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(API_KEY, TEST_API_KEY)));
         assertThat(result, instanceOf(AzureOpenAiEntraIdApiKeySecrets.class));
-        assertThat(result, is(new AzureOpenAiEntraIdApiKeySecrets(TEST_INFERENCE_ID, new SecureString(TEST_API_KEY.toCharArray()), null)));
+        assertThat(result, is(new AzureOpenAiEntraIdApiKeySecrets(new SecureString(TEST_API_KEY.toCharArray()), null)));
     }
 
     public void testFromMap_EntraId_Only() {
-        var result = AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(ENTRA_ID, TEST_ENTRA_ID)), TEST_INFERENCE_ID);
+        var result = AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(ENTRA_ID, TEST_ENTRA_ID)));
         assertThat(result, instanceOf(AzureOpenAiEntraIdApiKeySecrets.class));
-        assertThat(result, is(new AzureOpenAiEntraIdApiKeySecrets(TEST_INFERENCE_ID, null, new SecureString(TEST_ENTRA_ID.toCharArray()))));
+        assertThat(result, is(new AzureOpenAiEntraIdApiKeySecrets(null, new SecureString(TEST_ENTRA_ID.toCharArray()))));
     }
 
     public void testFromMap_ClientSecret() {
-        var result = AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(CLIENT_SECRET_FIELD, CLIENT_SECRET_VALUE)), TEST_INFERENCE_ID);
+        var result = AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(CLIENT_SECRET_FIELD, CLIENT_SECRET_VALUE)));
         assertThat(result, instanceOf(AzureOpenAiOAuth2Secrets.class));
         assertThat(((AzureOpenAiOAuth2Secrets) result).getClientSecret().toString(), is(CLIENT_SECRET_VALUE));
     }
 
     public void testFromMap_ReturnsNull_WhenMapIsNull() {
-        assertNull(AzureOpenAiSecretSettings.fromMap(null, TEST_INFERENCE_ID));
+        assertNull(AzureOpenAiSecretSettings.fromMap(null));
     }
 
     public void testFromMap_MissingApiKeyAndEntraId_ThrowsError() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> AzureOpenAiSecretSettings.fromMap(new HashMap<>(), TEST_INFERENCE_ID)
+            () -> AzureOpenAiSecretSettings.fromMap(new HashMap<>())
         );
 
         assertThat(thrownException.getMessage(), containsString("must have exactly one of"));
@@ -67,7 +67,7 @@ public class AzureOpenAiSecretSettingsTests extends ESTestCase {
         var mapValues = getAzureOpenAiSecretSettingsMap(TEST_API_KEY, TEST_ENTRA_ID, null);
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> AzureOpenAiSecretSettings.fromMap(mapValues, TEST_INFERENCE_ID)
+            () -> AzureOpenAiSecretSettings.fromMap(mapValues)
         );
 
         assertThat(thrownException.getMessage(), containsString("must have exactly one of"));
@@ -80,7 +80,7 @@ public class AzureOpenAiSecretSettingsTests extends ESTestCase {
         var mapWithApiKeyAndClientSecret = getAzureOpenAiSecretSettingsMap(TEST_API_KEY, null, "secret");
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> AzureOpenAiSecretSettings.fromMap(mapWithApiKeyAndClientSecret, TEST_INFERENCE_ID)
+            () -> AzureOpenAiSecretSettings.fromMap(mapWithApiKeyAndClientSecret)
         );
 
         assertThat(thrownException.getMessage(), containsString("must have exactly one of"));
@@ -93,7 +93,7 @@ public class AzureOpenAiSecretSettingsTests extends ESTestCase {
         var mapWithApiKeyAndClientSecret = getAzureOpenAiSecretSettingsMap(null, TEST_ENTRA_ID, "secret");
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> AzureOpenAiSecretSettings.fromMap(mapWithApiKeyAndClientSecret, TEST_INFERENCE_ID)
+            () -> AzureOpenAiSecretSettings.fromMap(mapWithApiKeyAndClientSecret)
         );
 
         assertThat(thrownException.getMessage(), containsString("must have exactly one of"));
@@ -105,7 +105,7 @@ public class AzureOpenAiSecretSettingsTests extends ESTestCase {
     public void testFromMap_EmptyApiKey_ThrowsError() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(API_KEY, "")), TEST_INFERENCE_ID)
+            () -> AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(API_KEY, "")))
         );
 
         assertThat(
@@ -117,7 +117,7 @@ public class AzureOpenAiSecretSettingsTests extends ESTestCase {
     public void testFromMap_EmptyEntraId_ThrowsError() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(ENTRA_ID, "")), TEST_INFERENCE_ID)
+            () -> AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(ENTRA_ID, "")))
         );
 
         assertThat(

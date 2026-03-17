@@ -17,8 +17,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiOAuth2Settings.AZURE_OPENAI_OAUTH_SETTINGS;
-
 /**
  * Azure OpenAI secret settings for API key or Entra ID only.
  * Holds exactly one of the two (the other is null). Wire format matches main-branch behavior.
@@ -30,20 +28,14 @@ public class AzureOpenAiEntraIdApiKeySecrets extends AzureOpenAiSecretSettings {
     private final SecureString entraId;
     private final SecureString apiKey;
 
-    public AzureOpenAiEntraIdApiKeySecrets(String inferenceId, @Nullable SecureString apiKey, @Nullable SecureString entraId) {
-        super(inferenceId);
-
+    public AzureOpenAiEntraIdApiKeySecrets(@Nullable SecureString apiKey, @Nullable SecureString entraId) {
         Objects.requireNonNullElse(apiKey, entraId);
         this.apiKey = apiKey;
         this.entraId = entraId;
     }
 
     public AzureOpenAiEntraIdApiKeySecrets(StreamInput in) throws IOException {
-        this(
-            in.getTransportVersion().supports(AZURE_OPENAI_OAUTH_SETTINGS) ? in.readString() : null,
-            in.readOptionalSecureString(),
-            in.readOptionalSecureString()
-        );
+        this(in.readOptionalSecureString(), in.readOptionalSecureString());
     }
 
     public SecureString apiKey() {
@@ -78,10 +70,6 @@ public class AzureOpenAiEntraIdApiKeySecrets extends AzureOpenAiSecretSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().supports(AZURE_OPENAI_OAUTH_SETTINGS)) {
-            out.writeString(inferenceId);
-        }
-
         out.writeOptionalSecureString(apiKey);
         out.writeOptionalSecureString(entraId);
     }
@@ -91,13 +79,11 @@ public class AzureOpenAiEntraIdApiKeySecrets extends AzureOpenAiSecretSettings {
         if (this == object) return true;
         if (object == null || getClass() != object.getClass()) return false;
         AzureOpenAiEntraIdApiKeySecrets that = (AzureOpenAiEntraIdApiKeySecrets) object;
-        return Objects.equals(entraId, that.entraId)
-            && Objects.equals(apiKey, that.apiKey)
-            && Objects.equals(inferenceId, that.inferenceId);
+        return Objects.equals(entraId, that.entraId) && Objects.equals(apiKey, that.apiKey);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(entraId, apiKey, inferenceId);
+        return Objects.hash(entraId, apiKey);
     }
 }

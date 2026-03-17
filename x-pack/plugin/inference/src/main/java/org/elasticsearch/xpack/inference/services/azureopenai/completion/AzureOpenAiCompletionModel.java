@@ -49,7 +49,7 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
             service,
             AzureOpenAiCompletionServiceSettings.fromMap(serviceSettings, context),
             AzureOpenAiCompletionTaskSettings.fromMap(taskSettings, context),
-            AzureOpenAiSecretSettings.fromMap(secrets, inferenceEntityId),
+            AzureOpenAiSecretSettings.fromMap(secrets),
             threadPool
         );
     }

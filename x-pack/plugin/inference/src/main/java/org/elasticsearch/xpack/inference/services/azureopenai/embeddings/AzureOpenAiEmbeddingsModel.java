@@ -52,7 +52,7 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
             AzureOpenAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             AzureOpenAiEmbeddingsTaskSettings.fromMap(taskSettings, context),
             chunkingSettings,
-            AzureOpenAiSecretSettings.fromMap(secrets, inferenceEntityId),
+            AzureOpenAiSecretSettings.fromMap(secrets),
             threadPool
         );
     }

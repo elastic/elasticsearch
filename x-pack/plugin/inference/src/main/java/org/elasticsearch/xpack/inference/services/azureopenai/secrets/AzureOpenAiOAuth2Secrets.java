@@ -40,14 +40,12 @@ public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretSettings {
 
     private final SecureString clientSecret;
 
-    public AzureOpenAiOAuth2Secrets(String inferenceId, SecureString clientSecrets) {
-        super(inferenceId);
-
+    public AzureOpenAiOAuth2Secrets(SecureString clientSecrets) {
         this.clientSecret = Objects.requireNonNull(clientSecrets);
     }
 
     public AzureOpenAiOAuth2Secrets(StreamInput in) throws IOException {
-        this(in.readString(), in.readSecureString());
+        this(in.readSecureString());
     }
 
     public SecureString getClientSecret() {
@@ -66,7 +64,6 @@ public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(inferenceId);
         out.writeSecureString(clientSecret);
     }
 
@@ -82,12 +79,12 @@ public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretSettings {
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         AzureOpenAiOAuth2Secrets that = (AzureOpenAiOAuth2Secrets) o;
-        return Objects.equals(clientSecret, that.clientSecret) && Objects.equals(inferenceId, that.inferenceId);
+        return Objects.equals(clientSecret, that.clientSecret);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(clientSecret, inferenceId);
+        return Objects.hash(clientSecret);
     }
 
     public static Map<String, SettingsConfiguration> getClientSecretConfiguration() {

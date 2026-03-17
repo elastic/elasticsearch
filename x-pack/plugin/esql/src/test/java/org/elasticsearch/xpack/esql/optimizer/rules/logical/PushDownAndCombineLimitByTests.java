@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -23,6 +24,8 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.contains;
@@ -388,10 +391,7 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
         as(eval.child(), EsRelation.class);
     }
 
-    private static java.util.List<String> orderNames(TopN topN) {
-        return topN.order()
-            .stream()
-            .map(o -> as(o.child(), org.elasticsearch.xpack.esql.core.expression.NamedExpression.class).name())
-            .toList();
+    private static List<String> orderNames(TopN topN) {
+        return topN.order().stream().map(o -> as(o.child(), NamedExpression.class).name()).toList();
     }
 }

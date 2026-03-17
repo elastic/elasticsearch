@@ -125,6 +125,36 @@ public class InvalidMappedField extends EsField {
     }
 
     private static String makeErrorMessage(Map<String, Set<String>> typesToIndices, boolean includeInsistKeyword) {
+        boolean hasObject = typesToIndices.keySet().stream()
+            .anyMatch(t -> t.equals(DataType.OBJECT.typeName()));
+
+        if (hasObject) {
+            StringBuilder message = new StringBuilder();
+            message.append("Field has incompatible mappings: ");
+
+            boolean first = true;
+            for (Map.Entry<String, Set<String>> e : typesToIndices.entrySet()) {
+                if (first) {
+                    first = false;
+                } else {
+                    message.append(", ");
+                }
+                message.append("[");
+                message.append(e.getKey());
+                message.append("] in ");
+                if (e.getValue().size() <= 3) {
+                    message.append(e.getValue());
+                } else {
+                    message.append(e.getValue().stream().sorted().limit(3).collect(Collectors.toList()));
+                    message.append(" and [").append(e.getValue().size() - 3).append("] other ");
+                    message.append(e.getValue().size() == 4 ? "index" : "indices");
+                }
+            }
+
+            message.append(". Casting cannot resolve this conflict because [object] fields cannot be cast to scalar types.");
+
+            return message.toString();
+        }
         StringBuilder errorMessage = new StringBuilder();
         var isInsistKeywordOnlyKeyword = includeInsistKeyword && typesToIndices.containsKey(DataType.KEYWORD.typeName()) == false;
         errorMessage.append("mapped as [");

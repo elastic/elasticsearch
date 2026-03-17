@@ -31,11 +31,15 @@ import java.util.Map;
 /// The aggregated data is held in the [HealthInfoCache][org.elasticsearch.health.node.HealthInfoCache] on the
 /// health node and consumed by health indicator services.
 ///
+/// The health node also logs nodes health periodically via the
+/// [HealthPeriodicLogger][org.elasticsearch.health.HealthPeriodicLogger].
+///
 /// The lifecycle of this task is managed by [HealthNodeTaskExecutor].
 ///
 /// @see HealthNodeTaskExecutor
 /// @see org.elasticsearch.health.node.HealthInfoCache
 /// @see org.elasticsearch.health.node.LocalHealthMonitor
+/// @see org.elasticsearch.health.HealthPeriodicLogger
 ///
 public class HealthNode extends AllocatedPersistentTask {
 

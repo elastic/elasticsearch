@@ -14,7 +14,6 @@ import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
-import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItemIterator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 
 import java.util.Map;
@@ -74,9 +73,9 @@ public class EmbeddingOperator extends InferenceOperator {
             if (formatValue instanceof String formatStr) {
                 dataFormat = DataFormat.fromString(formatStr);
             }
-            return new TypedEmbeddingRequestIterator.Factory(inferenceId, taskType, textEvaluator, dataType, dataFormat);
+            return new EmbeddingRequestIterator.Factory(inferenceId, taskType, textEvaluator, dataType, dataFormat);
         }
-        return new PlainEmbeddingRequestIterator.Factory(inferenceId, taskType, textEvaluator);
+        return new TextEmbeddingRequestIterator.Factory(inferenceId, taskType, textEvaluator);
     }
 
     /**

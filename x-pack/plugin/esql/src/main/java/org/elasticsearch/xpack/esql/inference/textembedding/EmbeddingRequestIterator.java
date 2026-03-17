@@ -35,12 +35,12 @@ import java.util.Map;
  * as the executor.
  * </p>
  */
-class TypedEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
+class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
 
     private final DataType dataType;
     private final DataFormat dataFormat;
 
-    TypedEmbeddingRequestIterator(
+    EmbeddingRequestIterator(
         String inferenceId,
         TaskType taskType,
         BytesRefBlock textBlock,
@@ -75,7 +75,7 @@ class TypedEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
     }
 
     /**
-     * Factory for creating {@link TypedEmbeddingRequestIterator} instances.
+     * Factory for creating {@link EmbeddingRequestIterator} instances.
      */
     record Factory(String inferenceId, TaskType taskType, ExpressionEvaluator textEvaluator, DataType dataType, DataFormat dataFormat)
         implements
@@ -83,7 +83,7 @@ class TypedEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
 
         @Override
         public BulkInferenceRequestItemIterator create(Page inputPage) {
-            return new TypedEmbeddingRequestIterator(
+            return new EmbeddingRequestIterator(
                 inferenceId,
                 taskType,
                 (BytesRefBlock) textEvaluator.eval(inputPage),

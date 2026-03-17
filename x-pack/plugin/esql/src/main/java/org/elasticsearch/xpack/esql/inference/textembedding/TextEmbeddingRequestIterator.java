@@ -26,9 +26,9 @@ import java.util.List;
  * {@link org.elasticsearch.xpack.esql.inference.InferenceService#executeInference} as the executor.
  * </p>
  */
-class PlainEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
+class TextEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
 
-    PlainEmbeddingRequestIterator(String inferenceId, TaskType taskType, BytesRefBlock textBlock) {
+    TextEmbeddingRequestIterator(String inferenceId, TaskType taskType, BytesRefBlock textBlock) {
         super(inferenceId, taskType, textBlock);
     }
 
@@ -42,7 +42,7 @@ class PlainEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
     }
 
     /**
-     * Factory for creating {@link PlainEmbeddingRequestIterator} instances.
+     * Factory for creating {@link TextEmbeddingRequestIterator} instances.
      */
     record Factory(String inferenceId, TaskType taskType, ExpressionEvaluator textEvaluator)
         implements
@@ -50,7 +50,7 @@ class PlainEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
 
         @Override
         public BulkInferenceRequestItemIterator create(Page inputPage) {
-            return new PlainEmbeddingRequestIterator(inferenceId, taskType, (BytesRefBlock) textEvaluator.eval(inputPage));
+            return new TextEmbeddingRequestIterator(inferenceId, taskType, (BytesRefBlock) textEvaluator.eval(inputPage));
         }
 
         @Override

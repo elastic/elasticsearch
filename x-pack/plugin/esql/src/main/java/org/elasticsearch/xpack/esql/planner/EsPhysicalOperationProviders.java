@@ -503,7 +503,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregatorFactories,
         List<BlockHash.GroupSpec> groupSpecs,
-        LocalExecutionPlannerContext context
+        LocalExecutionPlannerContext context,
+        int maxPageSize
     ) {
         Rounding.Prepared outputRounding = ts.outputTimeBucketRounding(context.foldCtx());
         Rounding.Prepared internalRounding = ts.timeBucketRounding(context.foldCtx());

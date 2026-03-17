@@ -53,7 +53,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         List<BlockHash.GroupSpec> groups,
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
-        int maxPageSize,
+        int aggregationBatchSize,
         Rounding.Prepared outputTimeBucket
     ) implements OperatorFactory {
 
@@ -63,9 +63,9 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             List<BlockHash.GroupSpec> groups,
             AggregatorMode aggregatorMode,
             List<GroupingAggregator.Factory> aggregators,
-            int maxPageSize
+            int aggregationBatchSize
         ) {
-            this(timeBucket, dateNanos, groups, aggregatorMode, aggregators, maxPageSize, null);
+            this(timeBucket, dateNanos, groups, aggregatorMode, aggregators, aggregationBatchSize, null);
         }
 
         @Override
@@ -76,6 +76,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                 aggregatorMode,
                 aggregators,
                 () -> {
+                    // Use TimeSeriesBlockHash for groups over the [tsid, timestamp] pair, to reduce the group overhead.
                     if (groups.size() == 2) {
                         var g1 = groups.get(0);
                         var g2 = groups.get(1);
@@ -85,7 +86,8 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                             return new TimeSeriesBlockHash(g2.channel(), g1.channel(), true, driverContext.blockFactory());
                         }
                     }
-                    return BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, true);
+                    // Broken optimizations are allowed as the inputs are vectors.
+                    return BlockHash.build(groups, driverContext.blockFactory(), aggregationBatchSize, true);
                 },
                 outputTimeBucket,
                 driverContext
@@ -117,7 +119,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         Rounding.Prepared outputTimeBucket,
         DriverContext driverContext
     ) {
-        super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, driverContext);
+        super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, Integer.MAX_VALUE, driverContext);
         this.timeBucket = timeBucket;
         this.timeResolution = timeResolution;
         this.outputTimeBucket = outputTimeBucket;

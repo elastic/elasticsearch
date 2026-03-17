@@ -1032,7 +1032,7 @@ public class EsqlCapabilities {
         /**
          * Support change point detection "CHANGE_POINT".
          */
-        CHANGE_POINT,
+        CHANGE_POINT_V2,
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/120817

@@ -13,6 +13,25 @@ apply plugin: org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecomm
 apply plugin: org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin
 
+configurations {
+  // Separate classpath for OrcFixtureGenerator to avoid jar hell: hadoop-client-runtime
+  // bundles javax.xml.bind (multi-release) which conflicts with jakarta.xml.bind-api from
+  // repository-azure (transitive via esql:qa:server).
+  orcFixtureGenerator
+}
+
+configurations.all {
+  resolutionStrategy.force "io.airlift:aircompressor:${versions.aircompressor}"
+}
+
+// OrcFixtureGenerator lives in its own source set so TestingConventions doesn't load it
+// (it depends on Hadoop which conflicts with repository-azure on the test classpath).
+sourceSets {
+  orcFixtureGenerator {
+    compileClasspath += configurations.orcFixtureGenerator
+  }
+}
+
 dependencies {
   // Test fixtures and spec reader infrastructure
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))

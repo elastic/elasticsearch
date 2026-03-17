@@ -35,6 +35,7 @@ import static org.elasticsearch.xpack.inference.queries.LegacySemanticMatchQuery
 import static org.elasticsearch.xpack.inference.queries.LegacySemanticSparseVectorQueryRewriteInterceptor.SEMANTIC_SPARSE_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankDoc.TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_SNIPPETS;
+import static org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder.EMBEDDING_QUERY_VECTOR_BUILDER_FEATURE;
 
 /**
  * Provides inference features.
@@ -140,7 +141,8 @@ public class InferenceFeatures implements FeatureSpecification {
                 TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS,
                 RETRIEVER_RESULT_DIVERSIFICATION_USES_QUERY_VECTOR_BUILDER,
                 TEXT_SIMILARITY_RERANKER_INFERENCE_ID_CHUNKING,
-                TEXT_SIMILARITY_RERANKER_COMPREHENSIVE_TOP_N_HANDLING
+                TEXT_SIMILARITY_RERANKER_COMPREHENSIVE_TOP_N_HANDLING,
+                EMBEDDING_QUERY_VECTOR_BUILDER_FEATURE
             )
         );
         testFeatures.addAll(getFeatures());

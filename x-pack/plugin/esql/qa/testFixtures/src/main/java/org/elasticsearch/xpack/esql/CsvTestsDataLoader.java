@@ -166,6 +166,7 @@ public class CsvTestsDataLoader {
         new TestDataset("date_nanos"),
         new TestDataset("date_nanos_union_types"),
         new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json"),
+        new TestDataset("k8s_unmapped", "mapping-k8s-unmapped.json", "k8s.csv").withSetting("k8s-settings.json"),
         new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv", "k8s-settings.json"),
         new TestDataset("k8s-downsampled", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json"),
         new TestDataset("distances"),
@@ -206,10 +207,19 @@ public class CsvTestsDataLoader {
             "histogram_standard_index.csv",
             "settings-histogram_time_series_index.json"
         ).withRequiredCapabilities(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION),
-        new TestDataset("many_numbers"),
+        new TestDataset("many_numbers").withSetting("many_numbers-settings.json"),
         new TestDataset("mmr_text_vector_keyword"),
-        new TestDataset("json_logs")
+        new TestDataset("json_logs"),
+        new TestDataset("flattened_otel_logs")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
+
+    // Developer flags for faster iteration when debugging specific csv-spec tests:
+    // -Dtests.spec_indices=index1,index2 load only the specified dataset indices (enrich skipped unless spec_enrich_policies is set)
+    // -Dtests.spec_enrich_policies=p1,p2 load only the specified enrich policies (overrides the spec_indices skipping of enrich)
+    @Nullable
+    private static final Set<String> specIndices = parseSetProperty("tests.spec_indices");
+    @Nullable
+    private static final Set<String> specEnrichPolicies = parseSetProperty("tests.spec_enrich_policies");
 
     public static final Map<String, EnrichConfig> ENRICH_POLICIES = Stream.of(
         new EnrichConfig("languages_policy", "enrich-policy-languages.json", "languages"),
@@ -388,7 +398,17 @@ public class CsvTestsDataLoader {
             }
         }
 
+        if (specIndices != null) {
+            testDataSets.removeIf(d -> specIndices.contains(d.indexName) == false);
+        }
+
         return testDataSets;
+    }
+
+    @Nullable
+    private static Set<String> parseSetProperty(String name) {
+        String prop = System.getProperty(name);
+        return (prop == null || prop.isBlank()) ? null : Set.of(prop.split(", *"));
     }
 
     private static boolean isLookupDataset(TestDataset dataset) throws IOException {
@@ -477,9 +497,14 @@ public class CsvTestsDataLoader {
     }
 
     private static void loadEnrichPolicies(RestClient client) throws IOException {
-        logger.info("Loading enrich policies");
-        for (var policy : ENRICH_POLICIES.values()) {
-            loadEnrichPolicy(client, policy);
+        // Does not load any enrich policies if specIndices is set and specEnrichPolicies is not.
+        if (specEnrichPolicies != null || specIndices == null) {
+            logger.info("Loading enrich policies");
+            for (var policy : ENRICH_POLICIES.values()) {
+                if (specEnrichPolicies == null || specEnrichPolicies.contains(policy.policyName)) {
+                    loadEnrichPolicy(client, policy);
+                }
+            }
         }
     }
 

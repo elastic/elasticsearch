@@ -132,7 +132,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         IndexNameExpressionResolver indexNameExpressionResolver,
         UsageService usageService,
         ActionLoggingFieldsProvider fieldProvider,
-        ActivityLogWriterProvider logWriterProvider
+        ActivityLogWriterProvider logWriterProvider,
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -203,7 +204,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             new InferenceService(client, clusterService),
             blockFactoryProvider,
             new PlannerSettings.Holder(clusterService),
-            new CrossProjectModeDecider(clusterService.getSettings())
+            crossProjectModeDecider
         );
 
         OperatorFactoryRegistry operatorFactoryRegistry = planExecutor.dataSourceModule()
@@ -537,7 +538,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ) {
             @Override
             public Status getStatus() {
-                return new EsqlQueryStatus(asyncExecutionId);
+                return new EsqlQueryStatus(asyncExecutionId, getKeepAlive());
             }
 
             @Override

@@ -32,16 +32,10 @@ public final class AnyFloatAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public AnyFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      AnyFloatAggregator.SingleState state) {
+  AnyFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static AnyFloatAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new AnyFloatAggregatorFunction(driverContext, channels, AnyFloatAggregator.initSingle(driverContext));
+    this.state = AnyFloatAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

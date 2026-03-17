@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsModelTests;
 
 import java.io.IOException;
@@ -73,7 +74,7 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
         String expectedTruncation,
         String expectedUrl
     ) throws IOException {
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         var httpPost = validateRequestUrlAndContentType(httpRequest, expectedUrl);
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
@@ -93,7 +94,7 @@ public class NvidiaEmbeddingsRequestTests extends ESTestCase {
         var request = createRequest(URL_VALUE, null, null, null);
         var truncatedRequest = request.truncate();
 
-        var httpRequest = truncatedRequest.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();

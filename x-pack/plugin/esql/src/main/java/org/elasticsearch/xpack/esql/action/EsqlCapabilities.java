@@ -237,6 +237,12 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_NULLIFY_SKIP_GROUP_ALIASES,
 
         /**
+         * Nullify unmapped fields in agg filters like {@code STATS agg_fun(field) WHERE field...}, even when
+         * {@link org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs} marks the field as unresolvable with a custom error message.
+         */
+        OPTIONAL_FIELDS_DETECT_UNMAPPED_FIELDS_IN_AGG_FILTERS,
+
+        /**
          * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY/LOAD.
          * V2:  prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
          */
@@ -351,6 +357,12 @@ public class EsqlCapabilities {
         ENRICH_LOAD,
 
         /**
+         * Test-only capability since loading a value from a flattened field is possible using the unmapped field infrastructure, but
+         * is only supported by full integration tests. So this capability is used to disable some tests in CsvTests.
+         */
+        LOAD_FLATTENED_FIELD,
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,
@@ -436,6 +448,16 @@ public class EsqlCapabilities {
          * Fix for spatial centroid when no records are found.
          */
         SPATIAL_CENTROID_NO_RECORDS,
+
+        /**
+         * Support for ST_CENTROID_AGG aggregation on geo_shape and cartesian_shape fields.
+         */
+        ST_CENTROID_AGG_SHAPES,
+
+        /**
+         * Support for ST_CENTROID_AGG aggregation on shapes from doc-values.
+         */
+        ST_CENTROID_AGG_SHAPES_DOC_VALUES,
 
         /**
          * Support ST_ENVELOPE function (and related ST_XMIN, etc.).
@@ -775,7 +797,10 @@ public class EsqlCapabilities {
          * QSTR function
          */
         QSTR_FUNCTION,
-
+        /**
+         * Guards a fix for the boost parameter in QueryString queries
+         */
+        QSTR_FUNCTION_BOOST_FIX,
         /**
          * MATCH function
          */
@@ -826,6 +851,11 @@ public class EsqlCapabilities {
          * _source field mapping directives: https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-source-field.html
          */
         SOURCE_FIELD_MAPPING,
+
+        /**
+         * Support for field aliases in mappings. Used by tests, since this was feature wasn't always supported by CsvTests.
+         */
+        FIELD_ALIAS_SUPPORT,
 
         /**
          * Allow filter per individual aggregation.
@@ -1416,6 +1446,10 @@ public class EsqlCapabilities {
          */
         EXPLAIN(Build.current().isSnapshot()),
         /**
+         * EXPLAIN command with remote plans (5 columns: cluster, node, role, type, plan)
+         */
+        EXPLAIN_WITH_REMOTE_PLANS(Build.current().isSnapshot()),
+        /**
          * Support for the RLIKE operator with a list of regexes.
          */
         RLIKE_WITH_LIST_OF_PATTERNS,
@@ -1855,6 +1889,11 @@ public class EsqlCapabilities {
         TIME_SERIES_WINDOW_V1,
 
         /**
+         * Supporting grouping window in time-series where the window is smaller than the time bucket
+         */
+        TIME_SERIES_WINDOW_SMALLER_THAN_BUCKET,
+
+        /**
          * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356
          */
         LIKE_PARAMETER_SUPPORT,
@@ -1983,11 +2022,6 @@ public class EsqlCapabilities {
         FIX_INLINE_STATS_INCORRECT_PRUNNING(INLINE_STATS.enabled),
 
         /**
-         * Support for ST_CENTROID_AGG aggregation on geo_shape and cartesian_shape fields.
-         */
-        ST_CENTROID_AGG_SHAPES,
-
-        /**
          * {@link ReplaceStatsFilteredOrNullAggWithEval} replaced a stats
          * with false filter with null with {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Present} or
          * {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Absent}
@@ -2086,7 +2120,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation.
          */
-        APPROXIMATION_V2(Build.current().isSnapshot()),
+        APPROXIMATION_V3(Build.current().isSnapshot()),
 
         /**
          * Create a ScoreOperator only when shard contexts are available
@@ -2113,6 +2147,11 @@ public class EsqlCapabilities {
          * Support for configuring T-Digest elasticsearch field as a time series metric.
          */
         TDIGEST_TIME_SERIES_METRIC,
+
+        /**
+         * Support for the {@code TO_EXPONENTIAL_HISTOGRAM} conversion function.
+         */
+        TO_EXPONENTIAL_HISTOGRAM,
 
         /**
          * Support for {@code MEDIAN} aggregation on {@code tdigest} type fields.
@@ -2159,6 +2198,11 @@ public class EsqlCapabilities {
          * Support for the METRICS_INFO command.
          */
         METRICS_INFO_COMMAND,
+
+        /**
+         * Support for TBUCKET with numeric bucket count and optional from/to parameters.
+         */
+        TBUCKET_FROM_TO,
 
         /**
          * Supports the REGISTERED_DOMAIN command.
@@ -2226,6 +2270,11 @@ public class EsqlCapabilities {
         FIX_UNMAPPED_FIELDS_IN_ESRELATION,
 
         /**
+         * Support for dense_vector equality and inequality operators (==, !=).
+         */
+        DENSE_VECTOR_EQUALITY,
+
+        /**
          * Fix for not including metadata _doc_count in the _timeseries column
          * https://github.com/elastic/elasticsearch/issues/143464
          */
@@ -2242,6 +2291,43 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/143859
          */
         FIX_FULL_TEXT_FUNCTIONS_ON_RENAMED_FIELDS,
+
+        /**
+         * TOP_SNIPPETS checks that the query is foldable
+         */
+        TOP_SNIPPETS_FOLDABLE_QUERY_CHECK,
+
+        /**
+         * Fixes an analysis bug in {@code FORK} with {@code unmapped_fields="nullify"}.
+         * Preserve existing attribute {@code NameId}s so that references from upper plan nodes remain valid after
+         * sub-plans are updated. Only genuinely new attributes get fresh NameIds.
+         * Keeping the same attributes can have unintended side effects when applying optimizations like constant folding.
+         * https://github.com/elastic/elasticsearch/issues/142762
+         */
+        FIX_FORK_UNMAPPED_NULLIFY,
+
+        /**
+         * Fix for the STATS BY ALL with LIMIT 0.
+         * https://github.com/elastic/elasticsearch/issues/144024
+         */
+        FIX_LIMIT_ZERO_IN_STATS_BY_ALL,
+
+        /**
+         * Fix field caps incorrectly synthesizing object parents under subobjects:false (passthrough) mappers,
+         * causing false type conflicts in ES|QL when querying across indices.
+         * https://github.com/elastic/elasticsearch/issues/144179
+         */
+        FIX_PASSTHROUGH_FIELD_CAPS_OBJECT_PARENT,
+
+        /**
+         * LIMIT n BY expr1, expr2 support for retaining at most n docs per group.
+         */
+        LIMIT_BY(Build.current().isSnapshot()),
+
+        /**
+         * Fix window validation in time-series aggregations when TBUCKET uses a numeric target bucket count.
+         */
+        FIX_TBUCKET_TARGET_COUNT_WINDOW_VALIDATION,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -11,7 +11,7 @@ import com.azure.core.credential.TokenRequestContext;
 import com.azure.identity.ClientSecretCredential;
 import com.azure.identity.ClientSecretCredentialBuilder;
 
-import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;

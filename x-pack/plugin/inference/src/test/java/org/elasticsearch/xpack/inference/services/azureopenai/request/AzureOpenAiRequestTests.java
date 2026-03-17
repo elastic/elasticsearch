@@ -7,18 +7,40 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.request;
 
+import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.common.TruncatorTests;
+import org.elasticsearch.xpack.inference.common.parser.Headers;
+import org.elasticsearch.xpack.inference.external.request.HttpRequest;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
+import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.azureopenai.request.embeddings.AzureOpenAiEmbeddingsRequestTests;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
+import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.hamcrest.Matchers.is;
 
 public class AzureOpenAiRequestTests extends ESTestCase {
 
     private static final String TEST_INFERENCE_ID = "test-inference-id";
+    private static final String RESOURCE_NAME = "resource";
+    private static final String DEPLOYMENT_ID = "deployment";
+    private static final String API_VERSION = "2024";
+    private static final String API_KEY = "apikey";
+    private static final String INPUT_TEXT = "input";
+    private static final String TEST_INPUT_TEXT = "test input text";
+    private static final String CUSTOM_HEADER_NAME = "X-Custom-Header";
+    private static final String CUSTOM_HEADER_VALUE = "custom-value";
 
     private ThreadPool threadPool;
 
@@ -32,4 +54,88 @@ public class AzureOpenAiRequestTests extends ESTestCase {
         terminate(threadPool);
     }
 
+    public void testCreateHttpRequest_SetsRequestBodyToRequestEntity() throws IOException {
+        var request = AzureOpenAiEmbeddingsRequestTests.createRequest(
+            TEST_INFERENCE_ID,
+            RESOURCE_NAME,
+            DEPLOYMENT_ID,
+            API_VERSION,
+            API_KEY,
+            null,
+            TEST_INPUT_TEXT,
+            null,
+            null,
+            threadPool
+        );
+        HttpRequest httpRequest = RequestTests.getHttpRequestSync(request);
+
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        assertThat(requestMap.get("input"), is(List.of(TEST_INPUT_TEXT)));
+    }
+
+    public void testCreateHttpRequest_ReturnsHttpRequestWithInferenceEntityId() {
+        var request = AzureOpenAiEmbeddingsRequestTests.createRequest(
+            TEST_INFERENCE_ID,
+            RESOURCE_NAME,
+            DEPLOYMENT_ID,
+            API_VERSION,
+            API_KEY,
+            null,
+            INPUT_TEXT,
+            null,
+            null,
+            threadPool
+        );
+        HttpRequest httpRequest = RequestTests.getHttpRequestSync(request);
+
+        assertThat(httpRequest.inferenceEntityId(), is(TEST_INFERENCE_ID));
+    }
+
+    public void testCreateHttpRequest_AppliesTaskSettingsHeadersWhenPresent() {
+        var baseModel = AzureOpenAiEmbeddingsModelTests.createModel(
+            RESOURCE_NAME,
+            DEPLOYMENT_ID,
+            API_VERSION,
+            null,
+            API_KEY,
+            null,
+            TEST_INFERENCE_ID,
+            threadPool
+        );
+        var modelWithHeaders = AzureOpenAiEmbeddingsModel.of(
+            baseModel,
+            Map.of(Headers.HEADERS_FIELD, Map.of(CUSTOM_HEADER_NAME, CUSTOM_HEADER_VALUE))
+        );
+        var request = new AzureOpenAiEmbeddingsRequest(
+            TruncatorTests.createTruncator(),
+            new Truncator.TruncationResult(List.of(INPUT_TEXT), new boolean[] { false }),
+            InputType.INGEST,
+            modelWithHeaders
+        );
+
+        HttpRequest httpRequest = RequestTests.getHttpRequestSync(request);
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        assertThat(httpPost.getLastHeader(CUSTOM_HEADER_NAME).getValue(), is(CUSTOM_HEADER_VALUE));
+    }
+
+    public void testCreateHttpRequest_DoesNotAddTaskSettingsHeadersWhenAbsent() {
+        var request = AzureOpenAiEmbeddingsRequestTests.createRequest(
+            TEST_INFERENCE_ID,
+            RESOURCE_NAME,
+            DEPLOYMENT_ID,
+            API_VERSION,
+            API_KEY,
+            null,
+            INPUT_TEXT,
+            null,
+            null,
+            threadPool
+        );
+        HttpRequest httpRequest = RequestTests.getHttpRequestSync(request);
+
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        assertNull(httpPost.getFirstHeader(CUSTOM_HEADER_NAME));
+    }
 }

@@ -36,6 +36,8 @@ import static org.hamcrest.Matchers.is;
 
 public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
 
+    private static final String INFERENCE_ID = "id";
+
     private ThreadPool threadPool;
 
     @Before
@@ -135,7 +137,22 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         @Nullable String entraId,
         String input,
         @Nullable String user,
-        InputType inputType
+        @Nullable InputType inputType
+    ) {
+        return createRequest(INFERENCE_ID, resourceName, deploymentId, apiVersion, apiKey, entraId, input, user, inputType, threadPool);
+    }
+
+    public static AzureOpenAiEmbeddingsRequest createRequest(
+        String inferenceId,
+        String resourceName,
+        String deploymentId,
+        String apiVersion,
+        @Nullable String apiKey,
+        @Nullable String entraId,
+        String input,
+        @Nullable String user,
+        @Nullable InputType inputType,
+        ThreadPool threadPool
     ) {
         var embeddingsModel = AzureOpenAiEmbeddingsModelTests.createModel(
             resourceName,
@@ -144,7 +161,7 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
             user,
             apiKey,
             entraId,
-            "id",
+            inferenceId,
             threadPool
         );
         return new AzureOpenAiEmbeddingsRequest(

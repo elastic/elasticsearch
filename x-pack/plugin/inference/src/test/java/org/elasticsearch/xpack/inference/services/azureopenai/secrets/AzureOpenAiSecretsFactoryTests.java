@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.inference.services.azureopenai.secrets;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -21,8 +23,11 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils.API_KEY_HEADER;
+import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretsFactory.NOOP_SECRETS_APPLIER;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class AzureOpenAiSecretsFactoryTests extends ESTestCase {
     private static final String TEST_INFERENCE_ID = "test-inference-id";
@@ -37,6 +42,25 @@ public class AzureOpenAiSecretsFactoryTests extends ESTestCase {
     @After
     public void shutdown() throws IOException {
         terminate(threadPool);
+    }
+
+    public void testCreateSecretsApplier_NullSecrets_ReturnsNoopSecretsApplier() {
+        var secretsApplier = AzureOpenAiSecretsFactory.createSecretsApplier(
+            TEST_INFERENCE_ID,
+            threadPool,
+            null,
+            AzureOpenAiCompletionServiceSettingsTests.createRandomWithoutOAuth2()
+        );
+
+        assertThat(secretsApplier, sameInstance(NOOP_SECRETS_APPLIER));
+
+        var listener = new TestPlainActionFuture<HttpRequestBase>();
+        var httpPost = new HttpPost();
+        secretsApplier.applyTo(httpPost, listener);
+
+        var resultRequest = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+        assertThat(resultRequest, sameInstance(httpPost));
+        assertThat(resultRequest.getAllHeaders(), emptyArray());
     }
 
     public void testCreateSecretsApplier_ApiKey() {

@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.secrets;
 
+import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.message.BasicHeader;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -21,6 +23,15 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.Azu
 
 public final class AzureOpenAiSecretsFactory {
 
+    private static final class NoopSecretsApplier implements AzureOpenAiSecretsApplier {
+        @Override
+        public void applyTo(HttpRequestBase request, ActionListener<HttpRequestBase> listener) {
+            listener.onResponse(request);
+        }
+    }
+
+    static final NoopSecretsApplier NOOP_SECRETS_APPLIER = new NoopSecretsApplier();
+
     private AzureOpenAiSecretsFactory() {}
 
     public static AzureOpenAiSecretsApplier createSecretsApplier(
@@ -31,7 +42,8 @@ public final class AzureOpenAiSecretsFactory {
     ) {
         return switch (secretSettings) {
             // This will be called with null if the model is being retrieved without the secrets (e.g. for a GET request)
-            case null -> null;
+            // The NOOP_SECRETS_APPLIER shouldn't actually be called but returning a non-null applier just in case
+            case null -> NOOP_SECRETS_APPLIER;
             case AzureOpenAiEntraIdApiKeySecrets apiKeySecretSettings -> {
                 if (serviceSettings.oAuth2Settings() != null) {
                     throw new ValidationException().addValidationError(USE_CLIENT_SECRET_ERROR);

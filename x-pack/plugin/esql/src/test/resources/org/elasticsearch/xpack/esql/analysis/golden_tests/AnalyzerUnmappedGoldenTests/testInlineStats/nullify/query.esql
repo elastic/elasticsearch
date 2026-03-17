@@ -1,2 +1,0 @@
-SET unmapped_fields="nullify"; FROM employees
-| STATS s = SUM(does_not_exist1::DOUBLE) BY does_not_exist2

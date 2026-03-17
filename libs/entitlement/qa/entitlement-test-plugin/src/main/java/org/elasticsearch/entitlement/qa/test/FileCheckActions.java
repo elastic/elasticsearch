@@ -363,7 +363,7 @@ class FileCheckActions {
         new RandomAccessFile(readWriteFile().toFile(), "rw").close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void keystoreGetInstance_FileCharArray() throws IOException {
         try {
             KeyStore.getInstance(readFile().toFile(), new char[0]);
@@ -373,7 +373,7 @@ class FileCheckActions {
         throw new AssertionError("Expected an exception");
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void keystoreGetInstance_FileLoadStoreParameter() throws IOException {
         try {
             KeyStore.LoadStoreParameter loadStoreParameter = () -> null;
@@ -648,7 +648,7 @@ class FileCheckActions {
         new FileImageInputStream(file.toFile()).close();
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedExceptionIfDenied = IOException.class)
     static void javaXmlFileRequest() throws Exception {
         // java.xml is part of the jdk, but not a system module. this checks it can't access files
         var saxParser = SAXParserFactory.newInstance().newSAXParser();

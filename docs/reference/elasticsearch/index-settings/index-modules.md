@@ -123,7 +123,7 @@ $$$index-disable-sequence-numbers$$$ `index.disable_sequence_numbers`
     This setting is experimental and may be changed or removed in a future release.
     ::::
 
-    Controls whether the index maintains sequence numbers for document operations. When set to `true`, sequence numbers are not available, trading some consistency guarantees for reduced storage overhead. Defaults to `false`. This setting can only be set at index creation time and cannot be changed afterwards.
+    Controls whether the index maintains sequence numbers for document operations. When set to `true`, sequence numbers are not available, trading some consistency guarantees for reduced storage overhead. Defaults to `false`. This setting can only be set at index creation time and cannot be changed afterwards. Requires `index.seq_no.index_options` to be set to `doc_values_only`.
 
     Disabling sequence numbers introduces the following limitations:
 
@@ -133,7 +133,6 @@ $$$index-disable-sequence-numbers$$$ `index.disable_sequence_numbers`
     * **Weaker consistency for update-by-query and delete-by-query**: [Update by query](/reference/elasticsearch/rest-apis/update-by-query-api.md) and [delete by query](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-delete-by-query) operations proceed without sequence number-based conflict detection. This means concurrent modifications to documents during these operations may be silently overwritten rather than triggering version conflicts.
     * **`_seq_no` field not queryable**: Queries, filters, and sorts on the `_seq_no` field are not supported.
     * **`random_score` requires an explicit `field`**: The [`random_score`](/reference/query-languages/query-dsl/query-dsl-function-score-query.md) function cannot fall back to using `_seq_no` as a source of randomness. A `field` parameter must be specified explicitly.
-    * **Requires `doc_values_only` sequence number index options**: Must be used with `index.seq_no.index_options` set to `doc_values_only`.
 
 
 ## Dynamic index settings [dynamic-index-settings]

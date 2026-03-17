@@ -696,19 +696,18 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             Set<Index> indicesEligibleForAction;
             if (action.appliesToFailureStore()) {
-                indicesEligibleForAction = new HashSet<>(dataStream.getIndicesOlderThan(
-                    indexName -> projectState.metadata().index(indexName),
-                    nowSupplier,
-                    actionSchedule,
-                    ALL
-                ));
+                indicesEligibleForAction = new HashSet<>(
+                    dataStream.getIndicesOlderThan(indexName -> projectState.metadata().index(indexName), nowSupplier, actionSchedule, ALL)
+                );
             } else {
-                indicesEligibleForAction = new HashSet<>(dataStream.getIndicesOlderThan(
-                    indexName -> projectState.metadata().index(indexName),
-                    nowSupplier,
-                    actionSchedule,
-                    BACKING_INDICES
-                ));
+                indicesEligibleForAction = new HashSet<>(
+                    dataStream.getIndicesOlderThan(
+                        indexName -> projectState.metadata().index(indexName),
+                        nowSupplier,
+                        actionSchedule,
+                        BACKING_INDICES
+                    )
+                );
             }
 
             indicesEligibleForAction.removeAll(indicesToExclude);

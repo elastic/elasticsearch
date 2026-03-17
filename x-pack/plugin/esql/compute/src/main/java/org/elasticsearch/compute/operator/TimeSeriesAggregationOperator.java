@@ -28,6 +28,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 
@@ -190,7 +191,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                     evaluateAggregator(aggregator, blocks, offset, outputSelected, evaluationContext);
                     offset += aggBlockCounts[i];
                 }
-                output = new Page(blocks);
+                output = ReleasableIterator.single(new Page(blocks));
                 success = true;
             }
         } finally {

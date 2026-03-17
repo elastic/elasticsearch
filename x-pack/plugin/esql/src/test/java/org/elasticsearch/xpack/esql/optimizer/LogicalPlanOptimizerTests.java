@@ -191,7 +191,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultAnalyzer;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -217,7 +216,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
@@ -7640,7 +7638,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS avg(last_over_time(network.bytes_in, %s minute)) BY tbucket(5 minute)
                 | LIMIT 10
                 """, window);
-            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(TEST_PARSER.parseQuery(query)));
+            var plan = planMetrics(query);
             Holder<LastOverTime> holder = new Holder<>();
             plan.forEachExpressionDown(LastOverTime.class, holder::set);
             assertNotNull(holder.get());
@@ -7694,18 +7692,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             assertNotNull(holder.get());
             assertTrue(holder.get().hasWindow());
             assertThat(holder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
-        }
-        // 7m is not a multiple of 5m (the resolved bucket size), so this must be rejected
-        {
-            var query = """
-                TS k8s
-                | STATS sum(rate(network.total_bytes_in, 7m)) BY TBUCKET(20, "2024-05-10T00:00:00Z", "2024-05-10T01:00:00Z")
-                | LIMIT 10
-                """;
-            var error = expectThrows(IllegalArgumentException.class, () -> {
-                logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query(query));
-            });
-            assertThat(error.getMessage(), containsString("the window must be an exact multiple of the time bucket"));
         }
     }
 
@@ -7812,7 +7798,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS avg(last_over_time(network.bytes_in, 7 minute)) BY tbucket(5 minute)
                 | LIMIT 10
                 """;
-            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(TEST_PARSER.parseQuery(query)));
+            var plan = planMetrics(query);
             Holder<TimeSeriesAggregate> tsHolder = new Holder<>();
             plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
             assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
@@ -7831,7 +7817,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS avg(last_over_time(network.bytes_in, 12 minute)) BY tbucket(8 minute)
                 | LIMIT 10
                 """;
-            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(TEST_PARSER.parseQuery(query)));
+            var plan = planMetrics(query);
             Holder<TimeSeriesAggregate> tsHolder = new Holder<>();
             plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
             assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
@@ -7846,7 +7832,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS avg(last_over_time(network.bytes_in, 10 minute)) BY tbucket(5 minute)
                 | LIMIT 10
                 """;
-            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(TEST_PARSER.parseQuery(query)));
+            var plan = planMetrics(query);
             Holder<TimeSeriesAggregate> tsHolder = new Holder<>();
             plan.forEachDown(TimeSeriesAggregate.class, tsHolder::set);
             assertNotNull("expected a TimeSeriesAggregate in the plan", tsHolder.get());
@@ -7865,7 +7851,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS avg(last_over_time(network.bytes_in, 301 second)) BY tbucket(5 minute)
                 | LIMIT 10
                 """;
-            logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(TEST_PARSER.parseQuery(query)));
+            planMetrics(query);
         });
         assertThat(e.getMessage(), containsString("sub-buckets"));
         assertThat(e.getMessage(), containsString("128"));

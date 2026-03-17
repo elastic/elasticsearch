@@ -1,11 +1,68 @@
 ###############################################
-# Tests for non-multiple window/bucket combos
+# Tests for non-multiple and window-smaller-than-bucket combos
 # Uses the ts_window dataset with controlled
 # data at 1-minute intervals:
 #   dim a: val[m] = m + 1  (1..30)
 #   dim b: val[m] = (m+1)*10  (10..300)
 #   counter_val: cumulative sum of val
 # Timestamps: 2024-01-01T00:00..00:29
+###############################################
+
+###############################################
+# Window smaller than bucket: handled by WindowFilter
+# (TranslateTimeSeriesAggregate skips internal bucket changes)
+###############################################
+
+sum_over_time_window_smaller_than_bucket_2m_window_5m_bucket
+required_capability: ts_command_v0
+required_capability: time_series_window_smaller_than_bucket
+
+TS ts_window
+| STATS s = sum(sum_over_time(val, 2m)) BY dim, time_bucket = TBUCKET(5minute)
+| SORT time_bucket, dim
+| LIMIT 20;
+
+s:long | dim:keyword | time_bucket:datetime
+9      | a           | 2024-01-01T00:00:00.000Z
+90     | b           | 2024-01-01T00:00:00.000Z
+19     | a           | 2024-01-01T00:05:00.000Z
+190    | b           | 2024-01-01T00:05:00.000Z
+29     | a           | 2024-01-01T00:10:00.000Z
+290    | b           | 2024-01-01T00:10:00.000Z
+39     | a           | 2024-01-01T00:15:00.000Z
+390    | b           | 2024-01-01T00:15:00.000Z
+49     | a           | 2024-01-01T00:20:00.000Z
+490    | b           | 2024-01-01T00:20:00.000Z
+59     | a           | 2024-01-01T00:25:00.000Z
+590    | b           | 2024-01-01T00:25:00.000Z
+;
+
+max_over_time_window_smaller_than_bucket_2m_window_5m_bucket
+required_capability: ts_command_v0
+required_capability: time_series_window_smaller_than_bucket
+
+TS ts_window
+| STATS mx = sum(max_over_time(val, 2m)) BY dim, time_bucket = TBUCKET(5minute)
+| SORT time_bucket, dim
+| LIMIT 20;
+
+mx:long | dim:keyword | time_bucket:datetime
+5      | a           | 2024-01-01T00:00:00.000Z
+50     | b           | 2024-01-01T00:00:00.000Z
+10     | a           | 2024-01-01T00:05:00.000Z
+100    | b           | 2024-01-01T00:05:00.000Z
+15     | a           | 2024-01-01T00:10:00.000Z
+150    | b           | 2024-01-01T00:10:00.000Z
+20     | a           | 2024-01-01T00:15:00.000Z
+200    | b           | 2024-01-01T00:15:00.000Z
+25     | a           | 2024-01-01T00:20:00.000Z
+250    | b           | 2024-01-01T00:20:00.000Z
+30     | a           | 2024-01-01T00:25:00.000Z
+300    | b           | 2024-01-01T00:25:00.000Z
+;
+
+###############################################
+# Non-multiple window/bucket combos (GCD-based sub-bucketing)
 ###############################################
 
 sum_over_time_non_multiple_7m_window_5m_bucket

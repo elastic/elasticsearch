@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.common.Rounding;
 import org.apache.lucene.util.MathUtil;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -45,7 +45,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
@@ -442,7 +441,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         }
         // Validate against the user-visible output bucket, not the internal (possibly GCD-sized) bucket
         final Bucket outputBucket = agg.outputTimeBucket() != null ? agg.outputTimeBucket() : agg.timeBucket();
-        final long bucketInMillis = getBucketInMillis(outputBucket);
+        final long bucketInMillis = getTimeBucketInMillis(outputBucket);
         if (bucketInMillis <= 0) {
             throw new IllegalArgumentException(
                 "Using a window in aggregation [" + agg.sourceText() + "] requires a time bucket in groupings"
@@ -475,6 +474,9 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                 if (window.foldable() && window.fold(FoldContext.small()) instanceof Duration d) {
                     long windowMillis = d.toMillis();
                     if (windowMillis > 0) {
+                        if (windowMillis < bucketMillis) {
+                            return userBucket;
+                        }
                         gcdMillis = MathUtil.gcd(gcdMillis, windowMillis);
                         hasWindow = true;
                     }
@@ -498,8 +500,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         return new Bucket(userBucket.source(), userBucket.field(), gcdInterval, null, null, userBucket.configuration());
     }
 
-    private long getTimeBucketInMillis(TimeSeriesAggregate agg) {
-        final Bucket bucket = agg.timeBucket();
+    private long getTimeBucketInMillis(final Bucket bucket) {
         if (bucket == null) {
             return -1L;
         }

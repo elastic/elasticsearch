@@ -169,8 +169,9 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
                         return null;
                     }));
                 }
-                for (var f : futures)
+                for (var f : futures) {
                     f.get();
+                }
             } finally {
                 executor.shutdownNow();
             }
@@ -236,8 +237,9 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
                         return null;
                     }));
                 }
-                for (var f : futures)
+                for (var f : futures) {
                     f.get();
+                }
             } finally {
                 executor.shutdownNow();
             }

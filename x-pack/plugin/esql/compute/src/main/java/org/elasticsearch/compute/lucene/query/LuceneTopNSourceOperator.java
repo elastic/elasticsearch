@@ -34,7 +34,6 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
@@ -446,7 +445,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 try {
                     buildCollectors(getShardContextSort(shardContext, sorts));
                 } catch (IOException e) {
-                    throw new ElasticsearchException("Error building collector for sort",  e);
+                    throw new ElasticsearchException("Error building collector for sort", e);
                 }
             }
         }

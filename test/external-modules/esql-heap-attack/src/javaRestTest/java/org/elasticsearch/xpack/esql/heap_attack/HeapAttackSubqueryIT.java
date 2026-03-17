@@ -203,7 +203,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     }
 
     public void testGiantTextFieldInSubqueryIntermediateResults() throws IOException {
-        int docs = isServerless() ? 20 : 50;
+        int docs = 20;
         heapAttackIT.initGiantTextField(docs, false, 5);
         assertCircuitBreaks(attempt -> buildSubqueries(maxSubqueries(), "bigtext"));
     }

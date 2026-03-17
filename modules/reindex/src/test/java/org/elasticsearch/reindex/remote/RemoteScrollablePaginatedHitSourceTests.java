@@ -146,18 +146,22 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
 
     public void testParseScrollOk() {
         AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall("scroll_ok.json").doNextSearch(PaginationCursor.forScroll(""), timeValueMillis(0), wrapAsListener(r -> {
-            assertFalse(r.isTimedOut());
-            assertEquals(FAKE_SCROLL_ID, r.getScrollId());
-            assertEquals(4, r.getTotalHits());
-            assertThat(r.getFailures(), empty());
-            assertThat(r.getHits(), hasSize(1));
-            assertEquals("test", r.getHits().get(0).getIndex());
-            assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().get(0).getId());
-            assertEquals("{\"test\":\"test3\"}", r.getHits().get(0).getSource().utf8ToString());
-            assertNull(r.getHits().get(0).getRouting());
-            called.set(true);
-        }));
+        sourceWithMockedRemoteCall("scroll_ok.json").doNextSearch(
+            PaginationCursor.forScroll("scroll"),
+            timeValueMillis(0),
+            wrapAsListener(r -> {
+                assertFalse(r.isTimedOut());
+                assertEquals(FAKE_SCROLL_ID, r.getScrollId());
+                assertEquals(4, r.getTotalHits());
+                assertThat(r.getFailures(), empty());
+                assertThat(r.getHits(), hasSize(1));
+                assertEquals("test", r.getHits().get(0).getIndex());
+                assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().get(0).getId());
+                assertEquals("{\"test\":\"test3\"}", r.getHits().get(0).getSource().utf8ToString());
+                assertNull(r.getHits().get(0).getRouting());
+                called.set(true);
+            })
+        );
         assertTrue(called.get());
     }
 
@@ -167,7 +171,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
     public void testParseScrollFullyLoaded() {
         AtomicBoolean called = new AtomicBoolean();
         sourceWithMockedRemoteCall("scroll_fully_loaded.json").doNextSearch(
-            PaginationCursor.forScroll(""),
+            PaginationCursor.forScroll("scroll"),
             timeValueMillis(0),
             wrapAsListener(r -> {
                 assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().get(0).getId());
@@ -185,7 +189,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
     public void testParseScrollFullyLoadedFrom1_7() {
         AtomicBoolean called = new AtomicBoolean();
         sourceWithMockedRemoteCall("scroll_fully_loaded_1_7.json").doNextSearch(
-            PaginationCursor.forScroll(""),
+            PaginationCursor.forScroll("scroll"),
             timeValueMillis(0),
             wrapAsListener(r -> {
                 assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().get(0).getId());

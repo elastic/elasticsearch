@@ -20,12 +20,27 @@ import static org.hamcrest.Matchers.nullValue;
 public class PaginationCursorTests extends ESTestCase {
 
     public void testForScrollCreatesScrollCursor() {
-        String scrollId = randomBoolean() ? "" : randomAlphaOfLengthBetween(1, 20);
+        String scrollId = randomAlphaOfLengthBetween(1, 20);
         PaginationCursor cursor = PaginationCursor.forScroll(scrollId);
         assertThat(cursor.scrollId(), equalTo(scrollId));
         assertThat(cursor.searchAfter(), nullValue());
         assertTrue(cursor.isScroll());
         assertFalse(cursor.isSearchAfter());
+    }
+
+    public void testForScrollRejectsNullAndEmpty() {
+        expectThrows(NullPointerException.class, () -> PaginationCursor.forScroll(null));
+        expectThrows(IllegalArgumentException.class, () -> PaginationCursor.forScroll(""));
+    }
+
+    public void testForSearchAfterRejectsNull() {
+        expectThrows(IllegalArgumentException.class, () -> PaginationCursor.forSearchAfter(null));
+    }
+
+    public void testConstructorEnforcesExactlyOneNonNull() {
+        expectThrows(IllegalArgumentException.class, () -> new PaginationCursor(null, null));
+        expectThrows(IllegalArgumentException.class, () -> new PaginationCursor("scroll", new Object[] { 1 }));
+        expectThrows(IllegalArgumentException.class, () -> new PaginationCursor("", null));
     }
 
     public void testForSearchAfterCreatesSearchAfterCursor() {

@@ -23,8 +23,6 @@ import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.SliceStatus;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResult;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -44,8 +42,6 @@ import static org.elasticsearch.index.reindex.resumeinfo.ScrollWorkerResumeInfoW
  * Uses a {@link Wrapper} with content-based equals/hashCode because {@link SliceStatus}
  */
 public class SliceStatusWireSerializingTests extends AbstractWireSerializingTestCase<SliceStatusWireSerializingTests.Wrapper> {
-
-    private static final Logger logger = LogManager.getLogger(SliceStatusWireSerializingTests.class);
 
     /**
      * Register {@link WorkerResumeInfo} and {@link Task.Status} so that
@@ -95,27 +91,16 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
 
     static boolean sliceStatusContentEquals(SliceStatus a, SliceStatus b) {
         if (a.sliceId() != b.sliceId()) {
-            logger.info("sliceStatusContentEquals: sliceId mismatch a={} b={}", a.sliceId(), b.sliceId());
             return false;
         }
         if (workerResumeInfoContentEquals(a.resumeInfo(), b.resumeInfo()) == false) {
-            logger.info(
-                "sliceStatusContentEquals: resumeInfo mismatch a={} b={}",
-                a.resumeInfo() != null ? a.resumeInfo().getClass().getSimpleName() : "null",
-                b.resumeInfo() != null ? b.resumeInfo().getClass().getSimpleName() : "null"
-            );
             return false;
         }
         if (a.result() == null && b.result() == null) return true;
         if (a.result() == null || b.result() == null) {
-            logger.info("sliceStatusContentEquals: result null mismatch a.result={} b.result={}", a.result(), b.result());
             return false;
         }
-        if (workerResultContentEquals(a.result(), b.result()) == false) {
-            logger.info("sliceStatusContentEquals: workerResultContentEquals returned false");
-            return false;
-        }
-        return true;
+        return workerResultContentEquals(a.result(), b.result());
     }
 
     static int sliceStatusContentHashCode(SliceStatus status) {
@@ -135,54 +120,31 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
     static boolean workerResultContentEquals(WorkerResult a, WorkerResult b) {
         if (a.getResponse().isPresent()) {
             if (b.getResponse().isPresent() == false) {
-                logger.info("workerResultContentEquals: a has response, b has failure");
                 return false;
             }
             return bulkByScrollResponseContentEquals(a.getResponse().get(), b.getResponse().get());
         } else {
             if (b.getFailure().isPresent() == false) {
-                logger.info("workerResultContentEquals: a has failure, b has response");
                 return false;
             }
-            if (Objects.equals(a.getFailure().get().getMessage(), b.getFailure().get().getMessage()) == false) {
-                logger.info(
-                    "workerResultContentEquals: failure message mismatch a={} b={}",
-                    a.getFailure().get().getMessage(),
-                    b.getFailure().get().getMessage()
-                );
-                return false;
-            }
-            return true;
+            return Objects.equals(a.getFailure().get().getMessage(), b.getFailure().get().getMessage());
         }
     }
 
     static boolean bulkByScrollResponseContentEquals(BulkByScrollResponse a, BulkByScrollResponse b) {
         if (Objects.equals(a.getTook(), b.getTook()) == false) {
-            logger.info("bulkByScrollResponseContentEquals: took mismatch a={} b={}", a.getTook(), b.getTook());
             return false;
         }
         if (a.getStatus().equals(b.getStatus()) == false) {
-            logger.info("bulkByScrollResponseContentEquals: status mismatch");
             return false;
         }
         if (a.getBulkFailures().size() != b.getBulkFailures().size()) {
-            logger.info(
-                "bulkByScrollResponseContentEquals: bulkFailures size mismatch a={} b={}",
-                a.getBulkFailures().size(),
-                b.getBulkFailures().size()
-            );
             return false;
         }
         if (a.getSearchFailures().size() != b.getSearchFailures().size()) {
-            logger.info(
-                "bulkByScrollResponseContentEquals: searchFailures size mismatch a={} b={}",
-                a.getSearchFailures().size(),
-                b.getSearchFailures().size()
-            );
             return false;
         }
         if (a.isTimedOut() != b.isTimedOut()) {
-            logger.info("bulkByScrollResponseContentEquals: timedOut mismatch a={} b={}", a.isTimedOut(), b.isTimedOut());
             return false;
         }
         return true;

@@ -219,6 +219,9 @@ final class RemoteRequestBuilders {
         @Nullable Object[] searchAfter,
         Version remoteVersion
     ) {
+        if (remoteVersion.before(Version.V_7_10_0)) {
+            throw new IllegalArgumentException("PIT search requires remote version 7.10.0 or later, but got " + remoteVersion);
+        }
         Request request = new Request("POST", "/_search");
 
         if (remoteVersion.onOrAfter(Version.fromId(6030099))) {

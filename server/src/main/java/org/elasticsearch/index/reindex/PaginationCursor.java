@@ -17,11 +17,30 @@ import org.elasticsearch.core.Nullable;
  */
 public record PaginationCursor(@Nullable String scrollId, @Nullable Object[] searchAfter) {
 
+    public PaginationCursor {
+        // Exactly one of scrollId or searchAfter must be non-null
+        if ((scrollId == null && searchAfter == null) || (scrollId != null && searchAfter != null)) {
+            throw new IllegalArgumentException("Exactly one of [scrollId] or [searchAfter] must be non-null");
+        }
+        if (scrollId != null && scrollId.isEmpty()) {
+            throw new IllegalArgumentException("scrollId must not be empty");
+        }
+    }
+
     public static PaginationCursor forScroll(String scrollId) {
+        if (scrollId == null) {
+            throw new NullPointerException("scrollId must not be null");
+        }
+        if (scrollId.isEmpty()) {
+            throw new IllegalArgumentException("scrollId must not be empty");
+        }
         return new PaginationCursor(scrollId, null);
     }
 
     public static PaginationCursor forSearchAfter(Object[] searchAfter) {
+        if (searchAfter == null) {
+            throw new IllegalArgumentException("searchAfter must be non-null");
+        }
         return new PaginationCursor(null, searchAfter);
     }
 

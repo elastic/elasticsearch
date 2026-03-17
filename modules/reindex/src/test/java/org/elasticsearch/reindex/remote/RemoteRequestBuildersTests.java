@@ -44,6 +44,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
@@ -487,25 +488,36 @@ public class RemoteRequestBuildersTests extends ESTestCase {
     }
 
     /**
-     * Verifies that pitSearch adds allow_partial_search_results=false for versions 6.3+.
+     * Verifies that pitSearch throws when remote version is before 7.10.0.
+     */
+    public void testPitSearchRejectsVersionBefore710() {
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
+        BytesReference query = new BytesArray("{}");
+        BytesReference pitId = new BytesArray("pit".getBytes(StandardCharsets.UTF_8));
+        TimeValue keepAlive = timeValueMillis(60000);
+
+        Version versionBefore710 = Version.fromId(between(0, Version.V_7_10_0.id - 1));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> pitSearch(searchRequest, query, pitId, keepAlive, null, versionBefore710)
+        );
+        assertThat(e.getMessage(), containsString("PIT search requires remote version 7.10.0 or later"));
+        assertThat(e.getMessage(), containsString(versionBefore710.toString()));
+    }
+
+    /**
+     * Verifies that pitSearch adds allow_partial_search_results=false for versions 7.10.0+.
      */
     public void testPitSearchAllowPartialParameter() {
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
         BytesReference query = new BytesArray("{}");
         BytesReference pitId = new BytesArray("pit".getBytes(StandardCharsets.UTF_8));
         TimeValue keepAlive = timeValueMillis(60000);
-        final int v6_3 = 6030099;
 
-        Version allowVersion = Version.fromId(between(0, v6_3 - 1));
+        Version version710OrLater = Version.fromId(between(Version.V_7_10_0.id, Version.CURRENT.id));
         assertThat(
-            pitSearch(searchRequest, query, pitId, keepAlive, null, allowVersion).getParameters().keySet(),
-            not(contains("allow_partial_search_results"))
-        );
-
-        Version disallowVersion = Version.fromId(between(v6_3, Version.CURRENT.id));
-        assertEquals(
-            "false",
-            pitSearch(searchRequest, query, pitId, keepAlive, null, disallowVersion).getParameters().get("allow_partial_search_results")
+            pitSearch(searchRequest, query, pitId, keepAlive, null, version710OrLater).getParameters().get("allow_partial_search_results"),
+            equalTo("false")
         );
     }
 
@@ -520,7 +532,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         boolean version = randomBoolean();
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().size(size).version(version).sort("_shard_doc"));
         BytesReference query = new BytesArray("{}");
-        Version remoteVersion = Version.fromId(between(6030099, Version.CURRENT.id));
+        Version remoteVersion = Version.fromId(between(Version.V_7_10_0.id, Version.CURRENT.id));
 
         Request request = pitSearch(searchRequest, query, pitId, keepAlive, null, remoteVersion);
         String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
@@ -543,7 +555,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
         BytesReference pitId = new BytesArray("pit".getBytes(StandardCharsets.UTF_8));
         TimeValue keepAlive = timeValueMillis(60000);
-        Version remoteVersion = Version.fromId(between(6030099, Version.CURRENT.id));
+        Version remoteVersion = Version.fromId(between(Version.V_7_10_0.id, Version.CURRENT.id));
 
         Request request = pitSearch(searchRequest, query, pitId, keepAlive, null, remoteVersion);
         String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
@@ -655,7 +667,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
         BytesReference pitId = new BytesArray("pit".getBytes(StandardCharsets.UTF_8));
         TimeValue keepAlive = timeValueMillis(60000);
-        Version remoteVersion = Version.fromId(between(6030099, Version.CURRENT.id));
+        Version remoteVersion = Version.fromId(between(Version.V_7_10_0.id, Version.CURRENT.id));
 
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
@@ -672,7 +684,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest().source(
             new SearchSourceBuilder().fetchSource(FetchSourceContext.of(true, true, null, null))
         );
-        Version remoteVersion = Version.fromId(between(6030099, Version.V_9_1_0.id - 1));
+        Version remoteVersion = Version.fromId(between(Version.V_7_10_0.id, Version.V_9_1_0.id - 1));
 
         Request request = pitSearchWithDefaults(searchRequest, null, remoteVersion);
         String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
@@ -688,7 +700,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest().source(
             new SearchSourceBuilder().fetchSource(FetchSourceContext.of(true, true, new String[] { "in1", "in2" }, new String[] { "out" }))
         );
-        Version remoteVersion = Version.fromId(between(6030099, Version.V_9_1_0.id - 1));
+        Version remoteVersion = Version.fromId(between(Version.V_7_10_0.id, Version.V_9_1_0.id - 1));
 
         Request request = pitSearchWithDefaults(searchRequest, null, remoteVersion);
         String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
@@ -712,7 +724,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
     }
 
     private Request pitSearchWithDefaults(SearchRequest searchRequest, @Nullable Object[] searchAfter) {
-        return pitSearchWithDefaults(searchRequest, searchAfter, Version.fromId(between(6030099, Version.CURRENT.id)));
+        return pitSearchWithDefaults(searchRequest, searchAfter, Version.fromId(between(Version.V_7_10_0.id, Version.CURRENT.id)));
     }
 
     private Request pitSearchWithDefaults(SearchRequest searchRequest, @Nullable Object[] searchAfter, Version version) {

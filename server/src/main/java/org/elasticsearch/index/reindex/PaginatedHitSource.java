@@ -202,7 +202,7 @@ public abstract class PaginatedHitSource {
      * Whether there are more batches to fetch.
      */
     public boolean hasMoreBatches() {
-        return scrollId.get() != null || searchAfterValues.get() != null;
+        return Strings.hasLength(scrollId.get()) || searchAfterValues.get() != null;
     }
 
     public interface AsyncResponse {

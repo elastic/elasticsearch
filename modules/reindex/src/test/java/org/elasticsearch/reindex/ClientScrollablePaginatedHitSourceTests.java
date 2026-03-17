@@ -37,6 +37,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 
 import java.util.List;
@@ -160,6 +161,41 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
         paginatedHitSource.setScrollId("scroll_id");
         paginatedHitSource.requestNextBatch(timeValueSeconds(100));
         client.validateRequest(TransportSearchScrollAction.TYPE, (SearchScrollRequest r) -> assertEquals(r.scroll().seconds(), 110));
+    }
+
+    public void testHasMoreBatches() {
+        MockClient client = new MockClient(threadPool);
+        TaskId parentTask = new TaskId("id", randomInt());
+
+        ClientScrollablePaginatedHitSource paginatedHitSource = new ClientScrollablePaginatedHitSource(
+            logger,
+            BackoffPolicy.constantBackoff(TimeValue.ZERO, 0),
+            threadPool,
+            Assert::fail,
+            r -> fail(),
+            e -> fail(),
+            new ParentTaskAssigningClient(client, parentTask),
+            new SearchRequest().scroll(timeValueSeconds(10))
+        );
+
+        // Initially: no scroll id, no search_after -> false
+        assertFalse(paginatedHitSource.hasMoreBatches());
+
+        // Empty scroll id -> falseLength)
+        paginatedHitSource.setScrollId("");
+        assertFalse(paginatedHitSource.hasMoreBatches());
+
+        // Non-empty scroll id -> true
+        paginatedHitSource.setScrollId("scroll_id");
+        assertTrue(paginatedHitSource.hasMoreBatches());
+
+        paginatedHitSource.setScrollId(null);
+        paginatedHitSource.setSearchAfterValues(new Object[] { 1L, "sort" });
+        assertTrue(paginatedHitSource.hasMoreBatches());
+
+        paginatedHitSource.setScrollId(null);
+        paginatedHitSource.setSearchAfterValues(null);
+        assertFalse(paginatedHitSource.hasMoreBatches());
     }
 
     private SearchResponse createSearchResponse() {

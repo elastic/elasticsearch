@@ -104,8 +104,10 @@ public final class Suggest implements Iterable<Suggest.Suggestion<? extends Entr
     }
 
     /**
-     * Acquire a ref on each completion suggestion option's SearchHit so the merged response can own them.
-     * Called when building a merged SearchResponse in CCS so per-cluster and merged response can both release.
+     * Acquire an additional ref on each completion suggestion option's SearchHit.
+     * Called by {@link org.elasticsearch.action.search.SearchResponseMerger} so the merged response holds its own ref,
+     * independent of the per-cluster response refs established by
+     * {@link org.elasticsearch.search.suggest.completion.CompletionSuggestion.Entry.Option#setHit}.
      */
     public void incRefCompletionOptionHits() {
         if (suggestions == null) {
@@ -124,8 +126,11 @@ public final class Suggest implements Iterable<Suggest.Suggestion<? extends Entr
     }
 
     /**
-     * Release ref-counted resources held by completion suggestion options (their SearchHits).
-     * Called when the owning SearchResponse is released.
+     * Release this response's ref on each completion suggestion option's SearchHit.
+     * For regular (non-CCS) responses, releases the ref acquired by
+     * {@link org.elasticsearch.search.suggest.completion.CompletionSuggestion.Entry.Option#setHit}.
+     * For CCS merged responses, releases the additional ref acquired by {@link #incRefCompletionOptionHits}.
+     * Called when the owning {@link org.elasticsearch.action.search.SearchResponse} is released.
      */
     public void decRefCompletionOptionHits() {
         if (suggestions == null) {

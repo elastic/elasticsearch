@@ -136,7 +136,8 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregatorFactories,
         List<BlockHash.GroupSpec> groupSpecs,
-        LocalExecutionPlannerContext context
+        LocalExecutionPlannerContext context,
+        int maxPageSize
     ) {
         return new TimeSeriesAggregationOperator.Factory(
             ts.timeBucketRounding(context.foldCtx()),
@@ -144,7 +145,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             groupSpecs,
             aggregatorMode,
             aggregatorFactories,
-            context.pageSize(ts, ts.estimatedRowSize())
+            maxPageSize
         );
     }
 

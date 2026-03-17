@@ -50,7 +50,7 @@ public class NetworkAccessCheckActionsTests extends ESTestCase {
         if (ldapProviders == null || ldapProviders.length == 0) {
             // Already running in an environment without LDAP CertStore (e.g., FIPS JVM).
             // Before fix: method throws NoSuchAlgorithmException -> REST handler returns 403.
-            // After fix:  method completes normally -> REST handler returns 200.
+            // After fix: method completes normally -> REST handler returns 200.
             NetworkAccessCheckActions.createLDAPCertStore();
             return;
         }

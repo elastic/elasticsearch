@@ -408,7 +408,7 @@ public class CsvTestsDataLoader {
     @Nullable
     private static Set<String> parseSetProperty(String name) {
         String prop = System.getProperty(name);
-        return (prop == null || prop.isBlank()) ? null : Set.of(prop.split(","));
+        return (prop == null || prop.isBlank()) ? null : Set.of(prop.split(", *"));
     }
 
     private static boolean isLookupDataset(TestDataset dataset) throws IOException {
@@ -497,6 +497,7 @@ public class CsvTestsDataLoader {
     }
 
     private static void loadEnrichPolicies(RestClient client) throws IOException {
+        // Does not load any enrich policies if specIndices is set and specEnrichPolicies is not.
         if (specEnrichPolicies != null || specIndices == null) {
             logger.info("Loading enrich policies");
             for (var policy : ENRICH_POLICIES.values()) {

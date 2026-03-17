@@ -7,18 +7,12 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -33,42 +27,21 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.junit.BeforeClass;
 
 import java.util.List;
-import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class PropagateInlineEvalsTests extends ESTestCase {
 
-    private static Map<String, EsField> mapping;
-    private static Analyzer analyzer;
+    private static TestAnalyzer analyzer;
 
     @BeforeClass
     public static void init() {
-        mapping = loadMapping("mapping-basic.json");
-        EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-        analyzer = new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                TEST_FUNCTION_REGISTRY,
-                indexResolutions(test),
-                defaultLookupResolution(),
-                new EnrichResolution(),
-                defaultInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
+        analyzer = analyzer().addIndex("test", "mapping-basic.json");
     }
 
     /**
@@ -413,7 +386,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
     }
 
     private LogicalPlan plan(String query, LogicalPlanOptimizer optimizer) {
-        return optimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query)));
+        return optimizer.optimize(analyzer.query(query));
     }
 
     @Override

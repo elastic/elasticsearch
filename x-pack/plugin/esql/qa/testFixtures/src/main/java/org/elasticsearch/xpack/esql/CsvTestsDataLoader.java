@@ -111,7 +111,7 @@ public class CsvTestsDataLoader {
         new TestDataset(
             "partial_mapping_synthetic_sample_data",
             "mapping-partial_mapping_sample_data.json",
-            "partial_mapping_synthetic_sample_data.csv"
+            "partial_mapping_sample_data.csv"
         ).withSetting("partial-mapping-synthetic-settings.json"),
         new TestDataset("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv").withTypeMapping(
             Stream.of("timestamp", "client_ip", "event_duration").collect(toMap(k -> k, k -> "keyword"))

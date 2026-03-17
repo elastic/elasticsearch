@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql;
 
-import org.elasticsearch.common.Strings;
-
 import java.io.BufferedReader;
 import java.net.URL;
 import java.util.ArrayList;
@@ -71,7 +69,7 @@ public final class SpecReader {
                                     + ")"
                             );
                         } else {
-                            testName = Strings.capitalize(line);
+                            testName = line;
                             testNames.put(testName, Integer.valueOf(lineNumber));
                         }
                     } else {

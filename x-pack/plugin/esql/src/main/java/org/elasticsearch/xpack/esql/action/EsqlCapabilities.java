@@ -2320,9 +2320,14 @@ public class EsqlCapabilities {
         FIX_PASSTHROUGH_FIELD_CAPS_OBJECT_PARENT,
 
         /**
+         * LIMIT n BY expr1, expr2 support for retaining at most n docs per group.
+         */
+        LIMIT_BY(Build.current().isSnapshot()),
+
+        /**
          * Fix window validation in time-series aggregations when TBUCKET uses a numeric target bucket count.
          */
-        FIX_TBUCKET_TARGET_COUNT_WINDOW_VALIDATION
+        FIX_TBUCKET_TARGET_COUNT_WINDOW_VALIDATION,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

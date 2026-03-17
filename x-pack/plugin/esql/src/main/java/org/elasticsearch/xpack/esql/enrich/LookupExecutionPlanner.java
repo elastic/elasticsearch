@@ -18,6 +18,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
@@ -410,9 +411,33 @@ public class LookupExecutionPlanner {
 
     private PhysicalOperation planFilterExec(FilterExec filterExec, PhysicalOperation source, FoldContext foldCtx) {
         return source.with(
-            new FilterOperator.FilterOperatorFactory(EvalMapper.toEvaluator(foldCtx, filterExec.condition(), source.layout())),
+            new FilterOperator.FilterOperatorFactory(new LookupFilterEvaluatorFactory(foldCtx, filterExec.condition(), source.layout())),
             source.layout()
         );
+    }
+
+    /**
+     * Lazy evaluator factory that supplies shard contexts from {@link LookupDriverContext} when building the filter
+     * evaluator. This allows full-text functions (e.g., multi_match) in the filter to get shard information at
+     * execution time.
+     */
+    private record LookupFilterEvaluatorFactory(FoldContext foldCtx, Expression condition, Layout layout)
+        implements
+            ExpressionEvaluator.Factory {
+
+        @Override
+        public ExpressionEvaluator get(DriverContext driverContext) {
+            if (driverContext instanceof LookupDriverContext lookupDc) {
+                // Use planner's ShardContext so EvalMapper (and full-text evaluators) get the expected type
+                EsPhysicalOperationProviders.ShardContext shardContext = lookupDc.lookupShardContext().context();
+                IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts = new IndexedByShardIdFromSingleton<>(
+                    shardContext,
+                    0
+                );
+                return EvalMapper.toEvaluator(foldCtx, condition, layout, shardContexts).get(driverContext);
+            }
+            return EvalMapper.toEvaluator(foldCtx, condition, layout).get(driverContext);
+        }
     }
 
     private PhysicalOperation planProjectExec(ProjectExec projectExec, PhysicalOperation source) {

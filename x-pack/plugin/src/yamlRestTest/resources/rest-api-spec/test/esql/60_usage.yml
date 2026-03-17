@@ -62,6 +62,7 @@ setup:
             - uri_parts_command
             - registered_domain_command
             - fn_json_extract
+            - multi_match_function
       reason: "Test that should only be executed on snapshot versions"
 
   - do: { xpack.usage: { } }
@@ -123,6 +124,11 @@ setup:
             | sort count desc
             | limit 5
             | stats m = max(data) by categorize(message)'
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | where multi_match("test", message) | limit 1'
 
   - do: { xpack.usage: { } }
   - match: { esql.available: true }
@@ -216,6 +222,7 @@ setup:
   - exists: esql.functions.idelta
   - exists: esql.functions.mv_sum
   - exists: esql.functions.to_dateperiod
+  - exists: esql.functions.multi_match
 
 ---
 "Basic ESQL usage output (telemetry) non-snapshot version":

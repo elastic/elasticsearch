@@ -55,13 +55,17 @@ public abstract class LuceneQueryEvaluator<T extends Block.Builder> implements R
     private final LongObjectPagedHashMap<ShardState> perShardState;
 
     protected LuceneQueryEvaluator(BlockFactory blockFactory, IndexedByShardId<ShardConfig> shards) {
-        assert shards != null && shards.isEmpty() == false : "LuceneQueryEvaluator requires shard information";
+        assert shards != null : "LuceneQueryEvaluator requires non-null shards";
         this.blockFactory = blockFactory;
         this.shards = shards;
         this.perShardState = new LongObjectPagedHashMap<>(10, blockFactory.bigArrays());
     }
 
     public Block executeQuery(Page page) {
+        // when there are no shards (e.g., after WHERE false in the main plan), no documents can match
+        if (shards.isEmpty()) {
+            return createNoMatchBlock(blockFactory, page.getPositionCount());
+        }
         // Search for DocVector block
         Block docBlock = null;
         for (int i = 0; i < page.getBlockCount(); i++) {

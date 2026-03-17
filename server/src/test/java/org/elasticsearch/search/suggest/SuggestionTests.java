@@ -160,14 +160,21 @@ public class SuggestionTests extends ESTestCase {
      * suggestion type information
      */
     public void testFromXContentWithoutTypeParam() throws IOException {
-        XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference originalBytes = toXContent(createTestItem(), xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
-            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
-            assertNull(SearchResponseUtils.parseSuggestion(parser));
-            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+        Suggestion<? extends Entry<? extends Option>> suggestion = createTestItem();
+        try {
+            XContentType xContentType = randomFrom(XContentType.values());
+            BytesReference originalBytes = toXContent(suggestion, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
+            try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+                ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
+                assertNull(SearchResponseUtils.parseSuggestion(parser));
+                ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+            }
+        } finally {
+            for (Object e : suggestion.getEntries()) {
+                SuggestionEntryTests.releaseCompletionOptionHits((Entry<?>) e);
+            }
         }
     }
 

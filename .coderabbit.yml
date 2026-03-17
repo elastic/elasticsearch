@@ -8,4 +8,4 @@ reviews:
     labels:
       - "Team:Delivery"
       - "Team:Search - Inference"
-      -  "Team:Core/Infra"
+      - "Team:Core/Infra"

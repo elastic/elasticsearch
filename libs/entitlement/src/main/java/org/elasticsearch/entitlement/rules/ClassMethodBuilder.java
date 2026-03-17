@@ -18,13 +18,13 @@ import org.elasticsearch.entitlement.rules.function.Call3;
 import org.elasticsearch.entitlement.rules.function.Call4;
 import org.elasticsearch.entitlement.rules.function.Call5;
 import org.elasticsearch.entitlement.rules.function.Call6;
+import org.elasticsearch.entitlement.rules.function.VarargCallAdapter;
 import org.elasticsearch.entitlement.rules.function.VoidCall0;
 import org.elasticsearch.entitlement.rules.function.VoidCall1;
 import org.elasticsearch.entitlement.rules.function.VoidCall2;
 import org.elasticsearch.entitlement.rules.function.VoidCall3;
 import org.elasticsearch.entitlement.rules.function.VoidCall4;
 import org.elasticsearch.entitlement.rules.function.VoidCall5;
-import org.elasticsearch.entitlement.rules.function.VarargCallAdapter;
 import org.elasticsearch.entitlement.rules.function.VoidCall6;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 import org.elasticsearch.entitlement.util.TypeUtils;
@@ -1092,7 +1092,9 @@ public class ClassMethodBuilder<T> {
                 } catch (Exception proxyException) {
                     proxyException.addSuppressed(e);
                     throw new RuntimeException(
-                        "Error occurred when inspecting class: " + clazz.getName() + "; SerializedLambda resolution failed and proxy fallback failed",
+                        "Error occurred when inspecting class: "
+                            + clazz.getName()
+                            + "; SerializedLambda resolution failed and proxy fallback failed",
                         proxyException
                     );
                 }
@@ -1102,8 +1104,7 @@ public class ClassMethodBuilder<T> {
     }
 
     @SuppressForbidden(reason = "relies on reflection")
-    private static MethodKey resolveMethodReferenceViaSerializedLambda(Class<?> clazz, Object ref, Class<?>... args)
-        throws Exception {
+    private static MethodKey resolveMethodReferenceViaSerializedLambda(Class<?> clazz, Object ref, Class<?>... args) throws Exception {
         Method writeReplace = ref.getClass().getDeclaredMethod("writeReplace");
         writeReplace.setAccessible(true);
 
@@ -1113,11 +1114,11 @@ public class ClassMethodBuilder<T> {
 
         assertImplementationClass(clazz, className);
 
-            return new MethodKey(
+        return new MethodKey(
             resolveDeclaringClass(clazz, methodName, args).getTypeName().replace(".", "/"),
-                methodName,
-                Arrays.stream(args).map(TypeUtils::getParameterTypeName).toList()
-            );
+            methodName,
+            Arrays.stream(args).map(TypeUtils::getParameterTypeName).toList()
+        );
     }
 
     /**
@@ -1126,8 +1127,7 @@ public class ClassMethodBuilder<T> {
      * Only used when SerializedLambda resolution fails (e.g. interface method refs pointing at synthetic classes).
      */
     @SuppressForbidden(reason = "relies on reflection")
-    private static MethodKey resolveMethodReferenceViaProxy(Class<?> clazz, Object ref, Class<?>... args)
-        throws Exception {
+    private static MethodKey resolveMethodReferenceViaProxy(Class<?> clazz, Object ref, Class<?>... args) throws Exception {
         var holder = new Object() {
             Method recordedMethod;
         };
@@ -1166,9 +1166,7 @@ public class ClassMethodBuilder<T> {
     private static MethodKey methodKeyFromMethod(Method method) {
         String className = method.getDeclaringClass().getName().replace(".", "/");
         String methodName = method.getName();
-        List<String> parameterTypes = Arrays.stream(method.getParameterTypes())
-            .map(TypeUtils::getParameterTypeName)
-            .toList();
+        List<String> parameterTypes = Arrays.stream(method.getParameterTypes()).map(TypeUtils::getParameterTypeName).toList();
         return new MethodKey(className, methodName, parameterTypes);
     }
 

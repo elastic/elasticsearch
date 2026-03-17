@@ -213,19 +213,13 @@ public class EntitlementRulesBuilderTests extends ESTestCase {
 
     public void testPrimitiveParam() {
         var registry = newRegistry();
-        newBuilder(registry).on(Concrete.class)
-            .calling(Concrete::withInt, Integer.class)
-            .enforce(Policies::empty)
-            .elseThrowNotEntitled();
+        newBuilder(registry).on(Concrete.class).calling(Concrete::withInt, Integer.class).enforce(Policies::empty).elseThrowNotEntitled();
         assertHasRule(registry, new MethodKey(CONCRETE_INTERNAL, "withInt", List.of("java.lang.Integer")));
     }
 
     public void testArrayParam() {
         var registry = newRegistry();
-        newBuilder(registry).on(Concrete.class)
-            .calling(Concrete::withArray, byte[].class)
-            .enforce(Policies::empty)
-            .elseThrowNotEntitled();
+        newBuilder(registry).on(Concrete.class).calling(Concrete::withArray, byte[].class).enforce(Policies::empty).elseThrowNotEntitled();
         assertHasRule(registry, new MethodKey(CONCRETE_INTERNAL, "withArray", List.of("byte[]")));
     }
 }

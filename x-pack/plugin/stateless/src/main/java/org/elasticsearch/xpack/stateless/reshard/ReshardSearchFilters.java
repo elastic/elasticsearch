@@ -31,6 +31,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
@@ -86,55 +87,67 @@ public class ReshardSearchFilters {
     // visible for testing
     static boolean shouldFilter(SplitShardCountSummary summary, IndexMetadata indexMetadata, ShardId shardId) {
         if (summary.equals(SplitShardCountSummary.UNSET)) {
-            // See ES-13108 to track injecting the summary at each call site that must provide it.
-            // In the meantime we default to not filtering if the summary is not provided. This
-            // isn't always correct, hence the ticket. The end state should be to remove this check.
+            /// See ES-13108 to track injecting the summary at each call site that must provide it.
+            /// In the meantime we default to not filtering if the summary is not provided. This
+            /// isn't always correct, hence the ticket. The end state should be to remove this check.
             return false;
         }
 
-        // If the provided summary reports fewer shards than the current index metadata, then the request is stale and should
-        // not be filtered. This is true even if there is no ongoing split, because the request may predate a split that
-        // has since been completed and removed.
-        // Most of the time this will return false, e.g., when no resharding is taking place.
-        // It's expected to always return false when the shard is a target shard as well, because the request would not
-        // have included it if it summary predated the target shard entering SPLIT.
-        // It is also possible for the coordinator to see split before the shard itself because cluster state application is
-        // asynchronous. In that case we should filter because the coordinator is including the split target.
-        final var currentSummary = SplitShardCountSummary.forSearch(indexMetadata, shardId.id());
-        if (summary.compareTo(currentSummary) > 0) {
-            return true;
-        } else if (summary.compareTo(currentSummary) < 0) {
-            return false;
-        }
+        var decision = summary.check(indexMetadata);
+        return switch (decision) {
+            /// If the provided summary is older, then the request was only sent to the source shard
+            /// and therefore should not be filtered.
+            /// However, the request can be so stale that we would not have enough data to serve it after cleaning up
+            /// unowned data. In that case we have to fail the request.
+            case OLDER -> {
+                IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
+                assert reshardingMetadata != null;
+                assert reshardingMetadata.isSplit();
 
-        // But if the summaries are equal, that only means that we *may* have to filter.
-        // * When no resharding is in progress, the summaries will usually match, but we have no need to filter.
-        // * We do not want to filter source shards if their targets are not yet at SPLIT, since the source is still responsible
-        // for the target's documents.
-        // * We do not need to filter target shards that have moved to DONE, since they have already removed unowned documents.
-        // XXX this may not be quite correct, since although DONE means that the data has been deleted, it doesn't necessarily
-        // mean that the search shard has seen the delete. It needs to filter until it has. To fix with #5404.
-        IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
-        if (reshardingMetadata == null) {
-            // no resharding is in progress, so no need to filter
-            return false;
-        }
-        assert reshardingMetadata.isSplit();
+                IndexReshardingState.Split split = reshardingMetadata.getSplit();
 
-        final var split = reshardingMetadata.getSplit();
-        boolean hasUnownedDocs = false;
+                // Having a non-current summary means not routing to the target shard so this is unexpected.
+                assert split.isTargetShard(shardId.id()) == false : "Received a search request with stale summary on the search shard";
 
-        if (split.isSourceShard(shardId.id())
-            && split.getSourceShardState(shardId.id()) != IndexReshardingState.Split.SourceShardState.DONE
-            && split.allTargetStatesAtLeast(shardId.id(), IndexReshardingState.Split.TargetShardState.SPLIT)) {
-            hasUnownedDocs = true;
-        } else if (split.isTargetShard(shardId.id())
-            // the target shard may still believe it is in handoff because it hasn't applied the latest cluster state yet
-            && split.getTargetShardState(shardId.id()) != IndexReshardingState.Split.TargetShardState.DONE) {
-                hasUnownedDocs = true;
+                if (split.sourceStateAtLeast(shardId.id(), IndexReshardingState.Split.SourceShardState.READY_FOR_CLEANUP)) {
+                    /// The grace period to drain queued search requests has passed but we still received this stale search request.
+                    /// We have to reject it since we are about to delete unowned data which
+                    /// would make such requests impossible to fulfill (we simply won't have the data).
+                    throw new StaleRequestException("Search request for shard {} is stale due to concurrent split operation.", shardId);
+                }
+
+                /// Otherwise we are in the middle of a split and received a request that was not routed to the target shard.
+                /// We should return the entirety of the source shard data.
+                yield false;
             }
+            case CURRENT -> {
+                /// But if the summary is current, that only means that we *may* have to filter.
+                /// * When no resharding is in progress, the summary should usually match, but we have no need to filter.
+                /// * We do not need to filter shards that have moved to DONE, since they have already removed unowned documents.
+                IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
+                if (reshardingMetadata == null) {
+                    // This is a common case - the summary is current and there is no ongoing split, nothing to do.
+                    yield false;
+                }
 
-        return hasUnownedDocs;
+                assert reshardingMetadata.isSplit();
+                IndexReshardingState.Split split = reshardingMetadata.getSplit();
+
+                if (split.isTargetShard(shardId.id())) {
+                    /// We ensure that refresh happens between unowned data being deleted and target shard moving to DONE.
+                    /// So at this point we know that there is no unowned data and we can skip filters as an optimization.
+                    yield split.targetStateAtLeast(shardId.id(), IndexReshardingState.Split.TargetShardState.DONE) == false;
+                } else {
+                    /// Similarly since we ensure the refresh is done after deleting unowned data we can skip filtering
+                    /// if the shard is DONE as an optimization.
+                    yield split.sourceStateAtLeast(shardId.id(), IndexReshardingState.Split.SourceShardState.DONE) == false;
+                }
+            }
+            case INVALID -> throw new StaleRequestException(
+                "Search request for shard {} is stale due to an index split operation.",
+                shardId
+            );
+        };
     }
 
     /**

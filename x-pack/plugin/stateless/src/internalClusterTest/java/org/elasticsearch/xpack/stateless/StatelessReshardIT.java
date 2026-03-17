@@ -44,7 +44,10 @@ import org.elasticsearch.action.get.TransportGetFromTranslogAction;
 import org.elasticsearch.action.get.TransportShardMultiGetAction;
 import org.elasticsearch.action.get.TransportShardMultiGetFomTranslogAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
 import org.elasticsearch.action.support.replication.StaleRequestException;
@@ -137,6 +140,8 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -3504,6 +3509,105 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         waitForReshardCompletion(indexName);
         ensureGreen(indexName);
+    }
+
+    public void testStaleSearchRequestsAreRejected() throws InterruptedException {
+        String masterNode = startMasterOnlyNode();
+        startIndexNode();
+        startSearchNode();
+        var coordinator = startSearchNode();
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", coordinator));
+        ensureStableCluster(4);
+
+        final String indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+        Index index = resolveIndex(indexName);
+
+        checkNumberOfShardsSetting(masterNode, indexName, 1);
+
+        int numDocs = randomIntBetween(10, 100);
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+        assertHitCount(prepareSearchAll(indexName), numDocs);
+
+        // We'll issue a search now but block the shard-level request on the coordinator until the split progresses far enough.
+        var searchInitiated = new CountDownLatch(1);
+        var searchBlock = new CountDownLatch(1);
+        var coordinatorTransportService = MockTransportService.getInstance(coordinator);
+        coordinatorTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (SearchTransportService.QUERY_ACTION_NAME.equals(action)) {
+                try {
+                    searchInitiated.countDown();
+                    searchBlock.await();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        try (var searchExecutor = Executors.newSingleThreadExecutor()) {
+            var searchFuture = searchExecutor.submit(
+                () -> prepareSearchAll(coordinator, indexName).setSearchType(SearchType.QUERY_THEN_FETCH).get()
+            );
+            searchInitiated.await();
+
+            var sourceIndexShardNode = clusterService().state()
+                .nodes()
+                .getNodes()
+                .get(findIndexShard(index, 0).routingEntry().currentNodeId())
+                .getName();
+
+            var sourceShardMoveToDoneAttempted = new CountDownLatch(1);
+            var sourceShardMoveToDoneBlocked = new CountDownLatch(1);
+            var sourceIndexShardNodeTransportService = MockTransportService.getInstance(sourceIndexShardNode);
+            sourceIndexShardNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (TransportUpdateSplitSourceShardStateAction.TYPE.name().equals(action)) {
+                    TransportRequest actualRequest = MasterNodeRequestHelper.unwrapTermOverride(request);
+
+                    if (actualRequest instanceof TransportUpdateSplitSourceShardStateAction.Request sourceStateRequest) {
+                        try {
+                            if (sourceStateRequest.getState() == IndexReshardingState.Split.SourceShardState.DONE) {
+                                sourceShardMoveToDoneAttempted.countDown();
+                                sourceShardMoveToDoneBlocked.await();
+                            }
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+
+            client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+            // Wait for the source index shard to attempt to move to DONE state.
+            // That means that it already applied READY_TO_CLEANUP state and ensured that the search shard
+            // is aware of it.
+            sourceShardMoveToDoneAttempted.await();
+
+            try {
+                searchBlock.countDown();
+                // This search should be rejected as stale.
+                // Note that in production this will only happen after a grace period
+                // but we disable it in tests.
+                try {
+                    searchFuture.get(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+                    fail("Search should throw stale request exception");
+                } catch (ExecutionException e) {
+                    var searchPhaseException = (SearchPhaseExecutionException) e.getCause();
+                    assertEquals(1, searchPhaseException.shardFailures().length);
+                    assertTrue(searchPhaseException.shardFailures()[0].getCause() instanceof StaleRequestException);
+                } catch (TimeoutException e) {
+                    throw new RuntimeException(e);
+                }
+            } finally {
+                sourceShardMoveToDoneBlocked.countDown();
+            }
+        }
+
+        waitForReshardCompletion(indexName);
     }
 
     @Override

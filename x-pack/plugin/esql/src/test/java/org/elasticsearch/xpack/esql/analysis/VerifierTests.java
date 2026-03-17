@@ -3221,70 +3221,48 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTextEmbeddingFunctionInvalidQuery() {
-        assertThat(
-            error("from test | EVAL embedding = TEXT_EMBEDDING(null, ?)", defaultAnalyzer, TEXT_EMBEDDING_INFERENCE_ID),
-            equalTo("1:30: first argument of [TEXT_EMBEDDING(null, ?)] cannot be null, received [null]")
-        );
-
-        assertThat(
-            error("from test | EVAL embedding = TEXT_EMBEDDING(42, ?)", defaultAnalyzer, TEXT_EMBEDDING_INFERENCE_ID),
-            equalTo("1:30: first argument of [TEXT_EMBEDDING(42, ?)] must be [string], found value [42] type [integer]")
-        );
-
-        assertThat(
-            error("from test | EVAL embedding = TEXT_EMBEDDING(last_name, ?)", defaultAnalyzer, TEXT_EMBEDDING_INFERENCE_ID),
-            equalTo("1:30: first argument of [TEXT_EMBEDDING(last_name, ?)] must be a constant, received [last_name]")
-        );
+        assertInvalidEmbeddingFirstArgument("TEXT_EMBEDDING", TEXT_EMBEDDING_INFERENCE_ID);
     }
 
     public void testTextEmbeddingFunctionInvalidInferenceId() {
-        assertThat(
-            error("from test | EVAL embedding = TEXT_EMBEDDING(?, null)", defaultAnalyzer, "query text"),
-            equalTo("1:30: second argument of [TEXT_EMBEDDING(?, null)] cannot be null, received [null]")
-        );
-
-        assertThat(
-            error("from test | EVAL embedding = TEXT_EMBEDDING(?, 42)", defaultAnalyzer, "query text"),
-            equalTo("1:30: second argument of [TEXT_EMBEDDING(?, 42)] must be [string], found value [42] type [integer]")
-        );
-
-        assertThat(
-            error("from test | EVAL embedding = TEXT_EMBEDDING(?, last_name)", defaultAnalyzer, "query text"),
-            equalTo("1:30: second argument of [TEXT_EMBEDDING(?, last_name)] must be a constant, received [last_name]")
-        );
+        assertInvalidEmbeddingSecondArgument("TEXT_EMBEDDING");
     }
 
     public void testEmbeddingFunctionInvalidQuery() {
-        assertThat(
-            error("from test | EVAL embedding = EMBEDDING(null, ?)", defaultAnalyzer, EMBEDDING_INFERENCE_ID),
-            equalTo("1:30: first argument of [EMBEDDING(null, ?)] cannot be null, received [null]")
-        );
-
-        assertThat(
-            error("from test | EVAL embedding = EMBEDDING(42, ?)", defaultAnalyzer, EMBEDDING_INFERENCE_ID),
-            equalTo("1:30: first argument of [EMBEDDING(42, ?)] must be [string], found value [42] type [integer]")
-        );
-
-        assertThat(
-            error("from test | EVAL embedding = EMBEDDING(last_name, ?)", defaultAnalyzer, EMBEDDING_INFERENCE_ID),
-            equalTo("1:30: first argument of [EMBEDDING(last_name, ?)] must be a constant, received [last_name]")
-        );
+        assertInvalidEmbeddingFirstArgument("EMBEDDING", EMBEDDING_INFERENCE_ID);
     }
 
     public void testEmbeddingFunctionInvalidInferenceId() {
-        assertThat(
-            error("from test | EVAL embedding = EMBEDDING(?, null)", defaultAnalyzer, "query text"),
-            equalTo("1:30: second argument of [EMBEDDING(?, null)] cannot be null, received [null]")
-        );
+        assertInvalidEmbeddingSecondArgument("EMBEDDING");
+    }
 
+    private void assertInvalidEmbeddingFirstArgument(String functionName, String inferenceId) {
         assertThat(
-            error("from test | EVAL embedding = EMBEDDING(?, 42)", defaultAnalyzer, "query text"),
-            equalTo("1:30: second argument of [EMBEDDING(?, 42)] must be [string], found value [42] type [integer]")
+            error("from test | EVAL embedding = " + functionName + "(null, ?)", defaultAnalyzer, inferenceId),
+            equalTo("1:30: first argument of [" + functionName + "(null, ?)] cannot be null, received [null]")
         );
-
         assertThat(
-            error("from test | EVAL embedding = EMBEDDING(?, last_name)", defaultAnalyzer, "query text"),
-            equalTo("1:30: second argument of [EMBEDDING(?, last_name)] must be a constant, received [last_name]")
+            error("from test | EVAL embedding = " + functionName + "(42, ?)", defaultAnalyzer, inferenceId),
+            equalTo("1:30: first argument of [" + functionName + "(42, ?)] must be [string], found value [42] type [integer]")
+        );
+        assertThat(
+            error("from test | EVAL embedding = " + functionName + "(last_name, ?)", defaultAnalyzer, inferenceId),
+            equalTo("1:30: first argument of [" + functionName + "(last_name, ?)] must be a constant, received [last_name]")
+        );
+    }
+
+    private void assertInvalidEmbeddingSecondArgument(String functionName) {
+        assertThat(
+            error("from test | EVAL embedding = " + functionName + "(?, null)", defaultAnalyzer, "query text"),
+            equalTo("1:30: second argument of [" + functionName + "(?, null)] cannot be null, received [null]")
+        );
+        assertThat(
+            error("from test | EVAL embedding = " + functionName + "(?, 42)", defaultAnalyzer, "query text"),
+            equalTo("1:30: second argument of [" + functionName + "(?, 42)] must be [string], found value [42] type [integer]")
+        );
+        assertThat(
+            error("from test | EVAL embedding = " + functionName + "(?, last_name)", defaultAnalyzer, "query text"),
+            equalTo("1:30: second argument of [" + functionName + "(?, last_name)] must be a constant, received [last_name]")
         );
     }
 

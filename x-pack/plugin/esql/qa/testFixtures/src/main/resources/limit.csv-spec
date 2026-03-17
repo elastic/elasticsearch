@@ -212,3 +212,76 @@ cnt:long | job_positions:keyword | languages:integer
 3        | Data Scientist        | 1
 5        | Head Human Resources  | 5
 ;
+
+limitByWithLookupJoin
+required_capability: limit_by
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| SORT emp_no, language_code, language_name
+| LIMIT 1000
+| LIMIT 2 BY emp_no
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | German
+10001          | 2                     | German
+10002          | 5                     | null
+10003          | 4                     | Quenya
+10004          | 5                     | null
+10005          | 1                     | English
+10005          | 1                     | English
+;
+
+limitByShadowedNonJoinField
+required_capability: limit_by
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
+| EVAL language_code = languages
+| EVAL language_name = 2*salary
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| SORT emp_no, language_code, language_name
+| LIMIT 1000
+| LIMIT 2 BY language_name
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | German
+10001          | 2                     | German
+10002          | 5                     | null
+10003          | 4                     | Quenya
+10004          | 5                     | null
+10005          | 1                     | English
+10005          | 1                     | English
+;
+
+limitByShadowedJoinField
+required_capability: limit_by
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| SORT emp_no, language_code, language_name
+| LIMIT 1000
+| LIMIT 2 BY language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | German
+10001          | 2                     | German
+10002          | 5                     | null
+10003          | 4                     | Quenya
+10004          | 5                     | null
+10005          | 1                     | English
+10005          | 1                     | English
+;

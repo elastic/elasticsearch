@@ -20,12 +20,12 @@ public class LimitByExecSerializationTests extends AbstractPhysicalPlanSerializa
     public static LimitByExec randomLimitByExec(int depth) {
         Source source = randomSource();
         PhysicalPlan child = randomChild(depth);
-        Expression limit = randomLimit();
+        Expression limit = randomLimitPerGroup();
         List<Expression> groupings = randomGroupings();
         return new LimitByExec(source, child, limit, groupings, randomEstimatedRowSize());
     }
 
-    private static Expression randomLimit() {
+    private static Expression randomLimitPerGroup() {
         return new Literal(randomSource(), between(0, Integer.MAX_VALUE), DataType.INTEGER);
     }
 
@@ -46,7 +46,7 @@ public class LimitByExecSerializationTests extends AbstractPhysicalPlanSerializa
         Integer estimatedRowSize = instance.estimatedRowSize();
         switch (between(0, 3)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
-            case 1 -> limit = randomValueOtherThan(limit, LimitByExecSerializationTests::randomLimit);
+            case 1 -> limit = randomValueOtherThan(limit, LimitByExecSerializationTests::randomLimitPerGroup);
             case 2 -> groupings = randomValueOtherThan(groupings, LimitByExecSerializationTests::randomGroupings);
             case 3 -> estimatedRowSize = randomValueOtherThan(estimatedRowSize, LimitByExecSerializationTests::randomEstimatedRowSize);
             default -> throw new AssertionError("Unexpected case");

@@ -297,15 +297,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
   issue: https://github.com/elastic/elasticsearch/issues/138012
-- class: org.elasticsearch.upgrades.MappingSupplementaryCharacterRollingUpgradeIT
-  method: testMappingWithSupplementaryCharacterFieldName {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/144163
-- class: org.elasticsearch.upgrades.MappingSupplementaryCharacterRollingUpgradeIT
-  method: testMappingWithSupplementaryCharacterFieldName {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/144164
-- class: org.elasticsearch.upgrades.MappingSupplementaryCharacterRollingUpgradeIT
-  method: testMappingWithSupplementaryCharacterFieldName {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/144165
 - class: org.elasticsearch.test.apmintegration.MetricsApmIT
   method: testJvmMetrics {withOTel=true}
   issue: https://github.com/elastic/elasticsearch/issues/144166

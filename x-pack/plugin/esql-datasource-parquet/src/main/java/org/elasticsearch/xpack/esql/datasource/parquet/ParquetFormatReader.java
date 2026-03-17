@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
@@ -193,47 +194,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     }
 
     @Override
-    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
-        // Adapt StorageObject to Parquet InputFile
-        InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
+    public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+        List<String> projectedColumns = context.projectedColumns();
+        int batchSize = context.batchSize();
+        int rowLimit = context.rowLimit();
 
-        // Build ParquetReadOptions for data reading
-        ParquetReadOptions options = ParquetReadOptions.builder().build();
-
-        // Open the Parquet file reader
-        ParquetFileReader reader = ParquetFileReader.open(parquetInputFile, options);
-
-        // Get the schema
-        FileMetaData fileMetaData = reader.getFileMetaData();
-        MessageType parquetSchema = fileMetaData.getSchema();
-        List<Attribute> attributes = convertParquetSchemaToAttributes(parquetSchema);
-
-        // Filter attributes based on projection
-        List<Attribute> projectedAttributes;
-        if (projectedColumns == null || projectedColumns.isEmpty()) {
-            projectedAttributes = attributes;
-        } else {
-            projectedAttributes = new ArrayList<>();
-            Map<String, Attribute> attributeMap = new HashMap<>();
-            for (Attribute attr : attributes) {
-                attributeMap.put(attr.name(), attr);
-            }
-            for (String columnName : projectedColumns) {
-                Attribute attr = attributeMap.get(columnName);
-                attr = attr == null ? new ReferenceAttribute(Source.EMPTY, columnName, DataType.NULL) : attr;
-                projectedAttributes.add(attr);
-            }
-        }
-
-        MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
-        String createdBy = fileMetaData.getCreatedBy();
-
-        return new ParquetColumnIterator(reader, projectedSchema, projectedAttributes, batchSize, blockFactory, NO_LIMIT, createdBy);
-    }
-
-    @Override
-    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, int rowLimit)
-        throws IOException {
         InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
         ParquetReadOptions options = ParquetReadOptions.builder().build();
         ParquetFileReader reader = ParquetFileReader.open(parquetInputFile, options);

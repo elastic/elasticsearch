@@ -61,9 +61,7 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
             + "with the {@code embedding} task type. "
             + "Use this function to generate query vectors for KNN searches against your vectorized data "
             + "or other dense vector based operations.",
-        appliesTo = {
-            @FunctionAppliesTo(version = "9.5.0", lifeCycle = FunctionAppliesToLifecycle.PREVIEW),
-        },
+        appliesTo = { @FunctionAppliesTo(version = "9.5.0", lifeCycle = FunctionAppliesToLifecycle.PREVIEW), },
         examples = {
             @Example(
                 description = "Generate embeddings using the 'test_dense_inference' inference endpoint.",
@@ -102,8 +100,7 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
                     name = "format",
                     type = { "keyword" },
                     description = "Format of the input content (e.g. \"text\", \"base64\")."
-                )
-            },
+                ) },
             optional = true
         ) MapExpression inputOptions
     ) {
@@ -189,30 +186,24 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
         }
 
         if (inputOptions != null) {
-            TypeResolution optionsResolution = Options.resolve(
-                inputOptions,
-                source(),
-                THIRD,
-                ALLOWED_OPTIONS,
-                optionsMap -> {
-                    Object typeValue = optionsMap.get(OPTION_TYPE);
-                    if (typeValue != null) {
-                        try {
-                            resolvedDataType = org.elasticsearch.inference.DataType.fromString(BytesRefs.toString(typeValue));
-                        } catch (IllegalArgumentException e) {
-                            throw new InvalidArgumentException(e.getMessage());
-                        }
-                    }
-                    Object formatValue = optionsMap.get(OPTION_FORMAT);
-                    if (formatValue != null) {
-                        try {
-                            resolvedDataFormat = DataFormat.fromString(BytesRefs.toString(formatValue));
-                        } catch (IllegalArgumentException e) {
-                            throw new InvalidArgumentException(e.getMessage());
-                        }
+            TypeResolution optionsResolution = Options.resolve(inputOptions, source(), THIRD, ALLOWED_OPTIONS, optionsMap -> {
+                Object typeValue = optionsMap.get(OPTION_TYPE);
+                if (typeValue != null) {
+                    try {
+                        resolvedDataType = org.elasticsearch.inference.DataType.fromString(BytesRefs.toString(typeValue));
+                    } catch (IllegalArgumentException e) {
+                        throw new InvalidArgumentException(e.getMessage());
                     }
                 }
-            );
+                Object formatValue = optionsMap.get(OPTION_FORMAT);
+                if (formatValue != null) {
+                    try {
+                        resolvedDataFormat = DataFormat.fromString(BytesRefs.toString(formatValue));
+                    } catch (IllegalArgumentException e) {
+                        throw new InvalidArgumentException(e.getMessage());
+                    }
+                }
+            });
             if (optionsResolution.unresolved()) {
                 return optionsResolution;
             }

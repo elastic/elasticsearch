@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.inference.textembedding;
+package org.elasticsearch.xpack.esql.inference.embedding;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -14,9 +14,9 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 
@@ -44,15 +44,12 @@ public class EmbeddingOperator extends InferenceOperator {
             driverContext,
             inferenceService,
             new EmbeddingRequestIterator.Factory(inferenceId, taskType, inputEvaluator, dataType, dataFormat),
-            new TextEmbeddingOutputBuilder(driverContext.blockFactory())
+            new EmbeddingOutputBuilder(driverContext.blockFactory())
         );
     }
 
     @Override
-    protected void dispatchInferenceRequest(
-        BaseInferenceActionRequest request,
-        ActionListener<InferenceAction.Response> listener
-    ) {
+    protected void dispatchInferenceRequest(BaseInferenceActionRequest request, ActionListener<InferenceAction.Response> listener) {
         inferenceService.executeEmbeddingInference((EmbeddingAction.Request) request, listener);
     }
 

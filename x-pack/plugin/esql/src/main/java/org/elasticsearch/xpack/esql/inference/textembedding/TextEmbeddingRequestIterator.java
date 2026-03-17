@@ -13,6 +13,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.esql.inference.AbstractEmbeddingRequestIterator;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem.PositionValueCountsBuilder;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItemIterator;
@@ -37,10 +38,7 @@ class TextEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
         if (text == null) {
             return new BulkInferenceRequestItem(null, pvcs);
         }
-        return new BulkInferenceRequestItem(
-            InferenceAction.Request.builder(inferenceId, taskType).setInput(List.of(text)).build(),
-            pvcs
-        );
+        return new BulkInferenceRequestItem(InferenceAction.Request.builder(inferenceId, taskType).setInput(List.of(text)).build(), pvcs);
     }
 
     /**

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.inference.textembedding;
+package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.core.Releasables;
@@ -13,7 +13,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem.PositionValueCountsBuilder;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItemIterator;
-import org.elasticsearch.xpack.esql.inference.InputTextReader;
 
 import java.util.NoSuchElementException;
 
@@ -25,7 +24,7 @@ import java.util.NoSuchElementException;
  * {@link org.elasticsearch.xpack.esql.inference.InferenceService} dispatch method as an executor.
  * </p>
  */
-abstract class AbstractEmbeddingRequestIterator implements BulkInferenceRequestItemIterator {
+public abstract class AbstractEmbeddingRequestIterator implements BulkInferenceRequestItemIterator {
 
     protected final String inferenceId;
     protected final TaskType taskType;
@@ -35,7 +34,7 @@ abstract class AbstractEmbeddingRequestIterator implements BulkInferenceRequestI
 
     private final PositionValueCountsBuilder positionValueCountsBuilder = BulkInferenceRequestItem.positionValueCountsBuilder();
 
-    AbstractEmbeddingRequestIterator(String inferenceId, TaskType taskType, BytesRefBlock textBlock) {
+    protected AbstractEmbeddingRequestIterator(String inferenceId, TaskType taskType, BytesRefBlock textBlock) {
         this.inferenceId = inferenceId;
         this.taskType = taskType;
         this.textReader = new InputTextReader(textBlock);

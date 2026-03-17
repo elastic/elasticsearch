@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class EmbeddingOperatorTests extends InferenceOperatorTestCase<DenseEmbeddingResults<?>> {
+public class TextEmbeddingOperatorTests extends InferenceOperatorTestCase<DenseEmbeddingResults<?>> {
     private static final String SIMPLE_INFERENCE_ID = "test_embedding";
     private static final int EMBEDDING_DIM = 384; // Common embedding dimension
 

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.inference.textembedding;
+package org.elasticsearch.xpack.esql.inference.embedding;
 
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
@@ -20,6 +20,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.esql.inference.AbstractEmbeddingRequestIterator;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem.PositionValueCountsBuilder;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItemIterator;
@@ -40,13 +41,7 @@ class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
     private final DataType dataType;
     private final DataFormat dataFormat;
 
-    EmbeddingRequestIterator(
-        String inferenceId,
-        TaskType taskType,
-        BytesRefBlock textBlock,
-        DataType dataType,
-        DataFormat dataFormat
-    ) {
+    EmbeddingRequestIterator(String inferenceId, TaskType taskType, BytesRefBlock textBlock, DataType dataType, DataFormat dataFormat) {
         super(inferenceId, taskType, textBlock);
         this.dataType = dataType;
         this.dataFormat = dataFormat;
@@ -80,13 +75,7 @@ class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
 
         @Override
         public BulkInferenceRequestItemIterator create(Page inputPage) {
-            return new EmbeddingRequestIterator(
-                inferenceId,
-                taskType,
-                (BytesRefBlock) textEvaluator.eval(inputPage),
-                dataType,
-                dataFormat
-            );
+            return new EmbeddingRequestIterator(inferenceId, taskType, (BytesRefBlock) textEvaluator.eval(inputPage), dataType, dataFormat);
         }
 
         @Override

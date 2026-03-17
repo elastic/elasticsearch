@@ -466,12 +466,9 @@ public class MetadataTests extends ESTestCase {
 
         final var clusterService = mock(ClusterService.class);
         when(clusterService.threadPool()).thenReturn(mock(ThreadPool.class));
-        final var healthNodeTaskExecutor = HealthNodeTaskExecutor.create(
-            clusterService,
-            mock(PersistentTasksService.class),
-            Settings.EMPTY,
-            ClusterSettings.createBuiltInClusterSettings()
-        );
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(ClusterSettings.createBuiltInClusterSettings());
+        final var healthNodeTaskExecutor = new HealthNodeTaskExecutor(clusterService, mock(PersistentTasksService.class));
         new PersistentTasksExecutorRegistry(List.of(healthNodeTaskExecutor));
 
         XContentParserConfiguration config = XContentParserConfiguration.EMPTY.withRegistry(new NamedXContentRegistry(registry));

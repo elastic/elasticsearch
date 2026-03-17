@@ -1819,12 +1819,7 @@ class NodeConstruction {
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
-        HealthNodeTaskExecutor healthNodeTaskExecutor = HealthNodeTaskExecutor.create(
-            clusterService,
-            persistentTasksService,
-            settingsModule.getSettings(),
-            clusterService.getClusterSettings()
-        );
+        HealthNodeTaskExecutor healthNodeTaskExecutor = new HealthNodeTaskExecutor(clusterService, persistentTasksService);
         Stream<PersistentTasksExecutor<?>> builtinTaskExecutors = Stream.of(healthNodeTaskExecutor);
 
         Stream<PersistentTasksExecutor<?>> pluginTaskExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)

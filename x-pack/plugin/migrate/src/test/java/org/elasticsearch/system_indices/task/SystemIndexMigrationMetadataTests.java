@@ -115,12 +115,9 @@ public class SystemIndexMigrationMetadataTests extends ESTestCase {
 
         final var clusterService = mock(ClusterService.class);
         when(clusterService.threadPool()).thenReturn(mock(ThreadPool.class));
-        final var healthNodeTaskExecutor = HealthNodeTaskExecutor.create(
-            clusterService,
-            mock(PersistentTasksService.class),
-            Settings.EMPTY,
-            ClusterSettings.createBuiltInClusterSettings()
-        );
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(ClusterSettings.createBuiltInClusterSettings());
+        final var healthNodeTaskExecutor = new HealthNodeTaskExecutor(clusterService, mock(PersistentTasksService.class));
         final var systemIndexMigrationExecutor = new SystemIndexMigrationExecutor(
             mock(Client.class),
             clusterService,

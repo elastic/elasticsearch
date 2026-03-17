@@ -11,6 +11,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOutputBuilder;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 
@@ -36,7 +37,7 @@ public class TextEmbeddingOperator extends InferenceOperator {
             driverContext,
             inferenceService,
             new TextEmbeddingRequestIterator.Factory(inferenceId, taskType, inputEvaluator),
-            new TextEmbeddingOutputBuilder(driverContext.blockFactory())
+            new EmbeddingOutputBuilder(driverContext.blockFactory())
         );
     }
 

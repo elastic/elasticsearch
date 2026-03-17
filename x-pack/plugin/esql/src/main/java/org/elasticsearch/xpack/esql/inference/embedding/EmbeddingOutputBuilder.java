@@ -28,12 +28,15 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
  * Converts {@link DenseEmbeddingResults} from inference responses into a {@link FloatBlock} that is appended
  * to the input page. Each embedding vector is stored as a multi-valued position containing the vector components.
  * </p>
+ * <p>
+ * This base class is used by both text embedding and typed embedding operations.
+ * </p>
  */
-class EmbeddingOutputBuilder implements OutputBuilder {
+public class EmbeddingOutputBuilder implements OutputBuilder {
 
     private final BlockFactory blockFactory;
 
-    EmbeddingOutputBuilder(BlockFactory blockFactory) {
+    public EmbeddingOutputBuilder(BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
     }
 

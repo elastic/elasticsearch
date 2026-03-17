@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <assert.h>
 #include <type_traits>
+#include <utility>
 
 template <uintptr_t align>
 static inline uintptr_t align_downwards(const void* ptr) {

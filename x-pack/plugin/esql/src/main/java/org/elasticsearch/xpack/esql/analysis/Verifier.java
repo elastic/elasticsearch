@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -373,10 +374,7 @@ public class Verifier {
      * See https://github.com/elastic/elasticsearch/issues/142127
      */
     private static boolean checkUnmappedTimestamp(LogicalPlan plan, Failures failures) {
-        boolean timestampInIndex = plan.collect(EsRelation.class, r -> r.indexMode() != IndexMode.LOOKUP)
-            .stream()
-            .anyMatch(r -> r.output().stream().anyMatch(a -> MetadataAttribute.TIMESTAMP_FIELD.equals(a.name())));
-        if (timestampInIndex) {
+        if (plan.anyMatch(p -> p instanceof EsRelation r && r.indexMode() != IndexMode.LOOKUP && hasTimestamp(r))) {
             return false;
         }
         plan.forEachDown(p -> {
@@ -390,6 +388,15 @@ public class Verifier {
             });
         });
         return true;
+    }
+
+    private static boolean hasTimestamp(EsRelation relation) {
+        for (Attribute attr : relation.output()) {
+            if (MetadataAttribute.TIMESTAMP_FIELD.equals(attr.name())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

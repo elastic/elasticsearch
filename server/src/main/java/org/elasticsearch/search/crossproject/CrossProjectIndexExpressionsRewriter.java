@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
@@ -45,7 +46,7 @@ public class CrossProjectIndexExpressionsRewriter {
      * @param allProjectAliases the list of all project aliases (linked and origin) consider for a request
      * @param projectRouting the project routing that was applied to determine the origin and linked projects.
      *                       {@code null} if no project routing was applied.
-     * @throws IllegalArgumentException if exclusions, date math or selectors are present in the index expressions
+     * @throws InvalidIndexNameException if exclusions are applied to both the project and the index expression
      * @throws NoMatchingProjectException if a qualified resource cannot be resolved because a project is missing
      */
     public static IndexRewriteResult rewriteIndexExpression(
@@ -150,7 +151,7 @@ public class CrossProjectIndexExpressionsRewriter {
 
         final String indexExpression = splitResource[1];
         if (isExclusion && isExclusionExpression(indexExpression)) {
-            throw new IllegalArgumentException("Cannot apply exclusion for both the project and the index expression [" + resource + "]");
+            throw new InvalidIndexNameException(resource, "cannot apply exclusion for both the project and the index expression");
         }
 
         List<String> allProjectsMatchingAlias = resolveProjectAliases(

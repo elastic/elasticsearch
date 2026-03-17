@@ -49,8 +49,9 @@ public class MlModelServer implements TestRule {
 
     private int port;
 
-    public String getUrl() {
-        return new URIBuilder().setScheme("http").setHost(InetAddress.getByName(HOST).getHostAddress()).setPort(port).toString();
+    public String getUrl() throws IOException {
+        return new URIBuilder().setScheme("http").setHost(HOST).setPort(port).toString();
+        // return new URIBuilder().setScheme("http").setHost(InetAddress.getByName(HOST).getHostAddress()).setPort(port).toString();
     }
 
     private void handle(HttpExchange exchange) throws IOException {

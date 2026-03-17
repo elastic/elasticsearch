@@ -212,7 +212,6 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         doTestUnassignedPrimariesBeforeUnassignedReplicas(false);
     }
 
-    @AwaitsFix(bugUrl = "ES-9109")
     public void testUnassignedPrimariesBeforeUnassignedReplicasOnMultipleProjects() {
         doTestUnassignedPrimariesBeforeUnassignedReplicas(true);
     }
@@ -615,20 +614,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             shardIdentifierFromRouting(clusterState.routingTable().shardRoutingTable("index-existing", 0).primaryShard()),
             existingShardSize
         );
-        final var clusterInfo = new ClusterInfo(
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            shardSizesBuilder.build(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            Set.of()
-        );
-
+        final var clusterInfo = ClusterInfo.builder().shardSizes(shardSizesBuilder.build()).build();
         final var restoredShardSize = randomNonNegativeLong();
         final var snapshotSizesBuilder = ImmutableOpenMap.<InternalSnapshotsInfoService.SnapshotShard, Long>builder();
         snapshotSizesBuilder.put(

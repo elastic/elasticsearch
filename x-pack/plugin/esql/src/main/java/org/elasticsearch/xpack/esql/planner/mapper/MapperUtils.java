@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
@@ -24,10 +23,13 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -46,9 +48,12 @@ import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
+import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
@@ -64,12 +69,6 @@ public class MapperUtils {
     static PhysicalPlan mapLeaf(LeafPlan p) {
         if (p instanceof LocalRelation local) {
             return new LocalSourceExec(local.source(), local.output(), local.supplier());
-        }
-
-        // External data sources (Iceberg, Parquet, etc.)
-        // These are executed on the coordinator only, bypassing FragmentExec/ExchangeExec dispatch
-        if (p instanceof ExternalRelation external) {
-            return external.toPhysicalExec();
         }
 
         // Commands
@@ -169,6 +168,20 @@ public class MapperUtils {
             return child;
         }
 
+        if (p instanceof UriParts uriParts) {
+            return new UriPartsExec(
+                uriParts.source(),
+                child,
+                uriParts.getInput(),
+                uriParts.outputFieldNames(),
+                uriParts.generatedAttributes()
+            );
+        }
+
+        if (p instanceof RegisteredDomain rd) {
+            return new RegisteredDomainExec(rd.source(), child, rd.getInput(), rd.outputFieldNames(), rd.generatedAttributes());
+        }
+
         return unsupported(p);
     }
 
@@ -181,8 +194,8 @@ public class MapperUtils {
     }
 
     static AggregateExec aggExec(Aggregate aggregate, PhysicalPlan child, AggregatorMode aggMode, List<Attribute> intermediateAttributes) {
-        if (aggregate instanceof TimeSeriesAggregate ts) {
-            return new TimeSeriesAggregateExec(
+        return switch (aggregate) {
+            case TimeSeriesAggregate ts -> new TimeSeriesAggregateExec(
                 aggregate.source(),
                 child,
                 aggregate.groupings(),
@@ -192,8 +205,19 @@ public class MapperUtils {
                 null,
                 ts.timeBucket()
             );
-        } else {
-            return new AggregateExec(
+            case SampledAggregate sample -> new SampledAggregateExec(
+                sample.source(),
+                child,
+                sample.groupings(),
+                sample.aggregates(),
+                sample.originalAggregates(),
+                sample.sampleProbability(),
+                aggMode,
+                intermediateAttributes,
+                AbstractPhysicalOperationProviders.intermediateAttributes(sample.originalAggregates(), sample.groupings()),
+                null
+            );
+            default -> new AggregateExec(
                 aggregate.source(),
                 child,
                 aggregate.groupings(),
@@ -202,7 +226,7 @@ public class MapperUtils {
                 intermediateAttributes,
                 null
             );
-        }
+        };
     }
 
     static PhysicalPlan unsupported(LogicalPlan p) {

@@ -322,6 +322,36 @@ public class MatchPhraseFunctionIT extends AbstractEsqlIntegTestCase {
         assertThat(error.getMessage(), containsString("[MatchPhrase] function is only supported in WHERE and STATS commands"));
     }
 
+    public void testMatchPhraseAfterMvExpand() {
+        var query = """
+            FROM test
+            | MV_EXPAND content
+            | WHERE match_phrase(content, "brown fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[MatchPhrase] function cannot be used after MV_EXPAND"));
+    }
+
+    public void testMatchPhraseAfterMvExpandWithIntermediateCommands() {
+        var error = expectThrows(VerificationException.class, () -> run("""
+            FROM test
+            | MV_EXPAND content
+            | EVAL upper_content = to_upper(content)
+            | WHERE match_phrase(content, "brown fox")
+            """));
+        assertThat(error.getMessage(), containsString("[MatchPhrase] function cannot be used after MV_EXPAND"));
+
+        error = expectThrows(VerificationException.class, () -> run("""
+            FROM test
+            | MV_EXPAND content
+            | SORT id
+            | KEEP id, content
+            | WHERE match_phrase(content, "brown fox")
+            """));
+        assertThat(error.getMessage(), containsString("[MatchPhrase] function cannot be used after MV_EXPAND"));
+    }
+
     public void testMatchPhraseWithLookupJoin() {
         var query = """
             FROM test

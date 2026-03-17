@@ -12,7 +12,7 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
@@ -239,7 +239,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         );
     }
 
-    private static List<Expression> fields(Expression field, Expression buckets, Expression from, Expression to) {
+    static List<Expression> fields(Expression field, Expression buckets, Expression from, Expression to) {
         List<Expression> list = new ArrayList<>(4);
         list.add(field);
         list.add(buckets);

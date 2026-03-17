@@ -80,16 +80,8 @@ public class CreateSnapshotRequestTests extends ESTestCase {
             original.indicesOptions(
                 IndicesOptions.builder()
                     .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(randomBoolean()))
-                    .wildcardOptions(
-                        new IndicesOptions.WildcardOptions(
-                            randomBoolean(),
-                            randomBoolean(),
-                            randomBoolean(),
-                            defaultResolveAliasForThisRequest,
-                            randomBoolean(),
-                            false  // Specifying views in the create snapshot request is not supported
-                        )
-                    )
+                    .wildcardOptions(new IndicesOptions.WildcardOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))
+                    .indexAbstractionOptions(new IndicesOptions.IndexAbstractionOptions(defaultResolveAliasForThisRequest, false))
                     .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowSelectors(false).includeFailureIndices(true).build())
                     .build()
             );

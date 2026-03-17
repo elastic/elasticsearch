@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -103,6 +105,9 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class SnapshotStressTestsHelper {
+
+    private static final Runnable NO_OP_RUNNABLE = () -> {};
+
     public static Set<String> nodeNames(Map<String, DiscoveryNode> nodesMap) {
         return nodesMap.values().stream().map(DiscoveryNode::getName).collect(Collectors.toSet());
     }
@@ -685,9 +690,10 @@ public class SnapshotStressTestsHelper {
 
                     final ListenableFuture<List<String>> getIndicesStep = new ListenableFuture<>();
 
+                    final TrackedRepository trackedRepository = trackedSnapshot.trackedRepository;
                     logger.info(
                         "--> listing indices in [{}:{}] in preparation for cloning",
-                        trackedSnapshot.trackedRepository.repositoryName,
+                        trackedRepository.repositoryName,
                         trackedSnapshot.snapshotName
                     );
 
@@ -717,7 +723,7 @@ public class SnapshotStressTestsHelper {
                         if (indexNames.isEmpty()) {
                             logger.info(
                                 "--> no successful indices in [{}:{}], skipping clone",
-                                trackedSnapshot.trackedRepository.repositoryName,
+                                trackedRepository.repositoryName,
                                 trackedSnapshot.snapshotName
                             );
                             Releasables.close(releaseAll);
@@ -729,35 +735,61 @@ public class SnapshotStressTestsHelper {
 
                         logger.info(
                             "--> starting clone of [{}:{}] as [{}:{}] with indices {}",
-                            trackedSnapshot.trackedRepository.repositoryName,
+                            trackedRepository.repositoryName,
                             trackedSnapshot.snapshotName,
-                            trackedSnapshot.trackedRepository.repositoryName,
+                            trackedRepository.repositoryName,
                             cloneName,
                             indexNames
                         );
+
+                        final Runnable abortRunnable = maybeCreateAbortRunnable(trackedRepository, cloneName);
 
                         client.admin()
                             .cluster()
                             .prepareCloneSnapshot(
                                 TEST_REQUEST_TIMEOUT,
-                                trackedSnapshot.trackedRepository.repositoryName,
+                                trackedRepository.repositoryName,
                                 trackedSnapshot.snapshotName,
                                 cloneName
                             )
                             .setIndices(indexNames.toArray(new String[0]))
-                            .execute(mustSucceed(acknowledgedResponse -> {
-                                Releasables.close(releaseAll);
-                                assertTrue(acknowledgedResponse.isAcknowledged());
-                                completedSnapshotLatch.countDown();
-                                logger.info(
-                                    "--> completed clone of [{}:{}] as [{}:{}]",
-                                    trackedSnapshot.trackedRepository.repositoryName,
-                                    trackedSnapshot.snapshotName,
-                                    trackedSnapshot.trackedRepository.repositoryName,
-                                    cloneName
-                                );
-                                startCloner();
-                            }));
+                            .execute(ActionListener.runBefore(new ActionListener<>() {
+                                @Override
+                                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                                    assertTrue(acknowledgedResponse.isAcknowledged());
+                                    pollForSnapshotCompletion(client, trackedRepository.repositoryName, cloneName, releaseAll, () -> {
+                                        logger.info(
+                                            "--> completed clone of [{}:{}] as [{}:{}]",
+                                            trackedRepository.repositoryName,
+                                            trackedSnapshot.snapshotName,
+                                            trackedRepository.repositoryName,
+                                            cloneName
+                                        );
+                                        if (abortRunnable == NO_OP_RUNNABLE) {
+                                            snapshots.put(cloneName, new TrackedSnapshot(trackedRepository, cloneName));
+                                            completedSnapshotLatch.countDown();
+                                        }
+                                        startCloner();
+                                    });
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                                    if (abortRunnable != NO_OP_RUNNABLE
+                                        && cause instanceof SnapshotException
+                                        && Regex.simpleMatch(
+                                            "*" + cloneName + "*" + SnapshotsInProgress.ABORTED_FAILURE_TEXT,
+                                            cause.getMessage()
+                                        )) {
+                                        logger.info("--> clone was aborted before it is fully populated");
+                                        startCloner();
+                                    } else {
+                                        logAndFailTest(e);
+                                    }
+                                }
+                            }, () -> Releasables.close(releaseAll)));
+                        abortRunnable.run();
                     }));
 
                     startedClone = true;
@@ -1082,65 +1114,13 @@ public class SnapshotStressTestsHelper {
                         createSnapshotRequestBuilder.setIndices(targetIndexNames.toArray(new String[0]));
                     }
 
-                    final boolean abortSnapshot = randomBoolean();
-                    final Runnable abortRunnable;
-                    if (abortSnapshot) {
-                        try (
-                            SnapshotStressTestsHelper.TransferableReleasables abortReleasables =
-                                new SnapshotStressTestsHelper.TransferableReleasables()
-                        ) {
-
-                            assertNotNull(abortReleasables.add(blockFullClusterRestart()));
-                            final Client abortClient = abortReleasables.add(acquireClient()).getClient();
-
-                            assertNotNull(abortReleasables.add(tryAcquirePermit(trackedRepository.permits)));
-
-                            final DeleteSnapshotRequestBuilder deleteSnapshotRequestBuilder = abortClient.admin()
-                                .cluster()
-                                .prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, trackedRepository.repositoryName, snapshotName);
-
-                            final Releasable abortReleasable = abortReleasables.transfer();
-
-                            abortRunnable = mustSucceed(() -> {
-                                logger.info("--> abort/delete snapshot [{}:{}] start", trackedRepository.repositoryName, snapshotName);
-                                deleteSnapshotRequestBuilder.execute(new ActionListener<>() {
-                                    @Override
-                                    public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                                        logger.info(
-                                            "--> abort/delete snapshot [{}:{}] success",
-                                            trackedRepository.repositoryName,
-                                            snapshotName
-                                        );
-                                        Releasables.close(abortReleasable);
-                                        assertTrue(acknowledgedResponse.isAcknowledged());
-                                    }
-
-                                    @Override
-                                    public void onFailure(Exception e) {
-                                        Releasables.close(abortReleasable);
-                                        if (ExceptionsHelper.unwrapCause(e) instanceof SnapshotMissingException) {
-                                            // processed before the snapshot even started
-                                            logger.info(
-                                                "--> abort/delete snapshot [{}:{}] got snapshot missing",
-                                                trackedRepository.repositoryName,
-                                                snapshotName
-                                            );
-                                        } else {
-                                            logAndFailTest(e);
-                                        }
-                                    }
-                                });
-                            });
-                        }
-                    } else {
-                        abortRunnable = () -> {};
-                    }
+                    final Runnable abortRunnable = maybeCreateAbortRunnable(trackedRepository, snapshotName);
 
                     createSnapshotRequestBuilder.execute(mustSucceed(createSnapshotResponse -> {
                         logger.info("--> started partial snapshot [{}:{}]", trackedRepository.repositoryName, snapshotName);
                         Releasables.close(releasableAfterStart.transfer());
                         pollForSnapshotCompletion(client, trackedRepository.repositoryName, snapshotName, releaseAll, () -> {
-                            if (abortSnapshot == false) {
+                            if (abortRunnable == NO_OP_RUNNABLE) {
                                 snapshots.put(snapshotName, new TrackedSnapshot(trackedRepository, snapshotName));
                                 completedSnapshotLatch.countDown();
                             }
@@ -1157,6 +1137,55 @@ public class SnapshotStressTestsHelper {
                     }
                 }
             });
+        }
+
+        private Runnable maybeCreateAbortRunnable(TrackedRepository trackedRepository, String snapshotName) {
+            final Runnable abortRunnable;
+            if (randomBoolean()) {
+                try (TransferableReleasables abortReleasables = new TransferableReleasables()) {
+
+                    assertNotNull(abortReleasables.add(blockFullClusterRestart()));
+                    final Client abortClient = abortReleasables.add(acquireClient()).getClient();
+
+                    assertNotNull(abortReleasables.add(tryAcquirePermit(trackedRepository.permits)));
+
+                    final DeleteSnapshotRequestBuilder deleteSnapshotRequestBuilder = abortClient.admin()
+                        .cluster()
+                        .prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, trackedRepository.repositoryName, snapshotName);
+
+                    final Releasable abortReleasable = abortReleasables.transfer();
+
+                    abortRunnable = mustSucceed(() -> {
+                        logger.info("--> abort/delete snapshot [{}:{}] start", trackedRepository.repositoryName, snapshotName);
+                        deleteSnapshotRequestBuilder.execute(new ActionListener<>() {
+                            @Override
+                            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                                logger.info("--> abort/delete snapshot [{}:{}] success", trackedRepository.repositoryName, snapshotName);
+                                Releasables.close(abortReleasable);
+                                assertTrue(acknowledgedResponse.isAcknowledged());
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                Releasables.close(abortReleasable);
+                                if (ExceptionsHelper.unwrapCause(e) instanceof SnapshotMissingException) {
+                                    // processed before the snapshot even started
+                                    logger.info(
+                                        "--> abort/delete snapshot [{}:{}] got snapshot missing",
+                                        trackedRepository.repositoryName,
+                                        snapshotName
+                                    );
+                                } else {
+                                    logAndFailTest(e);
+                                }
+                            }
+                        });
+                    });
+                }
+            } else {
+                abortRunnable = NO_OP_RUNNABLE;
+            }
+            return abortRunnable;
         }
 
         private void pollForSnapshotCompletion(

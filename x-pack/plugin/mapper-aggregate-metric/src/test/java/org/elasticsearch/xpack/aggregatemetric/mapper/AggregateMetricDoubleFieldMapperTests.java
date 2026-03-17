@@ -71,7 +71,7 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
-        b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max", "value_count" });
+        b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "sum", "value_count" });
     }
 
     @Override
@@ -91,7 +91,7 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object getSampleValueForDocument() {
-        return Map.of("min", -10.1, "max", 50.0, "value_count", 14);
+        return Map.of("value_count", 14, "sum", 100.0);
     }
 
     @Override
@@ -119,14 +119,12 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
      */
     public void testParseValue() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        ParsedDocument doc = mapper.parse(
-            source(b -> b.startObject("field").field("min", -10.1).field("max", 50.0).field("value_count", 14).endObject())
-        );
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").field("value_count", 14).field("sum", 100.0).endObject()));
 
-        IndexableField f = doc.rootDoc().getField("field.min");
+        IndexableField f = doc.rootDoc().getField("field.sum");
         assertThat(f, instanceOf(SortedNumericDocValuesField.class));
         SortedNumericDocValuesField sdv = (SortedNumericDocValuesField) f;
-        assertEquals(NumericUtils.doubleToSortableLong(-10.1), sdv.numericValue());
+        assertEquals(NumericUtils.doubleToSortableLong(100.0), sdv.numericValue());
         assertThat(sdv.fieldType().docValuesSkipIndexType(), equalTo(DocValuesSkipIndexType.NONE));
 
         Mapper fieldMapper = mapper.mappers().getMapper("field");
@@ -159,10 +157,7 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
 
         Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> b.startObject("field").endObject())));
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("Aggregate metric field [field] must contain all metrics [min, max, value_count]")
-        );
+        assertThat(e.getCause().getMessage(), containsString("Aggregate metric field [field] must contain all metrics [sum, value_count]"));
     }
 
     @Override
@@ -172,8 +167,7 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
 
     @Override
     protected List<ExampleMalformedValue> exampleMalformedValues() {
-        var min = randomDoubleBetween(-100, 100, false);
-        var max = randomDoubleBetween(min, 150, false);
+        var sum = randomDoubleBetween(-100, 100, false);
         var valueCount = randomIntBetween(1, Integer.MAX_VALUE);
 
         var randomString = randomAlphaOfLengthBetween(1, 10);
@@ -189,31 +183,26 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
             exampleMalformedValue(b -> b.value(randomBoolean)).errorMatches("Failed to parse object"),
             // no metrics
             exampleMalformedValue(b -> b.startObject().endObject()).errorMatches(
-                "Aggregate metric field [field] must contain all metrics [min, max, value_count]"
+                "Aggregate metric field [field] must contain all metrics [sum, value_count]"
             ),
             // unmapped metric
             exampleMalformedValue(
-                b -> b.startObject()
-                    .field("min", min)
-                    .field("max", max)
-                    .field("value_count", valueCount)
-                    .field("sum", randomLong)
-                    .endObject()
-            ).errorMatches("Aggregate metric [sum] does not exist in the mapping of field [field]"),
+                b -> b.startObject().field("min", randomLong).field("value_count", valueCount).field("sum", sum).endObject()
+            ).errorMatches("Aggregate metric [min] does not exist in the mapping of field [field]"),
             // missing metric
-            exampleMalformedValue(b -> b.startObject().field("min", min).field("max", max).endObject()).errorMatches(
-                "Aggregate metric field [field] must contain all metrics [min, max, value_count]"
+            exampleMalformedValue(b -> b.startObject().field("sum", sum).endObject()).errorMatches(
+                "Aggregate metric field [field] must contain all metrics [sum, value_count]"
             ),
             // invalid metric value
-            exampleMalformedValue(b -> b.startObject().field("min", "10.0").field("max", max).field("value_count", valueCount).endObject())
-                .errorMatches("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]"),
+            exampleMalformedValue(b -> b.startObject().field("sum", "100.0").field("value_count", valueCount).endObject()).errorMatches(
+                "Failed to parse object: expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]"
+            ),
             // Invalid metric value with additional data.
             // `min` field triggers the error and all additional data should be preserved in synthetic source.
             exampleMalformedValue(
                 b -> b.startObject()
-                    .field("max", max)
                     .field("value_count", valueCount)
-                    .field("min", "10.0")
+                    .field("sum", "100.0")
                     .field("hello", randomString)
                     .startObject("object")
                     .field("hello", randomLong)
@@ -223,25 +212,19 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
             ).errorMatches("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]"),
             // metric is an object
             exampleMalformedValue(
-                b -> b.startObject()
-                    .startObject("min")
-                    .field("hello", "world")
-                    .endObject()
-                    .field("max", max)
-                    .field("value_count", valueCount)
-                    .endObject()
+                b -> b.startObject().startObject("sum").field("hello", "world").endObject().field("value_count", valueCount).endObject()
             ).errorMatches("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [START_OBJECT]"),
             // metric is an array
-            exampleMalformedValue(
-                b -> b.startObject().array("min", "hello", "world").field("max", max).field("value_count", valueCount).endObject()
-            ).errorMatches("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [START_ARRAY]"),
+            exampleMalformedValue(b -> b.startObject().array("sum", "hello", "world").field("value_count", valueCount).endObject())
+                .errorMatches("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [START_ARRAY]"),
             // negative value count
-            exampleMalformedValue(
-                b -> b.startObject().field("min", min).field("max", max).field("value_count", -1 * valueCount).endObject()
-            ).errorMatches("Aggregate metric [value_count] of field [field] cannot be a negative number"),
+            exampleMalformedValue(b -> b.startObject().field("sum", sum).field("value_count", -1 * valueCount).endObject()).errorMatches(
+                "Aggregate metric [value_count] of field [field] cannot be a negative number"
+            ),
             // value count with decimal digits (whole numbers formatted as doubles are permitted, but non-whole numbers are not)
-            exampleMalformedValue(b -> b.startObject().field("min", min).field("max", max).field("value_count", 77.33).endObject())
-                .errorMatches("failed to parse [value_count] sub field: 77.33 cannot be converted to Integer without data loss")
+            exampleMalformedValue(b -> b.startObject().field("sum", sum).field("value_count", 77.33).endObject()).errorMatches(
+                "failed to parse [value_count] sub field: 77.33 cannot be converted to Integer without data loss"
+            )
         );
     }
 
@@ -263,9 +246,7 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
      */
     public void testValueCountDouble() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        ParsedDocument doc = mapper.parse(
-            source(b -> b.startObject("field").field("min", 10.0).field("max", 50.0).field("value_count", 77.0).endObject())
-        );
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").field("sum", 1250.0).field("value_count", 77.0).endObject()));
         assertEquals(77, doc.rootDoc().getField("field.value_count").numericValue().longValue());
     }
 
@@ -273,25 +254,25 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
      * Test parsing a metric and check the min max value
      */
     public void testCheckMinMaxValue() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }))
+        );
 
         // min > max
         Exception e = expectThrows(
             DocumentParsingException.class,
-            () -> mapper.parse(
-                source(b -> b.startObject("field").field("min", 50.0).field("max", 10.0).field("value_count", 14).endObject())
-            )
+            () -> mapper.parse(source(b -> b.startObject("field").field("min", 50.0).field("max", 10.0).endObject()))
         );
         assertThat(e.getCause().getMessage(), containsString("Aggregate metric field [field] max value cannot be smaller than min value"));
 
         // min == max
-        mapper.parse(source(b -> b.startObject("field").field("min", 50.0).field("max", 50.0).field("value_count", 14).endObject()));
+        mapper.parse(source(b -> b.startObject("field").field("min", 50.0).field("max", 50.0).endObject()));
 
         // min < max
-        mapper.parse(source(b -> b.startObject("field").field("min", 10.0).field("max", 50.0).field("value_count", 14).endObject()));
+        mapper.parse(source(b -> b.startObject("field").field("min", 10.0).field("max", 50.0).endObject()));
     }
 
-    private void randomMapping(XContentBuilder b, int randomNumber) throws IOException {
+    private void randomSingleMetricMapping(XContentBuilder b, int randomNumber) throws IOException {
         b.field("type", CONTENT_TYPE);
         switch (randomNumber) {
             case 0 -> b.field(METRICS_FIELD, new String[] { "min" });
@@ -306,7 +287,7 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
      */
     public void testParseArrayValue() throws Exception {
         int randomNumber = randomIntBetween(0, 3);
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> randomMapping(b, randomNumber)));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> randomSingleMetricMapping(b, randomNumber)));
         Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
             b.startArray("field").startObject();
             switch (randomNumber) {
@@ -494,8 +475,8 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
         {
             expected.startArray("field");
             expected.startObject().field("min", 10.0).field("max", 100.0).endObject();
-            expected.startObject().field("max", 200).field("min", 20).endObject();
             expected.value(randomString);
+            expected.startObject().field("max", 200).field("min", 20).endObject();
             expected.endArray();
         }
         expected.endObject();
@@ -571,7 +552,7 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
                 this::minimalMapping,
                 b -> {},
                 this::writeField,
-                Assert::assertNotNull
+                Assert::assertNull
             )
         );
     }
@@ -588,13 +569,24 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
                 .build();
             MapperService mapperService = createMapperService(indexSettings, fieldMapping(this::minimalMapping));
             MappedFieldType ft = mapperService.fieldType("field");
-            assertIndexType(ft, IndexType.skippers());
+            assertIndexType(ft, IndexType.docValuesOnly(), IndexType.skippers());
+        }
+        {
+            var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension_field")
+                .build();
+            MapperService mapperService = createMapperService(
+                indexSettings,
+                fieldMapping(b -> randomSingleMetricMapping(b, randomIntBetween(0, 3)))
+            );
+            MappedFieldType ft = mapperService.fieldType("field");
+            assertIndexType(ft, IndexType.skippers(), IndexType.skippers());
         }
         {
             var oldVersion = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.AGG_METRIC_DOUBLE_REMOVE_POINTS);
             MapperService mapperService = createMapperService(oldVersion, fieldMapping(this::minimalMapping));
             MappedFieldType ft = mapperService.fieldType("field");
-            assertIndexType(ft, IndexType.points(true, true));
+            assertIndexType(ft, IndexType.docValuesOnly(), IndexType.points(true, true));
         }
         {
             MapperService mapperService = createMapperService(
@@ -602,17 +594,17 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
                 fieldMapping(this::minimalMapping)
             );
             MappedFieldType ft = mapperService.fieldType("field");
-            assertIndexType(ft, IndexType.docValuesOnly());
+            assertIndexType(ft, IndexType.docValuesOnly(), IndexType.docValuesOnly());
         }
     }
 
-    private void assertIndexType(MappedFieldType ft, IndexType indexType) {
+    private void assertIndexType(MappedFieldType ft, IndexType indexType, IndexType metricIndexType) {
         assertThat(ft, instanceOf(AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType.class));
         AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType aft =
             (AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType) ft;
         assertThat(aft.indexType(), equalTo(indexType));
         for (MappedFieldType subField : aft.getMetricFields().values()) {
-            assertThat(subField.indexType(), equalTo(indexType));
+            assertThat(subField.indexType(), equalTo(metricIndexType));
         }
     }
 

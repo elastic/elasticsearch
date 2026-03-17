@@ -9,3 +9,6 @@ scrape_configs:
 
 remote_write:
   - url: "http://host.docker.internal:9200/_prometheus/api/v1/write"
+    basic_auth:
+      username: "elastic"
+      password: "password"

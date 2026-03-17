@@ -1,0 +1,6 @@
+area: Search
+issues: []
+pr: 142405
+summary: Return 404 instead of 500 when scroll/PIT references nodes that have left
+  the cluster.
+type: bug

@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.core.Nullable;
+
 import java.util.List;
 import java.util.Objects;
 
 /**
  * Represents a set of files resolved from a glob pattern or comma-separated path list.
  * Uses identity-comparable sentinels for unresolved and empty states.
+ * Optionally carries {@link PartitionMetadata} detected from Hive-style file paths.
  */
 public final class FileSet {
 
@@ -24,13 +27,19 @@ public final class FileSet {
 
     private final List<StorageEntry> files;
     private final String originalPattern;
+    private final PartitionMetadata partitionMetadata;
 
     public FileSet(List<StorageEntry> files, String originalPattern) {
+        this(files, originalPattern, null);
+    }
+
+    public FileSet(List<StorageEntry> files, String originalPattern, @Nullable PartitionMetadata partitionMetadata) {
         if (files == null) {
             throw new IllegalArgumentException("files cannot be null");
         }
         this.files = List.copyOf(files);
         this.originalPattern = originalPattern;
+        this.partitionMetadata = partitionMetadata;
     }
 
     public List<StorageEntry> files() {
@@ -39,6 +48,11 @@ public final class FileSet {
 
     public String originalPattern() {
         return originalPattern;
+    }
+
+    @Nullable
+    public PartitionMetadata partitionMetadata() {
+        return partitionMetadata;
     }
 
     public int size() {
@@ -65,13 +79,21 @@ public final class FileSet {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        FileSet fileSet = (FileSet) o;
-        return Objects.equals(files, fileSet.files) && Objects.equals(originalPattern, fileSet.originalPattern);
+        FileSet other = (FileSet) o;
+        if (this == UNRESOLVED || this == EMPTY || other == UNRESOLVED || other == EMPTY) {
+            return false;
+        }
+        return Objects.equals(files, other.files)
+            && Objects.equals(originalPattern, other.originalPattern)
+            && Objects.equals(partitionMetadata, other.partitionMetadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(files, originalPattern);
+        if (this == UNRESOLVED || this == EMPTY) {
+            return System.identityHashCode(this);
+        }
+        return Objects.hash(files, originalPattern, partitionMetadata);
     }
 
     @Override

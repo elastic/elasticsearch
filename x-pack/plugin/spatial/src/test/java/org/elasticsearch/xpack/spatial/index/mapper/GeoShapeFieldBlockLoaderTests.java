@@ -24,7 +24,6 @@ import org.elasticsearch.xcontent.support.MapXContentParser;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.datageneration.GeoShapeDataSourceHandler;
 
-import java.io.IOException;
 import java.nio.ByteOrder;
 import java.util.Collection;
 import java.util.Collections;
@@ -38,8 +37,8 @@ public class GeoShapeFieldBlockLoaderTests extends BlockLoaderTestCase {
     }
 
     @Override
-    public void testBlockLoaderOfMultiField() throws IOException {
-        // Multi fields are noop for geo_shape.
+    protected boolean supportsMultiField() {
+        return false;
     }
 
     @Override

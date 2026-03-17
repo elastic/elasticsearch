@@ -10,12 +10,12 @@ Prometheus scrapes itself and forwards samples to Elasticsearch via the Promethe
 
 ## Start
 
-Start Elasticsearch from source and ensure it listens on a non-loopback interface.
+Start Elasticsearch from source and ensure it listens on a non-loopback interface
+so that Prometheus in Docker can reach it.
 
 ```bash
 ./gradlew run --configuration-cache \
     -Dtests.es.http.host=0.0.0.0 \
-    -Dtests.es.xpack.security.enabled=false \
     -Dtests.es.xpack.ml.enabled=false \
     -Drun.license_type=trial \
     -Dtests.heap.size=4G \
@@ -36,9 +36,3 @@ docker compose up -d
   - `rate(prometheus_remote_storage_samples_total[1m])`
 - Query PromQL in Kibana Discover (example query):
   - `PROMQL step=1m rate(prometheus_remote_storage_samples_total[1m])`
-
-## Notes
-
-- The `remote_write` URL points at `host.docker.internal`, which resolves to the host from Docker Desktop (macOS/Windows).
-- Your Elasticsearch instance must listen on a non-loopback interface (for example `0.0.0.0:9200`).
-- Kibana uses `docker.elastic.co/kibana/kibana:9.4.0-SNAPSHOT` and points to Elasticsearch at `http://host.docker.internal:9200`.

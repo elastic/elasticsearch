@@ -45,10 +45,10 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats.Config;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -69,7 +69,6 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -106,7 +105,6 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -115,8 +113,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -132,6 +132,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -140,11 +141,15 @@ import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
+import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -184,21 +189,19 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.names;
 import static org.elasticsearch.xpack.esql.core.expression.function.scalar.FunctionTestUtils.l;
@@ -304,12 +307,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     @Before
     public void init() {
-        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         mapper = new Mapper();
-        var enrichResolution = setupEnrichResolution();
         // Most tests used data from the test index, so we load it here, and use it in the plan() function.
-        this.testData = makeTestDataSource("test", "mapping-basic.json", functionRegistry, enrichResolution);
-        this.testDataLimitedRaw = makeTestDataSource("test", "mapping-basic-limited-raw.json", functionRegistry, enrichResolution);
+        this.testData = makeTestDataSource("test", "mapping-basic.json");
+        this.testDataLimitedRaw = makeTestDataSource("test", "mapping-basic-limited-raw.json");
         allFieldRowSize = testData.mapping.values()
             .stream()
             .mapToInt(
@@ -323,133 +324,82 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             .sum();
 
         // Some tests use data from the airports and countries indexes, so we load that here, and use it in the plan(q, airports) function.
-        this.airports = makeTestDataSource("airports", "mapping-airports.json", functionRegistry, enrichResolution);
+        this.airports = makeTestDataSource("airports", "mapping-airports.json");
         this.airportsNoDocValues = makeTestDataSource(
             "airports-no-doc-values",
             "mapping-airports_no_doc_values.json",
-            functionRegistry,
-            enrichResolution,
             new TestConfigurableSearchStats().exclude(Config.DOC_VALUES, "location").exclude(Config.DOC_VALUES, "city_location")
         );
         this.airportsNotIndexed = makeTestDataSource(
             "airports-not-indexed",
             "mapping-airports_not_indexed.json",
-            functionRegistry,
-            enrichResolution,
             new TestConfigurableSearchStats().exclude(Config.INDEXED, "location")
         );
         this.airportsNotIndexedNorDocValues = makeTestDataSource(
             "airports-not-indexed-nor-doc-values",
             "mapping-airports_not_indexed_nor_doc_values.json",
-            functionRegistry,
-            enrichResolution,
             new TestConfigurableSearchStats().exclude(Config.INDEXED, "location").exclude(Config.DOC_VALUES, "location")
         );
-        this.airportsWeb = makeTestDataSource("airports_web", "mapping-airports_web.json", functionRegistry, enrichResolution);
-        this.airportsCityBoundaries = makeTestDataSource(
-            "airports_city_boundaries",
-            "mapping-airport_city_boundaries.json",
-            functionRegistry,
-            enrichResolution
-        );
+        this.airportsWeb = makeTestDataSource("airports_web", "mapping-airports_web.json");
+        this.airportsCityBoundaries = makeTestDataSource("airports_city_boundaries", "mapping-airport_city_boundaries.json");
         this.airportsCityBoundariesNoPointDocValues = makeTestDataSource(
             "airports_city_boundaries",
             "mapping-airport_city_boundaries.json",
-            functionRegistry,
-            enrichResolution,
             new TestConfigurableSearchStats().exclude(Config.DOC_VALUES, "location", "city_location")
         );
         this.airportsCityBoundariesNoShapeDocValues = makeTestDataSource(
             "airports_city_boundaries",
             "mapping-airport_city_boundaries.json",
-            functionRegistry,
-            enrichResolution,
             new TestConfigurableSearchStats().exclude(Config.DOC_VALUES, "city_boundary")
         );
         this.airportsCityBoundariesNoDocValues = makeTestDataSource(
             "airports_city_boundaries",
             "mapping-airport_city_boundaries.json",
-            functionRegistry,
-            enrichResolution,
             new TestConfigurableSearchStats().exclude(Config.DOC_VALUES, "city_boundary", "location", "city_location")
         );
-        this.cartesianMultipolygons = makeTestDataSource(
-            "cartesian_multipolygons",
-            "mapping-cartesian_multipolygons.json",
-            functionRegistry,
-            enrichResolution
-        );
+        this.cartesianMultipolygons = makeTestDataSource("cartesian_multipolygons", "mapping-cartesian_multipolygons.json");
         this.cartesianMultipolygonsNoDocValues = makeTestDataSource(
             "cartesian_multipolygons_no_doc_values",
             "mapping-cartesian_multipolygons_no_doc_values.json",
-            functionRegistry,
-            enrichResolution,
             new TestConfigurableSearchStats().exclude(Config.DOC_VALUES, "shape")
         );
-        this.countriesBbox = makeTestDataSource("countriesBbox", "mapping-countries_bbox.json", functionRegistry, enrichResolution);
-        this.countriesBboxWeb = makeTestDataSource(
-            "countriesBboxWeb",
-            "mapping-countries_bbox_web.json",
-            functionRegistry,
-            enrichResolution
-        );
-        this.metricsData = makeTestDataSource("k8s", "k8s-mappings.json", functionRegistry, enrichResolution);
+        this.countriesBbox = makeTestDataSource("countriesBbox", "mapping-countries_bbox.json");
+        this.countriesBboxWeb = makeTestDataSource("countriesBboxWeb", "mapping-countries_bbox_web.json");
+        this.metricsData = makeTestDataSource("k8s", "k8s-mappings.json");
         this.plannerSettings = PlannerSettings.DEFAULTS;
-        this.testAllMapping = makeTestDataSource("test_all", "mapping-all-types.json", functionRegistry, enrichResolution);
+        this.testAllMapping = makeTestDataSource("test_all", "mapping-all-types.json");
     }
 
     TestDataSource makeTestDataSource(
         String indexName,
         String mappingFileName,
-        EsqlFunctionRegistry functionRegistry,
         Map<String, IndexResolution> lookupResolution,
-        EnrichResolution enrichResolution,
         SearchStats stats
     ) {
         Map<String, EsField> mapping = loadMapping(mappingFileName);
-        EsIndex[] indexes = new EsIndex[1 + lookupResolution.size()];
-        indexes[0] = EsIndexGenerator.esIndex(indexName, mapping, Map.of(indexName, IndexMode.STANDARD));
-        for (int i = 0; i < lookupResolution.size(); i++) {
-            indexes[i + 1] = lookupResolution.values().toArray(new IndexResolution[0])[i].get();
+        EsIndex index = EsIndexGenerator.esIndex(indexName, mapping, Map.of(indexName, IndexMode.STANDARD));
+        TestAnalyzer builder = analyzer().configuration(config).addIndex(index);
+        setupEnrichPolicies(builder);
+        for (IndexResolution lookupIndex : lookupResolution.values()) {
+            builder.addIndex(lookupIndex);
+            builder.addLookupIndex(lookupIndex);
         }
-        Analyzer analyzer = new Analyzer(
-            testAnalyzerContext(
-                config,
-                functionRegistry,
-                indexResolutions(indexes),
-                lookupResolution,
-                enrichResolution,
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
-        return new TestDataSource(mapping, indexes[0], analyzer, stats);
+        Analyzer analyzer = builder.buildAnalyzer();
+        return new TestDataSource(mapping, index, analyzer, stats);
     }
 
-    TestDataSource makeTestDataSource(
-        String indexName,
-        String mappingFileName,
-        EsqlFunctionRegistry functionRegistry,
-        EnrichResolution enrichResolution,
-        SearchStats stats
-    ) {
-        return makeTestDataSource(indexName, mappingFileName, functionRegistry, defaultLookupResolution(), enrichResolution, stats);
+    TestDataSource makeTestDataSource(String indexName, String mappingFileName, SearchStats stats) {
+        return makeTestDataSource(indexName, mappingFileName, defaultLookupResolution(), stats);
     }
 
-    TestDataSource makeTestDataSource(
-        String indexName,
-        String mappingFileName,
-        EsqlFunctionRegistry functionRegistry,
-        EnrichResolution enrichResolution
-    ) {
-        return makeTestDataSource(indexName, mappingFileName, functionRegistry, enrichResolution, TEST_SEARCH_STATS);
+    TestDataSource makeTestDataSource(String indexName, String mappingFileName) {
+        return makeTestDataSource(indexName, mappingFileName, TEST_SEARCH_STATS);
     }
 
-    private static EnrichResolution setupEnrichResolution() {
-        EnrichResolution enrichResolution = new EnrichResolution();
-        enrichResolution.addResolvedPolicy(
-            "foo",
+    private static void setupEnrichPolicies(TestAnalyzer builder) {
+        builder.addEnrichPolicy(
             Enrich.Mode.ANY,
+            "foo",
             new ResolvedEnrichPolicy(
                 "fld",
                 EnrichPolicy.MATCH_TYPE,
@@ -461,9 +411,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 )
             )
         );
-        enrichResolution.addResolvedPolicy(
-            "city_boundaries",
+        builder.addEnrichPolicy(
             Enrich.Mode.ANY,
+            "city_boundaries",
             new ResolvedEnrichPolicy(
                 "city_boundary",
                 EnrichPolicy.GEO_MATCH_TYPE,
@@ -480,9 +430,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 )
             )
         );
-        enrichResolution.addResolvedPolicy(
-            "departments",
+        builder.addEnrichPolicy(
             Enrich.Mode.ANY,
+            "departments",
             new ResolvedEnrichPolicy(
                 "employee_id",
                 EnrichPolicy.MATCH_TYPE,
@@ -491,9 +441,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
-        enrichResolution.addResolvedPolicy(
-            "departments",
+        builder.addEnrichPolicy(
             Enrich.Mode.COORDINATOR,
+            "departments",
             new ResolvedEnrichPolicy(
                 "employee_id",
                 EnrichPolicy.MATCH_TYPE,
@@ -502,9 +452,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
-        enrichResolution.addResolvedPolicy(
-            "departments",
+        builder.addEnrichPolicy(
             Enrich.Mode.REMOTE,
+            "departments",
             new ResolvedEnrichPolicy(
                 "employee_id",
                 EnrichPolicy.MATCH_TYPE,
@@ -513,9 +463,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
-        enrichResolution.addResolvedPolicy(
-            "supervisors",
+        builder.addEnrichPolicy(
             Enrich.Mode.ANY,
+            "supervisors",
             new ResolvedEnrichPolicy(
                 "department",
                 EnrichPolicy.MATCH_TYPE,
@@ -524,9 +474,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
-        enrichResolution.addResolvedPolicy(
-            "supervisors",
+        builder.addEnrichPolicy(
             Enrich.Mode.COORDINATOR,
+            "supervisors",
             new ResolvedEnrichPolicy(
                 "department",
                 EnrichPolicy.MATCH_TYPE,
@@ -535,9 +485,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
-        enrichResolution.addResolvedPolicy(
-            "supervisors",
+        builder.addEnrichPolicy(
             Enrich.Mode.REMOTE,
+            "supervisors",
             new ResolvedEnrichPolicy(
                 "department",
                 EnrichPolicy.MATCH_TYPE,
@@ -546,7 +496,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 Map.of("supervisor", new EsField("supervisor", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
             )
         );
-        return enrichResolution;
     }
 
     public void testSingleFieldExtractor() {
@@ -7702,6 +7651,74 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertShapeQueryRange(shapeQueryBuilders, 10000.0, 500000.0);
     }
 
+    /**
+     * LimitExec[1000[INTEGER],474]
+     * \_ExchangeExec[[_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, gender{f}#17, hire_date{f}#22, job{f}#23, job.raw{f}#24,
+     *     languages{f}#18, last_name{f}#19, long_noidx{f}#25, salary{f}#20, u.domain{r}#5, u.fragment{r}#6, u.path{r}#7, u.extension{r}#8,
+     *     u.port{r}#9, u.query{r}#10, u.scheme{r}#11, u.username{r}#12, u.password{r}#13], false]
+     *   \_ProjectExec[[_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, gender{f}#17, hire_date{f}#22, job{f}#23, job.raw{f}#24,
+     *       languages{f}#18, last_name{f}#19, long_noidx{f}#25, salary{f}#20, u.domain{r}#5, u.fragment{r}#6, u.path{r}#7,
+     *       u.extension{r}#8, u.port{r}#9, u.query{r}#10, u.scheme{r}#11, u.username{r}#12, u.password{r}#13]]
+     *     \_FieldExtractExec[_meta_field{f}#21, emp_no{f}#15, gender{f}#17, hire..]&lt;[],[]&gt;
+     *       \_LimitExec[1000[INTEGER],474]
+     *         \_FilterExec[u.domain{r}#5 == elastic.co[KEYWORD]]
+     *           \_UriPartsExec[first_name{f}#16,[u.domain{r}#5, u.fragment{r}#6, u.path{r}#7, u.extension{r}#8, u.port{r}#9, u.query{r}#10,
+     *               u.scheme{r}#11, u.username{r}#12, u.password{r}#13]]
+     *             \_FieldExtractExec[first_name{f}#16]&lt;[],[]&gt;
+     *               \_EsQueryExec[test], indexMode[standard], [_doc{f}#26], limit[], sort[] estimatedRowSize[2684] queryBuilderAndTags
+     *                   [[QueryBuilderAndTags[query=null, tags=[]]]]
+     */
+    public void testFilterOnUriPartsIsNotPushedDown() {
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+
+        // Query with a filter on a field generated by URI_PARTS
+        var plan = optimizedPlan(physicalPlan("""
+            FROM test
+            | uri_parts u = first_name
+            | WHERE u.domain == "elastic.co"
+            """));
+
+        var coordinatorLimit = as(plan, LimitExec.class);
+        var exchange = as(coordinatorLimit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var topFieldExtract = as(project.child(), FieldExtractExec.class);
+        var dataNodeLimit = as(topFieldExtract.child(), LimitExec.class);
+        // The filter should remain above UriPartsExec
+        var filter = as(dataNodeLimit.child(), FilterExec.class);
+        var eq = as(filter.condition(), Equals.class);
+        assertThat(as(eq.left(), ReferenceAttribute.class).name(), is("u.domain"));
+        var uriParts = as(filter.child(), UriPartsExec.class);
+        var fieldExtract = as(uriParts.child(), FieldExtractExec.class);
+        var queryExec = as(fieldExtract.child(), EsQueryExec.class);
+        assertThat(filter.condition(), instanceOf(Equals.class));
+        // The filter is not pushed down into the EsQueryExec
+        assertNull("Filter was incorrectly pushed down into EsQueryExec", queryExec.query());
+    }
+
+    public void testFilterOnRegisteredDomainIsNotPushedDown() {
+        assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+
+        var plan = optimizedPlan(physicalPlan("""
+            FROM test
+            | registered_domain rd = first_name
+            | WHERE rd.registered_domain == "example.co.uk"
+            """));
+
+        var coordinatorLimit = as(plan, LimitExec.class);
+        var exchange = as(coordinatorLimit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var topFieldExtract = as(project.child(), FieldExtractExec.class);
+        var dataNodeLimit = as(topFieldExtract.child(), LimitExec.class);
+        var filter = as(dataNodeLimit.child(), FilterExec.class);
+        var eq = as(filter.condition(), Equals.class);
+        assertThat(as(eq.left(), ReferenceAttribute.class).name(), is("rd.registered_domain"));
+        var registeredDomain = as(filter.child(), RegisteredDomainExec.class);
+        var fieldExtract = as(registeredDomain.child(), FieldExtractExec.class);
+        var queryExec = as(fieldExtract.child(), EsQueryExec.class);
+        assertThat(filter.condition(), instanceOf(Equals.class));
+        assertNull("Filter was incorrectly pushed down into EsQueryExec", queryExec.query());
+    }
+
     private Set<String> orderAsSet(List<Order> sorts) {
         return sorts.stream().map(o -> ((Attribute) o.child()).name() + "->" + o.direction()).collect(Collectors.toSet());
     }
@@ -8862,14 +8879,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             lookupIndices.put(lookupIndexName, IndexResolution.valid(lookupIndex));
         }
 
-        return makeTestDataSource(
-            "test",
-            "mapping-basic.json",
-            new EsqlFunctionRegistry(),
-            lookupIndices,
-            setupEnrichResolution(),
-            TEST_SEARCH_STATS
-        );
+        return makeTestDataSource("test", "mapping-basic.json", lookupIndices, TEST_SEARCH_STATS);
     }
 
     private Map<String, EsField> fields(Collection<String> fieldNames) {
@@ -9115,6 +9125,56 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(randomSampling.hash(), equalTo(0));
     }
 
+    public void testReductionPlanForMetricsInfoReturnsIntermediateReduction() {
+        EsRelation esRelation = new EsRelation(
+            Source.EMPTY,
+            "k8s",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("k8s", IndexMode.TIME_SERIES),
+            List.of()
+        );
+        MetricsInfo metricsInfo = new MetricsInfo(Source.EMPTY, esRelation);
+
+        FragmentExec fragment = new FragmentExec(metricsInfo);
+        ExchangeSinkExec dataPlan = new ExchangeSinkExec(Source.EMPTY, fragment.output(), false, fragment);
+
+        PlannerUtils.PlanReduction reduction = PlannerUtils.reductionPlan(dataPlan);
+        assertThat(reduction, instanceOf(PlannerUtils.ReducedPlan.class));
+        PlannerUtils.ReducedPlan reducedPlan = (PlannerUtils.ReducedPlan) reduction;
+        var metricsInfoExec = as(reducedPlan.plan(), MetricsInfoExec.class);
+        assertThat(metricsInfoExec.mode(), equalTo(MetricsInfoExec.Mode.INTERMEDIATE));
+
+        assertThat(metricsInfoExec.intermediateAttributes(), equalTo(dataPlan.output()));
+        assertThat(metricsInfoExec.output(), equalTo(dataPlan.output()));
+    }
+
+    public void testReductionPlanForTsInfoReturnsIntermediateReduction() {
+        EsRelation esRelation = new EsRelation(
+            Source.EMPTY,
+            "k8s",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("k8s", IndexMode.TIME_SERIES),
+            List.of()
+        );
+        TsInfo tsInfo = new TsInfo(Source.EMPTY, esRelation);
+
+        FragmentExec fragment = new FragmentExec(tsInfo);
+        ExchangeSinkExec dataPlan = new ExchangeSinkExec(Source.EMPTY, fragment.output(), false, fragment);
+
+        PlannerUtils.PlanReduction reduction = PlannerUtils.reductionPlan(dataPlan);
+        assertThat(reduction, instanceOf(PlannerUtils.ReducedPlan.class));
+        PlannerUtils.ReducedPlan reducedPlan = (PlannerUtils.ReducedPlan) reduction;
+        var tsInfoExec = as(reducedPlan.plan(), TsInfoExec.class);
+        assertThat(tsInfoExec.mode(), equalTo(TsInfoExec.Mode.INTERMEDIATE));
+
+        assertThat(tsInfoExec.intermediateAttributes(), equalTo(dataPlan.output()));
+        assertThat(tsInfoExec.output(), equalTo(dataPlan.output()));
+    }
+
     @SuppressWarnings("SameParameterValue")
     private static void assertFilterCondition(
         Filter filter,
@@ -9310,7 +9370,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private PhysicalPlan physicalPlan(String query, TestDataSource dataSource, boolean assertSerialization) {
         var logicalOptimizer = dataSource.logicalOptimizer();
-        var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query)));
+        var logical = logicalOptimizer.optimize(dataSource.analyzer.analyze(TEST_PARSER.parseQuery(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(new Versioned<>(logical, dataSource.minimumVersion()));
         // System.out.println("Physical\n" + physical);

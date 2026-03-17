@@ -35,16 +35,11 @@ public final class MedianAbsoluteDeviationIntGroupingAggregatorFunction implemen
 
   private final DriverContext driverContext;
 
-  public MedianAbsoluteDeviationIntGroupingAggregatorFunction(List<Integer> channels,
-      QuantileStates.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static MedianAbsoluteDeviationIntGroupingAggregatorFunction create(List<Integer> channels,
+  MedianAbsoluteDeviationIntGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new MedianAbsoluteDeviationIntGroupingAggregatorFunction(channels, MedianAbsoluteDeviationIntAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = MedianAbsoluteDeviationIntAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

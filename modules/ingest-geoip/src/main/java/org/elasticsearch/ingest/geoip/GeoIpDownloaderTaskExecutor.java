@@ -97,6 +97,7 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final Settings settings;
+    private final PersistentTasksService persistentTasksService;
 
     @FixForMultiProject(description = "These settings need to be project-scoped")
     private volatile TimeValue pollInterval;
@@ -130,6 +131,7 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.settings = clusterService.getSettings();
+        this.persistentTasksService = persistentTasksService;
         this.pollInterval = POLL_INTERVAL_SETTING.get(settings);
         this.eagerDownload = EAGER_DOWNLOAD_SETTING.get(settings);
         this.projectResolver = client.projectResolver();
@@ -255,8 +257,20 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
     @Override
     protected void stopProjectTask(ProjectId projectId, String taskId) {
         tasks.remove(projectId);
-        super.stopProjectTask(projectId, taskId);
-        deleteGeoIpDatabasesIndex(projectId);
+        persistentTasksService.sendProjectRemoveRequest(
+            projectId,
+            taskId,
+            masterNodeTimeout(),
+            ActionListener.runAfter(
+                ActionListener.wrap(r -> logger.debug("Removed [{}] task for project [{}]", getTaskName(), projectId), e -> {
+                    Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
+                    if (t instanceof ResourceNotFoundException == false) {
+                        logger.warn(() -> "Failed to remove [" + getTaskName() + "] task", e);
+                    }
+                }),
+                () -> deleteGeoIpDatabasesIndex(projectId)
+            )
+        );
     }
 
     private void deleteGeoIpDatabasesIndex(ProjectId projectId) {

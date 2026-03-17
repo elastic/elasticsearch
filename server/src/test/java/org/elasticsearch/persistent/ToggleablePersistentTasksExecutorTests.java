@@ -198,9 +198,11 @@ public class ToggleablePersistentTasksExecutorTests extends ESTestCase {
         final var nodeSettings = Settings.builder().build();
         final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final var localNode = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
-        final var initialState = nonMasterState();
         final var scope = randomBoolean() ? Scope.PROJECT : Scope.CLUSTER;
-
+        final var initialState = switch (scope) {
+            case Scope.CLUSTER -> nonMasterState();
+            case Scope.PROJECT -> nonMasterStateWithProjects(Set.of(ProjectId.DEFAULT));
+        };
         try (
             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)
         ) {
@@ -252,12 +254,20 @@ public class ToggleablePersistentTasksExecutorTests extends ESTestCase {
     }
 
     private static ClusterState nonMasterState() {
+        return nonMasterStateWithProjects(Set.of());
+    }
+
+    private static ClusterState nonMasterStateWithProjects(Set<ProjectId> projectIds) {
         final var nodes = DiscoveryNodes.builder()
             .add(DiscoveryNodeUtils.create(LOCAL_NODE_ID))
             .localNodeId(LOCAL_NODE_ID)
             .add(DiscoveryNodeUtils.create("another-node"))
             .masterNodeId("another-node");
-        return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(Metadata.builder()).build();
+        final var metadata = Metadata.builder();
+        for (var projectId : projectIds) {
+            metadata.put(ProjectMetadata.builder(projectId));
+        }
+        return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).build();
     }
 
     private static ClusterState stateWithClusterTask(ClusterState clusterState) {

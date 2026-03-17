@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
@@ -126,6 +127,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchRequest request,
         ActionListener<SearchResponse> listener,
         List<SearchShardIterator> shardsIts,
+        Map<String, Integer> skippedByClusterAlias,
         SearchTimeProvider timeProvider,
         ClusterState clusterState,
         SearchTask task,
@@ -138,20 +140,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     ) {
         super(name);
         this.namedWriteableRegistry = namedWriteableRegistry;
-        final List<SearchShardIterator> iterators = new ArrayList<>();
-        int skipped = 0;
-        for (final SearchShardIterator iterator : shardsIts) {
-            if (iterator.skip()) {
-                skipped++;
-            } else {
-                iterators.add(iterator);
-            }
-        }
-        this.skippedCount = skipped;
-        this.shardsIts = iterators;
-        outstandingShards = new AtomicInteger(iterators.size());
-        successfulOps = new AtomicInteger(skipped);
-        this.shardIterators = iterators.toArray(new SearchShardIterator[0]);
+        this.skippedCount = CollectionUtils.sumIntValues(skippedByClusterAlias);
+        this.shardsIts = shardsIts;
+        outstandingShards = new AtomicInteger(shardsIts.size());
+        successfulOps = new AtomicInteger(this.skippedCount);
+        this.shardIterators = shardsIts.toArray(new SearchShardIterator[0]);
         // we later compute the shard index based on the natural order of the shards
         // that participate in the search request. This means that this number is
         // consistent between two requests that target the same shards.
@@ -187,18 +180,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchProgressListener progressListener,
         SearchResponse.Clusters clusters,
         SearchRequest searchRequest,
-        List<SearchShardIterator> allIterators
+        Map<String, Integer> skippedByClusterAlias
     ) {
-        final List<SearchShard> skipped = new ArrayList<>(allIterators.size() - shardsIts.size());
-        for (SearchShardIterator iter : allIterators) {
-            if (iter.skip()) {
-                skipped.add(new SearchShard(iter.getClusterAlias(), iter.shardId()));
-            }
-        }
         var sourceBuilder = searchRequest.source();
         progressListener.notifyListShards(
             SearchProgressListener.buildSearchShardsFromIter(this.shardsIts),
-            skipped,
+            skippedByClusterAlias,
             clusters,
             sourceBuilder == null || sourceBuilder.size() > 0,
             timeProvider
@@ -542,7 +529,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * Returns the total number of shards to the current search across all indices
      */
     public final int getNumShards() {
-        return results.getNumShards();
+        return results.getNumShards() + skippedCount;
     }
 
     /**

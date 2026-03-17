@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.containsString;
 public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
 
     static final byte MIN_INT4_VALUE = 0;
-    static final byte MAX_INT4_VALUE = 15;
+    static final byte MAX_INT4_VALUE = 0x0F;
 
     public JDKVectorLibraryInt4Tests(VectorSimilarityFunctions.Function function, int size) {
         super(function, size);
@@ -254,8 +254,8 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
     public void testBulkIllegalDims() {
         assumeTrue(notSupportedMsg(), supported());
         int packedLen = size / 2;
-        var segA = arena.allocate((long) packedLen * 3);
-        var segB = arena.allocate((long) size * 3);
+        var segA = arena.allocate((long) packedLen - 1);
+        var segB = arena.allocate(size);
         var segS = arena.allocate((long) size * Float.BYTES);
 
         Exception ex = expectThrows(IOOBE, () -> similarityBulk(segA, segB, packedLen, 4, segS));

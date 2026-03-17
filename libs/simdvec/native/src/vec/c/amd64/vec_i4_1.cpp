@@ -16,28 +16,28 @@
 #include "vec.h"
 #include "vec_common.h"
 
-static inline int32_t doti4_inner(const int8_t* unpacked, const int8_t* packed, int32_t packed_len) {
+static inline int32_t doti4_inner(const int8_t* unpacked, const uint8_t* packed, int32_t packed_len) {
     int32_t total = 0;
     for (int32_t i = 0; i < packed_len; i++) {
-        uint8_t p = (uint8_t)packed[i];
+        uint8_t p = packed[i];
         total += (p >> 4) * unpacked[i];
         total += (p & 0x0F) * unpacked[i + packed_len];
     }
     return total;
 }
 
-EXPORT int32_t vec_doti4(const int8_t* unpacked, const int8_t* packed, int32_t packed_len) {
+EXPORT int32_t vec_doti4(const int8_t* unpacked, const uint8_t* packed, int32_t packed_len) {
     return doti4_inner(unpacked, packed, packed_len);
 }
 
-EXPORT void vec_doti4_bulk(const int8_t* a, const int8_t* b, int32_t packed_len, int32_t count, f32_t* results) {
-    for (int32_t c = 0; c < count; c++) {
+EXPORT void vec_doti4_bulk(const uint8_t* a, const int8_t* b, int32_t packed_len, int32_t count, f32_t* results) {
+    for (int c = 0; c < count; c++) {
         results[c] = (f32_t)doti4_inner(b, a + (int64_t)c * packed_len, packed_len);
     }
 }
 
 EXPORT void vec_doti4_bulk_offsets(
-    const int8_t* a,
+    const uint8_t* a,
     const int8_t* b,
     int32_t packed_len,
     int32_t pitch,
@@ -45,8 +45,8 @@ EXPORT void vec_doti4_bulk_offsets(
     int32_t count,
     f32_t* results
 ) {
-    for (int32_t c = 0; c < count; c++) {
-        const int8_t* doc = a + (int64_t)offsets[c] * pitch;
+    for (int c = 0; c < count; c++) {
+        const uint8_t* doc = a + (int64_t)offsets[c] * pitch;
         results[c] = (f32_t)doti4_inner(b, doc, packed_len);
     }
 }

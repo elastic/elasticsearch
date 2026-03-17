@@ -27,6 +27,17 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
 
     static Optional<org.elasticsearch.simdvec.VectorScorerFactory> factory;
 
+    protected static final float DELTA = 1e-6f;
+
+    /**
+     * Use a slightly larger delta for bulk scoring to account for floating point precision
+     * issues: applying the corrections in even a slightly different order can impact the score.
+     */
+    protected static final float BULK_DELTA = 2e-5f;
+
+    // Support for passing on-heap arrays/segments to native
+    protected static boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
+
     @BeforeClass
     public static void getVectorScorerFactory() {
         factory = org.elasticsearch.simdvec.VectorScorerFactory.instance();
@@ -61,11 +72,6 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
         var arch = System.getProperty("os.arch");
         var osName = System.getProperty("os.name");
         return "JDK=" + jdkVersion + ", os=" + osName + ", arch=" + arch;
-    }
-
-    // Support for passing on-heap arrays/segments to native
-    protected static boolean supportsHeapSegments() {
-        return Runtime.version().feature() >= 22;
     }
 
     /** Converts a float value to a byte array. */

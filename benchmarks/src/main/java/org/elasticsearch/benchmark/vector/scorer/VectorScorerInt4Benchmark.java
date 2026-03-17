@@ -52,6 +52,7 @@ import static org.elasticsearch.benchmark.vector.scorer.Int4BenchmarkUtils.gener
 import static org.elasticsearch.benchmark.vector.scorer.Int4BenchmarkUtils.quantizeQuery;
 import static org.elasticsearch.benchmark.vector.scorer.Int4BenchmarkUtils.writeI4VectorData;
 import static org.elasticsearch.nativeaccess.Int4TestUtils.packNibbles;
+import static org.elasticsearch.simdvec.ESVectorUtil.dotProduct;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createDenseInt4VectorValues;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.randomInt4Bytes;
 
@@ -106,7 +107,7 @@ public class VectorScorerInt4Benchmark {
             }
             corrections = generateCorrectiveTerms(dims, numVectors);
             centroid = generateCentroid(dims);
-            centroidDp = random.nextFloat();
+            centroidDp = dotProduct(centroid, centroid);
             queryVector = new float[dims];
             for (int i = 0; i < dims; i++) {
                 queryVector[i] = random.nextFloat();

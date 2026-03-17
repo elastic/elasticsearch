@@ -351,6 +351,9 @@ tests:
 - class: org.elasticsearch.action.bulk.TransportBulkActionTests
   method: testProhibitAppendWritesInBackingIndicesSkippedForSeqNoDisabled
   issue: https://github.com/elastic/elasticsearch/issues/144392
+- class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
+  method: testOpenAiEmbeddings {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/144440
 
 # Examples:
 #

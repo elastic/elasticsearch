@@ -3937,4 +3937,64 @@ public class VerifierTests extends ESTestCase {
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
     }
+
+    public void testObjectMappingConflictWithCast() {
+        var typesToIndices = Map.of(
+            "keyword", Set.of("test1"),
+            "object", Set.of("test2")
+        );
+
+        var field = new InvalidMappedField("foo", typesToIndices);
+
+        String message = field.errorMessage();
+
+        assertTrue(message.contains("object"));
+        assertTrue(message.contains("cannot be cast"));
+    }
+
+    public void testObjectMappingConflictWithoutCast() {
+        var typesToIndices = Map.of(
+            "object", Set.of("test1"),
+            "keyword", Set.of("test2")
+        );
+
+        var field = new InvalidMappedField("foo", typesToIndices);
+
+        String message = field.errorMessage();
+
+        assertTrue(message.contains("object"));
+        assertTrue(message.contains("incompatible mappings"));
+    }
+
+    public void testNonObjectConflictKeepsOriginalMessage() {
+        var typesToIndices = Map.of(
+            "keyword", Set.of("test1"),
+            "long", Set.of("test2")
+        );
+
+        var field = new InvalidMappedField("foo", typesToIndices);
+
+        String message = field.errorMessage();
+
+        // Should NOT contain your new explanation
+        assertFalse(message.contains("cannot be cast"));
+
+        // Should still contain original style
+        assertTrue(message.contains("incompatible types"));
+    }
+
+    public void testMultipleTypesIncludingObject() {
+        var typesToIndices = Map.of(
+            "keyword", Set.of("test1"),
+            "object", Set.of("test2"),
+            "long", Set.of("test3")
+        );
+
+        var field = new InvalidMappedField("foo", typesToIndices);
+
+        String message = field.errorMessage();
+
+        assertTrue(message.contains("object"));
+        assertTrue(message.contains("cannot be cast"));
+    }
 }

@@ -365,7 +365,8 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
             () -> false,
             mock(AggregationBuilder.class),
             i -> {},
-            PipelineAggregator.PipelineTree.EMPTY
+            PipelineAggregator.PipelineTree.EMPTY,
+            null
         );
 
         InternalMultiTerms result = (InternalMultiTerms) InternalAggregationTestCase.reduce(List.of(terms1, terms2), context);

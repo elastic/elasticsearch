@@ -618,7 +618,10 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
 
                 final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
                 threadPool.generic().submit(() -> {
-                    IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
+                    IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(
+                        null,
+                        randomLongBetween(1, Long.MAX_VALUE)
+                    );
                     repository.snapshotShard(
                         new LocalPrimarySnapshotShardContext(
                             store,

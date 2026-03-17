@@ -35,16 +35,10 @@ public final class MaxIntGroupingAggregatorFunction implements GroupingAggregato
 
   private final DriverContext driverContext;
 
-  public MaxIntGroupingAggregatorFunction(List<Integer> channels, IntArrayState state,
-      DriverContext driverContext) {
+  MaxIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = new IntArrayState(driverContext.bigArrays(), MaxIntAggregator.init());
     this.driverContext = driverContext;
-  }
-
-  public static MaxIntGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new MaxIntGroupingAggregatorFunction(channels, new IntArrayState(driverContext.bigArrays(), MaxIntAggregator.init()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

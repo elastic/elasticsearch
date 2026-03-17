@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneInlineJoinOnEmptyRightSide;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ApplyWindowFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanSimplification;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineBinaryComparisons;
@@ -77,6 +78,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateA
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogatePlans;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesWithout;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.WarnLostSortOrder;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PruneLeftJoinOnNullMatchingField;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
@@ -153,8 +155,12 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new RemoveStatsOverride(),
             // translate PromQL plan to ESQL. It should run before TranslateTimeSeriesAggregate.
             new TranslatePromqlToEsqlPlan(),
+            // Replace TimeSeriesWithout grouping nodes with TimeSeriesMetadataAttribute carrying the excluded dimensions.
+            // Must run before TranslateTimeSeriesAggregate which expects the lowered attribute form.
+            new TranslateTimeSeriesWithout(),
             // translate metric aggregates early before they are converted to nested expressions
             new TranslateTimeSeriesAggregate(),
+            new ApplyWindowFilter(),
             new PruneUnusedIndexMode(),
             // first extract nested expressions inside aggs
             new ReplaceAggregateNestedExpressionWithEval(),

@@ -18,6 +18,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -455,7 +456,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
                     "index": "%s"
                   }
                 }
-                """, remoteAddress.getHostString(), remoteAddress.getPort(), SOURCE_INDEX, bulkSize, DEST_INDEX));
+                """, InetAddresses.toUriString(remoteAddress.getAddress()), remoteAddress.getPort(), SOURCE_INDEX, bulkSize, DEST_INDEX));
 
             final Response response = restClient.performRequest(request);
             final String task = (String) ESRestTestCase.entityAsMap(response).get("task");

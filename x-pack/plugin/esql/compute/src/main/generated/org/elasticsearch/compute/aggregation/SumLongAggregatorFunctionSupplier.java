@@ -30,13 +30,13 @@ public final class SumLongAggregatorFunctionSupplier implements AggregatorFuncti
 
   @Override
   public SumLongAggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-    return SumLongAggregatorFunction.create(driverContext, channels);
+    return new SumLongAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public SumLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return SumLongGroupingAggregatorFunction.create(channels, driverContext);
+    return new SumLongGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

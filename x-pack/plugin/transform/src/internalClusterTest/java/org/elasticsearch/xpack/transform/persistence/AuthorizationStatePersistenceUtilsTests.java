@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
 import org.junit.Before;
 
@@ -38,7 +39,8 @@ public class AuthorizationStatePersistenceUtilsTests extends TransformSingleNode
             clusterService,
             TestIndexNameExpressionResolver.newInstance(),
             client(),
-            xContentRegistry()
+            xContentRegistry(),
+            new TransformParsingContext(false)
         );
     }
 

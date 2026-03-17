@@ -91,6 +91,8 @@ public class ReindexCancelIT extends ESIntegTestCase {
      * We test synchronous (<code>?wait_for_completion=true</code>) invocation of the _cancel endpoint in this test.
      */
     public void testCancelEndpointEndToEndSynchronously() throws Exception {
+        assumeFalse("scroll-based reindex uses a different code path", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+
         final TaskId parentTaskId = startAsyncThrottledReindex();
 
         final TaskInfo running = getRunningTask(parentTaskId);
@@ -139,6 +141,8 @@ public class ReindexCancelIT extends ESIntegTestCase {
 
     /** Same test as above but calling _cancel asynchronously and wrapping assertions after cancellation in assertBusy. */
     public void testCancelEndpointEndToEndAsynchronously() throws Exception {
+        assumeFalse("scroll-based reindex uses a different code path", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+
         final TaskId parentTaskId = startAsyncThrottledReindex();
 
         final TaskInfo running = getRunningTask(parentTaskId);

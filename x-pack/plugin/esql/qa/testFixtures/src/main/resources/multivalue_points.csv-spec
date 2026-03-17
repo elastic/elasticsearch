@@ -458,7 +458,7 @@ FROM multivalue_points
 ;
 
 c:l | outer:geo_point                               | inner:geo_point
-12  | "POINT (4.391304308386601 3.086956503558094)" | "POINT (5.461538461538462 4.846153846153846)"
+12  | "POINT (4.391304308386601 3.086956503558094)" | "POINT (5.461538432595821 4.846153828100516)"
 ;
 
 whereWithinMultiValuePointsFields
@@ -508,5 +508,5 @@ FROM multivalue_points
 ;
 
 c:l | inner:geo_point                               | outer:geo_point
-12  | "POINT (5.461538432595821 4.846153828100516)" | "POINT (4.391304347826087 3.0869565217391304)"
+12  | "POINT (5.461538432595821 4.846153828100516)" | "POINT (4.391304308386601 3.086956503558094)"
 ;

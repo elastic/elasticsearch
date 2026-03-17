@@ -24,7 +24,10 @@ import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -32,16 +35,19 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.tasks.RawTaskStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -75,6 +81,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
     private final Map<Long, Consumer<AsyncSearchResponse>> completionListeners = new HashMap<>();
 
     private volatile long expirationTimeMillis;
+    private volatile TimeValue keepAlive;
     private final AtomicBoolean isCancelling = new AtomicBoolean(false);
 
     private final MutableSearchResponse searchResponse;
@@ -112,6 +119,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
     ) {
         super(id, type, action, () -> "async_search{" + descriptionSupplier.get() + "}", parentTaskId, taskHeaders);
         this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();
+        this.keepAlive = keepAlive;
         this.originHeaders = originHeaders;
         this.searchId = searchId;
         this.client = client;
@@ -147,8 +155,27 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
      * Update the expiration time of the (partial) response.
      */
     @Override
-    public void setExpirationTime(long expirationTime) {
+    public void setExpirationTime(long expirationTime, TimeValue keepAlive) {
         this.expirationTimeMillis = expirationTime;
+        this.keepAlive = keepAlive;
+    }
+
+    @Override
+    public TimeValue getKeepAlive() {
+        return keepAlive;
+    }
+
+    @Override
+    public Status getStatus() {
+        try (XContentBuilder builder = XContentBuilder.builder(Requests.INDEX_CONTENT_TYPE.xContent())) {
+            builder.startObject();
+            builder.field("request_id", searchId.getEncoded());
+            builder.field("keep_alive", keepAlive.getStringRep());
+            builder.endObject();
+            return new RawTaskStatus(BytesReference.bytes(builder));
+        } catch (IOException e) {
+            throw new IllegalStateException("failed to build async search task status", e);
+        }
     }
 
     @Override
@@ -581,7 +608,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         @Override
         protected void onListShards(
             List<SearchShard> shards,
-            List<SearchShard> skipped,
+            Map<String, Integer> skippedByClusterAlias,
             Clusters clusters,
             boolean fetchPhase,
             TransportSearchAction.SearchTimeProvider timeProvider
@@ -592,9 +619,10 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             ccsMinimizeRoundtrips = clusters.isCcsMinimizeRoundtrips();
             if (ccsMinimizeRoundtrips == false && clusters.hasClusterObjects()) {
                 delegate = new CCSSingleCoordinatorSearchProgressListener();
-                delegate.onListShards(shards, skipped, clusters, fetchPhase, timeProvider);
+                delegate.onListShards(shards, skippedByClusterAlias, clusters, fetchPhase, timeProvider);
             }
-            searchResponse.updateShardsAndClusters(shards.size() + skipped.size(), skipped.size(), clusters);
+            int numSkipped = CollectionUtils.sumIntValues(skippedByClusterAlias);
+            searchResponse.updateShardsAndClusters(shards.size() + numSkipped, numSkipped, clusters);
             executeInitListeners();
         }
 

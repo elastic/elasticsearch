@@ -52,6 +52,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.toQueryParams;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
@@ -3892,37 +3893,11 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
-    public void testLimitBy() {
+    public void testLimitByNotEnabled() {
         assertThat(error("""
             FROM test
-            | SORT salary DESC
             | LIMIT 5 BY languages
-            """, defaultAnalyzer, VerificationException.class), containsString("SORT cannot be used before LIMIT BY"));
-
-        assertThat(error("""
-            FROM test
-            | SORT salary DESC
-            | EVAL g = languages * 2
-            | LIMIT 5 BY languages
-            """, defaultAnalyzer, VerificationException.class), containsString("SORT cannot be used before LIMIT BY"));
-
-        assertThat(error("""
-            FROM test
-            | SORT salary DESC
-            | EVAL g = languages * 2
-            | EVAL h = 2 * g
-            | LIMIT 5 BY h
-            """, defaultAnalyzer, VerificationException.class), containsString("SORT cannot be used before LIMIT BY"));
-
-        assertThat(error("""
-            FROM test
-            | LIMIT 5 BY made_up_attr
-            """, defaultAnalyzer, VerificationException.class), containsString("Unknown column [made_up_attr]"));
-
-        assertThat(error("""
-            FROM test
-            | LIMIT 5 BY made_up_attr * 2
-            """, defaultAnalyzer, VerificationException.class), containsString("Unknown column [made_up_attr]"));
+            """, defaultAnalyzer, VerificationException.class), containsString("LIMIT BY is not yet supported"));
     }
 
     public void testTopSnippetsQueryFoldableAfterOptimization() {

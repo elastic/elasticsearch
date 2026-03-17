@@ -16,8 +16,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
@@ -49,7 +47,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     private final ScriptService scriptService;
     private final ClusterService clusterService;
     private final UpdateByQueryMetrics updateByQueryMetrics;
-    private final BulkByScrollOCCResolver occResolver;
 
     @Inject
     public TransportUpdateByQueryAction(
@@ -59,8 +56,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         TransportService transportService,
         ScriptService scriptService,
         ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        ProjectResolver projectResolver,
         @Nullable UpdateByQueryMetrics updateByQueryMetrics
     ) {
         super(UpdateByQueryAction.NAME, transportService, actionFilters, UpdateByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -69,14 +64,12 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         this.updateByQueryMetrics = updateByQueryMetrics;
-        this.occResolver = new BulkByScrollOCCResolver(clusterService, indexNameExpressionResolver, projectResolver);
     }
 
     @Override
     protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
         long startTime = System.nanoTime();
-        boolean useOptimisticConcurrencyControl = occResolver.resolveUseOptimisticConcurrencyControl(request);
         BulkByPaginatedSearchParallelizationHelper.startSlicedAction(
             request,
             bulkByScrollTask,
@@ -97,7 +90,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                     threadPool,
                     scriptService,
                     request,
-                    useOptimisticConcurrencyControl,
                     ActionListener.runAfter(listener, () -> {
                         long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
                         if (updateByQueryMetrics != null) {
@@ -114,8 +106,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest, TransportUpdateByQueryAction> {
 
-        private final boolean useOptimisticConcurrencyControl;
-
         AsyncIndexBySearchAction(
             BulkByScrollTask task,
             Logger logger,
@@ -123,14 +113,13 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             ThreadPool threadPool,
             ScriptService scriptService,
             UpdateByQueryRequest request,
-            boolean useOptimisticConcurrencyControl,
             ActionListener<BulkByScrollResponse> listener
         ) {
             super(
                 task,
                 // use sequence number powered optimistic concurrency control unless requested
                 request.getSearchRequest().source() != null && Boolean.TRUE.equals(request.getSearchRequest().source().version()),
-                useOptimisticConcurrencyControl,
+                true,
                 true,
                 logger,
                 client,
@@ -140,7 +129,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 scriptService,
                 null
             );
-            this.useOptimisticConcurrencyControl = useOptimisticConcurrencyControl;
         }
 
         @Override
@@ -158,10 +146,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             index.index(doc.getIndex());
             index.id(doc.getId());
             index.source(doc.getSource(), doc.getXContentType());
-            if (useOptimisticConcurrencyControl) {
-                index.setIfSeqNo(doc.getSeqNo());
-                index.setIfPrimaryTerm(doc.getPrimaryTerm());
-            }
+            index.setIfSeqNo(doc.getSeqNo());
+            index.setIfPrimaryTerm(doc.getPrimaryTerm());
             index.setPipeline(mainRequest.getPipeline());
             return wrap(index);
         }

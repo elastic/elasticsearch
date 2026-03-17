@@ -4888,6 +4888,22 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testLoadDocIdAndSeqNoWithLoadSeqNoFalse() throws IOException {
+        engine.index(indexForDoc(createParsedDoc("1", null)));
+        engine.refresh("test");
+
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            DocIdAndSeqNo withSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), Uid.encodeId("1"), true);
+            assertNotNull(withSeqNo);
+            assertThat(withSeqNo.seqNo, greaterThanOrEqualTo(0L));
+
+            DocIdAndSeqNo withoutSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.getIndexReader(), Uid.encodeId("1"), false);
+            assertNotNull(withoutSeqNo);
+            assertThat(withoutSeqNo.seqNo, equalTo(UNASSIGNED_SEQ_NO));
+            assertThat(withoutSeqNo.docId, equalTo(withSeqNo.docId));
+        }
+    }
+
     /**
      * A sequence number generator that will generate a sequence number and if {@code stall} is set to true will wait on the barrier and the
      * referenced latch before returning. If the local checkpoint should advance (because {@code stall} is false, then the value of

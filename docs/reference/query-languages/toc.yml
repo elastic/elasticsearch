@@ -155,8 +155,8 @@ toc:
                   - file: esql/functions-operators/aggregation-functions/values.md
                   - file: esql/functions-operators/aggregation-functions/variance.md
                   - file: esql/functions-operators/aggregation-functions/weighted_avg.md
-                  - hidden: esql/functions-operators/aggregation-functions/first.md
-                  - hidden: esql/functions-operators/aggregation-functions/last.md
+                  - file: esql/functions-operators/aggregation-functions/first.md
+                  - file: esql/functions-operators/aggregation-functions/last.md
               - file: esql/functions-operators/time-series-aggregation-functions.md
                 children:
                   - file: esql/functions-operators/time-series-aggregation-functions/absent_over_time.md
@@ -366,6 +366,7 @@ toc:
         children:
           - file: esql/esql-multi-index.md
           - file: esql/esql-cross-clusters.md
+          - hidden: esql/esql-cross-serverless-projects.md
       - file: esql/esql-advanced.md
         children:
           - file: esql/esql-process-data-with-dissect-grok.md

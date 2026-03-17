@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -382,9 +383,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         // Expects
         // MockFieldAttributeCommand[last_name{f}#7]
-        // \_Project[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
-        // ages{f}#6, last_name{r}#7, long_noidx{f}#13, salary{f}#8]]
-        // \_Eval[[null[KEYWORD] AS last_name]]
+        // \_Project[[last_name{r}#7]]
+        // \_Eval[[null[KEYWORD] AS last_name#7]]
         // \_Limit[1000[INTEGER],false]
         // \_EsRelation[test][_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
         LogicalPlan localPlan = localPlan(new MockFieldAttributeCommand(EMPTY, plan, lastName), testStats);
@@ -400,7 +400,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         assertEquals(literal.child(), new Literal(EMPTY, null, KEYWORD));
         assertThat(Expressions.names(relation.output()), not(contains("last_name")));
 
-        assertEquals(Expressions.names(initialRelation.output()), Expressions.names(project.output()));
+        assertThat(Expressions.names(project.output()), contains("last_name"));
     }
 
     /**
@@ -505,6 +505,98 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
                 "x"
             )
         );
+    }
+
+    /**
+     * Test that fields with DataType.NULL from NULLIFY mode are replaced with constant null literals.
+     * When unmapped_fields="nullify", the analyzer adds fields with DataType.NULL to EsRelation.
+     * The local optimizer's ReplaceFieldWithConstantOrNull rule should replace these with Literal.NULL.
+     *
+     * Expects:
+     * Project[[does_not_exist_field{r}#X]]
+     * \_Eval[[null[NULL] AS does_not_exist_field]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_EsRelation[test][...]
+     */
+    public void testNullifyModeFieldReplacedWithNull() {
+        assumeTrue("Requires FIX_UNMAPPED_FIELDS_IN_ESRELATION", EsqlCapabilities.Cap.FIX_UNMAPPED_FIELDS_IN_ESRELATION.isEnabled());
+
+        var plan = planWithNullify("from test | keep does_not_exist_field");
+        var testStats = statsForMissingField("does_not_exist_field");
+        var localPlan = localPlan(plan, testStats);
+
+        var project = as(localPlan, Project.class);
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("does_not_exist_field"));
+        as(projections.get(0), ReferenceAttribute.class);
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("does_not_exist_field"));
+        var alias = as(eval.fields().get(0), Alias.class);
+        var literal = as(alias.child(), Literal.class);
+        assertThat(literal.value(), is(nullValue()));
+        assertThat(literal.dataType(), is(DataType.NULL));
+
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * Test that fields with DataType.NULL from NULLIFY mode used in EVAL are correctly replaced.
+     *
+     * Expects:
+     * Project[[x{r}#X]]
+     * \_Eval[[null[INTEGER] AS x]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_EsRelation[test][...]
+     */
+    public void testNullifyModeFieldInEvalReplacedWithNull() {
+        assumeTrue("Requires FIX_UNMAPPED_FIELDS_IN_ESRELATION", EsqlCapabilities.Cap.FIX_UNMAPPED_FIELDS_IN_ESRELATION.isEnabled());
+
+        var plan = planWithNullify("""
+              from test
+            | eval x = does_not_exist_field + 1
+            | keep x
+            """);
+
+        var testStats = statsForMissingField("does_not_exist_field");
+        var localPlan = localPlan(plan, testStats);
+
+        var project = as(localPlan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("x"));
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("x"));
+
+        var alias = as(eval.fields().get(0), Alias.class);
+        var literal = as(alias.child(), Literal.class);
+        assertThat(literal.value(), is(nullValue()));
+        assertThat(literal.dataType(), is(INTEGER));
+
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * Test that multiple fields with DataType.NULL are all replaced.
+     */
+    public void testNullifyModeMultipleFieldsReplacedWithNull() {
+        assumeTrue("Requires FIX_UNMAPPED_FIELDS_IN_ESRELATION", EsqlCapabilities.Cap.FIX_UNMAPPED_FIELDS_IN_ESRELATION.isEnabled());
+
+        var plan = planWithNullify("""
+              from test
+            | eval x = field_a + field_b
+            | keep x
+            """);
+
+        var testStats = statsForMissingField("field_a", "field_b");
+        var localPlan = localPlan(plan, testStats);
+
+        var project = as(localPlan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("x"));
+        var eval = as(project.child(), Eval.class);
+
+        var alias = as(eval.fields().get(0), Alias.class);
+        var literal = as(alias.child(), Literal.class);
+        assertThat(literal.value(), is(nullValue()));
     }
 
     public void testSparseDocument() throws Exception {
@@ -1129,7 +1221,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     /**
      * Expected:
-     * EsqlProject[[s{r}#4]]
+     * Project[[s{r}#4]]
      * \_TopN[[Order[s{r}#4,DESC,FIRST]],1[INTEGER]]
      *   \_Eval[[$$dense_vector$replaced$28{t}#28 AS s#4]]
      *     \_EsRelation[types][$$dense_vector$replaced$28{t}#28, !alias_integer, b..]
@@ -1146,8 +1238,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
 
-        // EsqlProject[[s{r}#4]]
-        var project = as(plan, EsqlProject.class);
+        // Project[[s{r}#4]]
+        var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("s"));
 
         // TopN[[Order[s{r}#4,DESC,FIRST]],1[INTEGER]]
@@ -1468,7 +1560,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
 
         // EsqlProject[[dense_vector{f}#25]]
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("dense_vector"));
 
         var limit = as(project.child(), Limit.class);
@@ -1622,8 +1714,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
 
-        // EsqlProject[[s1{r}#5, s2{r}#8, r2{r}#14]]
-        var project = as(plan, EsqlProject.class);
+        // Project[[s1{r}#5, s2{r}#8, r2{r}#14]]
+        var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("s1", "s2", "r2"));
 
         // Eval with s1, s2, r2
@@ -2389,4 +2481,25 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     public static EsRelation relation() {
         return EsqlTestUtils.relation(randomFrom(IndexMode.values()));
     }
+
+    private static Analyzer analyzerWithNullifyMode() {
+        EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
+        return new Analyzer(
+            testAnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                indexResolutions(test),
+                Map.of(),
+                emptyPolicyResolution(),
+                emptyInferenceResolution(),
+                UnmappedResolution.NULLIFY
+            ),
+            TEST_VERIFIER
+        );
+    }
+
+    private LogicalPlan planWithNullify(String query) {
+        return plan(query, analyzerWithNullifyMode());
+    }
+
 }

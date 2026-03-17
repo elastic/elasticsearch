@@ -56,6 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REPLACE;
@@ -252,6 +253,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             balancingWeightsFactory.create(),
             balancerSettings.completeEarlyOnShardAssignmentChange()
         );
+        return explainShardAllocation(balancer, shard, allocation);
+    }
+
+    private ShardAllocationDecision explainShardAllocation(
+        final Balancer balancer,
+        final ShardRouting shard,
+        final RoutingAllocation allocation
+    ) {
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
         final ProjectIndex index = new ProjectIndex(allocation, shard);
@@ -264,6 +273,24 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
         }
         return new ShardAllocationDecision(allocateUnassignedDecision, moveDecision);
+    }
+
+    @Override
+    public Function<ShardRouting, ShardAllocationDecision> explainShardAllocationFunction(final RoutingAllocation allocation) {
+        final Balancer balancer = new Balancer(
+            writeLoadForecaster,
+            allocation,
+            balancerSettings.getThreshold(),
+            balancingWeightsFactory.create(),
+            balancerSettings.completeEarlyOnShardAssignmentChange()
+        );
+
+        return new Function<ShardRouting, ShardAllocationDecision>() {
+            @Override
+            public ShardAllocationDecision apply(ShardRouting shardRouting) {
+                return explainShardAllocation(balancer, shardRouting, allocation);
+            }
+        };
     }
 
     private void failAllocationOfNewPrimaries(RoutingAllocation allocation) {
@@ -1032,6 +1059,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             Decision remainDecision,
             BiFunction<ShardRouting, RoutingNode, Decision> decider
         ) {
+            assert remainDecision.type() == Decision.Type.NO || remainDecision.type() == Decision.Type.NOT_PREFERRED;
             final boolean explain = allocation.debugDecision();
             Type bestDecision = Type.NO;
             RoutingNode targetNode = null;
@@ -1046,13 +1074,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     if (explain) {
                         nodeResults.add(new NodeAllocationResult(currentNode.getRoutingNode().node(), allocationDecision, ++weightRanking));
                     }
-                    if (allocationDecision.type() == Type.NOT_PREFERRED && remainDecision.type() == Type.NOT_PREFERRED) {
-                        // Whether or not a relocation target node can be found, it's important to explain the canAllocate response as
-                        // NOT_PREFERRED, as opposed to NO.
-                        bestDecision = Type.NOT_PREFERRED;
-                        // Relocating a shard from one NOT_PREFERRED node to another NOT_PREFERRED node would not improve the situation.
-                        continue;
-                    }
                     if (allocationDecision.type().compareToBetweenNodes(bestDecision) > 0) {
                         bestDecision = allocationDecision.type();
                         if (bestDecision == Type.YES) {
@@ -1063,9 +1084,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 break;
                             }
                         } else if (bestDecision == Type.NOT_PREFERRED) {
-                            assert remainDecision.type() != Type.NOT_PREFERRED;
-                            // If we don't ever find a YES/THROTTLE decision, we'll settle for NOT_PREFERRED as preferable to NO.
-                            targetNode = target;
+                            // We will accept a NOT_PREFERRED allocation if canRemain = NO, but if canRemain = NOT_PREFERRED
+                            // we will wait for a YES/THROTTLE. Either way we update bestDecision so we can distinguish betweem
+                            // a NO and a NOT_PREFERRED in allocate-explain
+                            if (remainDecision.type() != Type.NOT_PREFERRED) {
+                                targetNode = target;
+                            } else {
+                                assert targetNode == null : "If the best we've seen is NOT_PREFERRED, we should not have a targetNode yet";
+                            }
                         } else if (bestDecision == Type.THROTTLE) {
                             assert allocation.isSimulating() == false;
                             // THROTTLE is better than NOT_PREFERRED, we just need to wait for a YES.

@@ -31,6 +31,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
+import org.elasticsearch.common.blobstore.RetryingInputStream;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -139,7 +140,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             DEFAULT_REGION_UNAVAILABLE
         ) {
             private InetAddress[] resolveHost(String host) throws UnknownHostException {
-                assertEquals("127.0.0.1", host);
+                assertTrue(InetAddress.getByName(host).isLoopbackAddress());
                 if (shouldErrorOnDns && randomBoolean() && randomBoolean()) {
                     throw new UnknownHostException(host);
                 }
@@ -204,7 +205,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
 
         final InetSocketAddress address = httpServer.getAddress();
-        final String endpoint = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
+        String host = InetAddresses.toUriString(address.getAddress());
+        final String endpoint = "http://" + host + ":" + address.getPort();
         logger.info("--> creating client with endpoint [{}]", endpoint);
         clientSettings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint);
 
@@ -1548,7 +1550,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     /**
      * Asserts that an InputStream is fully consumed, or aborted, when it is closed
      */
-    private static class AssertingInputStream extends FilterInputStream {
+    private static class AssertingInputStream extends FilterInputStream implements RetryingInputStreamUnwrappable {
 
         private final String blobName;
         private final boolean range;
@@ -1602,6 +1604,11 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 assertThat(in, instanceOf(ByteArrayInputStream.class));
                 assertThat(((ByteArrayInputStream) in).available(), equalTo(0));
             }
+        }
+
+        @Override
+        public RetryingInputStream<?> unwrap() {
+            return in instanceof RetryingInputStream<?> retryingInputStream ? retryingInputStream : null;
         }
     }
 }

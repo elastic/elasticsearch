@@ -1,5 +1,0 @@
-pr: 140671
-summary: Fix Present/Absent agg functions
-area: ES|QL
-type: bug
-issues: []

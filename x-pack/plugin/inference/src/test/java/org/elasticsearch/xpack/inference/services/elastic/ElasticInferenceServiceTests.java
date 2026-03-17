@@ -23,6 +23,8 @@ import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
@@ -36,6 +38,8 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
@@ -933,6 +937,85 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testBatching_GivenSparseAndMultipleChunksFittingInSingleBatch() throws IOException {
+        var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            "my-sparse-model-id",
+            null,
+            10,
+            new WordBoundaryChunkingSettings(1, 0)
+        );
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = createService(senderFactory, getUrl(webServer))) {
+            EmbeddingRequestChunker<?> embeddingRequestChunker = service.createEmbeddingRequestChunker(
+                model,
+                List.of(new ChunkInferenceInput("hello world plus"))
+            );
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batches = embeddingRequestChunker.batchRequestsWithListeners(null);
+            assertThat(batches, hasSize(1));
+            assertThatBatchContains(batches.get(0), List.of(List.of("hello"), List.of(" world"), List.of(" plus")));
+        }
+    }
+
+    public void testBatching_GivenSparseAndBatchSizeOfOne() throws IOException {
+        var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            "my-sparse-model-id",
+            null,
+            1,
+            new WordBoundaryChunkingSettings(1, 0)
+        );
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = createService(senderFactory, getUrl(webServer))) {
+            EmbeddingRequestChunker<?> embeddingRequestChunker = service.createEmbeddingRequestChunker(
+                model,
+                List.of(new ChunkInferenceInput("hello world"))
+            );
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batches = embeddingRequestChunker.batchRequestsWithListeners(null);
+            assertThat(batches, hasSize(2));
+            assertThatBatchContains(batches.get(0), List.of(List.of("hello")));
+            assertThatBatchContains(batches.get(1), List.of(List.of(" world")));
+        }
+    }
+
+    public void testBatching_GivenSparseAndBatchSizeOfTwo() throws IOException {
+        var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            "my-sparse-model-id",
+            null,
+            2,
+            new WordBoundaryChunkingSettings(1, 0)
+        );
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = createService(senderFactory, getUrl(webServer))) {
+            EmbeddingRequestChunker<?> embeddingRequestChunker = service.createEmbeddingRequestChunker(
+                model,
+                List.of(new ChunkInferenceInput("hello world plus"))
+            );
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batches = embeddingRequestChunker.batchRequestsWithListeners(null);
+            assertThat(batches, hasSize(2));
+            assertThatBatchContains(batches.get(0), List.of(List.of("hello"), List.of(" world")));
+            assertThatBatchContains(batches.get(1), List.of(List.of(" plus")));
+        }
+    }
+
+    private static void assertThatBatchContains(EmbeddingRequestChunker.BatchRequestAndListener batch, List<List<String>> expectedChunks) {
+        List<InferenceStringGroup> inferenceStringGroups = batch.batch().inputs().get();
+        assertThat(inferenceStringGroups, hasSize(expectedChunks.size()));
+        for (int i = 0; i < expectedChunks.size(); i++) {
+            assertThat(
+                inferenceStringGroups.get(i).inferenceStrings().stream().map(InferenceString::value).toList(),
+                equalTo(expectedChunks.get(i))
+            );
+        }
+    }
+
     public void testHideFromConfigurationApi_ThrowsUnsupported() throws Exception {
         try (var service = createServiceWithMockSender()) {
             expectThrows(UnsupportedOperationException.class, service::hideFromConfigurationApi);
@@ -963,6 +1046,15 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                            "updatable": false,
                            "type": "int",
                            "supported_task_types": ["text_embedding", "sparse_embedding"]
+                       },
+                       "max_batch_size": {
+                           "description": "Allows you to specify the maximum number of chunks per batch.",
+                           "label": "Maximum Batch Size",
+                           "required": false,
+                           "sensitive": false,
+                           "updatable": true,
+                           "type": "int",
+                           "supported_task_types": ["sparse_embedding"]
                        }
                    }
                }
@@ -1003,6 +1095,15 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                            "updatable": false,
                            "type": "int",
                            "supported_task_types": ["text_embedding", "sparse_embedding"]
+                       },
+                       "max_batch_size": {
+                           "description": "Allows you to specify the maximum number of chunks per batch.",
+                           "label": "Maximum Batch Size",
+                           "required": false,
+                           "sensitive": false,
+                           "updatable": true,
+                           "type": "int",
+                           "supported_task_types": ["sparse_embedding"]
                        }
                    }
                }

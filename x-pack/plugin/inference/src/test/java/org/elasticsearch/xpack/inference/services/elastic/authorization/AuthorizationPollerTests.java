@@ -242,7 +242,7 @@ public class AuthorizationPollerTests extends ESTestCase {
             endpointId,
             TaskType.SPARSE_EMBEDDING,
             ElasticInferenceService.NAME,
-            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelName, null),
+            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelName, null, null),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),

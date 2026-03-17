@@ -322,7 +322,24 @@ public class RankVectorsFieldMapper extends FieldMapper {
             }
             var builder = (Builder) getMergeBuilder();
             builder.dimensions(currentDims);
-            Mapper update = builder.build(context.createDynamicMapperBuilderContext());
+            // Build the mapper using a context derived from this field's existing fullPath.
+            // The document parser's content path cannot be used here because for dynamically
+            // mapped fields with dotted names (e.g. "image_embedding.clip"), the content path
+            // includes the field name itself, not just the parent object path.
+            MapperBuilderContext builderContext;
+            String existingFullPath = fullPath();
+            String leaf = leafName();
+            MapperBuilderContext rootCtx = MapperBuilderContext.root(
+                context.mappingLookup().isSourceSynthetic(),
+                context.mappingLookup().isDataStreamTimestampFieldEnabled()
+            );
+            if (existingFullPath.equals(leaf)) {
+                builderContext = rootCtx;
+            } else {
+                String parentPath = existingFullPath.substring(0, existingFullPath.length() - leaf.length() - 1);
+                builderContext = rootCtx.createChildContext(parentPath, context.dynamic());
+            }
+            Mapper update = builder.build(builderContext);
             context.addDynamicMapper(update);
             return;
         }

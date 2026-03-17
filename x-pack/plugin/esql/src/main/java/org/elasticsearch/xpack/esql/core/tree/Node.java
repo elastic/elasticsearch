@@ -16,6 +16,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -231,6 +232,23 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         T root = rule.apply((T) this);
         Node<T> node = this.equals(root) ? this : root;
         return node.transformChildren(child -> child.transformDown(rule));
+    }
+
+    @SuppressWarnings("unchecked")
+    public T transformDownSkipBranch(BiFunction<? super T, Holder<Boolean>, ? extends T> rule) {
+        Holder<Boolean> skipBranch = new Holder<>(Boolean.FALSE);
+        return transformDownSkipBranch(skipBranch, rule);
+    }
+
+    @SuppressWarnings("unchecked")
+    T transformDownSkipBranch(Holder<Boolean> skipBranch, BiFunction<? super T, Holder<Boolean>, ? extends T> rule) {
+        T root = rule.apply((T) this, skipBranch);
+        Node<T> node = this.equals(root) ? this : root;
+        if (skipBranch.get()) {
+            skipBranch.set(false);
+            return (T) node;
+        }
+        return node.transformChildren(child -> child.transformDownSkipBranch(skipBranch, rule));
     }
 
     @SuppressWarnings("unchecked")

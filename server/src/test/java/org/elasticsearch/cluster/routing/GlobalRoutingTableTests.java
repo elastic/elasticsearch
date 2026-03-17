@@ -295,8 +295,7 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
 
         final RoutingNodes mutate = routingNodes.mutableCopy();
         final DiscoveryNode targetNode = randomFrom(clusterState.nodes().getNodes().values());
-        final RoutingChangesObserver emptyObserver = new RoutingChangesObserver() {
-        };
+        final RoutingChangesObserver emptyObserver = new RoutingChangesObserver() {};
 
         final int unassigned = mutate.unassigned().size();
         var unassignedItr = mutate.unassigned().iterator();

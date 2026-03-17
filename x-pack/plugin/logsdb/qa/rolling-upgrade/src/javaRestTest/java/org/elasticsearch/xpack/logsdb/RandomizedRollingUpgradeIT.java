@@ -24,6 +24,7 @@ import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.datageneration.datasource.DefaultMappingParametersHandler;
+import org.elasticsearch.datageneration.datasource.DefaultObjectGenerationHandler;
 import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
 import org.elasticsearch.datageneration.matchers.MatchResult;
 import org.elasticsearch.datageneration.matchers.Matcher;
@@ -38,7 +39,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -76,8 +76,9 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
                 @Override
                 public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
                     return new DataSourceResponse.FieldTypeGenerator(() -> {
-                        var options = Arrays.stream(FieldType.values())
+                        var options = DefaultObjectGenerationHandler.ALLOWED_FIELD_TYPES.stream()
                             .filter(ft -> ft != FieldType.PASSTHROUGH)
+                            .filter(ft -> ft != FieldType.COUNTED_KEYWORD)
                             .map(FieldType::toString)
                             .collect(Collectors.toSet());
                         return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(ESTestCase.randomFrom(options));
@@ -122,6 +123,11 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
         testEsqlSource(indexConfig);
     }
 
+    @Override
+    public String getEnsureGreenTimeout() {
+        return "2m";
+    }
+
     private void testIndexing(String indexNameBase, Settings.Builder settings) throws IOException {
         TestIndexConfig[] indexConfigs = new TestIndexConfig[NUM_INDICES];
 
@@ -132,6 +138,7 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
 
         int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
         for (int i = 0; i < numNodes; i++) {
+            flush(indexNameBase + "*", true);
             upgradeNode(i);
             ensureGreen(indexNameBase + "*");
             for (int j = 0; j < NUM_INDICES; j++) {

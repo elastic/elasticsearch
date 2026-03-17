@@ -535,7 +535,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
      * Project[[salary{r}#7, emp_no{f}#9]]
      * \_TopN[[Order[$$salary$temp_name$20{r}#21,ASC,LAST]],1000[INTEGER],false]
      *   \_InlineJoin[LEFT,[emp_no{f}#9],[emp_no{r}#9]]
-     *     |_EsqlProject[[salary{f}#14, emp_no{f}#9, $$salary$temp_name$20{r}#21]]
+     *     |_Project[[salary{f}#14, emp_no{f}#9, $$salary$temp_name$20{r}#21]]
      *     | \_Eval[[salary{f}#14 AS $$salary$temp_name$20#21]]
      *     |   \_EsRelation[employees][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
      *     \_Aggregate[[emp_no{f}#9],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS salary#7, emp_no{f}#9]]
@@ -570,7 +570,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         assertThat(Expressions.names(inlineJoin.config().rightFields()), is(List.of("emp_no")));
 
         // Left side of the join
-        var leftProject = as(inlineJoin.left(), EsqlProject.class);
+        var leftProject = as(inlineJoin.left(), Project.class);
         var leftEval = as(leftProject.child(), Eval.class);
         assertThat(Expressions.names(leftEval.fields()), contains(startsWith("$$salary$temp_name$")));
         var relation = as(leftEval.child(), EsRelation.class);
@@ -590,7 +590,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
      * Project[[salary{r}#8, emp_no{f}#10]]
      * \_TopN[[Order[$$salary$temp_name$21{r}#22,ASC,LAST], Order[emp_no{f}#10,ASC,LAST]],1000[INTEGER],false]
      *   \_InlineJoin[LEFT,[emp_no{f}#10],[emp_no{r}#10]]
-     *     |_EsqlProject[[salary{f}#15, emp_no{f}#10, $$salary$temp_name$21{r}#22]]
+     *     |_Project[[salary{f}#15, emp_no{f}#10, $$salary$temp_name$21{r}#22]]
      *     | \_Eval[[salary{f}#15 AS $$salary$temp_name$21#22]]
      *     |   \_EsRelation[employees][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
      *     \_Aggregate[[emp_no{f}#10],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS salary#8, emp_no{f}#10]]
@@ -631,7 +631,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         assertThat(Expressions.names(inlineJoin.config().rightFields()), is(List.of("emp_no")));
 
         // Left side of the join
-        var leftProject = as(inlineJoin.left(), EsqlProject.class);
+        var leftProject = as(inlineJoin.left(), Project.class);
         var leftEval = as(leftProject.child(), Eval.class);
         assertThat(Expressions.names(leftEval.fields()), contains(startsWith("$$salary$temp_name$")));
         var relation = as(leftEval.child(), EsRelation.class);

@@ -7,6 +7,8 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
@@ -53,6 +55,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Base class to run tests against a cluster with X-Pack installed and security enabled.
@@ -446,7 +449,12 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         try {
             client.admin().indices().create(createIndexRequest).actionGet();
         } catch (ResourceAlreadyExistsException e) {
-            logger.info("Security index already exists, ignoring.", e);
+            logger.info("Security index already exists, waiting for it to become available.", e);
+            ClusterHealthRequest healthRequest = new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, SECURITY_MAIN_ALIAS).waitForActiveShards(
+                ActiveShardCount.ALL
+            );
+            ClusterHealthResponse healthResponse = client.admin().cluster().health(healthRequest).actionGet();
+            assertThat(healthResponse.isTimedOut(), is(false));
         }
     }
 

@@ -15,8 +15,6 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedNumericSortField;
-import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
@@ -30,7 +28,6 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -51,6 +48,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.sort.ShardDocSortField;
+import org.elasticsearch.search.sort.SortFieldValidation;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -60,11 +58,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -159,12 +155,12 @@ public final class SearchPhaseController {
         final TopDocs mergedTopDocs;
         try {
             if (topDocs instanceof TopFieldGroups firstTopDocs) {
-                final Sort sort = validateSameSortTypesAndMaybeRewrite(results, firstTopDocs.fields);
+                final Sort sort = SortFieldValidation.validateAndMaybeRewrite(results, firstTopDocs.fields);
                 TopFieldGroups[] shardTopDocs = topDocsList.toArray(new TopFieldGroups[0]);
                 mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
             } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
                 TopFieldDocs[] shardTopDocs = topDocsList.toArray(new TopFieldDocs[0]);
-                final Sort sort = validateSameSortTypesAndMaybeRewrite(results, firstTopDocs.fields);
+                final Sort sort = SortFieldValidation.validateAndMaybeRewrite(results, firstTopDocs.fields);
                 mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
             } else {
                 final TopDocs[] shardTopDocs = topDocsList.toArray(new TopDocs[0]);
@@ -175,100 +171,6 @@ public final class SearchPhaseController {
             throw e;
         }
         return mergedTopDocs;
-    }
-
-    private static Sort validateSameSortTypesAndMaybeRewrite(Collection<TopDocs> results, SortField[] firstSortFields) {
-        Sort sort = new Sort(firstSortFields);
-        if (results.size() < 2) return sort;
-
-        SortField.Type[] firstTypes = null;
-        boolean isFirstResult = true;
-        Set<Integer> fieldIdsWithMixedIntAndLongSorts = new HashSet<>();
-        for (TopDocs topDocs : results) {
-            // We don't actually merge in empty score docs, so ignore potentially mismatched types if there are no docs
-            if (topDocs.scoreDocs == null || topDocs.scoreDocs.length == 0) {
-                continue;
-            }
-            SortField[] curSortFields = ((TopFieldDocs) topDocs).fields;
-            if (isFirstResult) {
-                sort = new Sort(curSortFields);
-                firstTypes = new SortField.Type[curSortFields.length];
-                for (int i = 0; i < curSortFields.length; i++) {
-                    firstTypes[i] = getType(curSortFields[i]);
-                    if (firstTypes[i] == SortField.Type.CUSTOM) {
-                        // for custom types that we can't resolve, we can't do the check
-                        return sort;
-                    }
-                }
-                isFirstResult = false;
-            } else {
-                for (int i = 0; i < curSortFields.length; i++) {
-                    SortField.Type curType = getType(curSortFields[i]);
-                    if (curType != firstTypes[i]) {
-                        if (curType == SortField.Type.CUSTOM) {
-                            // for custom types that we can't resolve, we can't do the check
-                            return sort;
-                        }
-                        // Check if we are mixing INT and LONG sort types, which is allowed
-                        if ((firstTypes[i] == SortField.Type.INT && curType == SortField.Type.LONG)
-                            || (firstTypes[i] == SortField.Type.LONG && curType == SortField.Type.INT)) fieldIdsWithMixedIntAndLongSorts
-                                .add(i);
-                        else {
-                            throw new IllegalArgumentException(
-                                "Can't sort on field ["
-                                    + curSortFields[i].getField()
-                                    + "]; the field has incompatible sort types: ["
-                                    + firstTypes[i]
-                                    + "] and ["
-                                    + curType
-                                    + "] across shards!"
-                            );
-                        }
-                    }
-                }
-            }
-        }
-        if (fieldIdsWithMixedIntAndLongSorts.size() > 0) {
-            sort = rewriteSortAndResultsToLong(sort, results, fieldIdsWithMixedIntAndLongSorts);
-        }
-        return sort;
-    }
-
-    /**
-     * Rewrite Sort objects and shards results for long sort for mixed fields:
-     * convert Sort to Long sort and convert fields' values to Long values.
-     * This is necessary to enable comparison of fields' values across shards for merging.
-     */
-    private static Sort rewriteSortAndResultsToLong(Sort sort, Collection<TopDocs> results, Set<Integer> fieldIdsWithMixedIntAndLongSorts) {
-        SortField[] newSortFields = sort.getSort();
-        for (int fieldIdx : fieldIdsWithMixedIntAndLongSorts) {
-            for (TopDocs topDocs : results) {
-                if (topDocs.scoreDocs == null || topDocs.scoreDocs.length == 0) continue;
-                SortField[] sortFields = ((TopFieldDocs) topDocs).fields;
-                if (getType(sortFields[fieldIdx]) == SortField.Type.INT) {
-                    for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
-                        FieldDoc fieldDoc = (FieldDoc) scoreDoc;
-                        fieldDoc.fields[fieldIdx] = ((Number) fieldDoc.fields[fieldIdx]).longValue();
-                    }
-                } else { // SortField.Type.LONG
-                    newSortFields[fieldIdx] = sortFields[fieldIdx];
-                }
-            }
-        }
-        return new Sort(newSortFields);
-    }
-
-    private static SortField.Type getType(SortField sortField) {
-        if (sortField instanceof SortedNumericSortField sf) {
-            return sf.getNumericType();
-        } else if (sortField instanceof SortedSetSortField) {
-            return SortField.Type.STRING;
-        } else if (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource cmp) {
-            // This can occur if the sort field wasn't rewritten by Lucene#rewriteMergeSortField because all search shards are local.
-            return cmp.reducedType();
-        } else {
-            return sortField.getType();
-        }
     }
 
     static void setShardIndex(TopDocs topDocs, int shardIndex) {

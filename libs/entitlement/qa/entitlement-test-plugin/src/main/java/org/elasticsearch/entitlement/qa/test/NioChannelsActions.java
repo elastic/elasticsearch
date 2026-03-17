@@ -17,6 +17,7 @@ import java.io.FileDescriptor;
 import java.io.IOException;
 import java.net.StandardProtocolFamily;
 import java.nio.channels.AsynchronousFileChannel;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.spi.SelectorProvider;
@@ -89,7 +90,7 @@ class NioChannelsActions {
         jdk.nio.Channels.readWriteSelectableChannel(new FileDescriptor(), new DummyImplementations.DummySelectableChannelCloser()).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = ClosedChannelException.class)
     static void selectableChannelRegisterConnect() throws IOException {
         try (var selectableChannel = new DummyImplementations.DummySelectableChannel(SelectorProvider.provider())) {
             selectableChannel.configureBlocking(false);
@@ -97,7 +98,7 @@ class NioChannelsActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = ClosedChannelException.class)
     static void selectableChannelRegisterAccept() throws IOException {
         try (var selectableChannel = new DummyImplementations.DummySelectableChannel(SelectorProvider.provider())) {
             selectableChannel.configureBlocking(false);
@@ -105,32 +106,32 @@ class NioChannelsActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void selectorProviderOpenSocketChannel() throws IOException {
         SelectorProvider.provider().openSocketChannel().close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void selectorProviderOpenDatagramChannel() throws IOException {
         SelectorProvider.provider().openDatagramChannel().close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void selectorProviderOpenServerSocketChannel() throws IOException {
         SelectorProvider.provider().openServerSocketChannel().close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void selectorProviderOpenSocketChannelWithProtocol() throws IOException {
         SelectorProvider.provider().openSocketChannel(StandardProtocolFamily.INET).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void selectorProviderOpenDatagramChannelWithProtocol() throws IOException {
         SelectorProvider.provider().openDatagramChannel(StandardProtocolFamily.INET).close();
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void selectorProviderOpenServerSocketChannelWithProtocol() throws IOException {
         SelectorProvider.provider().openServerSocketChannel(StandardProtocolFamily.INET).close();
     }

@@ -172,6 +172,23 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
 
         /**
+         * Fix incorrect detection of unmapped fields in nullify/load mode when unresolved attributes
+         * match fields already present in the children's output.
+         */
+        OPTIONAL_FIELDS_FIX_UNMAPPED_FIELD_DETECTION,
+
+        /**
+         * Don't nullify aliases for Aggregate groupings.
+         */
+        OPTIONAL_FIELDS_NULLIFY_SKIP_GROUP_ALIASES,
+
+        /**
+         * Nullify unmapped fields in agg filters like {@code STATS agg_fun(field) WHERE field...}, even when
+         * {@link org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs} marks the field as unresolvable with a custom error message.
+         */
+        OPTIONAL_FIELDS_DETECT_UNMAPPED_FIELDS_IN_AGG_FILTERS,
+
+        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */
@@ -243,6 +260,11 @@ public class EsqlCapabilities {
          * Support for function {@code IP_PREFIX}.
          */
         FN_IP_PREFIX,
+
+        /**
+         * Fix a bug leading to the scratch leaking data to other rows.
+         */
+        FN_IP_PREFIX_FIX_DIRTY_SCRATCH_LEAK,
 
         /**
          * Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
@@ -351,6 +373,11 @@ public class EsqlCapabilities {
         CASE_MV,
 
         /**
+         * {@code CASE} folding with DATE_PERIOD and TIME_DURATION return types.
+         */
+        CASE_FOLD_TEMPORAL_AMOUNT,
+
+        /**
          * Support for loading values over enrich. This is supported by all versions of ESQL but not
          * the unit test CsvTests.
          */
@@ -414,6 +441,9 @@ public class EsqlCapabilities {
 
         /** Optimization of ST_EXTENT_AGG with doc-values as IntBlock. */
         ST_EXTENT_AGG_DOCVALUES,
+
+        /** Fix to bug with spatial aggregations not properly supporting the WHERE clause. Fixes #142329. */
+        SPATIAL_AGGS_FILTERING,
 
         /**
          * Fix determination of CRS types in spatial functions when folding.
@@ -1856,6 +1886,52 @@ public class EsqlCapabilities {
          * Fixes reset calculation in rates where partitioning data into multiple slices can lead to incorrect results.
          */
         RATE_FIX_RESETS_MULTIPLE_SEGMENTS,
+
+        /**
+         * Fix for <a href="https://github.com/elastic/elasticsearch/issues/141627">141627</a>,
+         * TO_IP with leading_zeros=octal generates proper warning and returns null when given invalid input.
+         */
+        FIX_TO_IP_LEADING_ZEROS_OCTAL,
+
+        /**
+         * Fix bug with TS command where you can't group on aliases (i.e. `by c = cluster`)
+         */
+        TS_COMMAND_GROUP_ON_ALIASES,
+
+        /**
+         * Fixes https://github.com/elastic/elasticsearch/issues/139359
+         */
+        INLINE_STATS_DROP_GROUPINGS_FIX(INLINE_STATS.enabled),
+        /**
+         * https://github.com/elastic/elasticsearch/issues/142219
+         */
+        INLINE_STATS_WITH_CONSTANTS(INLINE_STATS.enabled),
+
+        /**
+         * Fix for not including metadata _doc_count in the _timeseries column
+         * https://github.com/elastic/elasticsearch/issues/143464
+         */
+        FIX_DISPLAYING_TS_DIMENSIONS_IN_METRICS_GROUP_BY_ALL,
+
+        /**
+         * Support for the zero_terms_query option in the match function.
+         * https://github.com/elastic/elasticsearch/issues/143070
+         */
+        MATCH_FUNCTION_ZERO_TERMS_QUERY,
+
+        /**
+         * Fix for KQL/QSTR functions failing when used with unmapped fields in NULLIFY mode.
+         * Unmapped fields are now added directly to EsRelation output with NULL type instead of using Eval nodes.
+         * https://github.com/elastic/elasticsearch/issues/142968
+         */
+        FIX_UNMAPPED_FIELDS_IN_ESRELATION,
+
+        /**
+         * Fix field caps incorrectly synthesizing object parents under subobjects:false (passthrough) mappers,
+         * causing false type conflicts in ES|QL when querying across indices.
+         * https://github.com/elastic/elasticsearch/issues/144179
+         */
+        FIX_PASSTHROUGH_FIELD_CAPS_OBJECT_PARENT,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

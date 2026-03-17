@@ -16,6 +16,7 @@ import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -59,7 +60,7 @@ public class TDigestFieldMapperTests extends MapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> assertTrue(m.ignoreMalformed()));
-        checker.registerConflictCheck("digest_type", b -> b.field("digest_type", TDigestState.Type.AVL_TREE));
+        checker.registerConflictCheck("digest_type", b -> b.field("digest_type", TDigestExecutionHint.HIGH_ACCURACY));
         checker.registerConflictCheck("compression", b -> b.field("compression", 117));
     }
 

@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -52,6 +53,7 @@ public final class QueryBuilderResolver {
             Rewriteable.rewriteAndFetch(
                 new FunctionsRewriteable(plan),
                 queryRewriteContext(services, indexNames(plan)),
+                services.transportService().getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION),
                 listener.delegateFailureAndWrap((l, r) -> l.onResponse(r.plan))
             );
         } else {

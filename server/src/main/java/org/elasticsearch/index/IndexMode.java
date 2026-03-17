@@ -597,7 +597,7 @@ public enum IndexMode {
      * Parse a string into an {@link IndexMode}.
      */
     public static IndexMode fromString(String value) {
-        return switch (value) {
+        return switch (value.toLowerCase(Locale.ROOT)) {
             case "standard" -> IndexMode.STANDARD;
             case "time_series" -> IndexMode.TIME_SERIES;
             case "logsdb" -> IndexMode.LOGSDB;
@@ -610,6 +610,15 @@ public enum IndexMode {
                     + "]"
             );
         };
+    }
+
+    /**
+     * Retrieves the `index.mode` setting and parses it to {@link IndexMode}. When missing, it defaults to standard.
+     * Note: This should be used only in cases where it is not relevant to validate the index settings.
+     */
+    public static IndexMode fromIndexSettingsWithoutValidation(Settings settings) {
+        String indexModeLabel = settings.get(IndexSettings.MODE.getKey());
+        return indexModeLabel == null ? IndexMode.STANDARD : IndexMode.fromString(indexModeLabel);
     }
 
     public static IndexMode readFrom(StreamInput in) throws IOException {

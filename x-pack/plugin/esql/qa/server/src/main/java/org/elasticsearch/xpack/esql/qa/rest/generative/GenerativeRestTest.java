@@ -71,6 +71,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "can't find input for", // https://github.com/elastic/elasticsearch/issues/136596
         "out of bounds for length", // https://github.com/elastic/elasticsearch/issues/136851
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
+        "blocks is empty", // https://github.com/elastic/elasticsearch/issues/142473
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561

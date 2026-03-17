@@ -1148,3 +1148,48 @@ setup:
   - match: { hits.hits.1._id: "3" }
 
 
+---
+"nested compound retrievers with min_score correctly compute total_hits":
+  - requires:
+      cluster_features: "nested_retriever_min_score_total_hits_fix"
+      reason: "requires fix for correct total_hits computation with nested min_score"
+
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            rrf:
+              retrievers:
+                - rrf:
+                    retrievers:
+                      - linear:
+                          retrievers: [
+                            {
+                              retriever: {
+                                standard: {
+                                  query: {
+                                    query_string: {
+                                      query: "term1 OR term2 OR term3",
+                                      default_field: "text"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                          rank_window_size: 100
+                          min_score: 0.5
+                          normalizer: "minmax"
+                    rank_window_size: 100
+              rank_window_size: 100
+          size: 10
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.total.relation: "eq" }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "3" }
+
+

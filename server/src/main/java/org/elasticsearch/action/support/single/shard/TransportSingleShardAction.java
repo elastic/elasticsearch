@@ -9,6 +9,8 @@
 
 package org.elasticsearch.action.support.single.shard;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -19,6 +21,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.action.support.replication.StaleRequestException;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -31,9 +36,12 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -54,6 +62,14 @@ import static org.elasticsearch.core.Strings.format;
  */
 public abstract class TransportSingleShardAction<Request extends SingleShardRequest<Request>, Response extends ActionResponse> extends
     TransportAction<Request, Response> {
+
+    // How long to wait to see a shard routing update after receiving a stale request failure
+    // Deliberately is not registered in ClusterSettings.BUILT_IN_CLUSTER_SETTINGS because it is only for tests
+    public static final Setting<TimeValue> ROUTE_REFRESH_TIMEOUT = Setting.timeSetting(
+        "single_shard_action.route_refresh_timeout",
+        TimeValue.timeValueSeconds(30),
+        Setting.Property.NodeScope
+    );
 
     protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
@@ -219,6 +235,10 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 lastFailure = currentFailure;
                 this.lastFailure = currentFailure;
             }
+            if (ExceptionsHelper.unwrapCause(currentFailure) instanceof StaleRequestException staleRequestException) {
+                waitForRoutingUpdateAndRestart(staleRequestException);
+                return;
+            }
             final ShardRouting shardRouting = shardIt.nextOrNull();
             if (shardRouting == null) {
                 Exception failure = lastFailure;
@@ -259,6 +279,49 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                         }
                     }
                 );
+            }
+        }
+
+        // Called when a request has failed with a StaleRequestException
+        // This indicates that request routing has changed since we resolved the shard,
+        // e.g., due to a resharding operation.
+        // Waits for the routing table to refresh, then restarts the request from the top
+        private void waitForRoutingUpdateAndRestart(StaleRequestException staleRequestException) {
+            if (internalRequest.request() instanceof SplitAwareRequest splitAwareRequest) {
+                final var staleSummary = splitAwareRequest.getSplitShardCountSummary();
+                logger.debug("retrying request due to stale route: {}", internalRequest.request());
+                // TransportGetAction.getFromTranslog has a similar pattern for handling failures.
+                // These observers could add up though -- it might be nice to try to share them across requests.
+                ClusterStateObserver.waitForState(clusterService, threadPool.getThreadContext(), new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+                        new AsyncSingleAction(internalRequest.request(), listener).start();
+                    }
+
+                    @Override
+                    public void onClusterServiceClose() {
+                        listener.onFailure(new NodeClosedException(clusterService.localNode()));
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        listener.onFailure(
+                            new ElasticsearchTimeoutException("gave up waiting for routing to refresh", staleRequestException)
+                        );
+                    }
+                }, (state) -> {
+                    // this is a predicate with a side effect, apologies!
+                    // it's because the summary calculation is the responsibility of the request
+                    // implementation, and we don't currently have a non-mutating calculator
+                    splitAwareRequest.setSplitShardCountSummary(
+                        projectResolver.getProjectState(state).metadata(),
+                        internalRequest.concreteIndex()
+                    );
+                    return splitAwareRequest.getSplitShardCountSummary().equals(staleSummary) == false;
+                }, ROUTE_REFRESH_TIMEOUT.get(clusterService.getSettings()), logger);
+            } else {
+                assert false : "refreshRouting called without a SplitAwareRequest: " + internalRequest.request();
+                listener.onFailure(staleRequestException);
             }
         }
     }

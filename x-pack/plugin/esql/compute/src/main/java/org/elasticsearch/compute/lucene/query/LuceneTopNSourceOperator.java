@@ -401,8 +401,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
     }
 
-    private static Function<ShardContext, ScoreMode> scoreModeFunction(List<SortBuilder<?>> sorts, boolean needsScore,
-                                                                       IndexedByShardId<? extends ShardContext> contexts) {
+    private static Function<ShardContext, ScoreMode> scoreModeFunction(
+        List<SortBuilder<?>> sorts,
+        boolean needsScore,
+        IndexedByShardId<? extends ShardContext> contexts
+    ) {
         return ctx -> {
             try {
                 // we create a collector with a limit of 1 to determine the appropriate score mode to use.
@@ -451,10 +454,6 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             }
         }
 
-        /**
-         * Gets or creates a TopScoreDocCollectorManager.
-         * Uses double-checked locking for thread-safe lazy initialization.
-         */
         TopScoreDocCollectorManager getTopScoreDocCollectorManager() {
             return topScoreDocCollectorManager;
         }
@@ -488,7 +487,10 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             if (needsScore) {
                 if (Sort.RELEVANCE.equals(sort)) {
                     // SORT _score DESC, use top score collector
-                    assert topScoreDocCollectorManager != null : "TopScoreDocCollectorManager should have been built for relevance sort";
+                    Objects.requireNonNull(
+                        topScoreDocCollectorManager,
+                        "TopScoreDocCollectorManager should have been built for relevance sort"
+                    );
                     return topScoreDocCollectorManager.newCollector();
                 } else {
                     // Add doc and score to sort
@@ -496,12 +498,15 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 }
             }
 
-            return getTopFieldCollectorManager(sort).newCollector();
+            TopFieldCollectorManager topFieldCollectorManager = getTopFieldCollectorManager(sort);
+            synchronized (topFieldCollectorManager) {
+                return topFieldCollectorManager.newCollector();
+            }
         }
 
         TopFieldCollectorManager getTopFieldCollectorManager(Sort sort) {
             TopFieldCollectorManager topFieldCollectorManager = topFieldCollectorManagers.get(sort);
-            assert topFieldCollectorManager != null : "TopFieldCollectorManager should have been built for sort: " + sort;
+            Objects.requireNonNull(topFieldCollectorManager, "TopFieldCollectorManager should have been built for sort: " + sort);
             return topFieldCollectorManager;
         }
 

@@ -80,6 +80,21 @@ public class Java21Instrumentation implements InstrumentationConfig {
                 .elseThrowNotEntitled();
         });
 
+        builder.on(MemorySegment.class, rule -> {
+            rule.calling(MemorySegment::reinterpret, Long.class)
+                .enforce(Policies::loadingNativeLibraries)
+                .elseThrowNotEntitled();
+            rule.calling(MemorySegment::reinterpret, TypeToken.of(Arena.class), new TypeToken<Consumer<MemorySegment>>() {})
+                .enforce(Policies::loadingNativeLibraries)
+                .elseThrowNotEntitled();
+            rule.calling(
+                MemorySegment::reinterpret,
+                TypeToken.of(Long.class),
+                TypeToken.of(Arena.class),
+                new TypeToken<Consumer<MemorySegment>>() {}
+            ).enforce(Policies::loadingNativeLibraries).elseThrowNotEntitled();
+        });
+
         registry.registerRule(
             new EntitlementRule(
                 new MethodKey("java/lang/foreign/SymbolLookup", "libraryLookup", List.of("java.lang.String", "java.lang.foreign.Arena")),
@@ -91,7 +106,10 @@ public class Java21Instrumentation implements InstrumentationConfig {
         registry.registerRule(
             new EntitlementRule(
                 new MethodKey("java/lang/foreign/SymbolLookup", "libraryLookup", List.of("java.nio.file.Path", "java.lang.foreign.Arena")),
-                args -> Policies.loadingNativeLibraries(),
+                args -> {
+                    Path path = (Path) args[0];
+                    return Policies.fileRead(path).and(Policies.loadingNativeLibraries());
+                },
                 new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
             )
         );

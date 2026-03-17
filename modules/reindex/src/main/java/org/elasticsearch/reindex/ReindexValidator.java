@@ -69,7 +69,9 @@ public class ReindexValidator {
         ClusterState state = clusterService.state();
         SearchRequest source = request.getSearchRequest();
 
-        if (source.indicesOptions().resolveCrossProjectIndexExpression() == false && source.getProjectRouting() != null) {
+        if (source.indicesOptions().resolveCrossProjectIndexExpression() == false
+            && request.getRemoteInfo() == null
+            && source.getProjectRouting() != null) {
             ActionRequestValidationException e = new ActionRequestValidationException();
             e.addValidationError(
                 "reindex doesn't support project routing [" + source.getProjectRouting() + "] when cross-project search is disabled"

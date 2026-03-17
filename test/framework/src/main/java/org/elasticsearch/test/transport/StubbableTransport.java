@@ -12,6 +12,7 @@ package org.elasticsearch.test.transport;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -343,7 +345,7 @@ public class StubbableTransport implements Transport {
     }
 
     @Override
-    public RecyclerBytesStreamOutput newNetworkBytesStream() {
-        return new RecyclerBytesStreamOutput(new BytesRefRecycler(recycler));
+    public RecyclerBytesStreamOutput newNetworkBytesStream(@Nullable CircuitBreaker circuitBreaker) {
+        return new RecyclerBytesStreamOutput(new BytesRefRecycler(recycler), circuitBreaker);
     }
 }

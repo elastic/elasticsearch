@@ -8,23 +8,34 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -435,6 +446,198 @@ public class FileSplitProviderTests extends ESTestCase {
             totalBytes += ((FileSplit) split).length();
         }
         assertEquals(fileSize, totalBytes);
+    }
+
+    public void testRangeAwareSplitsForParquet() {
+        long[][] fakeRanges = { { 100, 500 }, { 700, 600 }, { 1400, 400 } };
+
+        RangeAwareFormatReader mockReader = createMockRangeReader(List.of(fakeRanges[0], fakeRanges[1], fakeRanges[2]));
+
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy("parquet", (s, bf) -> mockReader, Settings.EMPTY, null);
+        formatRegistry.byName("parquet");
+
+        StorageProviderRegistry storageRegistry = createMockStorageRegistry();
+
+        FileSplitProvider splitter = new FileSplitProvider(
+            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+            new DecompressionCodecRegistry(),
+            storageRegistry,
+            formatRegistry,
+            Settings.EMPTY
+        );
+
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.parquet"), 2000, Instant.EPOCH);
+        FileSet fileSet = new FileSet(List.of(entry), "s3://b/*.parquet");
+
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), PartitionMetadata.EMPTY, List.of());
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx);
+
+        assertEquals(3, splits.size());
+        for (int i = 0; i < splits.size(); i++) {
+            FileSplit fs = (FileSplit) splits.get(i);
+            assertEquals(fakeRanges[i][0], fs.offset());
+            assertEquals(fakeRanges[i][1], fs.length());
+            assertEquals("true", fs.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
+            assertEquals("2000", fs.config().get(FileSplitProvider.FILE_LENGTH_KEY));
+        }
+    }
+
+    public void testRangeAwareFallbackForSingleRowGroup() {
+        RangeAwareFormatReader mockReader = createMockRangeReader(List.of());
+
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy("parquet", (s, bf) -> mockReader, Settings.EMPTY, null);
+        formatRegistry.byName("parquet");
+
+        StorageProviderRegistry storageRegistry = createMockStorageRegistry();
+
+        FileSplitProvider splitter = new FileSplitProvider(
+            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+            new DecompressionCodecRegistry(),
+            storageRegistry,
+            formatRegistry,
+            Settings.EMPTY
+        );
+
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/small.parquet"), 500, Instant.EPOCH);
+        FileSet fileSet = new FileSet(List.of(entry), "s3://b/*.parquet");
+
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), PartitionMetadata.EMPTY, List.of());
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx);
+
+        assertEquals("Single row group should produce single split", 1, splits.size());
+        FileSplit fs = (FileSplit) splits.get(0);
+        assertEquals(0, fs.offset());
+        assertEquals(500, fs.length());
+        assertNull("Single split should not have RANGE_SPLIT_KEY", fs.config().get(FileSplitProvider.RANGE_SPLIT_KEY));
+    }
+
+    private static RangeAwareFormatReader createMockRangeReader(List<long[]> ranges) {
+        return new RangeAwareFormatReader() {
+            @Override
+            public List<long[]> discoverSplitRanges(StorageObject object) {
+                return ranges;
+            }
+
+            @Override
+            public CloseableIterator<Page> readRange(
+                StorageObject object,
+                List<String> projectedColumns,
+                int batchSize,
+                long rangeStart,
+                long rangeEnd,
+                List<Attribute> resolvedAttributes,
+                ErrorPolicy errorPolicy
+            ) {
+                throw new UnsupportedOperationException("not called during split discovery");
+            }
+
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                return null;
+            }
+
+            @Override
+            public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+                return null;
+            }
+
+            @Override
+            public String formatName() {
+                return "parquet";
+            }
+
+            @Override
+            public List<String> fileExtensions() {
+                return List.of(".parquet", ".parq");
+            }
+
+            @Override
+            public void close() {}
+        };
+    }
+
+    private static StorageProviderRegistry createMockStorageRegistry() {
+        StorageProviderRegistry registry = new StorageProviderRegistry(Settings.EMPTY);
+        registry.registerFactory("s3", settings -> new StorageProvider() {
+            @Override
+            public StorageObject newObject(StoragePath path) {
+                return newObject(path, 0);
+            }
+
+            @Override
+            public StorageObject newObject(StoragePath path, long length) {
+                return newObject(path, length, Instant.EPOCH);
+            }
+
+            @Override
+            public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+                return new StorageObject() {
+                    @Override
+                    public InputStream newStream() {
+                        return new ByteArrayInputStream(new byte[0]);
+                    }
+
+                    @Override
+                    public InputStream newStream(long position, long len) {
+                        return new ByteArrayInputStream(new byte[0]);
+                    }
+
+                    @Override
+                    public long length() {
+                        return length;
+                    }
+
+                    @Override
+                    public Instant lastModified() {
+                        return lastModified;
+                    }
+
+                    @Override
+                    public boolean exists() {
+                        return true;
+                    }
+
+                    @Override
+                    public StoragePath path() {
+                        return path;
+                    }
+                };
+            }
+
+            @Override
+            public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+                return new StorageIterator() {
+                    @Override
+                    public boolean hasNext() {
+                        return false;
+                    }
+
+                    @Override
+                    public StorageEntry next() {
+                        throw new java.util.NoSuchElementException();
+                    }
+
+                    @Override
+                    public void close() {}
+                };
+            }
+
+            @Override
+            public boolean exists(StoragePath path) {
+                return true;
+            }
+
+            @Override
+            public List<String> supportedSchemes() {
+                return List.of("s3");
+            }
+
+            @Override
+            public void close() {}
+        });
+        return registry;
     }
 
     // -- helpers --

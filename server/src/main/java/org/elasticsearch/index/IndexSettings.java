@@ -888,6 +888,14 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final FeatureFlag ALLOW_LARGE_BINARY_BLOCK_SIZE = new FeatureFlag("allow_large_binary_block_size");
+    public static final Setting<Boolean> USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE = Setting.boolSetting(
+        "index.use_time_series_doc_values_format_large_binary_block_size",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
      * TODO: Remove in 9.0
@@ -931,6 +939,19 @@ public final class IndexSettings {
      * occupy at most 4 bytes.
      */
 
+    /**
+     * Controls whether flattened fields store root-level doc values when the field has {@code index: false}.
+     * When a flattened field has indexing enabled (the default), root doc values are always stored regardless
+     * of this setting. When indexing is disabled, root doc values are omitted by default to save storage;
+     * set this to {@code true} to force storing them (e.g. if you rely on term aggregations over root values).
+     */
+    public static final Setting<Boolean> STORE_FLATTENED_ROOT_DOC_VALUES = Setting.boolSetting(
+        "index.mapping.flattened.store_root_doc_values",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting(
         "index.mapping.ignore_above",
         settings -> String.valueOf(getIgnoreAboveDefaultValue(settings)),
@@ -955,7 +976,8 @@ public final class IndexSettings {
         settings -> {
             final IndexMode indexMode = IndexSettings.MODE.get(settings);
             if ((indexMode == IndexMode.LOGSDB || indexMode == IndexMode.TIME_SERIES)
-                && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.SEQ_NO_WITHOUT_POINTS)) {
+                && (IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.SEQ_NO_WITHOUT_POINTS)
+                    || IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).equals(IndexVersions.ZERO))) {
                 return SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.toString();
             } else {
                 return SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES.toString();
@@ -1012,12 +1034,15 @@ public final class IndexSettings {
             public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
                 if (enabled) {
                     var indexVersion = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
-                    if (indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS) == false
-                        && indexVersion.equals(IndexVersions.ZERO) == false) {
-                        // We validate settings in different places before a real indexVersion has been assigned or
-                        // is missing for other reasons. In those cases IndexVersion.ZERO is used as fallback value,
-                        // and we don't want to fail those validations. At index creation time we _will_ validate with
-                        // the creation version.
+                    if (indexVersion.equals(IndexVersions.ZERO)) {
+                        // Settings are validated in different places before a real indexVersion has been assigned or is missing for other
+                        // reasons (eg. composable index templates). In those cases IndexVersion.ZERO is used as fallback value, and we
+                        // don't want to fail those validations so we return early here because the next two validation checks require
+                        // the IndexMetadata.SETTING_INDEX_VERSION_CREATED to be set. At index creation time we _will_ validate with the
+                        // creation version.
+                        return;
+                    }
+                    if (indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS) == false) {
                         throw new IllegalArgumentException(
                             String.format(
                                 Locale.ROOT,
@@ -1148,7 +1173,8 @@ public final class IndexSettings {
     private final boolean useDocValuesSkipperForHostname;
     private final boolean useTimeSeriesSyntheticId;
     private final boolean useTimeSeriesDocValuesFormat;
-    private final boolean useTimeSeriesDocValuesFormatLargeBlockSize;
+    private final boolean useTimeSeriesDocValuesFormatLargeNumericBlockSize;
+    private final boolean useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
 
@@ -1355,7 +1381,9 @@ public final class IndexSettings {
             : version.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && version.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
-        useTimeSeriesDocValuesFormatLargeBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
+        useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
+        useTimeSeriesDocValuesFormatLargeBinaryBlockSize = ALLOW_LARGE_BINARY_BLOCK_SIZE.isEnabled()
+            && scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         useTimeSeriesSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(SYNTHETIC_ID);
@@ -2136,8 +2164,18 @@ public final class IndexSettings {
     /**
      * @return Whether the time series doc value format with large numeric block size should be used.
      */
-    public boolean isUseTimeSeriesDocValuesFormatLargeBlockSize() {
-        return useTimeSeriesDocValuesFormatLargeBlockSize;
+    public boolean isUseTimeSeriesDocValuesFormatLargeNumericBlockSize() {
+        return useTimeSeriesDocValuesFormatLargeNumericBlockSize;
+    }
+
+    /**
+     * Checks if the time series DocValues format is configured to use a large binary block size.
+     *
+     * @return {@code true} if the time series DocValues format is using a large binary block size;
+     *         {@code false} otherwise.
+     */
+    public boolean isUseTimeSeriesDocValuesFormatLargeBinaryBlockSize() {
+        return useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
     }
 
     /**

@@ -95,10 +95,21 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
     }
 
     protected void createRole(String name, Collection<String> clusterPrivileges) throws IOException {
+        createRole(name, clusterPrivileges, null, List.of());
+    }
+
+    protected void createRole(String name, Collection<String> clusterPrivileges, String indexPrivilege, Collection<String> indexNames)
+        throws IOException {
         final RoleDescriptor role = new RoleDescriptor(
             name,
             clusterPrivileges.toArray(String[]::new),
-            null,
+            indexPrivilege == null || indexNames == null || indexNames.isEmpty()
+                ? null
+                : new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder()
+                        .indices(indexNames.toArray(String[]::new))
+                        .privileges(indexPrivilege)
+                        .build() },
             null,
             null,
             null,

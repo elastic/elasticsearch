@@ -31,13 +31,13 @@ public final class AnyBytesRefAggregatorFunctionSupplier implements AggregatorFu
   @Override
   public AnyBytesRefAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return AnyBytesRefAggregatorFunction.create(driverContext, channels);
+    return new AnyBytesRefAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public AnyBytesRefGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return AnyBytesRefGroupingAggregatorFunction.create(channels, driverContext);
+    return new AnyBytesRefGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

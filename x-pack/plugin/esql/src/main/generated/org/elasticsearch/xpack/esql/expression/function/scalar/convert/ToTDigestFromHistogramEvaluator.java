@@ -16,26 +16,26 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToTDigest}.
+ * {@link ExpressionEvaluator} implementation for {@link ToTDigest}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToTDigestFromHistogramEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToTDigestFromHistogramEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator in;
+  private final ExpressionEvaluator in;
 
   private final EncodedTDigest decoder;
 
   private final TDigestHolder scratch;
 
-  public ToTDigestFromHistogramEvaluator(Source source, EvalOperator.ExpressionEvaluator in,
+  public ToTDigestFromHistogramEvaluator(Source source, ExpressionEvaluator in,
       EncodedTDigest decoder, TDigestHolder scratch, DriverContext driverContext) {
     super(driverContext, source);
     this.in = in;
@@ -44,7 +44,7 @@ public final class ToTDigestFromHistogramEvaluator extends AbstractConvertFuncti
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return in;
   }
 
@@ -136,16 +136,16 @@ public final class ToTDigestFromHistogramEvaluator extends AbstractConvertFuncti
     return baseRamBytesUsed;
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory in;
+    private final ExpressionEvaluator.Factory in;
 
     private final Function<DriverContext, EncodedTDigest> decoder;
 
     private final Function<DriverContext, TDigestHolder> scratch;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in,
+    public Factory(Source source, ExpressionEvaluator.Factory in,
         Function<DriverContext, EncodedTDigest> decoder,
         Function<DriverContext, TDigestHolder> scratch) {
       this.source = source;

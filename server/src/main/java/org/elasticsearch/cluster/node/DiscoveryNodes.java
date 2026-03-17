@@ -224,9 +224,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
         return filteredNodes(nodes, n -> n.canContainData() == false && n.isMasterNode() == false && n.isIngestNode() == false);
     }
 
-    private static final Comparator<DiscoveryNode> MASTERS_FIRST_COMPARATOR
-    // Ugly hack: when https://github.com/elastic/elasticsearch/issues/94946 is fixed, remove the sorting by ephemeral ID here
-        = Comparator.<DiscoveryNode>comparingInt(n -> n.isMasterNode() ? 0 : 1).thenComparing(DiscoveryNode::getEphemeralId);
+    private static final Comparator<DiscoveryNode> MASTERS_FIRST_COMPARATOR = Comparator.comparingInt(n -> n.isMasterNode() ? 0 : 1);
 
     /**
      * Returns a stream of all nodes, with master nodes at the front

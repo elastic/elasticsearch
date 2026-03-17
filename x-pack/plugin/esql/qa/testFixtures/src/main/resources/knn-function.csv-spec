@@ -521,3 +521,78 @@ count:long | color:text
 2          | green
 2          | olive
 ;
+
+knnAfterSimpleRename
+required_capability: knn_function_v5
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from colors metadata _score
+| rename rgb_vector as vec
+| where knn(vec, [0, 120, 0])
+| sort _score desc, color asc
+| keep color, vec
+| limit 3
+;
+
+color:text | vec:dense_vector
+green      | [0.0, 128.0, 0.0]
+black      | [0.0, 0.0, 0.0]
+olive      | [128.0, 128.0, 0.0]
+;
+
+knnAfterChainedRename
+required_capability: knn_function_v5
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from colors metadata _score
+| rename rgb_vector as x
+| rename x as vec
+| where knn(vec, [0, 120, 0])
+| sort _score desc, color asc
+| keep color, vec
+| limit 3
+;
+
+color:text | vec:dense_vector
+green      | [0.0, 128.0, 0.0]
+black      | [0.0, 0.0, 0.0]
+olive      | [128.0, 128.0, 0.0]
+;
+
+knnAfterEvalAndRename
+required_capability: knn_function_v5
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from colors metadata _score
+| eval x = 1
+| rename rgb_vector as vec
+| where knn(vec, [0, 120, 0])
+| sort _score desc, color asc
+| keep color, vec
+| limit 3
+;
+
+color:text | vec:dense_vector
+green      | [0.0, 128.0, 0.0]
+black      | [0.0, 0.0, 0.0]
+olive      | [128.0, 128.0, 0.0]
+;
+
+knnAfterRenameWithEval
+required_capability: knn_function_v5
+required_capability: fix_full_text_functions_on_renamed_fields
+
+from colors metadata _score
+| rename rgb_vector as vec
+| eval x = 1
+| where knn(vec, [0, 120, 0])
+| sort _score desc, color asc
+| keep color, vec
+| limit 3
+;
+
+color:text | vec:dense_vector
+green      | [0.0, 128.0, 0.0]
+black      | [0.0, 0.0, 0.0]
+olive      | [128.0, 128.0, 0.0]
+;

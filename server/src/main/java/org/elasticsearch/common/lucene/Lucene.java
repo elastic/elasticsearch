@@ -96,7 +96,7 @@ import java.util.stream.Collectors;
 
 public class Lucene {
 
-    public static final String LATEST_CODEC = "Lucene103";
+    public static final String LATEST_CODEC = "Lucene104";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 

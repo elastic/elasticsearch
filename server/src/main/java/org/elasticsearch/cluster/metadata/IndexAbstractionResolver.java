@@ -308,7 +308,7 @@ public class IndexAbstractionResolver {
             throw new IllegalStateException("could not resolve index abstraction [" + index + "]");
         }
         if (indexAbstraction.getType() == IndexAbstraction.Type.VIEW) {
-            return indicesOptions.wildcardOptions().resolveViews();
+            return indicesOptions.indexAbstractionOptions().resolveViews();
         }
         final boolean isHidden = indexAbstraction.isHidden();
         boolean isVisible = isWildcardExpression == false

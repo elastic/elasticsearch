@@ -1,0 +1,5 @@
+area: Data streams
+issues: []
+pr: 143958
+summary: Expand DLM user to allow interaction with .workflows-events
+type: bug

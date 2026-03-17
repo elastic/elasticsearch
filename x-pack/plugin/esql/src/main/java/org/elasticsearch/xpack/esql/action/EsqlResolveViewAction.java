@@ -80,7 +80,8 @@ public class EsqlResolveViewAction extends TransportLocalProjectMetadataAction<
         private String[] indices = new String[0];
         private ResolvedIndexExpressions resolvedIndexExpressions;
         private static final IndicesOptions VIEW_INDICES_OPTIONS = IndicesOptions.builder()
-            .wildcardOptions(IndicesOptions.WildcardOptions.builder().resolveViews(true).allowEmptyExpressions(true))
+            .wildcardOptions(IndicesOptions.WildcardOptions.builder().allowEmptyExpressions(true))
+            .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveViews(true).build())
             .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
             .build();
 

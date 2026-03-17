@@ -242,8 +242,10 @@ public class CBZip2InputStream extends InputStream implements BZip2Constants {
         int result = destOffs - offs;
         if (result == 0) {
             result = b;
-            skipResult = skipToNextBlockMarker();
-            changeStateToProcessABlock();
+            if (readMode == ReadMode.BYBLOCK) {
+                skipResult = skipToNextBlockMarker();
+                changeStateToProcessABlock();
+            }
         }
         return result;
     }

@@ -11,28 +11,26 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for performing arithmetic operations on two dense_vector arguments.
+ * {@link ExpressionEvaluator} implementation for performing arithmetic operations on two dense_vector arguments.
  *
  */
-class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
+class DenseVectorsEvaluator implements ExpressionEvaluator {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DenseVectorsEvaluator.class);
 
     private final BiFunction<Float, Float, Float> op;
     private final String name;
     private final Source source;
-    private final EvalOperator.ExpressionEvaluator lhs;
-    private final EvalOperator.ExpressionEvaluator rhs;
+    private final ExpressionEvaluator lhs;
+    private final ExpressionEvaluator rhs;
     private final DriverContext driverContext;
     private Warnings warnings;
 
@@ -40,8 +38,8 @@ class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
         BiFunction<Float, Float, Float> op,
         String name,
         Source source,
-        EvalOperator.ExpressionEvaluator lhs,
-        EvalOperator.ExpressionEvaluator rhs,
+        ExpressionEvaluator lhs,
+        ExpressionEvaluator rhs,
         DriverContext driverContext
     ) {
         this.op = op;
@@ -125,8 +123,8 @@ class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
 
     static final class Factory implements ExpressionEvaluator.Factory {
         private final Source source;
-        private final EvalOperator.ExpressionEvaluator.Factory lhs;
-        private final EvalOperator.ExpressionEvaluator.Factory rhs;
+        private final ExpressionEvaluator.Factory lhs;
+        private final ExpressionEvaluator.Factory rhs;
         private final BiFunction<Float, Float, Float> op;
         private final String opName;
 

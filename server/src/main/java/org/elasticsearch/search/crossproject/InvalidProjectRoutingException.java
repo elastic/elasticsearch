@@ -16,11 +16,6 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-/**
- * Thrown when a project routing expression is invalid (e.g. malformed syntax, unsupported tags, illegal wildcards).
- * Returns {@link RestStatus#BAD_REQUEST} so that the 400 status code is preserved even when the exception
- * passes through the security authorization layer.
- */
 public final class InvalidProjectRoutingException extends ElasticsearchException {
 
     public static final TransportVersion INVALID_PROJECT_ROUTING_EXCEPTION_VERSION = TransportVersion.fromName(

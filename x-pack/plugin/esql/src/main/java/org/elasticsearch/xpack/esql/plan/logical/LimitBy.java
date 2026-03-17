@@ -33,7 +33,7 @@ public class LimitBy extends UnaryPlan implements TelemetryAware, PipelineBreake
     /**
      * Important for optimizations. This should be {@code false} in most cases, which allows this instance to be duplicated past a child
      * plan node that increases the number of rows, like for LOOKUP JOIN and MV_EXPAND.
-     * Needs to be set to {@code true} in {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits} to avoid
+     * Needs to be set to {@code true} in {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimitBy} to avoid
      * infinite loops from adding a duplicate of the limit past the child over and over again.
      */
     private final transient boolean duplicated;

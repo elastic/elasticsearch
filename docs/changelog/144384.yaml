@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 134886
+pr: 144384
+summary: Esql user agent command
+type: feature

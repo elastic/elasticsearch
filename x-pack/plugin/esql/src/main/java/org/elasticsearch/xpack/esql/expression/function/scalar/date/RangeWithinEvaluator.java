@@ -76,26 +76,30 @@ public class RangeWithinEvaluator implements ExpressionEvaluator {
         if (leftType == DataType.DATE_RANGE && rightType == DataType.DATE_RANGE) {
             LongRangeBlock leftRange = (LongRangeBlock) leftBlock;
             LongRangeBlock rightRange = (LongRangeBlock) rightBlock;
-            long aFrom = leftRange.getFromBlock().getLong(p);
-            long aTo = leftRange.getToBlock().getLong(p);
-            long bFrom = rightRange.getFromBlock().getLong(p);
-            long bTo = rightRange.getToBlock().getLong(p);
+            int leftIdx = leftRange.getFirstValueIndex(p);
+            int rightIdx = rightRange.getFirstValueIndex(p);
+            long aFrom = leftRange.getFromBlock().getLong(leftIdx);
+            long aTo = leftRange.getToBlock().getLong(leftIdx);
+            long bFrom = rightRange.getFromBlock().getLong(rightIdx);
+            long bTo = rightRange.getToBlock().getLong(rightIdx);
             return bFrom >= aFrom && bTo <= aTo;
         }
-        if (leftType == DataType.DATE_RANGE && DataType.isMillisOrNanos(rightType)) {
+        if (leftType == DataType.DATE_RANGE && rightType == DataType.DATETIME) {
             LongRangeBlock leftRange = (LongRangeBlock) leftBlock;
             LongBlock rightLong = (LongBlock) rightBlock;
-            long from = leftRange.getFromBlock().getLong(p);
-            long to = leftRange.getToBlock().getLong(p);
+            int leftIdx = leftRange.getFirstValueIndex(p);
+            long from = leftRange.getFromBlock().getLong(leftIdx);
+            long to = leftRange.getToBlock().getLong(leftIdx);
             long point = rightLong.getLong(rightLong.getFirstValueIndex(p));
             return point >= from && point <= to;
         }
-        if (DataType.isMillisOrNanos(leftType) && rightType == DataType.DATE_RANGE) {
+        if (leftType == DataType.DATETIME && rightType == DataType.DATE_RANGE) {
             LongBlock leftLong = (LongBlock) leftBlock;
             LongRangeBlock rightRange = (LongRangeBlock) rightBlock;
             long point = leftLong.getLong(leftLong.getFirstValueIndex(p));
-            long rFrom = rightRange.getFromBlock().getLong(p);
-            long rTo = rightRange.getToBlock().getLong(p);
+            int rightIdx = rightRange.getFirstValueIndex(p);
+            long rFrom = rightRange.getFromBlock().getLong(rightIdx);
+            long rTo = rightRange.getToBlock().getLong(rightIdx);
             return point >= rFrom && point <= rTo;
         }
         // (date, date)

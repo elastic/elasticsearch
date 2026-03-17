@@ -32,6 +32,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 
 /**
@@ -66,10 +67,10 @@ public class RangeWithin extends EsqlScalarFunction {
     )
     public RangeWithin(
         Source source,
-        @Param(name = "left", type = { "date", "date_nanos", "date_range" }, description = "Container (range or point).") Expression left,
+        @Param(name = "left", type = { "date", "date_range" }, description = "Container (range or point).") Expression left,
         @Param(
             name = "right",
-            type = { "date", "date_nanos", "date_range" },
+            type = { "date", "date_range" },
             description = "Value to test (range or point)."
         ) Expression right
     ) {
@@ -141,12 +142,12 @@ public class RangeWithin extends EsqlScalarFunction {
             LongRangeBlockBuilder.LongRange b = (LongRangeBlockBuilder.LongRange) rightVal;
             return b.from() >= a.from() && b.to() <= a.to();
         }
-        if (leftType == DATE_RANGE && DataType.isMillisOrNanos(rightType)) {
+        if (leftType == DATE_RANGE && rightType == DATETIME) {
             LongRangeBlockBuilder.LongRange r = (LongRangeBlockBuilder.LongRange) leftVal;
             long point = (Long) rightVal;
             return point >= r.from() && point <= r.to();
         }
-        if (DataType.isMillisOrNanos(leftType) && rightType == DATE_RANGE) {
+        if (leftType == DATETIME && rightType == DATE_RANGE) {
             long point = (Long) leftVal;
             LongRangeBlockBuilder.LongRange r = (LongRangeBlockBuilder.LongRange) rightVal;
             return point >= r.from() && point <= r.to();
@@ -163,20 +164,18 @@ public class RangeWithin extends EsqlScalarFunction {
 
         TypeResolution first = isType(
             left,
-            dt -> dt == DATE_RANGE || DataType.isMillisOrNanos(dt),
+            dt -> dt == DATE_RANGE || dt == DATETIME,
             sourceText(),
             FIRST,
             "date",
-            "date_nanos",
             "date_range"
         );
         TypeResolution second = isType(
             right,
-            dt -> dt == DATE_RANGE || DataType.isMillisOrNanos(dt),
+            dt -> dt == DATE_RANGE || dt == DATETIME,
             sourceText(),
             SECOND,
             "date",
-            "date_nanos",
             "date_range"
         );
         return first.and(second);

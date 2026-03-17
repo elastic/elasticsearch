@@ -21,60 +21,6 @@
       ],
       "variadic" : false,
       "returnType" : "boolean"
-    },
-    {
-      "params" : [
-        {
-          "name" : "left",
-          "type" : "date",
-          "optional" : false,
-          "description" : "Container (range or point)."
-        },
-        {
-          "name" : "right",
-          "type" : "date_nanos",
-          "optional" : false,
-          "description" : "Value to test (range or point)."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "boolean"
-    },
-    {
-      "params" : [
-        {
-          "name" : "left",
-          "type" : "date_nanos",
-          "optional" : false,
-          "description" : "Container (range or point)."
-        },
-        {
-          "name" : "right",
-          "type" : "date",
-          "optional" : false,
-          "description" : "Value to test (range or point)."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "boolean"
-    },
-    {
-      "params" : [
-        {
-          "name" : "left",
-          "type" : "date_nanos",
-          "optional" : false,
-          "description" : "Container (range or point)."
-        },
-        {
-          "name" : "right",
-          "type" : "date_nanos",
-          "optional" : false,
-          "description" : "Value to test (range or point)."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "boolean"
     }
   ],
   "examples" : [

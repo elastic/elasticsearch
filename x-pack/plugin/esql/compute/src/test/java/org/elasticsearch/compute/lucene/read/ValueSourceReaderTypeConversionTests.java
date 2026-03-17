@@ -10,6 +10,7 @@ package org.elasticsearch.compute.lucene.read;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -76,7 +78,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.hamcrest.Matcher;
 import org.junit.After;
 
@@ -1296,7 +1297,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
 
         @Override
         Long evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
-            return StringUtils.parseLong(container.getBytesRef(index, scratchPad).utf8ToString());
+            return Long.parseLong(container.getBytesRef(index, scratchPad).utf8ToString());
         }
 
         @Override
@@ -1328,7 +1329,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
 
         @Override
         Integer evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
-            return (int) StringUtils.parseLong(container.getBytesRef(index, scratchPad).utf8ToString());
+            return Integer.parseInt(container.getBytesRef(index, scratchPad).utf8ToString());
         }
 
         @Override
@@ -1449,7 +1450,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
 
         @Override
         BytesRef convertByteRef(BytesRef bytesRef) {
-            return StringUtils.parseIP(bytesRef.utf8ToString());
+            var inetAddress = InetAddresses.forString(bytesRef.utf8ToString());
+            return new BytesRef(InetAddressPoint.encode(inetAddress));
         }
     }
 

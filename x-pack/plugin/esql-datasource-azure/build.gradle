@@ -22,7 +22,6 @@ base {
 dependencies {
   // SPI interfaces from ESQL core
   compileOnly project(path: xpackModule('esql'))
-  compileOnly project(path: xpackModule('esql-core'))
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
 

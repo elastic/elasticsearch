@@ -27,6 +27,7 @@ dependencies {
   clusterModules project(':x-pack:plugin:esql')
   clusterModules project(':x-pack:plugin:autoscaling')
   clusterModules project(':x-pack:plugin:ilm')
+  clusterModules project(':modules:lang-painless')
 }
 
 tasks.withType(StandaloneRestIntegTestTask).configureEach {

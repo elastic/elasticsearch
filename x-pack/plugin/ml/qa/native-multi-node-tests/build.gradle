@@ -16,7 +16,6 @@ dependencies {
   javaRestTestImplementation project(path: xpackModule('monitoring'))
   javaRestTestImplementation project(path: xpackModule('transform'))
   javaRestTestImplementation project(path: xpackModule('rank-rrf'))
-  javaRestTestImplementation project(path: xpackModule('esql-core'))
   javaRestTestImplementation project(path: xpackModule('esql'))
   javaRestTestImplementation project(path: xpackModule('snapshot-repo-test-kit'))
   javaRestTestImplementation project(path: xpackModule('ent-search'))

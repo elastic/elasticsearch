@@ -22,7 +22,6 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('esql'))
-  compileOnly project(path: xpackModule('esql-core'))
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))
@@ -76,7 +75,6 @@ dependencies {
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(xpackModule('esql'))
-  testImplementation project(xpackModule('esql-core'))
   testImplementation project(xpackModule('esql:qa:testFixtures'))
   runtimeOnly 'com.google.guava:guava:33.4.0-jre'
   runtimeOnly 'com.google.guava:failureaccess:1.0.2'

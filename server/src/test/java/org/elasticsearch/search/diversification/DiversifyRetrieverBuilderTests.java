@@ -515,83 +515,28 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
 
     private ScoreDoc[] getTestVectorSupplierScoreDocuments() {
         return new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
-            getTestVectorSupplierScoreDoc(
-                1,
-                1,
-                2.0f,
-                List.of(new VectorData(new float[] { 0.4f, 0.2f, 0.4f, 0.4f })),
-                DenseVectorFieldMapper.ElementType.FLOAT
-            ),
-            getTestVectorSupplierScoreDoc(
-                2,
-                2,
-                1.8f,
-                List.of(new VectorData(new float[] { 0.4f, 0.2f, 0.3f, 0.3f })),
-                DenseVectorFieldMapper.ElementType.FLOAT
-            ),
-            getTestVectorSupplierScoreDoc(
-                3,
-                0,
-                1.8f,
-                List.of(new VectorData(new float[] { 0.4f, 0.1f, 0.3f, 0.3f })),
-                DenseVectorFieldMapper.ElementType.FLOAT
-            ),
-            getTestVectorSupplierScoreDoc(
-                4,
-                0,
-                1.0f,
-                List.of(new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f })),
-                DenseVectorFieldMapper.ElementType.FLOAT
-            ),
-            getTestVectorSupplierScoreDoc(
-                5,
-                1,
-                0.8f,
-                List.of(new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f })),
-                DenseVectorFieldMapper.ElementType.FLOAT
-            ),
-            getTestVectorSupplierScoreDoc(
-                6,
-                1,
-                0.8f,
-                List.of(new VectorData(new float[] { 0.05f, 0.05f, 0.05f, 0.05f })),
-                DenseVectorFieldMapper.ElementType.FLOAT
-            ) };
+            getTestVectorSupplierScoreDoc(1, 1, 2.0f, List.of(new VectorData(new float[] { 0.4f, 0.2f, 0.4f, 0.4f }))),
+            getTestVectorSupplierScoreDoc(2, 2, 1.8f, List.of(new VectorData(new float[] { 0.4f, 0.2f, 0.3f, 0.3f }))),
+            getTestVectorSupplierScoreDoc(3, 0, 1.8f, List.of(new VectorData(new float[] { 0.4f, 0.1f, 0.3f, 0.3f }))),
+            getTestVectorSupplierScoreDoc(4, 0, 1.0f, List.of(new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f }))),
+            getTestVectorSupplierScoreDoc(5, 1, 0.8f, List.of(new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f }))),
+            getTestVectorSupplierScoreDoc(6, 1, 0.8f, List.of(new VectorData(new float[] { 0.05f, 0.05f, 0.05f, 0.05f }))) };
     }
 
     private ScoreDoc[] getTestVectorSupplierScoreDocumentsByteVectors() {
         return new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
-            getTestVectorSupplierScoreDoc(
-                1,
-                1,
-                2.0f,
-                List.of(new VectorData(new float[] { 10, 20, 30, 40 })),
-                DenseVectorFieldMapper.ElementType.BYTE
-            ),
-            getTestVectorSupplierScoreDoc(
-                2,
-                2,
-                1.8f,
-                List.of(new VectorData(new float[] { 12, 24, 36, 48 })),
-                DenseVectorFieldMapper.ElementType.BYTE
-            ),
-            getTestVectorSupplierScoreDoc(
-                3,
-                0,
-                1.8f,
-                List.of(new VectorData(new float[] { 45, 35, 25, 15 })),
-                DenseVectorFieldMapper.ElementType.BYTE
-            ), };
+            getTestVectorSupplierScoreDoc(1, 1, 2.0f, List.of(new VectorData(new float[] { 10, 20, 30, 40 }))),
+            getTestVectorSupplierScoreDoc(2, 2, 1.8f, List.of(new VectorData(new float[] { 12, 24, 36, 48 }))),
+            getTestVectorSupplierScoreDoc(3, 0, 1.8f, List.of(new VectorData(new float[] { 45, 35, 25, 15 }))), };
     }
 
     private DiversifyRetrieverBuilder.RankDocWithSearchHit getTestVectorSupplierScoreDoc(
         int rank,
         int docId,
         float score,
-        List<VectorData> vectorData,
-        DenseVectorFieldMapper.ElementType elementType
+        List<VectorData> vectorData
     ) {
-        MockDenseVectorTestSupplier supplierField = new MockDenseVectorTestSupplier(vectorData, elementType);
+        MockDenseVectorTestSupplier supplierField = new MockDenseVectorTestSupplier(vectorData);
         Map<String, Object> inferenceFieldValues = Map.of("dense_vector_field", supplierField);
         SearchHit hit = new SearchHit(docId);
         hit.setDocumentField(new DocumentField(InferenceMetadataFieldsMapper.NAME, List.of(inferenceFieldValues)));
@@ -760,19 +705,12 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         return new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
     }
 
-    public record MockDenseVectorTestSupplier(List<VectorData> vectors, DenseVectorFieldMapper.ElementType elementType)
-        implements
-            DenseVectorSupplier {
+    public record MockDenseVectorTestSupplier(List<VectorData> vectors) implements DenseVectorSupplier {
         public static String NAME = "mock_supplier_field";
 
         @Override
         public List<VectorData> getDenseVectorData() throws IOException {
             return vectors;
-        }
-
-        @Override
-        public DenseVectorFieldMapper.ElementType getElementType() {
-            return elementType;
         }
 
         @Override

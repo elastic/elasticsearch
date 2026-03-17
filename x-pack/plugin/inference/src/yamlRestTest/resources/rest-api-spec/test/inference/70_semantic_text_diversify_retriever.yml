@@ -244,8 +244,9 @@ setup:
   - match: { hits.hits.2._source.id: 7130674 }
 
 ---
-"MMR diversification using semantic_text field with string encoded query vector":
+"MMR diversification using semantic_text field cannot use string encoded query vector":
   - do:
+      catch: /\[query_vector\] for diversification cannot be string encoded/
       search:
         index: test-result-diversification-semantic-text-index
         body:
@@ -263,11 +264,8 @@ setup:
                       content:
                         query: "What causes muscle soreness after running?"
 
-  - match: { hits.total.value: 8 }
-  - length: { hits.hits: 3 }
-  - match: { hits.hits.0._source.id: 7130348 }
-  - match: { hits.hits.1._source.id: 7130674 }
-  - match: { hits.hits.2._source.id: 8001869 }
+  - match: { status: 400 }
+  - match: { error.type: status_exception }
 
 ---
 "MMR diversification using semantic_text field with copy_to":

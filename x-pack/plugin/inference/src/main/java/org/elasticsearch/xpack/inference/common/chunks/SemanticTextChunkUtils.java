@@ -226,8 +226,7 @@ public class SemanticTextChunkUtils {
     public static VectorData getTextEmbeddingVectorFromChunk(
         SemanticTextField.Chunk chunk,
         XContentType contentType,
-        DenseVectorFieldMapper.ElementType elementType,
-        int dimensions
+        DenseVectorFieldMapper.ElementType elementType
     ) throws IOException {
         XContentParser parser = XContentHelper.createParserNotCompressed(
             XContentParserConfiguration.EMPTY,
@@ -244,20 +243,6 @@ public class SemanticTextChunkUtils {
             parsedVector = new VectorData(parsedVector.asByteVector());
         }
 
-        if (parsedVector.isStringVector()) {
-            parsedVector = VectorData.decodeQueryVector(parsedVector.stringVector(), elementType, dimensions);
-        }
-
         return parsedVector;
-    }
-
-    public static int getEmbeddingLength(DenseVectorFieldMapper.ElementType elementType, int dimensions) {
-        return switch (elementType) {
-            case FLOAT, BFLOAT16, BYTE -> dimensions;
-            case BIT -> {
-                assert dimensions % Byte.SIZE == 0;
-                yield dimensions / Byte.SIZE;
-            }
-        };
     }
 }

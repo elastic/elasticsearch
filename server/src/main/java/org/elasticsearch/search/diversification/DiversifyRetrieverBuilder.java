@@ -17,10 +17,10 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.rest.RestStatus;
@@ -55,7 +55,6 @@ import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.search.diversification.ResultDiversification.getVectorComparisonScore;
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
 import static org.elasticsearch.search.vectors.VectorDataUtils.extractVectorDataFromObject;
-import static org.elasticsearch.search.vectors.VectorDataUtils.getDenseVectorElementType;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -371,6 +370,13 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
         ResultDiversificationContext diversificationContext = getResultDiversificationContext();
 
+        // don't handle string encoded query vectors yet
+        if (diversificationContext.getQueryVector() != null && diversificationContext.getQueryVector().isStringVector()) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "[%s] for diversification cannot be string encoded", QUERY_VECTOR_FIELD.getPreferredName())
+            );
+        }
+
         // gather and set the query vectors
         // and create our intermediate results set
         RankDoc[] results = new RankDoc[scoreDocs.length];
@@ -481,18 +487,8 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
             return vector;
         }
 
-        var field = doc.hit.getFields().get(diversificationField);
-        if (field == null) {
-            return null;
-        }
-
-        VectorData ret = extractVectorDataFromObject(field.getValues());
-        if (ret == null) {
-            return null;
-        }
-
-        ensureQueryVectorIsDecoded(diversificationContext, getDenseVectorElementType(field), ret.size());
-        return ret;
+        DocumentField field = doc.hit.getFields().get(diversificationField);
+        return field == null ? null : extractVectorDataFromObject(field.getValues());
     }
 
     private VectorData tryGetVectorFromInferenceField(SearchHit hit, ResultDiversificationContext diversificationContext)
@@ -526,9 +522,6 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                     return null;
                 }
 
-                DenseVectorFieldMapper.ElementType elementType = vectorSupplier.getElementType();
-                ensureQueryVectorIsDecoded(diversificationContext, elementType, fieldVectors.getFirst().size());
-
                 int bestScoringVectorIndex = 0;
                 float currentHighestScore = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < fieldVectors.size(); i++) {
@@ -552,20 +545,5 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         }
 
         return null;
-    }
-
-    private void ensureQueryVectorIsDecoded(
-        ResultDiversificationContext diversificationContext,
-        DenseVectorFieldMapper.ElementType elementType,
-        int dimensions
-    ) {
-        if (diversificationContext.getQueryVector() != null && diversificationContext.getQueryVector().isStringVector()) {
-            VectorData queryVectorData = VectorData.decodeQueryVector(
-                diversificationContext.getQueryVector().stringVector(),
-                elementType,
-                dimensions
-            );
-            diversificationContext.setQueryVector(() -> queryVectorData);
-        }
     }
 }

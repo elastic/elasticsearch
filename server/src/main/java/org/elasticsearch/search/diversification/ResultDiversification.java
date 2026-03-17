@@ -34,7 +34,7 @@ public abstract class ResultDiversification<C extends ResultDiversificationConte
         VectorData comparisonVector
     ) {
         if (thisDocVector.isStringVector() || comparisonVector.isStringVector()) {
-            throw new IllegalArgumentException("string vectors should be decoded before comparison");
+            throw new IllegalStateException("string vectors should be decoded before comparison");
         }
 
         return thisDocVector.isFloat()

@@ -9,8 +9,6 @@
 
 package org.elasticsearch.search.vectors;
 
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-
 import java.util.Arrays;
 import java.util.List;
 
@@ -18,52 +16,22 @@ import java.util.List;
  * Helper to try and extract {@link VectorData} objects from generic object data, such as Lucene fields values
  */
 public final class VectorDataUtils {
-    public static DenseVectorFieldMapper.ElementType getDenseVectorElementType(Object value) {
-        if (value == null) {
-            return null;
-        }
-
-        var thisFieldValue = normalizeVectorFieldValue(value);
-
-        switch (thisFieldValue) {
-            case float[] floatArray -> {
-                return DenseVectorFieldMapper.ElementType.FLOAT;
-            }
-            case byte[] byteArray -> {
-                return DenseVectorFieldMapper.ElementType.BYTE;
-            }
-            case Float[] boxedFloatArray -> {
-                return DenseVectorFieldMapper.ElementType.FLOAT;
-            }
-            case Byte[] boxedByteArray -> {
-                return DenseVectorFieldMapper.ElementType.BYTE;
-            }
-            case Object[] objectArray -> {
-                if (objectArray.length == 0) {
-                    return null;
-                }
-
-                if (objectArray[0] instanceof Byte) {
-                    return DenseVectorFieldMapper.ElementType.BYTE;
-                }
-
-                if (objectArray[0] instanceof Float) {
-                    return DenseVectorFieldMapper.ElementType.FLOAT;
-                }
-            }
-            default -> {
-            }
-        }
-
-        return null;
-    }
 
     public static VectorData extractVectorDataFromObject(Object value) {
         if (value == null) {
             return null;
         }
 
-        var thisFieldValue = normalizeVectorFieldValue(value);
+        var thisFieldValue = value;
+        if (value instanceof List<?> asList && asList.isEmpty() == false) {
+            if (asList.getFirst().getClass().isArray()) {
+                // if it's a multivalued field object, get the first value
+                thisFieldValue = asList.getFirst();
+            } else {
+                thisFieldValue = asList.toArray();
+            }
+        }
+
         if (thisFieldValue instanceof Object[] objectArray) {
             if (objectArray.length == 0) {
                 return null;
@@ -114,17 +82,5 @@ public final class VectorDataUtils {
             unboxedArray[bIndex++] = b;
         }
         return unboxedArray;
-    }
-
-    private static Object normalizeVectorFieldValue(Object value) {
-        if (value instanceof List<?> asList && asList.isEmpty() == false) {
-            if (asList.getFirst().getClass().isArray()) {
-                // if it's a multivalued field object, get the first value
-                return asList.getFirst();
-            } else {
-                return asList.toArray();
-            }
-        }
-        return value;
     }
 }

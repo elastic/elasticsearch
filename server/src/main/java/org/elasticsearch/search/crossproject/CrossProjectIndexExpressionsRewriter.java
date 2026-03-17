@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
@@ -149,6 +150,9 @@ public class CrossProjectIndexExpressionsRewriter {
         }
 
         final String indexExpression = splitResource[1];
+        if (RemoteClusterAware.isRemoteIndexName(indexExpression)) {
+            throw new InvalidIndexNameException(resource, "Cross-project chaining is not supported");
+        }
         if (isExclusion && isExclusionExpression(indexExpression)) {
             throw new IllegalArgumentException("Cannot apply exclusion for both the project and the index expression [" + resource + "]");
         }

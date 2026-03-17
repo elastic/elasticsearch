@@ -1487,3 +1487,75 @@ TS k8s | STATS max_rate = max(rate(network.total_bytes_in)) BY bucket = bucket(@
 
 max_rate:double | bucket:datetime
 ;
+
+tsRateWithWindowAndTBucketTargetCount
+required_capability: ts_command_v0
+required_capability: tbucket_from_to
+required_capability: rate_with_interpolation_v2
+required_capability: fix_tbucket_target_count_window_validation
+
+TS k8s
+| STATS sum_rate=sum(rate(network.total_bytes_in, 10m)) BY time_bucket = TBUCKET(20, "2024-05-10T00:00:00Z", "2024-05-10T01:00:00Z")
+| EVAL sum_rate=ROUND(sum_rate, 6)
+| KEEP sum_rate, time_bucket
+| SORT time_bucket DESC | LIMIT 3;
+
+sum_rate:double  | time_bucket:datetime
+11.979987        | 2024-05-10T00:20:00.000Z
+69.403259        | 2024-05-10T00:15:00.000Z
+79.551314        | 2024-05-10T00:10:00.000Z
+;
+
+tsLastOverTimeWithWindowAndTBucketTargetCount
+required_capability: ts_command_v0
+required_capability: tbucket_from_to
+required_capability: fix_tbucket_target_count_window_validation
+
+TS k8s
+| STATS max_cost=max(last_over_time(network.cost, 10 minute)) BY time_bucket = TBUCKET(20, "2024-05-10T00:00:00Z", "2024-05-10T01:00:00Z"), cluster
+| KEEP max_cost, time_bucket, cluster
+| SORT time_bucket DESC, cluster | LIMIT 6;
+
+max_cost:double | time_bucket:datetime     | cluster:keyword
+10.75           | 2024-05-10T00:20:00.000Z | prod
+10.875          | 2024-05-10T00:20:00.000Z | qa
+9.5             | 2024-05-10T00:20:00.000Z | staging
+10.75           | 2024-05-10T00:15:00.000Z | prod
+10.875          | 2024-05-10T00:15:00.000Z | qa
+9.5             | 2024-05-10T00:15:00.000Z | staging
+;
+
+windowSmallerThanBucket
+required_capability: ts_command_v0
+required_capability: time_series_window_smaller_than_bucket
+TS k8s
+| STATS max = max(max_over_time(network.cost, 1m)), max2 = max(max_over_time(network.cost, 4m)) by cluster, pod, b = bucket(@timestamp,5minute)
+| SORT b, cluster, pod
+| WHERE max is not null
+;
+
+max:double | max2:double | cluster:keyword | pod:keyword | b:datetime
+5.625      | 8.375       | prod            | one         | 2024-05-10T00:00:00.000Z
+11.0       | 11.0        | qa              | one         | 2024-05-10T00:00:00.000Z
+10.375     | 12.375      | qa              | two         | 2024-05-10T00:00:00.000Z
+2.0        | 12.00       | prod            | one         | 2024-05-10T00:05:00.000Z
+11.375     | 11.375      | prod            | three       | 2024-05-10T00:05:00.000Z
+8.875      | 8.875       | prod            | two         | 2024-05-10T00:05:00.000Z
+8.875      | 12.375      | qa              | one         | 2024-05-10T00:05:00.000Z
+7.875      | 8.125       | qa              | three       | 2024-05-10T00:05:00.000Z
+11.875     | 12.0        | qa              | two         | 2024-05-10T00:05:00.000Z
+10.0       | 10.125      | staging         | one         | 2024-05-10T00:05:00.000Z
+9.75       | 9.75        | staging         | three       | 2024-05-10T00:05:00.000Z
+12.5       | 12.5        | staging         | two         | 2024-05-10T00:05:00.000Z
+9.375      | 9.375       | prod            | one         | 2024-05-10T00:10:00.000Z
+11.25      | 11.625      | prod            | three       | 2024-05-10T00:10:00.000Z
+0.125      | 5.75        | prod            | two         | 2024-05-10T00:10:00.000Z
+1.0        | 11.875      | qa              | one         | 2024-05-10T00:10:00.000Z
+3.5        | 11.375      | qa              | three       | 2024-05-10T00:10:00.000Z
+2.125      | 11.375      | staging         | three       | 2024-05-10T00:10:00.000Z
+2.625      | 6.125       | staging         | two         | 2024-05-10T00:10:00.000Z
+11.125     | 11.125      | prod            | one         | 2024-05-10T00:15:00.000Z
+12.25      | 12.375      | prod            | three       | 2024-05-10T00:15:00.000Z
+5.625      | 5.625       | prod            | two         | 2024-05-10T00:15:00.000Z
+8.625      | 10.125      | qa              | two         | 2024-05-10T00:15:00.000Z
+;

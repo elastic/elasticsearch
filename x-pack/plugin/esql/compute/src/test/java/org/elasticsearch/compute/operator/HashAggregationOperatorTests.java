@@ -20,13 +20,15 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
@@ -34,9 +36,17 @@ import java.util.stream.LongStream;
 
 import static java.util.stream.IntStream.range;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
+    public static HashAggregationOperator.Builder randomBuilder() {
+        return new HashAggregationOperator.Builder().partialEmit(between(1, 1000), randomDoubleBetween(0.1, 10.0, true))
+            .maxPageSize(randomPageSize())
+            .aggregationBatchSize(randomPageSize());
+    }
+
+    private int maxPageSize;
+
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         long max = randomLongBetween(1, Long.MAX_VALUE / size);
@@ -58,18 +68,17 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
             sumChannels = maxChannels = List.of(1);
         }
 
-        return new HashAggregationOperator.HashAggregationOperatorFactory(
-            List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
-            mode,
-            List.of(
-                new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, sumChannels),
-                new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, maxChannels)
-            ),
-            randomPageSize(),
-            between(1, 1000),
-            randomDoubleBetween(0.1, 10.0, true),
-            null
-        );
+        maxPageSize = randomPageSize();
+        return randomBuilder().mode(mode)
+            .groups(List.of(new BlockHash.GroupSpec(0, ElementType.LONG)))
+            .aggregators(
+                List.of(
+                    new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, sumChannels),
+                    new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, maxChannels)
+                )
+            )
+            .maxPageSize(maxPageSize)
+            .build();
     }
 
     @Override
@@ -88,21 +97,31 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
     @Override
     protected void assertSimpleOutput(List<Page> input, List<Page> results) {
-        assertThat(results, hasSize(1));
-        assertThat(results.get(0).getBlockCount(), equalTo(3));
-        assertThat(results.get(0).getPositionCount(), equalTo(5));
+        int totalPositions = 0;
+        for (Page page : results) {
+            assertThat(page.getBlockCount(), equalTo(3));
+            assertThat(page.getPositionCount(), lessThanOrEqualTo(maxPageSize));
+            totalPositions += page.getPositionCount();
+        }
+        assertThat(totalPositions, equalTo(5));
 
         SumLongGroupingAggregatorFunctionTests sum = new SumLongGroupingAggregatorFunctionTests();
         MaxLongGroupingAggregatorFunctionTests max = new MaxLongGroupingAggregatorFunctionTests();
 
-        LongBlock groups = results.get(0).getBlock(0);
-        Block sums = results.get(0).getBlock(1);
-        Block maxs = results.get(0).getBlock(2);
-        for (int i = 0; i < 5; i++) {
-            long group = groups.getLong(i);
-            sum.assertSimpleGroup(input, sums, i, group);
-            max.assertSimpleGroup(input, maxs, i, group);
+        List<Long> seenGroups = new ArrayList<>();
+        for (Page page : results) {
+            LongBlock groups = page.getBlock(0);
+            Block sums = page.getBlock(1);
+            Block maxes = page.getBlock(2);
+            for (int i = 0; i < groups.getPositionCount(); i++) {
+                long group = groups.getLong(i);
+                seenGroups.add(group);
+                sum.assertSimpleGroup(input, sums, i, group);
+                max.assertSimpleGroup(input, maxes, i, group);
+            }
         }
+        Collections.sort(seenGroups);
+        assertThat(seenGroups, equalTo(List.of(0L, 1L, 2L, 3L, 4L)));
     }
 
     public void testTopNNullsLast() {
@@ -114,20 +133,22 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
         var mode = AggregatorMode.SINGLE;
         var groupChannel = 0;
         var aggregatorChannels = List.of(1);
+        int maxPageSize = randomPageSize();
 
         try (
-            var operator = new HashAggregationOperator.HashAggregationOperatorFactory(
-                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, false, 3))),
-                mode,
-                List.of(
-                    new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels),
-                    new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
-                ),
-                randomPageSize(),
-                between(1, 1000),
-                randomDoubleBetween(0.1, 10.0, true),
-                null
-            ).get(driverContext())
+            var operator = randomBuilder().groups(
+                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, false, 3)))
+            )
+                .mode(mode)
+                .aggregators(
+                    List.of(
+                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels),
+                        new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
+                    )
+                )
+                .maxPageSize(maxPageSize)
+                .build()
+                .get(driverContext())
         ) {
             var page = new Page(
                 BlockUtils.fromList(
@@ -156,31 +177,13 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                 )
             );
             operator.addInput(page);
-
-            operator.finish();
-
-            var outputPage = operator.getOutput();
-
-            var groupsBlock = (LongBlock) outputPage.getBlock(0);
-            var sumBlock = (LongBlock) outputPage.getBlock(1);
-            var maxBlock = (LongBlock) outputPage.getBlock(2);
-
-            assertThat(groupsBlock.getPositionCount(), equalTo(3));
-            assertThat(sumBlock.getPositionCount(), equalTo(3));
-            assertThat(maxBlock.getPositionCount(), equalTo(3));
-
-            assertThat(groupsBlock.getTotalValueCount(), equalTo(3));
-            assertThat(sumBlock.getTotalValueCount(), equalTo(3));
-            assertThat(maxBlock.getTotalValueCount(), equalTo(3));
-
-            assertThat(
-                BlockTestUtils.valuesAtPositions(groupsBlock, 0, 3),
-                equalTo(List.of(List.of(groups[3]), List.of(groups[5]), List.of(groups[4])))
+            assertTopN(
+                maxPageSize,
+                operator,
+                equalTo(List.of(groups[3], groups[5], groups[4])),
+                equalTo(List.of(24L, 192L, 32L)),
+                equalTo(List.of(16L, 128L, 32L))
             );
-            assertThat(BlockTestUtils.valuesAtPositions(sumBlock, 0, 3), equalTo(List.of(List.of(24L), List.of(192L), List.of(32L))));
-            assertThat(BlockTestUtils.valuesAtPositions(maxBlock, 0, 3), equalTo(List.of(List.of(16L), List.of(128L), List.of(32L))));
-
-            outputPage.releaseBlocks();
         }
     }
 
@@ -193,20 +196,22 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
         var mode = AggregatorMode.SINGLE;
         var groupChannel = 0;
         var aggregatorChannels = List.of(1);
+        int maxPageSize = randomPageSize();
 
         try (
-            var operator = new HashAggregationOperator.HashAggregationOperatorFactory(
-                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, true, 3))),
-                mode,
-                List.of(
-                    new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels),
-                    new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
-                ),
-                randomPageSize(),
-                between(1, 1000),
-                randomDoubleBetween(0.1, 10.0, true),
-                null
-            ).get(driverContext())
+            var operator = randomBuilder().groups(
+                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, true, 3)))
+            )
+                .mode(mode)
+                .aggregators(
+                    List.of(
+                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels),
+                        new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
+                    )
+                )
+                .maxPageSize(maxPageSize)
+                .build()
+                .get(driverContext())
         ) {
             var page = new Page(
                 BlockUtils.fromList(
@@ -235,31 +240,13 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                 )
             );
             operator.addInput(page);
-
-            operator.finish();
-
-            var outputPage = operator.getOutput();
-
-            var groupsBlock = (LongBlock) outputPage.getBlock(0);
-            var sumBlock = (LongBlock) outputPage.getBlock(1);
-            var maxBlock = (LongBlock) outputPage.getBlock(2);
-
-            assertThat(groupsBlock.getPositionCount(), equalTo(3));
-            assertThat(sumBlock.getPositionCount(), equalTo(3));
-            assertThat(maxBlock.getPositionCount(), equalTo(3));
-
-            assertThat(groupsBlock.getTotalValueCount(), equalTo(2));
-            assertThat(sumBlock.getTotalValueCount(), equalTo(3));
-            assertThat(maxBlock.getTotalValueCount(), equalTo(3));
-
-            assertThat(
-                BlockTestUtils.valuesAtPositions(groupsBlock, 0, 3),
-                equalTo(Arrays.asList(null, List.of(groups[5]), List.of(groups[4])))
+            assertTopN(
+                maxPageSize,
+                operator,
+                equalTo(Arrays.asList(null, groups[5], groups[4])),
+                equalTo(List.of(513L, 192L, 32L)),
+                equalTo(List.of(512L, 128L, 32L))
             );
-            assertThat(BlockTestUtils.valuesAtPositions(sumBlock, 0, 3), equalTo(List.of(List.of(513L), List.of(192L), List.of(32L))));
-            assertThat(BlockTestUtils.valuesAtPositions(maxBlock, 0, 3), equalTo(List.of(List.of(512L), List.of(128L), List.of(32L))));
-
-            outputPage.releaseBlocks();
         }
     }
 
@@ -277,24 +264,26 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
             Arrays.sort(groups, Comparator.reverseOrder());
         }
         var groupChannel = 0;
+        int maxPageSize = randomPageSize();
 
         // Supplier of operators to ensure that they're identical, simulating a datanode/coordinator connection
         Function<AggregatorMode, Operator> makeAggWithMode = (mode) -> {
             var sumAggregatorChannels = mode.isInputPartial() ? List.of(1, 2) : List.of(1);
             var maxAggregatorChannels = mode.isInputPartial() ? List.of(3, 4) : List.of(1);
 
-            return new HashAggregationOperator.HashAggregationOperatorFactory(
-                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, false, 3))),
-                mode,
-                List.of(
-                    new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, sumAggregatorChannels),
-                    new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, maxAggregatorChannels)
-                ),
-                randomPageSize(),
-                between(1, 1000),
-                randomDoubleBetween(0.1, 10.0, true),
-                null
-            ).get(driverContext());
+            return randomBuilder().groups(
+                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, false, 3)))
+            )
+                .mode(mode)
+                .aggregators(
+                    List.of(
+                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, sumAggregatorChannels),
+                        new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, maxAggregatorChannels)
+                    )
+                )
+                .maxPageSize(maxPageSize)
+                .build()
+                .get(driverContext());
         };
 
         // The operator that will collect all the results
@@ -307,8 +296,10 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                 datanodeOperator.addInput(page);
                 datanodeOperator.finish();
 
-                var outputPage = datanodeOperator.getOutput();
-                collectingOperator.addInput(outputPage);
+                Page outputPage;
+                while ((outputPage = datanodeOperator.getOutput()) != null) {
+                    collectingOperator.addInput(outputPage);
+                }
             }
 
             // Second datanode, sending an outdated TopN, as the coordinator has better top values already
@@ -326,34 +317,56 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                 datanodeOperator.addInput(page);
                 datanodeOperator.finish();
 
-                var outputPage = datanodeOperator.getOutput();
-                collectingOperator.addInput(outputPage);
+                Page outputPage;
+                while ((outputPage = datanodeOperator.getOutput()) != null) {
+                    collectingOperator.addInput(outputPage);
+                }
             }
 
-            collectingOperator.finish();
-
-            var outputPage = collectingOperator.getOutput();
-
-            var groupsBlock = (LongBlock) outputPage.getBlock(0);
-            var sumBlock = (LongBlock) outputPage.getBlock(1);
-            var maxBlock = (LongBlock) outputPage.getBlock(2);
-
-            assertThat(groupsBlock.getPositionCount(), equalTo(3));
-            assertThat(sumBlock.getPositionCount(), equalTo(3));
-            assertThat(maxBlock.getPositionCount(), equalTo(3));
-
-            assertThat(groupsBlock.getTotalValueCount(), equalTo(3));
-            assertThat(sumBlock.getTotalValueCount(), equalTo(3));
-            assertThat(maxBlock.getTotalValueCount(), equalTo(3));
-
-            assertThat(
-                BlockTestUtils.valuesAtPositions(groupsBlock, 0, 3),
-                equalTo(Arrays.asList(List.of(groups[4]), List.of(groups[3]), List.of(groups[5])))
+            assertTopN(
+                maxPageSize,
+                collectingOperator,
+                equalTo(List.of(groups[4], groups[3], groups[5])),
+                equalTo(List.of(1L, 18L, 8L)),
+                equalTo(List.of(1L, 16L, 8L))
             );
-            assertThat(BlockTestUtils.valuesAtPositions(sumBlock, 0, 3), equalTo(List.of(List.of(1L), List.of(18L), List.of(8L))));
-            assertThat(BlockTestUtils.valuesAtPositions(maxBlock, 0, 3), equalTo(List.of(List.of(1L), List.of(16L), List.of(8L))));
+        }
+    }
 
+    private void assertTopN(
+        int maxPageSize,
+        Operator operator,
+        Matcher<List<Long>> expectedGroups,
+        Matcher<List<Long>> expectedSums,
+        Matcher<List<Long>> expectedMaxes
+    ) {
+        operator.finish();
+
+        List<Long> seenGroups = new ArrayList<>();
+        List<Long> seenSums = new ArrayList<>();
+        List<Long> seenMaxes = new ArrayList<>();
+        Page outputPage;
+        while ((outputPage = operator.getOutput()) != null) {
+            assertThat(outputPage.getBlockCount(), equalTo(3));
+            assertThat(outputPage.getPositionCount(), lessThanOrEqualTo(maxPageSize));
+            LongBlock groupsBlock = outputPage.getBlock(0);
+            LongVector sumBlock = outputPage.<LongBlock>getBlock(1).asVector();
+            LongVector maxBlock = outputPage.<LongBlock>getBlock(2).asVector();
+
+            for (int i = 0; i < groupsBlock.getPositionCount(); i++) {
+                if (groupsBlock.isNull(i)) {
+                    seenGroups.add(null);
+                } else {
+                    assertThat(groupsBlock.getValueCount(i), equalTo(1));
+                    seenGroups.add(groupsBlock.getLong(groupsBlock.getFirstValueIndex(i)));
+                }
+                seenSums.add(sumBlock.getLong(i));
+                seenMaxes.add(maxBlock.getLong(i));
+            }
             outputPage.releaseBlocks();
         }
+        assertThat(seenGroups, expectedGroups);
+        assertThat(seenSums, expectedSums);
+        assertThat(seenMaxes, expectedMaxes);
     }
 }

@@ -50,6 +50,7 @@ tasks.named('javaRestTest') {
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  include('**/*IT.class')
 }
 
 tasks.named('yamlRestTest') {

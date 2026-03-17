@@ -9,17 +9,23 @@
 
 package org.elasticsearch.useragent;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.UserAgentParserRegistryProvider;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.List;
 
 public class UserAgentPlugin extends Plugin implements UserAgentParserRegistryProvider {
+
+    private final SetOnce<UserAgentParserRegistry> registry = new SetOnce<>();
 
     @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     static final Setting<Long> DEPRECATED_CACHE_SIZE_SETTING = Setting.longSetting(
@@ -37,8 +43,15 @@ public class UserAgentPlugin extends Plugin implements UserAgentParserRegistryPr
     );
 
     @Override
-    public org.elasticsearch.useragent.api.UserAgentParserRegistry createUserAgentParserRegistry(Environment env) {
-        return createRegistry(env, env.settings());
+    public UserAgentParserRegistry createRegistry(Environment env) {
+        var created = createRegistry(env, env.settings());
+        registry.set(created);
+        return created;
+    }
+
+    @Override
+    public Collection<Object> createComponents(PluginServices services) {
+        return List.of(new PluginComponentBinding<>(UserAgentParserRegistry.class, registry.get()));
     }
 
     @Override
@@ -56,6 +69,6 @@ public class UserAgentPlugin extends Plugin implements UserAgentParserRegistryPr
         Path ingestUserAgentConfigDirectory = env.configDir().resolve("ingest-user-agent");
         long cacheSize = CACHE_SIZE_SETTING.get(settings);
         UserAgentCache cache = new UserAgentCache(cacheSize);
-        return new UserAgentParserRegistry(cache, userAgentConfigDirectory, ingestUserAgentConfigDirectory);
+        return new UserAgentParserRegistryImpl(cache, userAgentConfigDirectory, ingestUserAgentConfigDirectory);
     }
 }

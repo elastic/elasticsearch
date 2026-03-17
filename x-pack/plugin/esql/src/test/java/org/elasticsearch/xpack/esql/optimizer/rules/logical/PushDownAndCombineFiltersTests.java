@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
+import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -2440,6 +2441,38 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         var registeredDomain = as(topFilter.child(), RegisteredDomain.class);
 
         var bottomFilter = as(registeredDomain.child(), Filter.class);
+        assertThat(bottomFilter.condition(), instanceOf(And.class));
+        var bottomAnd = as(bottomFilter.condition(), And.class);
+
+        var condition1 = as(bottomAnd.left(), GreaterThan.class);
+        assertThat(as(condition1.left(), FieldAttribute.class).name(), is("emp_no"));
+
+        var condition2 = as(bottomAnd.right(), GreaterThan.class);
+        assertThat(as(condition2.left(), FieldAttribute.class).name(), is("salary"));
+
+        as(bottomFilter.child(), EsRelation.class);
+    }
+
+    public void testPushDownFilterPastUserAgent() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        String query = """
+            FROM test
+            | WHERE emp_no > 10000
+            | user_agent ua = first_name WITH { "extract_device_type": true }
+            | WHERE ua.name == "Chrome" AND salary > 5000
+            """;
+        LogicalPlan plan = optimizedPlan(query);
+
+        var limit = as(plan, Limit.class);
+
+        var topFilter = as(limit.child(), Filter.class);
+        assertThat(topFilter.condition(), instanceOf(Equals.class));
+        var topEquals = as(topFilter.condition(), Equals.class);
+        assertThat(as(topEquals.left(), ReferenceAttribute.class).name(), is("ua.name"));
+
+        var userAgent = as(topFilter.child(), UserAgent.class);
+
+        var bottomFilter = as(userAgent.child(), Filter.class);
         assertThat(bottomFilter.condition(), instanceOf(And.class));
         var bottomAnd = as(bottomFilter.condition(), And.class);
 

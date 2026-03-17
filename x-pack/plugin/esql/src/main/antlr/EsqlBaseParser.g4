@@ -73,6 +73,7 @@ processingCommand
     | metricsInfoCommand
     | registeredDomainCommand
     | tsInfoCommand
+    | userAgentCommand
     | mmrCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
@@ -386,6 +387,10 @@ uriPartsCommand
 
 registeredDomainCommand
     : REGISTERED_DOMAIN qualifiedName ASSIGN primaryExpression
+    ;
+
+userAgentCommand
+    : USER_AGENT qualifiedName ASSIGN primaryExpression commandNamedParameters
     ;
 
 setCommand

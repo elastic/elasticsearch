@@ -143,6 +143,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
+import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -10361,6 +10362,42 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(orderNames(topN), contains("rd.registered_domain"));
         var registeredDomain = as(topN.child(), RegisteredDomain.class);
         as(registeredDomain.child(), EsRelation.class);
+    }
+
+    public void testPushDownUserAgentPastProject() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        String query = """
+            from test
+            | rename first_name as x
+            | keep x
+            | user_agent ua = x WITH { "extract_device_type": true }
+            """;
+        LogicalPlan plan = optimizedPlan(query);
+
+        var keep = as(plan, Project.class);
+        var userAgent = as(keep.child(), UserAgent.class);
+        assertThat(
+            userAgent.output().stream().map(Attribute::name).collect(Collectors.toSet()),
+            hasItems("ua.name", "ua.version", "ua.os.name", "ua.device.name")
+        );
+        var limit = as(userAgent.child(), Limit.class);
+        as(limit.child(), EsRelation.class);
+    }
+
+    public void testCombineOrderByThroughUserAgent() {
+        assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
+        String query = """
+            from test
+            | sort emp_no
+            | user_agent ua = first_name WITH { "extract_device_type": true }
+            | sort ua.name
+            """;
+        LogicalPlan plan = optimizedPlan(query);
+
+        var topN = as(plan, TopN.class);
+        assertThat(orderNames(topN), contains("ua.name"));
+        var userAgent = as(topN.child(), UserAgent.class);
+        as(userAgent.child(), EsRelation.class);
     }
 
     public void testTopSnippetsQueryMustBeFoldable() {

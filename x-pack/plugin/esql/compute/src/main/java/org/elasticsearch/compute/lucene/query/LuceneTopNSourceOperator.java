@@ -20,6 +20,7 @@ import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
@@ -33,6 +34,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
@@ -444,7 +446,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 try {
                     buildCollectors(getShardContextSort(shardContext, sorts));
                 } catch (IOException e) {
-                    // Ignore the exception, will throw later when we try to get the sort from the shard context
+                    throw new ElasticsearchException("Error building collector for sort",  e);
                 }
             }
         }
@@ -500,9 +502,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
 
         TopFieldCollectorManager getTopFieldCollectorManager(Sort sort) {
-            TopFieldCollectorManager topFieldCollectorManager = topFieldCollectorManagers.get(sort);
-            Objects.requireNonNull(topFieldCollectorManager, "TopFieldCollectorManager should have been built for sort: " + sort);
-            return topFieldCollectorManager;
+            // XFieldComparatorSource subclasses (e.g. BytesRefFieldComparatorSource) do not override
+            // equals(), so Sort equality is identity-based for custom sort fields. computeIfAbsent
+            // uses the pre-built manager when Sort.equals() works (standard sorts), and lazily creates
+            // a new one as a fallback for custom sorts where the pre-built key never matches.
+            return topFieldCollectorManagers.computeIfAbsent(sort, s -> new TopFieldCollectorManager(s, limit, null, 0));
         }
 
         PerShardCollector newPerShardCollector(ShardContext context) throws IOException {

@@ -294,9 +294,6 @@ tests:
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteBlobWithRetries
   issue: https://github.com/elastic/elasticsearch/issues/144025
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
-  method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
-  issue: https://github.com/elastic/elasticsearch/issues/138012
 - class: org.elasticsearch.upgrades.MappingSupplementaryCharacterRollingUpgradeIT
   method: testMappingWithSupplementaryCharacterFieldName {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/144163
@@ -315,9 +312,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasource.grpc.EmployeeFlightServerTests
   method: testMultiEndpointEachPartitionHasRows
   issue: https://github.com/elastic/elasticsearch/issues/144244
-- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
-  method: testEndpointGetsUpdated_GivenFingerprintChanges_FromNull
-  issue: https://github.com/elastic/elasticsearch/issues/144249
 - class: org.elasticsearch.xpack.security.authc.service.ServiceAccountIT
   method: testAuthenticateShouldNotFallThroughInCaseOfFailure
   issue: https://github.com/elastic/elasticsearch/issues/144262

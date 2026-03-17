@@ -1352,7 +1352,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 olderIndices.add(index);
             }
         }
-        return olderIndices;
+        return Set.copyOf(olderIndices);
     }
 
     private boolean isIndexOlderThan(

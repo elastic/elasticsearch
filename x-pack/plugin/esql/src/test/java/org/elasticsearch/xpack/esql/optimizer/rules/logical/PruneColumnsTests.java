@@ -47,7 +47,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.containsIgnoringIds;
@@ -1607,7 +1606,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | keep id
             """;
 
-        var analyzedPlan = unionIndexAnalyzer.analyze(TEST_PARSER.parseQuery(query));
+        var analyzedPlan = unionIndexAnalyzer().query(query);
 
         // run through this rule only because this is the one which enables the project pruning in this case and it's
         // how PruneColumns does its thing in case of Project prunning
@@ -1658,7 +1657,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | keep id
             """;
 
-        var analyzedPlan = unionIndexAnalyzer.analyze(TEST_PARSER.parseQuery(query));
+        var analyzedPlan = unionIndexAnalyzer().query(query);
 
         // run through this rule only because this is the one which enables the project pruning in this case and it's
         // how PruneColumns does its thing in case of Project prunning
@@ -1717,7 +1716,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | keep id
             """;
 
-        var analyzedPlan = unionIndexAnalyzer.analyze(TEST_PARSER.parseQuery(query));
+        var analyzedPlan = unionIndexAnalyzer().query(query);
 
         // run through this rule only because this is the one which enables the project pruning in this case and it's
         // how PruneColumns does its thing in case of Project prunning

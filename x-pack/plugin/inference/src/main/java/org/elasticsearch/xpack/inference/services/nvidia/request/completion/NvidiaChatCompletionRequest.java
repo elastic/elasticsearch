@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.nvidia.request.completion;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -39,7 +40,7 @@ public class NvidiaChatCompletionRequest implements Request {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(getURI());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -51,7 +52,7 @@ public class NvidiaChatCompletionRequest implements Request {
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaTypeWithoutParameters());
         httpPost.setHeader(createAuthBearerHeader(model.getSecretSettings().apiKey()));
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     @Override

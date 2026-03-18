@@ -41,6 +41,8 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -544,6 +546,298 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
                 response.getHits().getAt(0).getSourceAsMap(),
                 equalTo(Collections.singletonMap("headers", Collections.singletonMap("origin", "https://www.elastic.co")))
             )
+        );
+    }
+
+    public void testMappedPropertyTermQuery() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("event")
+            .field("type", "flattened")
+            .startObject("properties")
+            .startObject("host.name")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex("props_test", Settings.EMPTY, mapping);
+
+        prepareIndex("props_test").setId("1")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .setSource(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("event")
+                    .field("host.name", "server-a")
+                    .field("region", "us-east")
+                    .endObject()
+                    .endObject()
+            )
+            .get();
+
+        prepareIndex("props_test").setId("2")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .setSource(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("event")
+                    .field("host.name", "server-b")
+                    .field("region", "eu-west")
+                    .endObject()
+                    .endObject()
+            )
+            .get();
+
+        // Mapped property: term query on the typed keyword sub-field
+        assertHitCount(client().prepareSearch("props_test").setQuery(termQuery("event.host.name", "server-a")), 1L);
+        assertHitCount(client().prepareSearch("props_test").setQuery(termQuery("event.host.name", "server-b")), 1L);
+        assertHitCount(client().prepareSearch("props_test").setQuery(termQuery("event.host.name", "nonexistent")), 0L);
+
+        // Unmapped key: still queryable through the flattened keyed mechanism
+        assertHitCount(client().prepareSearch("props_test").setQuery(termQuery("event.region", "us-east")), 1L);
+        assertHitCount(client().prepareSearch("props_test").setQuery(termQuery("event.region", "eu-west")), 1L);
+    }
+
+    public void testMappedPropertySort() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("event")
+            .field("type", "flattened")
+            .startObject("properties")
+            .startObject("priority")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex("sort_test", Settings.EMPTY, mapping);
+
+        prepareIndex("sort_test").setId("1")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .setSource(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("event")
+                    .field("priority", "B")
+                    .field("other", "x")
+                    .endObject()
+                    .endObject()
+            )
+            .get();
+
+        prepareIndex("sort_test").setId("2")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .setSource(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("event")
+                    .field("priority", "A")
+                    .field("other", "y")
+                    .endObject()
+                    .endObject()
+            )
+            .get();
+
+        prepareIndex("sort_test").setId("3")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .setSource(XContentFactory.jsonBuilder().startObject().startObject("event").field("priority", "C").endObject().endObject())
+            .get();
+
+        // Sort ascending on the mapped keyword property
+        assertNoFailuresAndResponse(client().prepareSearch("sort_test").addSort("event.priority", SortOrder.ASC), response -> {
+            assertHitCount(response, 3);
+            assertOrderedSearchHits(response, "2", "1", "3");
+        });
+
+        // Sort descending
+        assertNoFailuresAndResponse(client().prepareSearch("sort_test").addSort("event.priority", SortOrder.DESC), response -> {
+            assertHitCount(response, 3);
+            assertOrderedSearchHits(response, "3", "1", "2");
+        });
+    }
+
+    public void testMappedPropertyTermsAggregation() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("event")
+            .field("type", "flattened")
+            .startObject("properties")
+            .startObject("status")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex("agg_test", Settings.EMPTY, mapping);
+
+        BulkRequestBuilder bulkRequest = client().prepareBulk("agg_test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < 5; i++) {
+            bulkRequest.add(
+                client().prepareIndex()
+                    .setSource(
+                        XContentFactory.jsonBuilder()
+                            .startObject()
+                            .startObject("event")
+                            .field("status", "ok")
+                            .field("region", "us-east")
+                            .endObject()
+                            .endObject()
+                    )
+            );
+        }
+        for (int i = 0; i < 3; i++) {
+            bulkRequest.add(
+                client().prepareIndex()
+                    .setSource(
+                        XContentFactory.jsonBuilder()
+                            .startObject()
+                            .startObject("event")
+                            .field("status", "error")
+                            .field("region", "eu-west")
+                            .endObject()
+                            .endObject()
+                    )
+            );
+        }
+        BulkResponse bulkResponse = bulkRequest.get();
+        assertNoFailures(bulkResponse);
+
+        // Terms aggregation on the mapped keyword property
+        TermsAggregationBuilder statusAgg = createTermsAgg("event.status");
+        assertNoFailuresAndResponse(client().prepareSearch("agg_test").addAggregation(statusAgg), response -> {
+            Terms statusTerms = response.getAggregations().get("terms");
+            assertThat(statusTerms, notNullValue());
+            assertThat(statusTerms.getBuckets().size(), equalTo(2));
+
+            Terms.Bucket okBucket = statusTerms.getBucketByKey("ok");
+            assertEquals(5, okBucket.getDocCount());
+
+            Terms.Bucket errorBucket = statusTerms.getBucketByKey("error");
+            assertEquals(3, errorBucket.getDocCount());
+        });
+
+        // Terms aggregation on unmapped key still works through flattened
+        TermsAggregationBuilder regionAgg = createTermsAgg("event.region");
+        assertNoFailuresAndResponse(client().prepareSearch("agg_test").addAggregation(regionAgg), response -> {
+            Terms regionTerms = response.getAggregations().get("terms");
+            assertThat(regionTerms.getBuckets().size(), equalTo(2));
+        });
+    }
+
+    public void testMappedPropertyLongRangeQuery() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("metrics")
+            .field("type", "flattened")
+            .startObject("properties")
+            .startObject("response_time")
+            .field("type", "long")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex("range_test", Settings.EMPTY, mapping);
+
+        BulkRequestBuilder bulkRequest = client().prepareBulk("range_test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        int[] responseTimes = { 50, 120, 200, 350, 500 };
+        for (int i = 0; i < responseTimes.length; i++) {
+            bulkRequest.add(
+                client().prepareIndex()
+                    .setId(Integer.toString(i))
+                    .setSource(
+                        XContentFactory.jsonBuilder()
+                            .startObject()
+                            .startObject("metrics")
+                            .field("response_time", responseTimes[i])
+                            .field("label", "req-" + i)
+                            .endObject()
+                            .endObject()
+                    )
+            );
+        }
+        BulkResponse bulkResponse = bulkRequest.get();
+        assertNoFailures(bulkResponse);
+
+        // Numeric range query on the mapped long property
+        assertHitCount(client().prepareSearch("range_test").setQuery(rangeQuery("metrics.response_time").gte(100).lte(300)), 2L);
+        assertHitCount(client().prepareSearch("range_test").setQuery(rangeQuery("metrics.response_time").gt(200)), 2L);
+        assertHitCount(client().prepareSearch("range_test").setQuery(rangeQuery("metrics.response_time").lt(100)), 1L);
+
+        // Sort on the mapped long property
+        assertNoFailuresAndResponse(
+            client().prepareSearch("range_test").addSort("metrics.response_time", SortOrder.DESC),
+            response -> {
+                assertHitCount(response, 5);
+                assertOrderedSearchHits(response, "4", "3", "2", "1", "0");
+            }
+        );
+
+        // Unmapped key still works as flattened
+        assertHitCount(client().prepareSearch("range_test").setQuery(termQuery("metrics.label", "req-0")), 1L);
+    }
+
+    public void testMappedPropertyDocValueFields() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("event")
+            .field("type", "flattened")
+            .startObject("properties")
+            .startObject("host.name")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex("dv_test", Settings.EMPTY, mapping);
+
+        prepareIndex("dv_test").setId("1")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .setSource(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("event")
+                    .field("host.name", "server-a")
+                    .field("region", "us-east")
+                    .endObject()
+                    .endObject()
+            )
+            .get();
+
+        assertNoFailuresAndResponse(
+            client().prepareSearch("dv_test").addDocValueField("event.host.name").addDocValueField("event.region"),
+            response -> {
+                assertHitCount(response, 1);
+                Map<String, DocumentField> fields = response.getHits().getAt(0).getFields();
+
+                DocumentField hostField = fields.get("event.host.name");
+                assertEquals("event.host.name", hostField.getName());
+                assertEquals("server-a", hostField.getValue());
+
+                DocumentField regionField = fields.get("event.region");
+                assertEquals("event.region", regionField.getName());
+                assertEquals("us-east", regionField.getValue());
+            }
         );
     }
 }

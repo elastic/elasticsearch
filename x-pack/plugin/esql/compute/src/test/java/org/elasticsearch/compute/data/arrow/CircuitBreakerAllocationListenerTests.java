@@ -13,7 +13,9 @@ import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.IntVector;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.test.ESTestCase;
@@ -21,7 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 public class CircuitBreakerAllocationListenerTests extends ESTestCase {
 
     private CircuitBreaker breaker(long limit) {
-        return new TestBreaker(limit);
+        return new LimitedBreaker("test", ByteSizeValue.ofBytes(limit));
     }
 
     private BufferAllocator allocator(CircuitBreaker breaker) {
@@ -143,67 +145,5 @@ public class CircuitBreakerAllocationListenerTests extends ESTestCase {
         assertEquals(0, breaker.getUsed());
 
         blockFactory.ensureAllBlocksAreReleased();
-    }
-
-    static class TestBreaker implements CircuitBreaker {
-        private long limit;
-        private long used = 0;
-
-        TestBreaker(long limit) {
-            this.limit = limit;
-        }
-
-        @Override
-        public void circuitBreak(String fieldName, long bytesNeeded) {
-            throw new CircuitBreakingException(fieldName, bytesNeeded, limit, Durability.TRANSIENT);
-        }
-
-        @Override
-        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-            if (used + bytes > limit) {
-                throw new CircuitBreakingException(label, bytes, limit, Durability.TRANSIENT);
-            }
-            used += bytes;
-        }
-
-        @Override
-        public void addWithoutBreaking(long bytes) {
-            used += bytes;
-        }
-
-        @Override
-        public long getUsed() {
-            return used;
-        }
-
-        @Override
-        public long getLimit() {
-            return limit;
-        }
-
-        @Override
-        public double getOverhead() {
-            return 0;
-        }
-
-        @Override
-        public long getTrippedCount() {
-            return 0;
-        }
-
-        @Override
-        public String getName() {
-            return "test breaker";
-        }
-
-        @Override
-        public Durability getDurability() {
-            return Durability.TRANSIENT;
-        }
-
-        @Override
-        public void setLimitAndOverhead(long limit, double overhead) {
-            this.limit = limit;
-        }
     }
 }

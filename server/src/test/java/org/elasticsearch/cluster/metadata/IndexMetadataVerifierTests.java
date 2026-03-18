@@ -16,13 +16,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.test.index.IndexVersionUtils.getPreviousVersion;
@@ -312,6 +315,34 @@ public class IndexMetadataVerifierTests extends ESTestCase {
 
         assertEquals("-200", result.getSettings().get("index.refresh_interval"));
         assertNull(result.getSettings().get("archived.index.refresh_interval"));
+    }
+
+    public void testIsScriptCompilationError() {
+        ScriptException scriptException = new ScriptException(
+            "compile error",
+            new IllegalArgumentException("variable [values] is already defined"),
+            List.of(),
+            "test_script",
+            "painless"
+        );
+
+        assertTrue(IndexMetadataVerifier.isScriptCompilationError(scriptException));
+
+        MapperParsingException wrappedOnce = new MapperParsingException("Failed to parse mapping: compile error", scriptException);
+        assertTrue(IndexMetadataVerifier.isScriptCompilationError(wrappedOnce));
+
+        Exception wrappedTwice = new RuntimeException("outer", wrappedOnce);
+        assertTrue(IndexMetadataVerifier.isScriptCompilationError(wrappedTwice));
+
+        assertFalse(IndexMetadataVerifier.isScriptCompilationError(new IllegalArgumentException("not a script error")));
+        assertFalse(IndexMetadataVerifier.isScriptCompilationError(new MapperParsingException("not a script error")));
+
+        // Verify the method handles cyclic cause chains without infinite looping
+        RuntimeException cycleA = new RuntimeException("a");
+        RuntimeException cycleB = new RuntimeException("b");
+        cycleA.initCause(cycleB);
+        cycleB.initCause(cycleA);
+        assertFalse(IndexMetadataVerifier.isScriptCompilationError(cycleA));
     }
 
     private IndexMetadataVerifier getIndexMetadataVerifier() {

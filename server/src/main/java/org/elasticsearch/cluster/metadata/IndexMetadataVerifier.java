@@ -30,12 +30,14 @@ import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.AbstractMap;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -318,9 +320,38 @@ public class IndexMetadataVerifier {
             }
 
         } catch (Exception ex) {
-            // Wrap the inner exception so we have the index name in the exception message
-            throw new IllegalStateException("Failed to parse mappings for index [" + indexMetadata.getIndex() + "]", ex);
+            if (isScriptCompilationError(ex)) {
+                logger.warn(
+                    () -> format(
+                        "Failed to compile a runtime field script while verifying mappings for index [%s]. "
+                            + "This index can still be loaded but runtime fields with incompatible scripts will not function correctly "
+                            + "until the scripts are updated via the PUT mapping API.",
+                        indexMetadata.getIndex()
+                    ),
+                    ex
+                );
+            } else {
+                // Wrap the inner exception so we have the index name in the exception message
+                throw new IllegalStateException("Failed to parse mappings for index [" + indexMetadata.getIndex() + "]", ex);
+            }
         }
+    }
+
+    /**
+     * Returns {@code true} if the given exception was caused by a script compilation error. Script compilation
+     * errors should not prevent node startup since they can be fixed by the user through the API once the node
+     * is running.
+     */
+    public static boolean isScriptCompilationError(Exception ex) {
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        Throwable cause = ex;
+        while (cause != null && seen.add(cause)) {
+            if (cause instanceof ScriptException) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 
     /**

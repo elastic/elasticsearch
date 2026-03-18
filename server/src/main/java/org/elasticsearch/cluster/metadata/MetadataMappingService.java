@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -156,8 +157,26 @@ public class MetadataMappingService {
                             if (indexMapperServices.containsKey(indexMetadata.getIndex()) == false) {
                                 MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
                                 indexMapperServices.put(index, mapperService);
-                                // add mappings for all types, we need them for cross-type validation
-                                mapperService.merge(indexMetadata, MergeReason.MAPPING_RECOVERY);
+                                try {
+                                    mapperService.merge(indexMetadata, MergeReason.MAPPING_RECOVERY);
+                                } catch (Exception e) {
+                                    if (IndexMetadataVerifier.isScriptCompilationError(e)) {
+                                        logger.warn(
+                                            "failed to load existing mapping for index [{}] due to a script compilation error; "
+                                                + "the mapping update will replace the full mapping rather than merging",
+                                            index
+                                        );
+                                        HeaderWarning.addWarning(
+                                            "failed to load existing mapping for index ["
+                                                + index
+                                                + "] due to a script compilation error; "
+                                                + "this mapping update replaces the full mapping rather than merging. "
+                                                + "Ensure your request includes ALL fields to avoid losing existing mappings."
+                                        );
+                                    } else {
+                                        throw e;
+                                    }
+                                }
                             }
                         }
                         currentState = applyRequest(currentState, request, indexMapperServices);
@@ -318,7 +337,19 @@ public class MetadataMappingService {
             // We could consider caching the result on the request object to avoid doing the same work twice. This would require some
             // checks to ensure the cached result is only used if the circumstances are the same (e.g., no changes to the index settings).
             try (MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata)) {
-                mapperService.merge(indexMetadata, MergeReason.MAPPING_RECOVERY);
+                try {
+                    mapperService.merge(indexMetadata, MergeReason.MAPPING_RECOVERY);
+                } catch (Exception e) {
+                    if (IndexMetadataVerifier.isScriptCompilationError(e)) {
+                        logger.debug(
+                            "cannot determine noop for index [{}] due to script compilation error in existing mapping, "
+                                + "proceeding with mapping update",
+                            index
+                        );
+                        return false;
+                    }
+                    throw e;
+                }
                 DocumentMapper mergedMapper = mapperService.merge(MapperService.SINGLE_MAPPING_NAME, request.source(), reason);
                 CompressedXContent updatedSource = mergedMapper.mappingSource();
                 if (updatedSource.equals(mappingMetadata.source()) == false) {

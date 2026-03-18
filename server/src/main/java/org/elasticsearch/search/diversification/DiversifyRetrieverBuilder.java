@@ -270,7 +270,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         }
 
         // don't handle string encoded query vectors yet
-        if (queryVector != null && queryVector.get().isStringVector()) {
+        if (queryVector != null && queryVector.get() != null && queryVector.get().isStringVector()) {
             validationException = addValidationError(
                 String.format(
                     Locale.ROOT,

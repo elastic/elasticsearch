@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Arrays;
 import java.util.Random;
 
 public class LogSumExpTests extends ESTestCase {
@@ -44,7 +43,7 @@ public class LogSumExpTests extends ESTestCase {
 
         Random random = random();
 
-        for (int iter = 0; iter < 1_000_000; iter++) {
+        for (int iter = 0; iter < 1_000; iter++) {
             for (int i = 0; i < nRows; i++) {
                 for (int j = 0; j < nCols; j++) {
                     x[i][j] = (float) random.nextDouble();

@@ -217,11 +217,13 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
     /// The processor tracking and cleanup runs on all nodes.
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        // Master reconciliation
         super.clusterChanged(event);
 
         if (event.metadataChanged() == false) {
             return;
         }
+        // Runs on all nodes
         final var projects = event.state().metadata().projects();
         for (var projectMetadata : projects.values()) {
             ProjectId projectId = projectMetadata.id();

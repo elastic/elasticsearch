@@ -33,10 +33,13 @@ public abstract class DiscoveryEc2NetworkAddressesTestCase extends ESIntegTestCa
 
     void verifyPublishAddress(String publishAddressSetting, String expectedAddress) throws IOException {
         final var node = internalCluster().startNode(Settings.builder().put("http.publish_host", publishAddressSetting));
-        assertEquals(
-            expectedAddress,
-            internalCluster().getInstance(HttpServerTransport.class, node).boundAddress().publishAddress().getAddress()
-        );
+        String actualAddress = internalCluster().getInstance(HttpServerTransport.class, node).boundAddress().publishAddress().getAddress();
+
+        if (actualAddress.equals("::1") && expectedAddress.equals("127.0.0.1")) {
+            expectedAddress = "::1";
+        }
+
+        assertEquals(expectedAddress, actualAddress);
         internalCluster().stopNode(node);
     }
 }

@@ -122,7 +122,11 @@ public class CrossProjectIndexResolutionValidator {
             // TODO consider sorting during index re-writing, to avoid sorting here
             var remoteExpressions = localResolvedIndices.remoteExpressions().stream().sorted().toList();
             ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
-            ElasticsearchException localException = checkResolutionFailure(localExpressions, originalExpression, indicesOptions);
+            ElasticsearchException localException = checkResolutionFailure(
+                localExpressions,
+                asOriginExpression(originalExpression),
+                indicesOptions
+            );
 
             if (isQualifiedExpression) {
                 if (localException != null) {
@@ -385,6 +389,14 @@ public class CrossProjectIndexResolutionValidator {
             .orElse(null);
     }
 
+    private static String asOriginExpression(String originalExpression) {
+        var split = RemoteClusterAware.splitIndexName(originalExpression);
+        if (split[0] == null || split[0].indexOf('*') == -1) {
+            return originalExpression;
+        }
+        return RemoteClusterAware.buildRemoteIndexName("_origin", split[1]);
+    }
+
     private static ElasticsearchException checkResolutionFailure(
         ResolvedIndexExpression.LocalExpressions localExpressions,
         String expression,
@@ -401,7 +413,6 @@ public class CrossProjectIndexResolutionValidator {
             } else if (result == CONCRETE_RESOURCE_UNAUTHORIZED) {
                 assert localExpressions.exception() != null
                     : "ResolvedIndexExpression should have exception set when concrete index is unauthorized";
-
                 return localExpressions.exception();
             }
         }

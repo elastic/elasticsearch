@@ -20,6 +20,7 @@ dependencies {
   implementation "org.apache.lucene:lucene-core:${versions.lucene}"
 
   testImplementation(testArtifact(project(':x-pack:plugin:searchable-snapshots')))
+  testImplementation(testFixtures(project(':libs:native')))
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'native'
   }

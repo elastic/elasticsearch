@@ -297,15 +297,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
   issue: https://github.com/elastic/elasticsearch/issues/138012
-- class: org.elasticsearch.upgrades.MappingSupplementaryCharacterRollingUpgradeIT
-  method: testMappingWithSupplementaryCharacterFieldName {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/144163
-- class: org.elasticsearch.upgrades.MappingSupplementaryCharacterRollingUpgradeIT
-  method: testMappingWithSupplementaryCharacterFieldName {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/144164
-- class: org.elasticsearch.upgrades.MappingSupplementaryCharacterRollingUpgradeIT
-  method: testMappingWithSupplementaryCharacterFieldName {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/144165
 - class: org.elasticsearch.test.apmintegration.MetricsApmIT
   method: testJvmMetrics {withOTel=true}
   issue: https://github.com/elastic/elasticsearch/issues/144166
@@ -327,21 +318,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.service.ServiceAccountIT
   method: testAuthenticateShouldNotFallThroughInCaseOfFailure
   issue: https://github.com/elastic/elasticsearch/issues/144262
-- class: org.elasticsearch.xpack.esql.parser.StatementParserTests
-  method: testLimitBy
-  issue: https://github.com/elastic/elasticsearch/issues/144267
-- class: org.elasticsearch.xpack.esql.parser.StatementParserTests
-  method: testLimitByQualifiedName
-  issue: https://github.com/elastic/elasticsearch/issues/144268
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/143023
 - class: org.elasticsearch.test.apmintegration.MetricsApmIT
   method: testApmIntegration {withOTel=false}
   issue: https://github.com/elastic/elasticsearch/issues/144282
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/143023
 - class: org.elasticsearch.server.cli.APMJvmOptionsTests
   method: testAPMAgentMetricsDisabledWhenOtelMetricsEnabled
   issue: https://github.com/elastic/elasticsearch/issues/144357
@@ -366,6 +345,9 @@ tests:
 - class: org.elasticsearch.action.bulk.TransportBulkActionTests
   method: testProhibitAppendWritesInBackingIndicesSkippedForSeqNoDisabled
   issue: https://github.com/elastic/elasticsearch/issues/144392
+- class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
+  method: testOpenAiEmbeddings {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/144440
 
 # Examples:
 #

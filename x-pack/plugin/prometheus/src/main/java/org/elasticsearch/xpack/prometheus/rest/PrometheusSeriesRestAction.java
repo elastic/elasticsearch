@@ -11,6 +11,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
@@ -21,13 +22,8 @@ import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static java.time.temporal.ChronoUnit.HOURS;
@@ -131,27 +127,7 @@ public class PrometheusSeriesRestAction extends BaseRestHandler {
         if (queryIdx < 0) {
             return List.of();
         }
-        List<String> matches = parseQueryString(uri.substring(queryIdx + 1)).get(MATCH_PARAM);
+        List<String> matches = RestUtils.decodeQueryStringMulti(uri, queryIdx + 1).get(MATCH_PARAM);
         return matches != null ? matches : List.of();
-    }
-
-    /**
-     * Parses a URL-encoded query string into a multi-value map.
-     */
-    static Map<String, List<String>> parseQueryString(String queryString) {
-        Map<String, List<String>> result = new LinkedHashMap<>();
-        if (queryString == null || queryString.isBlank()) {
-            return result;
-        }
-        for (String pair : queryString.split("&")) {
-            int eq = pair.indexOf('=');
-            if (eq < 0) {
-                continue;
-            }
-            String key = URLDecoder.decode(pair.substring(0, eq), StandardCharsets.UTF_8);
-            String val = URLDecoder.decode(pair.substring(eq + 1), StandardCharsets.UTF_8);
-            result.computeIfAbsent(key, k -> new ArrayList<>()).add(val);
-        }
-        return result;
     }
 }

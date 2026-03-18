@@ -1125,12 +1125,16 @@ unmapped fields
 required_capability: change_point_support_null_column
 
 SET unmapped_fields="nullify"\;
-FROM employees | CHANGE_POINT foo | KEEP emp_no, @timestamp, foo, type, pvalue | SORT emp_no | LIMIT 5
+FROM employees
+  | CHANGE_POINT foo
+  | KEEP emp_no, @timestamp, foo, type, pvalue
+  | SORT emp_no
+  | LIMIT 5
 ;
 
-warning: Line 2:18: evaluation of [CHANGE_POINT foo] failed, treating result as null. Only first 20 failures recorded.
-warning: Line 2:18: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [0]
-warning: Line 2:18: java.lang.IllegalArgumentException: values contain nulls; skipping them
+warning: Line 3:3: evaluation of [CHANGE_POINT foo] failed, treating result as null. Only first 20 failures recorded.
+warning: Line 3:3: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [0]
+warning: Line 3:3: java.lang.IllegalArgumentException: values contain nulls; skipping them
 
 emp_no:integer | @timestamp:null | foo:null | type:keyword | pvalue:double
 10001          | null            | null     | null         | null

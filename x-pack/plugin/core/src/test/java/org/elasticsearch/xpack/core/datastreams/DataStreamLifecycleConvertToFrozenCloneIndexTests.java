@@ -189,7 +189,7 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
         mockDeleteResponse.set(AcknowledgedResponse.of(true));
 
         DataStreamLifecycleConvertToFrozen convert = new DataStreamLifecycleConvertToFrozen(indexName, client, projectState, licenseState);
-        convert.deleteCloneIndex();
+        convert.deleteIndex(convert.getDLMCloneIndexName());
 
         String cloneIndexName = convert.getDLMCloneIndexName();
         assertThat(capturedDeleteRequest.get(), is(notNullValue()));
@@ -202,8 +202,11 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
 
         DataStreamLifecycleConvertToFrozen convert = new DataStreamLifecycleConvertToFrozen(indexName, client, projectState, licenseState);
 
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, convert::deleteCloneIndex);
-        assertThat(exception.getMessage(), containsString("unable to delete clone index"));
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchException.class,
+            () -> convert.deleteIndex(convert.getDLMCloneIndexName())
+        );
+        assertThat(exception.getMessage(), containsString("unable to delete index"));
     }
 
     public void testDeleteCloneWithFailure() {
@@ -217,8 +220,11 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
             licenseState
         );
 
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, converter::deleteCloneIndex);
-        assertThat(exception.getMessage(), containsString("unable to delete clone index"));
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchException.class,
+            () -> converter.deleteIndex(converter.getDLMCloneIndexName())
+        );
+        assertThat(exception.getMessage(), containsString("unable to delete index"));
     }
 
     public void testWaitForCloneToBeActiveSucceeds() {

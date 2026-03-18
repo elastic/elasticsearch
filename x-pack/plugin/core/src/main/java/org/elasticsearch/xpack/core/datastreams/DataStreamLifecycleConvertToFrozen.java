@@ -263,9 +263,11 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
                 throw new ElasticsearchException("DLM timed out waiting for clone index [{}] to become active", cloneIndex);
             }
             logger.debug("DLM clone index [{}] is now fully active", cloneIndex);
+        } catch (IndexNotFoundException e) {
+            throw new ElasticsearchException("DLM failed waiting for clone index [{}] to become active", e, cloneIndex);
         } catch (Exception e) {
             try {
-                deleteCloneIndex();
+                deleteIndex(cloneIndex);
             } catch (Exception deleteException) {
                 e.addSuppressed(deleteException);
             }
@@ -288,29 +290,30 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
     }
 
     /**
-     * Deletes the clone index if it exists. Intended for cleanup in the case of a failure.
+     * Deletes the index if it exists.
      */
-    void deleteCloneIndex() {
-        String cloneIndex = getDLMCloneIndexName();
-        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(cloneIndex).indicesOptions(IGNORE_MISSING_OPTIONS)
+    void deleteIndex(String indexToDelete) {
+        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexToDelete).indicesOptions(IGNORE_MISSING_OPTIONS)
             .masterNodeTimeout(TimeValue.MAX_VALUE);
-        logger.debug("DLM issuing request to delete index [{}]", cloneIndex);
+        logger.debug("DLM issuing request to delete index [{}]", indexToDelete);
         try {
             AcknowledgedResponse resp = client.projectClient(projectState.projectId()).admin().indices().delete(deleteIndexRequest).get();
             if (resp.isAcknowledged()) {
-                logger.debug("DLM successfully deleted index [{}]", cloneIndex);
+                logger.debug("DLM successfully deleted index [{}]", indexToDelete);
             } else {
-                logger.warn("DLM failed to acknowledge deletion of index [{}]", cloneIndex);
-                throw new ElasticsearchException(Strings.format("Failed to acknowledge delete of index [%s]", cloneIndex));
+                logger.warn("DLM failed to acknowledge deletion of index [{}]", indexToDelete);
+                throw new ElasticsearchException(Strings.format("Failed to acknowledge delete of index [%s]", indexToDelete));
             }
         } catch (IndexNotFoundException e) {
-                logger.debug("Clone index [{}] was not found during DLM delete attempt, it may have already been deleted", cloneIndex);
+                logger.debug("Index [{}] was not found during DLM delete attempt, it may have already been deleted", indexToDelete);
         } catch (Exception e) {
-            logger.warn(Strings.format("DLM failed to delete index [%s]", cloneIndex), e);
+            logger.warn(Strings.format("DLM failed to delete index [%s]", indexToDelete), e);
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            throw new ElasticsearchException("DLM unable to delete clone index [{}]", e, cloneIndex);
+            throw new ElasticsearchException("DLM unable to delete index [{}]", e, indexToDelete);
+        }
+    }
 
     /**
      * Validates the response from the add index block request. If the response indicates that the block was successfully added,

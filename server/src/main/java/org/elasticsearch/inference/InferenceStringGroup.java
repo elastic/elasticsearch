@@ -9,6 +9,7 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -58,6 +59,12 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
      * @param inferenceStrings the list of {@link InferenceString} which should result in generating a single embedding vector
      */
     public InferenceStringGroup(List<InferenceString> inferenceStrings) {
+        if (inferenceStrings == null) {
+            throw new IllegalArgumentException(Strings.format("[%s] field cannot be null", CONTENT_FIELD));
+        }
+        if (inferenceStrings.isEmpty()) {
+            throw new IllegalArgumentException(Strings.format("[%s] field cannot be an empty array", CONTENT_FIELD));
+        }
         this.inferenceStrings = inferenceStrings;
         containsNonTextEntry = inferenceStrings.stream().anyMatch(s -> s.isText() == false);
     }

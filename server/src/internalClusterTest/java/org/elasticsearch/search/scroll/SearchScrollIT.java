@@ -720,10 +720,10 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     /**
      * Verifies that a sorted scroll across multiple indices with non-overlapping
-     * time ranges returns results in strictly ascending timestamp order, even when
-     * the CanMatch pre-filter phase skips shards for each page's time window.
-     * This exercises the interaction between CanMatch shard skipping and the
-     * scroll's cross-shard merge-sort.
+     * time ranges returns results in non-decreasing timestamp order. The primary
+     * field sort on @timestamp causes CanMatch to sort shards by their min/max
+     * values on the initial search request; this test exercises the interaction
+     * between that shard ordering and the scroll's cross-shard merge-sort.
      */
     public void testSortedScrollAcrossMultipleIndicesWithCanMatch() throws Exception {
         int numIndices = randomIntBetween(3, 5);
@@ -784,10 +784,10 @@ public class SearchScrollIT extends ESIntegTestCase {
     }
 
     /**
-     * Same as above but uses a range query on @timestamp so that the CanMatch
-     * pre-filter can determine which indices/shards are relevant for each query.
-     * This more closely matches the ML datafeed pattern where each search chunk
-     * targets a specific time window.
+     * Variant of the above that adds a range query covering the full data span.
+     * The range query makes the search rewritable to match-none for shards
+     * outside the range, giving CanMatch the opportunity to skip shards even
+     * when the pre-filter shard-size threshold is above 1.
      */
     public void testSortedScrollWithTimeRangeAcrossMultipleIndices() throws Exception {
         int numIndices = 5;
@@ -852,8 +852,9 @@ public class SearchScrollIT extends ESIntegTestCase {
     /**
      * Simulates the ML datafeed pattern: performs multiple sequential sorted scroll
      * searches across multiple indices, each covering a different time chunk.
-     * Verifies that timestamps from consecutive chunks are monotonically increasing,
-     * catching issues where CanMatch shard skipping might affect cross-chunk ordering.
+     * Verifies that timestamps across all chunks are non-decreasing, catching
+     * issues where CanMatch shard skipping might affect within-chunk or
+     * cross-chunk ordering.
      */
     public void testChunkedSortedScrollsAcrossMultipleIndices() throws Exception {
         int numIndices = 5;

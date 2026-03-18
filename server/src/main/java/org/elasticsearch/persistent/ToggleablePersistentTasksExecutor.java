@@ -19,13 +19,11 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.RemoteTransportException;
 
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
@@ -110,6 +108,7 @@ public abstract class ToggleablePersistentTasksExecutor<Params extends Persisten
         if (event.localNodeMaster()) {
             reconcile(event.state());
         }
+        cleanupObsoleteProjectTracking(event.state());
     }
 
     /// Reconciles the desired task lifecycle state with the cluster state.
@@ -121,7 +120,6 @@ public abstract class ToggleablePersistentTasksExecutor<Params extends Persisten
                 for (var projectMetadata : state.metadata().projects().values()) {
                     reconcileProjectTask(projectMetadata);
                 }
-                cleanupObsoleteProjectTasks(state);
             }
         }
     }
@@ -150,11 +148,10 @@ public abstract class ToggleablePersistentTasksExecutor<Params extends Persisten
 
     /// Removes tracking entries from [#perProjectEnabled] for projects that no longer exist in the cluster state.
     /// The persistent tasks framework independently handles the actual cancellation of tasks belonging to removed projects
-    void cleanupObsoleteProjectTasks(ClusterState state) {
-        Set<ProjectId> obsoleteProjectTasks = Sets.difference(perProjectEnabled.keySet(), state.metadata().projects().keySet());
-        for (final var projectId : obsoleteProjectTasks) {
-            perProjectEnabled.remove(projectId);
-        }
+    /// package-private for testing
+    void cleanupObsoleteProjectTracking(ClusterState state) {
+        final var projects = state.metadata().projects();
+        perProjectEnabled.keySet().removeIf(p -> projects.containsKey(p) == false);
     }
 
     protected TimeValue masterNodeTimeout() {

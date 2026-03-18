@@ -321,7 +321,7 @@ public class ToggleablePersistentTasksExecutorTests extends ESTestCase {
         }
 
         void wipeProjectsEnabled() {
-            cleanupObsoleteProjectTasks(masterState());
+            cleanupObsoleteProjectTracking(masterState());
         }
 
         @Override

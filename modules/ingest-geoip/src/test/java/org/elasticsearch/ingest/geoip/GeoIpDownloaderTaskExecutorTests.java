@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -42,6 +43,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
 
@@ -64,8 +66,13 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
         try (
             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)
         ) {
+            final var projectResolver = mock(ProjectResolver.class);
+            final var client = mock(org.elasticsearch.client.internal.Client.class);
+            when(projectResolver.supportsMultipleProjects()).thenReturn(false);
+            when(client.projectResolver()).thenReturn(projectResolver);
+
             var executor = new GeoIpDownloaderTaskExecutor(
-                mock(org.elasticsearch.client.internal.Client.class),
+                client,
                 mock(HttpClient.class),
                 clusterService,
                 threadPool,

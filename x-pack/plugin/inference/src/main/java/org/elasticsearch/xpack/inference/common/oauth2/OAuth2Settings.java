@@ -19,6 +19,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.common.ValidationResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,35 +52,33 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
     /**
      * Parses client_id and scopes from the map. Either both must be present or both absent.
      *
-     * @return a new instance if both fields are present, null if both are absent.
-     * @throws ValidationException if only one of the fields is present or if there are parsing errors
+     * @return {@link ValidationResult} with the created {@link OAuth2Settings} object if both client_id and scopes are provided,
+     * {@link ValidationResult#undefined()} if both are absent, or {@link ValidationResult#failed()} if only one is provided
+     * (with a validation error added to the exception)
      */
-    public static OAuth2Settings fromMap(Map<String, Object> map, ValidationException validationException) {
+    public static ValidationResult<OAuth2Settings> fromMap(Map<String, Object> map, ValidationException validationException) {
         var clientId = extractOptionalString(map, CLIENT_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var scopes = extractStringList(map, SCOPES_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        var hasFields = validateFields(clientId, scopes, validationException);
-
-        if (hasFields) {
-            return new OAuth2Settings(clientId, scopes);
-        }
-
-        return null;
+        return validateFields(clientId, scopes, validationException);
     }
 
     /**
      * Validates that either both or neither of client_id and scopes are provided.
      *
-     * @return true if both are provided, false if neither is provided
+     * @return {@link ValidationResult} with the created {@link OAuth2Settings} object if both client_id and scopes are provided,
+     * {@link ValidationResult#undefined()} if both are absent, or {@link ValidationResult#failed()} if only one is provided
+     * (with a validation error added to the exception)
      */
-    private static boolean validateFields(
+    private static ValidationResult<OAuth2Settings> validateFields(
         @Nullable String clientId,
         @Nullable List<String> scopes,
         ValidationException validationException
     ) {
-        boolean anyFieldProvided = clientId != null || scopes != null;
-        if (anyFieldProvided == false) {
-            return false;
+        var allFieldsMissing = clientId == null && scopes == null;
+
+        if (allFieldsMissing) {
+            return ValidationResult.undefined();
         }
 
         var missingFields = new ArrayList<String>();
@@ -99,10 +98,10 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
                     String.join(", ", missingFields)
                 )
             );
+            return ValidationResult.failed();
         }
 
-        validationException.throwIfValidationErrorsExist();
-        return true;
+        return ValidationResult.success(new OAuth2Settings(clientId, scopes));
     }
 
     public static boolean hasAnyOAuth2Fields(Map<String, Object> map) {
@@ -126,22 +125,18 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
         return scopes;
     }
 
-    public OAuth2Settings updateServiceSettings(Map<String, Object> map, ValidationException validationException) {
+    public ValidationResult<OAuth2Settings> updateServiceSettings(Map<String, Object> map, ValidationException validationException) {
         var updated = fromMapForUpdate(map, validationException);
 
         var clientIdToUpdate = updated.clientId() != null ? updated.clientId() : clientId;
         var scopesToUpdate = updated.scopes() != null ? updated.scopes() : scopes;
 
-        validateFields(clientIdToUpdate, scopesToUpdate, validationException);
-
-        return new OAuth2Settings(clientIdToUpdate, scopesToUpdate);
+        return validateFields(clientIdToUpdate, scopesToUpdate, validationException);
     }
 
     private static UpdateSettings fromMapForUpdate(Map<String, Object> map, ValidationException validationException) {
         var clientId = extractOptionalString(map, CLIENT_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var scopes = extractStringList(map, SCOPES_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        validationException.throwIfValidationErrorsExist();
 
         return new UpdateSettings(clientId, scopes);
     }

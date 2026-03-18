@@ -57,21 +57,23 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
         map.put(OAuth2Settings.SCOPES_FIELD, SCOPES);
 
         var validationException = new ValidationException();
-        var settings = OAuth2Settings.fromMap(map, validationException);
+        var validationResult = OAuth2Settings.fromMap(map, validationException);
 
+        assertTrue(validationResult.isSuccess());
+        var settings = validationResult.result();
         assertNotNull(settings);
         assertThat(settings.getClientId(), is(CLIENT_ID));
         assertThat(settings.getScopes(), is(SCOPES));
         assertThat(validationException.validationErrors(), is(empty()));
     }
 
-    public void testFromMap_WithNoFields_ReturnsNull() {
+    public void testFromMap_WithNoFields_ReturnsValidationResultUndefined() {
         var map = new HashMap<String, Object>();
         var validationException = new ValidationException();
 
         var settings = OAuth2Settings.fromMap(map, validationException);
 
-        assertNull(settings);
+        assertTrue(settings.isUndefined());
         assertTrue(validationException.validationErrors().isEmpty());
     }
 
@@ -80,7 +82,8 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
         map.put(OAuth2Settings.CLIENT_ID_FIELD, CLIENT_ID);
         var validationException = new ValidationException();
 
-        var thrownException = expectThrows(ValidationException.class, () -> OAuth2Settings.fromMap(map, validationException));
+        OAuth2Settings.fromMap(map, validationException);
+        var thrownException = expectThrows(ValidationException.class, validationException::throwIfValidationErrorsExist);
 
         assertThat(
             thrownException.getMessage(),
@@ -99,7 +102,8 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
         map.put(OAuth2Settings.SCOPES_FIELD, SCOPES);
         var validationException = new ValidationException();
 
-        var thrownException = expectThrows(ValidationException.class, () -> OAuth2Settings.fromMap(map, validationException));
+        OAuth2Settings.fromMap(map, validationException);
+        var thrownException = expectThrows(ValidationException.class, validationException::throwIfValidationErrorsExist);
 
         assertThat(
             thrownException.getMessage(),
@@ -134,8 +138,11 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
         var settings = new OAuth2Settings(CLIENT_ID, SCOPES);
         var validationException = new ValidationException();
 
-        var updated = settings.updateServiceSettings(new HashMap<>(), validationException);
+        var validationResult = settings.updateServiceSettings(new HashMap<>(), validationException);
+        assertTrue(validationResult.isSuccess());
 
+        var updated = validationResult.result();
+        assertNotNull(updated);
         assertThat(updated.getClientId(), is(CLIENT_ID));
         assertThat(updated.getScopes(), is(SCOPES));
     }
@@ -145,11 +152,15 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
         var validationException = new ValidationException();
 
         var newClientId = "new-client";
-        var updated = settings.updateServiceSettings(
+        var validationResult = settings.updateServiceSettings(
             new HashMap<>(Map.of(OAuth2Settings.CLIENT_ID_FIELD, newClientId)),
             validationException
         );
 
+        assertTrue(validationResult.isSuccess());
+
+        var updated = validationResult.result();
+        assertNotNull(updated);
         assertThat(updated.getClientId(), is(newClientId));
         assertThat(updated.getScopes(), is(SCOPES));
     }
@@ -159,8 +170,15 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
         var validationException = new ValidationException();
 
         var newScopes = List.of("new-scope1", "new-scope2");
-        var updated = settings.updateServiceSettings(new HashMap<>(Map.of(OAuth2Settings.SCOPES_FIELD, newScopes)), validationException);
+        var validationResult = settings.updateServiceSettings(
+            new HashMap<>(Map.of(OAuth2Settings.SCOPES_FIELD, newScopes)),
+            validationException
+        );
 
+        assertTrue(validationResult.isSuccess());
+
+        var updated = validationResult.result();
+        assertNotNull(updated);
         assertThat(updated.getClientId(), is(CLIENT_ID));
         assertThat(updated.getScopes(), is(newScopes));
     }

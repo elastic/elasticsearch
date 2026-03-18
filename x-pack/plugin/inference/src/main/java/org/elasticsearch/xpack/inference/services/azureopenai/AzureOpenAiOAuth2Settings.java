@@ -20,10 +20,10 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.common.ValidationResult;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -50,7 +50,7 @@ public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable 
 
     private static final String TENANT_ID_CONFIG_DESCRIPTION = "The directory tenant that you want to request permission from.";
 
-    private record UpdateSettings(OAuth2Settings oauth2Settings, @Nullable String tenantId) {
+    private record UpdateSettings(ValidationResult<OAuth2Settings> oauth2Settings, @Nullable String tenantId) {
         UpdateSettings {
             Objects.requireNonNull(oauth2Settings);
         }
@@ -66,7 +66,7 @@ public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable 
         var hasFields = validateFields(oauth2ServiceSettings, tenantId, validationException);
 
         if (hasFields) {
-            return new AzureOpenAiOAuth2Settings(oauth2ServiceSettings, tenantId);
+            return new AzureOpenAiOAuth2Settings(oauth2ServiceSettings.result(), tenantId);
         }
 
         return null;
@@ -80,39 +80,37 @@ public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable 
      * Validates that either all or none of the fields are provided. If any field is provided, then all fields must be provided.
      * This is because OAuth2 requires all fields to be set together.
      *
-     * @return true if all fields are provided or false it no fields are provided. If some but not all fields are provided,
-     * a ValidationException is thrown.
+     * @return true if all fields are provided, false if no fields are provided or some are missing
      */
     private static boolean validateFields(
-        @Nullable OAuth2Settings oauth2Settings,
+        ValidationResult<OAuth2Settings> oauth2Settings,
         @Nullable String tenantId,
         ValidationException validationException
     ) {
-        boolean anyFieldProvided = oauth2Settings != null || tenantId != null;
-        if (anyFieldProvided == false) {
+        if (tenantId == null) {
+            if (oauth2Settings.isUndefined()) {
+                return false;
+            }
+
+            addMissingFieldsValidationException(TENANT_ID_FIELD, validationException);
+
+            return false;
+        } else if (oauth2Settings.isUndefined()) {
+            addMissingFieldsValidationException(OAuth2Settings.REQUIRED_FIELDS, validationException);
             return false;
         }
 
-        var missingFields = new ArrayList<String>();
-        if (oauth2Settings == null) {
-            missingFields.add(OAuth2Settings.REQUIRED_FIELDS);
-        }
-        if (tenantId == null) {
-            missingFields.add(TENANT_ID_FIELD);
-        }
+        return oauth2Settings.isSuccess();
+    }
 
-        if (missingFields.isEmpty() == false) {
-            validationException.addValidationError(
-                Strings.format(
-                    "[%s] all OAuth2 fields must be provided together; missing: [%s]",
-                    ModelConfigurations.SERVICE_SETTINGS,
-                    String.join(", ", missingFields)
-                )
-            );
-        }
-
-        validationException.throwIfValidationErrorsExist();
-        return true;
+    private static void addMissingFieldsValidationException(String missingFields, ValidationException validationException) {
+        validationException.addValidationError(
+            Strings.format(
+                "[%s] all Azure OpenAI OAuth2 fields must be provided together; missing: [%s]",
+                ModelConfigurations.SERVICE_SETTINGS,
+                missingFields
+            )
+        );
     }
 
     public AzureOpenAiOAuth2Settings(OAuth2Settings oauth2Settings, String tenantId) {
@@ -137,15 +135,18 @@ public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable 
         return oauth2Settings.getScopes();
     }
 
-    public AzureOpenAiOAuth2Settings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
+    public AzureOpenAiOAuth2Settings updateServiceSettings(Map<String, Object> serviceSettings, ValidationException validationException) {
         var updated = fromMapForUpdate(serviceSettings, oauth2Settings, validationException);
 
         var tenantIdToUpdate = updated.tenantId() != null ? updated.tenantId() : tenantId;
 
-        validateFields(updated.oauth2Settings(), tenantIdToUpdate, validationException);
+        var hasFields = validateFields(updated.oauth2Settings(), tenantIdToUpdate, validationException);
 
-        return new AzureOpenAiOAuth2Settings(updated.oauth2Settings(), tenantIdToUpdate);
+        if (hasFields == false) {
+            return this;
+        }
+
+        return new AzureOpenAiOAuth2Settings(updated.oauth2Settings().result(), tenantIdToUpdate);
     }
 
     private static UpdateSettings fromMapForUpdate(
@@ -155,8 +156,6 @@ public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable 
     ) {
         var oauth2ServiceSettings = oAuth2Settings.updateServiceSettings(map, validationException);
         var tenantId = extractOptionalString(map, TENANT_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        validationException.throwIfValidationErrorsExist();
 
         return new UpdateSettings(oauth2ServiceSettings, tenantId);
     }

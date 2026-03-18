@@ -28,6 +28,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<AzureOpenAiOAuth2Settings> {
 
@@ -75,17 +76,20 @@ public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerialization
         assertTrue(validationException.validationErrors().isEmpty());
     }
 
-    public void testFromMap_WithOnlyTenantId_AddsValidationError() {
+    public void testFromMap_WithOnlyTenantId_AddsValidationErrorForClientIdAndScopes() {
         var map = new HashMap<String, Object>();
         map.put(AzureOpenAiOAuth2Settings.TENANT_ID_FIELD, TENANT_ID);
         var validationException = new ValidationException();
 
-        var thrownException = expectThrows(ValidationException.class, () -> AzureOpenAiOAuth2Settings.fromMap(map, validationException));
+        var settings = AzureOpenAiOAuth2Settings.fromMap(map, validationException);
 
-        assertThat(
-            thrownException.getMessage(),
-            containsString(Strings.format("all OAuth2 fields must be provided together; missing: [%s]", OAuth2Settings.REQUIRED_FIELDS))
-        );
+        assertNull(settings);
+
+        var thrownException = expectThrows(ValidationException.class, validationException::throwIfValidationErrorsExist);
+
+        assertThat(thrownException.getMessage(), containsString("all Azure OpenAI OAuth2 fields must be provided together"));
+        assertThat(thrownException.getMessage(), containsString(OAuth2Settings.REQUIRED_FIELDS));
+        assertThat(thrownException.getMessage(), not(containsString(AzureOpenAiOAuth2Settings.TENANT_ID_FIELD)));
     }
 
     public void testFromMap_WithOnlyClientIdAndScopes_AddsValidationError() {
@@ -93,10 +97,13 @@ public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerialization
         OAuth2SettingsTests.addOAuth2FieldsToMap(map, OAuth2SettingsTests.CLIENT_ID, OAuth2SettingsTests.SCOPES);
         var validationException = new ValidationException();
 
-        var thrownException = expectThrows(ValidationException.class, () -> AzureOpenAiOAuth2Settings.fromMap(map, validationException));
+        AzureOpenAiOAuth2Settings.fromMap(map, validationException);
+        var thrownException = expectThrows(ValidationException.class, validationException::throwIfValidationErrorsExist);
 
-        assertThat(thrownException.getMessage(), containsString("all OAuth2 fields must be provided together"));
+        assertThat(thrownException.getMessage(), containsString("all Azure OpenAI OAuth2 fields must be provided together"));
         assertThat(thrownException.getMessage(), containsString(AzureOpenAiOAuth2Settings.TENANT_ID_FIELD));
+        assertThat(thrownException.getMessage(), not(containsString(OAuth2Settings.CLIENT_ID_FIELD)));
+        assertThat(thrownException.getMessage(), not(containsString(OAuth2Settings.SCOPES_FIELD)));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
@@ -125,8 +132,9 @@ public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerialization
             new OAuth2Settings(OAuth2SettingsTests.CLIENT_ID, OAuth2SettingsTests.SCOPES),
             TENANT_ID
         );
+        var validationException = new ValidationException();
 
-        var updated = settings.updateServiceSettings(new HashMap<>());
+        var updated = settings.updateServiceSettings(new HashMap<>(), validationException);
 
         assertThat(updated.getClientId(), is(OAuth2SettingsTests.CLIENT_ID));
         assertThat(updated.getScopes(), is(OAuth2SettingsTests.SCOPES));
@@ -139,8 +147,12 @@ public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerialization
             TENANT_ID
         );
         var newTenantId = "new-tenant";
+        var validationException = new ValidationException();
 
-        var updated = settings.updateServiceSettings(new HashMap<>(Map.of(AzureOpenAiOAuth2Settings.TENANT_ID_FIELD, newTenantId)));
+        var updated = settings.updateServiceSettings(
+            new HashMap<>(Map.of(AzureOpenAiOAuth2Settings.TENANT_ID_FIELD, newTenantId)),
+            validationException
+        );
 
         assertThat(updated.getClientId(), is(OAuth2SettingsTests.CLIENT_ID));
         assertThat(updated.getScopes(), is(OAuth2SettingsTests.SCOPES));
@@ -154,9 +166,11 @@ public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerialization
         );
         var newClientId = "new-client";
         var newScopes = List.of("new-scope1", "new-scope2");
+        var validationException = new ValidationException();
 
         var updated = settings.updateServiceSettings(
-            new HashMap<>(Map.of(OAuth2Settings.CLIENT_ID_FIELD, newClientId, OAuth2Settings.SCOPES_FIELD, newScopes))
+            new HashMap<>(Map.of(OAuth2Settings.CLIENT_ID_FIELD, newClientId, OAuth2Settings.SCOPES_FIELD, newScopes)),
+            validationException
         );
 
         assertThat(updated.getClientId(), is(newClientId));

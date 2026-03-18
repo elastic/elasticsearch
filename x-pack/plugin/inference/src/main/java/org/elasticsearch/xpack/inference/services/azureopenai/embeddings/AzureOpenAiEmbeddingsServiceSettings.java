@@ -96,9 +96,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends AzureOpenAiServiceSett
             }
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AzureOpenAiEmbeddingsServiceSettings(
             commonFields,

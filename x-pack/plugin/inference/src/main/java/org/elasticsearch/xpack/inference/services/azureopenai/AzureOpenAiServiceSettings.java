@@ -133,7 +133,10 @@ public abstract class AzureOpenAiServiceSettings extends FilteredXContentObject 
             return this;
         }
 
-        var newOAuth2Settings = oAuth2Settings.updateServiceSettings(serviceSettings);
+        var validationException = new ValidationException();
+        var newOAuth2Settings = oAuth2Settings.updateServiceSettings(serviceSettings, validationException);
+
+        validationException.throwIfValidationErrorsExist();
 
         if (Objects.equals(newOAuth2Settings, oAuth2Settings)) {
             return this;

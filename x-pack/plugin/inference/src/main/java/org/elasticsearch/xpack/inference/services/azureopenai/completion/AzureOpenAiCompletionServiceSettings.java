@@ -51,9 +51,7 @@ public class AzureOpenAiCompletionServiceSettings extends AzureOpenAiServiceSett
         ValidationException validationException = new ValidationException();
         var commonFields = parseCommonFields(map, validationException, context, DEFAULT_RATE_LIMIT_SETTINGS);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
         return new AzureOpenAiCompletionServiceSettings(commonFields);
     }
 

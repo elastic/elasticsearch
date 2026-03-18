@@ -101,7 +101,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -1109,7 +1108,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         static List<SourceLoader.SyntheticFieldLoader> toPropertyLoaders(Map<String, FieldMapper> mappedProperties) {
-            return mappedProperties.values().stream()
+            return mappedProperties.values()
+                .stream()
                 .map(FieldMapper::syntheticFieldLoader)
                 .filter(l -> l != SourceLoader.SyntheticFieldLoader.NOTHING)
                 .toList();
@@ -1410,14 +1410,16 @@ public final class FlattenedFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType().hasDocValues()) {
-            return new SyntheticSourceSupport.Native(() -> new FlattenedDocValuesSyntheticFieldLoader(
-                fullPath(),
-                fullPath() + KEYED_FIELD_SUFFIX,
-                fieldType().ignoreAbove.valuesPotentiallyIgnored() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
-                leafName(),
-                builder.usesBinaryDocValues,
-                toPropertyLoaders(mappedProperties)
-            ));
+            return new SyntheticSourceSupport.Native(
+                () -> new FlattenedDocValuesSyntheticFieldLoader(
+                    fullPath(),
+                    fullPath() + KEYED_FIELD_SUFFIX,
+                    fieldType().ignoreAbove.valuesPotentiallyIgnored() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
+                    leafName(),
+                    builder.usesBinaryDocValues,
+                    toPropertyLoaders(mappedProperties)
+                )
+            );
         }
 
         return super.syntheticSourceSupport();

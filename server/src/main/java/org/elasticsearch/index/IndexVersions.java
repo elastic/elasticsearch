@@ -25,6 +25,14 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.IntFunction;
 
+/// Records all current and historical [IndexVersion]s
+///
+/// The list serves as the single source of truth for version-to-Lucene mappings, minimum compatibility windows
+/// (`MINIMUM_COMPATIBLE`, `MINIMUM_READONLY_COMPATIBLE`), and build-time merge-conflict detection
+/// (duplicate ids are [rejected at class-initialisation time][#def(int, Version)]).
+///
+/// @see IndexVersion
+///
 @SuppressWarnings("deprecation")
 public class IndexVersions {
 
@@ -228,6 +236,7 @@ public class IndexVersions {
     public static final IndexVersion UPGRADE_TO_LUCENE_10_4_0 = def(9_075_00_0, Version.LUCENE_10_4_0);
     public static final IndexVersion UPGRADE_DISKBBQ_ES940 = def(9_076_00_0, Version.LUCENE_10_4_0);
     public static final IndexVersion FLATTENED_FIELD_NO_ROOT_DOC_VALUES = def(9_077_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion IGNORED_SOURCE_AS_DOC_VALUES = def(9_078_0_00, Version.LUCENE_10_4_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

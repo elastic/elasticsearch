@@ -110,6 +110,7 @@ import java.util.TreeMap;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
+import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType.toPropertyLoaders;
 
 /**
  * A field mapper that accepts a JSON object and flattens it into a single field. This data type
@@ -1107,17 +1108,17 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return super.existsQuery(context);
         }
 
+        static List<SourceLoader.SyntheticFieldLoader> toPropertyLoaders(Map<String, FieldMapper> mappedProperties) {
+            return mappedProperties.values().stream()
+                .map(FieldMapper::syntheticFieldLoader)
+                .filter(l -> l != SourceLoader.SyntheticFieldLoader.NOTHING)
+                .toList();
+        }
+
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues() && (ignoreAbove.valuesPotentiallyIgnored() == false || isSyntheticSourceEnabled)) {
-                List<SourceLoader.SyntheticFieldLoader> propertyLoaders = new ArrayList<>();
-                for (FieldMapper mapper : mappedProperties.values()) {
-                    SourceLoader.SyntheticFieldLoader loader = mapper.syntheticFieldLoader();
-                    if (loader != SourceLoader.SyntheticFieldLoader.NOTHING) {
-                        propertyLoaders.add(loader);
-                    }
-                }
-                return new RootFlattenedDocValuesBlockLoader(name(), ignoreAbove, usesBinaryDocValues, propertyLoaders);
+                return new RootFlattenedDocValuesBlockLoader(name(), ignoreAbove, usesBinaryDocValues, toPropertyLoaders(mappedProperties));
             }
 
             SourceValueFetcher fetcher = new SourceValueFetcher(
@@ -1406,30 +1407,17 @@ public final class FlattenedFieldMapper extends FieldMapper {
         return b;
     }
 
-    Map<String, FieldMapper> mappedProperties() {
-        return mappedProperties;
-    }
-
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType().hasDocValues()) {
-            return new SyntheticSourceSupport.Native(() -> {
-                List<SourceLoader.SyntheticFieldLoader> propertyLoaders = new ArrayList<>();
-                for (FieldMapper mapper : mappedProperties.values()) {
-                    SourceLoader.SyntheticFieldLoader loader = mapper.syntheticFieldLoader();
-                    if (loader != SourceLoader.SyntheticFieldLoader.NOTHING) {
-                        propertyLoaders.add(loader);
-                    }
-                }
-                return new FlattenedDocValuesSyntheticFieldLoader(
-                    fullPath(),
-                    fullPath() + KEYED_FIELD_SUFFIX,
-                    fieldType().ignoreAbove.valuesPotentiallyIgnored() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
-                    leafName(),
-                    builder.usesBinaryDocValues,
-                    propertyLoaders
-                );
-            });
+            return new SyntheticSourceSupport.Native(() -> new FlattenedDocValuesSyntheticFieldLoader(
+                fullPath(),
+                fullPath() + KEYED_FIELD_SUFFIX,
+                fieldType().ignoreAbove.valuesPotentiallyIgnored() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
+                leafName(),
+                builder.usesBinaryDocValues,
+                toPropertyLoaders(mappedProperties)
+            ));
         }
 
         return super.syntheticSourceSupport();

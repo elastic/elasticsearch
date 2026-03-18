@@ -90,9 +90,9 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
         @Param(
             name = "value",
             type = { "keyword" },
-            description = "Value to generate embeddings from. Must be a non-null literal string value. " +
-                "Use data type and format options to specify the content type and format " +
-                "(e.g. plain text, base64-encoded images) of the input."
+            description = "Value to generate embeddings from. Must be a non-null literal string value. "
+                + "Use data type and format options to specify the content type and format "
+                + "(e.g. plain text, base64-encoded images) of the input."
         ) Expression inputValue,
         @Param(
             name = InferenceFunction.INFERENCE_ID_PARAMETER_NAME,

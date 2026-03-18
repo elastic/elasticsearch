@@ -21,13 +21,8 @@
 
 static inline int32_t doti4_inner(const int8_t* query, const int8_t* doc, int32_t packed_len) {
     const uint8x16_t mask_half_byte = vdupq_n_u8(0x0F);
-
-    // 4 accumulators to break dependency chains, split across the low and high
-    // halves of each 128-bit vector for high-nibble and low-nibble products.
-    uint32x4_t acc_high0 = vdupq_n_u32(0);
-    uint32x4_t acc_high1 = vdupq_n_u32(0);
-    uint32x4_t acc_low0 = vdupq_n_u32(0);
-    uint32x4_t acc_low1 = vdupq_n_u32(0);
+    uint32x4_t acc_high = vdupq_n_u32(0);
+    uint32x4_t acc_low = vdupq_n_u32(0);
 
     constexpr int stride = sizeof(uint8x16_t);
     const int blk = packed_len & ~(stride - 1);
@@ -40,17 +35,13 @@ static inline int32_t doti4_inner(const int8_t* query, const int8_t* doc, int32_
         uint8x16_t query_high = vld1q_u8((const uint8_t*)(query + i));
         uint8x16_t query_low = vld1q_u8((const uint8_t*)(query + i + packed_len));
 
-        // Compute the dot product.
-        // vmull_u8 widens 8-bit -> 16-bit, vpadalq_u16 pairwise-adds 16-bit -> 32-bit;
-        // due to widening, we need to use vget_low/high_u8 to split the 128-bit register
-        // into its two 64-bit halves.
-        acc_high0 = vpadalq_u16(acc_high0, vmull_u8(vget_low_u8(doc_high), vget_low_u8(query_high)));
-        acc_high1 = vpadalq_u16(acc_high1, vmull_u8(vget_high_u8(doc_high), vget_high_u8(query_high)));
-        acc_low0 = vpadalq_u16(acc_low0, vmull_u8(vget_low_u8(doc_low), vget_low_u8(query_low)));
-        acc_low1 = vpadalq_u16(acc_low1, vmull_u8(vget_high_u8(doc_low), vget_high_u8(query_low)));
+        // vdotq_u32 multiplies groups of 4 unsigned 8-bit values and accumulates
+        // directly into 32-bit lanes
+        acc_high = vdotq_u32(acc_high, doc_high, query_high);
+        acc_low = vdotq_u32(acc_low, doc_low, query_low);
     }
 
-    int32_t total = (int32_t)vaddvq_u32(vaddq_u32(vaddq_u32(acc_high0, acc_high1), vaddq_u32(acc_low0, acc_low1)));
+    int32_t total = (int32_t)vaddvq_u32(vaddq_u32(acc_high, acc_low));
 
     for (int i = blk; i < packed_len; i++) {
         uint8_t doc_byte = (uint8_t)doc[i];
@@ -101,12 +92,8 @@ static inline void doti4_bulk_impl(
                 uint8x16_t doc_high = vshrq_n_u8(doc_bytes, 4);
                 uint8x16_t doc_low = vandq_u8(doc_bytes, mask_half_byte);
 
-                // due to widening, we need to use vget_low/high_u8 to split the
-                // 128-bit register into its two 64-bit halves
-                acc_high[I] = vpadalq_u16(acc_high[I], vmull_u8(vget_low_u8(doc_high), vget_low_u8(query_high)));
-                acc_high[I] = vpadalq_u16(acc_high[I], vmull_u8(vget_high_u8(doc_high), vget_high_u8(query_high)));
-                acc_low[I] = vpadalq_u16(acc_low[I], vmull_u8(vget_low_u8(doc_low), vget_low_u8(query_low)));
-                acc_low[I] = vpadalq_u16(acc_low[I], vmull_u8(vget_high_u8(doc_low), vget_high_u8(query_low)));
+                acc_high[I] = vdotq_u32(acc_high[I], doc_high, query_high);
+                acc_low[I] = vdotq_u32(acc_low[I], doc_low, query_low);
             });
         }
 

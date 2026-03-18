@@ -2023,8 +2023,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             }
             if (routingNodes.node(relocationTuple.v1().currentNodeId()).hasIndex(startedRelocatingShard.index()) == false) {
                 verify(clusterInfoSimulator).simulateRemoveIndexFromNode(
-                    startedRelocatingShard.currentNodeId(),
-                    startedRelocatingShard.index()
+                    relocationTuple.v1().currentNodeId(),
+                    relocationTuple.v1().index()
                 );
             }
             verifyNoMoreInteractions(clusterInfoSimulator);

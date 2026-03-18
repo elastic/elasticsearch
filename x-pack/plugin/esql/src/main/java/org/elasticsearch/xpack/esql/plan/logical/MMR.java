@@ -12,9 +12,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -42,10 +44,11 @@ public class MMR extends UnaryPlan
     public static final String LAMBDA_OPTION_NAME = "lambda";
     private static final List<String> VALID_MMR_OPTION_NAMES = List.of(LAMBDA_OPTION_NAME);
 
+    public static Float DEFAULT_LAMBDA = 0.5f;
     private final Attribute diversifyField;
     private final Expression limit;
     private final Expression queryVector;
-    private final Expression options;
+    private final MapExpression options;
 
     public MMR(
         Source source,
@@ -53,7 +56,7 @@ public class MMR extends UnaryPlan
         Attribute diversifyField,
         Expression limit,
         @Nullable Expression queryVector,
-        @Nullable Expression options
+        @Nullable MapExpression options
     ) {
         super(source, child);
         this.diversifyField = diversifyField;
@@ -74,7 +77,7 @@ public class MMR extends UnaryPlan
         return queryVector;
     }
 
-    public Expression options() {
+    public MapExpression options() {
         return options;
     }
 
@@ -159,55 +162,34 @@ public class MMR extends UnaryPlan
         if (options == null) {
             return;
         }
-
-        if ((options instanceof MapExpression) == false) {
-            failures.add(fail(this, "MMR options must be a map expression"));
-            return;
-        }
-
-        Map<String, Expression> optionsMap = new HashMap<>(((MapExpression) options).keyFoldedMap());
-
-        try {
-            Expression lambdaValueExpression = optionsMap.remove(MMR.LAMBDA_OPTION_NAME);
-            Float extractedLambda = extractLambdaFromMMROptions(lambdaValueExpression);
-            if (extractedLambda != null && (extractedLambda < 0.0f || extractedLambda > 1.0f)) {
-                failures.add(fail(this, "MMR lambda value must be a number between 0.0 and 1.0"));
+        options.keyFoldedMap().forEach((key, value) -> {
+            if (key.equals(LAMBDA_OPTION_NAME)) {
+                if ((value instanceof Literal) == false) {
+                    failures.add(new Failure(this, "expected " + key + " to be a literal, got [" + value.sourceText() + "]"));
+                }
+                if (value.dataType().isNumeric() == false) {
+                    failures.add(new Failure(this, "expected " + key + " to be numeric, got [" + value.sourceText() + "]"));
+                    return;
+                }
+                Number numericValue = (Number) value.fold(FoldContext.small());
+                if (numericValue != null && (numericValue.floatValue() < 0.0f || numericValue.floatValue() > 1.0f)) {
+                    failures.add(fail(this, "MMR lambda value must be a number between 0.0 and 1.0, got [" + value.sourceText() + "]"));
+                }
+            } else {
+                failures.add(new Failure(this, "unknown option [" + key + "] in [" + this.sourceText() + "]"));
             }
-        } catch (RuntimeException rtEx) {
-            failures.add(fail(this, rtEx.getMessage()));
-        }
-
-        if (optionsMap.isEmpty() == false) {
-            failures.add(
-                fail(
-                    this,
-                    "Invalid option [{}] in <MMR>, expected one of [{}]",
-                    optionsMap.keySet().stream().findAny().get(),
-                    this.validOptionNames()
-                )
-            );
-        }
+        });
     }
 
-    public static Float tryExtractLambdaFromOptions(Expression optionsInput) {
-        if (optionsInput instanceof MapExpression optionsMap) {
-            Map<String, Expression> optionsValues = new HashMap<>(optionsMap.keyFoldedMap());
-            Expression lambdaValueExpression = optionsValues.getOrDefault(MMR.LAMBDA_OPTION_NAME, null);
-            if (lambdaValueExpression != null) {
-                return extractLambdaFromMMROptions(lambdaValueExpression);
-            }
+    public static Float extractLambdaFromOptions(MapExpression options) {
+        if (options == null) {
+            return DEFAULT_LAMBDA;
         }
-        return null;
-    }
-
-    public static Float extractLambdaFromMMROptions(Expression lambdaExpression) {
-        if (lambdaExpression != null) {
-            if (lambdaExpression instanceof Literal litLambdaValue) {
-                return ((Double) litLambdaValue.value()).floatValue();
-            }
+        Literal lambdaValueExpression = (Literal) options.keyFoldedMap().getOrDefault(MMR.LAMBDA_OPTION_NAME, null);
+        if (lambdaValueExpression == null) {
+            return DEFAULT_LAMBDA;
         }
-
-        return null;
+        return ((Double) lambdaValueExpression.value()).floatValue();
     }
 
     public static Integer getMMRLimitValue(Expression limitExpression) {

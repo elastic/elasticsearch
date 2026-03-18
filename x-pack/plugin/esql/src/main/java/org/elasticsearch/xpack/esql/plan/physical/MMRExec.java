@@ -13,6 +13,7 @@ import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -26,7 +27,7 @@ public class MMRExec extends UnaryExec {
     private final Attribute diversifyField;
     private final Expression limit;
     private final Expression queryVectorExpression;
-    private final Expression options;
+    private final MapExpression options;
 
     private VectorData queryVector;
     private Float lambda;
@@ -37,14 +38,13 @@ public class MMRExec extends UnaryExec {
         Attribute diversifyField,
         Expression limit,
         @Nullable Expression queryVectorExpression,
-        @Nullable Expression options
+        @Nullable MapExpression options
     ) {
         super(source, child);
         this.diversifyField = diversifyField;
         this.limit = limit;
         this.queryVectorExpression = queryVectorExpression;
         this.options = options;
-        this.lambda = MMR.tryExtractLambdaFromOptions(options);
     }
 
     public Attribute diversifyField() {
@@ -67,7 +67,7 @@ public class MMRExec extends UnaryExec {
 
     public Float lambda() {
         if (lambda == null) {
-            lambda = MMR.tryExtractLambdaFromOptions(options);
+            lambda = MMR.extractLambdaFromOptions(options);
         }
         return lambda;
     }
@@ -103,7 +103,6 @@ public class MMRExec extends UnaryExec {
             && Objects.equals(this.limit, mmr.limit)
             && Objects.equals(this.queryVectorExpression, mmr.queryVectorExpression)
             && Objects.equals(this.options, mmr.options);
-
     }
 
     @Override

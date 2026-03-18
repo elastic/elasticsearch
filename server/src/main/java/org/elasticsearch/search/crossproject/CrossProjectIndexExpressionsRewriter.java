@@ -151,7 +151,7 @@ public class CrossProjectIndexExpressionsRewriter {
 
         final String indexExpression = splitResource[1];
         if (RemoteClusterAware.isRemoteIndexName(indexExpression)) {
-            throw new InvalidIndexNameException(resource, "Cross-project chaining is not supported");
+            throw new InvalidIndexNameException(resource, "index expression cannot contain project qualifiers (no cross-project chaining)");
         }
         if (isExclusion && isExclusionExpression(indexExpression)) {
             throw new IllegalArgumentException("Cannot apply exclusion for both the project and the index expression [" + resource + "]");

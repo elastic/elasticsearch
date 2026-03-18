@@ -52,21 +52,23 @@ public final class SpecReader {
                 if (shouldSkipLine(line) == false) {
                     // parse test name
                     if (testName == null) {
-                        if (testNames.keySet().contains(line)) {
+                        // Normalize test name by stripping any inline instructions (after '#')
+                        String normalizedName = line.split("#", 2)[0];
+                        if (testNames.containsKey(normalizedName)) {
                             throw new IllegalStateException(
                                 "Duplicate test name '"
-                                    + line
+                                    + normalizedName
                                     + "' at line "
                                     + lineNumber
                                     + " in file '"
                                     + fileName
                                     + "' (previously seen at line "
-                                    + testNames.get(line)
+                                    + testNames.get(normalizedName)
                                     + ")"
                             );
                         } else {
                             testName = line;
-                            testNames.put(testName, Integer.valueOf(lineNumber));
+                            testNames.put(normalizedName, Integer.valueOf(lineNumber));
                         }
                     } else {
                         Object result = parser.parse(line);

@@ -10,14 +10,18 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -519,6 +523,71 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         ActionRequestValidationException validationException = r.validate();
         assertNotNull(validationException);
         assertEquals(List.of("use _all if you really want to copy from all existing indexes"), validationException.validationErrors());
+    }
+
+    public void testEmptyIndicesAllowedWhenUsingPit() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        request.getSearchRequest().scroll(null);  // PIT and scroll are mutually exclusive
+        request.getSearchRequest().source(
+            new SearchSourceBuilder().pointInTimeBuilder(
+                new PointInTimeBuilder(new BytesArray("pit-id".getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+                    .setKeepAlive(TimeValue.timeValueMinutes(5))
+            )
+        );
+        ActionRequestValidationException validationException = request.validate();
+        assertNull("ReindexRequest with PIT and empty indices should pass validation", validationException);
+    }
+
+    public void testEmptyIndicesRejectedWhenNotUsingPit() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        request.getSearchRequest().source(new SearchSourceBuilder());
+        ActionRequestValidationException validationException = request.validate();
+        assertNotNull(validationException);
+        assertEquals(List.of("use _all if you really want to copy from all existing indexes"), validationException.validationErrors());
+    }
+
+    public void testFromParameterRejectedWhenNotUsingPit() {
+        ReindexRequest request = newRequest();
+        request.getSearchRequest().scroll(null);  // avoid SearchRequest's scroll+from error; we test AbstractBulkByScrollRequest only
+        request.getSearchRequest().source().from(1);
+        ActionRequestValidationException validationException = request.validate();
+        assertNotNull(validationException);
+        assertEquals(List.of("from is not supported in this context"), validationException.validationErrors());
+    }
+
+    public void testFromZeroAllowedWhenUsingPit() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        request.getSearchRequest().scroll(null);  // PIT and scroll are mutually exclusive
+        request.getSearchRequest().source(
+            new SearchSourceBuilder().pointInTimeBuilder(
+                new PointInTimeBuilder(new BytesArray("pit-id".getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+                    .setKeepAlive(TimeValue.timeValueMinutes(5))
+            ).from(0)
+        );
+        ActionRequestValidationException validationException = request.validate();
+        assertNull("ReindexRequest with PIT and from=0 should pass validation", validationException);
+    }
+
+    public void testFromNonZeroRejectedWhenUsingPit() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        request.getSearchRequest().scroll(null);  // PIT and scroll are mutually exclusive
+        request.getSearchRequest().source(
+            new SearchSourceBuilder().pointInTimeBuilder(
+                new PointInTimeBuilder(new BytesArray("pit-id".getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+                    .setKeepAlive(TimeValue.timeValueMinutes(5))
+            ).from(5)
+        );
+        ActionRequestValidationException validationException = request.validate();
+        assertNotNull(validationException);
+        assertEquals(List.of("from is not supported in this context"), validationException.validationErrors());
     }
 
     public void testValidateGivenRemoteIndex() throws IOException {

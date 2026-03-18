@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -57,9 +58,13 @@ import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.mocksocket.MockHttpServer;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
@@ -699,6 +704,82 @@ public class ReindexerTests extends ESTestCase {
                 assertNull("routing should not be set", pitRequest.routing());
                 assertNull("preference should not be set", pitRequest.preference());
                 assertFalse("allowPartialSearchResults should be false", pitRequest.allowPartialSearchResults());
+            } finally {
+                terminate(threadPool);
+            }
+        } finally {
+            client.shutdown();
+        }
+    }
+
+    /**
+     * When a worker receives a sliced request from the leader, the request already has PIT set.
+     * The worker must skip openPitAndExecute and go straight to executePaginatedSearch.
+     * Verifies that no OpenPointInTimeRequest is sent in this case.
+     */
+    public void testWorkerWithPitAlreadySetSkipsOpenPit() {
+        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+
+        final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
+        try {
+            final TestThreadPool threadPool = new TestThreadPool(getTestName()) {
+                @Override
+                public ExecutorService executor(String name) {
+                    return DIRECT_EXECUTOR_SERVICE;
+                }
+            };
+            try {
+                final ClusterService clusterService = mock(ClusterService.class);
+                final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
+                when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+                when(clusterService.localNode()).thenReturn(localNode);
+
+                final ProjectResolver projectResolver = mock(ProjectResolver.class);
+                when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
+
+                FeatureService featureService = mock(FeatureService.class);
+                when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
+
+                final Reindexer reindexer = new Reindexer(
+                    clusterService,
+                    projectResolver,
+                    client,
+                    threadPool,
+                    mock(ScriptService.class),
+                    mock(ReindexSslConfig.class),
+                    null,
+                    mock(TransportService.class),
+                    mock(ReindexRelocationNodePicker.class),
+                    featureService
+                );
+
+                // Simulate a worker request: PIT already set by leader, slice info from leader
+                final ReindexRequest request = new ReindexRequest();
+                request.setDestIndex("dest");
+                request.setSlices(1);
+                request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+                request.getSearchRequest().source(
+                    new SearchSourceBuilder().pointInTimeBuilder(
+                        new PointInTimeBuilder(new BytesArray("pit-id")).setKeepAlive(TimeValue.timeValueMinutes(5))
+                    ).slice(new SliceBuilder(IdFieldMapper.NAME, 0, 5))
+                );
+
+                final BulkByScrollTask task = new BulkByScrollTask(
+                    randomTaskId(),
+                    "reindex",
+                    "reindex",
+                    "test",
+                    TaskId.EMPTY_TASK_ID,
+                    Collections.emptyMap(),
+                    false,
+                    randomOrigin()
+                );
+
+                final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+                reindexer.initTask(task, request, initFuture.delegateFailure((l, v) -> reindexer.execute(task, request, client, l)));
+                initFuture.actionGet();
+
+                assertNull("Worker with PIT already set must not open a new PIT", client.getCapturedPitRequest());
             } finally {
                 terminate(threadPool);
             }

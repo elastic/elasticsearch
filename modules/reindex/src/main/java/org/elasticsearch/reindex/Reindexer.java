@@ -182,14 +182,21 @@ public class Reindexer {
         /**
          * Point-in-time searching is enabled
          * As this is a request to reindex from remote, we need to determine the remote version prior to execution
-         * NB {@link ReindexRequest} forbids remote requests and slices > 1, so we're guaranteed to be running on the only slice
+         * NB {@link ReindexRequest} forbids remote requests and slices > 1, so we're guaranteed to be running on the only slice.
+         * Once slicing for remote is enabled, we'll need to change this to prevent duplicate remote version look-ups
          */
         else if (isRemote) {
             lookupRemoteVersionAndExecute(task, request, bulkClient, responseListener, workerAction);
         }
         // Point-in-time searching is enabled, and this is a local request
         else {
-            openPitAndExecute(task, request, bulkClient, responseListener);
+            // If PIT is already set (worker received sliced request from leader), skip opening a new PIT
+            if (request.getSearchRequest().source() != null
+                && request.getSearchRequest().source().pointInTimeBuilder() != null) {
+                executePaginatedSearch(task, request, responseListener, workerAction, null);
+            } else {
+                openPitAndExecute(task, request, bulkClient, responseListener);
+            }
         }
     }
 

@@ -173,7 +173,10 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     public ActionRequestValidationException validate() {
         ActionRequestValidationException e = searchRequest.validate();
         if (searchRequest.source().from() != -1) {
-            e = addValidationError("from is not supported in this context", e);
+            // Allow from=0 when using PIT for search_after compatibility
+            if (searchRequest.source().pointInTimeBuilder() == null || searchRequest.source().from() != 0) {
+                e = addValidationError("from is not supported in this context", e);
+            }
         }
         if (searchRequest.source().storedFields() != null) {
             e = addValidationError("stored_fields is not supported in this context", e);

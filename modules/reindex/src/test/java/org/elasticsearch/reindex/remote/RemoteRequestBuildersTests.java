@@ -648,7 +648,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
 
         RuntimeException e = expectThrows(
             RuntimeException.class,
-            () -> pitSearch(searchRequest, new BytesArray("{}, \"trailing\": {}"), pitId, keepAlive, null, remoteVersion)
+            () -> pitSearch(searchRequest, new BytesArray("{,"), pitId, keepAlive, null, remoteVersion)
         );
         assertThat(e.getCause().getMessage(), containsString("Unexpected character"));
 

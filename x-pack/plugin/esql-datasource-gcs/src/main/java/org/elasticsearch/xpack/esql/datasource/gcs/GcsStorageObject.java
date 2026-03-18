@@ -143,19 +143,61 @@ public final class GcsStorageObject implements StorageObject {
                     cachedLastModified = blob.getUpdateTimeOffsetDateTime().toInstant();
                 }
             } else {
-                cachedExists = false;
-                cachedLength = 0L;
-                cachedLastModified = null;
+                setNotFound();
             }
         } catch (StorageException e) {
             if (e.getCode() == 404) {
-                cachedExists = false;
-                cachedLength = 0L;
-                cachedLastModified = null;
+                setNotFound();
+            } else if (e.getCode() == 403) {
+                fetchMetadataViaRangeRead();
             } else {
                 throw new IOException("Failed to get metadata for " + path, e);
             }
         }
+    }
+
+    private void fetchMetadataViaRangeRead() throws IOException {
+        try {
+            ReadChannel reader = storage.reader(BlobId.of(bucket, objectName));
+            reader.seek(0);
+            reader.limit(1);
+            int bytesRead;
+            try (InputStream is = Channels.newInputStream(reader)) {
+                bytesRead = is.read();
+            }
+
+            if (bytesRead >= 0) {
+                cachedExists = true;
+                // GCS ReadChannel does not expose Content-Range; length cannot be determined
+                // from a range read. The caller must know the length from listing (glob expansion).
+                if (cachedLength == null) {
+                    throw new IOException(
+                        "Failed to determine object size for "
+                            + path
+                            + ": GCS metadata access denied and object size cannot be determined from a range read. "
+                            + "Use glob patterns (which include size from listing) instead of direct file paths."
+                    );
+                }
+            } else {
+                setNotFound();
+            }
+        } catch (StorageException e) {
+            if (e.getCode() == 404) {
+                setNotFound();
+            } else {
+                throw new IOException("Failed to get metadata for " + path + " (metadata denied, range read also failed)", e);
+            }
+        } catch (IOException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IOException("Failed to get metadata for " + path + " (metadata denied, range read also failed)", e);
+        }
+    }
+
+    private void setNotFound() {
+        cachedExists = false;
+        cachedLength = 0L;
+        cachedLastModified = null;
     }
 
     String bucket() {

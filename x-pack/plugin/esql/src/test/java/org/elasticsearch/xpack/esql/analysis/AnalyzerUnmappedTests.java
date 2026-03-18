@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -14,15 +15,22 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzeStatement;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergedResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -517,8 +525,79 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         verificationFailure(query, "FORK is not supported with unmapped_fields=\"load\"");
     }
 
+    public void testTypeConflictLongUnmappedNoCast() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", Map.of())
+            ),
+            List.of()
+        );
+        IndexResolution resolution = mergedResolution("foo,bar", caps);
+        var indexResolutions = indexResolutions(resolution);
+        var query = setUnmappedLoad("FROM foo, bar | SORT message");
+        verificationFailure(query, indexResolutions, "Cannot use field [message]");
+    }
+
+    public void testTypeConflictLongKeywordUnmappedNoCast() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "keyword")),
+                fieldCapabilitiesIndexResponse("baz", Map.of())
+            ),
+            List.of()
+        );
+        IndexResolution resolution = mergedResolution("foo,bar,baz", caps);
+        var indexResolutions = indexResolutions(resolution);
+        var query = setUnmappedLoad("FROM foo, bar, baz | EVAL x = message + 1");
+        verificationFailure(query, indexResolutions, "Cannot use field [message]");
+    }
+
+    public void testTypeConflictLongIntUnmappedNoCast() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "integer")),
+                fieldCapabilitiesIndexResponse("baz", Map.of())
+            ),
+            List.of()
+        );
+        IndexResolution resolution = mergedResolution("foo,bar,baz", caps);
+        var indexResolutions = indexResolutions(resolution);
+        var query = setUnmappedLoad("FROM foo, bar, baz | SORT message");
+        verificationFailure(query, indexResolutions, "Cannot use field [message]");
+    }
+
+    public void testTypeConflictTextUnmappedNoCast() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "text")),
+                fieldCapabilitiesIndexResponse("bar", Map.of())
+            ),
+            List.of()
+        );
+        IndexResolution resolution = mergedResolution("foo,bar", caps);
+        var indexResolutions = indexResolutions(resolution);
+        var query = setUnmappedLoad("FROM foo, bar | EVAL x = message");
+        verificationFailure(query, indexResolutions, "Cannot use field [message]");
+    }
+
     private void verificationFailure(String statement, String expectedFailure) {
         var e = expectThrows(VerificationException.class, () -> analyzeStatement(statement));
+        assertThat(e.getMessage(), containsString(expectedFailure));
+    }
+
+    private void verificationFailure(String statement, Map<IndexPattern, IndexResolution> indexResolutions, String expectedFailure) {
+        var e = expectThrows(VerificationException.class, () -> analyzeStatement(statement, indexResolutions));
         assertThat(e.getMessage(), containsString(expectedFailure));
     }
 

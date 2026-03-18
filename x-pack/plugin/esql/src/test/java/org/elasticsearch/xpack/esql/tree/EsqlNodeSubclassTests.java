@@ -189,6 +189,14 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
          */
         expectedCount -= 1;
 
+        // CompoundOutputEval/CompoundOutputEvalExec subclasses have extra non-transformable parameters
+        // (e.g., extractDeviceType, regexFile). The info() contract only includes:
+        // child, input, outputFieldNames, outputFieldAttributes (4 properties)
+        if (CompoundOutputEval.class.isAssignableFrom(subclass) 
+            || CompoundOutputEvalExec.class.isAssignableFrom(subclass)) {
+            expectedCount = 4;
+        }
+
         assertEquals("Wrong number of info parameters for " + subclass.getSimpleName(), expectedCount, info(node).properties().size());
     }
 
@@ -204,8 +212,18 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         T node = ctor.newInstance(nodeCtorArgs);
 
         Type[] argTypes = ctor.getGenericParameterTypes();
+        
+        // Determine loop end: CompoundOutputEval subclasses only test transformable properties
+        int parameterEnd = ctor.getParameterCount();
+        if (CompoundOutputEval.class.isAssignableFrom(subclass) 
+            || CompoundOutputEvalExec.class.isAssignableFrom(subclass)) {
+            // These classes have extra non-transformable parameters (e.g., extractDeviceType, regexFile)
+            // Only iterate through the 5 transformable parameters: Source, child, input, outputFieldNames, outputFieldAttributes
+            parameterEnd = 5;
+        }
+        
         // start at 1 because we can't change Location.
-        for (int changedArgOffset = 1; changedArgOffset < ctor.getParameterCount(); changedArgOffset++) {
+        for (int changedArgOffset = 1; changedArgOffset < parameterEnd; changedArgOffset++) {
             Object originalArgValue = nodeCtorArgs[changedArgOffset];
 
             Type changedArgType = argTypes[changedArgOffset];
@@ -247,8 +265,17 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         T node = ctor.newInstance(nodeCtorArgs);
 
         Type[] argTypes = ctor.getGenericParameterTypes();
+        
+        // Determine loop end: CompoundOutputEval subclasses only test transformable properties
+        int parameterEnd = ctor.getParameterCount();
+        if (CompoundOutputEval.class.isAssignableFrom(subclass) 
+            || CompoundOutputEvalExec.class.isAssignableFrom(subclass)) {
+            // These classes have extra non-transformable parameters
+            parameterEnd = 5;
+        }
+        
         // start at 1 because we can't change Location.
-        for (int changedArgOffset = 1; changedArgOffset < ctor.getParameterCount(); changedArgOffset++) {
+        for (int changedArgOffset = 1; changedArgOffset < parameterEnd; changedArgOffset++) {
             Object originalArgValue = nodeCtorArgs[changedArgOffset];
             Type changedArgType = argTypes[changedArgOffset];
 

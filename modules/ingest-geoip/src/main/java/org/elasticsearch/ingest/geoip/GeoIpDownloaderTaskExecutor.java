@@ -261,14 +261,12 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
             }
         }
         // Cleanup
-        for (var project : atLeastOneGeoIpProcessorByProject.keySet()) {
-            if (projects.containsKey(project) == false) {
-                tasks.remove(project);
-                atLeastOneGeoIpProcessorByProject.remove(project);
-            } else if (PersistentTasksCustomMetadata.getTaskWithId(projects.get(project), getProjectTaskId(project)) == null) {
-                tasks.remove(project);
-            }
-        }
+        atLeastOneGeoIpProcessorByProject.keySet().removeIf(p -> projects.containsKey(p) == false);
+        tasks.keySet()
+            .removeIf(
+                p -> projects.containsKey(p) == false
+                    || PersistentTasksCustomMetadata.getTaskWithId(projects.get(p), getProjectTaskId(p)) == null
+            );
     }
 
     @Override

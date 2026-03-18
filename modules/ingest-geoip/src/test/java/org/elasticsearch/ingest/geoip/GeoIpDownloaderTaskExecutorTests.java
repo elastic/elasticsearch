@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.ingest.IngestMetadata;
@@ -36,6 +37,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
@@ -46,7 +48,17 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
     public void testSettingsUpdateWiresToEnabledFlag() {
         final boolean localEnabled = randomBoolean();
         final var nodeSettings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), localEnabled).build();
-        final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final var clusterSettings = new ClusterSettings(
+            nodeSettings,
+            Sets.union(
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                Set.of(
+                    GeoIpDownloaderTaskExecutor.ENABLED_SETTING,
+                    GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING,
+                    GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING
+                )
+            )
+        );
         final var localNode = DiscoveryNodeUtils.create("local");
         ThreadPool threadPool = new TestThreadPool(getTestName());
         try (

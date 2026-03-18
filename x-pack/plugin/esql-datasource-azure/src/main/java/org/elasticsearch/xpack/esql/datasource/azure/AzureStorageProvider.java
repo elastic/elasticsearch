@@ -87,10 +87,16 @@ public final class AzureStorageProvider implements StorageProvider {
             if (account == null && config.account() != null) {
                 account = config.account();
             }
-            String endpoint = config.endpoint() != null && config.endpoint().isEmpty() == false
-                ? config.endpoint()
-                : "https://" + account + ".blob.core.windows.net";
-            builder.endpoint(endpoint);
+            if (config.endpoint() != null && config.endpoint().isEmpty() == false) {
+                builder.endpoint(config.endpoint());
+            } else if (account != null) {
+                builder.endpoint("https://" + account + ".blob.core.windows.net");
+            } else {
+                throw new IllegalStateException(
+                    "Anonymous Azure access requires an endpoint or account from the path "
+                        + "(wasbs://account.blob.core.windows.net/...) or WITH (endpoint = '...')"
+                );
+            }
             // No credential — Azure SDK sends unauthenticated requests for public containers
             return builder.buildClient();
         } else if (config != null && config.hasCredentials()) {

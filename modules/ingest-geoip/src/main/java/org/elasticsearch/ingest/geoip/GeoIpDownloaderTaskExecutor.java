@@ -60,7 +60,7 @@ import static org.elasticsearch.ingest.geoip.GeoIpProcessor.IP_LOCATION_TYPE;
 
 /// A [ToggleablePersistentTasksExecutor], enabled/disabled via the [ENABLED_SETTING][#ENABLED_SETTING], and
 /// responsible for starting [GeoIpDownloader] after task is allocated by master node.
-/// Reconciles the geoip downloader task lifecycle on every cluster state update,
+/// Reconciles the geoip downloader task lifecycle on every cluster state update.
 public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasksExecutor<GeoIpTaskParams> {
 
     private static final boolean ENABLED_DEFAULT = "false".equals(

@@ -206,7 +206,7 @@ public class ToggleablePersistentTasksExecutorTests extends ESTestCase {
         try (
             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)
         ) {
-            final var executor = new TestToggleableExecutor(clusterService, persistentTasksService, Scope.PROJECT, randomBoolean());
+            final var executor = new TestToggleableExecutor(clusterService, persistentTasksService, scope, randomBoolean());
             var state = initialState;
             if (randomBoolean()) {
                 final var enabled = randomBoolean();

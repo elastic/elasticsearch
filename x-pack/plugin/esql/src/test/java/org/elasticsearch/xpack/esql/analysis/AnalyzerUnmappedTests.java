@@ -544,10 +544,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        IndexResolution resolution = mergedResolution("foo,bar", caps);
-        var indexResolutions = indexResolutions(resolution);
-        var query = setUnmappedLoad("FROM foo, bar | SORT message");
-        verificationFailure(query, indexResolutions, "Cannot use field [message]");
+        verificationFailure(
+            setUnmappedLoad("FROM foo, bar | SORT message"),
+            indexResolutions(mergedResolution("foo,bar", caps)),
+            "Cannot use field [message]"
+        );
     }
 
     public void testTypeConflictLongKeywordUnmappedNoCast() {
@@ -561,10 +562,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        IndexResolution resolution = mergedResolution("foo,bar,baz", caps);
-        var indexResolutions = indexResolutions(resolution);
-        var query = setUnmappedLoad("FROM foo, bar, baz | EVAL x = message + 1");
-        verificationFailure(query, indexResolutions, "Cannot use field [message]");
+        verificationFailure(
+            setUnmappedLoad("FROM foo, bar, baz | EVAL x = message + 1"),
+            indexResolutions(mergedResolution("foo,bar,baz", caps)),
+            "Cannot use field [message]"
+        );
     }
 
     public void testTypeConflictLongIntUnmappedNoCast() {
@@ -578,10 +580,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        IndexResolution resolution = mergedResolution("foo,bar,baz", caps);
-        var indexResolutions = indexResolutions(resolution);
-        var query = setUnmappedLoad("FROM foo, bar, baz | SORT message");
-        verificationFailure(query, indexResolutions, "Cannot use field [message]");
+        verificationFailure(
+            setUnmappedLoad("FROM foo, bar, baz | SORT message"),
+            indexResolutions(mergedResolution("foo,bar,baz", caps)),
+            "Cannot use field [message]"
+        );
     }
 
     public void testTypeConflictTextUnmappedNoCast() {
@@ -594,10 +597,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             ),
             List.of()
         );
-        IndexResolution resolution = mergedResolution("foo,bar", caps);
-        var indexResolutions = indexResolutions(resolution);
-        var query = setUnmappedLoad("FROM foo, bar | EVAL x = message");
-        verificationFailure(query, indexResolutions, "Cannot use field [message]");
+        verificationFailure(
+            setUnmappedLoad("FROM foo, bar | EVAL x = message"),
+            indexResolutions(mergedResolution("foo,bar", caps)),
+            "Cannot use field [message]"
+        );
     }
 
     private void verificationFailure(String statement, String expectedFailure) {

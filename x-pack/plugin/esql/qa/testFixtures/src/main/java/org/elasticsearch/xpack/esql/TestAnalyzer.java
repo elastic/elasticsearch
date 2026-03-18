@@ -243,6 +243,7 @@ public class TestAnalyzer {
     private static final String RERANKING_INFERENCE_ID = "reranking-inference-id";
     private static final String COMPLETION_INFERENCE_ID = "completion-inference-id";
     private static final String TEXT_EMBEDDING_INFERENCE_ID = "text-embedding-inference-id";
+    private static final String EMBEDDING_INFERENCE_ID = "embedding-inference-id";
     private static final String CHAT_COMPLETION_INFERENCE_ID = "chat-completion-inference-id";
     private static final String SPARSE_EMBEDDING_INFERENCE_ID = "sparse-embedding-inference-id";
     private static final String ERROR_INFERENCE_ID = "error-inference-id";
@@ -252,6 +253,7 @@ public class TestAnalyzer {
             .withResolvedInference(new ResolvedInference(RERANKING_INFERENCE_ID, TaskType.RERANK))
             .withResolvedInference(new ResolvedInference(COMPLETION_INFERENCE_ID, TaskType.COMPLETION))
             .withResolvedInference(new ResolvedInference(TEXT_EMBEDDING_INFERENCE_ID, TaskType.TEXT_EMBEDDING))
+            .withResolvedInference(new ResolvedInference(EMBEDDING_INFERENCE_ID, TaskType.EMBEDDING))
             .withResolvedInference(new ResolvedInference(CHAT_COMPLETION_INFERENCE_ID, TaskType.CHAT_COMPLETION))
             .withResolvedInference(new ResolvedInference(SPARSE_EMBEDDING_INFERENCE_ID, TaskType.SPARSE_EMBEDDING))
             .withError(ERROR_INFERENCE_ID, "error with inference resolution")

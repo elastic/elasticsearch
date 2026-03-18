@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -455,18 +456,20 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     public void testEmbeddingLiteralValues() {
         assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
 
-        var analyzer = AnalyzerTestUtils.expandedDefaultAnalyzer();
+        var testAnalyzer = analyzer().addIndex("test", "mapping-default.json")
+            .addAnalysisTestsLookupResolutions()
+            .addAnalysisTestsInferenceResolution();
 
-        var err = error("""
+        var err = error(testAnalyzer.query("""
             from test
             | EVAL embedding = EMBEDDING(first_name, "embedding-inference-id")
-            """, analyzer);
+            """));
         assertThat(err, is("2:20: First argument for EMBEDDING must be a constant string"));
 
-        err = error("""
+        err = error(testAnalyzer.query("""
             from test
             | EVAL embedding = EMBEDDING("my text", first_name)
-            """, analyzer);
+            """));
         assertThat(err, is("2:20: Second argument for EMBEDDING must be a constant string"));
     }
 }

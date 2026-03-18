@@ -171,6 +171,8 @@ public class MetricValidator {
             Map.entry("es.allocator.desired_balance.allocations.node_weight.current", ALLOCATOR_NODE_ATTRIBUTES),
             Map.entry("es.allocator.desired_balance.allocations.node_write_load.current", ALLOCATOR_NODE_ATTRIBUTES),
             Map.entry("es.allocator.shard_write_load.distribution.current", Sets.addToCopy(ALLOCATOR_NODE_ATTRIBUTES, "percentile")),
+            Map.entry("es.allocator.shards.unassigned_to_initializing.duration.histogram", Set.of("primary", "reason")),
+            Map.entry("es.allocator.shards.unassigned_to_started.duration.histogram", Set.of("primary", "reason")),
             Map.entry("es.autoscaling.indexing.node_ingest_load.current", Sets.addToCopy(ALLOCATOR_NODE_ATTRIBUTES, "quality", "type")),
             Map.entry("es.blob_cache.miss_that_triggered_read.total", BLOB_CACHE_ATTRIBUTES),
             Map.entry("es.blob_cache.population.bytes.total", BLOB_CACHE_ATTRIBUTES),

@@ -115,7 +115,8 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
             ClusterInfo.builder().build(),
             null,
             System.nanoTime(),
-            false // Turn off isSimulating
+            false, // Turn off isSimulating
+            ShardChangesObserver.NOOP
         );
 
         Settings settings = Settings.builder()
@@ -189,7 +190,8 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
             ClusterInfo.builder().build(),
             null,
             System.nanoTime(),
-            true // Turn on isSimulating
+            true, // Turn on isSimulating
+            ShardChangesObserver.NOOP
         );
 
         Settings settings = Settings.builder()

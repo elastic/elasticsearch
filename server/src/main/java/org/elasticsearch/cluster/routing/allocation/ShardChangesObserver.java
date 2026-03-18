@@ -14,10 +14,43 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.telemetry.metric.LongHistogram;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.Map;
+import java.util.function.LongSupplier;
+
+/// Observes shard state transitions during allocation rounds, logging them and emitting APM timing metrics.
 public class ShardChangesObserver implements RoutingChangesObserver {
 
+    public static final String UNASSIGNED_TO_INITIALIZING_METRIC = "es.allocator.shards.unassigned_to_initializing.duration.histogram";
+    public static final String UNASSIGNED_TO_STARTED_METRIC = "es.allocator.shards.unassigned_to_started.duration.histogram";
+
+    public static final ShardChangesObserver NOOP = new ShardChangesObserver(MeterRegistry.NOOP);
+
     private static final Logger logger = LogManager.getLogger(ShardChangesObserver.class);
+
+    private final LongHistogram unassignedToInitializingDuration;
+    private final LongHistogram unassignedToStartedDuration;
+    private final LongSupplier currentTimeMillisSupplier;
+
+    public ShardChangesObserver(MeterRegistry meterRegistry) {
+        this(meterRegistry, System::currentTimeMillis);
+    }
+
+    ShardChangesObserver(MeterRegistry meterRegistry, LongSupplier currentTimeMillisSupplier) {
+        this.unassignedToInitializingDuration = meterRegistry.registerLongHistogram(
+            UNASSIGNED_TO_INITIALIZING_METRIC,
+            "Duration a shard spent in UNASSIGNED state before being assigned to a node",
+            "ms"
+        );
+        this.unassignedToStartedDuration = meterRegistry.registerLongHistogram(
+            UNASSIGNED_TO_STARTED_METRIC,
+            "Total duration from when a shard became UNASSIGNED to when it became STARTED",
+            "ms"
+        );
+        this.currentTimeMillisSupplier = currentTimeMillisSupplier;
+    }
 
     @Override
     public void shardInitialized(ShardRouting unassignedShard, ShardRouting initializedShard) {
@@ -27,6 +60,11 @@ public class ShardChangesObserver implements RoutingChangesObserver {
             initializedShard.recoverySource().getType(),
             initializedShard.currentNodeId()
         );
+        UnassignedInfo info = unassignedShard.unassignedInfo();
+        if (info != null) {
+            long durationMillis = currentTimeMillisSupplier.getAsLong() - info.unassignedTimeMillis();
+            unassignedToInitializingDuration.record(Math.max(0, durationMillis), attributes(info, initializedShard));
+        }
     }
 
     @Override
@@ -37,6 +75,11 @@ public class ShardChangesObserver implements RoutingChangesObserver {
             initializingShard.recoverySource().getType(),
             startedShard.currentNodeId()
         );
+        UnassignedInfo info = initializingShard.unassignedInfo();
+        if (info != null) {
+            long durationMillis = currentTimeMillisSupplier.getAsLong() - info.unassignedTimeMillis();
+            unassignedToStartedDuration.record(Math.max(0, durationMillis), attributes(info, startedShard));
+        }
     }
 
     @Override
@@ -62,5 +105,9 @@ public class ShardChangesObserver implements RoutingChangesObserver {
 
     private static String shardIdentifier(ShardRouting shardRouting) {
         return shardRouting.shardId().toString() + '[' + (shardRouting.primary() ? 'P' : 'R') + ']';
+    }
+
+    private static Map<String, Object> attributes(UnassignedInfo info, ShardRouting shard) {
+        return Map.of("primary", shard.primary(), "reason", info.reason().name());
     }
 }

@@ -13,6 +13,8 @@ import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
 import com.azure.storage.blob.models.BlobItem;
+import com.azure.storage.blob.models.BlobRange;
+import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.models.ListBlobsOptions;
 import com.azure.storage.common.StorageSharedKeyCredential;
 
@@ -48,7 +50,7 @@ public final class AzureStorageProvider implements StorageProvider {
 
     public AzureStorageProvider(AzureConfiguration config) {
         this.config = config;
-        if (config != null && config.hasCredentials()) {
+        if (config != null && (config.hasCredentials() || config.isAnonymous())) {
             this.blobServiceClient = buildBlobServiceClient(config);
         }
     }
@@ -80,7 +82,18 @@ public final class AzureStorageProvider implements StorageProvider {
     private static BlobServiceClient buildBlobServiceClient(AzureConfiguration config, String accountFromPath) {
         BlobServiceClientBuilder builder = new BlobServiceClientBuilder();
 
-        if (config != null && config.hasCredentials()) {
+        if (config != null && config.isAnonymous()) {
+            String account = accountFromPath;
+            if (account == null && config.account() != null) {
+                account = config.account();
+            }
+            String endpoint = config.endpoint() != null && config.endpoint().isEmpty() == false
+                ? config.endpoint()
+                : "https://" + account + ".blob.core.windows.net";
+            builder.endpoint(endpoint);
+            // No credential — Azure SDK sends unauthenticated requests for public containers
+            return builder.buildClient();
+        } else if (config != null && config.hasCredentials()) {
             if (config.connectionString() != null && config.connectionString().isEmpty() == false) {
                 builder.connectionString(config.connectionString());
                 if (config.endpoint() != null && config.endpoint().isEmpty() == false) {
@@ -167,7 +180,37 @@ public final class AzureStorageProvider implements StorageProvider {
         ParsedPath parsed = parsePath(path);
         String account = extractAccountFromHost(parsed.host);
         BlobClient blobClient = client(account).getBlobContainerClient(parsed.container).getBlobClient(parsed.blobName);
-        return blobClient.exists();
+        try {
+            return blobClient.exists();
+        } catch (BlobStorageException e) {
+            if (e.getStatusCode() == 403) {
+                return existsViaRangeGet(blobClient, path);
+            }
+            throw new IOException("Failed to check existence of " + path + credentialHint(), e);
+        } catch (Exception e) {
+            throw new IOException("Failed to check existence of " + path + credentialHint(), e);
+        }
+    }
+
+    private boolean existsViaRangeGet(BlobClient blobClient, StoragePath path) throws IOException {
+        try (var stream = blobClient.openInputStream(new BlobRange(0, 1L), null)) {
+            return true;
+        } catch (BlobStorageException e) {
+            if (e.getStatusCode() == 404) {
+                return false;
+            }
+            throw new IOException("Failed to check existence of " + path + " (properties denied, range GET also failed)", e);
+        } catch (Exception e) {
+            throw new IOException("Failed to check existence of " + path + " (properties denied, range GET also failed)", e);
+        }
+    }
+
+    private String credentialHint() {
+        if (config == null || (config.isAnonymous() == false && config.hasCredentials() == false)) {
+            return ". If accessing a public container, use WITH (auth = 'none'). "
+                + "Otherwise, provide credentials via WITH (account = '...', key = '...') or set Azure environment variables";
+        }
+        return "";
     }
 
     @Override
@@ -279,24 +322,38 @@ public final class AzureStorageProvider implements StorageProvider {
 
         @Override
         public boolean hasNext() {
-            if (iterator == null) {
-                iterator = blobItems.iterator();
-            }
-            if (current != null) {
-                return true;
-            }
-            while (iterator.hasNext()) {
-                BlobItem item = iterator.next();
-                if (item.isPrefix()) {
-                    continue;
+            try {
+                if (iterator == null) {
+                    iterator = blobItems.iterator();
                 }
-                String name = item.getName();
-                if (name != null && name.endsWith(StoragePath.PATH_SEPARATOR) == false) {
-                    current = item;
+                if (current != null) {
                     return true;
                 }
+                while (iterator.hasNext()) {
+                    BlobItem item = iterator.next();
+                    if (item.isPrefix()) {
+                        continue;
+                    }
+                    String name = item.getName();
+                    if (name != null && name.endsWith(StoragePath.PATH_SEPARATOR) == false) {
+                        current = item;
+                        return true;
+                    }
+                }
+                return false;
+            } catch (BlobStorageException e) {
+                if (e.getStatusCode() == 403) {
+                    throw new RuntimeException(
+                        "Access denied listing blobs in container ["
+                            + container
+                            + "]. "
+                            + "Verify that the configured credentials have listing permission on this container, "
+                            + "or use exact file paths instead of glob patterns.",
+                        e
+                    );
+                }
+                throw new RuntimeException("Failed to list blobs in container [" + container + "]", e);
             }
-            return false;
         }
 
         @Override

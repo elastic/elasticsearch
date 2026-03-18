@@ -59,21 +59,22 @@ abstract class BalancedKMeansLocal extends KMeansLocal {
         ClusteringFloatVectorValues vectors,
         IntToIntFunction ordTranslator,
         float[] cumulative_cluster_weights,
-        float[][] weights,
+        float[][] softAssignments,
         float[][] centroids
     ) throws IOException {
         int dim = vectors.dimension();
         for (int idx = 0; idx < vectors.size(); idx++) {
             float[] vec = vectors.vectorValue(idx);
             for (int k = 0; k < centroids.length; k++) {
-                cumulative_cluster_weights[k] += weights[idx][k];
+                cumulative_cluster_weights[k] += softAssignments[idx][k];
             }
 
             for (int k = 0; k < centroids.length; k++) {
                 float[] centroid = centroids[k];
-                float learning_rate = 1 / cumulative_cluster_weights[k];
+                float learning_rate = 1.f / cumulative_cluster_weights[k];
+                float w = learning_rate * softAssignments[idx][k];
                 for (int d = 0; d < dim; d++) {
-                    centroid[d] += learning_rate * weights[idx][k] * (vec[d] - centroid[d]);
+                    centroid[d] += w * (vec[d] - centroid[d]);
                 }
             }
         }
@@ -131,7 +132,7 @@ abstract class BalancedKMeansLocal extends KMeansLocal {
         }
 
         float[][] distances = new float[miniBatchSize][k]; // distances from sampledVectors to centroids
-        float[][] weights = new float[miniBatchSize][k]; // soft-assignments of sampledVectors to centroids
+        float[][] softAssignments = new float[miniBatchSize][k]; // soft-assignments of sampledVectors to centroids
 
         float[] cumulative_cluster_weights = new float[k]; // maintains soft cluster counts for each cluster.
                                                            // Used to compute the learning rate in the SGD update of the centroids
@@ -171,10 +172,11 @@ abstract class BalancedKMeansLocal extends KMeansLocal {
                 float current_median = medianEstimator.getEstimate();
                 float eps = Math.max(eta, etaMin) * current_median;
                 // Perform Shinkhorn iterations in log domain to obtain a balanced assignment.
-                SinkhornIterations.compute(distances, sinkhornIterations, eps, weights);
+                int iterations = (i == maxIterations - 1)? sinkhornIterations: 2 * sinkhornIterations;
+                SinkhornIterations.compute(distances, iterations, eps, softAssignments);
 
                 // Update the centroids using SGD.
-                updateCentroids(sampledVectors, ordTranslator, cumulative_cluster_weights, weights, centroids);
+                updateCentroids(sampledVectors, ordTranslator, cumulative_cluster_weights, softAssignments, centroids);
             }
             eta *= alpha;
             for (int kk = 0; kk < k; kk++) {

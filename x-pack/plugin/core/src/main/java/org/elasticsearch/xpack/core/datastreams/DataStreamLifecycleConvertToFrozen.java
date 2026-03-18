@@ -19,6 +19,9 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -141,7 +144,7 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
             return false;
         }
 
-        String repositoryName = resolveRepositoryName(projectState);
+        final String repositoryName = getRepositoryForFrozen(projectMetadata, indexName);
         if (Strings.hasText(repositoryName) == false) {
             logger.debug("Default repository not configured, skipping convert-to-frozen steps for index [{}]", indexName);
             throw new ElasticsearchException(
@@ -166,6 +169,17 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
         }
 
         return true;
+    }
+
+    /**
+     * Return the repository name to use for converting this index to a searchable snapshot, or else null if it is not set.
+     */
+    @Nullable
+    private static String getRepositoryForFrozen(ProjectMetadata projectMetadata, String indexName) {
+        return Optional.ofNullable(projectMetadata.index(indexName))
+            .map(im -> im.getCustomData(DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY))
+            .map(custom -> custom.get(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY))
+            .orElse(null);
     }
 
     /**

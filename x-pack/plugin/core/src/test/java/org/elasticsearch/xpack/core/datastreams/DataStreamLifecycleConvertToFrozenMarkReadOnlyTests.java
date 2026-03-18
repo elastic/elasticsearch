@@ -28,6 +28,8 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.License;
@@ -42,6 +44,7 @@ import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
@@ -405,6 +408,10 @@ public class DataStreamLifecycleConvertToFrozenMarkReadOnlyTests extends ESTestC
                     .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
                     .numberOfShards(1)
                     .numberOfReplicas(0)
+                    .putCustom(
+                        DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
+                        Map.of(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY, repoName)
+                    )
                     .build(),
                 false
             );

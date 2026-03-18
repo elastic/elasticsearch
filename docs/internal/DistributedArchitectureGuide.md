@@ -1262,23 +1262,280 @@ See `TransportMasterNodeAction` Javadoc for a detailed description of the execut
 
 ### Lucene Locking
 
-# Engine
+# Engine & Store
 
-(What does Engine mean in the distrib layer? Distinguish Engine vs Directory vs Lucene)
+[Engine]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/Engine.java
 
-(High level explanation of how translog ties in with Lucene)
+[InternalEngine]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java
 
-(contrast Lucene vs ES flush / refresh / fsync)
+[IndexShard]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexShard.java
 
-### Refresh for Read
+[Translog]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/translog/Translog.java
 
-(internal vs external reader manager refreshes? flush vs refresh)
+### IndexShard
 
-### Reference Counting
+The [IndexShard] class is the single entry point for all shard-level operations: indexing, deletion, real-time GET,
+refresh, flush, recovery, and snapshot. There is exactly one `IndexShard` object per allocated shard.
+
+An `IndexShard` holds references to:
+
+- The shard's [Store], which wraps a Lucene `Directory` and provides access to the shard's Lucene index files on disk.
+- The shard's [Engine], which manages all indexing and search operations for this shard, writing to both the
+  [Translog] and the Lucene files managed by the `Store`.
+
+The lifecycle of these objects (creation, recovery, and teardown) is controlled by the [IndicesClusterStateService],
+which reacts to cluster state changes and updates local state accordingly (see
+the [IndicesClusterStateService](#indicesclusterstateservice) section).
 
 ### Store
 
-(Data lives beyond a high level IndexShard instance. Continue to exist until all references to the Store go away, then Lucene data is removed)
+[Store]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java
+
+[RefCounted]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/core/RefCounted.java
+
+[StoreFileMetadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/StoreFileMetadata.java
+
+[FsDirectoryFactory]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/FsDirectoryFactory.java
+
+The [Store] is the lowest-level Elasticsearch persistence abstraction for a shard. Each shard has a single
+dedicated `Store` that wraps a
+Lucene [Directory](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/Directory.html), which is Lucene's
+own file-system abstraction used to read and write index files on disk.
+Lucene's `Directory` is a pure I/O abstraction: callers open
+an [IndexInput](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/IndexInput.html) to read a named file
+and create an [IndexOutput](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/IndexOutput.html) to
+write one. The `Store` builds on the Lucene `Directory` capabilities by adding reference counting and corruption 
+detection, exposing committed file metadata and enforcing integrity invariants.
+
+#### Reference Counting and Lifecycle
+
+The `Store` implements [RefCounted]. Callers call `store.incRef()` before using it and `store.decRef()` in
+a `finally` block when done. Once the reference count drops to zero the store is closed and the underlying Lucene
+directory is cleaned up. The `Store` also receives a [ShardLock] at construction time and only releases it 
+once closed, allowing other threads waiting to acquire the lock for this shard to proceed.
+
+#### Backing Directory
+
+The Lucene `Directory` used by a `Store` is created by
+an [IndexStorePlugin.DirectoryFactory](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/plugins/IndexStorePlugin.java#L40).
+The default built-in implementation is [FsDirectoryFactory], which
+supports [several store types](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/FsDirectoryFactory.java#L107)
+selectable via the
+`index.store.type` [setting](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexModule.java#L111):
+
+- `hybridfs` (default):
+  a [HybridDirectory](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/FsDirectoryFactory.java#L180)
+  that delegates
+  to a [MMapDirectory](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/MMapDirectory.html) for
+  performance-sensitive file types (postings, term vectors index, norms, vectors, etc.)
+  and [NIOFSDirectory](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/NIOFSDirectory.html) for files
+  where sequential access is preferred (e.g. stored fields). Direct I/O is also enabled for vector index files when
+  supported by the OS. The `HybridDirectory` selects between mmap and NIO on a per-file basis
+  by [checking](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/FsDirectoryFactory.java#L252)
+  the file's Lucene extension and I/O context.
+- `mmapfs`: uses `MMapDirectory` for all files.
+- `niofs`: uses `NIOFSDirectory` for all files.
+- `fs`: automatically selects the best type for the underlying file system.
+
+#### MetadataSnapshot
+
+The `Store`
+exposes [MetadataSnapshots](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L820)
+for each index commit, read and constructed from the Lucene `segments_N` files. A `MetadataSnapshot` is a point-in-time
+map from filename to [StoreFileMetadata] for the committed files belonging to a Lucene index commit, produced by an
+Elasticsearch flush.
+Each [StoreFileMetadata] includes the file's name, on-disk length, CRC32 checksum (from the Lucene file footer), the
+Lucene version that wrote it, and a `writerUuid` that uniquely identifies the writer.
+
+`MetadataSnapshot`s are leveraged by several Elasticsearch workflows, including [peer recovery](#peer-recovery) and
+replica shard allocation (via `TransportNodesListShardStoreMetadata`). They are used to compare the on-disk state of two
+distinct shards and calculate how much data needs to be transferred to bring them into sync.
+
+#### Concurrency
+
+[NodeEnvironment]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/env/NodeEnvironment.java
+
+[ShardLock]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/env/ShardLock.java
+
+Access to a shard's on-disk data is protected by three layers of locking, each scoped to a different level.
+
+The [ShardLock] is a node-wide, coarse-grained lock managed by [NodeEnvironment]. It is backed by a
+`Semaphore` and guarantees that at most one owner at a time has write access to a given shard directory
+within a JVM process. The
+`Store` [is given](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L169)
+a `ShardLock` at creation time. It holds this lock for its entire lifetime, ensuring that write operations (e.g.
+creating an `IndexWriter`, deleting shard files, or recovering from another shard) have exclusive access to the shard 
+directory.
+Callers that need to access the directory without a live `Store` (e.g. `TransportNodesListShardStoreMetadata` reading 
+metadata for allocation
+decisions) [acquire a temporary](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/store/TransportNodesListShardStoreMetadata.java#L182)
+`ShardLock` for the duration of the read.
+
+The [metadataLock](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L168)
+is an in-process `ReentrantReadWriteLock` inside the `Store`. It guards access to the
+directory's file listing and segment metadata. Operations that only read metadata (e.g. `getMetadata` with an
+existing
+commit) [take the read lock](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L300),
+allowing concurrent readers. Operations that structurally modify the
+directory (e.g. renaming temporary recovery files via `renameTempFilesSafe`, cleaning up stale files
+via `cleanupAndVerify`, or running `CheckIndex`) take the write lock, which excludes all readers and other
+writers until the operation completes.
+
+Lucene's [IndexWriter](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/index/IndexWriter.html) write lock
+is a native file lock (`write.lock`) that Lucene places in the index
+directory. It prevents two `IndexWriter` instances from ever opening the same directory simultaneously, even
+across processes. When the `Store` needs to read metadata from a directory that has no active engine (e.g.
+during `getMetadata(commit=null, lockDirectory=true)`), it acquires the Lucene write lock together with the
+`metadataLock` write lock, ensuring no writer can interfere. In normal operation, the running `InternalEngine`
+already holds this
+lock [through its IndexWriter](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L149).
+
+To summarize, `ShardLock` is a JVM-level lock enforced across the entire node, `metadataLock`
+coordinates in-process readers and writers within the `Store`, and the Lucene write lock guards the raw
+directory at the file-system level.
+
+#### Corruption
+
+The `Store` maintains
+corruption [markers](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L142)
+as special files prefixed with `corrupted_` written into the Lucene directory.
+When an unrecoverable I/O error or checksum mismatch
+is [detected](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L1372),
+a marker file is written containing the serialized exception. Subsequent calls to `failIfCorrupted()` scan for these
+marker files and throw a `CorruptIndexException` if any are found, preventing any further operations on a known-bad
+shard. Corruption markers are removed only after the shard has been successfully recovered from another source (e.g. a
+primary or a snapshot).
+
+### Engine
+
+The [Engine] abstract class is the Elasticsearch abstraction that manages and coordinates operations on the running
+shard index. Where the `Store` manages files on disk, the `Engine` owns the write
+path (indexing, deletion, no-ops), the read path (searcher acquisition, real-time GET), and Lucene lifecycle
+operations (refresh, flush, merge). It also controls the translog, ensuring that every acknowledged write is
+durably recorded before a response is sent.
+
+The main implementation is [InternalEngine], used for all read-write shards (primary and replica). Other
+implementations serve more specialized roles. For example,
+the [ReadOnlyEngine](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/ReadOnlyEngine.java)
+gives read-only access to a frozen shard, and
+the [NoOpEngine](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/NoOpEngine.java)
+acts as a placeholder for shards belonging to a closed index. It exists to allow shards of closed indices to be
+correctly replicated in case of a node failure.
+
+#### Segments, Refresh, and Flush
+
+Lucene organizes index data on disk into immutable files called *segments*. They are created whenever the in-memory
+write buffer is flushed or when merges combine existing segments into larger ones.
+The [IndexWriter](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/index/IndexWriter.html)
+accumulates writes in memory and periodically flushes new segments. The `InternalEngine` wraps an `IndexWriter` (for
+writes) and a pair of internal and
+external [reader manager](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L151)
+that wrap
+Lucene [DirectoryReader](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/index/DirectoryReader.html)s and
+map Elasticsearch concepts onto Lucene's:
+
+- An Elasticsearch `refresh` triggers a Lucene NRT reader reopen (via `DirectoryReader.openIfChanged()`), making
+  recently indexed documents searchable without writing a full commit to disk. Refreshes do not call
+  `IndexWriter.commit()` and do not persist data durably.
+- An Elasticsearch `flush` calls `IndexWriter.commit()`, writing a durable commit point to disk. A flush is
+  what allows the translog to be safely truncated up to that commit.
+
+This distinction is a core piece of Elasticsearch's durability model. Documents are searchable after a refresh but
+only durably stored after a flush. In between, the translog bridges the gap. Every write is appended to the
+translog on disk before being acknowledged, so that it can be replayed in the event of a crash.
+
+The detailed mechanics of how a write flows through the engine (including translog interaction, sequence number
+assignment, and version map updates) are covered in the [Translog](#translog) and [Indexing / CRUD](#indexing--crud)
+sections.
+
+### IndicesClusterStateService
+
+[ClusterStateApplier]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterStateApplier.java
+
+[ShardStateAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/action/shard/ShardStateAction.java
+
+[RecoverySource]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/RecoverySource.java
+
+[ShardRouting]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/ShardRouting.java
+
+The [IndicesClusterStateService] is a high-priority [ClusterStateApplier] of the [ClusterApplierService] (
+see [Cluster State Application](#cluster-state-application)).
+Any time a new cluster state is published, [IndicesClusterStateService] checks whether the state of indices
+and shards has changed and updates the local node's shards to match accordingly.
+
+Its `doApplyClusterState` method goes through the following operations in order each time a new cluster state
+is applied:
+
+1. [Delete indices](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/cluster/IndicesClusterStateService.java#L353)
+   that no longer exist in the new cluster state: closes each `IndexShard` (which closes its
+   `Engine`, flushing first), releases the `Store` reference, and deletes the on-disk shard directory.
+2. [Remove shards](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/cluster/IndicesClusterStateService.java#L355)
+   that are no longer assigned to this node: closes the `Engine` (without flushing, unflushed data is already in the
+   translog and safe), releases the `Store` reference, but leaves the on-disk files intact for later cleanup by
+   `IndicesStore`.
+3. [Update index metadata](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/cluster/IndicesClusterStateService.java#L357):
+   if index settings changed, propagates them in-memory to each `IndexShard` and then to its `Engine` (e.g. merge
+   scheduler config, GC deletes policy, soft-delete retention). If mappings changed, updates the `MapperService`. No
+   disk writes happen here.
+4. [Create or update shards](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/cluster/IndicesClusterStateService.java#L359):
+   for each [ShardRouting] targeting this node in `INITIALIZING` state, creates a new `Store` and `IndexShard` and kicks
+   off recovery. For already-active shards, updates their routing metadata in-place.
+
+The below diagram illustrates the end-to-end flow from a master publishing a new cluster state containing a
+newly assigned shard down to the `Engine` becoming active.
+
+```mermaid
+sequenceDiagram
+    participant M as Master Node
+    participant CA as ClusterApplierService
+    participant ICSS as IndicesClusterStateService
+    participant IS as IndexShard
+    participant S as Store
+    participant E as InternalEngine
+
+    rect rgb(255, 248, 240)
+    Note over M,CA: Cluster State Committed
+    M->>CA: ApplyCommitRequest (new ClusterState)
+    CA->>ICSS: applyClusterState(ClusterChangedEvent)
+    end
+
+    rect rgb(240, 248, 255)
+    Note over ICSS,S: Shard Creation
+    ICSS->>ICSS: doApplyClusterState()<br/>deleteIndices()<br/>removeIndicesAndShards()<br/>updateIndices()
+    ICSS->>S: new Store(shardDirectory)
+    ICSS->>IS: new IndexShard(store, shardRouting, ...)
+    ICSS->>IS: startRecovery(recoverySource)
+    end
+
+    rect rgb(240, 255, 240)
+    Note over IS,E: Recovery and Engine Start
+    IS->>S: validate / prepare directory
+    IS->>E: new InternalEngine(engineConfig)
+    E->>S: IndexWriter.open(store.directory)
+    Note right of E: Engine open, shard STARTED
+    end
+
+    rect rgb(255, 240, 240)
+    Note over IS,M: Report Back to Master
+    IS->>M: ShardStateAction.shardStarted()
+    Note left of M: Master updates ClusterState<br/>marks shard as STARTED
+    end
+```
+
+For a newly assigned shard, `createShard`
+first [acquires](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/cluster/IndicesClusterStateService.java#L754)
+a `ShardLock` (preventing concurrent access to the same shard directory from a concurrent request) or throws a
+`ShardLockObtainFailedException` if it fails to do so. It
+then [creates](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexService.java#L560)
+a `Store` referencing the shard's on-disk directory,
+and [instantiates](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexService.java#L569)
+an `IndexShard`. Recovery is
+then [triggered](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/IndicesService.java#L993)
+based on the [RecoverySource] in the [ShardRouting].
+
+The details of recovery, including how the `Engine` is created and started, are covered in the
+[Peer Recovery](#peer-recovery), [Snapshot Recovery](#snapshot-recovery), and [Local Shards Recovery](#local-shards-recovery)
+sections.
 
 ### Translog
 
@@ -1319,7 +1576,8 @@ Flushes may also be automatically initiated by Elasticsearch, e.g., if the trans
 [`Location`]:https://github.com/elastic/elasticsearch/blob/693f3bfe30271d77a6b3147e4519b4915cbb395d/server/src/main/java/org/elasticsearch/index/translog/Translog.java#L977
 [`AsyncIOProcessor`]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/common/util/concurrent/AsyncIOProcessor.java
 
-A bulk request will repeateadly call ultimately the Engine methods such as [`index()` or `delete()`] which adds operations to the Translog.
+A bulk request will repeatedly call ultimately the Engine methods such as [`index()` or `delete()`] which adds
+operations to the Translog.
 Finally, the AfterWrite action of the [`TransportWriteAction`] will call [`indexShard.syncAfterWrite()`] which will put the last written translog [`Location`] of the bulk request into a [`AsyncIOProcessor`] that is responsible for gradually fsync'ing the Translog and notifying any waiters.
 Ultimately the bulk request is notified that the translog has fsync'ed past the requested location, and can continue to acknowledge the bulk request.
 This process involves multiple writes to the translog before the next fsync(), and this is done so that we amortize the cost of the translog's fsync() operations across all writes.
@@ -1380,18 +1638,229 @@ That is because after a refresh, any documents in the old map are now searchable
 
 ### Index Version
 
+[IndexVersion]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexVersion.java
+
+[IndexVersions]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexVersions.java
+
+The [IndexVersion] tracks the on-disk format of an index. It is conceptually similar to [TransportVersion]
+(which controls wire-protocol compatibility between nodes) but instead targets how index data and metadata are
+serialized to Lucene files. Every time the serialization format of mappings, postings, doc values, or any other
+persisted index structure changes, a new `IndexVersion` constant must be added.
+
+The `IndexVersion` class contains two fields: an integer `id` and the
+Lucene [Version](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/util/Version.html)
+that the index was written with. The stored Lucene version is used for Lucene API calls that depend on the version,
+such as [reading segment metadata](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/lucene/Lucene.java#L173).
+
+The `IndexVersion` class was [introduced](https://github.com/elastic/elasticsearch/pull/94827) in 8.8.0. Before that, 
+the node release `Version` was used for both purposes. Prior to 8.9.0 the `id` field was the same as the release version, 
+for backwards compatibility. In 8.9.0 it changed to an incrementing number, and disconnected from the release version.
+
+All known versions are declared as constants in [IndexVersions] (e.g. `UPGRADE_TO_LUCENE_10_4_0`,
+`SEMANTIC_TEXT_FIELD_TYPE`, or `GENERIC_DENSE_VECTOR_FORMAT`).
+This [list](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexVersions.java#L62)
+serves as the source of truth for version-to-Lucene mappings and merge-conflict checks.
+
+The `IndexVersion`
+is [stamped](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/MetadataCreateIndexService.java#L1231)
+on every index at creation time via
+the [IndexMetadata](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/IndexMetadata.java)
+`index.version.created` setting. This version is immutable for the lifetime of the index and determines which code
+paths are used when reading its data
+([PostRecoveryMerger optimization example](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/PostRecoveryMerger.java#L100)).
+
+A separate `index.version.compatibility`
+[setting](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/IndexMetadata.java#L394)
+(defaulting to `index.version.created`)
+can [be set](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/MetadataCreateIndexService.java#L1874)
+to a newer version to opt in to newer behavior while retaining backward-compatible defaults. For example, when
+restoring a snapshot of an index with an `index.version.created` older than `MINIMUM_READONLY_COMPATIBLE`,
+[RestoreService.convertLegacyIndex()](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/snapshots/RestoreService.java#L1801)
+sets `index.version.compatibility` to the minimum index version supported by the cluster's nodes and adds
+a write block, so that the index can be opened as a read-only archive. The subsequent paragraphs contain more details
+about index version compatibility.
+
+Elasticsearch supports a two-major-version compatibility window for index data. Indices created in the current
+major version (N) or the previous major version (N-1) are fully supported for reading and writing. The minimum
+index version for this full support is defined by
+[IndexVersions.MINIMUM_COMPATIBLE](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexVersions.java#L268).
+Note that Lucene [enforces similar constraints](https://github.com/apache/lucene/issues/10708).
+
+Indices created in the penultimate major version (N-2), i.e. older than `MINIMUM_COMPATIBLE` but at or above
+[IndexVersions.MINIMUM_READONLY_COMPATIBLE](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexVersions.java#L269),
+can only be opened in read-only mode. They must have been marked as read-only (with a write block) on the previous
+major version before upgrading. Their mappings and field types are still fully understood by the current version. Only
+writes are blocked.
+
+Indices older than `MINIMUM_READONLY_COMPATIBLE` are classified as legacy. Their on-disk format
+is too old for the current version to fully understand their mappings or field types, so they are automatically converted
+to degraded read-only archives via [RestoreService.convertLegacyIndex()](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/snapshots/RestoreService.java#L1801)
+when restored from a snapshot.
+Both `MINIMUM_COMPATIBLE` and `MINIMUM_READONLY_COMPATIBLE` are bumped with each new major release to maintain this
+window.
+
+For more details on how index format compatibility interacts with upgrades,
+see the [Index Format Backwards Compatibility](https://github.com/elastic/elasticsearch/blob/main/docs/internal/GeneralArchitectureGuide.md#index-format-backwards-compatibility)
+section in the General Architecture Guide.
+
 ### Lucene
 
-(copy a sketch of the files Lucene can have here and explain)
+[Apache Lucene](https://lucene.apache.org/) is the search and indexing library at the core of every Elasticsearch shard.
+Each shard is a Lucene index. Instead of treating Lucene as an opaque storage engine at the bottom of the
+stack, Elasticsearch deeply integrates with it. It customizes file I/O, codecs, merge behavior, and reader
+lifecycle.
 
-(Explain about SearchIndexInput -- IndexWriter, IndexReader -- and the shared blob cache)
+For more details on how Elasticsearch wraps Lucene's `Directory` for file I/O, see the [Store](#store) section.
+For how the `IndexWriter` and `DirectoryReader` are managed, including the distinction between "refresh"
+(NRT reopen) and "flush" (durable Lucene commit), see [Segments, Refresh, and Flush](#segments-refresh-and-flush).
 
-(Lucene uses Directory, ES extends/overrides the Directory class to implement different forms of file storage.
-Lucene contains a map of where all the data is located in files and offsites, and fetches it from various files.
-ES doesn't just treat Lucene as a storage engine at the bottom (the end) of the stack. Rather ES has other information that
-works in parallel with the storage engine.)
+#### Lucene File Layout
+
+A Lucene index on disk is a collection of segment files plus a
+`segments_N` [info file](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/SegmentInfos.html) that
+records which segments belong to the latest commit. Each segment is a self-contained, immutable mini-index composed
+of several file types, each responsible for a different data structure:
+
+| Extension | Content |
+|-----------|---------|
+| `.si`     | Segment metadata (doc count, unique id, diagnostics, Lucene version). |
+| `.fnm`    | Field infos: field names, types (string, numeric, etc.), and index options (stored, indexed, doc values). |
+| `.fdm`, `.fdt` | Stored fields metadata and data (original JSON `_source`, stored field values). |
+| `.tim`, `.tip`, `.doc`, `.pos`, `.pay` | The inverted index: term dictionary, postings lists, positions, and payloads. |
+| `.dvd`, `.dvm` | Doc values data and metadata (columnar storage for sorting, aggregations, scripting). |
+| `.tvd`, `.tvx` | Term vectors data and index. |
+| `.nvm`, `.nvd` | Norms (per-field length normalization factors used in scoring). |
+| `.liv`    | Live documents bitset (tracks which docs have been deleted within the segment). |
+| `.vec`, `.vex`, `.vem` | KNN vector data and graph (HNSW or other ANN structure). |
+| `.kdm`, `.kdi`, `.kdd` | Points / BKD tree (numeric range queries, geo). |
+
+Check out the
+Lucene [documentation](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/codecs/lucene104/package-summary.html)
+for more details on each of those specific files. Elasticsearch also maintains a registry of all known Lucene file
+extensions in
+[LuceneFilesExtensions](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/LuceneFilesExtensions.java).
+
+The `segments_N` file and the `write.lock` file live at the directory root. A commit atomically publishes a new
+`segments_N+1` as the active commit point, making the new set of segments visible.
+The old segment files are removed once they are no longer 
+[referenced](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/IndexReader.html#decRef()) by any open 
+`IndexReader` or any retained commits. Elasticsearch's 
+[CombinedDeletionPolicy](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/CombinedDeletionPolicy.java), which implements Lucene's
+[IndexDeletionPolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/IndexDeletionPolicy.html), 
+manages which commits are retained. All commits more recent than 
+the [safe commit](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/CombinedDeletionPolicy.java#L55)
+(the most recent commit whose max sequence number is at most the global checkpoint, used as the starting point
+for peer recovery) are preserved. Older commits can also 
+be [pinned](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/CombinedDeletionPolicy.java#L216)
+by external consumers (e.g., snapshot operations). `CombinedDeletionPolicy` also
+[communicates the safe commit checkpoint information](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/CombinedDeletionPolicy.java#L109)
+with the translog deletion policy.
+
+#### Codecs
+
+[PerFieldMapperCodec]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/PerFieldMapperCodec.java
+[Mapper]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/mapper/Mapper.java
+[PerFieldFormatSupplier]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/PerFieldFormatSupplier.java
+[CodecService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/CodecService.java
+[TSDBSyntheticIdPostingsFormat]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/tsdb/TSDBSyntheticIdPostingsFormat.java
+[TSDBSyntheticIdStoredFieldsReader]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/tsdb/TSDBSyntheticIdStoredFieldsReader.java
+
+Lucene's [Codec](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/codecs/package-summary.html) abstraction
+lets each field type choose its own on-disk format. A codec is a bundle of format implementations: one for postings,
+one for stored fields, one for doc values, one for vectors, etc.
+
+Elasticsearch ships its own codec stack, managed by the [CodecService] class. It extends the current Lucene codec
+(e.g. [Lucene104Codec](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/codecs/lucene104/Lucene104Codec.html))
+with Elasticsearch-specific customizations:
+
+- The [PerFieldMapperCodec] delegates postings, doc values, and KNN vector format selection
+  to each field's [Mapper], allowing field types to choose specialized formats (See the [PerFieldFormatSupplier] for
+  specific examples).
+- The [DeduplicateFieldInfosCodec](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/CodecService.java#L115)
+  [wraps](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/CodecService.java#L93)
+  codecs registered in `CodecService` to
+  deduplicate [FieldInfos](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/FieldInfo.html)
+  metadata objects loaded from each segment's `.fnm` file. Field names, attribute keys, and attribute maps that are
+  identical across segments are [interned](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/DeduplicatingFieldInfosFormat.java#L50)
+  so they share a single object in memory, reducing heap usage on indices with many segments.
+- For time-series indices with synthetic IDs enabled (`index.mapping.synthetic_id`), the `AbstractTSDBSyntheticIdCodec`
+  [avoids writing](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/mapper/SyntheticIdField.java#L32)
+  the `_id` inverted index and stored field to disk. The `_id` field is still declared as indexed, but
+  [SyntheticIdField](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/mapper/SyntheticIdField.java)
+  produces an empty token stream so no postings are actually written on flush.
+  At read time, the [TSDBSyntheticIdPostingsFormat] reconstructs postings from `_tsid`, `@timestamp`, and
+  `_ts_routing_hash` doc values, and the [TSDBSyntheticIdStoredFieldsReader] synthesizes `_id` stored-field values on
+  the fly from the same doc values. An
+  [ES94BloomFilterDocValuesFormat](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/bloomfilter/ES94BloomFilterDocValuesFormat.java)
+  bloom filter is also built for the `_id` field so that existence checks during indexing can avoid `_tsid` and 
+  `@timestamp` doc-values lookups per document. The synthetic ID feature reduces the storage overhead for 
+  high-cardinality time-series indices.
+
+As the [IndexVersion](#index-version) advances with each Lucene upgrade, new codec implementations are
+introduced (e.g. [Elasticsearch92Lucene103Codec](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/Elasticsearch92Lucene103Codec.java)). Older segments written by previous codecs remain readable
+because Lucene's [SPI](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/ServiceLoader.html)
+mechanism loads the codec that originally wrote each segment.
 
 #### Segment Merges
+
+[MergePolicyConfig]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/MergePolicyConfig.java
+[ThreadPoolMergeScheduler]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/ThreadPoolMergeScheduler.java
+[SoftDeletesPolicy]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/SoftDeletesPolicy.java
+[PrunePostingsMergePolicy]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/PrunePostingsMergePolicy.java
+[PruningMergePolicy]:https://github.com/elastic/elasticsearch/blob/6b105b2e26988377532837e0360ddaaef87d279f/server/src/main/java/org/elasticsearch/index/engine/PruningMergePolicy.java
+[ShuffleForcedMergePolicy]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/ShuffleForcedMergePolicy.java
+[ThreadPoolMergeExecutorService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/ThreadPoolMergeExecutorService.java
+
+Because Lucene segments are immutable, updates and deletes cannot modify documents in place. Over time,
+small segments accumulate from successive flushes.
+[Merges](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/MergePolicy.html) combine multiple
+segments into fewer, larger ones. Merges both reclaim space from obsolete documents and improve query performance by
+reducing the number of segments a search must visit.
+
+[MergePolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/MergePolicy.html)s decide
+which segments to merge and when. Elasticsearch configures this through [MergePolicyConfig], which uses
+Lucene's [TieredMergePolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/TieredMergePolicy.html)
+as the default base policy, and
+[LogByteSizeMergePolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/LogByteSizeMergePolicy.html)
+for time-series indices. Then the `InternalEngine`
+[wraps](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L2808)
+this base policy with several layers:
+
+- [SoftDeletesRetentionMergePolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/SoftDeletesRetentionMergePolicy.html):
+  retains soft-deleted documents (more details about soft deletes in subsequent paragraphs).
+- [PrunePostingsMergePolicy]: drops the `_id` field postings for deleted documents during segment merges, maintaining
+  consistent update performance even when a large number of soft deleted/updated documents are retained.
+- [PruningMergePolicy]: prunes `_recovery_source` stored fields and `_seq_no`-related fields for documents
+  that no longer need them for replication.
+- [ShuffleForcedMergePolicy]: randomizes segment ordering during force merges so that recently-indexed
+  documents are not always co-located at the end, improving the efficiency of time-based queries.
+
+[MergeScheduler](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/MergeScheduler.html)s decide how
+merges are executed. The default implementation is [ThreadPoolMergeScheduler], which runs merges on the
+[ThreadPoolMergeExecutorService] shared node-level thread pool with disk-aware I/O throttling.
+
+Elasticsearch never hard-deletes documents from Lucene. Instead, both updates and deletes
+use Lucene's [soft-delete](https://issues.apache.org/jira/browse/LUCENE-8198) mechanism. The [InternalEngine]
+[calls](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1645)
+[IndexWriter.softUpdateDocument](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/IndexWriter.html#softUpdateDocument(org.apache.lucene.index.Term,java.lang.Iterable,org.apache.lucene.document.Field...)),
+which atomically marks the previous version of a document as soft-deleted
+(by setting a `__soft_deletes` numeric doc-values field to `1`) and writes the new version or a delete
+tombstone into the current segment.
+The old document is also marked as deleted in the `.liv` bitset, just like a hard delete. The soft-delete update
+triggers a new generational `.liv` file for the segment that contained the previous version of the document.
+The difference between hard and soft deletes is that hard-deleted documents are always discarded during merges,
+whereas documents carrying the `__soft_deletes` marker can be selectively retained. Lucene's
+[SoftDeletesRetentionMergePolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/SoftDeletesRetentionMergePolicy.html)
+decides which soft-deleted documents to keep by evaluating a retention query at merge time.
+Elasticsearch provides this query through its [SoftDeletesPolicy], which evaluates whether a document can be discarded
+based on the minimum sequence number to retain (evaluated from the global checkpoint), the
+`index.soft_deletes.retention.operations` setting, and any active retention leases held by replicas or CCR followers.
+
+Soft deletes are an essential feature for [CCR](#cross-cluster-replication-ccr).
+CCR followers replay operations from their leader Lucene index to stay up to date. Without soft deletes, the leader 
+Lucene index could discard deleted documents during merges, leaving no trace that the delete operation ever occurred. 
+CCR followers that fall behind would no longer be able to catch up via operation replay. Soft-deleted tombstones 
+prevent this by preserving delete operations in the Lucene index until all followers have processed them.
 
 # Recovery
 

@@ -12,9 +12,13 @@ package org.elasticsearch.test.transport;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Transport;
@@ -102,6 +106,11 @@ public class FakeTransport extends AbstractLifecycleComponent implements Transpo
     @Override
     public RequestHandlers getRequestHandlers() {
         return requestHandlers;
+    }
+
+    @Override
+    public RecyclerBytesStreamOutput newNetworkBytesStream(@Nullable CircuitBreaker circuitBreaker) {
+        return new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE, circuitBreaker);
     }
 
     @Override

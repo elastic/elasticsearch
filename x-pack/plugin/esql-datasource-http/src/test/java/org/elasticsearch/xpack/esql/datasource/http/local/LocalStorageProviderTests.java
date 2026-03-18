@@ -17,6 +17,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -142,6 +143,85 @@ public class LocalStorageProviderTests extends ESTestCase {
         StoragePath path = StoragePath.of("http://example.com/file.txt");
 
         expectThrows(IllegalArgumentException.class, () -> provider.newObject(path));
+    }
+
+    public void testReadBytesHeapBuffer() throws IOException {
+        Path tempFile = createTempFile("test", ".txt");
+        String content = "0123456789ABCDEFGHIJ";
+        Files.writeString(tempFile, content);
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(tempFile));
+        StorageObject object = provider.newObject(path);
+
+        ByteBuffer buf = ByteBuffer.allocate(5);
+        int bytesRead = object.readBytes(5, buf);
+        assertEquals(5, bytesRead);
+        buf.flip();
+        byte[] result = new byte[5];
+        buf.get(result);
+        assertEquals("56789", new String(result, StandardCharsets.UTF_8));
+    }
+
+    public void testReadBytesDirectBuffer() throws IOException {
+        Path tempFile = createTempFile("test", ".txt");
+        String content = "0123456789ABCDEFGHIJ";
+        Files.writeString(tempFile, content);
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(tempFile));
+        StorageObject object = provider.newObject(path);
+
+        ByteBuffer buf = ByteBuffer.allocateDirect(5);
+        assertFalse(buf.hasArray());
+        int bytesRead = object.readBytes(5, buf);
+        assertEquals(5, bytesRead);
+        buf.flip();
+        byte[] result = new byte[5];
+        buf.get(result);
+        assertEquals("56789", new String(result, StandardCharsets.UTF_8));
+    }
+
+    public void testReadBytesAtEndOfFile() throws IOException {
+        Path tempFile = createTempFile("test", ".txt");
+        String content = "short";
+        Files.writeString(tempFile, content);
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(tempFile));
+        StorageObject object = provider.newObject(path);
+
+        ByteBuffer buf = ByteBuffer.allocate(10);
+        int bytesRead = object.readBytes(0, buf);
+        assertEquals(5, bytesRead);
+        assertEquals(5, buf.position());
+    }
+
+    public void testReadBytesAtEofReturnsMinusOne() throws IOException {
+        Path tempFile = createTempFile("test", ".txt");
+        Files.writeString(tempFile, "abc");
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(tempFile));
+        StorageObject object = provider.newObject(path);
+
+        ByteBuffer buf = ByteBuffer.allocate(5);
+        int bytesRead = object.readBytes(3, buf);
+        assertEquals(-1, bytesRead);
+        assertEquals(0, buf.position());
+    }
+
+    public void testReadBytesEmptyBuffer() throws IOException {
+        Path tempFile = createTempFile("test", ".txt");
+        Files.writeString(tempFile, "data");
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(tempFile));
+        StorageObject object = provider.newObject(path);
+
+        ByteBuffer buf = ByteBuffer.allocate(0);
+        int bytesRead = object.readBytes(0, buf);
+        assertEquals(0, bytesRead);
     }
 
     // -- directory listing: non-recursive vs recursive --

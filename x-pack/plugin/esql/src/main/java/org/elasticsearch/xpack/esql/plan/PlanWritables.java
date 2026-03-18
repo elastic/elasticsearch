@@ -13,17 +13,21 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
@@ -58,6 +62,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
+import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SubqueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
@@ -88,6 +93,7 @@ public class PlanWritables {
             Enrich.ENTRY,
             EsRelation.ENTRY,
             Eval.ENTRY,
+            ExternalRelation.ENTRY,
             Filter.ENTRY,
             Grok.ENTRY,
             InlineJoin.ENTRY,
@@ -95,13 +101,16 @@ public class PlanWritables {
             Join.ENTRY,
             LocalRelation.ENTRY,
             Limit.ENTRY,
+            LimitBy.ENTRY,
             Lookup.ENTRY,
             MvExpand.ENTRY,
             OrderBy.ENTRY,
+            ParameterizedQuery.ENTRY,
             Project.ENTRY,
             Project.V9_ENTRY, // Backward compatibility for reading old "EsqlProject" type
             Rerank.ENTRY,
             Sample.ENTRY,
+            SampledAggregate.ENTRY,
             Subquery.ENTRY,
             TimeSeriesAggregate.ENTRY,
             TopN.ENTRY,
@@ -135,6 +144,7 @@ public class PlanWritables {
             ProjectExec.ENTRY,
             RerankExec.ENTRY,
             SampleExec.ENTRY,
+            SampledAggregateExec.ENTRY,
             ShowExec.ENTRY,
             SubqueryExec.ENTRY,
             TimeSeriesAggregateExec.ENTRY,

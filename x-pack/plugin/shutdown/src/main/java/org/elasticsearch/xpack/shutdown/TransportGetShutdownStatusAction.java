@@ -34,6 +34,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.persistent.PersistentTasks;
+import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.CancellableTask;
@@ -130,14 +132,13 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                             allocationService,
                             allocationDeciders
                         ),
-                        new ShutdownPersistentTasksStatus(),
+                        persistentTasksStatus(state, ns.getNodeId(), ns.getNodeSeen()),
                         new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType()))
                     )
                 )
                 .collect(Collectors.toList());
             response = new GetShutdownStatusAction.Response(shutdownStatuses);
         } else {
-            new ArrayList<>();
             final List<SingleNodeShutdownStatus> shutdownStatuses = Arrays.stream(request.getNodeIds())
                 .map(nodesShutdownMetadata::get)
                 .filter(Objects::nonNull)
@@ -155,7 +156,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                             allocationService,
                             allocationDeciders
                         ),
-                        new ShutdownPersistentTasksStatus(),
+                        persistentTasksStatus(state, ns.getNodeId(), ns.getNodeSeen()),
                         new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType()))
                     )
 
@@ -165,6 +166,27 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         }
 
         listener.onResponse(response);
+    }
+
+    // pkg-private for testing
+    static ShutdownPersistentTasksStatus persistentTasksStatus(ClusterState state, String nodeId, boolean nodeSeen) {
+        if (state.nodes().get(nodeId) == null && nodeSeen == false) {
+            return ShutdownPersistentTasksStatus.notStarted();
+        }
+        int autoReassignTasks = 0;
+        int persistentTasks = 0;
+        for (final var it = PersistentTasks.getAllTasks(state).iterator(); it.hasNext();) {
+            final var tuple = it.next();
+            for (final var task : tuple.v2().tasks()) {
+                if (nodeId.equals(task.getAssignment().getExecutorNode())) {
+                    persistentTasks++;
+                    if (PersistentTasksExecutorRegistry.taskHasReassignmentOnShutdownDisabled(task.getTaskName()) == false) {
+                        autoReassignTasks++;
+                    }
+                }
+            }
+        }
+        return ShutdownPersistentTasksStatus.fromRemainingTasks(persistentTasks, autoReassignTasks);
     }
 
     // pkg-private for testing

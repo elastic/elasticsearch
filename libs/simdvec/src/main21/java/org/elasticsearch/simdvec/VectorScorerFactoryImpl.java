@@ -23,8 +23,12 @@ import org.elasticsearch.simdvec.internal.ByteVectorScorer;
 import org.elasticsearch.simdvec.internal.ByteVectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.FloatVectorScorer;
 import org.elasticsearch.simdvec.internal.FloatVectorScorerSupplier;
+import org.elasticsearch.simdvec.internal.Int4VectorScorer;
+import org.elasticsearch.simdvec.internal.Int4VectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorer;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorerSupplier;
+import org.elasticsearch.simdvec.internal.Int7uOSQVectorScorer;
+import org.elasticsearch.simdvec.internal.Int7uOSQVectorScorerSupplier;
 
 import java.util.Optional;
 
@@ -118,6 +122,79 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         float[] queryVector
     ) {
         return Int7SQVectorScorer.create(sim, values, queryVector);
+    }
+
+    @Override
+    public Optional<RandomVectorScorerSupplier> getInt7uOSQVectorScorerSupplier(
+        VectorSimilarityType similarityType,
+        IndexInput input,
+        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values
+    ) {
+        input = FilterIndexInput.unwrapOnlyTest(input);
+        input = MemorySegmentAccessInputAccess.unwrap(input);
+        if (input instanceof MemorySegmentAccessInput msInput) {
+            checkInvariants(values.size(), values.dimension(), input);
+            return switch (similarityType) {
+                case COSINE, DOT_PRODUCT -> Optional.of(new Int7uOSQVectorScorerSupplier.DotProductSupplier(msInput, values));
+                case EUCLIDEAN -> Optional.of(new Int7uOSQVectorScorerSupplier.EuclideanSupplier(msInput, values));
+                case MAXIMUM_INNER_PRODUCT -> Optional.of(new Int7uOSQVectorScorerSupplier.MaxInnerProductSupplier(msInput, values));
+            };
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<RandomVectorScorer> getInt7uOSQVectorScorer(
+        VectorSimilarityFunction sim,
+        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values,
+        byte[] quantizedQuery,
+        float lowerInterval,
+        float upperInterval,
+        float additionalCorrection,
+        int quantizedComponentSum
+    ) {
+        return Int7uOSQVectorScorer.create(
+            sim,
+            values,
+            quantizedQuery,
+            lowerInterval,
+            upperInterval,
+            additionalCorrection,
+            quantizedComponentSum
+        );
+    }
+
+    @Override
+    public Optional<RandomVectorScorerSupplier> getInt4VectorScorerSupplier(
+        VectorSimilarityType similarityType,
+        IndexInput input,
+        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values
+    ) {
+        input = FilterIndexInput.unwrapOnlyTest(input);
+        input = MemorySegmentAccessInputAccess.unwrap(input);
+        checkInvariants(values.size(), values.dimension() / 2, input);
+        return Optional.of(new Int4VectorScorerSupplier(input, values, similarityType));
+    }
+
+    @Override
+    public Optional<RandomVectorScorer> getInt4VectorScorer(
+        VectorSimilarityFunction sim,
+        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values,
+        byte[] unpackedQuery,
+        float lowerInterval,
+        float upperInterval,
+        float additionalCorrection,
+        int quantizedComponentSum
+    ) {
+        return Int4VectorScorer.create(
+            sim,
+            values,
+            unpackedQuery,
+            lowerInterval,
+            upperInterval,
+            additionalCorrection,
+            quantizedComponentSum
+        );
     }
 
     static void checkInvariants(int maxOrd, int vectorByteLength, IndexInput input) {

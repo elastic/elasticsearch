@@ -243,7 +243,7 @@ public class MinTests extends AbstractAggregationTestCase {
                 expected = fieldTypedData.multiRowData()
                     .stream()
                     .map(obj -> (TDigestHolder) obj)
-                    .filter(histo -> histo.getValueCount() > 0) // only non-empty histograms have an influence
+                    .filter(histo -> histo.size() > 0) // only non-empty histograms have an influence
                     .map(TDigestHolder::getMin)
                     .min(Comparator.naturalOrder())
                     .orElse(null);

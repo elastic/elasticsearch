@@ -111,4 +111,75 @@ public interface VectorScorerFactory {
      * @return an optional containing the vector scorer, or empty
      */
     Optional<RandomVectorScorer> getInt7SQVectorScorer(VectorSimilarityFunction sim, QuantizedByteVectorValues values, float[] queryVector);
+
+    /**
+     * Returns an optional containing an int7 optimal scalar quantized vector score supplier
+     * for the given parameters, or an empty optional if a scorer is not supported.
+     *
+     * @param similarityType the similarity type
+     * @param input          the index input containing the vector data
+     * @param values         the random access vector values
+     * @return an optional containing the vector scorer supplier, or empty
+     */
+    Optional<RandomVectorScorerSupplier> getInt7uOSQVectorScorerSupplier(
+        VectorSimilarityType similarityType,
+        IndexInput input,
+        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values
+    );
+
+    /**
+     * Returns an optional containing an int7 optimal scalar quantized vector scorer for
+     * the given parameters, or an empty optional if a scorer is not supported.
+     *
+     * @param sim the similarity type
+     * @param values the random access vector values
+     * @return an optional containing the vector scorer, or empty
+     */
+    Optional<RandomVectorScorer> getInt7uOSQVectorScorer(
+        VectorSimilarityFunction sim,
+        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values,
+        byte[] quantizedQuery,
+        float lowerInterval,
+        float upperInterval,
+        float additionalCorrection,
+        int quantizedComponentSum
+    );
+
+    /**
+     * Returns an optional containing an int4 packed-nibble vector score supplier
+     * for the given parameters, or an empty optional if a scorer is not supported.
+     *
+     * @param similarityType the similarity type
+     * @param input          the index input containing the vector data
+     * @param values         the random access vector values
+     * @return an optional containing the vector scorer supplier, or empty
+     */
+    Optional<RandomVectorScorerSupplier> getInt4VectorScorerSupplier(
+        VectorSimilarityType similarityType,
+        IndexInput input,
+        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values
+    );
+
+    /**
+     * Returns an optional containing an int4 packed-nibble query-time vector scorer
+     * for the given parameters, or an empty optional if a scorer is not supported.
+     *
+     * @param sim                    the similarity function
+     * @param values                 the quantized vector values
+     * @param unpackedQuery          the quantized query bytes (one byte per dimension, 0-15)
+     * @param lowerInterval          query corrective term
+     * @param upperInterval          query corrective term
+     * @param additionalCorrection   query corrective term
+     * @param quantizedComponentSum  query corrective term
+     * @return an optional containing the vector scorer, or empty
+     */
+    Optional<RandomVectorScorer> getInt4VectorScorer(
+        VectorSimilarityFunction sim,
+        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values,
+        byte[] unpackedQuery,
+        float lowerInterval,
+        float upperInterval,
+        float additionalCorrection,
+        int quantizedComponentSum
+    );
 }

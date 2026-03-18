@@ -37,13 +37,16 @@ public class BulkByScrollTaskTests extends ESTestCase {
      * {@link BulkByScrollTask#setWorker(float, Integer)} is called.
      */
     private static BulkByScrollTask createTask(boolean eligibleForRelocationOnShutdown) {
-        long taskId = randomLong();
+        TaskId taskId = randomTaskId();
         String type = randomAlphaOfLengthBetween(1, 10);
         String action = randomAlphaOfLengthBetween(1, 10);
         String description = randomAlphaOfLengthBetween(0, 20);
-        TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : new TaskId(randomAlphaOfLength(5), randomLong());
+        TaskId parentTaskId = randomTaskId();
         Map<String, String> headers = randomBoolean() ? Collections.emptyMap() : Map.of("header", randomAlphaOfLength(5));
-        return new BulkByScrollTask(taskId, type, action, description, parentTaskId, headers, eligibleForRelocationOnShutdown);
+        ResumeInfo.RelocationOrigin origin = randomBoolean()
+            ? null
+            : new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(5), randomNonNegativeLong()), randomNonNegativeLong());
+        return new BulkByScrollTask(taskId, type, action, description, parentTaskId, headers, eligibleForRelocationOnShutdown, origin);
     }
 
     public void testStatusHatesNegatives() {
@@ -475,5 +478,9 @@ public class BulkByScrollTaskTests extends ESTestCase {
 
     private static float randomFloatBetween(float min, float max) {
         return min + (max - min) * random().nextFloat();
+    }
+
+    private static TaskId randomTaskId() {
+        return randomBoolean() ? TaskId.EMPTY_TASK_ID : new TaskId(randomAlphaOfLength(10), randomNonNegativeLong());
     }
 }

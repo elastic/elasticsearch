@@ -39,17 +39,12 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
 
   private final DriverContext driverContext;
 
-  public SumDenseVectorGroupingAggregatorFunction(Warnings warnings, List<Integer> channels,
-      SumDenseVectorGroupingState state, DriverContext driverContext) {
+  SumDenseVectorGroupingAggregatorFunction(Warnings warnings, List<Integer> channels,
+      DriverContext driverContext) {
     this.warnings = warnings;
     this.channels = channels;
-    this.state = state;
+    this.state = SumDenseVectorAggregator.initGrouping(driverContext.bigArrays());
     this.driverContext = driverContext;
-  }
-
-  public static SumDenseVectorGroupingAggregatorFunction create(Warnings warnings,
-      List<Integer> channels, DriverContext driverContext) {
-    return new SumDenseVectorGroupingAggregatorFunction(warnings, channels, SumDenseVectorAggregator.initGrouping(driverContext.bigArrays()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

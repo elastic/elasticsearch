@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
@@ -35,7 +36,6 @@ import org.elasticsearch.compute.operator.ColumnLoadOperator;
 import org.elasticsearch.compute.operator.DistinctByOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.LimitOperator;
@@ -410,11 +410,7 @@ public class LocalExecutionPlanner {
         String inferenceId = BytesRefs.toString(completion.inferenceId().fold(context.foldCtx()));
         Map<String, Object> taskSettings = completion.taskSettings().toFoldedMap(context.foldCtx());
         Layout outputLayout = source.layout.builder().append(completion.targetField()).build();
-        EvalOperator.ExpressionEvaluator.Factory promptEvaluatorFactory = EvalMapper.toEvaluator(
-            context.foldCtx(),
-            completion.prompt(),
-            source.layout
-        );
+        ExpressionEvaluator.Factory promptEvaluatorFactory = EvalMapper.toEvaluator(context.foldCtx(), completion.prompt(), source.layout);
 
         return source.with(
             new CompletionOperator.Factory(inferenceService, inferenceId, promptEvaluatorFactory, taskSettings),
@@ -718,7 +714,7 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planRerank(RerankExec rerank, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(rerank.child(), context);
 
-        List<EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluators = rerank.rerankFields()
+        List<ExpressionEvaluator.Factory> rerankFieldsEvaluators = rerank.rerankFields()
             .stream()
             .map(rerankField -> EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout))
             .toList();
@@ -903,16 +899,14 @@ public class LocalExecutionPlanner {
                 join.joinOnConditions(),
                 useStreamingOperator,
                 context.queryPragmas().exchangeBufferSize(),
-                configuration.profile()
+                configuration.profile(),
+                configuration
             ),
             layout
         );
     }
 
-    /**
-     * The transport version that introduced streaming lookup support.
-     */
-    private static final TransportVersion ESQL_STREAMING_LOOKUP_JOIN = TransportVersion.fromName("esql_streaming_lookup_join");
+    private static final TransportVersion ESQL_LOOKUP_PLANNING = TransportVersion.fromName("esql_lookup_planning");
 
     /**
      * Determines whether streaming lookup should be used based on the target node's transport version.
@@ -941,12 +935,12 @@ public class LocalExecutionPlanner {
                     DiscoveryNode node = clusterState.nodes().get(shardRouting.currentNodeId());
                     Transport.Connection connection = service.getTransportService().getConnection(node);
                     TransportVersion nodeVersion = connection.getTransportVersion();
-                    if (nodeVersion.supports(ESQL_STREAMING_LOOKUP_JOIN) == false) {
+                    if (nodeVersion.supports(ESQL_LOOKUP_PLANNING) == false) {
                         logger.debug(
                             "Using non-streaming lookup operator: node [{}] has transport version [{}] which does not support [{}]",
                             node.getId(),
                             nodeVersion,
-                            ESQL_STREAMING_LOOKUP_JOIN
+                            ESQL_LOOKUP_PLANNING
                         );
                         return false;
                     }
@@ -983,6 +977,9 @@ public class LocalExecutionPlanner {
             return planMetricsInfoFinal(metricsInfoExec, context);
         }
         // INITIAL mode: extraction on data nodes.
+        if (FieldExtractExec.extractSourceAttributesFrom(metricsInfoExec.child()) == null) {
+            return emptySourceForAttributes(metricsInfoExec.output());
+        }
         // Step 1: Extract _tsid only
         FieldAttribute tsidAttr = new FieldAttribute(
             metricsInfoExec.source(),
@@ -1015,7 +1012,7 @@ public class LocalExecutionPlanner {
             new FunctionEsField(
                 new EsField(SourceFieldMapper.NAME, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION),
                 DataType.KEYWORD,
-                new BlockLoaderFunctionConfig.TimeSeriesMetadata(true)
+                new BlockLoaderFunctionConfig.TimeSeriesMetadata(true, Set.of())
             ),
             true
         );
@@ -1079,7 +1076,10 @@ public class LocalExecutionPlanner {
         if (tsInfoExec.mode() == TsInfoExec.Mode.FINAL || tsInfoExec.mode() == TsInfoExec.Mode.INTERMEDIATE) {
             return planTsInfoFinal(tsInfoExec, context);
         }
-        // INITIAL mode: extraction on data nodes — identical field extraction pipeline as MetricsInfo.
+        // INITIAL mode: extraction on data nodes.
+        if (FieldExtractExec.extractSourceAttributesFrom(tsInfoExec.child()) == null) {
+            return emptySourceForAttributes(tsInfoExec.output());
+        }
         // Step 1: Extract _tsid only
         FieldAttribute tsidAttr = new FieldAttribute(
             tsInfoExec.source(),
@@ -1112,7 +1112,7 @@ public class LocalExecutionPlanner {
             new FunctionEsField(
                 new EsField(SourceFieldMapper.NAME, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION),
                 DataType.KEYWORD,
-                new BlockLoaderFunctionConfig.TimeSeriesMetadata(true)
+                new BlockLoaderFunctionConfig.TimeSeriesMetadata(true, Set.of())
             ),
             true
         );
@@ -1169,7 +1169,14 @@ public class LocalExecutionPlanner {
         return source.with(new TsInfoOperator.FinalFactory(channels), layoutBuilder.build());
     }
 
-    private static MetricsInfoOperator.MetricFieldLookup createMetricFieldLookup(IndexedByShardId<? extends ShardContext> shardContexts) {
+    private PhysicalOperation emptySourceForAttributes(List<Attribute> attributes) {
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(attributes);
+        LocalSourceOperator.PageSupplier empty = () -> null;
+        return PhysicalOperation.fromSource(new LocalSourceFactory(() -> new LocalSourceOperator(empty)), layout.build());
+    }
+
+    private MetricsInfoOperator.MetricFieldLookup createMetricFieldLookup(IndexedByShardId<? extends ShardContext> shardContexts) {
         Map<String, MappingLookup> mappingsByIndex = new HashMap<>();
         for (ShardContext shard : shardContexts.iterable()) {
             if (shard.indexSettings().getMode() == IndexMode.TIME_SERIES) {
@@ -1178,7 +1185,8 @@ public class LocalExecutionPlanner {
         }
 
         return (indexName, fieldName) -> {
-            MappingLookup mappingLookup = mappingsByIndex.get(indexName);
+            String localIndexName = RemoteClusterAware.getLocalIndexName(RemoteClusterAware.splitIndexName(indexName));
+            MappingLookup mappingLookup = mappingsByIndex.get(localIndexName);
             if (mappingLookup == null) {
                 return null;
             }
@@ -1288,6 +1296,7 @@ public class LocalExecutionPlanner {
             .fileSet(fileSet)
             .partitionColumnNames(partitionColumnNames)
             .sliceQueue(sliceQueue)
+            .parsingParallelism(context.queryPragmas().parsingParallelism())
             .build();
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);

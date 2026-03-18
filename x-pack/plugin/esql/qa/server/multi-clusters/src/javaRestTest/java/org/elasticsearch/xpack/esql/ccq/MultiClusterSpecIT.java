@@ -38,7 +38,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URL;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -49,6 +48,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VECTOR_EQUALITY;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
@@ -174,6 +174,19 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         // Do not run tests including "METADATA _index" unless marked with metadata_fields_remote_test,
         // because they may produce inconsistent results with multiple clusters.
         assumeFalse("can't test with _index metadata", (remoteMetadata == false) && hasIndexMetadata(testCase.query));
+        // METRICS_INFO/TS_INFO produce a data_stream column that includes the cluster alias prefix
+        // when data is on a remote cluster. Non-remote tests expect the bare data stream name, so
+        // they are always skipped in CCS. Remote tests need the data to be on the remote cluster,
+        // which is only guaranteed when dataLocation == REMOTE_ONLY.
+        boolean hasMetricsOrTsInfo = testCase.requiredCapabilities.contains(METRICS_INFO_COMMAND.capabilityName())
+            || testCase.requiredCapabilities.contains(TS_INFO_COMMAND.capabilityName());
+        if (hasMetricsOrTsInfo) {
+            assumeFalse("METRICS_INFO/TS_INFO non-remote tests skipped in CCS; use *-remote.csv-spec variants", remoteMetadata == false);
+            assumeTrue(
+                "METRICS_INFO/TS_INFO remote tests require data on the remote cluster (dataLocation=REMOTE_ONLY)",
+                dataLocation == DataLocation.REMOTE_ONLY
+            );
+        }
         Version oldVersion = Version.min(Clusters.localClusterVersion(), Clusters.remoteClusterVersion());
         assumeTrue("Test " + testName + " is skipped on " + oldVersion, isEnabled(testName, instructions, oldVersion));
         if (testCase.requiredCapabilities.contains(INLINE_STATS.capabilityName())
@@ -214,16 +227,10 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(VIEWS_WITH_NO_BRANCHING.capabilityName()));
         assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(VIEWS_WITH_BRANCHING.capabilityName()));
 
-        if (testCase.requiredCapabilities.contains(METRICS_INFO_COMMAND.capabilityName())) {
-            assumeFalse(
-                "METRICS_INFO not supported in CCS",
-                hasCapabilities(remoteClusterClient(), List.of(METRICS_INFO_COMMAND.capabilityName()))
-            );
-        }
-
-        if (testCase.requiredCapabilities.contains(TS_INFO_COMMAND.capabilityName())) {
-            assumeFalse("TS_INFO not supported in CCS", hasCapabilities(remoteClusterClient(), List.of(TS_INFO_COMMAND.capabilityName())));
-        }
+        assumeFalse(
+            "Dense vector equality is not supported in CCS unless all nodes support it",
+            testCase.requiredCapabilities.contains(DENSE_VECTOR_EQUALITY.capabilityName())
+        );
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {
@@ -388,13 +395,10 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         return dataLocation == DataLocation.REMOTE_ONLY && Clusters.bwcVersion().onOrAfter(Version.V_9_1_0);
     }
 
+    private static final Pattern HAS_INDEX_METADATA = Pattern.compile("metadata\\s+[^|=]*_index", Pattern.CASE_INSENSITIVE);
+
     static boolean hasIndexMetadata(String query) {
-        String[] commands = query.split("\\|");
-        if (commands[0].trim().toLowerCase(Locale.ROOT).startsWith("from")) {
-            String[] parts = commands[0].split("(?i)metadata");
-            return parts.length > 1 && parts[1].contains("_index");
-        }
-        return false;
+        return HAS_INDEX_METADATA.matcher(query).find();
     }
 
     @Override
@@ -413,7 +417,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
-    protected boolean supportsIndexModeLookup() throws IOException {
+    protected boolean supportsIndexModeLookup() {
         return hasCapabilities(adminClient(), List.of(JOIN_LOOKUP_V12.capabilityName()));
     }
 
@@ -423,7 +427,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
-    protected boolean supportsTook() throws IOException {
+    protected boolean supportsTook() {
         // We don't read took properly in multi-cluster tests.
         return false;
     }

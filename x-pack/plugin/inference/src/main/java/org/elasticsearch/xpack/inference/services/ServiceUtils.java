@@ -1002,6 +1002,10 @@ public final class ServiceUtils {
         throwUnsupportedTaskOperation(serviceName, "unified completion with non-text inputs");
     }
 
+    public static void throwUnsupportedReasoningUnifiedCompletionOperation(String serviceName) {
+        throwUnsupportedTaskOperation(serviceName, "unified completion with reasoning inputs");
+    }
+
     public static void throwUnsupportedEmbeddingOperation(String serviceName) {
         throwUnsupportedTaskOperation(serviceName, "embedding");
     }

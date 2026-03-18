@@ -44,7 +44,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.monitor.fs.FsProbe;
-import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -1067,32 +1066,25 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         /**
-         * Optimistically try to get a direct ByteBuffer slice from the region.
-         * The returned {@link CloseableByteBuffer} holds a reference to this region,
-         * preventing eviction while the buffer is in use. The caller must close it
-         * when done.
-         * @return a CloseableByteBuffer wrapping a read-only ByteBuffer slice, or null if not available
+         * If a direct byte buffer slice is available for the given range,
+         * passes it to {@code action} within a ref-counted scope (preventing
+         * eviction) and returns {@code true}. Returns {@code false} without
+         * invoking the action when not available (not mmap'd, evicted, etc.).
          */
-        CloseableByteBuffer tryGetByteBufferSlice(long offset, int length) {
+        boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
             SharedBytes.IO ioRef = nonVolatileIO();
             if (ioRef != null && tryIncRef()) {
-                ByteBuffer slice = ioRef.byteBufferSlice(blobCacheService.getRegionRelativePosition(offset), length);
-                if (slice != null && isEvicted() == false) {
-                    return new CloseableByteBuffer() {
-                        @Override
-                        public ByteBuffer buffer() {
-                            return slice;
-                        }
-
-                        @Override
-                        public void close() {
-                            CacheFileRegion.this.decRef();
-                        }
-                    };
+                try {
+                    ByteBuffer slice = ioRef.byteBufferSlice(blobCacheService.getRegionRelativePosition(offset), length);
+                    if (slice != null && isEvicted() == false) {
+                        action.accept(slice);
+                        return true;
+                    }
+                } finally {
+                    decRef();
                 }
-                decRef();
             }
-            return null;
+            return false;
         }
 
         /**
@@ -1393,13 +1385,18 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return res;
         }
 
-        CloseableByteBuffer tryGetByteBufferSlice(long offset, int length) {
+        /**
+         * If a direct byte buffer view is available for the given range, passes it
+         * to {@code action} and returns {@code true}. Otherwise, returns
+         * {@code false} without invoking the action.
+         */
+        public boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
             assert assertOffsetsWithinFileLength(offset, length, this.length);
             final int startRegion = getRegion(offset);
             final long end = offset + length;
             final int endRegion = getEndingRegion(end);
             if (startRegion != endRegion) {
-                return null;
+                return false;
             }
             var fileRegion = lastAccessedRegion;
             if (fileRegion != null && fileRegion.chunk.regionKey.region == startRegion) {
@@ -1409,31 +1406,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             }
             final var region = fileRegion.chunk;
             if (region.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
-                return null;
-            }
-            CloseableByteBuffer slice = region.tryGetByteBufferSlice(offset, length);
-            if (slice != null) {
-                lastAccessedRegion = fileRegion;
-            }
-            return slice;
-        }
-
-        /**
-         * If a direct byte buffer view is available for the given range, passes it
-         * to {@code action} and returns {@code true}. Otherwise returns
-         * {@code false} without invoking the action.
-         */
-        public boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
-            CloseableByteBuffer cbb = tryGetByteBufferSlice(offset, length);
-            if (cbb == null) {
                 return false;
             }
-            try {
-                action.accept(cbb.buffer());
-                return true;
-            } finally {
-                cbb.close();
+            boolean result = region.withByteBufferSlice(offset, length, action);
+            if (result) {
+                lastAccessedRegion = fileRegion;
             }
+            return result;
         }
 
         public int populateAndRead(

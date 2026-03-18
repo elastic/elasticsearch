@@ -33,13 +33,13 @@ public final class SpatialExtentCartesianPointDocValuesAggregatorFunctionSupplie
   @Override
   public SpatialExtentCartesianPointDocValuesAggregatorFunction aggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return SpatialExtentCartesianPointDocValuesAggregatorFunction.create(driverContext, channels);
+    return new SpatialExtentCartesianPointDocValuesAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public SpatialExtentCartesianPointDocValuesGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return SpatialExtentCartesianPointDocValuesGroupingAggregatorFunction.create(channels, driverContext);
+    return new SpatialExtentCartesianPointDocValuesGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

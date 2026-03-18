@@ -65,8 +65,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
-import static org.elasticsearch.snapshots.SnapshotTestUtils.clearShutdownMetadata;
-import static org.elasticsearch.snapshots.SnapshotTestUtils.putShutdownForRemovalMetadata;
+import static org.elasticsearch.test.NodeShutdownTestUtils.clearShutdownMetadata;
+import static org.elasticsearch.test.NodeShutdownTestUtils.putShutdownForRemovalMetadata;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -213,6 +213,12 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             dataNode
         );
 
+        // waits for snapshot deletions to batch up
+        final var deletesEnqueuedListener = ClusterServiceUtils.addTemporaryStateListener(cs -> {
+            final var entries = SnapshotDeletionsInProgress.get(cs).getEntries();
+            return entries.size() == 1 && entries.getFirst().snapshots().size() == numSnapshots;
+        });
+
         final Collection<ListenableFuture<AcknowledgedResponse>> deleteFutures = new ArrayList<>();
         while (snapshotNames.isEmpty() == false) {
             final Collection<String> toDelete = randomSubsetOf(snapshotNames);
@@ -229,6 +235,9 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         final long repoGenAfterInitialSnapshots = getRepositoryData(repoName).getGenId();
         assertThat(repoGenAfterInitialSnapshots, is(numSnapshots - 1L));
+
+        // wait for snapshot deletions to batch up before unblocking the snapshot holding them up
+        safeAwait(deletesEnqueuedListener);
         unblockNode(repoName, dataNode);
 
         final SnapshotInfo slowSnapshotInfo = assertSuccessful(createSlowFuture);

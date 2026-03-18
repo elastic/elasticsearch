@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 143791
+summary: Fix Parquet and ORC datasource allocation overhead
+type: enhancement

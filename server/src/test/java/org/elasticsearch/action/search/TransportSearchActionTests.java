@@ -76,6 +76,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -1063,6 +1064,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 100,
                 ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY,
+                null,
                 null
             )
         );
@@ -1960,7 +1962,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 client,
                 new UsageService(),
                 new TestActionActionLoggingFieldsProvider(),
-                ActivityLogWriterProvider.NOOP
+                ActivityLogWriterProvider.NOOP,
+                CrossProjectModeDecider.NOOP
             );
 
             CountDownLatch latch = new CountDownLatch(1);

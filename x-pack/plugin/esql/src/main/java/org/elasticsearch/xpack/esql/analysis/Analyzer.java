@@ -1234,7 +1234,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             TreeSet<String> indicesWithField = new TreeSet<>(esIndex.concreteQualifiedIndices());
             indicesWithField.removeAll(esIndex.getUnmappedIndices(fa.name()));
-            return new TreeMap<>(Map.of(fa.name(), indicesWithField));
+            return new TreeMap<>(Map.of(fa.dataType().typeName(), indicesWithField));
         }
 
         public static FieldAttribute insistKeyword(Attribute attribute) {

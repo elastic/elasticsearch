@@ -298,10 +298,12 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
         FloatVectorValues values = getReaderForField(field).getFloatVectorValues(field);
         int numVectors = values.size();
-        // TODO returning cost 0 in ESAcceptDocs.ESAcceptDocsAll feels wrong? cost is related to the number of matching documents?
-        float approximateCost = (float) (esAcceptDocs == null ? acceptDocs.cost()
-            : esAcceptDocs instanceof ESAcceptDocs.ESAcceptDocsAll ? numVectors
-            : esAcceptDocs.approximateCost());
+        final float approximateCost;
+        if (esAcceptDocs == ESAcceptDocs.ESAcceptDocsAll.INSTANCE) {
+            approximateCost = numVectors;
+        } else {
+            approximateCost = esAcceptDocs == null ? acceptDocs.cost() : esAcceptDocs.approximateCost();
+        }
         float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / numVectors));
         float visitRatio = dynamicVisitRatio;
         int numCands = 0;

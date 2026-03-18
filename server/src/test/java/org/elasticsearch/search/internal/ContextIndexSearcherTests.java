@@ -15,6 +15,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
@@ -432,10 +433,10 @@ public class ContextIndexSearcherTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
             Document doc = new Document();
-            doc.add(new TextField("field", "foo foo bar", Field.Store.NO));
+            doc.add(new Field("field", "foo foo bar", TextField.TYPE_NOT_STORED));
             w.addDocument(doc);
             doc = new Document();
-            doc.add(new TextField("field", "foo bar baz", Field.Store.NO));
+            doc.add(new Field("field", "foo bar baz", TextField.TYPE_NOT_STORED));
             w.addDocument(doc);
             w.close();
 

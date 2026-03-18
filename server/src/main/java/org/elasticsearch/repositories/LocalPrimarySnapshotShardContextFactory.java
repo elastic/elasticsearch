@@ -23,8 +23,8 @@ import org.elasticsearch.snapshots.Snapshot;
 
 import java.io.IOException;
 
-import static org.elasticsearch.repositories.SnapshotShardContextFactory.acquireSnapshotIndexCommit;
-import static org.elasticsearch.repositories.SnapshotShardContextFactory.closeSnapshotIndexCommit;
+import static org.elasticsearch.repositories.SnapshotShardContextHelper.acquireSnapshotIndexCommit;
+import static org.elasticsearch.repositories.SnapshotShardContextHelper.closeSnapshotIndexCommit;
 import static org.elasticsearch.snapshots.SnapshotShardsService.getShardStateId;
 
 /**

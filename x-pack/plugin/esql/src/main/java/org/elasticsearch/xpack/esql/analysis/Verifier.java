@@ -101,11 +101,7 @@ public class Verifier {
     Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics, UnmappedResolution unmappedResolution) {
         assert partialMetrics != null;
         Failures failures = new Failures();
-
-        boolean unmappedTimestampHandled = false;
-        if (unmappedResolution != UnmappedResolution.FAIL) {
-            unmappedTimestampHandled = checkUnmappedTimestamp(plan, failures);
-        }
+        boolean unmappedTimestampHandled = unmappedResolution == UnmappedResolution.FAIL || isTimestampUnmappedInAllIndices(plan, failures);
 
         // quick verification for unresolved attributes
         checkUnresolvedAttributes(plan, failures, unmappedTimestampHandled);
@@ -373,7 +369,7 @@ public class Verifier {
      * if the field was present but dropped/renamed by the query, the generic unresolved-attribute message is more appropriate.
      * See https://github.com/elastic/elasticsearch/issues/142127
      */
-    private static boolean checkUnmappedTimestamp(LogicalPlan plan, Failures failures) {
+    private static boolean isTimestampUnmappedInAllIndices(LogicalPlan plan, Failures failures) {
         if (plan.anyMatch(p -> p instanceof EsRelation r && r.indexMode() != IndexMode.LOOKUP && hasTimestamp(r))) {
             return false;
         }

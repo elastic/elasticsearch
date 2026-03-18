@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 public class MMRExec extends UnaryExec {
@@ -28,8 +28,8 @@ public class MMRExec extends UnaryExec {
     private final Expression queryVectorExpression;
     private final Expression options;
 
-    private final VectorData queryVector;
-    private final Float lambda;
+    private VectorData queryVector;
+    private Float lambda;
 
     public MMRExec(
         Source source,
@@ -44,8 +44,6 @@ public class MMRExec extends UnaryExec {
         this.limit = limit;
         this.queryVectorExpression = queryVectorExpression;
         this.options = options;
-
-        this.queryVector = extractQueryVectorData(queryVectorExpression);
         this.lambda = MMR.tryExtractLambdaFromOptions(options);
     }
 
@@ -58,10 +56,19 @@ public class MMRExec extends UnaryExec {
     }
 
     public VectorData queryVector() {
+        if (queryVectorExpression == null) {
+            return null;
+        }
+        if (queryVector == null) {
+            queryVector = extractQueryVectorData();
+        }
         return queryVector;
     }
 
     public Float lambda() {
+        if (lambda == null) {
+            lambda = MMR.tryExtractLambdaFromOptions(options);
+        }
         return lambda;
     }
 
@@ -104,29 +111,18 @@ public class MMRExec extends UnaryExec {
         return Objects.hash(super.hashCode(), diversifyField, limit, queryVectorExpression, options);
     }
 
-    public static VectorData extractQueryVectorData(Expression queryVectorExpression) {
-        if (queryVectorExpression == null) {
-            return null;
+    private VectorData extractQueryVectorData() {
+        assert queryVectorExpression instanceof Literal && queryVectorExpression.dataType() == DataType.DENSE_VECTOR
+            : "query vector must be resolved to a dense_vector literal";
+
+        Literal literal = (Literal) queryVectorExpression;
+        @SuppressWarnings("unchecked")
+        List<Number> litValues = literal.value() instanceof Number ? List.of((Number) literal.value()) : (List<Number>) literal.value();
+
+        float[] values = new float[litValues.size()];
+        for (int i = 0; i < litValues.size(); i++) {
+            values[i] = litValues.get(i).floatValue();
         }
-
-        if (queryVectorExpression instanceof Literal literalExpression && queryVectorExpression.dataType() == DataType.DENSE_VECTOR) {
-            ArrayList<?> litValues = (ArrayList<?>) literalExpression.value();
-            if (litValues == null || litValues.isEmpty()) {
-                return null;
-            }
-
-            float[] values = new float[litValues.size()];
-            for (int i = 0; i < values.length; i++) {
-                if (litValues.get(i) instanceof Number numberValue) {
-                    values[i] = numberValue.floatValue();
-                } else {
-                    // should never happen here
-                    return null;
-                }
-            }
-            return new VectorData(values);
-        }
-
-        return null;
+        return VectorData.fromFloats(values);
     }
 }

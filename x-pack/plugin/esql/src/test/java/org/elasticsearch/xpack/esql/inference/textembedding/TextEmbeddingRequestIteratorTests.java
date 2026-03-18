@@ -309,7 +309,7 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
             try (TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(inferenceId, inputBlock)) {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem requestItem = requestIterator.next();
-                assertThat(requestItem.inferenceRequest().getTaskType(), equalTo(TaskType.EMBEDDING));
+                assertThat(requestItem.inferenceRequest().getTaskType(), equalTo(TaskType.TEXT_EMBEDDING));
             }
         }
 

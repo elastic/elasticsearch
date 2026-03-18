@@ -305,7 +305,7 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
                 throw new ElasticsearchException(Strings.format("Failed to acknowledge delete of index [%s]", indexToDelete));
             }
         } catch (IndexNotFoundException e) {
-                logger.debug("Index [{}] was not found during DLM delete attempt, it may have already been deleted", indexToDelete);
+            logger.debug("Index [{}] was not found during DLM delete attempt, it may have already been deleted", indexToDelete);
         } catch (Exception e) {
             logger.warn(Strings.format("DLM failed to delete index [%s]", indexToDelete), e);
             if (e instanceof InterruptedException) {

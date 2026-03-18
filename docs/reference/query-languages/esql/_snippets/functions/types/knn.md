@@ -5,7 +5,5 @@
 | field | query | options | result |
 | --- | --- | --- | --- |
 | dense_vector | dense_vector | named parameters | boolean |
-| dense_vector | dense_vector | | boolean |
 | text | dense_vector | named parameters | boolean |
-| text | dense_vector | | boolean |
 

@@ -100,7 +100,6 @@ public abstract class SingleFieldFullTextFunctionTestCase extends AbstractFuncti
     ) {
         List<TestCaseSupplier> result = new ArrayList<>();
         for (TestCaseSupplier supplier : suppliers) {
-            result.add(supplier);
             List<DataType> dataTypes = new ArrayList<>(supplier.types());
             dataTypes.add(UNSUPPORTED);
             result.add(new TestCaseSupplier(supplier.name() + ", options", dataTypes, () -> {

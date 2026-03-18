@@ -190,10 +190,15 @@ public class Reindexer {
         }
         // Point-in-time searching is enabled, and this is a local request
         else {
-            // If PIT is already set (worker received sliced request from leader), skip opening a new PIT
-            if (request.getSearchRequest().source() != null
-                && request.getSearchRequest().source().pointInTimeBuilder() != null) {
-                executePaginatedSearch(task, request, responseListener, workerAction, null);
+            // If PIT is already set (worker received sliced request from leader, or resumed after relocation), skip opening a new PIT
+            if (request.getSearchRequest().source() != null && request.getSearchRequest().source().pointInTimeBuilder() != null) {
+                ActionListener<BulkByScrollResponse> listenerWithClosePit = wrapListenerWithClosePit(
+                    request.getSearchRequest().source().pointInTimeBuilder().getEncodedId(),
+                    responseListener,
+                    this::closeLocalPit
+                );
+                Consumer<Version> workerActionWithClosePit = createWorkerAction(task, request, bulkClient, listenerWithClosePit);
+                executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, null);
             } else {
                 openPitAndExecute(task, request, bulkClient, responseListener);
             }
@@ -290,19 +295,74 @@ public class Reindexer {
             // Inject PIT into the search request so workers can use it; PIT and scroll are mutually exclusive
             searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(pitKeepAlive(request)));
             searchRequest.scroll(null);
-            // PIT defines the index context; indices must not be set on the search request
+            // PIT defines the index context; indices must not be set on the search request.
+            // Preserve source indices for task description (toString) since searchRequest.indices() will be empty.
+            request.setSourceIndicesForDescription(indices);
             searchRequest.indices(Strings.EMPTY_ARRAY);
-            ActionListener<BulkByScrollResponse> listenerWithClosePit = ActionListener.runAfter(
-                l,
-                () -> client.execute(
-                    TransportClosePointInTimeAction.TYPE,
-                    new ClosePointInTimeRequest(pitId),
-                    ActionListener.wrap(r -> {}, e -> logger.warn("Failed to close local PIT", e))
-                )
-            );
+            ActionListener<BulkByScrollResponse> listenerWithClosePit = wrapListenerWithClosePit(pitId, l, this::closeLocalPit);
             Consumer<Version> workerActionWithClosePit = createWorkerAction(task, request, bulkClient, listenerWithClosePit);
             executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, null);
         }));
+    }
+
+    /**
+     * Wraps a listener to close the PIT when the task completes (success or failure).
+     * Skips closing when the failure is TaskRelocatedException, since the relocated task will close it.
+     * Visible for testing
+     */
+    static ActionListener<BulkByScrollResponse> wrapListenerWithClosePit(
+        BytesReference pitId,
+        ActionListener<BulkByScrollResponse> listener,
+        Consumer<BytesReference> closePit
+    ) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(BulkByScrollResponse response) {
+                if (response.getTaskResumeInfo().isEmpty()) {
+                    closePit.accept(pitId);
+                }
+                listener.onResponse(response);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof TaskRelocatedException == false) {
+                    closePit.accept(pitId);
+                }
+                listener.onFailure(e);
+            }
+        };
+    }
+
+    /**
+     * Closes a point-in-time on the local cluster, releasing the associated search contexts.
+     * Failures are logged but not propagated to avoid masking the original completion or failure.
+     *
+     * @param pitId the encoded PIT identifier to close
+     */
+    private void closeLocalPit(BytesReference pitId) {
+        client.execute(
+            TransportClosePointInTimeAction.TYPE,
+            new ClosePointInTimeRequest(pitId),
+            ActionListener.wrap(r -> {}, e -> logger.warn("Failed to close local PIT", e))
+        );
+    }
+
+    /**
+     * Closes a point-in-time on the remote cluster and then closes the RestClient.
+     * Failures are logged but the RestClient is always closed to avoid connection leaks.
+     *
+     * @param pitId      the encoded PIT identifier to close on the remote cluster
+     * @param restClient the RestClient to close after the PIT is closed
+     */
+    private void closeRemotePitAndRestClient(BytesReference pitId, RestClient restClient) {
+        closePit(pitId, RejectAwareActionListener.wrap(v -> closeRestClientAndRun(restClient, () -> {}), e -> {
+            logger.warn("Failed to close remote PIT", e);
+            closeRestClientAndRun(restClient, () -> {});
+        }, e -> {
+            logger.warn("Failed to close remote PIT (rejected)", e);
+            closeRestClientAndRun(restClient, () -> {});
+        }), threadPool, restClient);
     }
 
     /**
@@ -326,7 +386,31 @@ public class Reindexer {
             public void onResponse(Version version) {
                 boolean canUsePit = version.onOrAfter(Version.V_7_10_0);
                 if (canUsePit) {
-                    openRemotePitAndExecute(task, request, bulkClient, listener, restClient, version);
+                    // If PIT is already set (resumed after relocation), skip opening a new PIT
+                    if (request.getSearchRequest().source() != null && request.getSearchRequest().source().pointInTimeBuilder() != null) {
+                        BytesReference pitId = request.getSearchRequest().source().pointInTimeBuilder().getEncodedId();
+                        ActionListener<BulkByScrollResponse> listenerWithClosePit = new ActionListener<>() {
+                            @Override
+                            public void onResponse(BulkByScrollResponse response) {
+                                if (response.getTaskResumeInfo().isEmpty()) {
+                                    closeRemotePitAndRestClient(pitId, restClient);
+                                }
+                                listener.onResponse(response);
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                if (e instanceof TaskRelocatedException == false) {
+                                    closeRemotePitAndRestClient(pitId, restClient);
+                                }
+                                listener.onFailure(e);
+                            }
+                        };
+                        Consumer<Version> workerActionWithClosePit = createWorkerAction(task, request, bulkClient, listenerWithClosePit);
+                        executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, version);
+                    } else {
+                        openRemotePitAndExecute(task, request, bulkClient, listener, restClient, version);
+                    }
                 }
                 // Default to scroll-based search
                 else {
@@ -375,18 +459,27 @@ public class Reindexer {
             // Inject PIT into the search request so workers can use it; PIT and scroll are mutually exclusive
             searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(pitKeepAlive(request)));
             searchRequest.scroll(null);
-            // PIT defines the index context; indices must not be set on the search request
+            // PIT defines the index context; indices must not be set on the search request.
+            // Preserve source indices for task description (toString) since searchRequest.indices() will be empty.
+            request.setSourceIndicesForDescription(indices);
             searchRequest.indices(Strings.EMPTY_ARRAY);
-            ActionListener<BulkByScrollResponse> listenerWithClosePit = ActionListener.runAfter(
-                listenerWithRelocations,
-                () -> closePit(pitId, RejectAwareActionListener.wrap(v -> closeRestClientAndRun(restClient, () -> {}), e -> {
-                    logger.warn("Failed to close remote PIT", e);
-                    closeRestClientAndRun(restClient, () -> {});
-                }, e -> {
-                    logger.warn("Failed to close remote PIT (rejected)", e);
-                    closeRestClientAndRun(restClient, () -> {});
-                }), threadPool, restClient)
-            );
+            ActionListener<BulkByScrollResponse> listenerWithClosePit = new ActionListener<>() {
+                @Override
+                public void onResponse(BulkByScrollResponse response) {
+                    if (response.getTaskResumeInfo().isEmpty()) {
+                        closeRemotePitAndRestClient(pitId, restClient);
+                    }
+                    listenerWithRelocations.onResponse(response);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof TaskRelocatedException == false) {
+                        closeRemotePitAndRestClient(pitId, restClient);
+                    }
+                    listenerWithRelocations.onFailure(e);
+                }
+            };
             Consumer<Version> workerActionWithClosePit = createWorkerAction(task, request, bulkClient, listenerWithClosePit);
             executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, remoteVersion);
         },

@@ -13,11 +13,11 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Predicates;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -32,6 +32,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -40,7 +41,9 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Tests some of the validation of {@linkplain ReindexRequest}. See reindex's rest tests for much more.
@@ -530,12 +533,14 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         request.setDestIndex("dest");
         request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
         request.getSearchRequest().scroll(null);  // PIT and scroll are mutually exclusive
-        request.getSearchRequest().source(
-            new SearchSourceBuilder().pointInTimeBuilder(
-                new PointInTimeBuilder(new BytesArray("pit-id".getBytes(java.nio.charset.StandardCharsets.UTF_8)))
-                    .setKeepAlive(TimeValue.timeValueMinutes(5))
-            )
-        );
+        request.getSearchRequest()
+            .source(
+                new SearchSourceBuilder().pointInTimeBuilder(
+                    new PointInTimeBuilder(new BytesArray("pit-id".getBytes(StandardCharsets.UTF_8))).setKeepAlive(
+                        TimeValue.timeValueMinutes(5)
+                    )
+                )
+            );
         ActionRequestValidationException validationException = request.validate();
         assertNull("ReindexRequest with PIT and empty indices should pass validation", validationException);
     }
@@ -564,14 +569,45 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         request.setDestIndex("dest");
         request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
         request.getSearchRequest().scroll(null);  // PIT and scroll are mutually exclusive
-        request.getSearchRequest().source(
-            new SearchSourceBuilder().pointInTimeBuilder(
-                new PointInTimeBuilder(new BytesArray("pit-id".getBytes(java.nio.charset.StandardCharsets.UTF_8)))
-                    .setKeepAlive(TimeValue.timeValueMinutes(5))
-            ).from(0)
-        );
+        request.getSearchRequest()
+            .source(
+                new SearchSourceBuilder().pointInTimeBuilder(
+                    new PointInTimeBuilder(new BytesArray("pit-id".getBytes(java.nio.charset.StandardCharsets.UTF_8))).setKeepAlive(
+                        TimeValue.timeValueMinutes(5)
+                    )
+                ).from(0)
+            );
         ActionRequestValidationException validationException = request.validate();
         assertNull("ReindexRequest with PIT and from=0 should pass validation", validationException);
+    }
+
+    public void testDescriptionUsesSourceIndicesForDescriptionWhenIndicesEmpty() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        request.setSourceIndicesForDescription(new String[] { "reindex_src" });
+        String description = request.getDescription();
+        assertThat(description, containsString("reindex_src"));
+        assertThat(description, not(containsString("all indices")));
+    }
+
+    public void testDescriptionUsesAllIndicesWhenBothIndicesAndSourceIndicesForDescriptionEmpty() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        request.setSourceIndicesForDescription(null);
+        String description = request.getDescription();
+        assertThat(description, containsString("all indices"));
+    }
+
+    public void testDescriptionUsesIndicesWhenSet() {
+        ReindexRequest request = new ReindexRequest();
+        request.setDestIndex("dest");
+        request.getSearchRequest().indices("foo", "bar");
+        request.setSourceIndicesForDescription(new String[] { "reindex_src" });
+        String description = request.getDescription();
+        assertThat(description, containsString("foo"));
+        assertThat(description, containsString("bar"));
     }
 
     public void testFromNonZeroRejectedWhenUsingPit() {
@@ -579,12 +615,14 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         request.setDestIndex("dest");
         request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
         request.getSearchRequest().scroll(null);  // PIT and scroll are mutually exclusive
-        request.getSearchRequest().source(
-            new SearchSourceBuilder().pointInTimeBuilder(
-                new PointInTimeBuilder(new BytesArray("pit-id".getBytes(java.nio.charset.StandardCharsets.UTF_8)))
-                    .setKeepAlive(TimeValue.timeValueMinutes(5))
-            ).from(5)
-        );
+        request.getSearchRequest()
+            .source(
+                new SearchSourceBuilder().pointInTimeBuilder(
+                    new PointInTimeBuilder(new BytesArray("pit-id".getBytes(java.nio.charset.StandardCharsets.UTF_8))).setKeepAlive(
+                        TimeValue.timeValueMinutes(5)
+                    )
+                ).from(5)
+            );
         ActionRequestValidationException validationException = request.validate();
         assertNotNull(validationException);
         assertEquals(List.of("from is not supported in this context"), validationException.validationErrors());

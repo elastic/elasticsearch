@@ -39,6 +39,9 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
         if (randomBoolean()) {
             original.setMaxDocs(between(0, Integer.MAX_VALUE));
         }
+        if (randomBoolean()) {
+            original.setSourceIndicesForDescription(new String[] { "idx1", "idx2" });
+        }
 
         // it's not important how many slices there are, we just need a number for forSlice
         int actualSlices = between(2, 1000);
@@ -69,6 +72,11 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
             forSliced.getMaxDocs()
         );
         assertEquals(slicingTask, forSliced.getParentTask());
+        assertArrayEquals(
+            "sourceIndicesForDescription should be copied to slice",
+            original.getSourceIndicesForDescription(),
+            forSliced.getSourceIndicesForDescription()
+        );
 
         extraForSliceAssertions(original, forSliced);
     }

@@ -10,6 +10,7 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -128,6 +129,11 @@ public class RoundTripTests extends ESTestCase {
 
         int slices = ReindexTestCase.randomSlices(1, Integer.MAX_VALUE);
         request.setSlices(slices);
+
+        if (randomBoolean()) {
+            request.setSourceIndicesForDescription(new String[] { "idx1", "idx2" });
+            request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        }
     }
 
     private void randomRequest(AbstractBulkIndexByScrollRequest<?> request) {
@@ -169,6 +175,32 @@ public class RoundTripTests extends ESTestCase {
         assertEquals(request.getRetryBackoffInitialTime(), tripped.getRetryBackoffInitialTime());
         assertEquals(request.getMaxRetries(), tripped.getMaxRetries());
         assertEquals(request.getRequestsPerSecond(), tripped.getRequestsPerSecond(), 0d);
+        assertArrayEquals(
+            "sourceIndicesForDescription should round-trip",
+            request.getSourceIndicesForDescription(),
+            tripped.getSourceIndicesForDescription()
+        );
+    }
+
+    public void testReindexRequestSourceIndicesForDescriptionBwc() throws IOException {
+        ReindexRequest reindex = new ReindexRequest();
+        reindex.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+        reindex.setSourceIndicesForDescription(new String[] { "source_idx" });
+        reindex.setDestIndex("dest");
+        reindex.getSearchRequest().source().size(100);
+
+        TransportVersion versionBeforeFeature = TransportVersion.minimumCompatible();
+        TransportVersion sourceIndicesForDescriptionVersion = TransportVersion.fromName("bulk_by_scroll_source_indices_for_description");
+        assumeTrue(
+            "minimumCompatible must not support sourceIndicesForDescription for this BWC test",
+            versionBeforeFeature.supports(sourceIndicesForDescriptionVersion) == false
+        );
+
+        ReindexRequest tripped = new ReindexRequest(toInputByteStream(versionBeforeFeature, reindex));
+        assertNull(
+            "sourceIndicesForDescription should be null when reading from version before the feature",
+            tripped.getSourceIndicesForDescription()
+        );
     }
 
     public void testRethrottleRequest() throws IOException {

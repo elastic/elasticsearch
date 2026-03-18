@@ -644,7 +644,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
         BytesReference pitId = new BytesArray("pit".getBytes(StandardCharsets.UTF_8));
         TimeValue keepAlive = timeValueMillis(60000);
-        Version remoteVersion = Version.fromId(between(6030099, Version.CURRENT.id));
+        Version remoteVersion = Version.fromId(between(Version.V_7_10_0.id, Version.CURRENT.id));
 
         RuntimeException e = expectThrows(
             RuntimeException.class,

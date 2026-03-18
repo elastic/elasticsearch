@@ -133,10 +133,6 @@ public class ReindexGetRelocationIT extends ESIntegTestCase {
      * instead of returning TaskRelocatedException to user.
      */
     public void testGetWaitForCompletionDuringRelocation() throws Exception {
-        assumeFalse(
-            "PIT search causes SearchContextMissingException during relocation",
-            ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED
-        );
         final ReindexSetup setup = setupTwoNodeReindex();
 
         // Fire a blocking wait_for_completion=true GET in a background thread before relocation

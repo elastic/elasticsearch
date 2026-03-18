@@ -109,7 +109,7 @@ public class Verifier {
     Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics, UnmappedResolution unmappedResolution) {
         assert partialMetrics != null;
         Failures failures = new Failures();
-        boolean unmappedTimestampHandled = unmappedResolution == UnmappedResolution.FAIL || isTimestampUnmappedInAllIndices(plan, failures);
+        boolean unmappedTimestampHandled = unmappedResolution != UnmappedResolution.FAIL && isTimestampUnmappedInAllIndices(plan, failures);
 
         // quick verification for unresolved attributes
         checkUnresolvedAttributes(plan, failures, unmappedTimestampHandled);

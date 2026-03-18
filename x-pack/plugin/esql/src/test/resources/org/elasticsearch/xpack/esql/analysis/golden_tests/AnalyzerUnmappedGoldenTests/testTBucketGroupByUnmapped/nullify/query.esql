@@ -1,0 +1,2 @@
+SET unmapped_fields="nullify"; FROM sample_data
+| STATS c = COUNT(*) BY tbucket(1 hour), does_not_exist

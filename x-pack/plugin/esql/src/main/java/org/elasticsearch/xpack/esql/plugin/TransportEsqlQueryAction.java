@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
@@ -447,7 +448,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             } else {
                 originalTypes = null;
             }
-            return new ColumnInfoImpl(c.name(), c.dataType().outputType(), originalTypes);
+            // Quick way to get the approximation column metadata in the response
+            // without a full implementation of a colum metadata service.
+            // TODO: remove this hack when we have a proper column metadata service,
+            // see https://github.com/elastic/elasticsearch/issues/138223
+            Map<String, Object> columnMetadata = ApproximationPlan.columnMetadata(c);
+            return new ColumnInfoImpl(c.name(), c.dataType(), originalTypes, columnMetadata);
         }).toList();
         EsqlQueryResponse.Profile profile = profileEnabled
             ? new EsqlQueryResponse.Profile(
@@ -538,7 +544,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ) {
             @Override
             public Status getStatus() {
-                return new EsqlQueryStatus(asyncExecutionId);
+                return new EsqlQueryStatus(asyncExecutionId, getKeepAlive());
             }
 
             @Override

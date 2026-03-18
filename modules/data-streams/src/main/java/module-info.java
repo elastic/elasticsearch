@@ -13,6 +13,7 @@ module org.elasticsearch.datastreams {
     requires org.elasticsearch.xcontent;
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
+    requires org.elasticsearch.logging;
 
     exports org.elasticsearch.datastreams.action to org.elasticsearch.server;
     exports org.elasticsearch.datastreams.lifecycle.action to org.elasticsearch.server;

@@ -123,7 +123,6 @@ public abstract class ToggleablePersistentTasksExecutor<Params extends Persisten
                 }
                 cleanupObsoleteProjectTasks(state);
             }
-            default -> throw new IllegalArgumentException("Unsupported cluster scope");
         }
     }
 

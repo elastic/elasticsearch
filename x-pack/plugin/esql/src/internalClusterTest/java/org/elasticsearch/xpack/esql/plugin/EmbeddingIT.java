@@ -8,25 +8,14 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
-import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.inference.InferenceSettings;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Locale;
-
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Integration tests for the ESQL COMPLETION command.
@@ -55,7 +44,13 @@ public class EmbeddingIT extends InferenceCommandIntegTestCase {
 
         client().execute(
             PutInferenceModelAction.INSTANCE,
-            new PutInferenceModelAction.Request(TaskType.EMBEDDING, EMBEDDING_MODEL_ID, new BytesArray(config), XContentType.JSON, TEST_REQUEST_TIMEOUT)
+            new PutInferenceModelAction.Request(
+                TaskType.EMBEDDING,
+                EMBEDDING_MODEL_ID,
+                new BytesArray(config),
+                XContentType.JSON,
+                TEST_REQUEST_TIMEOUT
+            )
         ).actionGet();
     }
 
@@ -74,5 +69,3 @@ public class EmbeddingIT extends InferenceCommandIntegTestCase {
         assertNotNull(resp);
     }
 }
-
-

@@ -52,9 +52,12 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
     private static final String OPTION_FORMAT = "format";
     private static final String OPTION_TIMEOUT = "timeout";
     private static final Map<String, DataType> ALLOWED_OPTIONS = Map.of(
-        OPTION_TYPE, DataType.KEYWORD,
-        OPTION_FORMAT, DataType.KEYWORD,
-        OPTION_TIMEOUT, DataType.KEYWORD
+        OPTION_TYPE,
+        DataType.KEYWORD,
+        OPTION_FORMAT,
+        DataType.KEYWORD,
+        OPTION_TIMEOUT,
+        DataType.KEYWORD
     );
 
     private final Expression inferenceId;
@@ -80,10 +83,10 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
                 tag = "embedding-knn"
             ),
             @Example(
-                description = "Generate embeddings using the 'test_dense_inference' inference endpoint, specifying the data type and format:",
+                description = "Generate embeddings using an inference endpoint, specifying the data type and format:",
                 file = "embedding",
                 tag = "embedding-base64"
-            )}
+            ) }
     )
     public Embedding(
         Source source,
@@ -182,15 +185,16 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution textResolution = isNotNull(inputText, sourceText(), FIRST)
-            .and(isType(inputText, DataType.KEYWORD::equals, sourceText(), FIRST, "string"));
+        TypeResolution textResolution = isNotNull(inputText, sourceText(), FIRST).and(
+            isType(inputText, DataType.KEYWORD::equals, sourceText(), FIRST, "string")
+        );
 
         if (textResolution.unresolved()) {
             return textResolution;
         }
 
-        TypeResolution inferenceIdResolution = isNotNull(inferenceId, sourceText(), SECOND)
-            .and(isType(inferenceId, DataType.KEYWORD::equals, sourceText(), SECOND, "string")
+        TypeResolution inferenceIdResolution = isNotNull(inferenceId, sourceText(), SECOND).and(
+            isType(inferenceId, DataType.KEYWORD::equals, sourceText(), SECOND, "string")
         );
 
         if (inferenceIdResolution.unresolved()) {

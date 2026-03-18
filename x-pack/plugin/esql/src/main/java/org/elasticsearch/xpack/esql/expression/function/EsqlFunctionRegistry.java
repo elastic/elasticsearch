@@ -607,8 +607,7 @@ public class EsqlFunctionRegistry {
                 // dense vector functions
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
                 def(ToDateRange.class, ToDateRange::new, "to_date_range", "to_daterange"),
-                def(Embedding.class, tri((src, a, b, c) -> new Embedding(src, a, b, (MapExpression) c)), "embedding"),
-            } };
+                def(Embedding.class, tri((src, a, b, c) -> new Embedding(src, a, b, (MapExpression) c)), "embedding"), } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

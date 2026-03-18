@@ -42,13 +42,7 @@ class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
     private final DataFormat dataFormat;
     private final TimeValue timeout;
 
-    EmbeddingRequestIterator(
-        String inferenceId,
-        BytesRefBlock textBlock,
-        DataType dataType,
-        DataFormat dataFormat,
-        TimeValue timeout
-    ) {
+    EmbeddingRequestIterator(String inferenceId, BytesRefBlock textBlock, DataType dataType, DataFormat dataFormat, TimeValue timeout) {
         super(inferenceId, TaskType.EMBEDDING, textBlock);
         this.dataType = dataType;
         this.dataFormat = dataFormat;
@@ -68,10 +62,7 @@ class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
             InputType.UNSPECIFIED,
             Map.of()
         );
-        return new BulkInferenceRequestItem(
-            new EmbeddingAction.Request(inferenceId, taskType, embeddingRequest, timeout),
-            pvcs
-        );
+        return new BulkInferenceRequestItem(new EmbeddingAction.Request(inferenceId, taskType, embeddingRequest, timeout), pvcs);
     }
 
     /**
@@ -88,13 +79,7 @@ class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
 
         @Override
         public BulkInferenceRequestItemIterator create(Page inputPage) {
-            return new EmbeddingRequestIterator(
-                inferenceId,
-                (BytesRefBlock) textEvaluator.eval(inputPage),
-                dataType,
-                dataFormat,
-                timeout
-            );
+            return new EmbeddingRequestIterator(inferenceId, (BytesRefBlock) textEvaluator.eval(inputPage), dataType, dataFormat, timeout);
         }
 
         @Override

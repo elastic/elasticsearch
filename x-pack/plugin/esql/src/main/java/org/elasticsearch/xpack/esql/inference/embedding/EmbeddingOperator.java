@@ -50,7 +50,11 @@ public class EmbeddingOperator extends InferenceOperator {
     }
 
     @Override
-    protected void dispatchInferenceRequest(InferenceService inferenceService, BaseInferenceActionRequest request, ActionListener<InferenceAction.Response> listener) {
+    protected void dispatchInferenceRequest(
+        InferenceService inferenceService,
+        BaseInferenceActionRequest request,
+        ActionListener<InferenceAction.Response> listener
+    ) {
         inferenceService.executeEmbeddingInference((EmbeddingAction.Request) request, listener);
     }
 

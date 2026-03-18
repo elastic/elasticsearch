@@ -10,19 +10,16 @@ package org.elasticsearch.xpack.esql.expression.function.inference;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matchers;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,14 +28,13 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("embedding")
 public class EmbeddingTests extends AbstractFunctionTestCase {
 
     @Before
-    public  void checkCapability() {
+    public void checkCapability() {
         assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
     }
 

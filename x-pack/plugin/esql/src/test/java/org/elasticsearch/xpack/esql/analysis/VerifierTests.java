@@ -3278,11 +3278,7 @@ public class VerifierTests extends ESTestCase {
             "query text",
             EMBEDDING_INFERENCE_ID
         );
-        query(
-            "from test | EVAL embedding = EMBEDDING(?, ?, {\"timeout\": \"30s\"})",
-            "query text",
-            EMBEDDING_INFERENCE_ID
-        );
+        query("from test | EVAL embedding = EMBEDDING(?, ?, {\"timeout\": \"30s\"})", "query text", EMBEDDING_INFERENCE_ID);
 
         // unknown option key
         assertThat(
@@ -3335,18 +3331,15 @@ public class VerifierTests extends ESTestCase {
         query("""
             row text = "My text value"
             | EVAL embedding = EMBEDDING(text, ?)
-            """, EMBEDDING_INFERENCE_ID
-        );
+            """, EMBEDDING_INFERENCE_ID);
         query("""
             from test
             | EVAL embedding = EMBEDDING(CONCAT("hello", "world"), ?)
-            """, EMBEDDING_INFERENCE_ID
-        );
+            """, EMBEDDING_INFERENCE_ID);
         query("""
             row text = "My text value"
             | EVAL embedding = EMBEDDING(text, CONCAT("embedding-", "inference-id"))
-            """
-        );
+            """);
     }
 
     public void testInlineStatsInTSNotAllowed() {

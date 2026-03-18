@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
+import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.test.ESTestCase;
 
@@ -16,6 +17,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -69,7 +72,7 @@ public class BalancedKMeansLocalTests extends ESTestCase {
             stdClusterSizes[j] = clusterSizesStandardDeviation(clusterSizes);
         }
 
-        // We allow up to 1% increase in inertia:
+        // We allow up to 5% increase in inertia:
         assertTrue(inertias[0] * 1.05 > inertias[1]);
         // We ask for a net improvement in the size distribution. In the vast majority of the runs,
         // the decrease in the standard deviation of the cluster sizes is very significant.
@@ -214,5 +217,47 @@ public class BalancedKMeansLocalTests extends ESTestCase {
         }
 
         return KMeansFloatVectorValues.build(vectors, null, nDims);
+    }
+
+    public void testConcurrency() throws IOException {
+        // Test to compare BalancedKMeansLocalSerial and BalancedKMeansLocalConcurrent.
+        // We do not use clustersPerNeighborhood because there is clever centroid initialization here.
+
+        int nClusters = random().nextInt(2, 10); // Pick the number of clusters between 1 and 10 in increments of 10
+        int nVectors = nClusters * 100;
+        final int sampleSize = nClusters * 100;
+        int dims = random().nextInt(1, 20) * 100; // Pick the dimensions between 100 and 2000 in increments of 100
+        int maxIterations = random().nextInt(20, 50);
+        float soarLambda = -1;
+        int numThreads = randomIntBetween(2, 8);
+
+        KMeansFloatVectorValues vectors = generateData(nVectors, dims, nClusters, 0.5f);
+
+        try (ExecutorService executorService = Executors.newFixedThreadPool(numThreads)) {
+            TaskExecutor taskExecutor = new TaskExecutor(executorService);
+
+            var methods = List.of(
+                new BalancedKMeansLocalSerial(sampleSize, maxIterations),
+                new BalancedKMeansLocalConcurrent(taskExecutor, numThreads, sampleSize, maxIterations)
+            );
+
+            float[] inertias = new float[methods.size()];
+            float[] stdClusterSizes = new float[methods.size()];
+
+            for (int j = 0; j < methods.size(); j++) {
+                float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters);
+                int[] assignments = new int[vectors.size()];
+                KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments);
+                methods.get(j).cluster(vectors, kMeansIntermediate, nClusters, soarLambda);
+
+                inertias[j] = kMeansMeanInertia(vectors, kMeansIntermediate);
+                int[] clusterSizes = clusterSizes(kMeansIntermediate);
+
+                stdClusterSizes[j] = clusterSizesStandardDeviation(clusterSizes);
+            }
+
+            assertEquals(inertias[0], inertias[1], 1e-4 * inertias[0]);
+            assertEquals(stdClusterSizes[0], stdClusterSizes[1], 1e-4 * stdClusterSizes[0]);
+        }
     }
 }

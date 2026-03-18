@@ -2329,6 +2329,12 @@ public class EsqlCapabilities {
          */
         FIX_TBUCKET_TARGET_COUNT_WINDOW_VALIDATION,
 
+        /**
+         * Support the null column type for the CHANGE_POINT command
+         * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
+         */
+        CHANGE_POINT_SUPPORT_NULL_COLUMN,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

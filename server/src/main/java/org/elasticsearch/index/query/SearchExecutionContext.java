@@ -441,7 +441,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 filter,
                 () -> mappingLookup.getMapping().syntheticFieldLoader(null),
                 mapperMetrics.sourceFieldMetrics(),
-                IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings.getIndexVersionCreated())
+                IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
             );
         }
         return mappingLookup.newSourceLoader(filter, mapperMetrics.sourceFieldMetrics());

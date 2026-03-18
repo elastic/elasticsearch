@@ -182,12 +182,10 @@ public final class AzureStorageProvider implements StorageProvider {
         BlobClient blobClient = client(account).getBlobContainerClient(parsed.container).getBlobClient(parsed.blobName);
         try {
             return blobClient.exists();
-        } catch (BlobStorageException e) {
-            if (e.getStatusCode() == 403) {
+        } catch (Exception e) {
+            if (e instanceof BlobStorageException bse && bse.getStatusCode() == 403) {
                 return existsViaRangeGet(blobClient, path);
             }
-            throw new IOException("Failed to check existence of " + path + credentialHint(), e);
-        } catch (Exception e) {
             throw new IOException("Failed to check existence of " + path + credentialHint(), e);
         }
     }
@@ -195,12 +193,10 @@ public final class AzureStorageProvider implements StorageProvider {
     private boolean existsViaRangeGet(BlobClient blobClient, StoragePath path) throws IOException {
         try (var stream = blobClient.openInputStream(new BlobRange(0, 1L), null)) {
             return true;
-        } catch (BlobStorageException e) {
-            if (e.getStatusCode() == 404) {
+        } catch (Exception e) {
+            if (e instanceof BlobStorageException bse && bse.getStatusCode() == 404) {
                 return false;
             }
-            throw new IOException("Failed to check existence of " + path + " (properties denied, range GET also failed)", e);
-        } catch (Exception e) {
             throw new IOException("Failed to check existence of " + path + " (properties denied, range GET also failed)", e);
         }
     }

@@ -12,9 +12,9 @@ import com.azure.storage.blob.models.BlobRange;
 import com.azure.storage.blob.models.BlobRequestConditions;
 import com.azure.storage.blob.models.BlobStorageException;
 
-import org.elasticsearch.xpack.esql.datasources.ContentRangeParser;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -135,16 +135,14 @@ public final class AzureStorageObject implements StorageObject {
             cachedExists = true;
             cachedLength = properties.getBlobSize();
             cachedLastModified = properties.getLastModified() != null ? properties.getLastModified().toInstant() : null;
-        } catch (BlobStorageException e) {
-            if (e.getStatusCode() == 404) {
+        } catch (Exception e) {
+            if (e instanceof BlobStorageException bse && bse.getStatusCode() == 404) {
                 setNotFound();
-            } else if (e.getStatusCode() == 403) {
+            } else if (e instanceof BlobStorageException bse && bse.getStatusCode() == 403) {
                 fetchMetadataViaRangeGet();
             } else {
                 throw new IOException("Failed to get metadata for " + path, e);
             }
-        } catch (Exception e) {
-            throw new IOException("Failed to get metadata for " + path, e);
         }
     }
 
@@ -162,16 +160,14 @@ public final class AzureStorageObject implements StorageObject {
             }
             cachedLength = total;
             cachedLastModified = headers.getLastModified() != null ? headers.getLastModified().toInstant() : null;
-        } catch (BlobStorageException e) {
-            if (e.getStatusCode() == 404) {
+        } catch (IOException e) {
+            throw e;
+        } catch (Exception e) {
+            if (e instanceof BlobStorageException bse && bse.getStatusCode() == 404) {
                 setNotFound();
             } else {
                 throw new IOException("Failed to get metadata for " + path + " (properties denied, range GET also failed)", e);
             }
-        } catch (IOException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IOException("Failed to get metadata for " + path + " (properties denied, range GET also failed)", e);
         }
     }
 

@@ -3498,7 +3498,7 @@ client_ip:ip | event_duration:long |    message:keyword    |count:long|    @time
 172.21.2.113 |             2764889 | Connected to 10.1.0.2 |2         | 2023-10-23T12:27:28.948Z
 ;
 
-multiIndexIndirectUseOfUnionTypesInInlinestats 
+multiIndexIndirectUseOfUnionTypesInInlineStatsGrouping
 required_capability: inline_stats
 
 FROM sample_data, sample_data_ts_long
@@ -4642,7 +4642,7 @@ emp_no:integer |first_name:keyword|sal:integer    |language_code:keyword | langu
 10058          |Berhard           |38376          |3                     |Spanish                |17             |3
 ;
 
-inlineStatsAfterSortDropped
+inlineStatsAfterSortDroppedWithLimit
 required_capability: inline_stats_preceeded_by_sort
 
 FROM employees

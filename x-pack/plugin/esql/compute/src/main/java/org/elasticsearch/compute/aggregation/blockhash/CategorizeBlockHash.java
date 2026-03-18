@@ -113,7 +113,8 @@ public class CategorizeBlockHash extends BlockHash {
     }
 
     @Override
-    public Block[] getKeys() {
+    public Block[] getKeys(IntVector selected) {
+        // Select is always nonEmpty because we don't support splitting pages from Categorize
         return new Block[] { aggregatorMode.isOutputPartial() ? buildIntermediateBlock() : buildFinalBlock() };
     }
 

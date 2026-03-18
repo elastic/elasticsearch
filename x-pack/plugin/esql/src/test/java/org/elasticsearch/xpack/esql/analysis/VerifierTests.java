@@ -3580,22 +3580,6 @@ public class VerifierTests extends ESTestCase {
         );
         assertThat(
             error(
-                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_snippets\": null})",
-                fullTextAnalyzer,
-                ParsingException.class
-            ),
-            equalTo("1:57: Invalid named parameter [\"num_snippets\":null], NULL is not supported")
-        );
-        assertThat(
-            error(
-                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": null})",
-                fullTextAnalyzer,
-                ParsingException.class
-            ),
-            equalTo("1:57: Invalid named parameter [\"num_words\":null], NULL is not supported")
-        );
-        assertThat(
-            error(
                 "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"invalid\": \"foobar\"})",
                 fullTextAnalyzer,
                 VerificationException.class

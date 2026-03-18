@@ -23,9 +23,13 @@ import org.elasticsearch.core.UpdateForV10;
 import java.net.URI;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 
@@ -49,6 +53,27 @@ public class RestUtils {
     }
 
     public static void decodeQueryString(String s, int fromIndex, Map<String, String> params) {
+        parseQueryStringPairs(s, fromIndex, (name, value) -> addParam(params, name, value));
+    }
+
+    /**
+     * Parses a URL-encoded query string into a multi-value map, preserving all values for
+     * repeated parameters (e.g. {@code match[]=foo&match[]=bar} → {@code ["foo", "bar"]}).
+     *
+     * @param s         the full string containing the query string
+     * @param fromIndex the index at which the query string begins (i.e. one past the {@code ?})
+     * @return a map from parameter name to all its values, in encounter order
+     */
+    public static Map<String, List<String>> decodeQueryStringMulti(String s, int fromIndex) {
+        Map<String, List<String>> result = new LinkedHashMap<>();
+        parseQueryStringPairs(s, fromIndex, (name, value) -> {
+            checkReservedParam(name);
+            result.computeIfAbsent(name, k -> new ArrayList<>()).add(value);
+        });
+        return result;
+    }
+
+    private static void parseQueryStringPairs(String s, int fromIndex, BiConsumer<String, String> consumer) {
         if (fromIndex < 0) {
             return;
         }
@@ -74,9 +99,9 @@ public class RestUtils {
                     // We haven't seen an `=' so far but moved forward.
                     // Must be a param of the form '&a&' so add it with
                     // an empty value.
-                    addParam(params, decodeQueryStringParam(s.substring(pos, i)), "");
+                    consumer.accept(decodeQueryStringParam(s.substring(pos, i)), "");
                 } else if (name != null) {
-                    addParam(params, name, decodeQueryStringParam(s.substring(pos, i)));
+                    consumer.accept(name, decodeQueryStringParam(s.substring(pos, i)));
                     name = null;
                 }
                 pos = i + 1;
@@ -85,12 +110,12 @@ public class RestUtils {
 
         if (pos != i) {  // Are there characters we haven't dealt with?
             if (name == null) {     // Yes and we haven't seen any `='.
-                addParam(params, decodeQueryStringParam(s.substring(pos, i)), "");
+                consumer.accept(decodeQueryStringParam(s.substring(pos, i)), "");
             } else {                // Yes and this must be the last value.
-                addParam(params, name, decodeQueryStringParam(s.substring(pos, i)));
+                consumer.accept(name, decodeQueryStringParam(s.substring(pos, i)));
             }
         } else if (name != null) {  // Have we seen a name without value?
-            addParam(params, name, "");
+            consumer.accept(name, "");
         }
     }
 
@@ -98,12 +123,16 @@ public class RestUtils {
         return decodeComponent(s, StandardCharsets.UTF_8, true);
     }
 
-    private static void addParam(Map<String, String> params, String name, String value) {
+    private static void checkReservedParam(String name) {
         for (var reservedParameter : INTERNAL_MARKER_REQUEST_PARAMETERS) {
             if (reservedParameter.equalsIgnoreCase(name)) {
                 throw new IllegalArgumentException("parameter [" + name + "] is reserved and may not be set");
             }
         }
+    }
+
+    private static void addParam(Map<String, String> params, String name, String value) {
+        checkReservedParam(name);
         params.put(name, value);
     }
 

@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -114,6 +115,71 @@ public class RestUtilsTests extends ESTestCase {
         assertThat(params.get("b"), equalTo(""));
         assertThat(params.get("p"), equalTo("v"));
         assertThat(params.get("p1"), equalTo("v1"));
+    }
+
+    public void testDecodeQueryStringMultiBasic() {
+        String uri = "something?test=value";
+        var params = RestUtils.decodeQueryStringMulti(uri, uri.indexOf('?') + 1);
+        assertThat(params.size(), equalTo(1));
+        assertThat(params.get("test"), equalTo(List.of("value")));
+    }
+
+    public void testDecodeQueryStringMultiMultipleValues() {
+        String uri = "something?match%5B%5D=up&match%5B%5D=http_requests_total&start=1609746000";
+        var params = RestUtils.decodeQueryStringMulti(uri, uri.indexOf('?') + 1);
+        assertThat(params.get("match[]"), equalTo(List.of("up", "http_requests_total")));
+        assertThat(params.get("start"), equalTo(List.of("1609746000")));
+    }
+
+    public void testDecodeQueryStringMultiDelimiters() {
+        String uri = Strings.format("something?a=1%cb=2", randomDelimiter());
+        var params = RestUtils.decodeQueryStringMulti(uri, uri.indexOf('?') + 1);
+        assertThat(params.get("a"), equalTo(List.of("1")));
+        assertThat(params.get("b"), equalTo(List.of("2")));
+    }
+
+    public void testDecodeQueryStringMultiEdgeCases() {
+        // empty query string
+        String uri = "something?";
+        assertThat(RestUtils.decodeQueryStringMulti(uri, uri.indexOf('?') + 1).isEmpty(), is(true));
+
+        // fromIndex past end
+        assertThat(RestUtils.decodeQueryStringMulti("something", 9).isEmpty(), is(true));
+
+        // fromIndex negative
+        assertThat(RestUtils.decodeQueryStringMulti("something", -1).isEmpty(), is(true));
+
+        // empty string
+        assertThat(RestUtils.decodeQueryStringMulti("", 0).isEmpty(), is(true));
+
+        // key with no value
+        uri = "something?a";
+        var params = RestUtils.decodeQueryStringMulti(uri, uri.indexOf('?') + 1);
+        assertThat(params.get("a"), equalTo(List.of("")));
+    }
+
+    public void testDecodeQueryStringMultiFragment() {
+        // fragment should be excluded
+        String uri = "something?a=1#fragment";
+        var params = RestUtils.decodeQueryStringMulti(uri, uri.indexOf('?') + 1);
+        assertThat(params.get("a"), equalTo(List.of("1")));
+        assertThat(params.containsKey("fragment"), is(false));
+    }
+
+    public void testDecodeQueryStringMultiUrlEncoded() {
+        String uri = "something?match%5B%5D=up%7Bjob%3D%22prometheus%22%7D";
+        var params = RestUtils.decodeQueryStringMulti(uri, uri.indexOf('?') + 1);
+        assertThat(params.get("match[]"), equalTo(List.of("up{job=\"prometheus\"}")));
+    }
+
+    public void testDecodeQueryStringMultiReservedParameters() {
+        for (var reservedParam : INTERNAL_MARKER_REQUEST_PARAMETERS) {
+            String uri = "something?" + reservedParam + "=value";
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> RestUtils.decodeQueryStringMulti(uri, uri.indexOf('?') + 1)
+            );
+        }
     }
 
     public void testCorsSettingIsARegex() {

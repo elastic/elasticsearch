@@ -181,16 +181,14 @@ public final class GcsStorageObject implements StorageObject {
             } else {
                 setNotFound();
             }
-        } catch (StorageException e) {
-            if (e.getCode() == 404) {
+        } catch (IOException e) {
+            throw e;
+        } catch (Exception e) {
+            if (e instanceof StorageException se && se.getCode() == 404) {
                 setNotFound();
             } else {
                 throw new IOException("Failed to get metadata for " + path + " (metadata denied, range read also failed)", e);
             }
-        } catch (IOException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IOException("Failed to get metadata for " + path + " (metadata denied, range read also failed)", e);
         }
     }
 

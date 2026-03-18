@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.datasources;
+package org.elasticsearch.xpack.esql.datasources.utils;
 
 /**
  * Utility for parsing HTTP Content-Range headers (RFC 7233).

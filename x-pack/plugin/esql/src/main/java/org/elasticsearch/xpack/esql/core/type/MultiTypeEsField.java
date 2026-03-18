@@ -32,13 +32,13 @@ import java.util.Set;
  * type conversion is done at the data node level.
  */
 public class MultiTypeEsField extends EsField {
-    private static final TransportVersion UNMAPPED_FIELDS_LOAD = TransportVersion.fromName("esql_unampped_fields_load");
+    private static final TransportVersion UNMAPPED_FIELDS_LOAD = TransportVersion.fromName("esql_unmapped_fields_load");
 
     private final Map<String, Expression> indexToConversionExpressions;
 
     /**
      * If this is not {@code null}, then this expression should be used to convert the field value in case the field is not mapped in an
-     * index, to convert the {@link DataType#KEYWORD} to the target type.
+     * index from {@link DataType#KEYWORD} to the target type.
      */
     @Nullable
     private final Expression potentiallyUnmappedExpression;

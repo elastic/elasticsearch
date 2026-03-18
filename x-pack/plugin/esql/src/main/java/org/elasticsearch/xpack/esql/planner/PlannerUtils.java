@@ -79,8 +79,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
-import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS;
-import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_CENTROID;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
@@ -377,8 +375,6 @@ public class PlannerUtils {
             return EstimatesRowSize.estimateRowSize(f.estimatedRowSize(), localOptimized);
         });
 
-        // TODO add a test assertion for the consistency checker (see
-        // https://github.com/elastic/elasticsearch/pull/141082/changes#r2745334028);
         PhysicalPlan resultPlan = isCoordPlan.get() ? plan : localPhysicalPlan;
         return resultPlan;
     }

@@ -261,14 +261,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
         if (conversion == null) {
             Expression potentiallyUnmapped = unionTypes.getPotentiallyUnmappedExpression();
-            if (potentiallyUnmapped != null && potentiallyUnmapped instanceof AbstractConvertFunction convert) {
-                String unmappedFieldName = ((FieldAttribute) convert.field()).fieldName().string();
-                shardContext = wrapWithUnmappedFieldContext(shardContext, new PotentiallyUnmappedKeywordEsField(unmappedFieldName));
-                conversion = potentiallyUnmapped;
-                fieldName = unmappedFieldName;
-            } else {
+            if (!(potentiallyUnmapped instanceof AbstractConvertFunction convert)) {
                 return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
             }
+            fieldName = ((FieldAttribute) convert.field()).fieldName().string();
+            shardContext = wrapWithUnmappedFieldContext(shardContext, new PotentiallyUnmappedKeywordEsField(fieldName));
+            conversion = potentiallyUnmapped;
         }
         if (conversion instanceof BlockLoaderExpression ble) {
             BlockLoaderExpression.PushedBlockLoaderExpression e = ble.tryPushToFieldLoading(SearchStats.EMPTY);

@@ -33,7 +33,6 @@ public class InvalidMappedField extends EsField {
 
     private final String errorMessage;
     private final Map<String, Set<String>> typesToIndices;
-    // Marks the field as being unmapped in some indices.
     private final boolean isPotentiallyUnmapped;
 
     public InvalidMappedField(String name, String errorMessage, Map<String, EsField> properties) {
@@ -49,7 +48,9 @@ public class InvalidMappedField extends EsField {
     }
 
     /**
-     * Constructor supporting union types, used in ES|QL.
+     * A {@link InvalidMappedField} is potentially unmapped if at least one index does not contain a mapping for the field, and the user
+     * requested we load the values from {@code _source}. In that case, there is an additional type conflict since we treat unmapped fields
+     * as {@link DataType#KEYWORD}.
      */
     public static InvalidMappedField potentiallyUnmapped(String name, Map<String, Set<String>> typesToIndices) {
         return new InvalidMappedField(

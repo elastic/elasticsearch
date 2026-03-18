@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.logging.Logger;
@@ -1222,17 +1223,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 .map(IndexResolution::get)
                 .filter(r -> r.isPartiallyUnmappedField(name))
                 .findFirst()
-                .orElseThrow();
-            Map<String, Set<String>> typesToIndices = new TreeMap<>();
-            if (fa.field() instanceof InvalidMappedField imf) {
-                typesToIndices.putAll(imf.getTypesToIndices());
-            } else {
-                TreeSet<String> indicesWithField = new TreeSet<>(esIndex.concreteQualifiedIndices());
-                indicesWithField.removeAll(esIndex.getUnmappedIndices(fa.name()));
-                typesToIndices.put(fa.dataType().typeName(), indicesWithField);
-            }
-            EsField field = InvalidMappedField.potentiallyUnmapped(name, typesToIndices);
+                .orElseThrow(() -> new IllegalStateException(Strings.format("No index with unmapped '%s' found", name)));
+            InvalidMappedField field = InvalidMappedField.potentiallyUnmapped(name, getTypesToIndices(fa, esIndex));
             return new FieldAttribute(fa.source(), null, fa.qualifier(), name, field);
+        }
+
+        private static Map<String, Set<String>> getTypesToIndices(FieldAttribute fa, EsIndex esIndex) {
+            if (fa.field() instanceof InvalidMappedField imf) {
+                return imf.getTypesToIndices();
+            }
+            TreeSet<String> indicesWithField = new TreeSet<>(esIndex.concreteQualifiedIndices());
+            indicesWithField.removeAll(esIndex.getUnmappedIndices(fa.name()));
+            return new TreeMap<>(Map.of(fa.name(), indicesWithField));
         }
 
         public static FieldAttribute insistKeyword(Attribute attribute) {

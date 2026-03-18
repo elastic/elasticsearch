@@ -72,19 +72,14 @@ public interface SnapshotShardContextFactory {
     }
 
     /**
-     *
-     * @param clusterService
-     * @param indexShard
-     * @param snapshot
-     * @param snapshotStatus null when the shard snapshot does not run on the local node
-     * @return
+     * Acquire an index commit for the shard snapshot and ensure it's valid with respect to resharding.
      */
     static SnapshotIndexCommit acquireSnapshotIndexCommit(
         ClusterService clusterService,
         IndexShard indexShard,
         Snapshot snapshot,
         boolean canRelocateDuringSnapshot,
-        @Nullable IndexShardSnapshotStatus snapshotStatus
+        @Nullable IndexShardSnapshotStatus snapshotStatus // null when the shard snapshot runs on a remote node
     ) {
         final var shardId = indexShard.shardId();
         if (indexShard.routingEntry().primary() == false) {

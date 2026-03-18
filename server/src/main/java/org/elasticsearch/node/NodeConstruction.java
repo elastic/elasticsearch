@@ -1196,17 +1196,16 @@ class NodeConstruction {
             snapshotMetrics
         );
 
-        final SnapshotShardContextFactory snapshotShardContextFactory = pluginsService.loadSingletonServiceProvider(
-            SnapshotShardContextFactory.class,
-            () -> new LocalPrimarySnapshotShardContextFactory(clusterService, indicesService)
-        );
         SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
             settings,
             clusterService,
             repositoriesService,
             transportService,
             indicesService,
-            snapshotShardContextFactory
+            pluginsService.loadSingletonServiceProvider(
+                SnapshotShardContextFactory.class,
+                () -> new LocalPrimarySnapshotShardContextFactory(clusterService, indicesService)
+            )
         );
         final CachingSnapshotAndShardByStateMetricsService cachingSnapshotAndShardByStateMetricsService =
             new CachingSnapshotAndShardByStateMetricsService(clusterService);

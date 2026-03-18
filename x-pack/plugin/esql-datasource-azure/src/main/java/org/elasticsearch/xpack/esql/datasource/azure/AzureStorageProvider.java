@@ -337,18 +337,15 @@ public final class AzureStorageProvider implements StorageProvider {
                     }
                 }
                 return false;
-            } catch (BlobStorageException e) {
-                if (e.getStatusCode() == 403) {
-                    throw new RuntimeException(
-                        "Access denied listing blobs in container ["
-                            + container
-                            + "]. "
-                            + "Verify that the configured credentials have listing permission on this container, "
-                            + "or use exact file paths instead of glob patterns.",
-                        e
-                    );
-                }
-                throw new RuntimeException("Failed to list blobs in container [" + container + "]", e);
+            } catch (Exception e) {
+                String msg = (e instanceof BlobStorageException bse && bse.getStatusCode() == 403)
+                    ? "Access denied listing blobs in container ["
+                        + container
+                        + "]. "
+                        + "Verify that the configured credentials have listing permission on this container, "
+                        + "or use exact file paths instead of glob patterns."
+                    : "Failed to list blobs in container [" + container + "]";
+                throw new RuntimeException(msg, e);
             }
         }
 

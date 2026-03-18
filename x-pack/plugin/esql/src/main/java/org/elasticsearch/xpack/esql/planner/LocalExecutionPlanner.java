@@ -1255,12 +1255,22 @@ public class LocalExecutionPlanner {
             effectiveBufferSize = Math.min(10, (pushedLimit + pageSize - 1) / pageSize + 1);
         }
 
+        FileSet fileSet = externalSource.fileSet();
         int splitCount = externalSource.splits().size();
         ExternalSliceQueue sliceQueue = null;
         int instanceCount = 1;
 
-        if (splitCount > 1) {
+        /*
+         * Data nodes don't have a resolved FileSet (it isn't serialized), so they must rely on explicit splits.
+         * If we received a single coalesced split, we still need to route execution through the slice queue so
+         * the operator can expand it into its leaf FileSplits. Otherwise we'd fall back to opening the original
+         * (potentially globbed) source path as a single object.
+         */
+        boolean useSliceQueue = splitCount > 0 && (splitCount > 1 || fileSet == null || fileSet.isResolved() == false);
+        if (useSliceQueue) {
             sliceQueue = new ExternalSliceQueue(externalSource.splits());
+        }
+        if (splitCount > 1) {
             int maxParallelism = context.queryPragmas().taskConcurrency();
             if (pushedLimit != FormatReader.NO_LIMIT && pushedLimit <= pageSize) {
                 instanceCount = 1;
@@ -1271,8 +1281,6 @@ public class LocalExecutionPlanner {
                 instanceCount = Math.min(splitCount, maxParallelism);
             }
         }
-
-        FileSet fileSet = externalSource.fileSet();
         Set<String> partitionColumnNames = Set.of();
         if (fileSet != null) {
             PartitionMetadata pm = fileSet.partitionMetadata();

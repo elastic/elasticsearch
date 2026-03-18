@@ -1035,14 +1035,14 @@ required_capability: sample_v3
 SET unmapped_fields="nullify"\;
 FROM alerts
 | KEEP kibana.alert.risk_score
-| FORK (WHERE true | MV_EXPAND kibana.alert.risk_score) (WHERE true | SAMPLE 0.5) 
+| FORK (WHERE true | MV_EXPAND kibana.alert.risk_score) (WHERE true | SAMPLE 0.5)
 | STATS kibana.alert.risk_score = COUNT(*)
 | EVAL x = LEAST(kibana.alert.risk_score, 52, 60)
 | KEEP kibana.alert.risk_score
 ;
 
 kibana.alert.risk_score:long
-10..20                           
+10..20
 ;
 
 

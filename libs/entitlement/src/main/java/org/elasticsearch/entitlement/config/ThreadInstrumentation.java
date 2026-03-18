@@ -40,6 +40,7 @@ public class ThreadInstrumentation implements InstrumentationConfig {
 
         builder.on(ForkJoinPool.class, rule -> {
             rule.callingVoid(ForkJoinPool::execute, Runnable.class).enforce(Policies::manageThreads).elseThrowNotEntitled();
+            rule.callingVoid(ForkJoinPool::setParallelism, Integer.class).enforce(Policies::manageThreads).elseThrowNotEntitled();
         });
     }
 }

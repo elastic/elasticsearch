@@ -14,7 +14,6 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
-import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
@@ -121,22 +120,21 @@ public class S3AnonymousAccessTests extends ESTestCase {
     }
 
     /**
-     * When listing returns 403, the error message should clearly indicate
-     * that anonymous access requires bucket-level listing permissions.
+     * When HeadObject returns 403 and the range GET also fails (non-404), the error
+     * should propagate with a descriptive message.
      */
-    public void testListingDeniedGivesClearErrorMessage() throws IOException {
-        when(mockS3Client.listObjectsV2(any(ListObjectsV2Request.class))).thenThrow(
+    public void testHeadFallbackRangeGetAlsoFails() {
+        when(mockS3Client.headObject(any(HeadObjectRequest.class))).thenThrow(
+            S3Exception.builder().statusCode(403).message("Access Denied").build()
+        );
+        when(mockS3Client.getObject(any(GetObjectRequest.class))).thenThrow(
             S3Exception.builder().statusCode(403).message("Access Denied").build()
         );
 
-        // Create provider that uses our mock - we can't use the real constructor since it builds its own client,
-        // so test via the iterator directly by creating an S3StorageProvider and calling listObjects
-        // Instead, we test the error message format from the iterator
-        S3Configuration config = S3Configuration.fromFields(null, null, "http://localhost:1234", "us-east-1", "none");
-        // We can't easily test the full provider chain with a mock S3Client since the provider builds its own.
-        // Instead, verify the configuration is set up correctly for anonymous access.
-        assertTrue(config.isAnonymous());
-        assertFalse(config.hasCredentials());
+        S3StorageObject obj = new S3StorageObject(mockS3Client, BUCKET, KEY, PATH);
+
+        IOException e = expectThrows(IOException.class, obj::length);
+        assertThat(e.getMessage(), containsString("HEAD denied, range GET also failed"));
     }
 
     /**

@@ -581,46 +581,27 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testRateAndTbucketWithUnmappedTimestamp() {
-        unmappedTimestampFailure(
-            "FROM test | STATS rate(salary) BY tbucket(1 hour)",
-            "[rate(salary)] ",
-            "[tbucket(1 hour)] "
-        );
+        unmappedTimestampFailure("FROM test | STATS rate(salary) BY tbucket(1 hour)", "[rate(salary)] ", "[tbucket(1 hour)] ");
     }
 
     public void testTbucketWithUnmappedTimestampAfterWhere() {
-        unmappedTimestampFailure(
-            "FROM test | WHERE emp_no > 10 | STATS c = COUNT(*) BY tbucket(1 hour)",
-            "[tbucket(1 hour)] "
-        );
+        unmappedTimestampFailure("FROM test | WHERE emp_no > 10 | STATS c = COUNT(*) BY tbucket(1 hour)", "[tbucket(1 hour)] ");
     }
 
     public void testTbucketWithUnmappedTimestampAfterEval() {
-        unmappedTimestampFailure(
-            "FROM test | EVAL x = salary + 1 | STATS c = COUNT(*) BY tbucket(1 hour)",
-            "[tbucket(1 hour)] "
-        );
+        unmappedTimestampFailure("FROM test | EVAL x = salary + 1 | STATS c = COUNT(*) BY tbucket(1 hour)", "[tbucket(1 hour)] ");
     }
 
     public void testTbucketWithUnmappedTimestampMultipleGroupings() {
-        unmappedTimestampFailure(
-            "FROM test | STATS c = COUNT(*) BY tbucket(1 hour), emp_no",
-            "[tbucket(1 hour)] "
-        );
+        unmappedTimestampFailure("FROM test | STATS c = COUNT(*) BY tbucket(1 hour), emp_no", "[tbucket(1 hour)] ");
     }
 
     public void testTbucketWithUnmappedTimestampAfterRename() {
-        unmappedTimestampFailure(
-            "FROM test | RENAME emp_no AS e | STATS c = COUNT(*) BY tbucket(1 hour)",
-            "[tbucket(1 hour)] "
-        );
+        unmappedTimestampFailure("FROM test | RENAME emp_no AS e | STATS c = COUNT(*) BY tbucket(1 hour)", "[tbucket(1 hour)] ");
     }
 
     public void testTbucketWithUnmappedTimestampAfterDrop() {
-        unmappedTimestampFailure(
-            "FROM test | DROP emp_no | STATS c = COUNT(*) BY tbucket(1 hour)",
-            "[tbucket(1 hour)] "
-        );
+        unmappedTimestampFailure("FROM test | DROP emp_no | STATS c = COUNT(*) BY tbucket(1 hour)", "[tbucket(1 hour)] ");
     }
 
     public void testTrangeWithUnmappedTimestampCompoundWhere() {
@@ -632,10 +613,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testTbucketWithUnmappedTimestampInInlineStats() {
-        unmappedTimestampFailure(
-            "FROM test | INLINE STATS c = COUNT(*) BY tbucket(1 hour)",
-            "[tbucket(1 hour)] "
-        );
+        unmappedTimestampFailure("FROM test | INLINE STATS c = COUNT(*) BY tbucket(1 hour)", "[tbucket(1 hour)] ");
     }
 
     public void testTbucketWithUnmappedTimestampWithFork() {

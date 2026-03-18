@@ -327,7 +327,7 @@ public final class AzureStorageProvider implements StorageProvider {
                 }
                 while (iterator.hasNext()) {
                     BlobItem item = iterator.next();
-                    if (item.isPrefix()) {
+                    if (Boolean.TRUE.equals(item.isPrefix())) {
                         continue;
                     }
                     String name = item.getName();

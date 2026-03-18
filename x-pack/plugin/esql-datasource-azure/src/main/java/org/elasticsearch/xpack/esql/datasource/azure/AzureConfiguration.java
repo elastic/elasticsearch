@@ -90,9 +90,6 @@ public record AzureConfiguration(String connectionString, String account, String
         return "none".equals(auth);
     }
 
-    /**
-     * Returns true if explicit credentials are provided (connection string, account+key, or SAS token).
-     */
     public boolean hasCredentials() {
         return hasExplicitCredentials(connectionString, account, key, sasToken);
     }

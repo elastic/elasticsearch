@@ -215,6 +215,19 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
     /// The processor tracking and cleanup runs on all nodes.
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        final var projects = event.state().metadata().projects();
+        // Cleanup
+        for (var project : atLeastOneGeoIpProcessorByProject.keySet()) {
+            if (projects.containsKey(project) == false
+                || PersistentTasksCustomMetadata.getTaskWithId(projects.get(project), getProjectTaskId(project)) == null) {
+                if (event.localNodeMaster()) {
+                    deleteGeoIpDatabasesIndex(project, event.state());
+                }
+                tasks.remove(project);
+                atLeastOneGeoIpProcessorByProject.remove(project);
+            }
+        }
+
         // Master reconciliation
         super.clusterChanged(event);
 
@@ -222,7 +235,6 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
         if (event.metadataChanged() == false) {
             return;
         }
-        final var projects = event.state().metadata().projects();
         for (var projectMetadata : projects.values()) {
             ProjectId projectId = projectMetadata.id();
             atLeastOneGeoIpProcessorByProject.computeIfAbsent(projectId, k -> hasAtLeastOneGeoipProcessor(projectMetadata));
@@ -252,17 +264,6 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
                         currentDownloader.requestRunOnDemand();
                     }
                 }
-            }
-        }
-        // Cleanup
-        for (var project : tasks.keySet()) {
-            if (projects.containsKey(project) == false
-                || PersistentTasksCustomMetadata.getTaskWithId(projects.get(project), getProjectTaskId(project)) == null) {
-                if (event.localNodeMaster()) {
-                    deleteGeoIpDatabasesIndex(project, event.state());
-                }
-                tasks.remove(project);
-                atLeastOneGeoIpProcessorByProject.remove(project);
             }
         }
     }

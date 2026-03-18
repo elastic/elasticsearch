@@ -241,9 +241,17 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             .stream()
             .map(transportRequest -> (DeleteIndexRequest) transportRequest)
             .toList();
-        assertThat(deleteRequests.get(0).indices()[0], is(dataStream.getIndices().get(0).getName()));
-        assertThat(deleteRequests.get(1).indices()[0], is(dataStream.getIndices().get(1).getName()));
-        assertThat(deleteRequests.get(2).indices()[0], is(dataStream.getFailureIndices().get(0).getName()));
+        Set<String> indicesToDelete = Set.of(
+            deleteRequests.get(0).indices()[0],
+            deleteRequests.get(1).indices()[0],
+            deleteRequests.get(2).indices()[0]
+        );
+        Set<String> indicesInDataStreamToDelete = Set.of(
+            dataStream.getIndices().get(0).getName(),
+            dataStream.getIndices().get(1).getName(),
+            dataStream.getFailureIndices().get(0).getName()
+        );
+        assertThat(indicesToDelete, equalTo(indicesInDataStreamToDelete));
 
         // on the second run the rollover and delete requests should not execute anymore
         // i.e. the count should *remain* 1 for rollover and 2 for deletes

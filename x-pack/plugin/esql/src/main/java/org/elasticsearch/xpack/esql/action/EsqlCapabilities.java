@@ -2334,7 +2334,6 @@ public class EsqlCapabilities {
          * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
          */
         CHANGE_POINT_SUPPORT_NULL_COLUMN,
-        FIX_TBUCKET_TARGET_COUNT_WINDOW_VALIDATION,
 
         /**
          * Supports the {@code USER_AGENT} command.

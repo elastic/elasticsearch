@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * Integration tests for the Prometheus {@code GET|POST /api/v1/series} endpoint.
+ * Integration tests for the Prometheus {@code GET /api/v1/series} endpoint.
  *
  * <p>Tests focus on high-level HTTP concerns: routing, request/response format, status codes.
  * Detailed plan-building and response-parsing logic is covered by unit tests.

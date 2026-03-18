@@ -91,7 +91,7 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
         Setting.Property.NodeScope
     );
 
-    private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);
+    private static final Logger logger = LogManager.getLogger(GeoIpDownloaderTaskExecutor.class);
 
     private final Client client;
     private final HttpClient httpClient;
@@ -136,7 +136,11 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
         this.pollInterval = POLL_INTERVAL_SETTING.get(settings);
         this.eagerDownload = EAGER_DOWNLOAD_SETTING.get(settings);
         this.projectResolver = client.projectResolver();
+        setUpSettingsConsumers(clusterService);
+    }
 
+    @FixForMultiProject(description = "Should execute in the context of the current project after settings are project-aware")
+    private void setUpSettingsConsumers(ClusterService clusterService) {
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ENABLED_SETTING, this::setEnabled);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(EAGER_DOWNLOAD_SETTING, this::setEagerDownload);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(POLL_INTERVAL_SETTING, this::setPollInterval);
@@ -257,11 +261,12 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
             }
         }
         // Cleanup
-        for (var project : tasks.keySet()) {
-            if (projects.containsKey(project) == false
-                || PersistentTasksCustomMetadata.getTaskWithId(projects.get(project), getProjectTaskId(project)) == null) {
+        for (var project : atLeastOneGeoIpProcessorByProject.keySet()) {
+            if (projects.containsKey(project) == false) {
                 tasks.remove(project);
                 atLeastOneGeoIpProcessorByProject.remove(project);
+            } else if (PersistentTasksCustomMetadata.getTaskWithId(projects.get(project), getProjectTaskId(project)) == null) {
+                tasks.remove(project);
             }
         }
     }

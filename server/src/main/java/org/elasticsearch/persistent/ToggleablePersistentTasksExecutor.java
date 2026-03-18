@@ -81,13 +81,13 @@ public abstract class ToggleablePersistentTasksExecutor<Params extends Persisten
     }
 
     /// Returns whether the task is globally enabled.
-    protected boolean isEnabled() {
+    public boolean isEnabled() {
         return clusterEnabled;
     }
 
     /// Returns whether the task is enabled for the specified project. If [#setEnabled(ProjectId, boolean)] was
     /// never called for this project, defaults to the cluster-wide enabled flag.
-    private boolean isEnabled(ProjectId projectId) {
+    public boolean isEnabled(ProjectId projectId) {
         return perProjectEnabled.getOrDefault(projectId, clusterEnabled);
     }
 

@@ -33,6 +33,7 @@ import org.junit.Before;
 import java.util.Collections;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -57,6 +58,31 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
     @After
     public void cleanup() throws Exception {
         terminate(threadPool);
+    }
+
+    public void testSettingsUpdateWiresToEnabledFlag() {
+        final boolean localEnabled = randomBoolean();
+        final var nodeSettings = Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), localEnabled).build();
+        final var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final var localNode = DiscoveryNodeUtils.create(LOCAL_NODE_ID);
+        try (
+            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode, nodeSettings, clusterSettings)
+        ) {
+            final var executor = new HealthNodeTaskExecutor(clusterService, persistentTasksService);
+            assertEquals(localEnabled, executor.isEnabled());
+
+            boolean enabled = localEnabled;
+            var state = clusterService.state();
+            final int cycles = randomIntBetween(2, 5);
+            for (int i = 0; i < cycles; i++) {
+                if (randomBoolean()) {
+                    enabled = randomBoolean();
+                    state = stateWithEnabledSetting(state, enabled);
+                }
+                setState(clusterService, state);
+                assertEquals(enabled, executor.isEnabled());
+            }
+        }
     }
 
     public void testDoesNothingIfNodeShuttingDownButNotYetReassigned() {
@@ -111,6 +137,13 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
         );
         return ClusterState.builder(clusterState)
             .metadata(Metadata.builder(clusterState.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata).build())
+            .build();
+    }
+
+    private ClusterState stateWithEnabledSetting(ClusterState clusterState, boolean enabled) {
+        final var persistentSettings = Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), enabled).build();
+        return ClusterState.builder(clusterState)
+            .metadata(Metadata.builder(clusterState.metadata()).persistentSettings(persistentSettings))
             .build();
     }
 

@@ -107,6 +107,7 @@ dependencies {
   runtimeOnly "io.netty:netty-transport-native-unix-common:${versions.netty}"
   runtimeOnly "io.netty:netty-transport:${versions.netty}"
 
+  /* Azure */
   /* Nimbus OAuth2/OIDC (required by azure-identity/MSAL at runtime) */
   api "com.nimbusds:content-type:2.3"
   api "com.nimbusds:lang-tag:1.7"
@@ -125,7 +126,6 @@ dependencies {
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
 
-  /* Azure */
   api "com.azure:azure-identity:1.18.2"
   api "com.azure:azure-core:1.57.1"
   api "com.azure:azure-core-http-netty:1.16.3"

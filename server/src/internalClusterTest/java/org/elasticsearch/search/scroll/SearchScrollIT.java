@@ -755,6 +755,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             .addSort("@timestamp", SortOrder.ASC)
             .setAllowPartialSearchResults(false)
             .get();
+        String lastScrollId = searchResponse.getScrollId();
         try {
             long retrieved = 0;
             long previousTimestamp = -1;
@@ -772,14 +773,18 @@ public class SearchScrollIT extends ESIntegTestCase {
                     previousTimestamp = ts;
                     retrieved++;
                 }
-                String scrollId = searchResponse.getScrollId();
+                lastScrollId = searchResponse.getScrollId();
                 searchResponse.decRef();
-                searchResponse = client().prepareSearchScroll(scrollId).setScroll(TimeValue.timeValueMinutes(2)).get();
+                searchResponse = null;
+                searchResponse = client().prepareSearchScroll(lastScrollId).setScroll(TimeValue.timeValueMinutes(2)).get();
+                lastScrollId = searchResponse.getScrollId();
             }
             assertThat(retrieved, equalTo(totalDocs));
         } finally {
-            clearScroll(searchResponse.getScrollId());
-            searchResponse.decRef();
+            clearScroll(lastScrollId);
+            if (searchResponse != null) {
+                searchResponse.decRef();
+            }
         }
     }
 
@@ -821,6 +826,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             .addSort("@timestamp", SortOrder.ASC)
             .setAllowPartialSearchResults(false)
             .get();
+        String lastScrollId = searchResponse.getScrollId();
         try {
             long retrieved = 0;
             long previousTimestamp = -1;
@@ -838,14 +844,18 @@ public class SearchScrollIT extends ESIntegTestCase {
                     previousTimestamp = ts;
                     retrieved++;
                 }
-                String scrollId = searchResponse.getScrollId();
+                lastScrollId = searchResponse.getScrollId();
                 searchResponse.decRef();
-                searchResponse = client().prepareSearchScroll(scrollId).setScroll(TimeValue.timeValueMinutes(2)).get();
+                searchResponse = null;
+                searchResponse = client().prepareSearchScroll(lastScrollId).setScroll(TimeValue.timeValueMinutes(2)).get();
+                lastScrollId = searchResponse.getScrollId();
             }
             assertThat(retrieved, equalTo(totalDocs));
         } finally {
-            clearScroll(searchResponse.getScrollId());
-            searchResponse.decRef();
+            clearScroll(lastScrollId);
+            if (searchResponse != null) {
+                searchResponse.decRef();
+            }
         }
     }
 
@@ -891,6 +901,7 @@ public class SearchScrollIT extends ESIntegTestCase {
                 .addSort("@timestamp", SortOrder.ASC)
                 .setAllowPartialSearchResults(false)
                 .get();
+            String lastScrollId = searchResponse.getScrollId();
             try {
                 while (searchResponse.getHits().getHits().length > 0) {
                     assertNoFailures(searchResponse);
@@ -914,13 +925,17 @@ public class SearchScrollIT extends ESIntegTestCase {
                         first = false;
                         previousTimestamp = ts;
                     }
-                    String scrollId = searchResponse.getScrollId();
+                    lastScrollId = searchResponse.getScrollId();
                     searchResponse.decRef();
-                    searchResponse = client().prepareSearchScroll(scrollId).setScroll(TimeValue.timeValueMinutes(1)).get();
+                    searchResponse = null;
+                    searchResponse = client().prepareSearchScroll(lastScrollId).setScroll(TimeValue.timeValueMinutes(1)).get();
+                    lastScrollId = searchResponse.getScrollId();
                 }
             } finally {
-                clearScroll(searchResponse.getScrollId());
-                searchResponse.decRef();
+                clearScroll(lastScrollId);
+                if (searchResponse != null) {
+                    searchResponse.decRef();
+                }
             }
         }
     }

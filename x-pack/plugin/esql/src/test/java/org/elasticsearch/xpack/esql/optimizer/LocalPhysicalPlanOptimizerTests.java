@@ -2515,6 +2515,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testLimitByNotPushedToSource() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var plan = plannerOptimizer.plan("""
             from test
             | limit 10 by first_name
@@ -2534,6 +2535,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testLimitByMultipleKeys() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var plan = plannerOptimizer.plan("""
             from test
             | limit 5 by first_name, last_name
@@ -2552,6 +2554,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testLimitByWithFilter() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var plan = plannerOptimizer.plan("""
             from test
             | where salary > 1000

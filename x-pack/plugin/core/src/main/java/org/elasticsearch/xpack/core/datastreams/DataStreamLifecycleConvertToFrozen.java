@@ -24,7 +24,6 @@ import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.repositories.RepositoriesService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -180,13 +179,6 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
             .map(im -> im.getCustomData(DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY))
             .map(custom -> custom.get(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY))
             .orElse(null);
-    }
-
-    /**
-     * Resolves the repository name to use for the snapshot and searchable snapshot steps.
-     */
-    private static String resolveRepositoryName(ProjectState projectState) {
-        return RepositoriesService.DEFAULT_REPOSITORY_SETTING.get(projectState.cluster().metadata().settings());
     }
 
     /**

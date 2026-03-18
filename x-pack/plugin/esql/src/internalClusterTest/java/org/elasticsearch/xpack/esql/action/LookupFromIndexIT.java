@@ -53,6 +53,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -414,7 +415,8 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 Predicates.combineAnd(joinOnConditions),
                 true,  // useStreamingOperator
                 QueryPragmas.EXCHANGE_BUFFER_SIZE.getDefault(Settings.EMPTY),
-                false  // profile
+                false,  // profile
+                EsqlTestUtils.TEST_CFG
             );
             DriverContext driverContext = driverContext();
             try (

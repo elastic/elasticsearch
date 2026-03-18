@@ -939,6 +939,19 @@ public final class IndexSettings {
      * occupy at most 4 bytes.
      */
 
+    /**
+     * Controls whether flattened fields store root-level doc values when the field has {@code index: false}.
+     * When a flattened field has indexing enabled (the default), root doc values are always stored regardless
+     * of this setting. When indexing is disabled, root doc values are omitted by default to save storage;
+     * set this to {@code true} to force storing them (e.g. if you rely on term aggregations over root values).
+     */
+    public static final Setting<Boolean> STORE_FLATTENED_ROOT_DOC_VALUES = Setting.boolSetting(
+        "index.mapping.flattened.store_root_doc_values",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting(
         "index.mapping.ignore_above",
         settings -> String.valueOf(getIgnoreAboveDefaultValue(settings)),
@@ -1021,12 +1034,15 @@ public final class IndexSettings {
             public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
                 if (enabled) {
                     var indexVersion = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
-                    if (indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS) == false
-                        && indexVersion.equals(IndexVersions.ZERO) == false) {
-                        // We validate settings in different places before a real indexVersion has been assigned or
-                        // is missing for other reasons. In those cases IndexVersion.ZERO is used as fallback value,
-                        // and we don't want to fail those validations. At index creation time we _will_ validate with
-                        // the creation version.
+                    if (indexVersion.equals(IndexVersions.ZERO)) {
+                        // Settings are validated in different places before a real indexVersion has been assigned or is missing for other
+                        // reasons (eg. composable index templates). In those cases IndexVersion.ZERO is used as fallback value, and we
+                        // don't want to fail those validations so we return early here because the next two validation checks require
+                        // the IndexMetadata.SETTING_INDEX_VERSION_CREATED to be set. At index creation time we _will_ validate with the
+                        // creation version.
+                        return;
+                    }
+                    if (indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS) == false) {
                         throw new IllegalArgumentException(
                             String.format(
                                 Locale.ROOT,

@@ -29,7 +29,9 @@ public class RandomScoreFunctionBuilderTests extends AbstractBuilderTestCase {
 
     @Override
     protected Settings createTestIndexSettings() {
-        assumeTrue("Test requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG == false) {
+            return super.createTestIndexSettings();
+        }
         return Settings.builder()
             .put("index.version.created", IndexVersion.current())
             .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)

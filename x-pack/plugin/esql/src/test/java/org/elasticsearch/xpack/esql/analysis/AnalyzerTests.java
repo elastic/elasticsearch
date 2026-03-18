@@ -1400,6 +1400,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testImplicitDefaultLimitAfterLimitBy() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var plan = analyze("from test | limit 1 by emp_no");
 
         var defaultLimit = as(plan, Limit.class);

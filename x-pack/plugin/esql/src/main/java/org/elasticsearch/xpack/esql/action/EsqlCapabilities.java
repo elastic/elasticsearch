@@ -2324,7 +2324,7 @@ public class EsqlCapabilities {
          * Enables the feature without a preceding SORT.
          *
          */
-        LIMIT_BY(Build.current().isSnapshot()),
+        ESQL_LIMIT_BY(Build.current().isSnapshot()),
 
         /**
          * Fix window validation in time-series aggregations when TBUCKET uses a numeric target bucket count.

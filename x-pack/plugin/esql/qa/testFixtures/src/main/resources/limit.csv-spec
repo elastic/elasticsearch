@@ -20,7 +20,7 @@ emp_no:integer
 //
 
 limitBy
-required_capability: limit_by
+required_capability: esql_limit_by
 
 FROM employees
 | WHERE emp_no IN (10001, 10002, 10003, 10005, 10006)
@@ -39,7 +39,7 @@ emp_no:integer | first_name:keyword | languages:integer
 ;
 
 limitByLimit0
-required_capability: limit_by
+required_capability: esql_limit_by
 
 FROM employees
 | WHERE emp_no IN (10001, 10002, 10003)
@@ -53,7 +53,7 @@ emp_no:integer | languages:integer
 ;
 
 limitByMultipleColumns
-required_capability: limit_by
+required_capability: esql_limit_by
 
 FROM employees
 | WHERE emp_no IN (10001, 10003, 10004, 10007)
@@ -71,7 +71,7 @@ emp_no:integer | first_name:keyword | languages:integer | gender:keyword
 ;
 
 limitByWithExpression
-required_capability: limit_by
+required_capability: esql_limit_by
 
 FROM employees
 | WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
@@ -90,7 +90,7 @@ emp_no:integer | first_name:keyword | languages:integer
 ;
 
 limitByMultivalueGroupKey
-required_capability: limit_by
+required_capability: esql_limit_by
 
 FROM employees
 | WHERE emp_no IN (10001, 10008)
@@ -106,7 +106,7 @@ emp_no:integer | first_name:keyword | job_positions:keyword
 ;
 
 limitByNullGroup
-required_capability: limit_by
+required_capability: esql_limit_by
 
 FROM employees
 | WHERE emp_no IN (10001, 10020)
@@ -122,7 +122,7 @@ emp_no:integer | first_name:keyword | languages:integer
 ;
 
 limitByConstant
-required_capability: limit_by
+required_capability: esql_limit_by
 
 FROM employees
 | WHERE emp_no IN (10001, 10002, 10003, 10005, 10006)
@@ -138,7 +138,7 @@ emp_no:integer | first_name:keyword | languages:integer
 ;
 
 limitByWithExpressionAndConstant
-required_capability: limit_by
+required_capability: esql_limit_by
 
 FROM employees
 | WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
@@ -157,7 +157,7 @@ emp_no:integer | first_name:keyword | languages:integer
 ;
 
 limitByWithAlias
-required_capability: limit_by
+required_capability: esql_limit_by
 
 FROM employees
 | WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
@@ -177,7 +177,7 @@ emp_no:integer | first_name:keyword | languages:integer
 ;
 
 limitByThenStats
-required_capability: limit_by
+required_capability: esql_limit_by
 
 FROM employees
 | LIMIT 2 BY languages
@@ -195,7 +195,7 @@ c:long | languages:integer
 ;
 
 limitByPrecededByStats
-required_capability: limit_by
+required_capability: esql_limit_by
 
 FROM employees
 | STATS cnt=COUNT(*) BY job_positions, languages
@@ -214,7 +214,7 @@ cnt:long | job_positions:keyword | languages:integer
 ;
 
 limitByWithLookupJoin
-required_capability: limit_by
+required_capability: esql_limit_by
 required_capability: join_lookup_v12
 
 FROM employees
@@ -238,7 +238,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 limitByShadowedNonJoinField
-required_capability: limit_by
+required_capability: esql_limit_by
 required_capability: join_lookup_v12
 
 FROM employees
@@ -263,7 +263,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 limitByShadowedJoinField
-required_capability: limit_by
+required_capability: esql_limit_by
 required_capability: join_lookup_v12
 
 FROM employees

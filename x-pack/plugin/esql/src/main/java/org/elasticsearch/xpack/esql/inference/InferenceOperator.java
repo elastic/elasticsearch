@@ -101,6 +101,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         );
     }
 
+    @Override
     protected void performAsync(Page input, ActionListener<OngoingInferenceResult> listener) {
         try {
             BulkInferenceRequestItemIterator requests = inferenceRequestsFactory.create(input);

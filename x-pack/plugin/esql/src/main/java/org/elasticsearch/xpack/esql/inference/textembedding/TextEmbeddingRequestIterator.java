@@ -23,8 +23,7 @@ import java.util.List;
 /**
  * Embedding request iterator for plain (untyped) text inputs.
  * <p>
- * Produces {@link InferenceAction.Request} items and binds
- * {@link org.elasticsearch.xpack.esql.inference.InferenceService#executeInference} as the executor.
+ * Produces {@link InferenceAction.Request} items
  * </p>
  */
 class TextEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {

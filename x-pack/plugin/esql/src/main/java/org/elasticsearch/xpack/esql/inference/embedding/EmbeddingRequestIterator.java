@@ -32,8 +32,6 @@ import java.util.Map;
  * Embedding request iterator for typed (DataType/DataFormat) inputs.
  * <p>
  * Produces {@link EmbeddingAction.Request} items with typed content via {@link InferenceStringGroup}
- * and binds {@link org.elasticsearch.xpack.esql.inference.InferenceService#executeEmbeddingInference}
- * as the executor.
  * </p>
  */
 class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {

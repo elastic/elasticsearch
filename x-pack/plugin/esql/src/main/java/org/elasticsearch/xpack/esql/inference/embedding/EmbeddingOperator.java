@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 
 /**
- * {@link EmbeddingOperator} is an {@link InferenceOperator} that performs typed embedding inference.
+ * {@link EmbeddingOperator} is an {@link InferenceOperator} that performs multimodal embedding inference.
  * It evaluates a text expression for each input row, constructs typed embedding inference requests
  * using {@link EmbeddingAction.Request}, and emits the dense vector embeddings as output.
  * <p>

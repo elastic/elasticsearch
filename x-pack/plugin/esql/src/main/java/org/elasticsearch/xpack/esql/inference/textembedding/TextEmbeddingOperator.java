@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOutputBuilder;
 
 /**
- * {@link TextEmbeddingOperator} is an {@link InferenceOperator} that performs plain-text embedding inference.
+ * {@link TextEmbeddingOperator} is an {@link InferenceOperator} that performs text embedding inference.
  * It evaluates a text expression for each input row, constructs text embedding inference requests,
  * and emits the dense vector embeddings as output.
  */

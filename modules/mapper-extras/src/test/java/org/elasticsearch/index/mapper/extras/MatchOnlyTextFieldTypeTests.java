@@ -242,11 +242,13 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             null,
+            false,
+            false,
             false
         );
 
         // when
-        BlockLoader blockLoader = ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
+        BlockLoader blockLoader = ft.blockLoader(mockContext());
 
         // then - should load from a fallback stored field
         assertThat(blockLoader, Matchers.instanceOf(MatchOnlyTextFieldType.BytesFromMixedStringsBytesRefBlockLoader.class));
@@ -263,11 +265,13 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             null,
-            true
+            true,
+            false,
+            false
         );
 
         // when
-        BlockLoader blockLoader = ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
+        BlockLoader blockLoader = ft.blockLoader(mockContext());
 
         // then - should load from a fallback stored field
         assertThat(blockLoader, Matchers.instanceOf(BytesRefsFromCustomBinaryBlockLoader.class));
@@ -291,11 +295,13 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             syntheticSourceDelegate,
-            true
+            true,
+            false,
+            false
         );
 
         // when
-        BlockLoader blockLoader = ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
+        BlockLoader blockLoader = ft.blockLoader(mockContext());
 
         // then
         // verify that we delegate block loading to the synthetic source delegate
@@ -337,6 +343,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             syntheticSourceDelegate,
+            false,
+            false,
             false
         );
 
@@ -386,6 +394,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             syntheticSourceDelegate,
+            false,
+            false,
             false
         );
 
@@ -420,13 +430,15 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             keywordFieldType,
+            false,
+            false,
             false
         );
 
         var mockedSearchLookup = mock(SearchLookup.class);
         when(mockedSearchLookup.fieldType(parentFieldName)).thenReturn(keywordFieldType);
 
-        var mockedBlockLoaderContext = mock(MappedFieldType.BlockLoaderContext.class);
+        var mockedBlockLoaderContext = mockContext();
         when(mockedBlockLoaderContext.parentField(childFieldName)).thenReturn(parentFieldName);
         when(mockedBlockLoaderContext.lookup()).thenReturn(mockedSearchLookup);
         BlockLoader blockLoader = ft.blockLoader(mockedBlockLoaderContext);
@@ -467,6 +479,8 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             null,
+            false,
+            false,
             false
         );
 
@@ -489,7 +503,9 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             null,
-            true
+            true,
+            false,
+            false
         );
 
         // when
@@ -500,4 +516,9 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         assertThat(blockLoader, Matchers.instanceOf(BytesRefsFromCustomBinaryBlockLoader.class));
     }
 
+    private static MappedFieldType.BlockLoaderContext mockContext() {
+        MappedFieldType.BlockLoaderContext context = mock(MappedFieldType.BlockLoaderContext.class);
+        when(context.ordinalsByteSize()).thenReturn(MappedFieldType.BlockLoaderContext.DEFAULT_ORDINALS_BYTE_SIZE);
+        return context;
+    }
 }

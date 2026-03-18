@@ -13,6 +13,42 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.3.2 [connectors-9.3.2-release-notes]
+
+### Fixes [connectors-9.3.2-fixes]
+* Fixed a bug where using `id_columns` in advanced sync rules with mixed-case table or column names caused all documents to receive the same `_id`, resulting in document overwrites and only 1 document being indexed instead of the expected count.[#3885](https://github.com/elastic/connectors/pull/3885),[#3884](https://github.com/elastic/connectors/issues/3884)
+* Fixed an issue with access control syncs crashing due to `noop` returned from `bulk` API was treated as a failure. [#3961](https://github.com/elastic/connectors/pull/3961), [#3957](https://github.com/elastic/connectors/issues/3957)
+
+## 9.2.7 [connectors-9.2.7-release-notes]
+
+### Fixes [connectors-9.2.7-fixes]
+* Fixed a bug where using `id_columns` in advanced sync rules with mixed-case table or column names caused all documents to receive the same `_id`, resulting in document overwrites and only 1 document being indexed instead of the expected count. [#3885](https://github.com/elastic/connectors/pull/3885),[#3884](https://github.com/elastic/connectors/issues/3884)
+* Fixed an issue with access control syncs crashing due to `noop` returned from `bulk` API was treated as a failure. [#3961](https://github.com/elastic/connectors/pull/3961), [#3957](https://github.com/elastic/connectors/issues/3957)
+
+## 9.3.1 [connectors-9.3.1-release-notes]
+
+### Fixes [connectors-9.3.1-fixes]
+* Fixed an issue where MultiService would enter an unresponsive state instead of shutting down cleanly when a managed service crashed with an unhandled exception. ([#3940](https://github.com/elastic/connectors/pull/3940),[#3939](https://github.com/elastic/connectors/issues/3939))
+
+## 9.2.6 [connectors-9.2.6-release-notes]
+
+### Fixes [connectors-9.2.6-fixes]
+* Fixed an issue where MultiService would enter an unresponsive  state instead of shutting down cleanly when a managed service crashed with an unhandled exception. ([#3940](https://github.com/elastic/connectors/pull/3940), [#3939](https://github.com/elastic/connectors/issues/3939))
+
+## 9.3.0 [connectors-9.3.0-release-notes]
+
+### Fixes [connectors-9.3.0-fixes]
+* Fixed a bug in the Network Drive connector that caused connections to SMB servers to close prematurely, leading to errors when multiple connections were made to the same host. [#3868](https://github.com/elastic/connectors/pull/3868), [#3873](https://github.com/elastic/connectors/pull/3873)
+* Fixed a serialization error in the PostgreSQL connector when handling `INET`, `CIDR`, `UUID`, and geometric types.[#3900](https://github.com/elastic/connectors/pull/3900), [#3879](https://github.com/elastic/connectors/issues/3879)
+
+### Features and enhancements [connectors-9.3.0-features-enhancements]
+* Added a new GitLab connector to sync Projects, Issues, Epics, Merge Requests, Releases, and README files. [#3770](https://github.com/elastic/connectors/pull/3770) [#11093](https://github.com/elastic/search-team/issues/11093)
+
+## 9.2.5 [connectors-9.2.5-release-notes]
+
+### Fixes [connectors-9.2.5-fixes]
+* Fixed a serialization error in the PostgreSQL connector when handling `INET`, `CIDR`, `UUID`, and geometric types. [#3900](https://github.com/elastic/connectors/pull/3900), [#3879](https://github.com/elastic/connectors/issues/3879)
+
 ## 9.2.4 [connectors-9.2.4-release-notes]
 There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
 

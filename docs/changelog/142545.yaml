@@ -1,0 +1,5 @@
+area: Searchable Snapshots
+issues: []
+pr: 142545
+summary: Split blob-cache freelist using decays
+type: enhancement

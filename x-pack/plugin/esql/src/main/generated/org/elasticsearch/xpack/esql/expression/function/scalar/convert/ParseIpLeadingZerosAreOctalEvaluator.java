@@ -14,33 +14,32 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ParseIp}.
+ * {@link ExpressionEvaluator} implementation for {@link ParseIp}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ParseIpLeadingZerosAreOctalEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ParseIpLeadingZerosAreOctalEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator string;
+  private final ExpressionEvaluator string;
 
   private final BreakingBytesRefBuilder scratch;
 
-  public ParseIpLeadingZerosAreOctalEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator string, BreakingBytesRefBuilder scratch,
-      DriverContext driverContext) {
+  public ParseIpLeadingZerosAreOctalEvaluator(Source source, ExpressionEvaluator string,
+      BreakingBytesRefBuilder scratch, DriverContext driverContext) {
     super(driverContext, source);
     this.string = string;
     this.scratch = scratch;
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return string;
   }
 
@@ -132,14 +131,14 @@ public final class ParseIpLeadingZerosAreOctalEvaluator extends AbstractConvertF
     return baseRamBytesUsed;
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory string;
+    private final ExpressionEvaluator.Factory string;
 
     private final Function<DriverContext, BreakingBytesRefBuilder> scratch;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory string,
+    public Factory(Source source, ExpressionEvaluator.Factory string,
         Function<DriverContext, BreakingBytesRefBuilder> scratch) {
       this.source = source;
       this.string = string;

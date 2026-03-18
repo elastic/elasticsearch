@@ -60,10 +60,17 @@ public class AlibabaCloudSearchSparseModel extends AlibabaCloudSearchModel {
         ChunkingSettings chunkingSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
-        super(
+        this(
             new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
-            new ModelSecrets(secretSettings),
-            serviceSettings.getCommonSettings()
+            new ModelSecrets(secretSettings)
+        );
+    }
+
+    public AlibabaCloudSearchSparseModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(
+            modelConfigurations,
+            modelSecrets,
+            ((AlibabaCloudSearchSparseServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings()
         );
     }
 

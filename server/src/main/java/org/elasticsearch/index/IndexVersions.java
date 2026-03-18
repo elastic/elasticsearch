@@ -25,6 +25,14 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.IntFunction;
 
+/// Records all current and historical [IndexVersion]s
+///
+/// The list serves as the single source of truth for version-to-Lucene mappings, minimum compatibility windows
+/// (`MINIMUM_COMPATIBLE`, `MINIMUM_READONLY_COMPATIBLE`), and build-time merge-conflict detection
+/// (duplicate ids are [rejected at class-initialisation time][#def(int, Version)]).
+///
+/// @see IndexVersion
+///
 @SuppressWarnings("deprecation")
 public class IndexVersions {
 
@@ -215,7 +223,19 @@ public class IndexVersions {
     public static final IndexVersion STORE_FALLBACK_TEXT_FIELDS_IN_BINARY_DOC_VALUES = def(9_062_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion STORE_FALLBACK_MOT_FIELDS_IN_BINARY_DOC_VALUES = def(9_063_0_00, Version.LUCENE_10_3_2);
     public static final IndexVersion MOD_ROUTING_FUNCTION = def(9_064_0_00, Version.LUCENE_10_3_2);
-    public static final IndexVersion TEXT_FIELDS_BINARY_DOC_VALUES_TSDB_DOC_VALUES_FORMAT_CHECK = def(9_065_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion FALLBACK_TEXT_FIELDS_BINARY_DOC_VALUES_FORMAT_CHECK = def(9_065_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion READ_SI_FILES_FROM_MEMORY_FOR_HOLLOW_COMMITS = def(9_066_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion FLATTENED_FIELD_TSDB_CODEC_USE_BINARY_DOC_VALUES = def(9_067_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion STORE_PATTERN_TEXT_FIELDS_IN_BINARY_DOC_VALUES = def(9_068_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion DISK_BBQ_QUANTIZE_BITS = def(9_069_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion ID_FIELD_USE_ES812_POSTINGS_FORMAT = def(9_070_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion TIME_SERIES_USE_SYNTHETIC_ID_94 = def(9_071_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3 = def(9_072_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion STORE_IGNORED_MALFORMED_IN_BINARY_DOC_VALUES = def(9_073_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion DISABLE_SEQUENCE_NUMBERS = def(9_074_0_00, Version.LUCENE_10_3_2);
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_4_0 = def(9_075_00_0, Version.LUCENE_10_4_0);
+    public static final IndexVersion UPGRADE_DISKBBQ_ES940 = def(9_076_00_0, Version.LUCENE_10_4_0);
+    public static final IndexVersion FLATTENED_FIELD_NO_ROOT_DOC_VALUES = def(9_077_0_00, Version.LUCENE_10_4_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

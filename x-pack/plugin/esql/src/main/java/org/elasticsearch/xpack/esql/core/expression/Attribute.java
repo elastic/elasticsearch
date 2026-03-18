@@ -220,8 +220,8 @@ public abstract class Attribute extends NamedExpression {
     }
 
     @Override
-    public String nodeString() {
-        return toString();
+    public String nodeString(NodeStringFormat format) {
+        return toString(format);
     }
 
     protected abstract String label();

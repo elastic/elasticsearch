@@ -35,7 +35,7 @@ public class ClusterBlockTests extends ESTestCase {
     public void testSerialization() throws Exception {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {
-            TransportVersion version = randomVersion(random());
+            TransportVersion version = randomVersion();
             ClusterBlock clusterBlock = randomClusterBlock();
 
             BytesStreamOutput out = new BytesStreamOutput();

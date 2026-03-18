@@ -7,36 +7,40 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StYMax}.
+ * {@link ExpressionEvaluator} implementation for {@link StYMax}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StYMaxFromWKBEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class StYMaxFromWKBEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StYMaxFromWKBEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator wkbBlock;
+  private final ExpressionEvaluator wkbBlock;
+
+  private final SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public StYMaxFromWKBEvaluator(Source source, EvalOperator.ExpressionEvaluator wkbBlock,
-      DriverContext driverContext) {
+  public StYMaxFromWKBEvaluator(Source source, ExpressionEvaluator wkbBlock,
+      SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder, DriverContext driverContext) {
     this.source = source;
     this.wkbBlock = wkbBlock;
+    this.resultsBuilder = resultsBuilder;
     this.driverContext = driverContext;
   }
 
@@ -66,7 +70,7 @@ public final class StYMaxFromWKBEvaluator implements EvalOperator.ExpressionEval
           continue position;
         }
         try {
-          StYMax.fromWellKnownBinary(result, p, wkbBlockBlock);
+          StYMax.fromWKB(result, p, wkbBlockBlock, this.resultsBuilder);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -88,29 +92,28 @@ public final class StYMaxFromWKBEvaluator implements EvalOperator.ExpressionEval
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory wkbBlock;
+    private final ExpressionEvaluator.Factory wkbBlock;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory wkbBlock) {
+    private final Function<DriverContext, SpatialEnvelopeResults<DoubleBlock.Builder>> resultsBuilder;
+
+    public Factory(Source source, ExpressionEvaluator.Factory wkbBlock,
+        Function<DriverContext, SpatialEnvelopeResults<DoubleBlock.Builder>> resultsBuilder) {
       this.source = source;
       this.wkbBlock = wkbBlock;
+      this.resultsBuilder = resultsBuilder;
     }
 
     @Override
     public StYMaxFromWKBEvaluator get(DriverContext context) {
-      return new StYMaxFromWKBEvaluator(source, wkbBlock.get(context), context);
+      return new StYMaxFromWKBEvaluator(source, wkbBlock.get(context), resultsBuilder.apply(context), context);
     }
 
     @Override

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.RerouteBehavior;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -253,7 +255,12 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                 new MetadataFieldMapper[] { dtfm },
                 Collections.emptyMap()
             );
-            MappingLookup mappingLookup = MappingLookup.fromMappers(mapping, List.of(dtfm, dateFieldMapper), List.of());
+            MappingLookup mappingLookup = MappingLookup.fromMappers(
+                mapping,
+                List.of(dtfm, dateFieldMapper),
+                List.of(),
+                randomFrom(IndexMode.values())
+            );
             indicesService = DataStreamTestHelper.mockIndicesServices(mappingLookup);
         }
 
@@ -326,10 +333,9 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
             time.toEpochMilli(),
             null,
             TimeValue.ZERO,
-            TimeValue.ZERO,
-            false
+            TimeValue.ZERO
         );
-        return createDataStreamService.createDataStream(request, state, ActionListener.noop(), false);
+        return createDataStreamService.createDataStream(request, state, RerouteBehavior.SKIP_REROUTE, ActionListener.noop(), false);
     }
 
     private MetadataRolloverService.RolloverResult rolloverOver(ClusterState state, String name, Instant time) throws Exception {

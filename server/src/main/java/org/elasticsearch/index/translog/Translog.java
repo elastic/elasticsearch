@@ -1531,7 +1531,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             this(id, seqNo, primaryTerm, Versions.MATCH_ANY);
         }
 
-        /** utility for testing */
         public Delete(String id, long seqNo, long primaryTerm, long version) {
             this(Uid.encodeId(id), seqNo, primaryTerm, version);
         }

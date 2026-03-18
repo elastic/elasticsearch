@@ -19,6 +19,7 @@ public final class ServiceFields {
     public static final String MAX_INPUT_TOKENS = "max_input_tokens";
     public static final String URL = "url";
     public static final String MODEL_ID = "model_id";
+    public static final String USER = "user";
     /**
      * Represents the field elasticsearch uses to determine the embedding type (e.g. float, byte).
      * The value this field is normally set to one of the values in
@@ -29,6 +30,11 @@ public final class ServiceFields {
      * The field used by services other than elasticsearch to determine the embedding type
      */
     public static final String EMBEDDING_TYPE = "embedding_type";
+    /**
+     * The name of the field used to specify whether the model supports multimodal inputs for the
+     * {@link org.elasticsearch.inference.TaskType#EMBEDDING} task type. Defaults to true.
+     */
+    public static final String MULTIMODAL_MODEL = "multimodal_model";
 
     private ServiceFields() {
 

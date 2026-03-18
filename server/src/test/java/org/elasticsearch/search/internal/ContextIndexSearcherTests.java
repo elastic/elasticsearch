@@ -14,11 +14,15 @@ import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongField;
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
@@ -28,6 +32,8 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
@@ -36,6 +42,7 @@ import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSearcher.LeafSlice;
 import org.apache.lucene.search.KnnFloatVectorQuery;
@@ -49,6 +56,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.search.TotalHits;
@@ -58,6 +66,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ExceptionsHelper;
@@ -73,6 +82,7 @@ import org.elasticsearch.lucene.util.CombinedBits;
 import org.elasticsearch.lucene.util.MatchAllBitSet;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -82,9 +92,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.function.IntFunction;
 
 import static org.elasticsearch.search.internal.ContextIndexSearcher.intersectScorerAndBitSet;
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitableLeafReader;
@@ -428,6 +440,49 @@ public class ContextIndexSearcherTests extends ESTestCase {
         IOUtils.close(reader, w, dir);
     }
 
+    public void testDfsTermStatistics() throws IOException {
+        try (Directory dir = newDirectory()) {
+            IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
+            Document doc = new Document();
+            doc.add(new TextField("field", "foo foo bar", Field.Store.NO));
+            w.addDocument(doc);
+            doc = new Document();
+            doc.add(new TextField("field", "foo bar baz", Field.Store.NO));
+            w.addDocument(doc);
+            w.close();
+
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true
+                );
+
+                Term fooTerm = new Term("field", "foo");
+                // Without DFS stats, the fallback values should be returned
+                assertThat(searcher.docFreq(fooTerm, 42), equalTo(42L));
+                assertThat(searcher.totalTermFreq(fooTerm, 99), equalTo(99L));
+
+                // Set DFS stats with intentionally different docFreq and totalTermFreq
+                long dfsDocFreq = 10;
+                long dfsTotalTermFreq = 25;
+                TermStatistics termStats = new TermStatistics(new BytesRef("foo"), dfsDocFreq, dfsTotalTermFreq);
+                AggregatedDfs aggregatedDfs = new AggregatedDfs(Map.of(fooTerm, termStats), Map.of(), 100);
+                searcher.setAggregatedDfs(aggregatedDfs);
+
+                assertThat(searcher.docFreq(fooTerm, 42), equalTo(dfsDocFreq));
+                assertThat(searcher.totalTermFreq(fooTerm, 99), equalTo(dfsTotalTermFreq));
+
+                Term unknownTerm = new Term("field", "unknown");
+                // Term not present in DFS stats should still return the fallback
+                assertThat(searcher.docFreq(unknownTerm, 42), equalTo(42L));
+                assertThat(searcher.totalTermFreq(unknownTerm, 99), equalTo(99L));
+            }
+        }
+    }
+
     public void testExitableTermsMinAndMax() throws IOException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(null));
@@ -654,6 +709,59 @@ public class ContextIndexSearcherTests extends ESTestCase {
         } finally {
             terminate(executor);
         }
+    }
+
+    public void testQueriesWithManyLeavesMaxClause() throws IOException {
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            Document d = new Document();
+            d.add(new LongField("foo", 0L, LongField.Store.NO));
+            writer.addDocument(d);
+            d = new Document();
+            d.add(new LongField("foo", Long.MAX_VALUE, LongField.Store.NO));
+            writer.addDocument(d);
+            try (IndexReader reader = writer.getReader()) {
+                IndexSearcher searcher = new ContextIndexSearcher(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true,
+                    null,
+                    -1,
+                    1
+                );
+                int maxClauseCount = IndexSearcher.getMaxClauseCount();
+                assertMaxClause(searcher, i -> LongPoint.newRangeQuery("foo", 0, i), maxClauseCount);
+                assertMaxClause(searcher, i -> LongField.newRangeQuery("foo", 0, i), maxClauseCount);
+                assertMaxClause(
+                    searcher,
+                    i -> new IndexOrDocValuesQuery(
+                        LongPoint.newRangeQuery("foo", 0, i),
+                        SortedNumericDocValuesField.newSlowRangeQuery("foo", 0, i)
+                    ),
+                    maxClauseCount
+                );
+            }
+        }
+    }
+
+    private void assertMaxClause(IndexSearcher searcher, IntFunction<Query> querySupplier, int maxClauseCount) throws IOException {
+        BooleanQuery.Builder qb1 = new BooleanQuery.Builder();
+        for (int i = 0; i < maxClauseCount; i++) {
+            qb1.add(querySupplier.apply(i), BooleanClause.Occur.SHOULD);
+        }
+        // should not throw an exception, because it is below the limit
+        searcher.rewrite(qb1.build());
+
+        BooleanQuery.Builder qb2 = new BooleanQuery.Builder();
+        for (int i = 0; i < maxClauseCount; i++) {
+            qb2.add(querySupplier.apply(i), BooleanClause.Occur.SHOULD);
+        }
+        // too many clauses
+        expectThrows(
+            IndexSearcher.TooManyClauses.class,
+            () -> qb2.add(querySupplier.apply(maxClauseCount + 1), BooleanClause.Occur.SHOULD)
+        );
     }
 
     private static class TestQuery extends Query {

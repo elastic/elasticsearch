@@ -20,10 +20,13 @@ import com.networknt.schema.ValidationMessage;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.UncheckedIOException;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.work.ChangeType;
 import org.gradle.work.FileChange;
@@ -45,6 +48,7 @@ import java.util.stream.StreamSupport;
 /**
  * Incremental task to validate a set of JSON files against a schema.
  */
+@CacheableTask
 public class ValidateJsonAgainstSchemaTask extends DefaultTask {
     private File jsonSchema;
     private File report;
@@ -52,6 +56,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
 
     @Incremental
     @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
     public FileCollection getInputFiles() {
         return inputFiles;
     }
@@ -61,6 +66,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
     }
 
     @InputFile
+    @PathSensitive(PathSensitivity.RELATIVE)
     public File getJsonSchema() {
         return jsonSchema;
     }

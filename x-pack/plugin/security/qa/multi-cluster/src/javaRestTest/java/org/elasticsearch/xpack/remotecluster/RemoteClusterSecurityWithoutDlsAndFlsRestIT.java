@@ -100,7 +100,7 @@ public class RemoteClusterSecurityWithoutDlsAndFlsRestIT extends AbstractRemoteC
                       "remote_indices": [
                         {
                           "names": ["remote_index1", "remote_index4"],
-                          "privileges": ["read", "read_cross_cluster"],
+                          "privileges": ["read"],
                           "clusters": ["*"],
                           "query": {"bool": {"must_not": {"term": {"field1": "value4"}}}},
                           "field_security": {"grant": ["field1"]}
@@ -111,7 +111,7 @@ public class RemoteClusterSecurityWithoutDlsAndFlsRestIT extends AbstractRemoteC
                       "remote_indices": [
                         {
                           "names": ["remote_index2", "remote_index3"],
-                          "privileges": ["read", "read_cross_cluster"],
+                          "privileges": ["read"],
                           "clusters": ["*"],
                           "query": {"bool": {"must_not": {"term": {"field1": "value3"}}}},
                           "field_security": {"grant": ["field2"]}
@@ -150,7 +150,7 @@ public class RemoteClusterSecurityWithoutDlsAndFlsRestIT extends AbstractRemoteC
                       "remote_indices": [
                         {
                           "names": ["remote_index1", "remote_index4"],
-                          "privileges": ["read", "read_cross_cluster"],
+                          "privileges": ["read"],
                           "clusters": ["*"],
                           "query": {"bool": {"must": {"term": {"field1": "value4"}}}},
                           "field_security": {"grant": ["field1"]}
@@ -161,7 +161,7 @@ public class RemoteClusterSecurityWithoutDlsAndFlsRestIT extends AbstractRemoteC
                       "remote_indices": [
                         {
                           "names": ["remote_index2", "remote_index3"],
-                          "privileges": ["read", "read_cross_cluster"],
+                          "privileges": ["read"],
                           "clusters": ["*"],
                           "query": {"bool": {"must": {"term": {"field1": "value3"}}}},
                           "field_security": {"grant": ["field2"]}
@@ -196,7 +196,7 @@ public class RemoteClusterSecurityWithoutDlsAndFlsRestIT extends AbstractRemoteC
                       "remote_indices": [
                         {
                           "names": ["remote_index*"],
-                          "privileges": ["read", "read_cross_cluster"],
+                          "privileges": ["read"],
                           "clusters": ["*"],
                           "query": {"bool": {"must": {"term": {"field1": "value4"}}}},
                           "field_security": {"grant": ["field1"]}
@@ -207,7 +207,7 @@ public class RemoteClusterSecurityWithoutDlsAndFlsRestIT extends AbstractRemoteC
                       "remote_indices": [
                         {
                           "names": ["remote_index2", "remote_index3"],
-                          "privileges": ["read", "read_cross_cluster"],
+                          "privileges": ["read"],
                           "clusters": ["*"],
                           "query": {"bool": {"must_not": {"term": {"field1": "value3"}}}},
                           "field_security": {"grant": ["field2"]}
@@ -245,7 +245,7 @@ public class RemoteClusterSecurityWithoutDlsAndFlsRestIT extends AbstractRemoteC
                       "remote_indices": [
                         {
                           "names": ["*"],
-                          "privileges": ["read", "read_cross_cluster"],
+                          "privileges": ["read"],
                           "clusters": ["*"],
                           "query": {"bool": {"must_not": {"term": {"field1": "value4"}}}},
                           "field_security": {"grant": ["field1"]}
@@ -256,7 +256,7 @@ public class RemoteClusterSecurityWithoutDlsAndFlsRestIT extends AbstractRemoteC
                       "remote_indices": [
                         {
                           "names": ["*2", "*3"],
-                          "privileges": ["read", "read_cross_cluster"],
+                          "privileges": ["read"],
                           "clusters": ["*"],
                           "query": {"bool": {"should": [{"term": {"field1": "value3"}}]}},
                           "field_security": {"grant": ["field2"]}

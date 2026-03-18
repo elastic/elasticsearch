@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -178,7 +179,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         List<NamedExpression> firstPassAggs = new ArrayList<>();
         List<NamedExpression> secondPassAggs = new ArrayList<>();
         Holder<Boolean> requiredTimeSeriesSource = new Holder<>(Boolean.FALSE);
-        var internalNames = new InternalNames();
+        TemporaryNameGenerator internalNames = new TemporaryNameGenerator.Monotonic();
         for (NamedExpression agg : aggregate.aggregates()) {
             if (agg instanceof Alias alias && alias.child() instanceof Function function) {
                 final Expression inlineFilter;
@@ -261,35 +262,38 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         boolean[] packPositions = new boolean[aggregate.groupings().size()];
         for (int i = 0; i < aggregate.groupings().size(); i++) {
             var group = aggregate.groupings().get(i);
-            if (timeBucket != null && group instanceof Attribute g && g.id().equals(timeBucket.id())) {
-                var newFinalGroup = timeBucket.toAttribute();
-                firstPassGroupings.add(newFinalGroup);
-                secondPassGroupings.add(new Alias(g.source(), g.name(), newFinalGroup.toAttribute(), g.id()));
-            } else if (timeBucket != null && group instanceof Alias a && a.id().equals(timeBucket.id())) {
-                firstPassGroupings.add(timeBucket);
-                secondPassGroupings.add(new Alias(a.source(), a.name(), timeBucket.toAttribute(), a.id()));
-            } else if (group instanceof Attribute g) {
-                var valuesAgg = new Alias(g.source(), g.name(), valuesAggregate(context, g));
-                firstPassAggs.add(valuesAgg);
-                if (g.isDimension()) {
-                    Alias pack = new Alias(
-                        g.source(),
-                        internalNames.next("pack_" + g.name()),
-                        new PackDimension(g.source(), valuesAgg.toAttribute())
-                    );
-                    packDimensions.add(pack);
-                    Alias grouping = new Alias(g.source(), internalNames.next("group_" + g.name()), pack.toAttribute());
-                    secondPassGroupings.add(grouping);
-                    Alias unpack = new Alias(
-                        g.source(),
-                        g.name(),
-                        new UnpackDimension(g.source(), grouping.toAttribute(), g.dataType().noText()),
-                        g.id()
-                    );
-                    unpackDimensions.add(unpack);
-                    packPositions[i] = true;
+            if (group instanceof Attribute || group instanceof Alias) {
+                NamedExpression g = (NamedExpression) group;
+                if (timeBucket != null && g.id().equals(timeBucket.id())) {
+                    addBucket(g instanceof Attribute ? timeBucket.toAttribute() : timeBucket, g, firstPassGroupings, secondPassGroupings);
                 } else {
-                    secondPassGroupings.add(new Alias(g.source(), g.name(), valuesAgg.toAttribute(), g.id()));
+                    var unwrapped = Alias.unwrap(g);
+                    if (unwrapped instanceof Attribute a) {
+                        addAttribute(
+                            g,
+                            a,
+                            firstPassAggs,
+                            secondPassGroupings,
+                            internalNames,
+                            context,
+                            packDimensions,
+                            unpackDimensions,
+                            packPositions,
+                            i
+                        );
+                    } else {
+                        assert g instanceof Alias : "g must be an Alias at this point";
+                        if (unwrapped instanceof Bucket && timeBucket == null) {
+                            throw new IllegalArgumentException(
+                                "Time-series aggregations require direct use of @timestamp which was not found. "
+                                    + "If @timestamp was renamed in EVAL, use the original @timestamp field instead."
+                            );
+                        } else {
+                            var valuesAgg = new Alias(g.source(), g.name(), new Values(g.source(), unwrapped));
+                            firstPassAggs.add(valuesAgg);
+                            secondPassGroupings.add(new Alias(g.source(), g.name(), valuesAgg.toAttribute(), g.id()));
+                        }
+                    }
                 }
             } else {
                 throw new EsqlIllegalArgumentException("expected named expression for grouping; got " + group);
@@ -344,6 +348,52 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         }
     }
 
+    private void addBucket(
+        NamedExpression timeBucket,
+        NamedExpression group,
+        List<Expression> firstPassGroupings,
+        List<Expression> secondPassGroupings
+    ) {
+        firstPassGroupings.add(timeBucket);
+        secondPassGroupings.add(new Alias(group.source(), group.name(), timeBucket.toAttribute(), group.id()));
+    }
+
+    private void addAttribute(
+        NamedExpression group,
+        Attribute attribute,
+        List<NamedExpression> firstPassAggs,
+        List<Expression> secondPassGroupings,
+        TemporaryNameGenerator internalNames,
+        LogicalOptimizerContext context,
+        List<Alias> packDimensions,
+        List<Alias> unpackDimensions,
+        boolean[] packPositions,
+        int position
+    ) {
+        var valuesAgg = new Alias(group.source(), group.name(), valuesAggregate(context, attribute));
+        firstPassAggs.add(valuesAgg);
+        if (attribute.isDimension()) {
+            Alias pack = new Alias(
+                group.source(),
+                internalNames.next("pack_" + group.name()),
+                new PackDimension(group.source(), valuesAgg.toAttribute())
+            );
+            packDimensions.add(pack);
+            Alias packedGrouping = new Alias(group.source(), internalNames.next("group_" + group.name()), pack.toAttribute());
+            secondPassGroupings.add(packedGrouping);
+            Alias unpack = new Alias(
+                group.source(),
+                group.name(),
+                new UnpackDimension(group.source(), packedGrouping.toAttribute(), attribute.dataType().noText()),
+                group.id()
+            );
+            unpackDimensions.add(unpack);
+            packPositions[position] = true;
+        } else {
+            secondPassGroupings.add(new Alias(group.source(), group.name(), valuesAgg.toAttribute(), group.id()));
+        }
+    }
+
     private static List<? extends NamedExpression> mergeExpressions(
         List<? extends NamedExpression> aggregates,
         List<Expression> groupings
@@ -362,16 +412,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         }
     }
 
-    private static class InternalNames {
-        final Map<String, Integer> next = new HashMap<>();
-
-        String next(String prefix) {
-            int id = next.merge(prefix, 1, Integer::sum);
-            return prefix + "_$" + id;
-        }
-    }
-
-    void checkWindow(TimeSeriesAggregate agg) {
+    private void checkWindow(TimeSeriesAggregate agg) {
         boolean hasWindow = false;
         for (NamedExpression aggregate : agg.aggregates()) {
             if (Alias.unwrap(aggregate) instanceof AggregateFunction af && af.hasWindow()) {
@@ -393,7 +434,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                 Expression window = af.window();
                 if (window.foldable() && window.fold(FoldContext.small()) instanceof Duration d) {
                     final long windowInMills = d.toMillis();
-                    if (windowInMills >= bucketInMillis && windowInMills % bucketInMillis == 0) {
+                    if (windowInMills < bucketInMillis || windowInMills % bucketInMillis == 0) {
                         continue;
                     }
                 }
@@ -403,9 +444,9 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                         + "] for aggregate function ["
                         + af.sourceText()
                         + "]; "
-                        + "the window must be larger than the time bucket ["
+                        + "the window must be an exact multiple of the time bucket ["
                         + Objects.requireNonNull(agg.timeBucket()).sourceText()
-                        + "] and an exact multiple of it"
+                        + "]"
                 );
             }
         }
@@ -414,8 +455,21 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
 
     private long getTimeBucketInMillis(TimeSeriesAggregate agg) {
         final Bucket bucket = agg.timeBucket();
-        if (bucket != null && bucket.buckets().foldable() && bucket.buckets().fold(FoldContext.small()) instanceof Duration d) {
+        if (bucket == null) {
+            return -1L;
+        }
+        if (bucket.buckets().foldable() && bucket.buckets().fold(FoldContext.small()) instanceof Duration d) {
             return d.toMillis();
+        }
+        Rounding.Prepared prepared = bucket.getDateRoundingOrNull(FoldContext.small());
+        if (prepared != null) {
+            // Use epoch 0 as a stable reference. This is exact for fixed-duration intervals
+            // (minutes, hours) such as those produced by TBUCKET with a numeric target count.
+            // Calendar-based roundings (months, years) have variable-length buckets, so this
+            // would only be an approximation — but TBUCKET target-count never resolves to such
+            // roundings, so epoch 0 is a safe anchor here.
+            long ref = prepared.round(0L);
+            return prepared.nextRoundingValue(ref) - ref;
         }
         return -1L;
     }

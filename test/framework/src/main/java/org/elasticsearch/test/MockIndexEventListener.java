@@ -68,12 +68,10 @@ public final class MockIndexEventListener {
     }
 
     public static class TestEventListener implements IndexEventListener {
-        private volatile IndexEventListener delegate = new IndexEventListener() {
-        };
+        private volatile IndexEventListener delegate = new IndexEventListener() {};
 
         public void setNewDelegate(IndexEventListener listener) {
-            delegate = listener == null ? new IndexEventListener() {
-            } : listener;
+            delegate = listener == null ? new IndexEventListener() {} : listener;
         }
 
         @Override

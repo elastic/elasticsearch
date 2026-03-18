@@ -1,0 +1,6 @@
+area: Downsampling
+issues:
+ - 136178
+pr: 143381
+summary: Aggregate counter downsampling preserves resets
+type: enhancement

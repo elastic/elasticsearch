@@ -1,5 +1,0 @@
-pr: 138051
-summary: Support for parameters in LIKE and RLIKE
-area: ES|QL
-type: enhancement
-issues: []

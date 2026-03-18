@@ -26,7 +26,9 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
@@ -75,13 +77,15 @@ public class CrossProjectIndexResolutionValidator {
      * @param projectRouting            The project routing string from the request, can be null if request does not specify it
      * @param localResolvedExpressions  Resolution results from the origin project
      * @param remoteResolvedExpressions Resolution results from linked projects
+     * @param remoteExceptions          Connection exceptions, etc., from linked projects; should be empty when all remote requests succeed
      * @return a {@link ElasticsearchException} if validation fails, null if validation passes
      */
     public static ElasticsearchException validate(
         IndicesOptions indicesOptions,
         @Nullable String projectRouting,
         ResolvedIndexExpressions localResolvedExpressions,
-        Map<String, ResolvedIndexExpressions> remoteResolvedExpressions
+        Map<String, ResolvedIndexExpressions> remoteResolvedExpressions,
+        Map<String, Exception> remoteExceptions
     ) {
         if (indicesOptions.allowNoIndices() && indicesOptions.ignoreUnavailable()) {
             logger.debug("Skipping index existence check in lenient mode");
@@ -118,8 +122,11 @@ public class CrossProjectIndexResolutionValidator {
             // TODO consider sorting during index re-writing, to avoid sorting here
             var remoteExpressions = localResolvedIndices.remoteExpressions().stream().sorted().toList();
             ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
-            ResolvedIndexExpression.LocalIndexResolutionResult result = localExpressions.localIndexResolutionResult();
-            ElasticsearchException localException = checkResolutionFailure(localExpressions, result, originalExpression, indicesOptions);
+            ElasticsearchException localException = checkResolutionFailure(
+                localExpressions,
+                asOriginExpression(originalExpression),
+                indicesOptions
+            );
 
             if (isQualifiedExpression) {
                 if (localException != null) {
@@ -140,7 +147,9 @@ public class CrossProjectIndexResolutionValidator {
                     var resource = splitResource[1];
 
                     ElasticsearchException remoteException = checkSingleRemoteExpression(
+                        localResolvedExpressions,
                         remoteResolvedExpressions,
+                        remoteExceptions,
                         projectAlias,
                         resource,
                         remoteExpression,
@@ -182,7 +191,9 @@ public class CrossProjectIndexResolutionValidator {
                     var resource = splitResource[1];
 
                     ElasticsearchException remoteException = checkSingleRemoteExpression(
+                        localResolvedExpressions,
                         remoteResolvedExpressions,
+                        remoteExceptions,
                         projectAlias,
                         resource,
                         remoteExpression,
@@ -243,6 +254,17 @@ public class CrossProjectIndexResolutionValidator {
         }
 
         if (localAuthorizationException == null && remoteAuthorizationExceptions == null) {
+            if (notFoundException == null && indicesOptions.allowNoIndices() == false) {
+                if (localResolvedExpressions.localIndicesIsEmpty()
+                    && remoteResolvedExpressions.values().stream().allMatch(ResolvedIndexExpressions::localIndicesIsEmpty)) {
+                    return new IndexNotFoundException(
+                        localResolvedExpressions.expressions()
+                            .stream()
+                            .map(ResolvedIndexExpression::original)
+                            .collect(Collectors.joining(","))
+                    );
+                }
+            }
             return notFoundException;
         } else {
             var firstException = localAuthorizationException != null
@@ -286,7 +308,9 @@ public class CrossProjectIndexResolutionValidator {
     }
 
     private static ElasticsearchException checkSingleRemoteExpression(
+        ResolvedIndexExpressions localExpressions,
         Map<String, ResolvedIndexExpressions> remoteResolvedExpressions,
+        Map<String, Exception> remoteExceptions,
         String projectAlias,
         String resource,
         String remoteExpression,
@@ -306,21 +330,39 @@ public class CrossProjectIndexResolutionValidator {
          * is identical to the one where we could not find an index anywhere.
          */
         if (resolvedExpressionsInProject == null) {
-            return new IndexNotFoundException(remoteExpression);
+            // if we're missing results from the remote because of a connection error, report it; else assume we have an exclusion
+            if (remoteExceptions.containsKey(projectAlias)) {
+                return new IndexNotFoundException(remoteExpression);
+            } else {
+                assert localExpressions.expressions()
+                    .stream()
+                    .anyMatch(e -> e.remoteExpressions().stream().anyMatch(r -> r.equals(Strings.format("-%s:*", projectAlias))))
+                    : Strings.format("Expected cluster exclusion for %s", projectAlias);
+
+                return checkResolutionFailure(
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), SUCCESS, null),
+                    remoteExpression,
+                    indicesOptions
+                );
+            }
         }
 
         ResolvedIndexExpression.LocalExpressions matchingExpression = findMatchingExpression(resolvedExpressionsInProject, resource);
         if (matchingExpression == null) {
-            assert false : "Expected to find matching expression [" + resource + "] in project [" + projectAlias + "]";
-            return new IndexNotFoundException(remoteExpression);
+            // assume that this is the result of sending an exclusion to the remote
+            assert localExpressions.expressions()
+                .stream()
+                .anyMatch(e -> e.remoteExpressions().stream().anyMatch(r -> r.startsWith(projectAlias + ":-")))
+                : Strings.format("Could not find matching project exclusion for missing remote expression %s", remoteExpression);
+
+            return checkResolutionFailure(
+                new ResolvedIndexExpression.LocalExpressions(Set.of(), SUCCESS, null),
+                remoteExpression,
+                indicesOptions
+            );
         }
 
-        return checkResolutionFailure(
-            matchingExpression,
-            matchingExpression.localIndexResolutionResult(),
-            remoteExpression,
-            indicesOptions
-        );
+        return checkResolutionFailure(matchingExpression, remoteExpression, indicesOptions);
     }
 
     public static String[] splitQualifiedResource(String resource) {
@@ -347,14 +389,23 @@ public class CrossProjectIndexResolutionValidator {
             .orElse(null);
     }
 
+    private static String asOriginExpression(String originalExpression) {
+        var split = RemoteClusterAware.splitIndexName(originalExpression);
+        if (split[0] == null || split[0].indexOf('*') == -1) {
+            return originalExpression;
+        }
+        return RemoteClusterAware.buildRemoteIndexName("_origin", split[1]);
+    }
+
     private static ElasticsearchException checkResolutionFailure(
         ResolvedIndexExpression.LocalExpressions localExpressions,
-        ResolvedIndexExpression.LocalIndexResolutionResult result,
         String expression,
         IndicesOptions indicesOptions
     ) {
         assert false == (indicesOptions.allowNoIndices() && indicesOptions.ignoreUnavailable())
             : "Should not be checking index existence in lenient mode";
+
+        var result = localExpressions.localIndexResolutionResult();
 
         if (indicesOptions.ignoreUnavailable() == false) {
             if (result == CONCRETE_RESOURCE_NOT_VISIBLE) {
@@ -362,7 +413,6 @@ public class CrossProjectIndexResolutionValidator {
             } else if (result == CONCRETE_RESOURCE_UNAUTHORIZED) {
                 assert localExpressions.exception() != null
                     : "ResolvedIndexExpression should have exception set when concrete index is unauthorized";
-
                 return localExpressions.exception();
             }
         }

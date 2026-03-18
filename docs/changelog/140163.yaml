@@ -1,6 +1,0 @@
-pr: 140163
-summary: Disallow `max_number_of_allocations` > 1 for low priority model deployments
-area: Machine Learning
-type: bug
-issues:
- - 111227

@@ -142,8 +142,8 @@ public final class Alias extends NamedExpression {
     }
 
     @Override
-    public String nodeString() {
-        return child.nodeString() + " AS " + name() + "#" + id();
+    public String nodeString(NodeStringFormat format) {
+        return child.nodeString(format) + " AS " + name() + "#" + id();
     }
 
     /**

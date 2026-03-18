@@ -19,6 +19,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 
@@ -84,6 +85,7 @@ public class TextFormatterTests extends ESTestCase {
         null,
         randomBoolean(),
         randomBoolean(),
+        ZoneOffset.UTC,
         0L,
         0L,
         createEsqlExecutionInfo(randomBoolean())
@@ -190,6 +192,7 @@ public class TextFormatterTests extends ESTestCase {
             null,
             randomBoolean(),
             randomBoolean(),
+            ZoneOffset.UTC,
             0L,
             0L,
             createEsqlExecutionInfo(randomBoolean())
@@ -235,6 +238,7 @@ public class TextFormatterTests extends ESTestCase {
                         null,
                         randomBoolean(),
                         randomBoolean(),
+                        randomZone(),
                         0L,
                         0L,
                         createEsqlExecutionInfo(randomBoolean())

@@ -36,16 +36,11 @@ public final class LastDoubleByTimestampGroupingAggregatorFunction implements Gr
 
   private final DriverContext driverContext;
 
-  public LastDoubleByTimestampGroupingAggregatorFunction(List<Integer> channels,
-      LastDoubleByTimestampAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static LastDoubleByTimestampGroupingAggregatorFunction create(List<Integer> channels,
+  LastDoubleByTimestampGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new LastDoubleByTimestampGroupingAggregatorFunction(channels, LastDoubleByTimestampAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = LastDoubleByTimestampAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

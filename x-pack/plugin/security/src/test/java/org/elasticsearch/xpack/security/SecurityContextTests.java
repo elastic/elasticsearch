@@ -175,12 +175,15 @@ public class SecurityContextTests extends ESTestCase {
             assertEquals(original.getAuthenticatingSubject().getRealm(), authentication.getAuthenticatingSubject().getRealm());
             assertEquals(original.isRunAs(), authentication.isRunAs());
             assertEquals(original.getEffectiveSubject().getRealm(), authentication.getEffectiveSubject().getRealm());
-            assertEquals(TransportVersionUtils.getPreviousVersion(), authentication.getEffectiveSubject().getTransportVersion());
+            assertEquals(
+                TransportVersionUtils.getPreviousVersion(TransportVersion.current()),
+                authentication.getEffectiveSubject().getTransportVersion()
+            );
             assertEquals(original.getAuthenticationType(), securityContext.getAuthentication().getAuthenticationType());
             contextAtomicReference.set(originalCtx);
             // Other request headers should be preserved
             requestHeaders.forEach((k, v) -> assertThat(threadContext.getHeader(k), equalTo(v)));
-        }, TransportVersionUtils.getPreviousVersion());
+        }, TransportVersionUtils.getPreviousVersion(TransportVersion.current()));
 
         final Authentication authAfterExecution = securityContext.getAuthentication();
         assertEquals(original, authAfterExecution);

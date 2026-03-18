@@ -26,10 +26,10 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.AsyncOperatorTestCase;
+import org.elasticsearch.compute.test.operator.blocksource.AbstractBlockSourceOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -41,6 +41,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.HashSet;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -124,6 +125,11 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
 
     @SuppressWarnings("unchecked")
     protected InferenceService mockedInferenceService() {
+        return mockedInferenceService(new AtomicBoolean(false), new RuntimeException("default error"));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected InferenceService mockedInferenceService(AtomicBoolean shouldFail, Exception failureException) {
         Client mockClient = new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -133,6 +139,10 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
             ) {
                 runWithRandomDelay(() -> {
                     if (action instanceof InferenceAction && request instanceof InferenceAction.Request inferenceRequest) {
+                        if (shouldFail.get()) {
+                            listener.onFailure(failureException);
+                            return;
+                        }
                         listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(inferenceRequest)));
                         return;
                     }
@@ -204,8 +214,8 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
         assertBlockContentEquals(input, result, (BytesRefBlock b, Integer pos) -> b.getBytesRef(pos, readBuffer), BytesRefBlock.class);
     }
 
-    protected EvalOperator.ExpressionEvaluator.Factory evaluatorFactory(int channel) {
-        return context -> new EvalOperator.ExpressionEvaluator() {
+    protected ExpressionEvaluator.Factory evaluatorFactory(int channel) {
+        return context -> new ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
                 Block b = page.getBlock(channel);

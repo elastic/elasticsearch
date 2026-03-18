@@ -15,9 +15,9 @@ import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.WindowAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.AggregationOperator;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -167,6 +168,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode, s.channels)),
                 context
             );
+            int maxPageSize = context.pageSize(aggregateExec, aggregateExec.estimatedRowSize());
+            int aggregationBatchSize = maxPageSize; // TODO pick a more sensible number
             // time-series aggregation
             if (aggregateExec instanceof TimeSeriesAggregateExec ts) {
                 operatorFactory = timeSeriesAggregatorOperatorFactory(
@@ -174,16 +177,22 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     aggregatorMode,
                     aggregatorFactories,
                     groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
-                    context
+                    context,
+                    aggregationBatchSize
                 );
             } else {
-                operatorFactory = new HashAggregationOperatorFactory(
-                    groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
-                    aggregatorMode,
-                    aggregatorFactories,
-                    context.pageSize(aggregateExec, aggregateExec.estimatedRowSize()),
-                    analysisRegistry
-                );
+                QueryPragmas pragmas = context.queryPragmas();
+                operatorFactory = new HashAggregationOperator.Builder().groups(groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList())
+                    .mode(aggregatorMode)
+                    .aggregators(aggregatorFactories)
+                    .partialEmit(
+                        pragmas.partialAggregationEmitKeysThreshold(context.plannerSettings().partialEmitKeysThreshold()),
+                        pragmas.partialAggregationEmitUniquenessThreshold(context.plannerSettings().partialEmitUniquenessThreshold())
+                    )
+                    .maxPageSize(maxPageSize)
+                    .aggregationBatchSize(aggregationBatchSize)
+                    .analysisRegistry(analysisRegistry)
+                    .build();
             }
         }
         if (operatorFactory != null) {
@@ -301,19 +310,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                                 );
                             }
                         } else {
-                            // extra dependencies like TS ones (that require a timestamp)
-                            sourceAttr = new ArrayList<>();
-                            for (Expression input : aggregateFunction.aggregateInputReferences(aggregateExec.child()::output)) {
-                                Attribute attr = Expressions.attribute(input);
-                                if (attr == null) {
-                                    throw new EsqlIllegalArgumentException(
-                                        "Cannot work with target field [{}] for agg [{}]",
-                                        input.sourceText(),
-                                        aggregateFunction.sourceText()
-                                    );
-                                }
-                                sourceAttr.add(attr);
-                            }
+                            sourceAttr = aggregateFunction.aggregateInputReferences(aggregateExec.child()::output);
                         }
                     }
 
@@ -324,7 +321,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
 
                     // apply the filter only in the initial phase - as the rest of the data is already filtered
                     if (aggregateFunction.hasFilter() && mode.isInputPartial() == false) {
-                        EvalOperator.ExpressionEvaluator.Factory evalFactory = EvalMapper.toEvaluator(
+                        ExpressionEvaluator.Factory evalFactory = EvalMapper.toEvaluator(
                             foldContext,
                             aggregateFunction.filter(),
                             layout,
@@ -380,6 +377,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregatorFactories,
         List<BlockHash.GroupSpec> groupSpecs,
-        LocalExecutionPlannerContext context
+        LocalExecutionPlannerContext context,
+        int maxPageSize
     );
 }

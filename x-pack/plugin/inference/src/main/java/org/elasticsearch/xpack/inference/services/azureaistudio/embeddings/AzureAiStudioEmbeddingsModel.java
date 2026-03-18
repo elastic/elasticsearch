@@ -48,10 +48,14 @@ public class AzureAiStudioEmbeddingsModel extends AzureAiStudioModel {
         ChunkingSettings chunkingSettings,
         DefaultSecretSettings secrets
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secrets)
         );
+    }
+
+    public AzureAiStudioEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets);
     }
 
     public AzureAiStudioEmbeddingsModel(
@@ -99,7 +103,7 @@ public class AzureAiStudioEmbeddingsModel extends AzureAiStudioModel {
             return new URI(this.target);
         }
 
-        return new URI(this.target + EMBEDDINGS_URI_PATH);
+        return new URI(stripTrailingSlash(this.target) + EMBEDDINGS_URI_PATH);
     }
 
     @Override

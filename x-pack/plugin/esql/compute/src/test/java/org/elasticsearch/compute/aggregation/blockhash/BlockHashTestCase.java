@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -41,26 +42,18 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public abstract class BlockHashTestCase extends ESTestCase {
-
-    final CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
-    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
-    final MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
+    final CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofGb(1));
+    final CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+    final MockBlockFactory blockFactory = new MockBlockFactory(
+        BlockFactory.builder(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService))
+    );
 
     @After
     public void checkBreaker() {
         blockFactory.ensureAllBlocksAreReleased();
         assertThat(breaker.getUsed(), is(0L));
-    }
-
-    // A breaker service that always returns the given breaker for getBreaker(CircuitBreaker.REQUEST)
-    static CircuitBreakerService mockBreakerService(CircuitBreaker breaker) {
-        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
-        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
-        return breakerService;
     }
 
     protected record OrdsAndKeys(String description, int positionOffset, IntBlock ords, Block[] keys, IntVector nonEmpty) {}
@@ -227,7 +220,7 @@ public abstract class BlockHashTestCase extends ESTestCase {
     }
 
     protected IntVector intRange(int startInclusive, int endExclusive) {
-        return IntVector.range(startInclusive, endExclusive, TestBlockFactory.getNonBreakingInstance());
+        return TestBlockFactory.getNonBreakingInstance().newIntRangeVector(startInclusive, endExclusive);
     }
 
     protected IntVector intVector(int... values) {

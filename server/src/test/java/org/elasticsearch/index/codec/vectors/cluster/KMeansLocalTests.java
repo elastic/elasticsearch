@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.test.ESTestCase;
@@ -33,7 +32,7 @@ public class KMeansLocalTests extends ESTestCase {
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
             () -> kMeansLocal.cluster(
-                FloatVectorValues.fromFloats(List.of(), randomInt(1024)),
+                KMeansFloatVectorValues.build(List.of(), null, randomInt(1024)),
                 kMeansIntermediate,
                 randomIntBetween(Integer.MIN_VALUE, 1),
                 randomFloat()
@@ -50,7 +49,7 @@ public class KMeansLocalTests extends ESTestCase {
         int maxIterations = random().nextInt(0, 100);
         int clustersPerNeighborhood = random().nextInt(2, 512);
         float soarLambda = random().nextFloat(0.5f, 1.5f);
-        FloatVectorValues vectors = generateData(nVectors, dims, nClusters);
+        KMeansFloatVectorValues vectors = generateData(nVectors, dims, nClusters);
 
         float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters);
         KMeansLocal.cluster(vectors, centroids, sampleSize, maxIterations);
@@ -91,7 +90,7 @@ public class KMeansLocalTests extends ESTestCase {
             vectors.add(vector);
         }
         int sampleSize = vectors.size();
-        FloatVectorValues fvv = FloatVectorValues.fromFloats(vectors, 5);
+        KMeansFloatVectorValues fvv = KMeansFloatVectorValues.build(vectors, null, 5);
 
         float[][] centroids = KMeansLocal.pickInitialCentroids(fvv, nClusters);
         KMeansLocal.cluster(fvv, centroids, sampleSize, maxIterations);
@@ -127,7 +126,7 @@ public class KMeansLocalTests extends ESTestCase {
         }
     }
 
-    private static FloatVectorValues generateData(int nSamples, int nDims, int nClusters) {
+    private static KMeansFloatVectorValues generateData(int nSamples, int nDims, int nClusters) {
         List<float[]> vectors = new ArrayList<>(nSamples);
         float[][] centroids = new float[nClusters][nDims];
         // Generate random centroids
@@ -145,7 +144,7 @@ public class KMeansLocalTests extends ESTestCase {
             }
             vectors.add(vector);
         }
-        return FloatVectorValues.fromFloats(vectors, nDims);
+        return KMeansFloatVectorValues.build(vectors, null, nDims);
     }
 
     public void testComputeNeighbours() throws IOException {
@@ -204,5 +203,49 @@ public class KMeansLocalTests extends ESTestCase {
             }
         }
         return matched;
+    }
+
+    public void testComputeNeighboursThreadSafety() throws IOException {
+        int numCentroids = randomIntBetween(500, 1500);
+        int dims = randomIntBetween(10, 50);
+        float[][] vectors = new float[numCentroids][dims];
+        for (int i = 0; i < numCentroids; i++) {
+            for (int j = 0; j < dims; j++) {
+                vectors[i][j] = randomFloat();
+            }
+        }
+        int clustersPerNeighbour = randomIntBetween(32, 64);
+
+        // sequential version
+        NeighborHood[] neighborHoodsGraph = NeighborHood.computeNeighborhoodsGraph(vectors, clustersPerNeighbour);
+
+        // multiple concurrent executions for consistency
+        for (int iter = 0; iter < 50; iter++) {
+            int numThreads = randomIntBetween(2, 8);
+            try (ExecutorService executorService = Executors.newFixedThreadPool(numThreads)) {
+                TaskExecutor taskExecutor = new TaskExecutor(executorService);
+                NeighborHood[] neighborHoodsGraphConcurrent = NeighborHood.computeNeighborhoodsGraph(
+                    taskExecutor,
+                    numThreads,
+                    vectors,
+                    clustersPerNeighbour
+                );
+
+                assertEquals(neighborHoodsGraph.length, neighborHoodsGraphConcurrent.length);
+                for (int i = 0; i < neighborHoodsGraph.length; i++) {
+                    assertArrayEquals(
+                        "Iteration " + iter + ", thread count " + numThreads + ": Different neighbors at index " + i,
+                        neighborHoodsGraph[i].neighbors(),
+                        neighborHoodsGraphConcurrent[i].neighbors()
+                    );
+                    assertEquals(
+                        "Iteration " + iter + ", thread count " + numThreads + ": Different maxIntraDistance at index " + i,
+                        neighborHoodsGraph[i].maxIntraDistance(),
+                        neighborHoodsGraphConcurrent[i].maxIntraDistance(),
+                        1e-5f
+                    );
+                }
+            }
+        }
     }
 }

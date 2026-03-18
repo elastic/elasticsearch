@@ -12,12 +12,20 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
 
+import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -56,6 +64,45 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         String query = "{ \"ids\": { \"values\": [[1]] } }";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(query));
         assertThat(e.getMessage(), containsString("[ids] failed to parse field [values]"));
+    }
+
+    public void testIdsSizeMayNotExceedMaxResultWindow() throws Exception {
+        IdsQueryBuilder builder = new IdsQueryBuilder();
+        builder.addIds("1", "2", "3");
+
+        final IndexMetadata metadata = newIndexMeta(
+            "index1",
+            Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), 2).build()
+        );
+        final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+
+        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
+            0,
+            0,
+            settings,
+            null,
+            null,
+            null,
+            MappingLookup.EMPTY,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            Collections.emptyMap(),
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
+        );
+
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> builder.doToQuery(searchExecutionContext));
+        assertThat(e.getMessage(), equalTo("Too many ids specified, allowed max result window is [2]"));
     }
 
     public void testFromJson() throws IOException {

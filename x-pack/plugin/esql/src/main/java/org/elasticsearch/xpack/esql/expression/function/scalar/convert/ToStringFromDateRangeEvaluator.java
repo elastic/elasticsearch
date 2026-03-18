@@ -9,12 +9,13 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -22,15 +23,18 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 public class ToStringFromDateRangeEvaluator extends AbstractConvertFunction.AbstractEvaluator {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToStringFromDateRangeEvaluator.class);
 
-    private final EvalOperator.ExpressionEvaluator field;
+    private final ExpressionEvaluator field;
 
-    public ToStringFromDateRangeEvaluator(Source source, EvalOperator.ExpressionEvaluator field, DriverContext driverContext) {
+    private final DateFormatter formatter;
+
+    public ToStringFromDateRangeEvaluator(Source source, ExpressionEvaluator field, DateFormatter formatter, DriverContext driverContext) {
         super(driverContext, source);
         this.field = field;
+        this.formatter = formatter;
     }
 
     @Override
-    protected EvalOperator.ExpressionEvaluator next() {
+    protected ExpressionEvaluator next() {
         return field;
     }
 
@@ -39,11 +43,11 @@ public class ToStringFromDateRangeEvaluator extends AbstractConvertFunction.Abst
         return evalBlock(v.asBlock());
     }
 
-    private static BytesRef evalValue(LongRangeBlock block, int idx) {
+    private BytesRef evalValue(LongRangeBlock block, int idx) {
         return new BytesRef(
-            (EsqlDataTypeConverter.dateTimeToString(block.getFromBlock().getLong(idx))
+            (EsqlDataTypeConverter.dateTimeToString(block.getFromBlock().getLong(idx), this.formatter)
                 + ".."
-                + EsqlDataTypeConverter.dateTimeToString(block.getToBlock().getLong(idx)))
+                + EsqlDataTypeConverter.dateTimeToString(block.getToBlock().getLong(idx), this.formatter))
         );
     }
 
@@ -65,7 +69,7 @@ public class ToStringFromDateRangeEvaluator extends AbstractConvertFunction.Abst
 
     @Override
     public String toString() {
-        return "ToStringFromDateRangeEvaluator[field=" + field + ']';
+        return "ToStringFromDateRangeEvaluator[field=" + field + ", formatter=" + formatter + ']';
     }
 
     @Override
@@ -78,23 +82,25 @@ public class ToStringFromDateRangeEvaluator extends AbstractConvertFunction.Abst
         Releasables.closeExpectNoException(field);
     }
 
-    public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    public static class Factory implements ExpressionEvaluator.Factory {
         private final Source source;
-        private final EvalOperator.ExpressionEvaluator.Factory field;
+        private final ExpressionEvaluator.Factory field;
+        private final DateFormatter formatter;
 
-        public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field) {
+        public Factory(Source source, ExpressionEvaluator.Factory field, DateFormatter formatter) {
             this.source = source;
             this.field = field;
+            this.formatter = formatter;
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            return new ToStringFromDateRangeEvaluator(source, field.get(context), context);
+        public ExpressionEvaluator get(DriverContext context) {
+            return new ToStringFromDateRangeEvaluator(source, field.get(context), formatter, context);
         }
 
         @Override
         public String toString() {
-            return "ToStringFromDateRangeEvaluator[field=" + field + "]";
+            return "ToStringFromDateRangeEvaluator[field=" + field + ", formatter=" + formatter + "]";
         }
     }
 }

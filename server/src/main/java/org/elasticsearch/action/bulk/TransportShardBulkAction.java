@@ -33,10 +33,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -48,9 +48,7 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperException;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -165,8 +163,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected Map<ShardId, BulkShardRequest> splitRequestOnPrimary(BulkShardRequest request) {
-        return ShardBulkSplitHelper.splitRequests(request, projectResolver.getProjectMetadata(clusterService.state()));
+    protected Map<ShardId, BulkShardRequest> splitRequestOnPrimary(BulkShardRequest request, ProjectMetadata project) {
+        return ShardBulkSplitHelper.splitRequests(request, project);
     }
 
     @Override
@@ -477,13 +475,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         final var mapperService = primary.mapperService();
         final long initialMappingVersion = mapperService.mappingVersion();
         try {
-            CompressedXContent mergedSource = mapperService.merge(
-                MapperService.SINGLE_MAPPING_NAME,
-                new CompressedXContent(result.getRequiredMappingUpdate()),
-                MapperService.MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT
-            ).mappingSource();
-            final DocumentMapper existingDocumentMapper = mapperService.documentMapper();
-            if (existingDocumentMapper != null && mergedSource.equals(existingDocumentMapper.mappingSource())) {
+            if (mapperService.isNoOpUpdate(result.getRequiredMappingUpdate())) {
                 context.resetForNoopMappingUpdateRetry(mapperService.mappingVersion());
                 return true;
             }

@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -46,11 +47,12 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -102,8 +104,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         ProjectResolver projectResolver,
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
-        FeatureService featureService,
-        SamplingService samplingService
+        FeatureService featureService
     ) {
         this(
             threadPool,
@@ -119,8 +120,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             threadPool::relativeTimeInNanos,
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
-            featureService,
-            samplingService
+            featureService
         );
     }
 
@@ -138,8 +138,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         LongSupplier relativeTimeProvider,
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
-        FeatureService featureService,
-        SamplingService samplingService
+        FeatureService featureService
     ) {
         this(
             TYPE,
@@ -157,8 +156,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             relativeTimeProvider,
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
-            featureService,
-            samplingService
+            featureService
         );
     }
 
@@ -178,8 +176,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         LongSupplier relativeTimeProvider,
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
-        FeatureService featureService,
-        SamplingService samplingService
+        FeatureService featureService
     ) {
         super(
             bulkAction,
@@ -193,8 +190,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             systemIndices,
             projectResolver,
             relativeTimeProvider,
-            featureService,
-            samplingService
+            featureService
         );
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         Objects.requireNonNull(relativeTimeProvider);
@@ -517,7 +513,11 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         }
     }
 
-    static void prohibitAppendWritesInBackingIndices(DocWriteRequest<?> writeRequest, IndexAbstraction indexAbstraction) {
+    static void prohibitAppendWritesInBackingIndices(
+        DocWriteRequest<?> writeRequest,
+        IndexAbstraction indexAbstraction,
+        Function<Index, IndexMetadata> indexMetadataProvider
+    ) {
         DocWriteRequest.OpType opType = writeRequest.opType();
         if ((opType == DocWriteRequest.OpType.CREATE || opType == DocWriteRequest.OpType.INDEX) == false) {
             // op type not create or index, then bail early
@@ -551,6 +551,16 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                     + "] instead"
             );
         }
+
+        // When sequence numbers are disabled, OCC (if_seq_no/if_primary_term) cannot be used,
+        // so we allow writes with an explicit document ID directly to backing indices.
+        if (writeRequest.id() != null && IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG) {
+            IndexMetadata targetMetadata = indexMetadataProvider.apply(indexAbstraction.getWriteIndex());
+            if (targetMetadata != null && targetMetadata.sequenceNumbersDisabled()) {
+                return;
+            }
+        }
+
         if (writeRequest.ifPrimaryTerm() == UNASSIGNED_PRIMARY_TERM && writeRequest.ifSeqNo() == UNASSIGNED_SEQ_NO) {
             throw new IllegalArgumentException(
                 "index request with op_type=index and no if_primary_term and if_seq_no set "

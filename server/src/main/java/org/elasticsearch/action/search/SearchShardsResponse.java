@@ -42,6 +42,7 @@ public final class SearchShardsResponse extends ActionResponse {
     public static final TransportVersion SEARCH_SHARDS_RESOLVED_INDEX_EXPRESSIONS = TransportVersion.fromName(
         "search_shards_resolved_index_expressions"
     );
+    public static final TransportVersion SEARCH_SHARDS_NUM_SKIPPED = TransportVersion.fromName("search_shards_num_skipped");
 
     public SearchShardsResponse(
         Collection<SearchShardsGroup> groups,
@@ -71,6 +72,10 @@ public final class SearchShardsResponse extends ActionResponse {
             this.resolvedIndexExpressions = in.readOptionalWriteable(ResolvedIndexExpressions::new);
         } else {
             this.resolvedIndexExpressions = null;
+        }
+        if (in.getTransportVersion().supports(SEARCH_SHARDS_NUM_SKIPPED)
+            && in.getTransportVersion().supports(SEARCH_SHARDS_NUM_SKIPPED) == false) {
+            throw new IOException("Bad transport version");
         }
     }
 
@@ -118,7 +123,7 @@ public final class SearchShardsResponse extends ActionResponse {
         return Objects.hash(groups, nodes, aliasFilters);
     }
 
-    static SearchShardsResponse fromLegacyResponse(ClusterSearchShardsResponse oldResp) {
+    public static SearchShardsResponse fromLegacyResponse(ClusterSearchShardsResponse oldResp) {
         Map<String, Index> indexByNames = new HashMap<>();
         for (ClusterSearchShardsGroup oldGroup : oldResp.getGroups()) {
             ShardId shardId = oldGroup.getShardId();
@@ -132,7 +137,7 @@ public final class SearchShardsResponse extends ActionResponse {
         }
         List<SearchShardsGroup> groups = Arrays.stream(oldResp.getGroups()).map(SearchShardsGroup::new).toList();
         assert groups.stream().noneMatch(SearchShardsGroup::preFiltered) : "legacy responses must not have preFiltered set";
-        return new SearchShardsResponse(groups, Arrays.asList(oldResp.getNodes()), aliasFilters);
+        return new SearchShardsResponse(groups, Arrays.asList(oldResp.getNodes()), aliasFilters, oldResp.getResolvedIndexExpressions());
     }
 
     @Override

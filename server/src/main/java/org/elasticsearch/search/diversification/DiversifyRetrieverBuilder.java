@@ -303,6 +303,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
     @Override
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
         SearchSourceBuilder builder = sourceBuilder.from(0);
+        builder.trackScores(true);
         return super.finalizeSourceBuilder(builder).docValueField(diversificationField);
     }
 

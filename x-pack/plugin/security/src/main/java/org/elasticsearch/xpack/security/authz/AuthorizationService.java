@@ -50,6 +50,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.InvalidProjectRoutingException;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.crossproject.TargetProjects;
@@ -86,6 +87,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -240,11 +242,12 @@ public class AuthorizationService {
     public void retrieveUserPrivileges(
         Subject subject,
         AuthorizationInfo authorizationInfo,
+        RoleReference.ApiKeyRoleType unwrapLimitedRole,
         ActionListener<GetUserPrivilegesResponse> listener
     ) {
         final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
         // TODO the AuthorizationInfo is associated to the Subject; the argument is redundant and a possible source of conflict
-        authorizationEngine.getUserPrivileges(authorizationInfo, wrapPreservingContext(listener, threadContext));
+        authorizationEngine.getUserPrivileges(authorizationInfo, unwrapLimitedRole, wrapPreservingContext(listener, threadContext));
     }
 
     public void getRoleDescriptorsIntersectionForRemoteCluster(
@@ -610,7 +613,8 @@ public class AuthorizationService {
 
         if (ex instanceof InvalidIndexNameException
             || ex instanceof InvalidSelectorException
-            || ex instanceof UnsupportedSelectorException) {
+            || ex instanceof UnsupportedSelectorException
+            || ex instanceof InvalidProjectRoutingException) {
             logger.info(
                 () -> Strings.format(
                     "failed [%s] action authorization for [%s] due to [%s] exception",

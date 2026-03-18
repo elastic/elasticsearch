@@ -23,10 +23,6 @@ import org.elasticsearch.exponentialhistogram.ReleasableExponentialHistogram;
 
 public final class ExponentialHistogramStates {
 
-    // We currently use a hardcoded limit for the number of buckets, we might make this configurable / an aggregation parameter later
-    // The current default is what's also used by the OpenTelemetry SDKs
-    public static final int MAX_BUCKET_COUNT = 320;
-
     private record HistoBreaker(CircuitBreaker delegate) implements ExponentialHistogramCircuitBreaker {
         @Override
         public void adjustBreaker(long bytesAllocated) {
@@ -55,7 +51,7 @@ public final class ExponentialHistogramStates {
                 return;
             }
             if (merger == null) {
-                merger = ExponentialHistogramMerger.create(MAX_BUCKET_COUNT, new HistoBreaker(breaker));
+                merger = ExponentialHistogramMerger.create(new HistoBreaker(breaker));
             }
             if (allowUpscale) {
                 merger.add(histogram);
@@ -96,12 +92,27 @@ public final class ExponentialHistogramStates {
 
     static final class GroupingState implements GroupingAggregatorState {
 
+        private final ExponentialHistogramMerger.Factory mergerFactory;
         private ObjectArray<ExponentialHistogramMerger> states;
         private final HistoBreaker breaker;
         private final BigArrays bigArrays;
 
         GroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
-            this.states = bigArrays.newObjectArray(1);
+            ObjectArray<ExponentialHistogramMerger> states = null;
+            ExponentialHistogramMerger.Factory mergerFactory = null;
+
+            boolean success = false;
+            try {
+                states = bigArrays.newObjectArray(1);
+                mergerFactory = ExponentialHistogramMerger.createFactory(new HistoBreaker(breaker));
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(states, mergerFactory);
+                }
+            }
+            this.states = states;
+            this.mergerFactory = mergerFactory;
             this.bigArrays = bigArrays;
             this.breaker = new HistoBreaker(breaker);
         }
@@ -121,7 +132,7 @@ public final class ExponentialHistogramStates {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
-                state = ExponentialHistogramMerger.create(MAX_BUCKET_COUNT, breaker);
+                state = mergerFactory.createMerger();
                 states.set(groupId, state);
             }
             if (allowUpscale) {
@@ -178,7 +189,7 @@ public final class ExponentialHistogramStates {
             for (int i = 0; i < states.size(); i++) {
                 Releasables.close(states.get(i));
             }
-            Releasables.close(states);
+            Releasables.close(states, mergerFactory);
             states = null;
         }
 

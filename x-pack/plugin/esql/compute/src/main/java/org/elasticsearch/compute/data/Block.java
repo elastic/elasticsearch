@@ -271,11 +271,11 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
 
     /**
      * Creates a new block that only exposes the positions provided.
+     * @param mayContainDuplicates may the positions array contain duplicate positions?
      * @param positions the positions to retain
      * @return a filtered block
-     * TODO: pass BlockFactory
      */
-    Block filter(int... positions);
+    Block filter(boolean mayContainDuplicates, int... positions);
 
     /**
      * Build a {@link Block} with the same values as this {@linkplain Block}, but replacing

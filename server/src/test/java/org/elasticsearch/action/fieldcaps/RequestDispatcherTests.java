@@ -117,7 +117,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(1, 10);
             for (int i = 0; i < numNodes; i++) {
-                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion()));
+                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(), IndexVersionUtils.randomVersion()));
             }
             ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {
@@ -189,7 +189,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(2, 10);
             for (int i = 0; i < numNodes; i++) {
-                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion()));
+                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(), IndexVersionUtils.randomVersion()));
             }
             ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {
@@ -312,7 +312,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(1, 10);
             for (int i = 0; i < numNodes; i++) {
-                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion()));
+                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(), IndexVersionUtils.randomVersion()));
             }
             ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {
@@ -437,7 +437,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(1, 10);
             for (int i = 0; i < numNodes; i++) {
-                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion()));
+                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(), IndexVersionUtils.randomVersion()));
             }
             ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {
@@ -536,7 +536,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(1, 10);
             for (int i = 0; i < numNodes; i++) {
-                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion()));
+                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(), IndexVersionUtils.randomVersion()));
             }
             ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {
@@ -630,7 +630,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
             int numNodes = randomIntBetween(1, 10);
             for (int i = 0; i < numNodes; i++) {
-                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(random()), IndexVersionUtils.randomVersion()));
+                discoNodes.add(newNode("node_" + i, VersionUtils.randomVersion(), IndexVersionUtils.randomVersion()));
             }
             ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {

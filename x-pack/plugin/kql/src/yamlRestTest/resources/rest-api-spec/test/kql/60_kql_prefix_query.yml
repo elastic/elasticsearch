@@ -1,0 +1,120 @@
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ kql_query ]
+      test_runner_features: capabilities
+      reason: KQL query is not available
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              text_field:
+                type: text
+              keyword_field:
+                type: keyword
+              const_keyword_field:
+                type: constant_keyword
+                value: foo buzz
+
+  - do:
+      bulk:
+        index: test-index
+        refresh: true
+        body: |
+          { "index" : { "_id": "doc-1" } }
+          { "text_field": "foo bar", "keyword_field": "foo bar" }
+          { "index" : { "_id": "doc-42" } }
+          { "text_field": "foo baz", "keyword_field": "foo baz" }
+          { "index" : { "_id": "doc-43" } }
+          { "text_field": "foo buzz", "keyword_field": "foo buzz" }
+
+---
+"KQL prefix query (no field specified)":
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "ba*" } }
+          }
+
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: "doc-1" }
+  - match: { hits.hits.1._id: "doc-42" }
+
+---
+"KQL prefix query (text field)":
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "text_field:ba*" } }
+          }
+
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: "doc-1" }
+  - match: { hits.hits.1._id: "doc-42" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "text_field:Ba*" } }
+          }
+
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: "doc-1" }
+  - match: { hits.hits.1._id: "doc-42" }
+
+---
+"KQL prefix query (keyword field)":
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "keyword_field:foo ba*" } }
+          }
+
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: "doc-1" }
+  - match: { hits.hits.1._id: "doc-42" }
+
+---
+"KQL prefix query (constant_keyword field)":
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "const_keyword_field:fo*" } }
+          }
+
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._id: "doc-1" }
+  - match: { hits.hits.1._id: "doc-42" }
+  - match: { hits.hits.2._id: "doc-43" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "const_keyword_field:bu*" } }
+          }
+
+  - match: { hits.total: 0 }
+

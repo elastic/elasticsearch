@@ -62,7 +62,7 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
     ToMask toMask();
 
     @Override
-    BooleanBlock filter(int... positions);
+    BooleanBlock filter(boolean mayContainDuplicates, int... positions);
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},

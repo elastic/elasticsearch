@@ -33,7 +33,7 @@ import org.openjdk.jmh.annotations.State;
  * @Benchmark
  * public void benchmark(Blackhole bh, ThroughputMetrics metrics) {
  *     encode.benchmark(bh);
- *     metrics.recordOperation(BLOCK_SIZE, encode.getEncodedSize());
+ *     metrics.recordOperation(encode.getBlockSize(), encode.getEncodedSize());
  * }
  * }</pre>
  */

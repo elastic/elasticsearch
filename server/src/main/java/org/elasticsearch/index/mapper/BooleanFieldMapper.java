@@ -157,6 +157,11 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public BooleanFieldMapper build(MapperBuilderContext context) {
             if (inheritDimensionParameterFromParentObject(context)) {
                 dimension(true);
@@ -566,7 +571,7 @@ public class BooleanFieldMapper extends FieldMapper {
                     context.addIgnoredField(mappedFieldType.name());
                     if (storeMalformedFields) {
                         // Save a copy of the field so synthetic source can load it
-                        context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
+                        IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
                     }
                     return;
                 } else {
@@ -654,16 +659,16 @@ public class BooleanFieldMapper extends FieldMapper {
                 )
             );
             if (ignoreMalformed.value()) {
-                layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));
+                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
             }
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         } else {
-            return new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value()) {
-                @Override
-                protected void writeValue(XContentBuilder b, long value) throws IOException {
-                    b.value(value == 1);
-                }
-            };
+            var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
+            layers.add(new SortedNumericDocValuesSyntheticFieldLoaderLayer(fullPath(), (b, value) -> b.value(value == 1)));
+            if (ignoreMalformed.value()) {
+                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
+            }
+            return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         }
     }
 

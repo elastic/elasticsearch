@@ -274,10 +274,8 @@ Please follow these formatting guidelines:
   consistency.
 * Note that Javadoc and block comments i.e. `/* ... */` are not formatted,
   but line comments i.e. `// ...` are.
-* Negative boolean expressions must use the form `foo == false` instead of
-  `!foo` for better readability of the code. This is enforced via
-  Checkstyle. Conversely, you should not write e.g. `if (foo == true)`, but
-  just `if (foo)`.
+* Negative boolean expressions should use the form `foo == false` instead of
+  `!foo` where this improves readability. Conversely, you should not write e.g. `if (foo == true)`, but just `if (foo)`.
 
 #### Editor / IDE support
 

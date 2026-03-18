@@ -12,13 +12,14 @@ package org.elasticsearch.reindex.remote;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.reindex.ScrollableHitSource.BasicHit;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
+import org.elasticsearch.index.reindex.PaginatedHitSource.BasicHit;
+import org.elasticsearch.index.reindex.PaginatedHitSource.Hit;
+import org.elasticsearch.index.reindex.PaginatedHitSource.Response;
+import org.elasticsearch.index.reindex.PaginatedHitSource.SearchFailure;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -30,6 +31,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.List;
 import java.util.function.BiFunction;
 
@@ -40,7 +42,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * Parsers to convert the response from the remote host into objects useful for {@link RemoteScrollableHitSource}.
+ * Parsers to convert the response from the remote host into objects useful for {@link RemoteScrollablePaginatedHitSource}.
  */
 final class RemoteResponseParsers {
     private RemoteResponseParsers() {}
@@ -267,6 +269,24 @@ final class RemoteResponseParsers {
         public void setCausedBy(Throwable causedBy) {
             this.causedBy = causedBy;
         }
+    }
+
+    /**
+     * Parser for the open point-in-time response. Returns the PIT id as {@link BytesReference}.
+     */
+    public static final ConstructingObjectParser<BytesReference, XContentType> OPEN_PIT_PARSER = new ConstructingObjectParser<>(
+        "open_pit_response",
+        true,
+        a -> {
+            String id = (String) a[0];
+            if (id == null || id.isEmpty()) {
+                throw new IllegalArgumentException("open point-in-time response must contain [id] field");
+            }
+            return new BytesArray(Base64.getUrlDecoder().decode(id));
+        }
+    );
+    static {
+        OPEN_PIT_PARSER.declareString(optionalConstructorArg(), new ParseField("id"));
     }
 
     /**

@@ -86,6 +86,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 "manage_transform",
                 InvalidateApiKeyAction.NAME,
                 "grant_api_key",
+                "clone_api_key",
                 "manage_own_api_key",
                 GetBuiltinPrivilegesAction.NAME,
                 "delegate_pki",
@@ -102,14 +103,18 @@ class KibanaOwnedReservedRoleDescriptors {
                 "cluster:admin/analyze",
                 "cluster:admin/script/put",
                 "cluster:admin/script/get",
+                // To allow Kibana to delete project routing expressions.
+                "cluster:admin/project_routing/delete",
                 // To facilitate using the file uploader functionality
                 "monitor_text_structure",
                 // To cancel tasks and delete async searches
-                "cancel_task" },
+                "cancel_task",
+                // To toggle logs streams activation
+                "cluster:admin/streams/logs/toggle" },
             new RoleDescriptor.IndicesPrivileges[] {
                 // System indices defined in KibanaPlugin
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".kibana*", ".reporting-*", ".chat-*", ".workflows-*")
+                    .indices(".kibana*", ".reindexed-v8-kibana*", ".reporting-*", ".chat-*", ".workflows-*")
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(),
@@ -271,6 +276,11 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(ReservedRolesStore.ALERTS_BACKING_INDEX, ReservedRolesStore.ALERTS_BACKING_INDEX_REINDEXED)
                     .privileges("all")
                     .build(),
+                // "Alerting V2" views prefix
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.ALERTING_V2_VIEWS)
+                    .privileges("indices:admin/esql/view/put") // TODO: use named index privilege when available in serverless
+                    .build(),
                 // "Alerts as data" public index aliases used in Security Solution,
                 // Observability, etc.
                 // Kibana system user uses them to read / write alerts.
@@ -278,6 +288,8 @@ class KibanaOwnedReservedRoleDescriptors {
                 // "Cases as data" analytics indexes and aliases
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.CASES_ANALYTICS_INDEXES).privileges("all").build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.CASES_ANALYTICS_ALIASES).privileges("all").build(),
+                // "Alerting V2" indexes
+                RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.ALERTING_V2_INDEX_ALIAS).privileges("all").build(),
                 // "Alerts as data" public index alias used in Security Solution
                 // Kibana system user uses them to read / write alerts.
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -338,7 +350,14 @@ class KibanaOwnedReservedRoleDescriptors {
                         "indices:admin/forcemerge*"
                     )
                     .build(),
-
+                // Kibana logs streams
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs", "logs.*", "$.logs", "$.logs.*")
+                    .privileges("read", "manage")
+                    .build(),
+                // Read access for all log data streams with a dot-separated namespace
+                // (e.g. logs-<integration>.<dataset>)
+                RoleDescriptor.IndicesPrivileges.builder().indices("logs-*.*").privileges("read").build(),
                 // Kibana Security Solution EDR workflows team
                 // - `.endpoint-script-file*`:
                 // indexes are used internally within Kibana in support of Elastic Defend scripts library.
@@ -573,6 +592,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-qualys_gav.asset-*",
                         "logs-sentinel_one.application-*",
                         "logs-sentinel_one.threat_event-*",
+                        "logs-sentinel_one.unified_alert-*",
                         "logs-island_browser.user-*",
                         "logs-island_browser.device-*",
                         "logs-cyera.classification-*",

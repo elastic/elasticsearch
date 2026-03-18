@@ -60,6 +60,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
@@ -1489,19 +1490,21 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
     @SuppressWarnings("unchecked")
     public void testMappingsFilteringDuelWithSourceFiltering() throws Exception {
-        Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).putMapping(MAPPING_TEST_ITEM))
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(
+                IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).putMapping(MAPPING_TEST_ITEM).build(),
+                true
+            )
             .build();
 
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "*inner1" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.getProject()
-                .findMappings(
-                    new String[] { "index" },
-                    index -> fieldPermissions::grantsAccessTo,
-                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-                );
+            Map<String, MappingMetadata> mappings = projectMetadata.findMappings(
+                new String[] { "index" },
+                index -> fieldPermissions::grantsAccessTo,
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1537,12 +1540,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "object*" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.getProject()
-                .findMappings(
-                    new String[] { "index" },
-                    index -> fieldPermissions::grantsAccessTo,
-                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-                );
+            Map<String, MappingMetadata> mappings = projectMetadata.findMappings(
+                new String[] { "index" },
+                index -> fieldPermissions::grantsAccessTo,
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1577,12 +1579,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "object" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.getProject()
-                .findMappings(
-                    new String[] { "index" },
-                    index -> fieldPermissions::grantsAccessTo,
-                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-                );
+            Map<String, MappingMetadata> mappings = projectMetadata.findMappings(
+                new String[] { "index" },
+                index -> fieldPermissions::grantsAccessTo,
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1607,12 +1608,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
         {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[] { "nested.inner2" }, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
-            Map<String, MappingMetadata> mappings = metadata.getProject()
-                .findMappings(
-                    new String[] { "index" },
-                    index -> fieldPermissions::grantsAccessTo,
-                    Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-                );
+            Map<String, MappingMetadata> mappings = projectMetadata.findMappings(
+                new String[] { "index" },
+                index -> fieldPermissions::grantsAccessTo,
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+            );
             MappingMetadata index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1675,6 +1675,81 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
             assertNotNull(lf.getSequentialStoredFieldsReader());
         }
         IOUtils.close(ir, iw, dir);
+    }
+
+    public void testSyntheticSourceWithCopyToAndFLSCoalesced() throws Exception {
+        final DocumentMapper mapper = createMapperService(
+            Settings.builder().put("index.mapping.source.mode", "synthetic").build(),
+            mapping(b -> {
+                b.startObject("user").field("type", "keyword").field("copy_to", "catch_all").endObject();
+                b.startObject("domain").field("type", "keyword").field("copy_to", "catch_all").endObject();
+                b.startObject("catch_all").field("type", "text").endObject();
+            })
+        ).documentMapper();
+
+        try (Directory directory = newDirectory()) {
+            final IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig());
+            final ParsedDocument doc = mapper.parse(source(b -> {
+                b.field("user", "darth.vader");
+                b.field("domain", "empire.gov");
+            }));
+            writer.addDocuments(doc.docs());
+            writer.commit();
+
+            final Automaton automaton = Automatons.patterns(Arrays.asList("user", "domain", IgnoredSourceFieldMapper.NAME));
+            try (
+                DirectoryReader reader = FieldSubsetReader.wrap(
+                    DirectoryReader.open(writer),
+                    new CharacterRunAutomaton(automaton),
+                    IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE,
+                    (fieldName) -> false
+                );
+            ) {
+                assertEquals(
+                    "{\"domain\":\"empire.gov\",\"user\":\"darth.vader\"}",
+                    syntheticSource(mapper, reader, doc.docs().size() - 1)
+                );
+            }
+            IOUtils.close(writer, directory);
+        }
+    }
+
+    public void testSyntheticSourceWithCopyToAndFLSLegacy() throws Exception {
+        final DocumentMapper mapper = createMapperService(
+            IndexVersions.MATCH_ONLY_TEXT_STORED_AS_BYTES, // before IGNORED_SOURCE_COALESCED_ENTRIES_WITH_FF
+            Settings.builder().put("index.mapping.source.mode", "synthetic").build(),
+            mapping(b -> {
+                b.startObject("user").field("type", "keyword").field("copy_to", "catch_all").endObject();
+                b.startObject("domain").field("type", "keyword").field("copy_to", "catch_all").endObject();
+                b.startObject("catch_all").field("type", "text").endObject();
+            })
+        ).documentMapper();
+
+        try (Directory directory = newDirectory()) {
+            final IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig());
+            final ParsedDocument doc = mapper.parse(source(b -> {
+                b.field("user", "darth.vader");
+                b.field("domain", "empire.gov");
+            }));
+            writer.addDocuments(doc.docs());
+            writer.commit();
+
+            final Automaton automaton = Automatons.patterns(Arrays.asList("user", "domain", IgnoredSourceFieldMapper.NAME));
+            try (
+                DirectoryReader reader = FieldSubsetReader.wrap(
+                    DirectoryReader.open(writer),
+                    new CharacterRunAutomaton(automaton),
+                    IgnoredSourceFieldMapper.IgnoredSourceFormat.LEGACY_SINGLE_IGNORED_SOURCE,
+                    (fieldName) -> false
+                );
+            ) {
+                assertEquals(
+                    "{\"domain\":\"empire.gov\",\"user\":\"darth.vader\"}",
+                    syntheticSource(mapper, reader, doc.docs().size() - 1)
+                );
+            }
+            IOUtils.close(writer, directory);
+        }
     }
 
     private static final String DOC_TEST_ITEM = """

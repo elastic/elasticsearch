@@ -11,6 +11,7 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -19,8 +20,11 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -35,6 +39,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -1210,24 +1215,29 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
     }
 
     public void testMoveToBytesReference() throws IOException {
-        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
-        byte[] testData = randomizedByteArrayWithSize(100);
-        out.writeBytes(testData);
+        final var testData = randomByteArrayOfLength(between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        final ReleasableBytesReference releasableBytesReference;
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            out.writeBytes(testData);
 
-        ReleasableBytesReference ref = out.moveToBytesReference();
-        assertArrayEquals(testData, BytesReference.toBytes(ref));
+            releasableBytesReference = out.moveToBytesReference();
+            assertThat(releasableBytesReference, equalBytes(new BytesArray(testData)));
 
-        // Verify that pages are nulled after move
-        assertEquals(0, out.size());
+            // Verify that pages are nulled after move
+            assertEquals(0, out.size());
 
-        // ISE after close
-        expectThrows(IllegalStateException.class, () -> out.write(randomByte()));
-        expectThrows(IllegalStateException.class, () -> out.write(randomByteArrayOfLength(1)));
+            // ISE after close
+            expectThrows(IllegalStateException.class, () -> out.write(randomByte()));
+            expectThrows(IllegalStateException.class, () -> out.write(randomByteArrayOfLength(1)));
 
-        // Verify that close becomes noop after move
-        out.close(); // Should not throw
+            assertThat(recycler.activePageCount(), greaterThan(0));
 
-        ref.close();
+        } // Verifies that closing after move does not throw
+
+        assertThat(recycler.activePageCount(), greaterThan(0));
+        assertThat(releasableBytesReference, equalBytes(new BytesArray(testData)));
+        releasableBytesReference.close();
+        assertThat(recycler.activePageCount(), equalTo(0));
     }
 
     public void testMultipleCloseOperations() throws IOException {
@@ -1510,5 +1520,141 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         assertEquals(writeable.value, read.value);
 
         out.close();
+    }
+
+    public void testToBase64String() throws IOException {
+        Base64.Encoder encoder;
+        Base64.Decoder decoder;
+
+        switch (between(1, 3)) {
+            case 1 -> {
+                encoder = Base64.getEncoder();
+                decoder = Base64.getDecoder();
+            }
+            case 2 -> {
+                encoder = Base64.getUrlEncoder();
+                decoder = Base64.getUrlDecoder();
+            }
+            case 3 -> {
+                encoder = Base64.getMimeEncoder(between(1, 1000), new byte[0]);
+                decoder = Base64.getMimeDecoder();
+            }
+            default -> throw new AssertionError("impossible");
+        }
+
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            final var contents = randomByteArrayOfLength(between(0, recycler.pageSize() * 3));
+            out.write(contents);
+
+            if (Assertions.ENABLED) {
+                // line-breaking encoder not permitted
+                expectThrows(AssertionError.class, () -> out.toBase64String(Base64.getMimeEncoder()));
+                expectThrows(AssertionError.class, () -> out.toBase64String(Base64.getMimeEncoder(10, new byte[] { 0x0a })));
+                expectThrows(AssertionError.class, () -> out.toBase64String(Base64.getMimeEncoder(120, new byte[] { 0x0a })));
+            }
+
+            assertArrayEquals(contents, decoder.decode(out.toBase64String(encoder)));
+        }
+    }
+
+    public void testWriteAllBytesFrom() throws IOException {
+        final var bytes = randomBytesReference(between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            writeAllBytesRandomSlices(out, bytes);
+            assertThat(out.bytes(), equalBytes(bytes));
+        }
+    }
+
+    public void testCircuitBreakerTracking() throws IOException {
+        final var bytes = randomBytesReference(between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        final var expectedAllocation = getExpectedAllocation(bytes.length());
+        final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(expectedAllocation + between(0, 100)));
+        try (var out = new RecyclerBytesStreamOutput(recycler, circuitBreaker)) {
+            writeAllBytesRandomSlices(out, bytes);
+            assertThat(out.bytes(), equalBytes(bytes));
+            assertThat(circuitBreaker.getUsed(), equalTo(expectedAllocation));
+        }
+
+        assertThat(circuitBreaker.getUsed(), equalTo(0L));
+    }
+
+    public void testCircuitBreakerMoveToBytesReference() throws IOException {
+        final var bytes = randomBytesReference(between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        final var expectedTracked = getExpectedAllocation(bytes.length());
+        final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(expectedTracked + between(0, 100)));
+        final ReleasableBytesReference actualBytes;
+        try (var out = new RecyclerBytesStreamOutput(recycler, circuitBreaker)) {
+            writeAllBytesRandomSlices(out, bytes);
+            assertThat(circuitBreaker.getUsed(), equalTo(expectedTracked));
+            actualBytes = out.moveToBytesReference();
+            assertThat(circuitBreaker.getUsed(), equalTo(expectedTracked));
+        }
+
+        assertThat(circuitBreaker.getUsed(), equalTo(expectedTracked));
+        assertThat(actualBytes, equalBytes(bytes));
+        actualBytes.close();
+        assertThat(circuitBreaker.getUsed(), equalTo(0L));
+    }
+
+    public void testCircuitBreakerTripping() {
+        final var bytes = randomBytesReference(between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        final var expectedTracked = getExpectedAllocation(bytes.length());
+        final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(randomLongBetween(0L, expectedTracked - 1L)));
+
+        expectThrows(CircuitBreakingException.class, () -> {
+            try (var out = new RecyclerBytesStreamOutput(recycler, circuitBreaker)) {
+                writeAllBytesRandomSlices(out, bytes);
+            }
+        });
+        assertThat(circuitBreaker.getUsed(), equalTo(0L));
+    }
+
+    public void testCircuitBreakerReleaseOnRecyclerFailure() {
+        final var bytes = randomBytesReference(between(PageCacheRecycler.BYTE_PAGE_SIZE * 3 + 1, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        assertEquals(PageCacheRecycler.BYTE_PAGE_SIZE * 4L, getExpectedAllocation(bytes.length()));
+        final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+
+        final var failingRecycler = new Recycler<BytesRef>() {
+            int pagesLeft = between(0, 3);
+
+            @Override
+            public V<BytesRef> obtain() {
+                if (pagesLeft == 0) {
+                    throw new RuntimeException("simulated recycler failure");
+                }
+                pagesLeft -= 1;
+                return recycler.obtain();
+            }
+
+            @Override
+            public int pageSize() {
+                return recycler.pageSize();
+            }
+        };
+
+        expectThrows(RuntimeException.class, () -> {
+            try (var out = new RecyclerBytesStreamOutput(failingRecycler, circuitBreaker)) {
+                writeAllBytesRandomSlices(out, bytes);
+            }
+        });
+        assertThat(circuitBreaker.getUsed(), equalTo(0L));
+    }
+
+    private static void writeAllBytesRandomSlices(RecyclerBytesStreamOutput out, BytesReference bytes) throws IOException {
+        if (randomBoolean()) {
+            out.writeAllBytesFrom(bytes.streamInput());
+        } else {
+            var remaining = bytes;
+            while (remaining.length() > 0) {
+                var thisSlice = remaining.slice(0, between(1, remaining.length()));
+                remaining = remaining.slice(thisSlice.length(), remaining.length() - thisSlice.length());
+                out.writeAllBytesFrom(thisSlice.streamInput());
+            }
+        }
+    }
+
+    private static long getExpectedAllocation(int length) {
+        final var expectedPages = Math.max(1, (length + PageCacheRecycler.BYTE_PAGE_SIZE - 1) / PageCacheRecycler.BYTE_PAGE_SIZE);
+        return expectedPages * PageCacheRecycler.BYTE_PAGE_SIZE;
     }
 }

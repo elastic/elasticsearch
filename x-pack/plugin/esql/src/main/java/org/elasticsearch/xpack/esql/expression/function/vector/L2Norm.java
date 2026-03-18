@@ -52,10 +52,12 @@ public class L2Norm extends VectorSimilarityFunction {
 
     @FunctionInfo(
         returnType = "double",
-        preview = true,
         description = "Calculates the l2 norm between two dense_vectors.",
         examples = { @Example(file = "vector-l2-norm", tag = "vector-l2-norm") },
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
+        depthOffset = 1  // So this appears as a subsection of vector similarity functions
     )
     public L2Norm(
         Source source,

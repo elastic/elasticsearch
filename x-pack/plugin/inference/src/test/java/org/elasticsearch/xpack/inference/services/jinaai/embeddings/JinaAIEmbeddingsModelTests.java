@@ -12,6 +12,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -19,6 +20,8 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.Map;
 
+import static org.elasticsearch.inference.TaskType.EMBEDDING;
+import static org.elasticsearch.xpack.inference.TaskTypeTests.randomEmbeddingTaskType;
 import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIService.VALID_INPUT_TYPE_VALUES;
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettingsTests.getTaskSettingsMap;
 import static org.hamcrest.Matchers.is;
@@ -27,13 +30,13 @@ import static org.hamcrest.Matchers.sameInstance;
 public class JinaAIEmbeddingsModelTests extends ESTestCase {
 
     public void testConstructor_usesDefaultUrlWhenNull() {
-        var model = createModel(null, randomAlphaOfLength(10), randomAlphaOfLength(10));
+        var model = createTextEmbeddingModel(null, randomAlphaOfLength(10), randomAlphaOfLength(10));
         assertThat(model.uri().toString(), is("https://api.jina.ai/v1/embeddings"));
     }
 
     public void testConstructor_usesUrlWhenSpecified() {
         String url = "some_URL";
-        var model = createModel(url, randomAlphaOfLength(10), randomAlphaOfLength(10));
+        var model = createTextEmbeddingModel(url, randomAlphaOfLength(10), randomAlphaOfLength(10));
         assertThat(model.uri().toString(), is(url));
     }
 
@@ -42,7 +45,8 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
             null,
             "modelName",
             new JinaAIEmbeddingsTaskSettings(randomFrom(VALID_INPUT_TYPE_VALUES), randomBoolean()),
-            "api_key"
+            "api_key",
+            randomEmbeddingTaskType()
         );
 
         var overriddenModel = JinaAIEmbeddingsModel.of(model, Map.of());
@@ -54,7 +58,8 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
             null,
             "modelName",
             new JinaAIEmbeddingsTaskSettings(randomFrom(VALID_INPUT_TYPE_VALUES), randomBoolean()),
-            "api_key"
+            "api_key",
+            randomEmbeddingTaskType()
         );
 
         var overriddenModel = JinaAIEmbeddingsModel.of(model, null);
@@ -63,7 +68,7 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
 
     public void testOf_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreEqual() {
         JinaAIEmbeddingsTaskSettings taskSettings = new JinaAIEmbeddingsTaskSettings(randomFrom(VALID_INPUT_TYPE_VALUES), randomBoolean());
-        var model = createModel(null, "modelName", taskSettings, "api_key");
+        var model = createModel(null, "modelName", taskSettings, "api_key", randomEmbeddingTaskType());
 
         var overriddenModel = JinaAIEmbeddingsModel.of(
             model,
@@ -75,28 +80,37 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
     public void testOf_SetsInputType_FromRequestTaskSettings_IfValid_OverridingStoredTaskSettings() {
         String modelName = "modelName";
         String apiKey = "api_key";
-        var model = createModel(null, modelName, new JinaAIEmbeddingsTaskSettings(InputType.INGEST, true), apiKey);
+        TaskType taskType = randomEmbeddingTaskType();
+        var model = createModel(null, modelName, new JinaAIEmbeddingsTaskSettings(InputType.INGEST, true), apiKey, taskType);
 
         var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(InputType.SEARCH));
-        var expectedModel = createModel(null, modelName, new JinaAIEmbeddingsTaskSettings(InputType.SEARCH, true), apiKey);
+        var expectedModel = createModel(null, modelName, new JinaAIEmbeddingsTaskSettings(InputType.SEARCH, true), apiKey, taskType);
         assertThat(overriddenModel, is(expectedModel));
     }
 
     public void testOf_SetsLateChunking_FromRequestTaskSettings() {
         String modelName = "modelName";
         String apiKey = "api_key";
-        var model = createModel(null, modelName, new JinaAIEmbeddingsTaskSettings(InputType.INGEST, true), apiKey);
+        TaskType taskType = randomEmbeddingTaskType();
+        var model = createModel(null, modelName, new JinaAIEmbeddingsTaskSettings(InputType.INGEST, true), apiKey, taskType);
 
         var overriddenModel = JinaAIEmbeddingsModel.of(model, getTaskSettingsMap(InputType.INGEST, false));
-        var expectedModel = createModel(null, modelName, new JinaAIEmbeddingsTaskSettings(InputType.INGEST, false), apiKey);
+        var expectedModel = createModel(null, modelName, new JinaAIEmbeddingsTaskSettings(InputType.INGEST, false), apiKey, taskType);
         assertThat(overriddenModel, is(expectedModel));
     }
 
     /**
-     * Returns a model with empty task settings, service settings and chunking settings
+     * Returns a model with empty task settings, service settings and chunking settings, using the {@link TaskType#TEXT_EMBEDDING} task type
      */
-    public static JinaAIEmbeddingsModel createModel(String url, String modelName, String apiKey) {
-        return createModel(url, modelName, JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS, apiKey);
+    public static JinaAIEmbeddingsModel createTextEmbeddingModel(String url, String modelName, String apiKey) {
+        return createModel(url, modelName, JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS, apiKey, TaskType.TEXT_EMBEDDING);
+    }
+
+    /**
+     * Returns a model with empty task settings, service settings and chunking settings, using the {@link TaskType#EMBEDDING} task type
+     */
+    public static JinaAIEmbeddingsModel createEmbeddingModel(String url, String modelName, String apiKey) {
+        return createModel(url, modelName, JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS, apiKey, EMBEDDING);
     }
 
     /**
@@ -106,10 +120,11 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
         @Nullable String url,
         String modelName,
         JinaAIEmbeddingsTaskSettings taskSettings,
-        String apiKey
+        String apiKey,
+        TaskType taskType
     ) {
-        var serviceSettings = getEmbeddingServiceSettings(modelName, null, null, null, null, null, false);
-        return createModel(url, serviceSettings, taskSettings, null, apiKey);
+        var serviceSettings = getEmbeddingServiceSettings(modelName, null, null, null, null, null, false, taskType, taskType == EMBEDDING);
+        return createModel(url, serviceSettings, taskSettings, null, apiKey, taskType);
     }
 
     /**
@@ -120,10 +135,11 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
         String modelName,
         JinaAIEmbeddingsTaskSettings taskSettings,
         @Nullable ChunkingSettings chunkingSettings,
-        String apiKey
+        String apiKey,
+        TaskType taskType
     ) {
-        var serviceSettings = getEmbeddingServiceSettings(modelName, null, null, null, null, null, false);
-        return createModel(url, serviceSettings, taskSettings, chunkingSettings, apiKey);
+        var serviceSettings = getEmbeddingServiceSettings(modelName, null, null, null, null, null, false, taskType, taskType == EMBEDDING);
+        return createModel(url, serviceSettings, taskSettings, chunkingSettings, apiKey, taskType);
     }
 
     /**
@@ -135,10 +151,22 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
         @Nullable JinaAIEmbeddingType embeddingType,
         JinaAIEmbeddingsTaskSettings taskSettings,
         String apiKey,
-        @Nullable Integer dimensions
+        @Nullable Integer dimensions,
+        TaskType taskType,
+        boolean multimodalModel
     ) {
-        var serviceSettings = getEmbeddingServiceSettings(modelName, null, null, dimensions, null, embeddingType, dimensions != null);
-        return createModel(url, serviceSettings, taskSettings, null, apiKey);
+        var serviceSettings = getEmbeddingServiceSettings(
+            modelName,
+            null,
+            null,
+            dimensions,
+            null,
+            embeddingType,
+            dimensions != null,
+            taskType,
+            multimodalModel
+        );
+        return createModel(url, serviceSettings, taskSettings, null, apiKey, taskType);
     }
 
     public static JinaAIEmbeddingsModel createModel(
@@ -152,7 +180,9 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
         JinaAIEmbeddingsTaskSettings taskSettings,
         @Nullable ChunkingSettings chunkingSettings,
         String apiKey,
-        boolean dimensionsSetByUser
+        boolean dimensionsSetByUser,
+        TaskType taskType,
+        boolean multimodalModel
     ) {
         var serviceSettings = getEmbeddingServiceSettings(
             modelName,
@@ -161,17 +191,20 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
             dimensions,
             maxInputTokens,
             embeddingType,
-            dimensionsSetByUser
+            dimensionsSetByUser,
+            taskType,
+            multimodalModel
         );
-        return createModel(url, serviceSettings, taskSettings, chunkingSettings, apiKey);
+        return createModel(url, serviceSettings, taskSettings, chunkingSettings, apiKey, taskType);
     }
 
     public static JinaAIEmbeddingsModel createModel(
         @Nullable String url,
-        JinaAIEmbeddingsServiceSettings serviceSettings,
+        BaseJinaAIEmbeddingsServiceSettings serviceSettings,
         JinaAIEmbeddingsTaskSettings taskSettings,
         @Nullable ChunkingSettings chunkingSettings,
-        String apiKey
+        String apiKey,
+        TaskType taskType
     ) {
         return new JinaAIEmbeddingsModel(
             "id",
@@ -179,26 +212,43 @@ public class JinaAIEmbeddingsModelTests extends ESTestCase {
             taskSettings,
             chunkingSettings,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            url
+            url,
+            taskType
         );
     }
 
-    public static JinaAIEmbeddingsServiceSettings getEmbeddingServiceSettings(
+    public static BaseJinaAIEmbeddingsServiceSettings getEmbeddingServiceSettings(
         String modelName,
         @Nullable RateLimitSettings rateLimitSettings,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
         @Nullable JinaAIEmbeddingType embeddingType,
-        boolean dimensionsSetByUser
+        boolean dimensionsSetByUser,
+        TaskType taskType,
+        boolean multimodalModel
     ) {
-        return new JinaAIEmbeddingsServiceSettings(
-            new JinaAIServiceSettings(modelName, rateLimitSettings),
-            similarity,
-            dimensions,
-            maxInputTokens,
-            embeddingType,
-            dimensionsSetByUser
-        );
+        if (taskType == TaskType.TEXT_EMBEDDING) {
+            return new JinaAITextEmbeddingServiceSettings(
+                new JinaAIServiceSettings(modelName, rateLimitSettings),
+                similarity,
+                dimensions,
+                maxInputTokens,
+                embeddingType,
+                dimensionsSetByUser
+            );
+        } else if (taskType == EMBEDDING) {
+            return new JinaAIEmbeddingServiceSettings(
+                new JinaAIServiceSettings(modelName, rateLimitSettings),
+                similarity,
+                dimensions,
+                maxInputTokens,
+                embeddingType,
+                dimensionsSetByUser,
+                multimodalModel
+            );
+        } else {
+            throw new IllegalArgumentException("Invalid taskType: " + taskType);
+        }
     }
 }

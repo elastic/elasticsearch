@@ -47,7 +47,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -881,7 +880,9 @@ public class PainlessExecuteAction {
                             searcher,
                             () -> absoluteStartMillis,
                             null,
-                            emptyMap()
+                            emptyMap(),
+                            null,
+                            null
                         );
                         return handler.apply(context, indexReader.leaves().get(0));
                     }
@@ -894,8 +895,8 @@ public class PainlessExecuteAction {
     public static class RestAction extends BaseRestHandler {
         private final CrossProjectModeDecider crossProjectModeDecider;
 
-        public RestAction(Settings settings) {
-            this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        public RestAction(CrossProjectModeDecider crossProjectModeDecider) {
+            this.crossProjectModeDecider = crossProjectModeDecider;
         }
 
         @Override

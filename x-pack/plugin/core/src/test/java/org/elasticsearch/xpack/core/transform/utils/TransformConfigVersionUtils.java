@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -33,22 +32,8 @@ public class TransformConfigVersionUtils {
         return ESTestCase.randomFrom(ALL_VERSIONS.stream().filter(v -> ignore.contains(v) == false).collect(Collectors.toList()));
     }
 
-    /** Returns a random {@link TransformConfigVersion} from all available versions. */
-    public static TransformConfigVersion randomVersion(Random random) {
-        return ALL_VERSIONS.get(random.nextInt(ALL_VERSIONS.size()));
-    }
-
     /** Returns a random {@link TransformConfigVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
     public static TransformConfigVersion randomVersionBetween(
-        @Nullable TransformConfigVersion minVersion,
-        @Nullable TransformConfigVersion maxVersion
-    ) {
-        return randomVersionBetween(random(), minVersion, maxVersion);
-    }
-
-    /** Returns a random {@link TransformConfigVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
-    public static TransformConfigVersion randomVersionBetween(
-        Random random,
         @Nullable TransformConfigVersion minVersion,
         @Nullable TransformConfigVersion maxVersion
     ) {
@@ -71,7 +56,7 @@ public class TransformConfigVersionUtils {
         } else {
             // minVersionIndex is inclusive so need to add 1 to this index
             int range = maxVersionIndex + 1 - minVersionIndex;
-            return ALL_VERSIONS.get(minVersionIndex + random.nextInt(range));
+            return ALL_VERSIONS.get(minVersionIndex + random().nextInt(range));
         }
     }
 
@@ -95,7 +80,7 @@ public class TransformConfigVersionUtils {
     }
 
     /** Returns a random {@code TransformConfigVersion} that is compatible with {@link TransformConfigVersion#CURRENT} */
-    public static TransformConfigVersion randomCompatibleVersion(Random random) {
-        return randomVersionBetween(random, TransformConfigVersion.FIRST_TRANSFORM_VERSION, TransformConfigVersion.CURRENT);
+    public static TransformConfigVersion randomCompatibleVersion() {
+        return randomVersionBetween(TransformConfigVersion.FIRST_TRANSFORM_VERSION, TransformConfigVersion.CURRENT);
     }
 }

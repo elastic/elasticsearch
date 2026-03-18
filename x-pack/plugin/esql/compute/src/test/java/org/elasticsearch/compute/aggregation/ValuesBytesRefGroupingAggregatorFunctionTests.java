@@ -12,8 +12,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.LongBytesRefTupleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.LongBytesRefTupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.Arrays;
@@ -22,7 +22,8 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -63,9 +64,14 @@ public class ValuesBytesRefGroupingAggregatorFunctionTests extends GroupingAggre
             case 0 -> assertThat(resultValue, nullValue());
             case 1 -> assertThat(resultValue, equalTo(values[0]));
             default -> {
-                TreeSet<?> set = new TreeSet<>((List<?>) resultValue);
+                TreeSet<Object> set = new TreeSet<>();
+                if (resultValue instanceof List<?> l) {
+                    set.addAll(l);
+                } else {
+                    set.add(resultValue);
+                }
                 if (false == set.containsAll(Arrays.asList(values))) {
-                    assertThat(set, containsInAnyOrder(values));
+                    assertMap(set.stream().toList(), matchesList(Arrays.asList(values)));
                 }
             }
         }

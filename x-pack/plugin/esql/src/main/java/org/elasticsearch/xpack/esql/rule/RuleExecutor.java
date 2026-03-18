@@ -12,10 +12,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 
 public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
@@ -100,84 +97,23 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
     protected abstract Iterable<RuleExecutor.Batch<TreeType>> batches();
 
-    public class Transformation {
-        private final TreeType before, after;
-        private final String name;
-        private Boolean lazyHasChanged;
-
-        Transformation(String name, TreeType plan, Function<TreeType, TreeType> transform) {
-            this.name = name;
-            this.before = plan;
-            this.after = transform.apply(before);
-        }
-
-        public boolean hasChanged() {
-            if (lazyHasChanged == null) {
-                lazyHasChanged = before.equals(after) == false;
-            }
-            return lazyHasChanged;
-        }
-
-        public String name() {
-            return name;
-        }
-
-        public TreeType before() {
-            return before;
-        }
-
-        public TreeType after() {
-            return after;
-        }
-    }
-
-    public class ExecutionInfo {
-
-        private final TreeType before, after;
-        private final Map<Batch<TreeType>, List<Transformation>> transformations;
-
-        ExecutionInfo(TreeType before, TreeType after, Map<Batch<TreeType>, List<Transformation>> transformations) {
-            this.before = before;
-            this.after = after;
-            this.transformations = transformations;
-        }
-
-        public TreeType before() {
-            return before;
-        }
-
-        public TreeType after() {
-            return after;
-        }
-
-        public Map<Batch<TreeType>, List<Transformation>> transformations() {
-            return transformations;
-        }
-    }
-
     protected final TreeType execute(TreeType plan) {
-        return executeWithInfo(plan).after;
-    }
-
-    protected final ExecutionInfo executeWithInfo(TreeType plan) {
         TreeType currentPlan = plan;
 
         long totalDuration = 0;
 
-        Map<Batch<TreeType>, List<Transformation>> transformations = new LinkedHashMap<>();
         if (batches == null) {
             batches = batches();
         }
 
         for (Batch<TreeType> batch : batches) {
             int batchRuns = 0;
-            List<Transformation> tfs = new ArrayList<>();
-            transformations.put(batch, tfs);
 
             boolean hasChanged = false;
             long batchStart = System.currentTimeMillis();
             long batchDuration = 0;
 
+            TreeType before = currentPlan;
             // run each batch until no change occurs or the limit is reached
             do {
                 hasChanged = false;
@@ -187,14 +123,15 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                     if (log.isTraceEnabled()) {
                         log.trace("About to apply rule {}", rule);
                     }
-                    Transformation tf = new Transformation(rule.name(), currentPlan, transform(rule));
-                    tfs.add(tf);
-                    currentPlan = tf.after;
 
-                    if (tf.hasChanged()) {
+                    TreeType beforeRule = currentPlan;
+                    TreeType afterRule = transform(rule).apply(currentPlan);
+                    currentPlan = afterRule;
+
+                    if (Objects.equals(beforeRule, afterRule) == false) {
                         hasChanged = true;
                         if (changeLog.isTraceEnabled()) {
-                            changeLog.trace("Rule {} applied with change\n{}", rule, NodeUtils.diffString(tf.before, tf.after));
+                            changeLog.trace("Rule {} applied with change\n{}", rule, NodeUtils.diffString(beforeRule, afterRule));
                         }
                     } else {
                         if (log.isTraceEnabled()) {
@@ -204,16 +141,11 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                 }
                 batchDuration = System.currentTimeMillis() - batchStart;
             } while (hasChanged && batch.limit.reached(batchRuns) == false);
+            TreeType after = currentPlan;
 
             totalDuration += batchDuration;
 
             if (log.isTraceEnabled()) {
-                TreeType before = plan;
-                TreeType after = plan;
-                if (tfs.isEmpty() == false) {
-                    before = tfs.get(0).before;
-                    after = tfs.get(tfs.size() - 1).after;
-                }
                 log.trace(
                     "Batch {} applied took {}\n{}",
                     batch.name,
@@ -227,7 +159,7 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
             log.debug("Tree transformation took {}\n{}", TimeValue.timeValueMillis(totalDuration), NodeUtils.diffString(plan, currentPlan));
         }
 
-        return new ExecutionInfo(plan, currentPlan, transformations);
+        return currentPlan;
     }
 
     protected Function<TreeType, TreeType> transform(Rule<?, TreeType> rule) {

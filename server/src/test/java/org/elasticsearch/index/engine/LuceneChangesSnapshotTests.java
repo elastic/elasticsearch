@@ -39,8 +39,7 @@ public class LuceneChangesSnapshotTests extends SearchBasedChangesSnapshotTests 
             toSeqNo,
             requiredFullRange,
             singleConsumer,
-            accessStats,
-            indexVersionCreated
+            accessStats
         );
     }
 

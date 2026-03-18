@@ -66,6 +66,10 @@ public final class VectorBinaryComparison extends VectorBinaryOperator {
         return boolMode;
     }
 
+    public boolean filterMode() {
+        return boolMode == false;
+    }
+
     @Override
     public VectorBinaryOperator replaceChildren(LogicalPlan newLeft, LogicalPlan newRight) {
         return new VectorBinaryComparison(source(), newLeft, newRight, match(), boolMode, op());

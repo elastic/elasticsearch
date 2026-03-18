@@ -69,10 +69,20 @@ public class NvidiaRerankModel extends NvidiaModel {
         NvidiaRerankServiceSettings serviceSettings,
         SecretSettings secrets
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE),
             new ModelSecrets(secrets)
         );
+    }
+
+    /**
+     * Constructor for creating an {@link NvidiaRerankModel} from model configurations and secrets.
+     *
+     * @param modelConfigurations the configurations for the model
+     * @param modelSecrets the secret settings for the model
+     */
+    public NvidiaRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets);
     }
 
     @Override

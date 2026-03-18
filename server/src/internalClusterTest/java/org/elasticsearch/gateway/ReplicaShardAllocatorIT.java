@@ -11,16 +11,22 @@ package org.elasticsearch.gateway;
 
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -31,14 +37,19 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.junit.After;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -57,9 +68,16 @@ import static org.hamcrest.Matchers.not;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ReplicaShardAllocatorIT extends ESIntegTestCase {
 
+    private static final Set<String> NOT_PREFERRED_NODES = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
+    @After
+    public void clearNotPreferredNodes() {
+        NOT_PREFERRED_NODES.clear();
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class, InternalSettingsPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class, InternalSettingsPlugin.class, NotPreferredPlugin.class);
     }
 
     /**
@@ -408,6 +426,72 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         updateClusterSettings(Settings.builder().putNull(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()));
         ensureGreen(indexName);
         assertNoOpRecoveries(indexName);
+    }
+
+    /**
+     * Verify that when a node with a shard copy returns NOT_PREFERRED from allocation deciders,
+     * the replica is still allocated there and can perform a no-op recovery.
+     */
+    public void testNoopRecoveryOnNotPreferredNode() throws Exception {
+        String indexName = randomIdentifier();
+        String nodeWithPrimary = internalCluster().startNode();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(indexName)
+                .setSettings(
+                    indexSettings(1, 1).put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 1.0f)
+                        .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+                        .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+                        .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "1ms")
+                )
+        );
+        String nodeWithReplica = internalCluster().startDataOnlyNode();
+        Settings nodeWithReplicaSettings = internalCluster().dataPathSettings(nodeWithReplica);
+        ensureGreen(indexName);
+        indexRandom(randomBoolean(), indexName, between(100, 500));
+        indicesAdmin().prepareFlush(indexName).get();
+        if (randomBoolean()) {
+            indexRandom(false, indexName, between(0, 80));
+        }
+        ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
+
+        // Disable allocation, then stop the replica so the shard becomes unassigned without immediately reallocating
+        updateClusterSettings(
+            Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.PRIMARIES)
+        );
+        internalCluster().stopNode(nodeWithReplica);
+
+        // Start a node with the old replica's data and mark it as NOT_PREFERRED
+        nodeWithReplica = internalCluster().startDataOnlyNode(nodeWithReplicaSettings);
+        String replicaNodeId = getNodeId(nodeWithReplica);
+        NOT_PREFERRED_NODES.add(replicaNodeId);
+        if (randomBoolean()) {
+            // Sometimes start another node, which will have no state and also be NOT_PREFERRED
+            String surplusNode = internalCluster().startDataOnlyNode();
+            NOT_PREFERRED_NODES.add(getNodeId(surplusNode));
+        }
+
+        // Re-enable allocation — the replica should be allocated to the NOT_PREFERRED node via noop recovery
+        updateClusterSettings(Settings.builder().putNull(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()));
+        ensureGreen(indexName);
+        assertThat(internalCluster().nodesInclude(indexName), containsInAnyOrder(nodeWithPrimary, nodeWithReplica));
+        assertNoOpRecoveries(indexName);
+    }
+
+    public static class NotPreferredPlugin extends Plugin implements ClusterPlugin {
+
+        @Override
+        public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+            return List.of(new AllocationDecider() {
+                @Override
+                public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                    if (NOT_PREFERRED_NODES.contains(node.nodeId())) {
+                        return Decision.NOT_PREFERRED;
+                    }
+                    return Decision.YES;
+                }
+            });
+        }
     }
 
     public static void ensureActivePeerRecoveryRetentionLeasesAdvanced(String indexName) throws Exception {

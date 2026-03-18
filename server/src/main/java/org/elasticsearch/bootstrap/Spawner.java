@@ -11,7 +11,6 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.nativeaccess.NativeAccess;
@@ -124,21 +123,19 @@ final class Spawner implements Closeable {
      * stdout, and stderr streams, but the references to these streams are not available to code outside this package.
      */
     private static Process spawnNativeController(final Path spawnPath, final Path tmpPath) throws IOException {
-        final String command;
-        if (Constants.WINDOWS) {
-            /*
-             * We have to get the short path name or starting the process could fail due to max path limitations. The underlying issue here
-             * is that starting the process on Windows ultimately involves the use of CreateProcessW. CreateProcessW has a limitation that
-             * if its first argument (the application name) is null, then its second argument (the command line for the process to start) is
-             * restricted in length to 260 characters (cf. https://msdn.microsoft.com/en-us/library/windows/desktop/ms682425.aspx). Since
-             * this is exactly how the JDK starts the process on Windows (cf.
-             * http://hg.openjdk.java.net/jdk8/jdk8/jdk/file/687fd7c7986d/src/windows/native/java/lang/ProcessImpl_md.c#l319), this
-             * limitation is in force. As such, we use the short name to avoid any such problems.
-             */
-            command = NativeAccess.instance().getWindowsFunctions().getShortPathName(spawnPath.toString());
-        } else {
-            command = spawnPath.toString();
-        }
+        /*
+         * We have to get the short path name or starting the process could fail due to max path limitations. The underlying issue here
+         * is that starting the process on Windows ultimately involves the use of CreateProcessW. CreateProcessW has a limitation that
+         * if its first argument (the application name) is null, then its second argument (the command line for the process to start) is
+         * restricted in length to 260 characters (cf. https://msdn.microsoft.com/en-us/library/windows/desktop/ms682425.aspx). Since
+         * this is exactly how the JDK starts the process on Windows (cf.
+         * http://hg.openjdk.java.net/jdk8/jdk8/jdk/file/687fd7c7986d/src/windows/native/java/lang/ProcessImpl_md.c#l319), this
+         * limitation is in force. As such, we use the short name to avoid any such problems.
+         */
+        String originalPath = spawnPath.toString();
+        final String command = NativeAccess.onWindowsReturn(windowsNativeAccess -> windowsNativeAccess.getShortPathName(originalPath))
+            .orElse(originalPath);
+
         final ProcessBuilder pb = new ProcessBuilder(command);
 
         // the only environment variable passes on the path to the temporary directory

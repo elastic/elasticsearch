@@ -158,6 +158,7 @@ public class Querier {
             options = IndicesOptions.builder(options).crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true)).build();
         }
         final OpenPointInTimeRequest openPitRequest = new OpenPointInTimeRequest(search.indices()).indicesOptions(options)
+            .allowPartialSearchResults(cfg.allowPartialSearchResults())
             .keepAlive(cfg.pageTimeout());
         if (cfg.crossProject() && cfg.projectRouting() != null) {
             openPitRequest.projectRouting(cfg.projectRouting());
@@ -190,6 +191,13 @@ public class Querier {
         }));
     }
 
+    /**
+     * Refreshes the PIT ID on the search source with the new value returned in the response.
+     */
+    public static void refreshPointInTime(SearchResponse response, SearchSourceBuilder source) {
+        source.pointInTimeBuilder(new PointInTimeBuilder(response.pointInTimeId()));
+    }
+
     public static void closePointInTime(Client client, BytesReference pointInTimeId, ActionListener<Boolean> listener) {
         if (pointInTimeId != null) {
             // request should not be made with the parent task assigned because the parent task might already be canceled
@@ -203,6 +211,35 @@ public class Querier {
         } else {
             listener.onResponse(true);
         }
+    }
+
+    /**
+     * Closes the point-in-time associated with the search response, then notifies the given listener
+     * with the last page. Retains a reference to the response so it stays alive until the close
+     * callback runs (the transport releases its ref when the search listener returns, but we consume
+     * the response in the close callback).
+     */
+    public static void closePointInTimeWithLastPage(Client client, SearchResponse response, Page lastPage, ActionListener<Page> listener) {
+        response.incRef();
+        closePointInTime(client, response.pointInTimeId(), new ActionListener<Boolean>() {
+            @Override
+            public void onResponse(Boolean r) {
+                try {
+                    listener.onResponse(lastPage);
+                } finally {
+                    response.decRef();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    listener.onFailure(e);
+                } finally {
+                    response.decRef();
+                }
+            }
+        });
     }
 
     /**

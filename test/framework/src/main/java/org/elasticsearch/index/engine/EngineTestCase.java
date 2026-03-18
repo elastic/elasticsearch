@@ -12,9 +12,10 @@ package org.elasticsearch.index.engine;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
@@ -31,7 +32,6 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -58,6 +58,7 @@ import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -70,6 +71,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.EngineTestUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -81,14 +83,15 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
@@ -123,7 +126,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -179,10 +181,6 @@ public abstract class EngineTestCase extends ESTestCase {
     // A default primary term is used by engine instances created in this test.
     protected final PrimaryTermSupplier primaryTerm = new PrimaryTermSupplier(1L);
     protected static SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions = SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES;
-
-    protected static void assertVisibleCount(Engine engine, int numDocs) throws IOException {
-        assertVisibleCount(engine, numDocs, true);
-    }
 
     protected static void assertVisibleCount(Engine engine, int numDocs, boolean refresh) throws IOException {
         if (refresh) {
@@ -394,6 +392,42 @@ public abstract class EngineTestCase extends ESTestCase {
         );
     }
 
+    public static EngineConfig copy(EngineConfig config, MapperService mapperService) {
+        return new EngineConfig(
+            config.getShardId(),
+            config.getThreadPool(),
+            config.getThreadPoolMergeExecutorService(),
+            config.getIndexSettings(),
+            config.getWarmer(),
+            config.getStore(),
+            config.getMergePolicy(),
+            config.getAnalyzer(),
+            config.getSimilarity(),
+            config.getCodecProvider(),
+            config.getEventListener(),
+            config.getQueryCache(),
+            config.getQueryCachingPolicy(),
+            config.getTranslogConfig(),
+            config.getFlushMergesAfter(),
+            config.getExternalRefreshListener(),
+            config.getInternalRefreshListener(),
+            config.getIndexSort(),
+            config.getCircuitBreakerService(),
+            config.getGlobalCheckpointSupplier(),
+            config.retentionLeasesSupplier(),
+            config.getPrimaryTermSupplier(),
+            config.getSnapshotCommitSupplier(),
+            config.getLeafSorter(),
+            config.getRelativeTimeInNanosSupplier(),
+            config.getIndexCommitListener(),
+            config.isPromotableToPrimary(),
+            mapperService,
+            config.getEngineResetLock(),
+            config.getMergeMetrics(),
+            config.getIndexDeletionPolicyWrapper()
+        );
+    }
+
     @Override
     @After
     public void tearDown() throws Exception {
@@ -433,17 +467,22 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static ParsedDocument createParsedDoc(String id, String routing) {
-        return testParsedDocument(id, routing, testDocumentWithTextField(), new BytesArray("{ \"value\" : \"test\" }"), null, false);
+        return testParsedDocument(id, routing, testDocumentWithTextField(), new BytesArray("{ \"value\" : \"test\" }"), null, false, false);
     }
 
     public static ParsedDocument createParsedDoc(String id, String routing, boolean recoverySource) {
+        return createParsedDoc(id, routing, recoverySource, false);
+    }
+
+    public static ParsedDocument createParsedDoc(String id, String routing, boolean recoverySource, boolean syntheticId) {
         return testParsedDocument(
             id,
             routing,
             testDocumentWithTextField(),
             new BytesArray("{ \"value\" : \"test\" }"),
             null,
-            recoverySource
+            recoverySource,
+            syntheticId
         );
     }
 
@@ -452,9 +491,9 @@ public abstract class EngineTestCase extends ESTestCase {
         String routing,
         LuceneDocument document,
         BytesReference source,
-        Mapping mappingUpdate
+        CompressedXContent mappingUpdate
     ) {
-        return testParsedDocument(id, routing, document, source, mappingUpdate, false);
+        return testParsedDocument(id, routing, document, source, mappingUpdate, false, false);
     }
 
     protected static ParsedDocument testParsedDocument(
@@ -462,10 +501,40 @@ public abstract class EngineTestCase extends ESTestCase {
         String routing,
         LuceneDocument document,
         BytesReference source,
-        Mapping mappingUpdate,
+        CompressedXContent mappingUpdate,
         boolean recoverySource
     ) {
-        Field idField = new StringField("_id", Uid.encodeId(id), Field.Store.YES);
+        return testParsedDocument(id, routing, document, source, mappingUpdate, recoverySource, false);
+    }
+
+    protected static ParsedDocument testParsedDocument(
+        String id,
+        String routing,
+        LuceneDocument document,
+        BytesReference source,
+        CompressedXContent mappingUpdate,
+        boolean recoverySource,
+        boolean syntheticId
+    ) {
+        var uid = Uid.encodeId(id);
+        final Field idField;
+        if (syntheticId) {
+            idField = IdFieldMapper.syntheticIdField(uid);
+            var timeSeriesId = TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(uid);
+            var timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(uid);
+            int routingHash = TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(uid);
+
+            document.add(SortedDocValuesField.indexedField(TimeSeriesIdFieldMapper.NAME, timeSeriesId));
+            document.add(SortedNumericDocValuesField.indexedField("@timestamp", timestamp));
+            document.add(
+                new SortedDocValuesField(
+                    TimeSeriesRoutingHashFieldMapper.NAME,
+                    Uid.encodeId(TimeSeriesRoutingHashFieldMapper.encode(routingHash))
+                )
+            );
+        } else {
+            idField = new StringField("_id", Uid.encodeId(id), Field.Store.YES);
+        }
         Field versionField = new NumericDocValuesField("_version", 0);
         var seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID(seqNoIndexOptions);
         document.add(idField);
@@ -840,8 +909,7 @@ public abstract class EngineTestCase extends ESTestCase {
     ) {
         final IndexWriterConfig iwc = newIndexWriterConfig();
         final TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
-        final Engine.EventListener eventListener = new Engine.EventListener() {
-        }; // we don't need to notify anybody in this test
+        final Engine.EventListener eventListener = new Engine.EventListener() {}; // we don't need to notify anybody in this test
         final List<ReferenceManager.RefreshListener> extRefreshListenerList = externalRefreshListener == null
             ? emptyList()
             : Collections.singletonList(externalRefreshListener);
@@ -1290,49 +1358,8 @@ public abstract class EngineTestCase extends ESTestCase {
     /**
      * Gets a collection of tuples of docId, sequence number, and primary term of all live documents in the provided engine.
      */
-    public static List<DocIdSeqNoAndSource> getDocIds(Engine engine, boolean refresh) throws IOException {
-        if (refresh) {
-            engine.refresh("test_get_doc_ids");
-        }
-        try (Engine.Searcher searcher = engine.acquireSearcher("test_get_doc_ids", Engine.SearcherScope.INTERNAL)) {
-            List<DocIdSeqNoAndSource> docs = new ArrayList<>();
-            for (LeafReaderContext leafContext : searcher.getIndexReader().leaves()) {
-                LeafReader reader = leafContext.reader();
-                NumericDocValues seqNoDocValues = reader.getNumericDocValues(SeqNoFieldMapper.NAME);
-                NumericDocValues primaryTermDocValues = reader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
-                NumericDocValues versionDocValues = reader.getNumericDocValues(VersionFieldMapper.NAME);
-                Bits liveDocs = reader.getLiveDocs();
-                StoredFields storedFields = reader.storedFields();
-                for (int i = 0; i < reader.maxDoc(); i++) {
-                    if (liveDocs == null || liveDocs.get(i)) {
-                        if (primaryTermDocValues.advanceExact(i) == false) {
-                            // We have to skip non-root docs because its _id field is not stored (indexed only).
-                            continue;
-                        }
-                        final long primaryTerm = primaryTermDocValues.longValue();
-                        Document doc = storedFields.document(i, Set.of(IdFieldMapper.NAME, SourceFieldMapper.NAME));
-                        BytesRef binaryID = doc.getBinaryValue(IdFieldMapper.NAME);
-                        String id = Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length));
-                        final BytesRef source = doc.getBinaryValue(SourceFieldMapper.NAME);
-                        if (seqNoDocValues.advanceExact(i) == false) {
-                            throw new AssertionError("seqNoDocValues not found for doc[" + i + "] id[" + id + "]");
-                        }
-                        final long seqNo = seqNoDocValues.longValue();
-                        if (versionDocValues.advanceExact(i) == false) {
-                            throw new AssertionError("versionDocValues not found for doc[" + i + "] id[" + id + "]");
-                        }
-                        final long version = versionDocValues.longValue();
-                        docs.add(new DocIdSeqNoAndSource(id, source, seqNo, primaryTerm, version));
-                    }
-                }
-            }
-            docs.sort(
-                Comparator.comparingLong(DocIdSeqNoAndSource::seqNo)
-                    .thenComparingLong(DocIdSeqNoAndSource::primaryTerm)
-                    .thenComparing((DocIdSeqNoAndSource::id))
-            );
-            return docs;
-        }
+    protected List<DocIdSeqNoAndSource> getDocIds(Engine engine, boolean refresh) throws IOException {
+        return EngineTestUtils.getDocIds(engine, refresh);
     }
 
     /**
@@ -1586,6 +1613,13 @@ public abstract class EngineTestCase extends ESTestCase {
      */
     public static long getNumVersionLookups(Engine engine) {
         return ((InternalEngine) engine).getNumVersionLookups();
+    }
+
+    /**
+     * Returns the number of times a version was looked up from the index.
+     */
+    public static long getNumIndexVersionLookups(Engine engine) {
+        return ((InternalEngine) engine).getNumIndexVersionsLookups();
     }
 
     public static long getInFlightDocCount(Engine engine) {

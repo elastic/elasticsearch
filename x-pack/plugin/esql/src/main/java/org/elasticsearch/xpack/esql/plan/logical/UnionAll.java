@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.util.List;
 import java.util.Map;
@@ -43,8 +42,13 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
     }
 
     @Override
-    public Fork replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
+    public UnionAll replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
         return new UnionAll(source(), subPlans, output);
+    }
+
+    @Override
+    public UnionAll refreshOutput() {
+        return new UnionAll(source(), children(), refreshedOutput());
     }
 
     @Override
@@ -81,7 +85,7 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
 
                     // UnionAll with unsupported types should not be allowed, otherwise runtime couldn't handle it
                     // Verifier checkUnresolvedAttributes should have caught it already, this check is similar to Fork
-                    if (expected == DataType.UNSUPPORTED) {
+                    if (expected == null || expected == DataType.UNSUPPORTED) {
                         continue;
                     }
 
@@ -99,29 +103,6 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
                     }
                 }
             });
-        }
-
-        // Check InlineStats is not in the parent plan of UnionAll, as Limit is not allowed in the child plans of InlineStats.
-        // Refer to Verifier.checkLimitBeforeInlineStats for details, provide a clear error message for subqueries here.
-        if (plan instanceof InlineStats inlineStats) {
-            Holder<UnionAll> inlineStatsDescendantUnionAll = new Holder<>();
-            inlineStats.forEachDownMayReturnEarly((p, breakEarly) -> {
-                if (p instanceof UnionAll unionAll) {
-                    inlineStatsDescendantUnionAll.set(unionAll);
-                    breakEarly.set(true);
-                    return;
-                }
-            });
-
-            if (inlineStatsDescendantUnionAll.get() != null) {
-                failures.add(
-                    Failure.fail(
-                        inlineStatsDescendantUnionAll.get(),
-                        "INLINE STATS after subquery is not supported, "
-                            + "as INLINE STATS cannot be used after an explicit or implicit LIMIT command"
-                    )
-                );
-            }
         }
     }
 

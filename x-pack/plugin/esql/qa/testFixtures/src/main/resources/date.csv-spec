@@ -339,7 +339,7 @@ ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2024-01-01T00:
 2023-12-31T23:59:59.999Z|2024-01-01T00:00:00.000Z|1                  |0
 ;
 
-evalDateDiffYearAsWhole1Year
+evalDateDiffYearAsWhole1YearEndOfYear
 required_capability: date_diff_year_calendarial
 
 ROW from=TO_DATETIME("2023-12-31T23:59:59.999Z"), to=TO_DATETIME("2025-01-01T00:00:00")
@@ -1067,7 +1067,7 @@ date:date                 | year:long
 ;
 
 dateExtractSetTimezoneFrom
-required_capability: global_timezone_parameter
+required_capability: global_timezone_parameter_with_output
 
 set time_zone="+07:00"\;
 from employees
@@ -1082,7 +1082,7 @@ emp_no:integer | hire_date:date           | hour:long
 ;
 
 dateExtractSetTimezoneRow
-required_capability: global_timezone_parameter
+required_capability: global_timezone_parameter_with_output
 
 set time_zone="+07:00"\;
 ROW hire_date = "2020-02-28T23:00:00.000Z"::date
@@ -1550,7 +1550,7 @@ emp_no:integer | hire_date:datetime       | first_day_of_month:keyword
 10010          | 1989-08-24T00:00:00.000Z | Tuesday
 ;
 
-dayNameNestedCall
+dayNameNestedCallDesc
 required_capability:fn_day_name
 from employees 
 | sort emp_no desc
@@ -1580,7 +1580,7 @@ emp_no:integer | birth_date:date                     | hire_date:date           
 ;
 
 dayNameSetTimezoneRow
-required_capability: global_timezone_parameter
+required_capability: global_timezone_parameter_with_output
 
 set time_zone="-02:00"\;
 row dt = to_datetime("1953-09-02T00:00:00.000Z")
@@ -1591,7 +1591,7 @@ dt:date   | weekday:keyword
 ;
 
 dayNameSetTimezoneFrom
-required_capability: global_timezone_parameter
+required_capability: global_timezone_parameter_with_output
 
 set time_zone="-02:00"\;
 from employees
@@ -1669,7 +1669,7 @@ emp_no:integer | hire_date:datetime       | monthName:keyword
 10010          | 1989-08-24T00:00:00.000Z | August
 ;
 
-monthNameNestedCall
+monthNameNestedCallDesc
 required_capability:fn_month_name
 from employees 
 | sort emp_no desc
@@ -1702,7 +1702,7 @@ emp_no:integer | birth_date:date                     | hire_date:date           
 ;
 
 monthNameSetTimezoneRow
-required_capability: global_timezone_parameter
+required_capability: global_timezone_parameter_with_output
 
 set time_zone="Europe/Paris"\;
 row dt = to_datetime("1996-01-31T23:00:00.000Z")
@@ -1713,7 +1713,7 @@ dt:date                  | monthName:keyword
 ;
 
 monthNameSetTimezoneFrom
-required_capability: global_timezone_parameter
+required_capability: global_timezone_parameter_with_output
 
 set time_zone="-10:00"\;
 from employees 

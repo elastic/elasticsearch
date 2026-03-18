@@ -149,8 +149,13 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public AnnotatedTextFieldMapper build(MapperBuilderContext context) {
-            FieldType fieldType = TextParams.buildFieldType(() -> true, store, indexOptions, norms, termVectors);
+            FieldType fieldType = TextParams.buildFieldType(() -> true, store, () -> false, indexOptions, norms, termVectors);
             if (fieldType.indexOptions() == IndexOptions.NONE) {
                 throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields must be indexed");
             }

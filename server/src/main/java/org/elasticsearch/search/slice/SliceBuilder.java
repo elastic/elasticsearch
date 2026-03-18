@@ -198,7 +198,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         if (numShards == 1) {
             return createSliceQuery(id, max, context, isScroll);
         }
-        if (max >= numShards) {
+        if (max > numShards) {
             // the number of slices is greater than the number of shards
             // in such case we can reduce the number of requested shards by slice
 
@@ -223,7 +223,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
             int shardSlice = id / numShards;
             return createSliceQuery(shardSlice, numSlicesInShard, context, isScroll);
         }
-        // the number of shards is greater than the number of slices
+        // the number of shards is greater than or equal to the number of slices
 
         // check if the shard is assigned to the slice
         int targetSlice = shardIndex % max;
@@ -238,9 +238,6 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         if (field == null) {
             return isScroll ? new TermsSliceQuery(IdFieldMapper.NAME, id, max) : new DocIdSliceQuery(id, max);
         } else if (IdFieldMapper.NAME.equals(field)) {
-            if (isScroll == false) {
-                throw new IllegalArgumentException("cannot slice on [_id] when using [point-in-time]");
-            }
             return new TermsSliceQuery(IdFieldMapper.NAME, id, max);
         } else {
             MappedFieldType type = context.getFieldType(field);

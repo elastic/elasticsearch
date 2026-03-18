@@ -36,16 +36,11 @@ public final class HistogramMergeTDigestGroupingAggregatorFunction implements Gr
 
   private final DriverContext driverContext;
 
-  public HistogramMergeTDigestGroupingAggregatorFunction(List<Integer> channels,
-      TDigestStates.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static HistogramMergeTDigestGroupingAggregatorFunction create(List<Integer> channels,
+  HistogramMergeTDigestGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new HistogramMergeTDigestGroupingAggregatorFunction(channels, HistogramMergeTDigestAggregator.initGrouping(driverContext.bigArrays(), driverContext), driverContext);
+    this.channels = channels;
+    this.state = HistogramMergeTDigestAggregator.initGrouping(driverContext.bigArrays(), driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -85,6 +80,7 @@ public final class HistogramMergeTDigestGroupingAggregatorFunction implements Gr
   }
 
   private void addRawInput(int positionOffset, IntArrayBlock groups, TDigestBlock valueBlock) {
+    TDigestHolder valueScratch = new TDigestHolder();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -100,7 +96,7 @@ public final class HistogramMergeTDigestGroupingAggregatorFunction implements Gr
         int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
         int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
         for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
-          TDigestHolder valueValue = valueBlock.getTDigestHolder(valueOffset);
+          TDigestHolder valueValue = valueBlock.getTDigestHolder(valueOffset, valueScratch);
           HistogramMergeTDigestAggregator.combine(state, groupId, valueValue);
         }
       }
@@ -122,6 +118,7 @@ public final class HistogramMergeTDigestGroupingAggregatorFunction implements Gr
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert value.getPositionCount() == seen.getPositionCount();
+    TDigestHolder valueScratch = new TDigestHolder();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -131,12 +128,13 @@ public final class HistogramMergeTDigestGroupingAggregatorFunction implements Gr
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        HistogramMergeTDigestAggregator.combineIntermediate(state, groupId, value.getTDigestHolder(value.getFirstValueIndex(valuesPosition)), seen.getBoolean(valuesPosition));
+        HistogramMergeTDigestAggregator.combineIntermediate(state, groupId, value.getTDigestHolder(value.getFirstValueIndex(valuesPosition), valueScratch), seen.getBoolean(valuesPosition));
       }
     }
   }
 
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, TDigestBlock valueBlock) {
+    TDigestHolder valueScratch = new TDigestHolder();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -152,7 +150,7 @@ public final class HistogramMergeTDigestGroupingAggregatorFunction implements Gr
         int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
         int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
         for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
-          TDigestHolder valueValue = valueBlock.getTDigestHolder(valueOffset);
+          TDigestHolder valueValue = valueBlock.getTDigestHolder(valueOffset, valueScratch);
           HistogramMergeTDigestAggregator.combine(state, groupId, valueValue);
         }
       }
@@ -174,6 +172,7 @@ public final class HistogramMergeTDigestGroupingAggregatorFunction implements Gr
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert value.getPositionCount() == seen.getPositionCount();
+    TDigestHolder valueScratch = new TDigestHolder();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -183,12 +182,13 @@ public final class HistogramMergeTDigestGroupingAggregatorFunction implements Gr
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        HistogramMergeTDigestAggregator.combineIntermediate(state, groupId, value.getTDigestHolder(value.getFirstValueIndex(valuesPosition)), seen.getBoolean(valuesPosition));
+        HistogramMergeTDigestAggregator.combineIntermediate(state, groupId, value.getTDigestHolder(value.getFirstValueIndex(valuesPosition), valueScratch), seen.getBoolean(valuesPosition));
       }
     }
   }
 
   private void addRawInput(int positionOffset, IntVector groups, TDigestBlock valueBlock) {
+    TDigestHolder valueScratch = new TDigestHolder();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
       if (valueBlock.isNull(valuesPosition)) {
@@ -198,7 +198,7 @@ public final class HistogramMergeTDigestGroupingAggregatorFunction implements Gr
       int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
       int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
-        TDigestHolder valueValue = valueBlock.getTDigestHolder(valueOffset);
+        TDigestHolder valueValue = valueBlock.getTDigestHolder(valueOffset, valueScratch);
         HistogramMergeTDigestAggregator.combine(state, groupId, valueValue);
       }
     }
@@ -219,10 +219,11 @@ public final class HistogramMergeTDigestGroupingAggregatorFunction implements Gr
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert value.getPositionCount() == seen.getPositionCount();
+    TDigestHolder valueScratch = new TDigestHolder();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      HistogramMergeTDigestAggregator.combineIntermediate(state, groupId, value.getTDigestHolder(value.getFirstValueIndex(valuesPosition)), seen.getBoolean(valuesPosition));
+      HistogramMergeTDigestAggregator.combineIntermediate(state, groupId, value.getTDigestHolder(value.getFirstValueIndex(valuesPosition), valueScratch), seen.getBoolean(valuesPosition));
     }
   }
 

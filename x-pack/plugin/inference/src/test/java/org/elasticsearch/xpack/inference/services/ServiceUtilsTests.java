@@ -635,7 +635,7 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(validationException.validationErrors().size(), is(1));
         assertThat(
             validationException.validationErrors().get(0),
-            is("[test_scope] Invalid value [-2.0]. [key] must be a greater than or equal to [0.0]")
+            is("[test_scope] Invalid value [-2.0]. [key] must be greater than or equal to [0.0]")
         );
     }
 
@@ -647,7 +647,7 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(validationException.validationErrors().size(), is(1));
         assertThat(
             validationException.validationErrors().get(0),
-            is("[test_scope] Invalid value [12.0]. [key] must be a less than or equal to [2.0]")
+            is("[test_scope] Invalid value [12.0]. [key] must be less than or equal to [2.0]")
         );
     }
 
@@ -898,7 +898,7 @@ public class ServiceUtilsTests extends ESTestCase {
                 exception.getMessage(),
                 is(
                     "Validation Failed: 1: Map field [setting] has an entry that is not valid, "
-                        + "[num_key => 1]. Value type of [1] is not one of [String].;"
+                        + "[num_key => 1]. Value type of [Integer] is not one of [String].;"
                 )
             );
         }
@@ -958,7 +958,7 @@ public class ServiceUtilsTests extends ESTestCase {
                 exception.getMessage(),
                 is(
                     "Validation Failed: 1: Map field [setting] has an entry that is not valid, "
-                        + "[num_key => 1]. Value type of [1] is not one of [String].;"
+                        + "[num_key => 1]. Value type of [Integer] is not one of [String].;"
                 )
             );
         }

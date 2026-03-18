@@ -114,10 +114,13 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         );
     }
 
+    // GCP Oauth2 client uses own retries: 1-second initial delay, 3-tries, 2x multiplier
+    // it can take long time to pass through(>10s) from multiple nodes, and trip tests with timeouts
+    // https://github.com/googleapis/google-auth-library-java/blob/main/oauth2_http/java/com/google/auth/oauth2/OAuth2Utils.java#L115-L118
     @Override
     protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
         if (delegate instanceof FakeOAuth2HttpHandler) {
-            return new GoogleErroneousHttpHandler(delegate, randomIntBetween(2, 3));
+            return new GoogleErroneousHttpHandler(delegate, 1);
         } else {
             return new GoogleCloudStorageStatsCollectorHttpHandler(new GoogleErroneousHttpHandler(delegate, randomIntBetween(2, 3)));
         }
@@ -267,6 +270,9 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
 
         @Override
         protected GoogleCloudStorageService createStorageService(ClusterService clusterService, ProjectResolver projectResolver) {
+            // We generate the client ID here, otherwise it gets generated on each nodes' snapshot thread(s)
+            // and the chance of collision is greatly increased because of deterministic randomness
+            final String clientId = randomUUID();
             return new GoogleCloudStorageService(clusterService, projectResolver) {
                 @Override
                 StorageOptions createStorageOptions(
@@ -290,8 +296,6 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                              * Adding this header makes it easier for us to know how many times it's safe to fail
                              * a request without exceeding the configured max retries.
                              */
-                            private final String clientId = randomUUID();
-
                             @Override
                             public Map<String, String> getHeaders() {
                                 return Map.of(CLIENT_ID_HEADER, clientId);

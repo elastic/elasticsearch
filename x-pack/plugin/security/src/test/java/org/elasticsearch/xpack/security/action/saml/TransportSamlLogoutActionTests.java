@@ -27,9 +27,11 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -103,6 +105,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
     private TransportSamlLogoutAction action;
     private Client client;
     private ThreadPool threadPool;
+    private MockBytesRefRecycler bytesRefRecycler;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -223,6 +226,9 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             clusterService = ClusterServiceUtils.createClusterService(threadPool);
         }
         final SecurityContext securityContext = new SecurityContext(settings, threadContext);
+
+        bytesRefRecycler = new MockBytesRefRecycler();
+
         tokenService = new TokenService(
             settings,
             Clock.systemUTC(),
@@ -231,7 +237,8 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             securityContext,
             securityIndex,
             securityIndex,
-            clusterService
+            clusterService,
+            bytesRefRecycler
         );
 
         final TransportService transportService = new TransportService(
@@ -263,6 +270,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
     public void cleanup() {
         samlRealm.close();
         threadPool.shutdown();
+        Releasables.closeExpectNoException(bytesRefRecycler);
     }
 
     public void testLogoutInvalidatesToken() throws Exception {

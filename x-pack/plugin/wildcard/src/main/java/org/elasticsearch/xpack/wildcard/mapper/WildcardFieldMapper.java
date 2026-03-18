@@ -253,6 +253,11 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public WildcardFieldMapper build(MapperBuilderContext context) {
             return new WildcardFieldMapper(
                 leafName(),

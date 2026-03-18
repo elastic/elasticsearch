@@ -19,7 +19,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -175,15 +174,15 @@ public class RestCatRecoveryActionTests extends ESTestCase {
                     : ((SnapshotRecoverySource) state.getRecoverySource()).snapshot().getSnapshotId().getName(),
                 state.getIndex().totalRecoverFiles(),
                 state.getIndex().recoveredFileCount(),
-                percent(state.getIndex().recoveredFilesPercent()),
+                RestTable.FormattedDouble.formatPercent1Decimal(state.getIndex().recoveredFilesPercent()),
                 state.getIndex().totalFileCount(),
                 ByteSizeValue.ofBytes(state.getIndex().totalRecoverBytes()),
                 ByteSizeValue.ofBytes(state.getIndex().recoveredBytes()),
-                percent(state.getIndex().recoveredBytesPercent()),
+                RestTable.FormattedDouble.formatPercent1Decimal(state.getIndex().recoveredBytesPercent()),
                 ByteSizeValue.ofBytes(state.getIndex().totalBytes()),
                 state.getTranslog().totalOperations(),
                 state.getTranslog().recoveredOperations(),
-                percent(state.getTranslog().recoveredPercent())
+                RestTable.FormattedDouble.formatPercent1Decimal(state.getTranslog().recoveredPercent())
             );
 
             final List<Table.Cell> cells = table.getRows().get(i);
@@ -192,9 +191,4 @@ public class RestCatRecoveryActionTests extends ESTestCase {
             }
         }
     }
-
-    private static String percent(float percent) {
-        return Strings.format("%1.1f%%", percent);
-    }
-
 }

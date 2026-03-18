@@ -20,9 +20,9 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.esql.datasources.ContentRangeParser;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
 import java.io.IOException;
 import java.io.InputStream;

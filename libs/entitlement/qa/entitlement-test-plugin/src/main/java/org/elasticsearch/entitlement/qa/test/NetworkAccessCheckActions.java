@@ -114,7 +114,10 @@ class NetworkAccessCheckActions {
             // In some environments (e.g. with FIPS enabled) the LDAP CertStore is not available.
             // When this is a genuine entitlement denial, the exception wraps a NotEntitledException as its cause;
             // otherwise (provider simply not present), we swallow it — the entitlement check still ran.
-            if (ex.getCause() != null) {
+            // The bridge is compile-only (loaded in a separate classloader), so we must compare by class name
+            // rather than using instanceof.
+            if (ex.getCause() != null
+                && ex.getCause().getClass().getName().equals("org.elasticsearch.entitlement.bridge.NotEntitledException")) {
                 throw ex;
             }
         }

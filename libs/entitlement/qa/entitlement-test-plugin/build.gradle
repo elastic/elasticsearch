@@ -30,6 +30,7 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'entitlement-test-plugin'
   }
+  testRuntimeOnly project(':libs:entitlement:bridge')
 }
 
 tasks.named("javadoc").configure {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.qa.test;
 
+import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.security.NoSuchAlgorithmException;
@@ -27,11 +28,14 @@ import java.security.Security;
  * The fix distinguishes the two sources of {@link NoSuchAlgorithmException}:
  * <ul>
  *   <li>Entitlement denial — thrown by the instrumentation as
- *       {@code new NoSuchAlgorithmException(notEntitledException)}, so {@code getCause() != null}</li>
+ *       {@code new NoSuchAlgorithmException(notEntitledException)}, where the cause is a
+ *       {@code NotEntitledException}</li>
  *   <li>Provider absent (FIPS) — thrown by JCA as
  *       {@code new NoSuchAlgorithmException("LDAP CertStore not available")}, so {@code getCause() == null}</li>
  * </ul>
- * Only the former is re-thrown; the latter is silently swallowed.
+ * Only the former is re-thrown; the latter (and any NSAE whose cause is not a {@code NotEntitledException})
+ * is silently swallowed. The bridge is compile-only and loaded in a separate classloader, so the check
+ * uses a class name string comparison rather than {@code instanceof}.
  */
 public class NetworkAccessCheckActionsTests extends ESTestCase {
 
@@ -80,25 +84,24 @@ public class NetworkAccessCheckActionsTests extends ESTestCase {
 
     /**
      * Verifies the entitlement-denial path: when {@code CertStore.getInstance("LDAP", null)}
-     * throws {@link NoSuchAlgorithmException} with a non-null cause — exactly as the entitlement
-     * instrumentation does via {@code new NoSuchAlgorithmException(notEntitledException)} — the
-     * exception must propagate out of {@code createLDAPCertStore()} so the REST handler can
-     * return HTTP 403.
+     * throws {@link NoSuchAlgorithmException} whose cause is a {@link NotEntitledException} —
+     * exactly as the entitlement instrumentation does — the exception must propagate out of
+     * {@code createLDAPCertStore()} so the REST handler can return HTTP 403.
      * <p>
      * A temporary JCA provider overrides {@code newInstance} to throw such an exception,
      * replacing whichever real provider would otherwise handle "LDAP".
      */
-    public void testCreateLDAPCertStore_rethrows_whenNSAEHasACause() throws Exception {
-        var simulatedCause = new RuntimeException("simulated NotEntitledException");
+    public void testCreateLDAPCertStore_rethrows_whenNSAECauseIsNotEntitledException() throws Exception {
+        var simulatedNEE = new NotEntitledException("simulated denial");
 
-        // Build a provider whose LDAP CertStore service throws NSAE(cause), mimicking the
-        // entitlement framework's denial: new NoSuchAlgorithmException(notEntitledException).
+        // Build a provider whose LDAP CertStore service throws NSAE(NotEntitledException), mimicking
+        // the entitlement framework's denial: new NoSuchAlgorithmException(notEntitledException).
         Provider throwingProvider = new Provider("ThrowingLDAPProvider", "1.0", "test") {
             {
                 putService(new Service(this, "CertStore", "LDAP", "Throwing", null, null) {
                     @Override
                     public Object newInstance(Object constructorParameter) throws NoSuchAlgorithmException {
-                        throw new NoSuchAlgorithmException(simulatedCause);
+                        throw new NoSuchAlgorithmException(simulatedNEE);
                     }
                 });
             }
@@ -109,11 +112,41 @@ public class NetworkAccessCheckActionsTests extends ESTestCase {
         int[] positions = existingLdapProviders != null ? removeProviders(existingLdapProviders) : new int[0];
         Security.addProvider(throwingProvider);
         try {
-            // Before fix: there was no catch for NoSuchAlgorithmException; it propagated via
-            // the method's throws declaration regardless of whether it had a cause or not.
-            // After fix: getCause() != null => re-throw. The exception must escape the method.
             var thrown = expectThrows(NoSuchAlgorithmException.class, NetworkAccessCheckActions::createLDAPCertStore);
-            assertSame(simulatedCause, thrown.getCause());
+            assertSame(simulatedNEE, thrown.getCause());
+        } finally {
+            Security.removeProvider("ThrowingLDAPProvider");
+            if (existingLdapProviders != null) {
+                restoreProviders(existingLdapProviders, positions);
+            }
+        }
+    }
+
+    /**
+     * Verifies that a {@link NoSuchAlgorithmException} with a non-null cause that is NOT a
+     * {@link NotEntitledException} is silently swallowed. This guards against incorrectly
+     * re-throwing any NSAE that happens to have a cause (e.g. a wrapped provider error).
+     */
+    public void testCreateLDAPCertStore_doesNotRethrow_whenNSAECauseIsNotNEE() throws Exception {
+        var unrelatedCause = new RuntimeException("some other provider failure");
+
+        Provider throwingProvider = new Provider("ThrowingLDAPProvider", "1.0", "test") {
+            {
+                putService(new Service(this, "CertStore", "LDAP", "Throwing", null, null) {
+                    @Override
+                    public Object newInstance(Object constructorParameter) throws NoSuchAlgorithmException {
+                        throw new NoSuchAlgorithmException(unrelatedCause);
+                    }
+                });
+            }
+        };
+
+        Provider[] existingLdapProviders = Security.getProviders("CertStore.LDAP");
+        int[] positions = existingLdapProviders != null ? removeProviders(existingLdapProviders) : new int[0];
+        Security.addProvider(throwingProvider);
+        try {
+            // Must complete normally — a non-NEE cause is not an entitlement denial.
+            NetworkAccessCheckActions.createLDAPCertStore();
         } finally {
             Security.removeProvider("ThrowingLDAPProvider");
             if (existingLdapProviders != null) {

@@ -206,6 +206,44 @@ public class RangeWithinIT extends AbstractEsqlIntegTestCase {
             false,
             prepareIndex("lookup_with_date").setId("1").setSource(Map.of("some_date", "1985-06-15T00:00:00Z", "join_key", 1))
         );
+
+        // Lookup index with date_range (for "date_range from FROM, date_range from LOOKUP" test)
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("lookup_with_date_range")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .setMapping(
+                    Map.of(
+                        "properties",
+                        Map.of(
+                            "lookup_range",
+                            Map.of("type", "date_range"),
+                            "join_key",
+                            Map.of("type", "integer")
+                        )
+                    )
+                )
+        );
+        // lookup_range [1986-1988) is contained in decades_main's date_range [1985-1990)
+        indexRandom(
+            true,
+            false,
+            prepareIndex("lookup_with_date_range").setId("1")
+                .setSource(
+                    Map.of(
+                        "lookup_range",
+                        Map.of("gte", "1986-01-01T00:00:00Z", "lt", "1988-01-01T00:00:00Z"),
+                        "join_key",
+                        1
+                    )
+                )
+        );
     }
 
     /**
@@ -352,6 +390,29 @@ public class RangeWithinIT extends AbstractEsqlIntegTestCase {
             assertThat(response.isPartial(), equalTo(false));
             List<List<Object>> values = getValuesList(response);
             assertThat("Should find row where lookup some_date is within FROM date_range", values.size(), equalTo(1));
+        }
+    }
+
+    /**
+     * Test RANGE_WITHIN with date_range from FROM index and date_range from LOOKUP.
+     * Query: FROM decades_main | LOOKUP JOIN lookup_with_date_range ON join_key | WHERE RANGE_WITHIN(date_range, lookup_range)
+     */
+    public void testRangeWithinRangeFromFromRangeFromLookup() {
+        String query = """
+            FROM decades_main
+            | LOOKUP JOIN lookup_with_date_range ON join_key
+            | WHERE RANGE_WITHIN(date_range, lookup_range)
+            | KEEP date_range, lookup_range
+            """;
+
+        try (EsqlQueryResponse response = run(query)) {
+            assertThat(response.isPartial(), equalTo(false));
+            List<List<Object>> values = getValuesList(response);
+            assertThat(
+                "Should find row where main date_range [1985-1990) contains lookup_range [1986-1988)",
+                values.size(),
+                equalTo(1)
+            );
         }
     }
 

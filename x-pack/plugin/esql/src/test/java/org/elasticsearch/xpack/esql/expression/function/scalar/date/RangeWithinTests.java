@@ -24,8 +24,8 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Tests for RANGE_WITHIN(left, right) -> boolean for all four type combinations:
- * (date_range, date), (date, date_range), (date_range, date_range), (date, date).
+ * Tests for RANGE_WITHIN(value, range) -> boolean for the two supported type combinations:
+ * (date, date_range) and (date_range, date_range).
  */
 public class RangeWithinTests extends AbstractScalarFunctionTestCase {
     public RangeWithinTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -42,19 +42,11 @@ public class RangeWithinTests extends AbstractScalarFunctionTestCase {
         suppliers.add(pointInRange("date at range start (datetime)", DataType.DATETIME, 500L, 500L, 1500L, true));
         suppliers.add(pointInRange("date at range end (datetime)", DataType.DATETIME, 1500L, 500L, 1500L, true));
 
-        // (date_range, date): range contains point (same as point in range)
-        suppliers.add(rangeContainsPoint("range contains point", 500L, 1500L, 1000L, true));
-        suppliers.add(rangeContainsPoint("range does not contain point", 500L, 1500L, 2000L, false));
-
         // (date_range, date_range): first contains second
         suppliers.add(rangeContainsRange("first contains second", 100L, 2000L, 500L, 1500L, true));
         suppliers.add(rangeContainsRange("first does not contain second (overlap)", 100L, 1000L, 500L, 1500L, false));
         suppliers.add(rangeContainsRange("equal ranges", 500L, 1500L, 500L, 1500L, true));
         suppliers.add(rangeContainsRange("point range in range", 500L, 1500L, 1000L, 1000L, true));
-
-        // (date, date): equality
-        suppliers.add(dateEqualsDate("dates equal", 1000L, 1000L, true));
-        suppliers.add(dateEqualsDate("dates not equal", 1000L, 2000L, false));
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
@@ -79,41 +71,12 @@ public class RangeWithinTests extends AbstractScalarFunctionTestCase {
         );
     }
 
-    private static TestCaseSupplier rangeContainsPoint(String name, long rangeFrom, long rangeTo, long point, boolean expected) {
-        return new TestCaseSupplier(
-            name,
-            List.of(DataType.DATE_RANGE, DataType.DATETIME),
-            () -> new TestCaseSupplier.TestCase(
-                List.of(typedDateRange(rangeFrom, rangeTo), new TestCaseSupplier.TypedData(point, DataType.DATETIME, "date")),
-                "RangeWithinEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
-                DataType.BOOLEAN,
-                equalTo(expected)
-            )
-        );
-    }
-
     private static TestCaseSupplier rangeContainsRange(String name, long aFrom, long aTo, long bFrom, long bTo, boolean expected) {
         return new TestCaseSupplier(
             name,
             List.of(DataType.DATE_RANGE, DataType.DATE_RANGE),
             () -> new TestCaseSupplier.TestCase(
                 List.of(typedDateRange(aFrom, aTo), typedDateRange(bFrom, bTo)),
-                "RangeWithinEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
-                DataType.BOOLEAN,
-                equalTo(expected)
-            )
-        );
-    }
-
-    private static TestCaseSupplier dateEqualsDate(String name, long a, long b, boolean expected) {
-        return new TestCaseSupplier(
-            name,
-            List.of(DataType.DATETIME, DataType.DATETIME),
-            () -> new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(a, DataType.DATETIME, "a"),
-                    new TestCaseSupplier.TypedData(b, DataType.DATETIME, "b")
-                ),
                 "RangeWithinEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(expected)

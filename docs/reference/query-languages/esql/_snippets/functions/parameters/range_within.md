@@ -3,8 +3,8 @@
 ## Parameters
 
 `left`
-:   Container (range or point).
+:   Value to test (point or range).
 
 `right`
-:   Value to test (range or point).
+:   Container range.
 

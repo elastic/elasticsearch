@@ -36,14 +36,14 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 
 /**
- * RANGE_WITHIN(left, right) -> boolean
- * Returns true if the first value "contains" the second, following Lucene CONTAINS semantics (value within range):
+ * RANGE_WITHIN(value, range) -> boolean
+ * Returns true if the value is within the range, following search WITHIN/CONTAINS semantics (the range is the container).
+ * Supported signatures:
  * <ul>
- *   <li>(date_range, date): range contains the point (point within [from, to])</li>
- *   <li>(date, date_range): range contains the point (point within [from, to])</li>
+ *   <li>(date, date_range): point within range (range contains the point)</li>
  *   <li>(date_range, date_range): first range contains the second (second fully within first)</li>
- *   <li>(date, date): equality</li>
  * </ul>
+ * (date_range, date) and (date, date) are not supported; they do not match "value within range" semantics.
  */
 public class RangeWithin extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -59,16 +59,16 @@ public class RangeWithin extends EsqlScalarFunction {
         returnType = "boolean",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        description = "Returns true if the value is within the range (Lucene CONTAINS semantics). "
-            + "Supports (date_range, date), (date, date_range), (date_range, date_range), (date, date).",
-        appendix = "RANGE_WITHIN supports all four combinations of date and date_range with Lucene CONTAINS semantics. "
+        description = "Returns true if the value is within the range (search WITHIN/CONTAINS semantics). "
+            + "Supports (date, date_range) and (date_range, date_range). The second argument must be a date_range.",
+        appendix = "RANGE_WITHIN matches search range-query semantics: the second argument is the container range. "
             + "Lucene pushdown is not implemented for this function yet.",
         examples = @Example(file = "date_range", tag = "rangeWithin", explanation = "Filter events within a specific date range")
     )
     public RangeWithin(
         Source source,
-        @Param(name = "left", type = { "date", "date_range" }, description = "Container (range or point).") Expression left,
-        @Param(name = "right", type = { "date", "date_range" }, description = "Value to test (range or point).") Expression right
+        @Param(name = "left", type = { "date", "date_range" }, description = "Value to test (point or range).") Expression left,
+        @Param(name = "right", type = { "date_range" }, description = "Container range.") Expression right
     ) {
         super(source, List.of(left, right));
         this.left = left;
@@ -126,11 +126,9 @@ public class RangeWithin extends EsqlScalarFunction {
     }
 
     /**
-     * CONTAINS semantics: left contains right.
-     * - (range, date): date in range [from, to]
-     * - (date, range): range contains point (point in [from, to])
-     * - (range, range): right within left
-     * - (date, date): equality
+     * Value within range (second arg is container). Only (date, date_range) and (date_range, date_range) are supported.
+     * - (date_range, date_range): first range contains second (second within first).
+     * - (date, date_range): point within range (range contains point).
      */
     static boolean rangeContains(Object leftVal, Object rightVal, DataType leftType, DataType rightType) {
         if (leftType == DATE_RANGE && rightType == DATE_RANGE) {
@@ -138,18 +136,11 @@ public class RangeWithin extends EsqlScalarFunction {
             LongRangeBlockBuilder.LongRange b = (LongRangeBlockBuilder.LongRange) rightVal;
             return b.from() >= a.from() && b.to() <= a.to();
         }
-        if (leftType == DATE_RANGE && rightType == DATETIME) {
-            LongRangeBlockBuilder.LongRange r = (LongRangeBlockBuilder.LongRange) leftVal;
-            long point = (Long) rightVal;
-            return point >= r.from() && point <= r.to();
-        }
-        if (leftType == DATETIME && rightType == DATE_RANGE) {
-            long point = (Long) leftVal;
-            LongRangeBlockBuilder.LongRange r = (LongRangeBlockBuilder.LongRange) rightVal;
-            return point >= r.from() && point <= r.to();
-        }
-        // (date, date)
-        return ((Long) leftVal).longValue() == ((Long) rightVal).longValue();
+        // (date, date_range): point in range
+        assert leftType == DATETIME && rightType == DATE_RANGE;
+        long point = (Long) leftVal;
+        LongRangeBlockBuilder.LongRange r = (LongRangeBlockBuilder.LongRange) rightVal;
+        return point >= r.from() && point <= r.to();
     }
 
     @Override
@@ -159,7 +150,7 @@ public class RangeWithin extends EsqlScalarFunction {
         }
 
         TypeResolution first = isType(left, dt -> dt == DATE_RANGE || dt == DATETIME, sourceText(), FIRST, "date", "date_range");
-        TypeResolution second = isType(right, dt -> dt == DATE_RANGE || dt == DATETIME, sourceText(), SECOND, "date", "date_range");
+        TypeResolution second = isType(right, dt -> dt == DATE_RANGE, sourceText(), SECOND, "date_range");
         return first.and(second);
     }
 

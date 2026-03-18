@@ -20,8 +20,8 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Error tests for RANGE_WITHIN(left, right).
- * Both arguments must be date or date_range.
+ * Error tests for RANGE_WITHIN(value, range).
+ * First argument must be date or date_range; second argument must be date_range.
  */
 public class RangeWithinErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
@@ -36,6 +36,8 @@ public class RangeWithinErrorTests extends ErrorsForCasesWithoutExamplesTestCase
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, i) -> "date or date_range"));
+        return equalTo(
+            typeErrorMessage(true, validPerPosition, signature, (v, i) -> i == 0 ? "date or date_range" : "date_range")
+        );
     }
 }

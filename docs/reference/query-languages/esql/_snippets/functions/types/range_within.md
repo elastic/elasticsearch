@@ -4,5 +4,6 @@
 
 | left | right | result |
 | --- | --- | --- |
-| date | date | boolean |
+| date | date_range | boolean |
+| date_range | date_range | boolean |
 

@@ -30,6 +30,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -57,6 +58,30 @@ public class EmbeddingTests extends AbstractFunctionTestCase {
                     List.of(
                         new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), KEYWORD, "text"),
                         new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), KEYWORD, "inference_id")
+                    ),
+                    Matchers.blankOrNullString(),
+                    DENSE_VECTOR,
+                    equalTo(true)
+                )
+            )
+        );
+
+        // Three-argument case (with timeout option)
+        suppliers.add(
+            new TestCaseSupplier(
+                List.of(KEYWORD, KEYWORD, UNSUPPORTED),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), KEYWORD, "text"),
+                        new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), KEYWORD, "inference_id"),
+                        new TestCaseSupplier.TypedData(
+                            new MapExpression(
+                                Source.EMPTY,
+                                List.of(Literal.keyword(Source.EMPTY, "timeout"), Literal.keyword(Source.EMPTY, "30s"))
+                            ),
+                            UNSUPPORTED,
+                            "options"
+                        ).forceLiteral()
                     ),
                     Matchers.blankOrNullString(),
                     DENSE_VECTOR,

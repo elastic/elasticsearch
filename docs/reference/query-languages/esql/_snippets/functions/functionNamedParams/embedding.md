@@ -8,3 +8,6 @@
 `format`
 :   (keyword) Format of the input content (e.g. "text", "base64").
 
+`timeout`
+:   (keyword) Timeout for the inference request (e.g. "30s", "1m").
+

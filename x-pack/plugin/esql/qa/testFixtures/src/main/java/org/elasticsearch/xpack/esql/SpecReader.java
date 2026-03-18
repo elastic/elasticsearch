@@ -69,7 +69,7 @@ public final class SpecReader {
                                     + " in file '"
                                     + fileName
                                     + "' (previously seen at line "
-                                    + testNames.get(normalizedName)
+                                    + testNames.get(lowerCasedName)
                                     + ")"
                             );
                         } else {

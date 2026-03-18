@@ -101,7 +101,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -212,7 +212,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private final boolean isLegacyIndexWithRootValues;
         private final boolean forceStoreRootDocValues;
 
-        final Map<String, FieldMapper.Builder> propertyBuilders = new LinkedHashMap<>();
+        final Map<String, FieldMapper.Builder> propertyBuilders = new TreeMap<>();
 
         public static FieldMapper.Parameter<List<String>> dimensionsParam(Function<FieldMapper, List<String>> initializer) {
             return FieldMapper.Parameter.stringArrayParam(TIME_SERIES_DIMENSIONS_ARRAY_PARAM, false, initializer);
@@ -307,7 +307,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support [copy_to]");
             }
 
-            Map<String, FieldMapper> mappedProperties = new LinkedHashMap<>();
+            Map<String, FieldMapper> mappedProperties = new TreeMap<>();
             if (propertyBuilders.isEmpty() == false) {
                 MapperBuilderContext childContext = context.createChildContext(leafName(), null);
                 for (Map.Entry<String, FieldMapper.Builder> entry : propertyBuilders.entrySet()) {
@@ -1111,7 +1111,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues() && (ignoreAbove.valuesPotentiallyIgnored() == false || isSyntheticSourceEnabled)) {
                 List<SourceLoader.SyntheticFieldLoader> propertyLoaders = new ArrayList<>();
-                for (FieldMapper mapper : new TreeMap<>(mappedProperties).values()) {
+                for (FieldMapper mapper : mappedProperties.values()) {
                     SourceLoader.SyntheticFieldLoader loader = mapper.syntheticFieldLoader();
                     if (loader != SourceLoader.SyntheticFieldLoader.NOTHING) {
                         propertyLoaders.add(loader);
@@ -1293,7 +1293,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
     ) {
         super(leafName, mappedFieldType, builderParams);
         this.builder = builder;
-        this.mappedProperties = Map.copyOf(mappedProperties);
+        this.mappedProperties = Collections.unmodifiableSortedMap(new TreeMap<>(mappedProperties));
         this.fieldParser = new FlattenedFieldParser(
             mappedFieldType.name(),
             mappedFieldType.name() + KEYED_FIELD_SUFFIX,
@@ -1378,7 +1378,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         super.doXContentBody(xContentBuilder, params);
         if (mappedProperties.isEmpty() == false) {
             xContentBuilder.startObject("properties");
-            for (Map.Entry<String, FieldMapper> entry : new TreeMap<>(mappedProperties).entrySet()) {
+            for (Map.Entry<String, FieldMapper> entry : mappedProperties.entrySet()) {
                 entry.getValue().toXContent(xContentBuilder, params);
             }
             xContentBuilder.endObject();
@@ -1415,7 +1415,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         if (fieldType().hasDocValues()) {
             return new SyntheticSourceSupport.Native(() -> {
                 List<SourceLoader.SyntheticFieldLoader> propertyLoaders = new ArrayList<>();
-                for (FieldMapper mapper : new TreeMap<>(mappedProperties).values()) {
+                for (FieldMapper mapper : mappedProperties.values()) {
                     SourceLoader.SyntheticFieldLoader loader = mapper.syntheticFieldLoader();
                     if (loader != SourceLoader.SyntheticFieldLoader.NOTHING) {
                         propertyLoaders.add(loader);

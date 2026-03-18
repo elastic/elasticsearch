@@ -21,6 +21,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
@@ -541,6 +542,7 @@ class DatafeedJob {
             request.setEnd(String.valueOf(currentTimeSupplier.get()));
             request.setAnomalyScore(75.0);
             request.setExcludeInterim(true);
+            request.setPageParams(new PageParams(0, 0));
 
             GetBucketsAction.Response response;
             try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {

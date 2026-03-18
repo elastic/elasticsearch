@@ -179,8 +179,8 @@ public class CrossProjectSearchStats {
     }
 
     /**
-     * Removes skip tracking entries for projects no longer present and not
-     * being tracked for unlinking (they've fully disappeared from view).
+     * Removes skip tracking entries for projects no longer present in
+     * the current cycle's aliases.
      */
     private void cleanupStaleTrackingEntries(Set<String> currentAliases) {
         consecutiveSkips.keySet().retainAll(currentAliases);

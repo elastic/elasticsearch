@@ -179,7 +179,7 @@ public final class Messages {
             + " If anomaly quality degrades, consider reviewing recent model snapshots for potential rollback.";
     public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGE_ANOMALIES =
         "Elevated anomaly scores detected after project scope change at [{0}]"
-            + " ({1}). [{2}] buckets with anomaly score > 75 observed since the scope change."
+            + " ({1}). [{2}] buckets with anomaly score >= 75 observed since the scope change."
             + " This is likely caused by the data distribution shift."
             + " Consider reviewing model snapshots if the anomalies are not meaningful.";
     public static final String JOB_AUDIT_DELETING = "Deleting job by task with id ''{0}''";

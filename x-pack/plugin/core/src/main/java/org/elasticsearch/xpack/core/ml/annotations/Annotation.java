@@ -53,7 +53,11 @@ public class Annotation implements ToXContentObject, Writeable {
         PROJECT_SCOPE_CHANGED;
 
         public static Event fromString(String value) {
-            return valueOf(value.toUpperCase(Locale.ROOT));
+            try {
+                return valueOf(value.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
         }
 
         @Override

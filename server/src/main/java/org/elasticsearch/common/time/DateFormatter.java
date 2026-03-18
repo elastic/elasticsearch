@@ -25,20 +25,13 @@ import java.util.Locale;
 public interface DateFormatter {
 
     /**
-     * Parse input to a java time TemporalAccessor
+     * Try to parse input to a java time TemporalAccessor
      * @param input                   An arbitrary string resembling the string representation of a date or time
      * @throws DateTimeParseException If parsing fails, this exception will be thrown.
      *                                Note that it can contained suppressed exceptions when several formatters failed parse this value
      * @return                        The java time object containing the parsed input
      */
     TemporalAccessor parse(String input);
-
-    /**
-     * Try to parse input to a java time TemporalAccessor
-     * @param input An arbitrary string resembling the string representation of a date or time
-     * @return      The java time object containing the parsed input, or {@code null} if parsing failed
-     */
-    TemporalAccessor tryParse(String input);
 
     /**
      * Parse the given input into millis-since-epoch.

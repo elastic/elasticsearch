@@ -230,17 +230,6 @@ class JavaDateFormatter implements DateFormatter {
         }
     }
 
-    @Override
-    public TemporalAccessor tryParse(String input) {
-        for (DateTimeParser parser : this.parsers) {
-            var result = parser.tryParse(input).result();
-            if (result != null) {
-                return result;
-            }
-        }
-        return null;
-    }
-
     /**
      * Attempt parsing the input without throwing exception. If multiple parsers are provided,
      * it will continue iterating until it finds one that works.

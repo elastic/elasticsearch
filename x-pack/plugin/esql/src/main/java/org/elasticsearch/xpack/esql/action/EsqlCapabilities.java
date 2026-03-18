@@ -2330,6 +2330,12 @@ public class EsqlCapabilities {
         FIX_TBUCKET_TARGET_COUNT_WINDOW_VALIDATION,
 
         /**
+         * Support the null column type for the CHANGE_POINT command
+         * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
+         */
+        CHANGE_POINT_SUPPORT_NULL_COLUMN,
+      
+        /**
          * Support for the {@code EMBEDDING} function for generating dense vector embeddings using the {@code embedding} task type.
          */
         EMBEDDING_FUNCTION(Build.current().isSnapshot()),

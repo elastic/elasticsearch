@@ -172,7 +172,7 @@ tests:
   method: testDatafeedWithCcsRemoteUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/140612
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:spatial.ConvertFromStringParseError}
+  method: test {csv-spec:spatial.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/139213
 - class: org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointServiceNodeTests
   method: testGetCheckpointStats
@@ -184,25 +184,22 @@ tests:
   method: testFailedSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/141279
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:boolean.ConvertFromIntAndLong}
+  method: test {csv-spec:boolean.convertFromIntAndLong}
   issue: https://github.com/elastic/elasticsearch/issues/141375
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {drop.WhereWithEvalGeneratedValue_DropHeight}
+  method: test {csv-spec:keep.whereWithEvalGeneratedValue}
   issue: https://github.com/elastic/elasticsearch/issues/141375
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:keep.WhereWithEvalGeneratedValue}
+  method: test {csv-spec:topN.sortingOnNumbersFromStrings}
   issue: https://github.com/elastic/elasticsearch/issues/141375
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:topN.SortingOnNumbersFromStrings}
+  method: test {csv-spec:drop.whereWithEvalGeneratedValue_DropHeight}
   issue: https://github.com/elastic/elasticsearch/issues/141375
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:drop.WhereWithEvalGeneratedValue_DropHeight}
+  method: test {csv-spec:rename.renameIntertwinedWithSort}
   issue: https://github.com/elastic/elasticsearch/issues/141375
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:rename.RenameIntertwinedWithSort}
-  issue: https://github.com/elastic/elasticsearch/issues/141375
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:ints.ConvertStringToBaseIndexGroup7}
+  method: test {csv-spec:ints.convertStringToBaseIndexGroup7}
   issue: https://github.com/elastic/elasticsearch/issues/141375
 - class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testSourceThrottling
@@ -229,7 +226,7 @@ tests:
   method: testIndexPoints
   issue: https://github.com/elastic/elasticsearch/issues/142439
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:match-function.TestMatchWithReplace}
+  method: test {csv-spec:match-function.testMatchWithReplace}
   issue: https://github.com/elastic/elasticsearch/issues/142501
 - class: org.elasticsearch.search.query.VectorIT
   method: testFilteredQueryStrategy
@@ -330,12 +327,15 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
   method: testGetReindexFollowsRelocation
   issue: https://github.com/elastic/elasticsearch/issues/144364
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
-  method: testGiantTextFieldInSubqueryIntermediateResults
-  issue: https://github.com/elastic/elasticsearch/issues/144367
 - class: org.elasticsearch.xpack.logsdb.FlattenedRollingUpgradeIT
   method: testIndexing
   issue: https://github.com/elastic/elasticsearch/issues/144372
+- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedIT
+  method: "testAction {actionName=createLDAPCertStore}"
+  issue: https://github.com/elastic/elasticsearch/issues/144377
+- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedNonModularIT
+  method: "testAction {actionName=createLDAPCertStore}"
+  issue: https://github.com/elastic/elasticsearch/issues/144376
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=search.vectors/172_knn_query_base64_vectors/kNN query with ambiguous hex/base64 byte string prefers hex}
   issue: https://github.com/elastic/elasticsearch/issues/144379
@@ -348,6 +348,9 @@ tests:
 - class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
   method: testOpenAiEmbeddings {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/144440
+- class: org.elasticsearch.integration.SecurityFeatureResetTests
+  method: testFeatureResetManageRole
+  issue: https://github.com/elastic/elasticsearch/issues/144486
 
 # Examples:
 #

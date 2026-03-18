@@ -35,14 +35,21 @@ EXPORT int vec_caps() {
 #elif __linux__
     int hwcap = getauxval(AT_HWCAP);
     int neon = (hwcap & HWCAP_ASIMD) != 0;
+    // https://docs.kernel.org/arch/arm64/elf_hwcaps.html
+    int dotprod = (hwcap & HWCAP_ASIMDDP) != 0;
+    // The library is compiled with -march=armv8.2-a+dotprod, so all code may
+    // contain dot product instructions. Return 0 if the CPU lacks support.
+    if (!neon || !dotprod) {
+        return 0;
+    }
     // https://docs.kernel.org/arch/arm64/sve.html
     int sve = (hwcap & HWCAP_SVE) != 0;
     int hwcap2 = getauxval(AT_HWCAP2);
     int sve2 = (hwcap2 & HWCAP2_SVE2) != 0;
-    if (neon && sve) {
+    if (sve) {
         return 2;
     }
-    return neon;
+    return 1;
 #else
     #error "Unsupported aarch64 platform"
 #endif

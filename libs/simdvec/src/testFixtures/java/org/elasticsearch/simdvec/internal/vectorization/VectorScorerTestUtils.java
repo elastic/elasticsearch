@@ -25,8 +25,19 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Random;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class VectorScorerTestUtils {
+
+    public static int[] generateFilteredOffsets(Random random, int numVectors, int filteredVectors) {
+        var allOffsets = IntStream.range(0, numVectors).boxed().collect(Collectors.toList());
+        for (int i = 0; i < filteredVectors; i++) {
+            int allOffsetsLength = allOffsets.size();
+            allOffsets.remove(random.nextInt(0, allOffsetsLength));
+        }
+        return allOffsets.stream().mapToInt(i -> i).toArray();
+    }
 
     public record VectorData(
         byte[] vector,

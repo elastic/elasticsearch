@@ -523,7 +523,7 @@ public class IpFieldMapper extends FieldMapper {
             return new FallbackSyntheticSourceBlockLoader(
                 reader,
                 name(),
-                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings())
             ) {
                 @Override
                 public Builder builder(BlockFactory factory, int expectedCount) {

@@ -63,6 +63,7 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
+import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
@@ -75,6 +76,7 @@ import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -96,6 +98,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -190,12 +193,14 @@ public class Reindexer {
         }
         // Point-in-time searching is enabled, and this is a local request
         else {
-            // If PIT is already set (worker received sliced request from leader, or resumed after relocation), skip opening a new PIT
+            // If PIT is already set (worker received sliced request from leader), skip opening a new PIT
             if (request.getSearchRequest().source() != null && request.getSearchRequest().source().pointInTimeBuilder() != null) {
                 ActionListener<BulkByScrollResponse> listenerWithClosePit = wrapListenerWithClosePit(
                     request.getSearchRequest().source().pointInTimeBuilder().getEncodedId(),
                     responseListener,
-                    this::closeLocalPit
+                    this::closeLocalPit,
+                    task,
+                    () -> task != null && (task.isRelocationRequested() || getReindexParent(task).isPresent())
                 );
                 Consumer<Version> workerActionWithClosePit = createWorkerAction(task, request, bulkClient, listenerWithClosePit);
                 executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, null);
@@ -299,7 +304,13 @@ public class Reindexer {
             // Preserve source indices for task description (toString) since searchRequest.indices() will be empty.
             request.setSourceIndicesForDescription(indices);
             searchRequest.indices(Strings.EMPTY_ARRAY);
-            ActionListener<BulkByScrollResponse> listenerWithClosePit = wrapListenerWithClosePit(pitId, l, this::closeLocalPit);
+            ActionListener<BulkByScrollResponse> listenerWithClosePit = wrapListenerWithClosePit(
+                pitId,
+                l,
+                this::closeLocalPit,
+                task,
+                () -> task != null && (task.isRelocationRequested() || getReindexParent(task).isPresent())
+            );
             Consumer<Version> workerActionWithClosePit = createWorkerAction(task, request, bulkClient, listenerWithClosePit);
             executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, null);
         }));
@@ -308,6 +319,9 @@ public class Reindexer {
     /**
      * Wraps a listener to close the PIT when the task completes (success or failure).
      * Skips closing when the failure is TaskRelocatedException, since the relocated task will close it.
+     * Skips closing when the task has relocation requested, since the relocated task will use it.
+     * Skips closing on response when {@code shouldNotCloseOnResponse} returns true (e.g. sliced workers share
+     * the PIT; only the leader should close when all workers complete).
      * Visible for testing
      */
     static ActionListener<BulkByScrollResponse> wrapListenerWithClosePit(
@@ -315,10 +329,25 @@ public class Reindexer {
         ActionListener<BulkByScrollResponse> listener,
         Consumer<BytesReference> closePit
     ) {
+        return wrapListenerWithClosePit(pitId, listener, closePit, null, () -> false);
+    }
+
+    /**
+     * Same as {@link #wrapListenerWithClosePit(BytesReference, ActionListener, Consumer)} but with task context.
+     * When {@code shouldNotCloseOnResponse} returns true, the PIT is not closed on response (e.g. sliced workers
+     * must not close the shared PIT; only the leader closes when all complete).
+     */
+    static ActionListener<BulkByScrollResponse> wrapListenerWithClosePit(
+        BytesReference pitId,
+        ActionListener<BulkByScrollResponse> listener,
+        Consumer<BytesReference> closePit,
+        @Nullable BulkByScrollTask task,
+        BooleanSupplier shouldNotCloseOnResponse
+    ) {
         return new ActionListener<>() {
             @Override
             public void onResponse(BulkByScrollResponse response) {
-                if (response.getTaskResumeInfo().isEmpty()) {
+                if (response.getTaskResumeInfo().isEmpty() && shouldNotCloseOnResponse.getAsBoolean() == false) {
                     closePit.accept(pitId);
                 }
                 listener.onResponse(response);
@@ -326,7 +355,8 @@ public class Reindexer {
 
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof TaskRelocatedException == false) {
+                boolean skipClose = e instanceof TaskRelocatedException || (task != null && task.isRelocationRequested());
+                if (skipClose == false) {
                     closePit.accept(pitId);
                 }
                 listener.onFailure(e);
@@ -392,18 +422,26 @@ public class Reindexer {
                         ActionListener<BulkByScrollResponse> listenerWithClosePit = new ActionListener<>() {
                             @Override
                             public void onResponse(BulkByScrollResponse response) {
-                                if (response.getTaskResumeInfo().isEmpty()) {
+                                boolean shouldNotClosePit = task.isRelocationRequested() || getReindexParent(task).isPresent();
+                                if (response.getTaskResumeInfo().isEmpty() && shouldNotClosePit == false) {
                                     closeRemotePitAndRestClient(pitId, restClient);
+                                    listener.onResponse(response);
+                                } else {
+                                    // Task is relocating or sliced worker; close RestClient on this node but keep PIT open
+                                    closeRestClientAndRun(restClient, () -> listener.onResponse(response));
                                 }
-                                listener.onResponse(response);
                             }
 
                             @Override
                             public void onFailure(Exception e) {
-                                if (e instanceof TaskRelocatedException == false) {
+                                boolean skipClose = e instanceof TaskRelocatedException || task.isRelocationRequested();
+                                if (skipClose == false) {
                                     closeRemotePitAndRestClient(pitId, restClient);
+                                    listener.onFailure(e);
+                                } else {
+                                    // Task is relocating to another node; close RestClient on this node but keep PIT open for the relocated task
+                                    closeRestClientAndRun(restClient, () -> listener.onFailure(e));
                                 }
-                                listener.onFailure(e);
                             }
                         };
                         Consumer<Version> workerActionWithClosePit = createWorkerAction(task, request, bulkClient, listenerWithClosePit);
@@ -466,18 +504,26 @@ public class Reindexer {
             ActionListener<BulkByScrollResponse> listenerWithClosePit = new ActionListener<>() {
                 @Override
                 public void onResponse(BulkByScrollResponse response) {
-                    if (response.getTaskResumeInfo().isEmpty()) {
+                    boolean shouldNotClosePit = task.isRelocationRequested() || getReindexParent(task).isPresent();
+                    if (response.getTaskResumeInfo().isEmpty() && shouldNotClosePit == false) {
                         closeRemotePitAndRestClient(pitId, restClient);
+                        listenerWithRelocations.onResponse(response);
+                    } else {
+                        // Task is relocating or sliced worker; close RestClient on this node but keep PIT open
+                        closeRestClientAndRun(restClient, () -> listenerWithRelocations.onResponse(response));
                     }
-                    listenerWithRelocations.onResponse(response);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    if (e instanceof TaskRelocatedException == false) {
+                    boolean skipClose = e instanceof TaskRelocatedException || task.isRelocationRequested();
+                    if (skipClose == false) {
                         closeRemotePitAndRestClient(pitId, restClient);
+                        listenerWithRelocations.onFailure(e);
+                    } else {
+                        // Task is relocating to another node; close RestClient on this node but keep PIT open for the relocated task
+                        closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e));
                     }
-                    listenerWithRelocations.onFailure(e);
                 }
             };
             Consumer<Version> workerActionWithClosePit = createWorkerAction(task, request, bulkClient, listenerWithClosePit);

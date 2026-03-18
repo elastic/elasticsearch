@@ -66,6 +66,7 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
@@ -396,6 +397,27 @@ public class ReindexerTests extends ESTestCase {
     }
 
     /**
+     * When shouldNotCloseOnResponse returns true (e.g. sliced worker), wrapListenerWithClosePit must not close the PIT on response.
+     */
+    public void testWrapListenerWithClosePitDoesNotCloseOnResponseWhenShouldNotClose() {
+        final AtomicInteger closeCount = new AtomicInteger(0);
+        final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
+        final BytesReference pitId = new BytesArray("pit-id");
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
+            pitId,
+            delegate,
+            id -> closeCount.incrementAndGet(),
+            null,
+            () -> true
+        );
+
+        wrapped.onResponse(reindexResponseWithBulkAndSearchFailures(null, null));
+
+        verify(delegate).onResponse(any());
+        assertThat(closeCount.get(), equalTo(0));
+    }
+
+    /**
      * When the failure is not TaskRelocatedException, wrapListenerWithClosePit must close the PIT.
      */
     public void testWrapListenerWithClosePitClosesOnOtherFailure() {
@@ -412,6 +434,57 @@ public class ReindexerTests extends ESTestCase {
 
         verify(delegate).onFailure(any());
         assertThat(closeCount.get(), equalTo(1));
+    }
+
+    /**
+     * When the task is non-null but does not have relocation requested, wrapListenerWithClosePit must close the PIT on failure.
+     */
+    public void testWrapListenerWithClosePitClosesOnFailureWhenTaskHasNoRelocationRequested() {
+        final AtomicInteger closeCount = new AtomicInteger(0);
+        final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
+        final BytesReference pitId = new BytesArray("pit-id");
+        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(new TaskId("node", 1));
+        task.setWorker(Float.POSITIVE_INFINITY, 0);
+        // Do not call requestRelocation() - task.isRelocationRequested() is false
+
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
+            pitId,
+            delegate,
+            id -> closeCount.incrementAndGet(),
+            task,
+            () -> false
+        );
+
+        wrapped.onFailure(new RuntimeException("other failure"));
+
+        verify(delegate).onFailure(any());
+        assertThat(closeCount.get(), equalTo(1));
+    }
+
+    /**
+     * When the task has relocation requested and the failure is TaskCancelledException,
+     * wrapListenerWithClosePit must not close the PIT (relocated task will use it).
+     */
+    public void testWrapListenerWithClosePitDoesNotCloseOnCancellationDuringRelocation() {
+        final AtomicInteger closeCount = new AtomicInteger(0);
+        final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
+        final BytesReference pitId = new BytesArray("pit-id");
+        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(new TaskId("node", 1));
+        task.setWorker(Float.POSITIVE_INFINITY, 0);
+        task.requestRelocation();
+
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
+            pitId,
+            delegate,
+            id -> closeCount.incrementAndGet(),
+            task,
+            () -> true
+        );
+
+        wrapped.onFailure(new TaskCancelledException("cancelled during relocation"));
+
+        verify(delegate).onFailure(any());
+        assertThat(closeCount.get(), equalTo(0));
     }
 
     /**
@@ -1165,6 +1238,85 @@ public class ReindexerTests extends ESTestCase {
             }
         } finally {
             client.shutdown();
+        }
+    }
+
+    /**
+     * When a relocated PIT task is resumed with ResumeInfo containing PitWorkerResumeInfo but sourceIndicesForDescription
+     * is null or empty, the listener receives IllegalStateException. The new node needs source indices to re-open
+     * the PIT since the PIT from the old node is invalid after relocation.
+     */
+    public void testRelocatedPitTaskFailsWhenSourceIndicesForDescriptionMissing() {
+        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+
+        final TestThreadPool threadPool = new TestThreadPool(getTestName()) {
+            @Override
+            public ExecutorService executor(String name) {
+                return DIRECT_EXECUTOR_SERVICE;
+            }
+        };
+        try {
+            final ClusterService clusterService = mock(ClusterService.class);
+            final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
+            when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+            when(clusterService.localNode()).thenReturn(localNode);
+
+            final ProjectResolver projectResolver = mock(ProjectResolver.class);
+            when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
+
+            FeatureService featureService = mock(FeatureService.class);
+            when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
+
+            final Reindexer reindexer = new Reindexer(
+                clusterService,
+                projectResolver,
+                mock(Client.class),
+                threadPool,
+                mock(ScriptService.class),
+                mock(ReindexSslConfig.class),
+                null,
+                mock(TransportService.class),
+                mock(ReindexRelocationNodePicker.class),
+                featureService
+            );
+
+            final ResumeInfo.PitWorkerResumeInfo pitResumeInfo = new ResumeInfo.PitWorkerResumeInfo(
+                new BytesArray("old-pit-id"),
+                new Object[] { 1L },
+                System.currentTimeMillis(),
+                new BulkByScrollTask.Status(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0f, null, timeValueMillis(0)),
+                null
+            );
+            final ResumeInfo resumeInfo = new ResumeInfo(randomOrigin(), pitResumeInfo, null);
+
+            final ReindexRequest request = new ReindexRequest();
+            request.setDestIndex("dest");
+            request.setSlices(1);
+            request.setResumeInfo(resumeInfo);
+            // Intentionally omit setSourceIndicesForDescription - simulates relocated task with missing indices
+            request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
+
+            final BulkByScrollTask task = new BulkByScrollTask(
+                randomTaskId(),
+                "reindex",
+                "reindex",
+                "test",
+                TaskId.EMPTY_TASK_ID,
+                Collections.emptyMap(),
+                false,
+                randomOrigin()
+            );
+
+            final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+            reindexer.initTask(task, request, initFuture.delegateFailure((l, v) -> reindexer.execute(task, request, mock(Client.class), l)));
+
+            IllegalStateException e = expectThrows(IllegalStateException.class, initFuture::actionGet);
+            assertThat(
+                e.getMessage(),
+                equalTo("Relocated PIT task must have sourceIndicesForDescription to re-open PIT on the new node")
+            );
+        } finally {
+            terminate(threadPool);
         }
     }
 

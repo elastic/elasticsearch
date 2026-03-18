@@ -7,14 +7,18 @@
 
 package org.elasticsearch.xpack.esql.approximation;
 
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ApproximationPlanTests extends ApproximationTestCase {
 
@@ -30,10 +34,10 @@ public class ApproximationPlanTests extends ApproximationTestCase {
         );
 
         assertThat(approximationPlan, hasPlan(SampledAggregate.class));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField("CONFIDENCE_INTERVAL(COUNT())")));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CERTIFIED(COUNT())"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(SUM(emp_no))"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CERTIFIED(SUM(emp_no))"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField("_approximation_confidence_interval(COUNT())")));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_certified(COUNT())"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_confidence_interval(SUM(emp_no))"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_certified(SUM(emp_no))"))));
     }
 
     public void testApproximationPlan_createsConfidenceInterval_withGrouping() throws Exception {
@@ -43,10 +47,10 @@ public class ApproximationPlanTests extends ApproximationTestCase {
         );
 
         assertThat(approximationPlan, hasPlan(SampledAggregate.class));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(COUNT())"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CERTIFIED(COUNT())"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(SUM(emp_no))"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CERTIFIED(SUM(emp_no))"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_confidence_interval(COUNT())"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_certified(COUNT())"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_confidence_interval(SUM(emp_no))"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_certified(SUM(emp_no))"))));
     }
 
     public void testApproximationPlan_dependentConfidenceIntervals() throws Exception {
@@ -58,17 +62,52 @@ public class ApproximationPlanTests extends ApproximationTestCase {
         );
 
         assertThat(approximationPlan, hasPlan(SampledAggregate.class));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(x)"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CERTIFIED(x)"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(a)"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CERTIFIED(a)"))));
-        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(b)")))));
-        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("CERTIFIED(b)")))));
-        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(c)")))));
-        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("CERTIFIED(c)")))));
-        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(d)")))));
-        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("CERTIFIED(d)")))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(e)"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CERTIFIED(e)"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_confidence_interval(x)"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_certified(x)"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_confidence_interval(a)"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_certified(a)"))));
+        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("_approximation_confidence_interval(b)")))));
+        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("_approximation_certified(b)")))));
+        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("_approximation_confidence_interval(c)")))));
+        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("_approximation_certified(c)")))));
+        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("_approximation_confidence_interval(d)")))));
+        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("_approximation_certified(d)")))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_confidence_interval(e)"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_certified(e)"))));
+    }
+
+    public void testColumnMetadata() throws Exception {
+        LogicalPlan approximationPlan = ApproximationPlan.get(
+            ApproximationTests.getLogicalPlan("FROM test | STATS count=COUNT(), sum=SUM(emp_no)"),
+            ApproximationSettings.DEFAULT
+        );
+
+        for (Attribute attr : approximationPlan.output()) {
+            Map<String, Object> metadata = ApproximationPlan.columnMetadata(attr);
+            switch (attr.name()) {
+                case "count", "sum":
+                    assertThat(attr.synthetic(), equalTo(false));
+                    assertThat(metadata, nullValue());
+                    break;
+                case "_approximation_confidence_interval(count)":
+                    assertThat(attr.synthetic(), equalTo(true));
+                    assertThat(metadata, equalTo(Map.of("approximation", Map.of("type", "confidence_interval", "column", "count"))));
+                    break;
+                case "_approximation_certified(count)":
+                    assertThat(attr.synthetic(), equalTo(true));
+                    assertThat(metadata, equalTo(Map.of("approximation", Map.of("type", "certified", "column", "count"))));
+                    break;
+                case "_approximation_confidence_interval(sum)":
+                    assertThat(attr.synthetic(), equalTo(true));
+                    assertThat(metadata, equalTo(Map.of("approximation", Map.of("type", "confidence_interval", "column", "sum"))));
+                    break;
+                case "_approximation_certified(sum)":
+                    assertThat(attr.synthetic(), equalTo(true));
+                    assertThat(metadata, equalTo(Map.of("approximation", Map.of("type", "certified", "column", "sum"))));
+                    break;
+                default:
+                    fail("Unexpected attribute: " + attr);
+            }
+        }
     }
 }

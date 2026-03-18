@@ -72,14 +72,16 @@ public interface SnapshotShardContextFactory {
     }
 
     /**
-     * Acquire an index commit for the shard snapshot and ensure it's valid with respect to resharding.
+     * Acquire an index commit for the shard snapshot, validating that the shard is a started primary and no resharding is in progress.
+     * A {@code null} {@code snapshotStatus} means the snapshot is running on a remote node, abort handling and status updates skipped
+     * on this node as they are handled on the remote node.
      */
     static SnapshotIndexCommit acquireSnapshotIndexCommit(
         ClusterService clusterService,
         IndexShard indexShard,
         Snapshot snapshot,
         boolean supportsRelocationDuringSnapshot,
-        @Nullable IndexShardSnapshotStatus snapshotStatus // null when the shard snapshot runs on a remote node
+        @Nullable IndexShardSnapshotStatus snapshotStatus
     ) {
         final var shardId = indexShard.shardId();
         if (indexShard.routingEntry().primary() == false) {

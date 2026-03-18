@@ -470,7 +470,13 @@ public abstract class AbstractAsyncBulkByScrollAction<
             currentScrollResponse.set(asyncResponse);
         }
 
-        BulkRequest request = buildBulk(hits);
+        final BulkRequest request;
+        try {
+            request = buildBulk(hits);
+        } catch (Exception e) {
+            releaseHits(hits);
+            throw e;
+        }
         if (request.requests().isEmpty()) {
             /*
              * If we noop-ed the entire batch then just skip to the next batch or the BulkRequest would fail validation.

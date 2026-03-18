@@ -10,8 +10,11 @@ import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 import fixture.s3.S3HttpHandler;
 
+import com.sun.net.httpserver.HttpHandler;
+
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -444,12 +447,14 @@ public final class S3FixtureUtils {
      * Extended S3HttpFixture that automatically loads test fixtures from resources.
      * This fixture provides an in-memory S3-compatible endpoint for integration tests.
      */
+    @SuppressForbidden(reason = "uses HttpHandler for fault injection wrapper around S3 fixture")
     public static class DataSourcesS3HttpFixture extends S3HttpFixture {
 
         private static final Logger fixtureLogger = LogManager.getLogger(DataSourcesS3HttpFixture.class);
 
         private final int fixedPort;
         private S3HttpHandler handler;
+        private FaultInjectingS3HttpHandler faultHandler;
 
         /**
          * Create a fixture with a random available port.
@@ -467,10 +472,11 @@ public final class S3FixtureUtils {
         }
 
         @Override
-        protected S3HttpHandler createHandler() {
+        protected HttpHandler createHandler() {
             BiPredicate<String, String> authPredicate = fixedAccessKey(ACCESS_KEY, () -> "us-east-1", "s3");
             handler = new LoggingS3HttpHandler(BUCKET, WAREHOUSE, S3ConsistencyModel.STRONG_MPUS, authPredicate);
-            return handler;
+            faultHandler = new FaultInjectingS3HttpHandler(handler);
+            return faultHandler;
         }
 
         /**
@@ -478,6 +484,13 @@ public final class S3FixtureUtils {
          */
         public S3HttpHandler getHandler() {
             return handler;
+        }
+
+        /**
+         * Get the fault-injecting handler wrapper for controlling fault injection during tests.
+         */
+        public FaultInjectingS3HttpHandler getFaultHandler() {
+            return faultHandler;
         }
 
         /**

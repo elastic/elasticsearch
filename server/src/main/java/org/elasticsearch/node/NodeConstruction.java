@@ -812,7 +812,6 @@ class NodeConstruction {
             repositoriesService,
             rerouteServiceReference::get
         );
-        final var snapshotShardContextFactoryRef = new SetOnce<SnapshotShardContextFactory>();
         final ClusterModule clusterModule = new ClusterModule(
             settings,
             clusterService,
@@ -823,11 +822,7 @@ class NodeConstruction {
             systemIndices,
             projectResolver,
             getWriteLoadForecaster(threadPool, settings, clusterService.getClusterSettings()),
-            telemetryProvider,
-            () -> {
-                assert snapshotShardContextFactoryRef.get() != null : "Snapshot shard context factory must be initialized";
-                return snapshotShardContextFactoryRef.get().isSnapshotDecoupledFromShardLifecycle();
-            }
+            telemetryProvider
         );
         modules.add(clusterModule);
 
@@ -1205,7 +1200,6 @@ class NodeConstruction {
             SnapshotShardContextFactory.class,
             () -> new LocalPrimarySnapshotShardContextFactory(clusterService, indicesService)
         );
-        snapshotShardContextFactoryRef.set(snapshotShardContextFactory);
         SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
             settings,
             clusterService,

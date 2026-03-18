@@ -88,12 +88,7 @@ public final class Allocators {
     }
 
     public static AllocationDeciders defaultAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
-        Collection<AllocationDecider> deciders = ClusterModule.createAllocationDeciders(
-            settings,
-            clusterSettings,
-            Collections.emptyList(),
-            () -> false
-        );
+        Collection<AllocationDecider> deciders = ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.emptyList());
         return new AllocationDeciders(deciders);
     }
 

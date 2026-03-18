@@ -170,8 +170,7 @@ public class ClusterModuleTests extends ModuleTestCase {
                 EmptySystemIndices.INSTANCE,
                 TestProjectResolvers.alwaysThrow(),
                 WriteLoadForecaster.DEFAULT,
-                TelemetryProvider.NOOP,
-                () -> false
+                TelemetryProvider.NOOP
             )
         );
         assertEquals(e.getMessage(), "Cannot specify allocation decider [" + EnableAllocationDecider.class.getName() + "] twice");
@@ -190,8 +189,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             EmptySystemIndices.INSTANCE,
             TestProjectResolvers.alwaysThrow(),
             WriteLoadForecaster.DEFAULT,
-            TelemetryProvider.NOOP,
-            () -> false
+            TelemetryProvider.NOOP
         );
         assertTrue(module.deciderList.stream().anyMatch(d -> d.getClass().equals(FakeAllocationDecider.class)));
     }
@@ -209,8 +207,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             EmptySystemIndices.INSTANCE,
             TestProjectResolvers.alwaysThrow(),
             WriteLoadForecaster.DEFAULT,
-            TelemetryProvider.NOOP,
-            () -> false
+            TelemetryProvider.NOOP
         );
     }
 
@@ -246,8 +243,7 @@ public class ClusterModuleTests extends ModuleTestCase {
                 EmptySystemIndices.INSTANCE,
                 TestProjectResolvers.alwaysThrow(),
                 WriteLoadForecaster.DEFAULT,
-                TelemetryProvider.NOOP,
-                () -> false
+                TelemetryProvider.NOOP
             )
         );
         assertEquals("Unknown ShardsAllocator [dne]", e.getMessage());
@@ -297,8 +293,7 @@ public class ClusterModuleTests extends ModuleTestCase {
         Collection<AllocationDecider> deciders = ClusterModule.createAllocationDeciders(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            Collections.emptyList(),
-            () -> false
+            Collections.emptyList()
         );
         assertThat(deciders, contains(expectedDeciders.<Matcher<? super AllocationDecider>>map(Matchers::instanceOf).toList()));
     }
@@ -314,8 +309,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             EmptySystemIndices.INSTANCE,
             TestProjectResolvers.alwaysThrow(),
             WriteLoadForecaster.DEFAULT,
-            TelemetryProvider.NOOP,
-            () -> false
+            TelemetryProvider.NOOP
         );
         expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator()));
     }
@@ -331,8 +325,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             EmptySystemIndices.INSTANCE,
             TestProjectResolvers.alwaysThrow(),
             WriteLoadForecaster.DEFAULT,
-            TelemetryProvider.NOOP,
-            () -> false
+            TelemetryProvider.NOOP
         );
         expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator()));
     }

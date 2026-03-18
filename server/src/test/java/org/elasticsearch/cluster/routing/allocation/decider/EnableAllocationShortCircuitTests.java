@@ -207,7 +207,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
         var settings = settingsBuilder.build();
         var clusterSettings = ClusterSettings.createBuiltInClusterSettings(settings);
         List<AllocationDecider> deciders = new ArrayList<>(
-            ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.singletonList(plugin), () -> false)
+            ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.singletonList(plugin))
         );
         return new MockAllocationService(
             new AllocationDeciders(deciders),

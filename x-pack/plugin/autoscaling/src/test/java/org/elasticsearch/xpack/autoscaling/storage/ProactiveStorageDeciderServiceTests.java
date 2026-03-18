@@ -88,7 +88,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         final ClusterState state = startAll(interimState);
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         Collection<AllocationDecider> allocationDecidersList = new ArrayList<>(
-            ClusterModule.createAllocationDeciders(Settings.EMPTY, clusterSettings, Collections.emptyList(), () -> false)
+            ClusterModule.createAllocationDeciders(Settings.EMPTY, clusterSettings, Collections.emptyList())
         );
         allocationDecidersList.add(new AllocationDecider() {
             @Override

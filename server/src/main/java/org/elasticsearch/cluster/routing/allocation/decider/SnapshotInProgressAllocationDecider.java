@@ -14,10 +14,12 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.util.Objects;
-import java.util.function.BooleanSupplier;
 
 /**
  * This {@link org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider} prevents shards that
@@ -27,10 +29,25 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "snapshot_in_progress";
 
-    private final BooleanSupplier snapshotDecoupledFromShardLifecycle;
+    private static final Logger logger = LogManager.getLogger(SnapshotInProgressAllocationDecider.class);
+    static final String RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING_NAME = "stateless.snapshot.relocation_during_snapshot.enabled";
 
-    public SnapshotInProgressAllocationDecider(BooleanSupplier snapshotDecoupledFromShardLifecycle) {
-        this.snapshotDecoupledFromShardLifecycle = snapshotDecoupledFromShardLifecycle;
+    private volatile boolean relocationDuringSnapshotEnabled;
+
+    public SnapshotInProgressAllocationDecider(ClusterSettings clusterSettings) {
+        final var relocationDuringSnapshotEnabledSetting = clusterSettings.get(RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING_NAME);
+        if (relocationDuringSnapshotEnabledSetting != null) {
+            if (relocationDuringSnapshotEnabledSetting.isDynamic()) {
+                clusterSettings.initializeAndWatch(relocationDuringSnapshotEnabledSetting, value -> {
+                    logger.info("relocation during snapshot enabled [{}]", value);
+                    relocationDuringSnapshotEnabled = (boolean) value;
+                });
+            } else {
+                relocationDuringSnapshotEnabled = (boolean) clusterSettings.get(relocationDuringSnapshotEnabledSetting);
+            }
+        } else {
+            relocationDuringSnapshotEnabled = false;
+        }
     }
 
     /**
@@ -59,10 +76,10 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
 
     private static final Decision YES_NOT_RUNNING = Decision.single(Decision.Type.YES, NAME, "no snapshots are currently running");
     private static final Decision YES_NOT_SNAPSHOTTED = Decision.single(Decision.Type.YES, NAME, "the shard is not being snapshotted");
-    private static final Decision YES_DECOUPLED = Decision.single(Decision.Type.YES, NAME, "snapshot is decoupled from shard lifecycle");
+    private static final Decision YES_DECOUPLED = Decision.single(Decision.Type.YES, NAME, "relocation is decoupled from snapshots");
 
     private Decision canMove(ShardRouting shardRouting, RoutingAllocation allocation) {
-        if (snapshotDecoupledFromShardLifecycle.getAsBoolean()) {
+        if (relocationDuringSnapshotEnabled) {
             return YES_DECOUPLED;
         }
 

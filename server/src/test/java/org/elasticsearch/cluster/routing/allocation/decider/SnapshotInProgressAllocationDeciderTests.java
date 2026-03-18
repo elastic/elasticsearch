@@ -18,7 +18,11 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -36,9 +40,13 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider.RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING_NAME;
+
 public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
 
-    private final SnapshotInProgressAllocationDecider decider = new SnapshotInProgressAllocationDecider(() -> false);
+    private final SnapshotInProgressAllocationDecider decider = new SnapshotInProgressAllocationDecider(
+        new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+    );
     private final Index index = new Index(randomIdentifier(), randomUUID());
     private final ShardId shardId = new ShardId(index, 0);
     private final String repositoryName = randomIdentifier();
@@ -202,8 +210,20 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
         );
     }
 
-    public void testYesWhenSnapshotDecoupledFromShardLifecycle() {
-        final var decoupledDecider = new SnapshotInProgressAllocationDecider(() -> true);
+    public void testYesWhenRelocationIsDecoupledFromSnapshots() {
+        final Setting<Boolean> setting = Setting.boolSetting(
+            RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING_NAME,
+            false,
+            Setting.Property.NodeScope,
+            Setting.Property.Dynamic
+        );
+        ;
+        final var decoupledDecider = new SnapshotInProgressAllocationDecider(
+            new ClusterSettings(
+                Settings.builder().put(setting.getKey(), true).build(),
+                Sets.addToCopy(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, setting)
+            )
+        );
         final var routingAllocation = new RoutingAllocation(
             new AllocationDeciders(List.of(decoupledDecider)),
             makeClusterState(shardId, SnapshotsInProgress.ShardState.INIT),
@@ -220,7 +240,7 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
         );
 
         assertEquals(Decision.Type.YES, decision.type());
-        assertEquals("snapshot is decoupled from shard lifecycle", decision.getExplanation());
+        assertEquals("relocation is decoupled from snapshots", decision.getExplanation());
     }
 
     public void testYesWhenSnapshotInProgressButShardIsPausedDueToShutdown() {

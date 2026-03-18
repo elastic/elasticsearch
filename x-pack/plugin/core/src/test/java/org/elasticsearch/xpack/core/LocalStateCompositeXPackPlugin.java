@@ -32,10 +32,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -87,7 +85,6 @@ import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.SnapshotMetrics;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.rest.RestInterceptor;
@@ -247,43 +244,13 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        List<RestHandler> handlers = new ArrayList<>(
-            super.getRestHandlers(
-                settings,
-                namedWriteableRegistry,
-                restController,
-                clusterSettings,
-                indexScopedSettings,
-                settingsFilter,
-                indexNameExpressionResolver,
-                nodesInCluster,
-                clusterSupportsFeature
-            )
-        );
+        List<RestHandler> handlers = new ArrayList<>(super.getRestHandlers(restHandlersServices, nodesInCluster, clusterSupportsFeature));
         filterPlugins(ActionPlugin.class).forEach(
-            p -> handlers.addAll(
-                p.getRestHandlers(
-                    settings,
-                    namedWriteableRegistry,
-                    restController,
-                    clusterSettings,
-                    indexScopedSettings,
-                    settingsFilter,
-                    indexNameExpressionResolver,
-                    nodesInCluster,
-                    clusterSupportsFeature
-                )
-            )
+            p -> handlers.addAll(p.getRestHandlers(restHandlersServices, nodesInCluster, clusterSupportsFeature))
         );
         return handlers;
     }

@@ -8,8 +8,8 @@ required_capability: fuse_v6
 required_capability: match_operator_colon
 
 FROM employees METADATA _id, _index, _score
-| FORK ( WHERE emp_no:10001 )
-       ( WHERE emp_no:10002 )
+| FORK ( WHERE emp_no:10001 | SORT _score DESC | LIMIT 10)
+       ( WHERE emp_no:10002 | SORT _score DESC | LIMIT 10)
 | FUSE
 | EVAL _score = round(_score, 4)
 | KEEP _score, _fork, emp_no
@@ -861,7 +861,7 @@ required_capability: fuse_v6
 required_capability: fix_agg_on_null_by_replacing_with_eval
 
 ROW x = null, _id = "", _index = "", _score = 1.0
-| FORK (EVAl y = 2) (EVAl y = 3)
+| FORK (EVAl y = 2 | LIMIT 1) (EVAl y = 3 | LIMIT 1)
 | FUSE LINEAR
 | EVAL y = mv_sort(y), _fork = mv_sort(_fork)
 ;
@@ -877,8 +877,8 @@ required_capability: fix_agg_on_null_by_replacing_with_eval
 
 FROM employees METADATA _id, _index, _score
 | EVAL x = null
-| FORK ( WHERE emp_no:10001 )
-       ( WHERE emp_no:10002 )
+| FORK ( WHERE emp_no:10001 | LIMIT 10 )
+       ( WHERE emp_no:10002 | LIMIT 10 )
 | FUSE
 | KEEP x
 ;

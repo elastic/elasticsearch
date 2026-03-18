@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 143997
+summary: "[ES|QL|DS] Wire parallel parsing into production for text formats"
+type: enhancement

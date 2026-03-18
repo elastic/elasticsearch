@@ -63,6 +63,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
+import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndexLimitExceededException;
@@ -120,6 +121,7 @@ import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.reso
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
+import static org.elasticsearch.indices.SystemIndicesTests.newFeature;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
@@ -326,6 +328,16 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 .metadata(Metadata.builder().put(tuple.v1()))
                 .build();
 
+            List<String> patterns = new ArrayList<>();
+            for (int i = 0; i < randomIntBetween(10, 20); i++) {
+                patterns.add(randomIdentifier("."));
+            }
+
+            List<SystemIndices.Feature> features = patterns.stream()
+                .map(pattern -> newFeature(List.of(new AssociatedIndexDescriptor(pattern + "*", "Description"))))
+                .toList();
+            SystemIndices systemIndices = new SystemIndices(features);
+
             IndicesService indicesService = mock(IndicesService.class);
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
                 Settings.EMPTY,
@@ -337,7 +349,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
                 threadPool,
                 null,
-                EmptySystemIndices.INSTANCE,
+                systemIndices,
                 false,
                 new IndexSettingProviders(Set.of())
             );
@@ -365,6 +377,22 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 checkerService.validateIndexLimit(clusterState.getMetadata().getProject(projectId), systemIndexCreateRequest);
             } catch (Exception ex) {
                 fail(ex, "System indices creation should not be limited by indices total.");
+            }
+
+            // Feature associated indices are exempt from the limit
+            for (int i = 0; i < patterns.size(); i++) {
+                var index = randomFrom(patterns) + randomIndexName();
+                CreateIndexClusterStateUpdateRequest featureIndexCreateRequest = new CreateIndexClusterStateUpdateRequest(
+                    "test",
+                    projectId,
+                    index,
+                    index
+                );
+                try {
+                    checkerService.validateIndexLimit(clusterState.getMetadata().getProject(projectId), featureIndexCreateRequest);
+                } catch (Exception ex) {
+                    fail(ex, "Feature associated indices creation should not be limited by indices total.");
+                }
             }
         }, nodeSettings, Set.of(CLUSTER_MAX_INDICES_PER_PROJECT_SETTING));
     }
@@ -1834,7 +1862,13 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
             IndexCreationException exception = assertThrows(
                 IndexCreationException.class,
-                () -> service.applyCreateIndexRequest(clusterService.state(), request, false, ActionListener.wrap(r -> {}, e -> {}))
+                () -> service.applyCreateIndexRequest(
+                    clusterService.state(),
+                    request,
+                    false,
+                    RerouteBehavior.PERFORM_REROUTE,
+                    ActionListener.noop()
+                )
             );
             assertThat(
                 exception.getCause().getMessage(),
@@ -1867,7 +1901,13 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             );
 
             try {
-                service.applyCreateIndexRequest(clusterService.state(), request, false, ActionListener.wrap(r -> {}, e -> {}));
+                service.applyCreateIndexRequest(
+                    clusterService.state(),
+                    request,
+                    false,
+                    RerouteBehavior.PERFORM_REROUTE,
+                    ActionListener.noop()
+                );
             } catch (Exception e) {
                 fail(e, "did not expect private setting to be rejected when system provided");
             }
@@ -1900,7 +1940,13 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             );
 
             try {
-                service.applyCreateIndexRequest(clusterService.state(), request, false, ActionListener.wrap(r -> {}, e -> {}));
+                service.applyCreateIndexRequest(
+                    clusterService.state(),
+                    request,
+                    false,
+                    RerouteBehavior.PERFORM_REROUTE,
+                    ActionListener.noop()
+                );
             } catch (Exception e) {
                 fail(e, "did not expect private setting to be rejected when added via IndexSettingProvider");
             }

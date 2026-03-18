@@ -322,12 +322,11 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
             );
             try (DirectoryReader reader = iw.getReader()) {
                 IpScriptFieldType fieldType = buildWrapped("append_param", Map.of("param", ".1"), factoryWrapper);
+                assertColumnAtATimeReaderNotSupported(reader, fieldType);
                 List<BytesRef> expected = List.of(
                     new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.0.1"))),
                     new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.1.1")))
                 );
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 0), equalTo(expected));
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 1), equalTo(expected.subList(1, 2)));
                 assertThat(blockLoaderReadValuesFromRowStrideReader(breaker, reader, fieldType), equalTo(expected));
             }
         }
@@ -358,26 +357,18 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
             );
 
             try (DirectoryReader reader = iw.getReader()) {
-                // when
                 BlockLoader loader = fieldType.blockLoader(blContext(Settings.EMPTY, true));
-
-                // then
+                assertColumnAtATimeReaderNotSupported(reader, fieldType);
 
                 // assert loader is of expected instance type
                 assertThat(loader, instanceOf(IpScriptBlockDocValuesReader.IpScriptBlockLoader.class));
 
-                // ignored source doesn't support column at a time loading:
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
-                try (var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst()).apply(breaker)) {
-                    assertThat(columnAtATimeLoader, instanceOf(IpScriptBlockDocValuesReader.class));
-                }
-
                 try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
                     assertThat(rowStrideReader, instanceOf(IpScriptBlockDocValuesReader.class));
                 }
 
                 // assert values
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 0), equalTo(expected));
                 assertThat(blockLoaderReadValuesFromRowStrideReader(breaker, reader, fieldType), equalTo(expected));
             }
         }

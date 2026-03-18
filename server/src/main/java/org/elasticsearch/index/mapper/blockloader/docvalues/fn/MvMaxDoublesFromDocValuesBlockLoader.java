@@ -9,11 +9,10 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractDoublesFromDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
 import java.io.IOException;
 
@@ -28,13 +27,13 @@ public class MvMaxDoublesFromDocValuesBlockLoader extends AbstractDoublesFromDoc
     }
 
     @Override
-    protected AllReader singletonReader(CircuitBreaker breaker, NumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
-        return new Singleton(breaker, docValues, toDouble);
+    protected ColumnAtATimeReader singletonReader(TrackingNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
+        return new Singleton(docValues, toDouble);
     }
 
     @Override
-    protected AllReader sortedReader(CircuitBreaker breaker, SortedNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
-        return new MvMaxSorted(breaker, docValues, toDouble);
+    protected ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
+        return new MvMaxSorted(docValues, toDouble);
     }
 
     @Override
@@ -42,12 +41,12 @@ public class MvMaxDoublesFromDocValuesBlockLoader extends AbstractDoublesFromDoc
         return "DoublesFromDocValues[" + fieldName + "]";
     }
 
-    private static class MvMaxSorted extends DoublesBlockDocValuesReader {
-        private final SortedNumericDocValues numericDocValues;
+    private static class MvMaxSorted extends BlockDocValuesReader {
+        private final TrackingSortedNumericDocValues numericDocValues;
         private final ToDouble toDouble;
 
-        MvMaxSorted(CircuitBreaker breaker, SortedNumericDocValues numericDocValues, ToDouble toDouble) {
-            super(breaker);
+        MvMaxSorted(TrackingSortedNumericDocValues numericDocValues, ToDouble toDouble) {
+            super(null);
             this.numericDocValues = numericDocValues;
             this.toDouble = toDouble;
         }
@@ -63,28 +62,28 @@ public class MvMaxDoublesFromDocValuesBlockLoader extends AbstractDoublesFromDoc
             }
         }
 
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (DoubleBuilder) builder);
-        }
-
         private void read(int doc, DoubleBuilder builder) throws IOException {
-            if (false == numericDocValues.advanceExact(doc)) {
+            if (false == numericDocValues.docValues().advanceExact(doc)) {
                 builder.appendNull();
                 return;
             }
-            discardAllButLast(numericDocValues);
-            builder.appendDouble(toDouble.convert(numericDocValues.nextValue()));
+            discardAllButLast(numericDocValues.docValues());
+            builder.appendDouble(toDouble.convert(numericDocValues.docValues().nextValue()));
         }
 
         @Override
         public int docId() {
-            return numericDocValues.docID();
+            return numericDocValues.docValues().docID();
         }
 
         @Override
         public String toString() {
             return "MvMaxDoublesFromDocValues.Sorted";
+        }
+
+        @Override
+        public void close() {
+            numericDocValues.close();
         }
     }
 }

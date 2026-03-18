@@ -25,8 +25,8 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MvMaxDoublesFromDocValuesBlockLoaderTests extends AbstractDoublesFromDocValuesBlockLoaderTests {
-    public MvMaxDoublesFromDocValuesBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
-        super(blockAtATime, multiValues, missingValues);
+    public MvMaxDoublesFromDocValuesBlockLoaderTests(boolean multiValues, boolean missingValues) {
+        super(multiValues, missingValues);
     }
 
     @Override
@@ -37,10 +37,7 @@ public class MvMaxDoublesFromDocValuesBlockLoaderTests extends AbstractDoublesFr
 
         try (var doublesReader = doublesLoader.reader(breaker, ctx); var mvMaxDoublesReader = mvMaxDoublesLoader.reader(breaker, ctx);) {
             assertThat(mvMaxDoublesReader, readerMatcher());
-            try (
-                TestBlock doubles = read(doublesLoader, doublesReader, docs);
-                TestBlock maxDoubles = read(mvMaxDoublesLoader, mvMaxDoublesReader, docs);
-            ) {
+            try (TestBlock doubles = read(doublesReader, docs); TestBlock maxDoubles = read(mvMaxDoublesReader, docs);) {
                 checkBlocks(doubles, maxDoubles);
             }
         }
@@ -52,10 +49,7 @@ public class MvMaxDoublesFromDocValuesBlockLoaderTests extends AbstractDoublesFr
                     docsArray[d] = i + d;
                 }
                 docs = TestBlock.docs(docsArray);
-                try (
-                    TestBlock doubles = read(doublesLoader, doublesReader, docs);
-                    TestBlock maxDoubles = read(mvMaxDoublesLoader, mvMaxDoublesReader, docs);
-                ) {
+                try (TestBlock doubles = read(doublesReader, docs); TestBlock maxDoubles = read(mvMaxDoublesReader, docs);) {
                     checkBlocks(doubles, maxDoubles);
                 }
             }

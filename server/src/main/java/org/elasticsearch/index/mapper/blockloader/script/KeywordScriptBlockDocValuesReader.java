@@ -22,12 +22,13 @@ import java.io.IOException;
 /**
  * {@link BlockDocValuesReader} implementation for keyword scripts.
  */
-public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
-    public static class KeywordScriptBlockLoader extends DocValuesBlockLoader {
+public class KeywordScriptBlockDocValuesReader extends BlockScriptReader {
+    public static class KeywordScriptBlockLoader extends ScriptBlockLoader {
         private final StringFieldScript.LeafFactory factory;
         private final long byteSize;
 
         public KeywordScriptBlockLoader(StringFieldScript.LeafFactory factory, ByteSizeValue byteSize) {
+            super(byteSize);
             this.factory = factory;
             this.byteSize = byteSize.getBytes();
         }
@@ -38,29 +39,18 @@ public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
 
         @Override
-        public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-            breaker.addEstimateBytesAndMaybeBreak(byteSize, "load blocks");
-            StringFieldScript script = null;
-            try {
-                script = factory.newInstance(context);
-                return new KeywordScriptBlockDocValuesReader(breaker, script, byteSize);
-            } finally {
-                if (script == null) {
-                    breaker.addWithoutBreaking(-byteSize);
-                }
-            }
+        public BlockScriptReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+            return new KeywordScriptBlockDocValuesReader(breaker, factory.newInstance(context), byteSize);
         }
     }
 
     private final BytesRefBuilder bytesBuild = new BytesRefBuilder(); // TODO breaking builder
     private final StringFieldScript script;
-    private final long byteSize;
     private int docId;
 
     KeywordScriptBlockDocValuesReader(CircuitBreaker breaker, StringFieldScript script, long byteSize) {
-        super(breaker);
+        super(breaker, byteSize);
         this.script = script;
-        this.byteSize = byteSize;
     }
 
     @Override
@@ -69,24 +59,9 @@ public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
     }
 
     @Override
-    public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
-        throws IOException {
-        // Note that we don't pre-sort our output so we can't use bytesRefsFromDocValues
-        try (BlockLoader.BytesRefBuilder builder = factory.bytesRefs(docs.count() - offset)) {
-            for (int i = offset; i < docs.count(); i++) {
-                read(docs.get(i), builder);
-            }
-            return builder.build();
-        }
-    }
-
-    @Override
-    public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
+    public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder b) throws IOException {
+        BlockLoader.BytesRefBuilder builder = (BlockLoader.BytesRefBuilder) b;
         this.docId = docId;
-        read(docId, (BlockLoader.BytesRefBuilder) builder);
-    }
-
-    private void read(int docId, BlockLoader.BytesRefBuilder builder) {
         script.runForDoc(docId);
         switch (script.getValues().size()) {
             case 0 -> builder.appendNull();
@@ -108,10 +83,5 @@ public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
     @Override
     public String toString() {
         return "ScriptKeywords";
-    }
-
-    @Override
-    public void close() {
-        breaker.addWithoutBreaking(-byteSize);
     }
 }

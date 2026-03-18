@@ -947,7 +947,13 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(
             mapper.docValuesParameters(),
-            equalTo(new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW))
+            equalTo(
+                new FieldMapper.DocValuesParameter.Values(
+                    true,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
+                )
+            )
         );
         assertScriptDocValues(mapperService, List.of("bar", "foo"), equalTo(List.of("bar", "foo")));
     }
@@ -960,20 +966,61 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(
             mapper.docValuesParameters(),
-            equalTo(new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH))
+            equalTo(
+                new FieldMapper.DocValuesParameter.Values(
+                    true,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
+                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
+                )
+            )
         );
         assertScriptDocValues(mapperService, List.of("bar", "foo"), equalTo(List.of("bar", "foo")));
     }
 
-    public void testDocValuesInvalidCardinality() throws IOException {
+    public void testMultiValueSortedSet() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createSytheticSourceMapperService(
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .startObject("doc_values")
+                    .field("multi_value", "sorted_set")
+                    .field("cardinality", "low")
+                    .endObject()
+            )
+        );
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(
+            mapper.docValuesParameters(),
+            equalTo(
+                new FieldMapper.DocValuesParameter.Values(
+                    true,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
+                )
+            )
+        );
+        assertScriptDocValues(mapperService, List.of("foo", "bar", "foo"), equalTo(List.of("bar", "foo")));
+    }
+
+    public void testMultiValueDefaultIsSortedSet() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.docValuesParameters().multiValue(), equalTo(FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET));
+    }
+
+    public void testMultiValueSortedNotAllowed() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         var e = expectThrows(
             MapperParsingException.class,
             () -> createMapperService(
-                fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("cardinality", "invalid").endObject())
+                fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", "sorted").endObject())
             )
         );
-        assertThat(e.getMessage(), containsString("Unknown value [invalid] for field [cardinality] - accepted values are [low, high]"));
+        assertThat(
+            e.getMessage(),
+            containsString("Unknown value [sorted] for field [multi_value] - accepted values are [no, sorted_set, arrays]")
+        );
     }
 
     public void testFieldTypeWithSkipDocValues_LogsDbModeDisabledSetting() throws IOException {

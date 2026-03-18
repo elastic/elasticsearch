@@ -23,8 +23,8 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
@@ -173,10 +173,10 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         }
     }
 
-    public static class DoubleFactory implements EvalOperator.ExpressionEvaluator.Factory {
-        private final EvalOperator.ExpressionEvaluator.Factory fieldEvaluator;
+    public static class DoubleFactory implements ExpressionEvaluator.Factory {
+        private final ExpressionEvaluator.Factory fieldEvaluator;
 
-        public DoubleFactory(EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
+        public DoubleFactory(ExpressionEvaluator.Factory fieldEvaluator) {
             this.fieldEvaluator = fieldEvaluator;
         }
 
@@ -186,14 +186,12 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             return new DoubleEvaluator(context.blockFactory(), fieldEvaluator.get(context));
         }
     }
 
-    public record DoubleEvaluator(BlockFactory blockFactory, EvalOperator.ExpressionEvaluator eval)
-        implements
-            EvalOperator.ExpressionEvaluator {
+    public record DoubleEvaluator(BlockFactory blockFactory, ExpressionEvaluator eval) implements ExpressionEvaluator {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleEvaluator.class);
 
         private Block evalBlock(Block block) {
@@ -271,10 +269,10 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         }
     }
 
-    public static class IntFactory implements EvalOperator.ExpressionEvaluator.Factory {
-        private final EvalOperator.ExpressionEvaluator.Factory fieldEvaluator;
+    public static class IntFactory implements ExpressionEvaluator.Factory {
+        private final ExpressionEvaluator.Factory fieldEvaluator;
 
-        public IntFactory(EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
+        public IntFactory(ExpressionEvaluator.Factory fieldEvaluator) {
             this.fieldEvaluator = fieldEvaluator;
         }
 
@@ -284,14 +282,12 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             return new IntEvaluator(context.blockFactory(), fieldEvaluator.get(context));
         }
     }
 
-    public record IntEvaluator(BlockFactory blockFactory, EvalOperator.ExpressionEvaluator eval)
-        implements
-            EvalOperator.ExpressionEvaluator {
+    public record IntEvaluator(BlockFactory blockFactory, ExpressionEvaluator eval) implements ExpressionEvaluator {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntEvaluator.class);
 
         @Override
@@ -369,10 +365,10 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         }
     }
 
-    public static class LongFactory implements EvalOperator.ExpressionEvaluator.Factory {
-        private final EvalOperator.ExpressionEvaluator.Factory fieldEvaluator;
+    public static class LongFactory implements ExpressionEvaluator.Factory {
+        private final ExpressionEvaluator.Factory fieldEvaluator;
 
-        public LongFactory(EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
+        public LongFactory(ExpressionEvaluator.Factory fieldEvaluator) {
             this.fieldEvaluator = fieldEvaluator;
         }
 
@@ -382,14 +378,12 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             return new LongEvaluator(context.blockFactory(), fieldEvaluator.get(context));
         }
     }
 
-    public record LongEvaluator(BlockFactory blockFactory, EvalOperator.ExpressionEvaluator eval)
-        implements
-            EvalOperator.ExpressionEvaluator {
+    public record LongEvaluator(BlockFactory blockFactory, ExpressionEvaluator eval) implements ExpressionEvaluator {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongEvaluator.class);
 
         private Block evalBlock(Block block) {
@@ -467,10 +461,10 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         }
     }
 
-    public static class UnsignedLongFactory implements EvalOperator.ExpressionEvaluator.Factory {
-        private final EvalOperator.ExpressionEvaluator.Factory fieldEvaluator;
+    public static class UnsignedLongFactory implements ExpressionEvaluator.Factory {
+        private final ExpressionEvaluator.Factory fieldEvaluator;
 
-        public UnsignedLongFactory(EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
+        public UnsignedLongFactory(ExpressionEvaluator.Factory fieldEvaluator) {
             this.fieldEvaluator = fieldEvaluator;
         }
 
@@ -480,14 +474,12 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             return new UnsignedLong(context.blockFactory(), fieldEvaluator.get(context));
         }
     }
 
-    public record UnsignedLong(BlockFactory blockFactory, EvalOperator.ExpressionEvaluator eval)
-        implements
-            EvalOperator.ExpressionEvaluator {
+    public record UnsignedLong(BlockFactory blockFactory, ExpressionEvaluator eval) implements ExpressionEvaluator {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(UnsignedLong.class);
 
         private Block evalBlock(Block block) {

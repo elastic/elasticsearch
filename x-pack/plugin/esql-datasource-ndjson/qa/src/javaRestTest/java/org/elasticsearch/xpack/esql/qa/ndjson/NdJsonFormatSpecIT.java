@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.ndjson;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
@@ -22,7 +23,7 @@ import java.util.List;
  * Parameterized integration tests for standalone NDJSON files.
  * Each csv-spec test is run against every configured storage backend (S3, HTTP, LOCAL).
  */
-@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
+@ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class NdJsonFormatSpecIT extends AbstractExternalSourceSpecTestCase {
 
     @ClassRule

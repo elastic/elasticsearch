@@ -34,16 +34,11 @@ public final class LastLongByTimestampGroupingAggregatorFunction implements Grou
 
   private final DriverContext driverContext;
 
-  public LastLongByTimestampGroupingAggregatorFunction(List<Integer> channels,
-      LastLongByTimestampAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static LastLongByTimestampGroupingAggregatorFunction create(List<Integer> channels,
+  LastLongByTimestampGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new LastLongByTimestampGroupingAggregatorFunction(channels, LastLongByTimestampAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = LastLongByTimestampAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

@@ -11,8 +11,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Data source plugin that provides NDJSON format support for ESQL external data sources.
@@ -22,6 +24,11 @@ import java.util.Map;
  * and ignores malformed lines while logging warnings with their line numbers.
  */
 public class NdJsonDataSourcePlugin extends Plugin implements DataSourcePlugin {
+
+    @Override
+    public Set<FormatSpec> formatSpecs() {
+        return Set.of(new FormatSpec("ndjson", Set.of(".ndjson", ".jsonl", ".json")));
+    }
 
     @Override
     public Map<String, FormatReaderFactory> formatReaders(Settings settings) {

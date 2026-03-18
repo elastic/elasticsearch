@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assertEqualsIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
@@ -667,7 +668,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     private LogicalPlan parse(String s) {
-        return EsqlParser.INSTANCE.parseQuery(s);
+        return TEST_PARSER.parseQuery(s);
     }
 
     private Literal l(Object value, DataType type) {

@@ -57,6 +57,7 @@ dependencies {
 tasks.named('javaRestTest') {
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
+  enabled = buildParams.snapshotBuild
 
   // Arrow's unsafe memory allocator requires access to java.nio internals
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')

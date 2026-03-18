@@ -340,6 +340,14 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
     }
 
     @Override
+    public XContentLocation getCurrentLocation() {
+        if (state == State.PARSING_ORIGINAL_CONTENT) {
+            return super.getCurrentLocation();
+        }
+        return currentLocation;
+    }
+
+    @Override
     public Token currentToken() {
         return switch (state) {
             case EXPANDING_START_OBJECT -> expandedTokens % 2 == 1 ? Token.START_OBJECT : Token.FIELD_NAME;

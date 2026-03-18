@@ -359,11 +359,15 @@ public class IpFieldMapperTests extends MapperTestCase {
                 .map(v -> new BytesRef(InetAddressPoint.encode((InetAddress) v.v2())))
                 .collect(Collectors.toSet())
                 .stream()
-                .sorted()
+                .sorted(BytesRef::compareTo)
                 .map(v -> InetAddressPoint.decode(v.bytes))
                 .map(NetworkAddress::format)
                 .collect(Collectors.toCollection(ArrayList::new));
-            values.stream().filter(v -> false == v.v2() instanceof InetAddress).map(v -> v.v2()).forEach(outList::add);
+            values.stream()
+                .filter(v -> false == v.v2() instanceof InetAddress)
+                .map(Tuple::v2)
+                .sorted(SyntheticSourceMalformedValueSorter.comparator())
+                .forEach(outList::add);
             Object out = outList.size() == 1 ? outList.get(0) : outList;
             return new SyntheticSourceExample(in, out, this::mapping);
         }

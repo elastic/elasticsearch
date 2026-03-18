@@ -91,6 +91,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
+import org.elasticsearch.search.crossproject.SearchPlanningPhaseResolutionResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -206,7 +207,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Client client,
         UsageService usageService,
         ActionLoggingFieldsProvider fieldProvider,
-        ActivityLogWriterProvider logWriterProvider
+        ActivityLogWriterProvider logWriterProvider,
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         super(TYPE.name(), transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -237,9 +239,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.client = client;
         this.usageService = usageService;
         this.forceConnectTimeoutSecs = settings.getAsTime("search.ccs.force_connect_timeout", null);
-        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.crossProjectModeDecider = crossProjectModeDecider;
         this.activityLogger = new ActivityLogger<>(
-            "search",
             clusterService.getClusterSettings(),
             new SearchLogProducer(clusterService.getClusterSettings(), indexNameExpressionResolver.getSystemNamePredicate()),
             logWriterProvider,
@@ -533,6 +534,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 );
             } else {
                 final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).taskId();
+                if (rewritten.allowPartialSearchResults() == null) {
+                    rewritten.allowPartialSearchResults(searchService.defaultAllowPartialSearchResults());
+                }
                 if (shouldMinimizeRoundtrips(rewritten)) {
                     collectRemoteResolvedIndices(
                         parentTaskId,
@@ -905,7 +909,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             timeProvider.buildTookInMillis(),
                             searchResponse.getShardFailures(),
                             clusters,
-                            searchResponse.pointInTimeId()
+                            searchResponse.pointInTimeId(),
+                            null
                         )
                     );
                 }
@@ -1092,15 +1097,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             .map(Map.Entry::getKey)
             .collect(Collectors.toSet());
 
-        /*
-         * We don't show any metadata in the response if there are no linked projects to search.
-         * In that case, it's alright to return `Clusters.EMPTY` and is in fact what we do in
-         * stateful, i.e. outside CPS.
-         */
-        if (linkedProjectsWithResponses.isEmpty()) {
-            return SearchResponse.Clusters.EMPTY;
-        }
-
         boolean shouldIncludeOrigin = originResolvedIdxExpressions.expressions()
             .stream()
             .anyMatch(
@@ -1130,6 +1126,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         }
 
+        /*
+         * We don't show any metadata in the response if there are no linked projects to search.
+         * In that case, it's alright to return `Clusters.EMPTY` and is in fact what we do in
+         * stateful, i.e. outside CPS.
+         */
+        if (reconciledMap.isEmpty()
+            || (reconciledMap.size() == 1 && reconciledMap.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) != null)) {
+            return SearchResponse.Clusters.EMPTY;
+        }
+
         return new SearchResponse.Clusters(reconciledMap, false);
     }
 
@@ -1150,7 +1156,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             assert numProjectsToResolve > 0 : "At least one index is required to resolve cross project indices";
             assert rewritten.getResolvedIndexExpressions() != null : "ResolvedIndexExpressions must be set when cross project is enabled";
 
-            ActionListener<Collection<Map.Entry<String, ResolveIndexAction.Response>>> responsesByProjectListener = listener
+            ActionListener<Collection<Map.Entry<String, SearchPlanningPhaseResolutionResult>>> responsesByProjectListener = listener
                 .delegateFailureAndWrap(
                     (l, responsesByProject) -> mergeResolvedIndices(
                         originalResolvedIndices,
@@ -1161,7 +1167,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     )
                 );
 
-            ActionListener<Map.Entry<String, ResolveIndexAction.Response>> resolveIndexFanOutListener;
+            ActionListener<Map.Entry<String, SearchPlanningPhaseResolutionResult>> resolveIndexFanOutListener;
             if (numProjectsToResolve > 1) {
                 resolveIndexFanOutListener = new GroupedActionListener<>(numProjectsToResolve, responsesByProjectListener);
             } else {
@@ -1189,34 +1195,77 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      */
     private static void mergeResolvedIndices(
         ResolvedIndices originalResolvedIndices,
-        Collection<Map.Entry<String, ResolveIndexAction.Response>> responsesByProject,
+        Collection<Map.Entry<String, SearchPlanningPhaseResolutionResult>> responsesByProject,
         SearchRequest rewritten,
         IndicesOptions resolutionIdxOpts,
         ActionListener<ResolvedIndices> listener
     ) {
-        Map<String, ResolvedIndexExpressions> resolvedExpressions = responsesByProject.stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, response -> {
-                var resolvedIndexExpressions = response.getValue().getResolvedIndexExpressions();
-                assert resolvedIndexExpressions != null
-                    : "remote response from cluster [" + response.getKey() + "] is missing resolved index expressions";
-                return resolvedIndexExpressions;
-            }));
+        Map<String, Exception> remoteExceptions = new HashMap<>();
+        HashMap<String, ResolvedIndexExpressions> resolvedExpressions = new HashMap<>();
 
-        var ex = CrossProjectIndexResolutionValidator.validate(
+        for (Map.Entry<String, SearchPlanningPhaseResolutionResult> entry : responsesByProject) {
+            String projectName = entry.getKey();
+            SearchPlanningPhaseResolutionResult result = entry.getValue();
+
+            if (result.response() instanceof ResolveIndexAction.Response response) {
+                // There was a valid, non-null response from the _resolve/index API for this linked project.
+                resolvedExpressions.put(projectName, response.getResolvedIndexExpressions());
+            } else if (result.error() != null) {
+                // There was an error communicating with the linked project and the error was already logged.
+                remoteExceptions.put(projectName, result.error());
+            }
+        }
+
+        /*
+         * Projects that do not host the indices participating in a search should not appear in
+         * the search response's metadata. For MRT=false, this is handled by reconcileProjects().
+         * For MRT=true, we handle it here.
+         */
+        boolean includeOriginProjectInMetadata = rewritten.getResolvedIndexExpressions()
+            .expressions()
+            .stream()
+            .anyMatch(e -> e.localExpressions().localIndexResolutionResult() == ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS);
+
+        ElasticsearchException ex = CrossProjectIndexResolutionValidator.validate(
             rewritten.indicesOptions(),
             rewritten.getProjectRouting(),
             rewritten.getResolvedIndexExpressions(),
-            resolvedExpressions
+            resolvedExpressions,
+            remoteExceptions
         );
+
         if (ex != null) {
             listener.onFailure(ex);
         } else {
+            HashMap<String, OriginalIndices> participatingLinkedProjects = new HashMap<>();
+            for (var entry : resolvedExpressions.entrySet()) {
+                boolean hasAnyResolvedIndices = entry.getValue().expressions().stream().anyMatch(expression -> {
+                    var localExpressions = expression.localExpressions();
+                    return localExpressions.localIndexResolutionResult() == ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
+                        && localExpressions.indices().isEmpty() == false;
+                });
+                if (hasAnyResolvedIndices) {
+                    participatingLinkedProjects.put(entry.getKey(), originalResolvedIndices.getRemoteClusterIndices().get(entry.getKey()));
+                }
+            }
+
+            /*
+             * Because we're considering unresponsive projects as participating and instantiating a `Clusters` object based
+             * on this info, we can track future connection errors (when fanning out a search op) and display them in the
+             * search response's metadata section.
+             */
+            for (String unresponsiveProject : remoteExceptions.keySet()) {
+                participatingLinkedProjects.put(
+                    unresponsiveProject,
+                    originalResolvedIndices.getRemoteClusterIndices().get(unresponsiveProject)
+                );
+            }
+
             listener.onResponse(
-                ResolvedIndices.resolveWithIndexExpressions(
-                    originalResolvedIndices.getLocalIndices(),
-                    originalResolvedIndices.getConcreteLocalIndicesMetadata(),
-                    resolvedExpressions,
-                    resolutionIdxOpts
+                new ResolvedIndices(
+                    participatingLinkedProjects,
+                    includeOriginProjectInMetadata ? originalResolvedIndices.getLocalIndices() : null,
+                    originalResolvedIndices.getConcreteLocalIndicesMetadata()
                 )
             );
         }
@@ -1231,7 +1280,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         IndicesOptions resolutionIdxOpts,
         String projectName,
         OriginalIndices projectIndices,
-        ActionListener<Map.Entry<String, ResolveIndexAction.Response>> listener
+        ActionListener<Map.Entry<String, SearchPlanningPhaseResolutionResult>> listener
     ) {
         SubscribableListener<Transport.Connection> connectionListener = getListenerWithOptionalTimeout(
             forceConnectTimeoutSecs,
@@ -1242,21 +1291,24 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ResolveIndexAction.Request resolveIndexRequest = new ResolveIndexAction.Request(projectIndices.indices(), resolutionIdxOpts);
         resolveIndexRequest.setParentTask(parentTaskId);
 
-        connectionListener.addListener(
-            listener.delegateFailure(
-                (responseListener, connection) -> transportService.sendRequest(
+        connectionListener.addListener(listener.delegateResponse((l, error) -> {
+            logger.debug("Failed to communicate with the linked project [{}], error: {}", projectName, error);
+            l.onResponse(Map.entry(projectName, new SearchPlanningPhaseResolutionResult(null, error)));
+        })
+            .delegateFailure(
+                (delegate, connection) -> transportService.sendRequest(
                     connection,
                     ResolveIndexAction.REMOTE_TYPE.name(),
                     resolveIndexRequest,
                     TransportRequestOptions.EMPTY,
                     new ActionListenerResponseHandler<>(
-                        listener.map(response -> Map.entry(projectName, response)),
+                        delegate.map(response -> Map.entry(projectName, new SearchPlanningPhaseResolutionResult(response, null))),
                         ResolveIndexAction.Response::new,
                         threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
                     )
                 )
-            )
-        );
+            ));
+
         remoteClusterService.maybeEnsureConnectedAndGetConnection(
             projectName,
             shouldEstablishConnection(
@@ -1292,6 +1344,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
         final CountDown responsesCountDown = new CountDown(remoteIndicesByCluster.size());
         final Map<String, SearchShardsResponse> searchShardsResponses = new ConcurrentHashMap<>();
+        final Map<String, Exception> remoteExceptions = new ConcurrentHashMap<>();
         final AtomicReference<Exception> exceptions = new AtomicReference<>();
         for (Map.Entry<String, OriginalIndices> entry : remoteIndicesByCluster.entrySet()) {
             final String clusterAlias = entry.getKey();
@@ -1301,6 +1354,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 shouldSkipOnFailure,
                 responsesCountDown,
                 exceptions,
+                remoteExceptions,
                 clusters,
                 listener
             ) {
@@ -1328,7 +1382,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             originalIdxOpts,
                             projectRouting,
                             originResolvedIdxExpressions,
-                            resolvedIndexExpressions
+                            resolvedIndexExpressions,
+                            remoteExceptions
                         );
                         if (validationEx != null) {
                             throw validationEx;
@@ -1427,6 +1482,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             shouldSkipOnFailure,
             countDown,
             exceptions,
+            new HashMap<>(),
             clusters,
             ActionListener.releaseAfter(originalListener, searchResponseMerger)
         ) {
@@ -2224,6 +2280,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         protected final boolean skipOnFailure;
         private final CountDown countDown;
         private final AtomicReference<Exception> exceptions;
+        private final Map<String, Exception> remoteExceptions;
         protected final SearchResponse.Clusters clusters;
         private final ActionListener<FinalResponse> originalListener;
 
@@ -2235,6 +2292,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             boolean skipOnFailure,
             CountDown countDown,
             AtomicReference<Exception> exceptions,
+            Map<String, Exception> remoteExceptions,
             SearchResponse.Clusters clusters,
             ActionListener<FinalResponse> originalListener
         ) {
@@ -2242,6 +2300,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             this.skipOnFailure = skipOnFailure;
             this.countDown = countDown;
             this.exceptions = exceptions;
+            this.remoteExceptions = remoteExceptions;
             this.clusters = clusters;
             this.originalListener = originalListener;
         }
@@ -2261,6 +2320,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         public final void onFailure(Exception e) {
             ShardSearchFailure f = new ShardSearchFailure(e);
             logCCSError(f, clusterAlias, skipOnFailure);
+            remoteExceptions.put(clusterAlias, e);
             SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
             if (skipOnFailure && ExceptionsHelper.isTaskCancelledException(e) == false) {
                 if (cluster != null) {

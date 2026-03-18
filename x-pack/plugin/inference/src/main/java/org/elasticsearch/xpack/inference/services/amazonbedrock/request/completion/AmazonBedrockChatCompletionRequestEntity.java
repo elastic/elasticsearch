@@ -8,17 +8,19 @@
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Tool;
+import org.elasticsearch.inference.completion.ToolChoice;
 
 import java.util.List;
 
 public record AmazonBedrockChatCompletionRequestEntity(
-    List<UnifiedCompletionRequest.Message> messages,
+    List<Message> messages,
     @Nullable String model,
     @Nullable Long maxCompletionTokens,
     @Nullable List<String> stop,
     @Nullable Float temperature,
-    @Nullable UnifiedCompletionRequest.ToolChoice toolChoice,
-    @Nullable List<UnifiedCompletionRequest.Tool> tools,
+    @Nullable ToolChoice toolChoice,
+    @Nullable List<Tool> tools,
     @Nullable Float topP
 ) {}

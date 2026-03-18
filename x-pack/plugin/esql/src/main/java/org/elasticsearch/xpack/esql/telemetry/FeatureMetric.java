@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
@@ -31,10 +32,12 @@ import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
@@ -56,6 +59,7 @@ public enum FeatureMetric {
     EVAL(Eval.class::isInstance),
     GROK(Grok.class::isInstance),
     LIMIT(plan -> false), // the limit is checked in Analyzer.gatherPreAnalysisMetrics, because it has a more complex and general check
+    LIMIT_BY(LimitBy.class::isInstance),
     SORT(OrderBy.class::isInstance),
     // the STATS is checked in Analyzer.gatherPreAnalysisMetrics, because it can also be part of an INLINE STATS command
     STATS(plan -> false),
@@ -86,7 +90,9 @@ public enum FeatureMetric {
     MMR(MMR.class::isInstance),
     PROMQL(PromqlCommand.class::isInstance),
     URI_PARTS(UriParts.class::isInstance),
-    METRICS_INFO(MetricsInfo.class::isInstance);
+    METRICS_INFO(MetricsInfo.class::isInstance),
+    REGISTERED_DOMAIN(RegisteredDomain.class::isInstance),
+    TS_INFO(TsInfo.class::isInstance);
 
     /**
      * List here plans we want to exclude from telemetry

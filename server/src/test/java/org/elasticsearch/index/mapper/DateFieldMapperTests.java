@@ -33,7 +33,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.script.DateFieldScript;
@@ -178,7 +178,10 @@ public class DateFieldMapperTests extends MapperTestCase {
             exampleMalformedValue("hello world").mapping(mappingWithFormat("strict_date_optional_time"))
                 .errorMatches("failed to parse date field [hello world]"),
             exampleMalformedValue("true").mapping(mappingWithFormat("strict_date_optional_time"))
-                .errorMatches("failed to parse date field [true]")
+                .errorMatches("failed to parse date field [true]"),
+            exampleMalformedValue(b -> b.startObject().field("string", "hello").endObject()).errorMatches(
+                "Cannot parse object or array as a date value"
+            )
         );
     }
 
@@ -585,6 +588,24 @@ public class DateFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testIgnoreMalformedWithObject() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "date");
+            b.field("ignore_malformed", true);
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").field("string", "hello").endObject()));
+        assertThat(doc.rootDoc().getFields("field"), empty());
+    }
+
+    public void testObjectValueWithoutIgnoreMalformed() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date")));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.startObject("field").field("string", "hello").endObject()))
+        );
+        assertThat(e.getCause().getMessage(), containsString("Cannot parse object or array as a date value"));
+    }
+
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         return syntheticSourceSupportInternal(ignoreMalformed, true);
@@ -633,10 +654,14 @@ public class DateFieldMapperTests extends MapperTestCase {
                     .map(Value::output)
                     .toList();
 
-                Stream<Object> malformedOutput = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+                List<Object> malformedOutput = values.stream()
+                    .filter(v -> v.malformedOutput != null)
+                    .map(Value::malformedOutput)
+                    .sorted(SyntheticSourceMalformedValueSorter.comparator())
+                    .toList();
 
-                // Malformed values are always last in the implementation.
-                List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput).toList();
+                // Malformed values are always last in the implementation (sorted by encoded BytesRef).
+                List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput.stream()).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
                 return new SyntheticSourceExample(in, out, this::mapping);
@@ -839,7 +864,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random()));
             iwc.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
             iwc.setIndexSort(new Sort(new SortField("@timestamp", SortField.Type.LONG, true)));
-            iwc.setCodec(TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat()));
+            iwc.setCodec(TestUtil.alwaysDocValuesFormat(new ES819Version3TSDBDocValuesFormat()));
             try (IndexWriter iw = new IndexWriter(directory, iwc)) {
                 for (long i = from; i < to; i++) {
                     LuceneDocument doc = new LuceneDocument();

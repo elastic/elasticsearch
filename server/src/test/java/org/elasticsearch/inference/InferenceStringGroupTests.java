@@ -11,8 +11,6 @@ package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.InferenceString.DataFormat;
-import org.elasticsearch.inference.InferenceString.DataType;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -23,7 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.inference.InferenceString.DataType.TEXT;
+import static org.elasticsearch.inference.DataType.TEXT;
 import static org.elasticsearch.inference.InferenceStringGroup.CONTENT_FIELD;
 import static org.elasticsearch.inference.InferenceStringGroup.containsNonTextEntry;
 import static org.elasticsearch.inference.InferenceStringGroup.indexContainingMultipleInferenceStrings;
@@ -174,8 +172,8 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     }
 
     public static InferenceStringGroup createRandom() {
-        var inferenceStrings = new ArrayList<InferenceString>();
-        int inferenceStringsToCreate = randomInt(5);
+        int inferenceStringsToCreate = randomIntBetween(1, 5);
+        var inferenceStrings = new ArrayList<InferenceString>(inferenceStringsToCreate);
         for (int j = 0; j < inferenceStringsToCreate; ++j) {
             inferenceStrings.add(InferenceStringTests.createRandom());
         }

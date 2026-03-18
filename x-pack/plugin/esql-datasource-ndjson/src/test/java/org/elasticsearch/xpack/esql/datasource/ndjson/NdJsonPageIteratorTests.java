@@ -20,12 +20,16 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.hamcrest.Matchers;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class NdJsonPageIteratorTests extends ESTestCase {
@@ -35,7 +39,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        blockFactory = BlockFactory.getInstance(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
     public void testIterator() throws IOException {
@@ -60,6 +64,63 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
 
         assertEquals(List.of(42, 42, 16), sizes); // Total 100
+    }
+
+    public void testJsonExtensionRecognized() throws IOException {
+        var reader = new NdJsonFormatReader(blockFactory);
+        assertTrue("NdJsonFormatReader should list .json as a supported extension", reader.fileExtensions().contains(".json"));
+    }
+
+    public void testJsonExtensionReadsData() throws IOException {
+        var reader = new NdJsonFormatReader(blockFactory);
+        var object = new BytesStorageObject("file:///data.json", IOUtils.resourceToByteArray("/employees.ndjson"));
+
+        try (var iterator = reader.read(object, List.of("emp_no"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertThat(page.getBlock(0), Matchers.instanceOf(IntBlock.class));
+            assertTrue(page.getPositionCount() > 0);
+        }
+    }
+
+    public void testSkipFirstLineForSplit() throws IOException {
+        // Simulate a split that starts mid-line: "partial_first_line\n{\"id\":1}\n{\"id\":2}\n"
+        String data = "partial_first_line\n{\"id\":1}\n{\"id\":2}\n";
+        var object = new BytesStorageObject("file:///split.ndjson", data.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        var reader = new NdJsonFormatReader(blockFactory);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(100).firstSplit(false).lastSplit(true).build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            // Should have skipped "partial_first_line" and read 2 records
+            assertEquals(2, page.getPositionCount());
+            assertThat(page.getBlock(0), Matchers.instanceOf(IntBlock.class));
+            IntBlock idBlock = page.getBlock(0);
+            assertEquals(1, idBlock.getInt(0));
+            assertEquals(2, idBlock.getInt(1));
+        }
+    }
+
+    public void testSkipFirstLineNoSkip() throws IOException {
+        String data = "{\"id\":1}\n{\"id\":2}\n";
+        var object = new BytesStorageObject("file:///split.ndjson", data.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        var reader = new NdJsonFormatReader(blockFactory);
+        try (
+            var iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of("id")).batchSize(100).firstSplit(true).lastSplit(true).build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+        }
     }
 
     public void testSampleData() throws Exception {
@@ -94,6 +155,87 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             assertFalse(stillHired.getBoolean(9));
             assertEquals(1.70, height.getDouble(9), 0.0001);
         }
+    }
+
+    public void testMalformedLineDoesNotCrash() throws IOException {
+        // A completely invalid JSON line should not crash the parser; it should be skipped
+        String ndjson = "{\"name\":\"alice\",\"age\":30}\n" + "NOT-JSON-AT-ALL\n" + "{\"name\":\"charlie\",\"age\":40}\n";
+        var object = new BytesStorageObject("memory://test.ndjson", ndjson.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(blockFactory);
+
+        List<Page> pages = new ArrayList<>();
+        try (var iterator = reader.read(object, List.of(), 100)) {
+            while (iterator.hasNext()) {
+                pages.add(iterator.next());
+            }
+        }
+
+        // Should produce at least 2 rows (alice + charlie); the invalid line is handled gracefully
+        int totalRows = 0;
+        for (var page : pages) {
+            totalRows += page.getPositionCount();
+            checkBlockSizes(page);
+        }
+        assertTrue("Should produce at least the valid rows", totalRows >= 2);
+    }
+
+    public void testConsistentBlockPositionCounts() throws IOException {
+        // Ensures all blocks in a page have the same position count even with malformed data
+        String ndjson = "{\"x\":1,\"y\":\"a\"}\n" + "{\"x\":2}\n" + "{\"x\":3,\"y\":\"c\"}\n";
+        var object = new BytesStorageObject("memory://test.ndjson", ndjson.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        var reader = new NdJsonFormatReader(blockFactory);
+
+        try (var iterator = reader.read(object, List.of(), 100)) {
+            while (iterator.hasNext()) {
+                var page = iterator.next();
+                checkBlockSizes(page);
+                assertEquals(3, page.getPositionCount());
+            }
+        }
+    }
+
+    // --- findNextRecordBoundary tests ---
+
+    public void testFindNextRecordBoundaryNewline() throws IOException {
+        var reader = new NdJsonFormatReader(blockFactory);
+        byte[] data = "{\"key\":\"value\"}\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals(data.length, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextRecordBoundaryCRLF() throws IOException {
+        var reader = new NdJsonFormatReader(blockFactory);
+        byte[] data = "{\"key\":\"value\"}\r\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals(data.length, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextRecordBoundaryCROnly() throws IOException {
+        var reader = new NdJsonFormatReader(blockFactory);
+        byte[] data = "{\"key\":\"value\"}\rmore".getBytes(StandardCharsets.UTF_8);
+        int expected = "{\"key\":\"value\"}\r".length();
+        assertEquals(expected, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextRecordBoundaryCRLFAtBufferEdge() throws IOException {
+        var reader = new NdJsonFormatReader(blockFactory);
+        byte[] padding = new byte[8191];
+        Arrays.fill(padding, (byte) 'x');
+        byte[] suffix = "\r\nmore\n".getBytes(StandardCharsets.UTF_8);
+        byte[] data = new byte[padding.length + suffix.length];
+        System.arraycopy(padding, 0, data, 0, padding.length);
+        System.arraycopy(suffix, 0, data, padding.length, suffix.length);
+        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        assertEquals(8193, boundary);
+    }
+
+    public void testFindNextRecordBoundaryEofNoNewline() throws IOException {
+        var reader = new NdJsonFormatReader(blockFactory);
+        byte[] data = "{\"key\":\"value\"}".getBytes(StandardCharsets.UTF_8);
+        assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(data)));
+    }
+
+    public void testFindNextRecordBoundaryEmptyStream() throws IOException {
+        var reader = new NdJsonFormatReader(blockFactory);
+        assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(new byte[0])));
     }
 
     private int blockIdx(SourceMetadata meta, String name) {

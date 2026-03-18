@@ -53,7 +53,7 @@ import java.util.List;
  * </p>
  * <p>
  *     The integer ids are assigned to offsets into arrays of aggregation states
- *     so its permissible to have gaps in the ints. But large gaps are a bad
+ *     so it's permissible to have gaps in the ints. But large gaps are a bad
  *     idea because they'll waste space in the aggregations that use these
  *     positions. For example, {@link BooleanBlockHash} assigns {@code 0} to
  *     {@code null}, {@code 1} to {@code false}, and {@code 1} to {@code true}

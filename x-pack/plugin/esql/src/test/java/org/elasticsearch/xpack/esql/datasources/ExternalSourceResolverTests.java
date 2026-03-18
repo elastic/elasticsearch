@@ -20,12 +20,15 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -41,6 +44,8 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.instanceOf;
+
 /**
  * Tests for ExternalSourceResolver schema resolution behavior.
  * Validates FIRST_FILE_WINS (current behavior) and future STRICT / UNION_BY_NAME strategies
@@ -53,7 +58,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        blockFactory = new BlockFactory(new NoopCircuitBreaker("test"), BigArrays.NON_RECYCLING_INSTANCE);
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
     }
 
     // ===== FIRST_FILE_WINS tests (current behavior) =====
@@ -284,6 +289,147 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("test-secret", resolved.metadata().config().get("secret_key"));
     }
 
+    // ===== Partition column enrichment =====
+
+    public void testPartitionColumnsAppendedAtTail() throws Exception {
+        List<Attribute> schema = List.of(attr("emp_no", DataType.INTEGER), attr("name", DataType.KEYWORD));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/year=2024/file1.parquet", schema);
+        schemasByPath.put("s3://bucket/data/year=2023/file2.parquet", schema);
+
+        ExternalSourceResolution resolution = resolveMultiFile(
+            "s3://bucket/data/year=*/*.parquet",
+            schemasByPath,
+            List.of(entry("s3://bucket/data/year=2024/file1.parquet", 100), entry("s3://bucket/data/year=2023/file2.parquet", 200))
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/year=*/*.parquet");
+        assertNotNull(resolved);
+        List<Attribute> resolvedSchema = resolved.metadata().schema();
+        assertEquals(3, resolvedSchema.size());
+        assertEquals("emp_no", resolvedSchema.get(0).name());
+        assertEquals("name", resolvedSchema.get(1).name());
+        assertEquals("year", resolvedSchema.get(2).name());
+        assertEquals(DataType.INTEGER, resolvedSchema.get(2).dataType());
+    }
+
+    public void testPartitionColumnConflictPartitionWins() throws Exception {
+        List<Attribute> schema = List.of(attr("year", DataType.KEYWORD), attr("name", DataType.KEYWORD));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/year=2024/file1.parquet", schema);
+        schemasByPath.put("s3://bucket/data/year=2023/file2.parquet", schema);
+
+        ExternalSourceResolution resolution = resolveMultiFile(
+            "s3://bucket/data/year=*/*.parquet",
+            schemasByPath,
+            List.of(entry("s3://bucket/data/year=2024/file1.parquet", 100), entry("s3://bucket/data/year=2023/file2.parquet", 200))
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/year=*/*.parquet");
+        assertNotNull(resolved);
+        List<Attribute> resolvedSchema = resolved.metadata().schema();
+        assertEquals(2, resolvedSchema.size());
+        assertEquals("name", resolvedSchema.get(0).name());
+        assertEquals("year", resolvedSchema.get(1).name());
+        // Partition column type should be INTEGER (from path), not KEYWORD (from data)
+        assertEquals(DataType.INTEGER, resolvedSchema.get(1).dataType());
+    }
+
+    public void testNoPartitionsSchemaUnchanged() throws Exception {
+        List<Attribute> schema = List.of(attr("a", DataType.INTEGER), attr("b", DataType.KEYWORD));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/file1.parquet", schema);
+        schemasByPath.put("s3://bucket/data/file2.parquet", schema);
+
+        ExternalSourceResolution resolution = resolveMultiFile(
+            "s3://bucket/data/*.parquet",
+            schemasByPath,
+            List.of(entry("s3://bucket/data/file1.parquet", 100), entry("s3://bucket/data/file2.parquet", 200))
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        assertNotNull(resolved);
+        List<Attribute> resolvedSchema = resolved.metadata().schema();
+        assertEquals(2, resolvedSchema.size());
+        assertEquals("a", resolvedSchema.get(0).name());
+        assertEquals("b", resolvedSchema.get(1).name());
+    }
+
+    public void testMultiplePartitionColumns() throws Exception {
+        List<Attribute> schema = List.of(attr("value", DataType.DOUBLE));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/year=2024/month=01/file.parquet", schema);
+        schemasByPath.put("s3://bucket/data/year=2023/month=12/file.parquet", schema);
+
+        ExternalSourceResolution resolution = resolveMultiFile(
+            "s3://bucket/data/year=*/month=*/*.parquet",
+            schemasByPath,
+            List.of(
+                entry("s3://bucket/data/year=2024/month=01/file.parquet", 100),
+                entry("s3://bucket/data/year=2023/month=12/file.parquet", 200)
+            )
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/year=*/month=*/*.parquet");
+        assertNotNull(resolved);
+        List<Attribute> resolvedSchema = resolved.metadata().schema();
+        assertEquals(3, resolvedSchema.size());
+        // Data column is first
+        assertEquals("value", resolvedSchema.get(0).name());
+        // Partition columns appended at tail in path declaration order
+        assertEquals("year", resolvedSchema.get(1).name());
+        assertEquals("month", resolvedSchema.get(2).name());
+        assertThat(resolvedSchema.get(1), instanceOf(ReferenceAttribute.class));
+        assertThat(resolvedSchema.get(2), instanceOf(ReferenceAttribute.class));
+    }
+
+    public void testEnrichSchemaWithPartitionColumnsDirectly() {
+        List<Attribute> originalSchema = List.of(attr("a", DataType.INTEGER), attr("b", DataType.KEYWORD));
+        ExternalSourceMetadata metadata = createStubMetadata("s3://bucket/file.parquet", originalSchema);
+
+        java.util.LinkedHashMap<String, DataType> partCols = new java.util.LinkedHashMap<>();
+        partCols.put("year", DataType.INTEGER);
+        partCols.put("region", DataType.KEYWORD);
+        PartitionMetadata partitions = new PartitionMetadata(partCols, Map.of());
+
+        ExternalSourceMetadata enriched = ExternalSourceResolver.enrichSchemaWithPartitionColumns(metadata, partitions);
+        List<Attribute> schema = enriched.schema();
+        assertEquals(4, schema.size());
+        assertEquals("a", schema.get(0).name());
+        assertEquals("b", schema.get(1).name());
+        // Partition columns appended at tail in declaration order
+        assertEquals("year", schema.get(2).name());
+        assertEquals("region", schema.get(3).name());
+        // Partition columns are ReferenceAttributes, not FieldAttributes
+        assertThat(schema.get(2), instanceOf(ReferenceAttribute.class));
+        assertThat(schema.get(3), instanceOf(ReferenceAttribute.class));
+        assertTrue(schema.get(2).synthetic());
+        assertTrue(schema.get(3).synthetic());
+    }
+
+    private ExternalSourceMetadata createStubMetadata(String location, List<Attribute> schema) {
+        return new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return location;
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return schema;
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+        };
+    }
+
     // ===== Empty resolution =====
 
     public void testEmptyPathListReturnsEmptyResolution() throws Exception {
@@ -378,13 +524,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             }
 
             @Override
-            public Set<String> supportedFormats() {
-                return Set.of("parquet");
-            }
-
-            @Override
-            public Set<String> supportedExtensions() {
-                return Set.of(".parquet");
+            public Set<FormatSpec> formatSpecs() {
+                return Set.of(FormatSpec.of("parquet", ".parquet"));
             }
 
             @Override
@@ -431,7 +572,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             throw new UnsupportedOperationException();
         }
 

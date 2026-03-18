@@ -488,7 +488,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         assertThat(singleModel.get("task_type"), is(EMBEDDING.toString()));
         try {
             var input = List.of(
-                new InferenceString(DataType.IMAGE, randomAlphaOfLength(5)),
+                new InferenceString(DataType.IMAGE, randomAlphaOfLength(4)),
                 new InferenceString(DataType.TEXT, randomAlphaOfLength(15))
             );
             var resultMap = embedding(modelId, input);

@@ -1357,6 +1357,81 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             {"field":{"":{"":{"":{"":"bar"}}}}}"""));
     }
 
+    public void testSyntheticSourceWithMappedProperties() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            {
+                b.field("type", "flattened");
+                b.startObject("properties");
+                {
+                    b.startObject("host.name").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.startObject("host").field("name", "server-a").endObject();
+                b.field("unmapped_key", "some_value");
+            }
+            b.endObject();
+        });
+        assertThat(syntheticSource, equalTo("{\"field\":{\"unmapped_key\":\"some_value\",\"host.name\":\"server-a\"}}"));
+    }
+
+    public void testSyntheticSourceWithMappedPropertiesOnly() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            {
+                b.field("type", "flattened");
+                b.startObject("properties");
+                {
+                    b.startObject("status").field("type", "keyword").endObject();
+                    b.startObject("code").field("type", "long").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.field("status", "ok");
+                b.field("code", 200);
+            }
+            b.endObject();
+        });
+        assertThat(syntheticSource, equalTo("{\"field\":{\"code\":200,\"status\":\"ok\"}}"));
+    }
+
+    public void testSyntheticSourceWithUnmappedKeysOnly() throws IOException {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            {
+                b.field("type", "flattened");
+                b.startObject("properties");
+                {
+                    b.startObject("host.name").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+
+        var syntheticSource = syntheticSource(mapper, b -> {
+            b.startObject("field");
+            {
+                b.field("unmapped", "value");
+            }
+            b.endObject();
+        });
+        assertThat(syntheticSource, equalTo("{\"field\":{\"unmapped\":\"value\"}}"));
+    }
+
     @Override
     protected boolean supportsCopyTo() {
         return false;

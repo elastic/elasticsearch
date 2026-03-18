@@ -72,6 +72,7 @@ import org.elasticsearch.index.mapper.MapperMergeContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParser;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextParams;
@@ -1394,15 +1395,23 @@ public final class FlattenedFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType().hasDocValues()) {
-            return new SyntheticSourceSupport.Native(
-                () -> new FlattenedDocValuesSyntheticFieldLoader(
+            return new SyntheticSourceSupport.Native(() -> {
+                List<SourceLoader.SyntheticFieldLoader> propertyLoaders = new ArrayList<>();
+                for (FieldMapper mapper : new TreeMap<>(mappedProperties).values()) {
+                    SourceLoader.SyntheticFieldLoader loader = mapper.syntheticFieldLoader();
+                    if (loader != SourceLoader.SyntheticFieldLoader.NOTHING) {
+                        propertyLoaders.add(loader);
+                    }
+                }
+                return new FlattenedDocValuesSyntheticFieldLoader(
                     fullPath(),
                     fullPath() + KEYED_FIELD_SUFFIX,
                     fieldType().ignoreAbove.valuesPotentiallyIgnored() ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
                     leafName(),
-                    builder.usesBinaryDocValues
-                )
-            );
+                    builder.usesBinaryDocValues,
+                    propertyLoaders
+                );
+            });
         }
 
         return super.syntheticSourceSupport();

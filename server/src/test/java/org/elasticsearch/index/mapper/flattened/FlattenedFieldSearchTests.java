@@ -40,8 +40,8 @@ import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
-import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
@@ -781,13 +781,10 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch("range_test").setQuery(rangeQuery("metrics.response_time").lt(100)), 1L);
 
         // Sort on the mapped long property
-        assertNoFailuresAndResponse(
-            client().prepareSearch("range_test").addSort("metrics.response_time", SortOrder.DESC),
-            response -> {
-                assertHitCount(response, 5);
-                assertOrderedSearchHits(response, "4", "3", "2", "1", "0");
-            }
-        );
+        assertNoFailuresAndResponse(client().prepareSearch("range_test").addSort("metrics.response_time", SortOrder.DESC), response -> {
+            assertHitCount(response, 5);
+            assertOrderedSearchHits(response, "4", "3", "2", "1", "0");
+        });
 
         // Unmapped key still works as flattened
         assertHitCount(client().prepareSearch("range_test").setQuery(termQuery("metrics.label", "req-0")), 1L);

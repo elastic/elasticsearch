@@ -21,6 +21,7 @@ public class SinkhornIterations {
         logRowSums = new float[nRows];
         logColumnSums = new float[nColumns];
     }
+
     /**
      * Run the Sinkhorn algorithm.
      * @param input The input 2D array of double values (log probabilities/values). We assume that it is not null,

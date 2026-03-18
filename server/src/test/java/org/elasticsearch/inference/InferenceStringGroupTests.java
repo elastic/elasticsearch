@@ -60,13 +60,12 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     }
 
     public void testInferenceStringListConstructor_withNullList_throws() {
-        var exception = assertThrows(IllegalArgumentException.class, () -> new InferenceStringGroup((List<InferenceString>) null));
-        assertThat(exception.getMessage(), is("[content] field cannot be null"));
+        assertThrows(NullPointerException.class, () -> new InferenceStringGroup((List<InferenceString>) null));
     }
 
     public void testInferenceStringListConstructor_withEmptyList_throws() {
         var exception = assertThrows(IllegalArgumentException.class, () -> new InferenceStringGroup(List.of()));
-        assertThat(exception.getMessage(), is("[content] field cannot be an empty array"));
+        assertThat(exception.getMessage(), is("InferenceStringGroup constructor argument cannot be an empty list"));
     }
 
     public void testParser_withEmptyContentObject_throws() throws IOException {
@@ -76,10 +75,9 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
                 }
             """;
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            // Need to call nextToken() so that the parser is at the correct element
-            parser.nextToken();
-            var exception = expectThrows(XContentParseException.class, () -> InferenceStringGroup.PARSER.apply(parser, null));
+            var exception = expectThrows(XContentParseException.class, () -> InferenceStringGroup.parse(parser));
             assertThat(exception.getMessage(), containsString("[InferenceStringGroup] failed to parse field [content]"));
+            assertThat(exception.getCause().getMessage(), containsString("Required [type, value]"));
         }
     }
 
@@ -90,10 +88,13 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
                 }
             """;
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            // Need to call nextToken() so that the parser is at the correct element
-            parser.nextToken();
-            var exception = expectThrows(XContentParseException.class, () -> InferenceStringGroup.PARSER.apply(parser, null));
+            var exception = expectThrows(XContentParseException.class, () -> InferenceStringGroup.parse(parser));
             assertThat(exception.getMessage(), containsString("[InferenceStringGroup] failed to parse field [content]"));
+            assertThat(
+                exception.getCause().getMessage(),
+                containsString("failed to build [InferenceStringGroup] after last required field arrived")
+            );
+            assertThat(exception.getCause().getCause().getMessage(), containsString("[content] field cannot be an empty array"));
         }
     }
 
@@ -104,9 +105,7 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
                 }
             """;
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            // Need to call nextToken() so that the parser is at the correct element
-            parser.nextToken();
-            var exception = expectThrows(XContentParseException.class, () -> InferenceStringGroup.PARSER.apply(parser, null));
+            var exception = expectThrows(XContentParseException.class, () -> InferenceStringGroup.parse(parser));
             assertThat(exception.getMessage(), containsString("[InferenceStringGroup] content doesn't support values of type: VALUE_NULL"));
         }
     }
@@ -196,7 +195,7 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
 
     @Override
     protected InferenceStringGroup doParseInstance(XContentParser parser) throws IOException {
-        return InferenceStringGroup.PARSER.parse(parser, null);
+        return InferenceStringGroup.parse(parser);
     }
 
     @Override

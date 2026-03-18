@@ -228,6 +228,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         } else {
             this.topHitsToRelease = List.of();
         }
+        if (suggest != null) {
+            suggest.incRefCompletionOptionHits();
+        }
         this.suggest = suggest;
         this.profileResults = profileResults;
         this.timedOut = timedOut;

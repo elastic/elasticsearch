@@ -411,6 +411,10 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.capabilityName())
             );
             assumeFalseLogging(
+                "CSV tests cannot currently handle EMBEDDING function",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.EMBEDDING_FUNCTION.capabilityName())
+            );
+            assumeFalseLogging(
                 "CSV tests cannot currently handle multi_match function that depends on Lucene",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.capabilityName())
             );

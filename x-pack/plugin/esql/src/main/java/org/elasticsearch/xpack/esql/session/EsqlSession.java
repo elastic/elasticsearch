@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.approximation.Approximation;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -297,7 +298,7 @@ public class EsqlSession {
             analyzerSettings.timeseriesResultTruncationMaxSize(),
             analyzerSettings.timeseriesResultTruncationDefaultSize(),
             projectRouting(request, statement),
-            statement.setting(QuerySettings.APPROXIMATION),
+            approximationSettings(request, statement),
             viewResolution.viewQueries()
         );
 
@@ -353,9 +354,7 @@ public class EsqlSession {
                                 p,
                                 finalConfiguration,
                                 foldContext,
-                                configuration.approximationSettings() != null
-                                    ? new Approximation(p, configuration.approximationSettings())
-                                    : null,
+                                Approximation.create(p, configuration.approximationSettings()),
                                 minimumVersion,
                                 planTimeProfile,
                                 l
@@ -378,6 +377,13 @@ public class EsqlSession {
             throw new VerificationException("[project_routing] is only allowed when cross-project search is enabled");
         }
         return projectRouting;
+    }
+
+    public static ApproximationSettings approximationSettings(EsqlQueryRequest request, EsqlStatement statement) {
+        // The precedence for settings is: SET in the statement > request parameter > default (=disabled).
+        return new ApproximationSettings.Builder(false).merge(request.approximation())
+            .merge(statement.setting(QuerySettings.APPROXIMATION))
+            .build();
     }
 
     /**

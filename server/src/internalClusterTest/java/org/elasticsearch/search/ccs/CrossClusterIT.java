@@ -602,7 +602,7 @@ public class CrossClusterIT extends AbstractCrossClusterSearchTestCase {
                 randomFrom("cluster_b", null)
             );
             SearchShardsResponse resp = remoteClient.execute(TransportSearchShardsAction.TYPE, request).actionGet();
-            assertEquals(resp.getNumSkippedShards(), numShards);
+            assertThat(resp.getGroups(), hasSize(numShards));
             for (SearchShardsGroup group : resp.getGroups()) {
                 assertTrue(group.skipped());
             }
@@ -619,7 +619,7 @@ public class CrossClusterIT extends AbstractCrossClusterSearchTestCase {
                 randomFrom("cluster_a", "cluster_b", null)
             );
             SearchShardsResponse resp = remoteClient.execute(TransportSearchShardsAction.TYPE, request).actionGet();
-            assertEquals(resp.getNumSkippedShards(), numShards);
+            assertThat(resp.getGroups(), hasSize(numShards));
             for (SearchShardsGroup group : resp.getGroups()) {
                 assertTrue(group.skipped());
             }

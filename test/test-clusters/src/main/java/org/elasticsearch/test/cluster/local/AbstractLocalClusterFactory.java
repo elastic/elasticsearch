@@ -477,9 +477,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-            createKeystore();
-            addKeystoreSettings();
-            addKeystoreFiles();
+            configureKeystore();
         }
 
         public void configureKeystore() {

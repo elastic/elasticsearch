@@ -28,6 +28,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -417,32 +418,18 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
 
     public void testTermsAggregationWithDuplicateValues() throws IOException {
         String indexName = "test-noindex-terms-agg";
-        XContentBuilder mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("labels")
-            .field("type", "flattened")
-            .field("index", false)
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-        createIndex(indexName, Settings.EMPTY, mapping);
+        createIndex(indexName, indicesAdmin().prepareCreate(indexName).setMapping("""
+            {
+              "properties": {
+                "labels": {
+                  "type": "flattened",
+                  "index": false
+                }
+              }
+            }"""));
 
-        prepareIndex(indexName).setId("1")
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-            .setSource(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("labels")
-                    .field("key1", "foo")
-                    .field("key2", "foo")
-                    .field("key3", "bar")
-                    .endObject()
-                    .endObject()
-            )
-            .get();
+        prepareIndex(indexName).setId("1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
+            {"labels": {"key1": "foo", "key2": "foo", "key3": "bar"}}""", XContentType.JSON).get();
 
         TermsAggregationBuilder builder = terms("terms").field("labels");
         assertNoFailuresAndResponse(client().prepareSearch(indexName).addAggregation(builder), response -> {
@@ -462,31 +449,18 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
 
     public void testNoRootDocValuesFieldWhenIndexFalse() throws Exception {
         String indexName = "test-noindex-no-root-dv";
-        XContentBuilder mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("labels")
-            .field("type", "flattened")
-            .field("index", false)
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-        createIndex(indexName, Settings.EMPTY, mapping);
+        createIndex(indexName, indicesAdmin().prepareCreate(indexName).setMapping("""
+            {
+              "properties": {
+                "labels": {
+                  "type": "flattened",
+                  "index": false
+                }
+              }
+            }"""));
 
-        prepareIndex(indexName).setId("1")
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-            .setSource(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("labels")
-                    .field("key1", "value1")
-                    .field("key2", "value2")
-                    .endObject()
-                    .endObject()
-            )
-            .get();
+        prepareIndex(indexName).setId("1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
+            {"labels": {"key1": "value1", "key2": "value2"}}""", XContentType.JSON).get();
 
         var indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
         var shard = indexService.getShard(0);
@@ -550,48 +524,23 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testMappedPropertyTermQuery() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("event")
-            .field("type", "flattened")
-            .startObject("properties")
-            .startObject("host.name")
-            .field("type", "keyword")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-        createIndex("props_test", Settings.EMPTY, mapping);
+        createIndex("props_test", indicesAdmin().prepareCreate("props_test").setMapping("""
+            {
+              "properties": {
+                "event": {
+                  "type": "flattened",
+                  "properties": {
+                    "host.name": { "type": "keyword" }
+                  }
+                }
+              }
+            }"""));
 
-        prepareIndex("props_test").setId("1")
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-            .setSource(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("event")
-                    .field("host.name", "server-a")
-                    .field("region", "us-east")
-                    .endObject()
-                    .endObject()
-            )
-            .get();
+        prepareIndex("props_test").setId("1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
+            {"event": {"host.name": "server-a", "region": "us-east"}}""", XContentType.JSON).get();
 
-        prepareIndex("props_test").setId("2")
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-            .setSource(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("event")
-                    .field("host.name", "server-b")
-                    .field("region", "eu-west")
-                    .endObject()
-                    .endObject()
-            )
-            .get();
+        prepareIndex("props_test").setId("2").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
+            {"event": {"host.name": "server-b", "region": "eu-west"}}""", XContentType.JSON).get();
 
         // Mapped property: term query on the typed keyword sub-field
         assertHitCount(client().prepareSearch("props_test").setQuery(termQuery("event.host.name", "server-a")), 1L);
@@ -604,53 +553,26 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testMappedPropertySort() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("event")
-            .field("type", "flattened")
-            .startObject("properties")
-            .startObject("priority")
-            .field("type", "keyword")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-        createIndex("sort_test", Settings.EMPTY, mapping);
+        createIndex("sort_test", indicesAdmin().prepareCreate("sort_test").setMapping("""
+            {
+              "properties": {
+                "event": {
+                  "type": "flattened",
+                  "properties": {
+                    "priority": { "type": "keyword" }
+                  }
+                }
+              }
+            }"""));
 
-        prepareIndex("sort_test").setId("1")
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-            .setSource(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("event")
-                    .field("priority", "B")
-                    .field("other", "x")
-                    .endObject()
-                    .endObject()
-            )
-            .get();
+        prepareIndex("sort_test").setId("1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
+            {"event": {"priority": "B", "other": "x"}}""", XContentType.JSON).get();
 
-        prepareIndex("sort_test").setId("2")
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-            .setSource(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("event")
-                    .field("priority", "A")
-                    .field("other", "y")
-                    .endObject()
-                    .endObject()
-            )
-            .get();
+        prepareIndex("sort_test").setId("2").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
+            {"event": {"priority": "A", "other": "y"}}""", XContentType.JSON).get();
 
-        prepareIndex("sort_test").setId("3")
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-            .setSource(XContentFactory.jsonBuilder().startObject().startObject("event").field("priority", "C").endObject().endObject())
-            .get();
+        prepareIndex("sort_test").setId("3").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
+            {"event": {"priority": "C"}}""", XContentType.JSON).get();
 
         // Sort ascending on the mapped keyword property
         assertNoFailuresAndResponse(client().prepareSearch("sort_test").addSort("event.priority", SortOrder.ASC), response -> {
@@ -666,51 +588,26 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testMappedPropertyTermsAggregation() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("event")
-            .field("type", "flattened")
-            .startObject("properties")
-            .startObject("status")
-            .field("type", "keyword")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-        createIndex("agg_test", Settings.EMPTY, mapping);
+        createIndex("agg_test", indicesAdmin().prepareCreate("agg_test").setMapping("""
+            {
+              "properties": {
+                "event": {
+                  "type": "flattened",
+                  "properties": {
+                    "status": { "type": "keyword" }
+                  }
+                }
+              }
+            }"""));
 
         BulkRequestBuilder bulkRequest = client().prepareBulk("agg_test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 5; i++) {
-            bulkRequest.add(
-                client().prepareIndex()
-                    .setSource(
-                        XContentFactory.jsonBuilder()
-                            .startObject()
-                            .startObject("event")
-                            .field("status", "ok")
-                            .field("region", "us-east")
-                            .endObject()
-                            .endObject()
-                    )
-            );
+            bulkRequest.add(client().prepareIndex().setSource("""
+                {"event": {"status": "ok", "region": "us-east"}}""", XContentType.JSON));
         }
         for (int i = 0; i < 3; i++) {
-            bulkRequest.add(
-                client().prepareIndex()
-                    .setSource(
-                        XContentFactory.jsonBuilder()
-                            .startObject()
-                            .startObject("event")
-                            .field("status", "error")
-                            .field("region", "eu-west")
-                            .endObject()
-                            .endObject()
-                    )
-            );
+            bulkRequest.add(client().prepareIndex().setSource("""
+                {"event": {"status": "error", "region": "eu-west"}}""", XContentType.JSON));
         }
         BulkResponse bulkResponse = bulkRequest.get();
         assertNoFailures(bulkResponse);
@@ -738,39 +635,23 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testMappedPropertyLongRangeQuery() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("metrics")
-            .field("type", "flattened")
-            .startObject("properties")
-            .startObject("response_time")
-            .field("type", "long")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-        createIndex("range_test", Settings.EMPTY, mapping);
+        createIndex("range_test", indicesAdmin().prepareCreate("range_test").setMapping("""
+            {
+              "properties": {
+                "metrics": {
+                  "type": "flattened",
+                  "properties": {
+                    "response_time": { "type": "long" }
+                  }
+                }
+              }
+            }"""));
 
         BulkRequestBuilder bulkRequest = client().prepareBulk("range_test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         int[] responseTimes = { 50, 120, 200, 350, 500 };
         for (int i = 0; i < responseTimes.length; i++) {
-            bulkRequest.add(
-                client().prepareIndex()
-                    .setId(Integer.toString(i))
-                    .setSource(
-                        XContentFactory.jsonBuilder()
-                            .startObject()
-                            .startObject("metrics")
-                            .field("response_time", responseTimes[i])
-                            .field("label", "req-" + i)
-                            .endObject()
-                            .endObject()
-                    )
-            );
+            bulkRequest.add(client().prepareIndex().setId(Integer.toString(i)).setSource("""
+                {"metrics": {"response_time": %d, "label": "req-%d"}}""".formatted(responseTimes[i], i), XContentType.JSON));
         }
         BulkResponse bulkResponse = bulkRequest.get();
         assertNoFailures(bulkResponse);
@@ -791,118 +672,72 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testMappedPropertyExistsQuery() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("event")
-            .field("type", "flattened")
-            .startObject("properties")
-            .startObject("host.name")
-            .field("type", "keyword")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-        createIndex("exists_test", Settings.EMPTY, mapping);
+        createIndex("exists_test", indicesAdmin().prepareCreate("exists_test").setMapping("""
+            {
+              "properties": {
+                "event": {
+                  "type": "flattened",
+                  "properties": {
+                    "host.name": { "type": "keyword" }
+                  }
+                }
+              }
+            }"""));
 
-        prepareIndex("exists_test").setId("1")
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-            .setSource(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("event")
-                    .field("host.name", "server-a")
-                    .field("region", "us-east")
-                    .endObject()
-                    .endObject()
-            )
-            .get();
+        prepareIndex("exists_test").setId("1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
+            {"event": {"host.name": "server-a", "region": "us-east"}}""", XContentType.JSON).get();
 
-        prepareIndex("exists_test").setId("2")
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-            .setSource(XContentFactory.jsonBuilder().startObject().startObject("event").field("region", "eu-west").endObject().endObject())
-            .get();
+        prepareIndex("exists_test").setId("2").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
+            {"event": {"region": "eu-west"}}""", XContentType.JSON).get();
 
         assertHitCount(client().prepareSearch("exists_test").setQuery(existsQuery("event.host.name")), 1L);
         assertHitCount(client().prepareSearch("exists_test").setQuery(existsQuery("event")), 2L);
     }
 
     public void testCrossIndexQueryWithMappedProperty() throws Exception {
-        XContentBuilder mappingWithProp = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("event")
-            .field("type", "flattened")
-            .startObject("properties")
-            .startObject("status")
-            .field("type", "keyword")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-        createIndex("cross_idx_a", Settings.EMPTY, mappingWithProp);
+        createIndex("cross_idx_a", indicesAdmin().prepareCreate("cross_idx_a").setMapping("""
+            {
+              "properties": {
+                "event": {
+                  "type": "flattened",
+                  "properties": {
+                    "status": { "type": "keyword" }
+                  }
+                }
+              }
+            }"""));
 
-        XContentBuilder mappingWithoutProp = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("event")
-            .field("type", "flattened")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-        createIndex("cross_idx_b", Settings.EMPTY, mappingWithoutProp);
+        createIndex("cross_idx_b", indicesAdmin().prepareCreate("cross_idx_b").setMapping("""
+            {
+              "properties": {
+                "event": { "type": "flattened" }
+              }
+            }"""));
 
-        prepareIndex("cross_idx_a").setId("1")
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-            .setSource(XContentFactory.jsonBuilder().startObject().startObject("event").field("status", "ok").endObject().endObject())
-            .get();
+        prepareIndex("cross_idx_a").setId("1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
+            {"event": {"status": "ok"}}""", XContentType.JSON).get();
 
-        prepareIndex("cross_idx_b").setId("2")
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-            .setSource(XContentFactory.jsonBuilder().startObject().startObject("event").field("status", "ok").endObject().endObject())
-            .get();
+        prepareIndex("cross_idx_b").setId("2").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
+            {"event": {"status": "ok"}}""", XContentType.JSON).get();
 
         assertHitCount(client().prepareSearch("cross_idx_a", "cross_idx_b").setQuery(termQuery("event.status", "ok")), 2L);
     }
 
     public void testMappedPropertyDocValueFields() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("event")
-            .field("type", "flattened")
-            .startObject("properties")
-            .startObject("host.name")
-            .field("type", "keyword")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-        createIndex("dv_test", Settings.EMPTY, mapping);
+        createIndex("dv_test", indicesAdmin().prepareCreate("dv_test").setMapping("""
+            {
+              "properties": {
+                "event": {
+                  "type": "flattened",
+                  "properties": {
+                    "host.name": { "type": "keyword" }
+                  }
+                }
+              }
+            }"""));
 
-        prepareIndex("dv_test").setId("1")
-            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-            .setSource(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .startObject("event")
-                    .field("host.name", "server-a")
-                    .field("region", "us-east")
-                    .endObject()
-                    .endObject()
-            )
-            .get();
+        prepareIndex("dv_test").setId("1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
+            {"event": {"host.name": "server-a", "region": "us-east"}}""", XContentType.JSON).get();
 
         assertNoFailuresAndResponse(
             client().prepareSearch("dv_test").addDocValueField("event.host.name").addDocValueField("event.region"),

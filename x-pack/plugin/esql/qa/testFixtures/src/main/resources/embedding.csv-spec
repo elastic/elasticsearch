@@ -1,5 +1,6 @@
 embedding using a row source operator
 required_capability: embedding_function
+required_capability: dense_vector_field_type_released
 
 ROW input="Who is Victor Hugo?"
 | EVAL embedding = EMBEDDING("Who is Victor Hugo?", "test_embedding_inference")
@@ -12,6 +13,7 @@ Who is Victor Hugo? | [56.0, 50.0, 48.0]
 
 embedding using a row source operator with query build using CONCAT
 required_capability: embedding_function
+required_capability: dense_vector_field_type_released
 
 ROW input="Who is Victor Hugo?"
 | EVAL embedding = EMBEDDING(CONCAT("Who is ", "Victor Hugo?"), "test_embedding_inference")
@@ -24,6 +26,8 @@ Who is Victor Hugo? | [56.0, 50.0, 48.0]
 
 embedding with knn on dense vector field
 required_capability: embedding_function
+required_capability: dense_vector_field_type_released
+required_capability: knn_function_v5
 
 // tag::embedding-knn[]
 FROM dense_vector_text METADATA _score
@@ -44,6 +48,8 @@ all we have to decide is what to do with the time that is given to us | [45.0, 5
 
 embedding with knn (inline) on dense vector field
 required_capability: embedding_function
+required_capability: dense_vector_field_type_released
+required_capability: knn_function_v5
 
 FROM dense_vector_text METADATA _score
 | WHERE KNN(text_embedding_field, EMBEDDING("be excellent to each other", "test_embedding_inference"))
@@ -61,6 +67,8 @@ all we have to decide is what to do with the time that is given to us
 
 embedding with multiple knn queries
 required_capability: embedding_function
+required_capability: dense_vector_field_type_released
+required_capability: knn_function_v5
 
 FROM dense_vector_text METADATA _score, _id
 | WHERE KNN(text_embedding_field, EMBEDDING("be excellent to each other", "test_embedding_inference")) OR KNN(text_embedding_field, EMBEDDING("live long and prosper", "test_embedding_inference"))
@@ -78,6 +86,8 @@ all we have to decide is what to do with the time that is given to us
 
 embedding with multiple knn queries in fork
 required_capability: embedding_function
+required_capability: dense_vector_field_type_released
+required_capability: knn_function_v5
 required_capability: fork_v9
 
 FROM dense_vector_text METADATA _score
@@ -99,6 +109,7 @@ all we have to decide is what to do with the time that is given to us | [50.0, 5
 
 embedding with explicit text type option
 required_capability: embedding_function
+required_capability: dense_vector_field_type_released
 
 ROW input="Who is Victor Hugo?"
 | EVAL embedding = EMBEDDING("Who is Victor Hugo?", "test_embedding_inference", {"type": "text"})
@@ -110,6 +121,7 @@ Who is Victor Hugo? | [56.0, 50.0, 48.0]
 
 embedding with explicit text type and format options
 required_capability: embedding_function
+required_capability: dense_vector_field_type_released
 
 ROW input="Who is Victor Hugo?"
 | EVAL embedding = EMBEDDING("Who is Victor Hugo?", "test_embedding_inference", {"type": "text", "format": "text"})
@@ -122,6 +134,7 @@ Who is Victor Hugo? | [56.0, 50.0, 48.0]
 
 embedding with image type and base64 format options
 required_capability: embedding_function
+required_capability: dense_vector_field_type_released
 
 // Base64 encoding of "Who is Victor Hugo?" is "V2hvIGlzIFZpY3RvciBIdWdvPw==". Using image as type multiplies embeddings by -1
 // tag::embedding-base64[]
@@ -137,6 +150,7 @@ Who is Victor Hugo?            | [-56.0, -50.0, -48.0]
 
 embedding with timeout option
 required_capability: embedding_function
+required_capability: dense_vector_field_type_released
 
 ROW input="Who is Victor Hugo?"
 | EVAL embedding = EMBEDDING("Who is Victor Hugo?", "test_embedding_inference", {"timeout": "30s"})

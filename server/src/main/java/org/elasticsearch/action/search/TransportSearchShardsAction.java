@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.injection.guice.Inject;
@@ -169,7 +168,6 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                     delegate.onResponse(
                         new SearchShardsResponse(
                             toGroups(shardIts),
-                            0,
                             project.cluster().nodes().getAllNodes(),
                             aliasFilters,
                             searchShardsRequest.getResolvedIndexExpressions()
@@ -198,9 +196,8 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                     )
                         .addListener(
                             delegate.map(
-                                canMatchResult -> new SearchShardsResponse(
-                                    toGroups(canMatchResult.iterators()),
-                                    CollectionUtils.sumIntValues(canMatchResult.skippedByClusterAlias()),
+                                its -> new SearchShardsResponse(
+                                    toGroups(its),
                                     project.cluster().nodes().getAllNodes(),
                                     aliasFilters,
                                     searchShardsRequest.getResolvedIndexExpressions()

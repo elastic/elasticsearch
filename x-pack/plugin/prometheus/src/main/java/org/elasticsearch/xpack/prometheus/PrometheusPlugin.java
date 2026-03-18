@@ -24,6 +24,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusRemoteWriteRestAction;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusRemoteWriteTransportAction;
+import org.elasticsearch.xpack.prometheus.rest.PrometheusSeriesRestAction;
 
 import java.util.Collection;
 import java.util.List;
@@ -97,7 +98,10 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
     ) {
         if (enabled) {
             assert indexingPressure.get() != null : "indexing pressure must be set if plugin is enabled";
-            return List.of(new PrometheusRemoteWriteRestAction(indexingPressure.get(), maxProtobufContentLengthBytes, recycler.get()));
+            return List.of(
+                new PrometheusRemoteWriteRestAction(indexingPressure.get(), maxProtobufContentLengthBytes, recycler.get()),
+                new PrometheusSeriesRestAction()
+            );
         }
         return List.of();
     }

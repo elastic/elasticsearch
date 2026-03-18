@@ -222,33 +222,27 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             for (var inputContent : input) {
                 // For multiple inputs that generate one embedding, average the embeddings for each input
                 List<InferenceString> inferenceStrings = inputContent.inferenceStrings();
-                List<Float> averagedFloatEmbeddings = inferenceStrings.stream()
-                    .map(inferenceString -> {
-                        String inputValue = inferenceString.dataFormat() == DataFormat.BASE64
-                            ? new String(Base64.getDecoder().decode(inferenceString.value()), StandardCharsets.UTF_8)
-                            : inferenceString.value();
-                        List<Float> embedding = generateEmbedding(
-                            inputValue,
-                            serviceSettings.dimensions(),
-                            serviceSettings.elementType(),
-                            serviceSettings.similarity()
-                        );
-                        if (inferenceString.isImage()) {
-                            return embedding.stream().map(f -> -f).toList();
-                        }
-                        return embedding;
-                    })
-                    .reduce((list1, list2) -> {
-                        List<Float> summedValues = new ArrayList<>(list1.size());
-                        for (int i = 0; i < list1.size(); i++) {
-                            summedValues.add(list1.get(i) + list2.get(i));
-                        }
-                        return summedValues;
-                    })
-                    .orElse(Collections.emptyList())
-                    .stream()
-                    .map(f -> f / inferenceStrings.size())
-                    .toList();
+                List<Float> averagedFloatEmbeddings = inferenceStrings.stream().map(inferenceString -> {
+                    String inputValue = inferenceString.dataFormat() == DataFormat.BASE64
+                        ? new String(Base64.getDecoder().decode(inferenceString.value()), StandardCharsets.UTF_8)
+                        : inferenceString.value();
+                    List<Float> embedding = generateEmbedding(
+                        inputValue,
+                        serviceSettings.dimensions(),
+                        serviceSettings.elementType(),
+                        serviceSettings.similarity()
+                    );
+                    if (inferenceString.isImage()) {
+                        return embedding.stream().map(f -> -f).toList();
+                    }
+                    return embedding;
+                }).reduce((list1, list2) -> {
+                    List<Float> summedValues = new ArrayList<>(list1.size());
+                    for (int i = 0; i < list1.size(); i++) {
+                        summedValues.add(list1.get(i) + list2.get(i));
+                    }
+                    return summedValues;
+                }).orElse(Collections.emptyList()).stream().map(f -> f / inferenceStrings.size()).toList();
                 embeddings.add(GenericDenseEmbeddingFloatResults.Embedding.of(averagedFloatEmbeddings));
             }
             return new GenericDenseEmbeddingFloatResults(embeddings);

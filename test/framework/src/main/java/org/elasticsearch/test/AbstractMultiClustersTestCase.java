@@ -189,6 +189,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         settings.putNull("cluster.remote." + clusterAlias + ".seeds");
         settings.putNull("cluster.remote." + clusterAlias + ".mode");
         settings.putNull("cluster.remote." + clusterAlias + ".proxy_address");
+        settings.putNull("cluster.remote." + clusterAlias + ".skip_unavailable");
         internalClient().admin()
             .cluster()
             .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)

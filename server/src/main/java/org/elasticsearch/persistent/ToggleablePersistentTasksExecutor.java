@@ -30,12 +30,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
-/// A [PersistentTasksExecutor] whose lifecycle is driven by a boolean "enabled" flag.
+/// A [PersistentTasksExecutor] whose lifecycle is gated by a boolean "enabled" flag.
 ///
-/// On every cluster state update where the local node is the elected master and the cluster
-/// has recovered, this executor reconciles the desired state (enabled / disabled) with the
-/// actual state (task exists / does not exist) and sends the appropriate start or remove
-/// request through the [PersistentTasksService].
+/// On every cluster state update, the master node reconciles the desired state (enabled / disabled) with the
+/// actual state (task exists / does not exist) and sends the appropriate start or remove request through
+/// the [PersistentTasksService].
 ///
 /// Subclasses control enablement by calling [#setEnabled(boolean)] or [#setEnabled(ProjectId, boolean)],
 /// typically from a dynamic setting consumer.
@@ -99,6 +98,7 @@ public abstract class ToggleablePersistentTasksExecutor<Params extends Persisten
 
     /// Sets the enabled flag for the relevant project id.
     protected void setEnabled(ProjectId projectId, boolean enabled) {
+        assert scope() == Scope.PROJECT : "Use setEnabled(boolean) when the task is cluster scoped";
         perProjectEnabled.put(projectId, enabled);
     }
 
@@ -149,7 +149,8 @@ public abstract class ToggleablePersistentTasksExecutor<Params extends Persisten
         }
     }
 
-    /// The master handles the actual task cancellation via a cluster state update
+    /// Removes tracking entries from [#perProjectEnabled] for projects that no longer exist in the cluster state.
+    /// The persistent tasks framework independently handles the actual cancellation of tasks belonging to removed projects
     void cleanupObsoleteProjectTasks(ClusterState state) {
         Set<ProjectId> obsoleteProjectTasks = Sets.difference(perProjectEnabled.keySet(), state.metadata().projects().keySet());
         for (final var projectId : obsoleteProjectTasks) {
@@ -179,7 +180,7 @@ public abstract class ToggleablePersistentTasksExecutor<Params extends Persisten
         );
     }
 
-    protected void startProjectTask(ProjectId projectId, String taskId) {
+    private void startProjectTask(ProjectId projectId, String taskId) {
         persistentTasksService.sendProjectStartRequest(
             projectId,
             taskId,
@@ -190,7 +191,7 @@ public abstract class ToggleablePersistentTasksExecutor<Params extends Persisten
         );
     }
 
-    protected void stopProjectTask(ProjectId projectId, String taskId) {
+    private void stopProjectTask(ProjectId projectId, String taskId) {
         persistentTasksService.sendProjectRemoveRequest(
             projectId,
             taskId,

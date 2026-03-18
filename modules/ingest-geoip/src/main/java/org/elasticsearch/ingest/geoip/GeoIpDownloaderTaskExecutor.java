@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -97,7 +98,6 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final Settings settings;
-    private final PersistentTasksService persistentTasksService;
 
     @FixForMultiProject(description = "These settings need to be project-scoped")
     private volatile TimeValue pollInterval;
@@ -131,7 +131,6 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.settings = clusterService.getSettings();
-        this.persistentTasksService = persistentTasksService;
         this.pollInterval = POLL_INTERVAL_SETTING.get(settings);
         this.eagerDownload = EAGER_DOWNLOAD_SETTING.get(settings);
         this.projectResolver = client.projectResolver();
@@ -212,14 +211,14 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
     }
 
     /// Reconciles the geoip downloader task lifecycle and tracks geoip processor presence on every cluster state update.
-    /// The master lifecycle reconciliation (start/stop) is handled by [#super]. The processor tracking and cleanup
-    /// runs on all nodes.
+    /// The master lifecycle reconciliation (start/stop) is handled by [#super].
+    /// The processor tracking and cleanup runs on all nodes.
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         // Master reconciliation
         super.clusterChanged(event);
 
-        // Local reconciliation
+        // Runs on all nodes
         if (event.metadataChanged() == false) {
             return;
         }
@@ -255,52 +254,39 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
                 }
             }
         }
+        // Cleanup
         for (var project : tasks.keySet()) {
             if (projects.containsKey(project) == false
                 || PersistentTasksCustomMetadata.getTaskWithId(projects.get(project), getProjectTaskId(project)) == null) {
+                if (event.localNodeMaster()) {
+                    deleteGeoIpDatabasesIndex(project, event.state());
+                }
                 tasks.remove(project);
+                atLeastOneGeoIpProcessorByProject.remove(project);
             }
         }
     }
 
-    /// Override the base implementation to add the deleteGeoIpDatabasesIndex listener
-    @Override
-    protected void stopProjectTask(ProjectId projectId, String taskId) {
-        persistentTasksService.sendProjectRemoveRequest(
-            projectId,
-            taskId,
-            masterNodeTimeout(),
-            ActionListener.runAfter(
-                ActionListener.wrap(r -> logger.debug("Removed [{}] task for project [{}]", getTaskName(), projectId), e -> {
-                    Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
-                    if (t instanceof ResourceNotFoundException == false) {
-                        logger.warn(() -> "Failed to remove [" + getTaskName() + "] task", e);
-                    }
-                }),
-                () -> deleteGeoIpDatabasesIndex(projectId)
-            )
-        );
-    }
-
-    private void deleteGeoIpDatabasesIndex(ProjectId projectId) {
-        IndexAbstraction databasesAbstraction = clusterService.state()
-            .metadata()
-            .getProject(projectId)
-            .getIndicesLookup()
-            .get(DATABASES_INDEX);
-        if (databasesAbstraction != null) {
-            Index databasesIndex = databasesAbstraction.getWriteIndex();
-            client.projectClient(projectId)
-                .admin()
-                .indices()
-                .prepareDelete(databasesIndex.getName())
-                .execute(ActionListener.wrap(rr -> {}, e -> {
-                    Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
-                    if (t instanceof ResourceNotFoundException == false) {
-                        logger.warn("failed to remove " + databasesIndex, e);
-                    }
-                }));
+    private void deleteGeoIpDatabasesIndex(ProjectId projectId, ClusterState state) {
+        ProjectMetadata project = state.metadata().projects().get(projectId);
+        if (project == null) {
+            return;
         }
+        IndexAbstraction databasesAbstraction = project.getIndicesLookup().get(DATABASES_INDEX);
+        if (databasesAbstraction == null) {
+            return;
+        }
+        Index databasesIndex = databasesAbstraction.getWriteIndex();
+        client.projectClient(projectId)
+            .admin()
+            .indices()
+            .prepareDelete(databasesIndex.getName())
+            .execute(ActionListener.wrap(rr -> {}, e -> {
+                Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
+                if (t instanceof ResourceNotFoundException == false) {
+                    logger.warn("failed to remove " + databasesIndex, e);
+                }
+            }));
     }
 
     static boolean hasAtLeastOneGeoipProcessor(ProjectMetadata projectMetadata) {

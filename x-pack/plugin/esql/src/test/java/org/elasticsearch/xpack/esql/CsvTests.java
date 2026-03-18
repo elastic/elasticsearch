@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -140,7 +139,6 @@ import org.elasticsearch.xpack.esql.view.InMemoryViewService;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.junit.After;
-import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -185,10 +183,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.in;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -428,26 +424,7 @@ public class CsvTests extends ESTestCase {
                     && Set.of("Exact count with where on single-valued data", "Exact total single-valued field count").contains(testName)
             );
 
-            if (Build.current().isSnapshot()) {
-                assertThat(
-                    "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",
-                    testCase.requiredCapabilities,
-                    everyItem(in(ALL_CAPS.capabilities()))
-                );
-                assumeTrueLogging(
-                    "Capability not supported in this build",
-                    ENABLED_CAPS.capabilities().containsAll(testCase.requiredCapabilities)
-                );
-            } else {
-                for (EsqlCapabilities.Cap c : EsqlCapabilities.Cap.values()) {
-                    if (false == c.isEnabled()) {
-                        assumeFalseLogging(
-                            c.capabilityName() + " is not supported in non-snapshot releases",
-                            testCase.requiredCapabilities.contains(c.capabilityName())
-                        );
-                    }
-                }
-            }
+            checkTestCapabilities();
 
             doTest();
         } catch (Throwable th) {
@@ -455,17 +432,16 @@ public class CsvTests extends ESTestCase {
         }
     }
 
+    private void checkTestCapabilities() {
+        CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities, LOGGER);
+    }
+
     private static void assumeTrueLogging(String message, boolean condition) {
-        assumeFalseLogging(message, condition == false);
+        CsvTestUtils.assumeTrueLogging(message, condition, LOGGER);
     }
 
     private static void assumeFalseLogging(String message, boolean condition) {
-        try {
-            assumeFalse(message, condition);
-        } catch (AssumptionViolatedException ave) {
-            LOGGER.info("skipping test: " + ave.getMessage());
-            throw ave;
-        }
+        CsvTestUtils.assumeFalseLogging(message, condition, LOGGER);
     }
 
     @Override

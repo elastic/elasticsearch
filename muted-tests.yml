@@ -330,12 +330,15 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
   method: testGetReindexFollowsRelocation
   issue: https://github.com/elastic/elasticsearch/issues/144364
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
-  method: testGiantTextFieldInSubqueryIntermediateResults
-  issue: https://github.com/elastic/elasticsearch/issues/144367
 - class: org.elasticsearch.xpack.logsdb.FlattenedRollingUpgradeIT
   method: testIndexing
   issue: https://github.com/elastic/elasticsearch/issues/144372
+- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedIT
+  method: "testAction {actionName=createLDAPCertStore}"
+  issue: https://github.com/elastic/elasticsearch/issues/144377
+- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedNonModularIT
+  method: "testAction {actionName=createLDAPCertStore}"
+  issue: https://github.com/elastic/elasticsearch/issues/144376
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=search.vectors/172_knn_query_base64_vectors/kNN query with ambiguous hex/base64 byte string prefers hex}
   issue: https://github.com/elastic/elasticsearch/issues/144379

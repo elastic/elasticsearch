@@ -14,7 +14,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -409,12 +408,17 @@ public class PushQueriesIT extends ESRestTestCase {
         }
     }
 
+    /**
+     * Must match {@code LuceneOperator.Status.QUERY_STRING_TRUNCATION} in the compute module.
+     */
+    private static final int QUERY_STRING_TRUNCATION = 500;
+
     private Matcher<String> queryMatcher(String queryString, String value, String differentValue) {
         queryString = queryString.replaceAll("%value", value).replaceAll("%different_value", differentValue);
-        if (queryString.length() <= LuceneOperator.Status.QUERY_STRING_TRUNCATION) {
+        if (queryString.length() <= QUERY_STRING_TRUNCATION) {
             return equalTo(queryString);
         }
-        return startsWith(queryString.substring(0, LuceneOperator.Status.QUERY_STRING_TRUNCATION));
+        return startsWith(queryString.substring(0, QUERY_STRING_TRUNCATION));
     }
 
     private void indexValue(String value) throws IOException {

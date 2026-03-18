@@ -103,7 +103,7 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
     private volatile TimeValue pollInterval;
     private volatile boolean eagerDownload;
 
-    private final ConcurrentHashMap<ProjectId, Boolean> atLeastOneGeoipProcessorByProject = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<ProjectId, Boolean> atLeastOneGeoIpProcessorByProject = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<ProjectId, GeoIpDownloader> tasks = new ConcurrentHashMap<>();
     private final ProjectResolver projectResolver;
 
@@ -206,24 +206,27 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
             headers,
             () -> pollInterval,
             () -> eagerDownload,
-            () -> atLeastOneGeoipProcessorByProject.getOrDefault(projectId, false),
+            () -> atLeastOneGeoIpProcessorByProject.getOrDefault(projectId, false),
             projectId
         );
     }
 
     /// Reconciles the geoip downloader task lifecycle and tracks geoip processor presence on every cluster state update.
-    /// The master-node lifecycle reconciliation (start/stop) is handled by [#super]. The processor tracking below
-    /// runs on all nodes so that each node knows whether to eagerly download databases.
+    /// The master lifecycle reconciliation (start/stop) is handled by [#super]. The processor tracking and cleanup
+    /// runs on all nodes.
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        // Master reconciliation
         super.clusterChanged(event);
 
+        // Local reconciliation
         if (event.metadataChanged() == false) {
             return;
         }
-        for (var projectMetadata : event.state().metadata().projects().values()) {
+        final var projects = event.state().metadata().projects();
+        for (var projectMetadata : projects.values()) {
             ProjectId projectId = projectMetadata.id();
-            atLeastOneGeoipProcessorByProject.computeIfAbsent(projectId, k -> hasAtLeastOneGeoipProcessor(projectMetadata));
+            atLeastOneGeoIpProcessorByProject.computeIfAbsent(projectId, k -> hasAtLeastOneGeoipProcessor(projectMetadata));
 
             boolean hasIngestPipelineChanges = event.customMetadataChanged(projectId, IngestMetadata.TYPE);
             boolean hasIndicesChanges = false;
@@ -237,11 +240,11 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
             }
 
             if (hasIngestPipelineChanges || hasIndicesChanges) {
-                boolean atLeastOneGeoipProcessor = atLeastOneGeoipProcessorByProject.getOrDefault(projectId, false);
+                boolean atLeastOneGeoipProcessor = atLeastOneGeoIpProcessorByProject.getOrDefault(projectId, false);
                 boolean newAtLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(projectMetadata);
                 // update if necessary
                 if (newAtLeastOneGeoipProcessor != atLeastOneGeoipProcessor) {
-                    atLeastOneGeoipProcessorByProject.put(projectId, newAtLeastOneGeoipProcessor);
+                    atLeastOneGeoIpProcessorByProject.put(projectId, newAtLeastOneGeoipProcessor);
                 }
                 if (newAtLeastOneGeoipProcessor && atLeastOneGeoipProcessor == false) {
                     logger.trace("Scheduling runDownloader for project [{}] because a geoip processor has been added", projectId);
@@ -252,11 +255,17 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
                 }
             }
         }
+        for (var project : tasks.keySet()) {
+            if (projects.containsKey(project) == false
+                || PersistentTasksCustomMetadata.getTaskWithId(projects.get(project), getProjectTaskId(project)) == null) {
+                tasks.remove(project);
+            }
+        }
     }
 
+    /// Override the base implementation to add the deleteGeoIpDatabasesIndex listener
     @Override
     protected void stopProjectTask(ProjectId projectId, String taskId) {
-        tasks.remove(projectId);
         persistentTasksService.sendProjectRemoveRequest(
             projectId,
             taskId,
@@ -298,12 +307,10 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
         if (pipelinesWithGeoIpProcessor(projectMetadata, true).isEmpty() == false) {
             return true;
         }
-
         final Set<String> checkReferencedPipelines = pipelinesWithGeoIpProcessor(projectMetadata, false);
         if (checkReferencedPipelines.isEmpty()) {
             return false;
         }
-
         for (IndexMetadata indexMetadata : projectMetadata.indices().values()) {
             String defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexMetadata.getSettings());
             String finalPipeline = IndexSettings.FINAL_PIPELINE.get(indexMetadata.getSettings());

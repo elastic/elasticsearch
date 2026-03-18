@@ -106,3 +106,43 @@ be excellent to each other                                            | [50.0, 5
 all we have to decide is what to do with the time that is given to us | [45.0, 55.0, 54.0]           | fork1
 all we have to decide is what to do with the time that is given to us | [50.0, 57.0, 56.0]           | fork2
 ;
+
+embedding with explicit text type option
+required_capability: embedding_function
+required_capability: dense_vector_field_type_released
+
+ROW input="Who is Victor Hugo?"
+| EVAL embedding = EMBEDDING("Who is Victor Hugo?", "test_embedding_inference", {"type": "text"})
+;
+
+input:keyword       | embedding:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+embedding with explicit text type and format options
+required_capability: embedding_function
+required_capability: dense_vector_field_type_released
+
+ROW input="Who is Victor Hugo?"
+| EVAL embedding = EMBEDDING("Who is Victor Hugo?", "test_embedding_inference", {"type": "text", "format": "text"})
+;
+
+input:keyword       | embedding:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+
+embedding with image type and base64 format options
+required_capability: embedding_function
+required_capability: dense_vector_field_type_released
+
+// Base64 encoding of "Who is Victor Hugo?" is "V2hvIGlzIFZpY3RvciBIdWdvPw==". Using image as type multiplies embeddings by -1
+// tag::embedding-base64[]
+ROW b64_input="V2hvIGlzIFZpY3RvciBIdWdvPw=="
+| EVAL embedding = EMBEDDING(b64_input, "test_embedding_inference", {"type": "image", "format": "base64"})
+// end::embedding-base64[]
+;
+
+b64_input:keyword              | embedding:dense_vector
+V2hvIGlzIFZpY3RvciBIdWdvPw== | [-56.0, -50.0, -48.0]
+;

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
@@ -26,9 +27,21 @@ public class APMMeterService extends AbstractLifecycleComponent {
 
     private static final Logger LOGGER = LogManager.getLogger(APMMeterService.class);
 
+    /**
+     * Time to wait for the APM agent to export telemetry if we don't have access to the settings to check.
+     */
+    public static final TimeValue DEFAULT_AGENT_INTERVAL = TimeValue.timeValueSeconds(10);
+
     private final APMMeterRegistry meterRegistry;
     private final MeterSupplier otelMeterSupplier;
     private final MeterSupplier noopMeterSupplier;
+
+    /**
+     * Bounded wait when metrics are backed by the Elastic APM agent: {@code 2 * metrics_interval}.
+     * The agent offers no flush API, so this is only a best-effort pause; the first intake request to the
+     * APM server can still be delayed well beyond this window.
+     */
+    private final long agentFlushWaitMs;
 
     protected volatile boolean enabled;
 
@@ -37,14 +50,28 @@ public class APMMeterService extends AbstractLifecycleComponent {
     }
 
     public APMMeterService(Settings settings, MeterSupplier otelMeterSupplier, MeterSupplier noopMeterSupplier) {
-        this(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.get(settings), otelMeterSupplier, noopMeterSupplier);
+        this(
+            APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.get(settings),
+            otelMeterSupplier,
+            noopMeterSupplier,
+            2 * agentMetricsInterval(settings).millis()
+        );
     }
 
-    public APMMeterService(boolean enabled, MeterSupplier otelMeterSupplier, MeterSupplier noopMeterSupplier) {
+    private APMMeterService(boolean enabled, MeterSupplier otelMeterSupplier, MeterSupplier noopMeterSupplier, long agentFlushWaitMs) {
         this.enabled = enabled;
         this.otelMeterSupplier = otelMeterSupplier;
         this.noopMeterSupplier = noopMeterSupplier;
+        this.agentFlushWaitMs = agentFlushWaitMs;
         this.meterRegistry = new APMMeterRegistry(enabled ? otelMeterSupplier.get() : noopMeterSupplier.get());
+    }
+
+    private static TimeValue agentMetricsInterval(Settings settings) {
+        String intervalStr = settings.get("telemetry.agent.metrics_interval");
+        if (intervalStr != null && intervalStr.isEmpty() == false) {
+            return TimeValue.parseTimeValue(intervalStr, "telemetry.agent.metrics_interval");
+        }
+        return DEFAULT_AGENT_INTERVAL;
     }
 
     private static MeterSupplier createOtelMeterSupplier(Settings settings) {
@@ -56,6 +83,32 @@ public class APMMeterService extends AbstractLifecycleComponent {
 
     public APMMeterRegistry getMeterRegistry() {
         return meterRegistry;
+    }
+
+    /**
+     * Export buffered metrics on a best-effort basis.
+     * <p>
+     * For OpenTelemetry SDK metrics, pushes buffered data to the exporter. For Elastic APM agent metrics,
+     * sleeps for {@code 2 * telemetry.agent.metrics_interval} because the agent has no
+     * programmatic flush; observable export (e.g. first HTTP to {@code telemetry.agent.server_url}) may still
+     * take substantially longer than this sleep.
+     */
+    public void attemptFlushMetrics() {
+        if (enabled == false) {
+            return;
+        }
+        if (otelMeterSupplier instanceof OTelSdkMeterSupplier otelSupplier) {
+            otelSupplier.attemptFlushMetrics();
+        } else {
+            // This side covers the case where the APM agent has installed a meter supplier.
+            // The APM agent offers no way to flush, so we simply wait.
+            try {
+                Thread.sleep(agentFlushWaitMs);
+            } catch (InterruptedException e) {
+                // Flush is best-effort. We can reestablish the interrupt flag and proceed.
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
     /**

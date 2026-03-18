@@ -166,16 +166,9 @@ public class MetricsApmIT extends ESRestTestCase {
 
         recordingApmServer.addMessageConsumer(messageConsumer);
 
-        if (withOTel) {
-            // Re-trigger periodically to produce fresh non-zero deltas for async counters
-            for (int i = 0; i < 15 && finished.getCount() > 0; i++) {
-                client().performRequest(new Request("GET", "/_use_apm_metrics"));
-                finished.await(2, TimeUnit.SECONDS);
-            }
-        } else {
-            client().performRequest(new Request("GET", "/_use_apm_metrics"));
-            finished.await(30, TimeUnit.SECONDS);
-        }
+        client().performRequest(new Request("GET", "/_use_apm_metrics"));
+        client().performRequest(new Request("GET", "/_flush_telemetry"));
+        finished.await(5, TimeUnit.SECONDS);
 
         var remainingAssertions = Stream.concat(valueAssertions.keySet().stream(), histogramAssertions.keySet().stream())
             .collect(Collectors.joining(","));
@@ -237,7 +230,8 @@ public class MetricsApmIT extends ESRestTestCase {
 
         recordingApmServer.addMessageConsumer(messageConsumer);
 
-        var completed = finished.await(30, TimeUnit.SECONDS);
+        client().performRequest(new Request("GET", "/_flush_telemetry"));
+        var completed = finished.await(5, TimeUnit.SECONDS);
         var remaining = valueAssertions.keySet().stream().collect(Collectors.joining(", "));
         assertTrue("Timeout waiting for JVM metrics. Missing: " + remaining, completed);
     }

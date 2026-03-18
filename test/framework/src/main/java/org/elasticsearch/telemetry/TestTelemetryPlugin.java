@@ -95,6 +95,12 @@ public class TestTelemetryPlugin extends Plugin implements TelemetryPlugin {
             public MeterRegistry getMeterRegistry() {
                 return meter;
             }
+
+            @Override
+            public void attemptFlushMetrics() {}
+
+            @Override
+            public void attemptFlushTraces() {}
         };
     }
 }

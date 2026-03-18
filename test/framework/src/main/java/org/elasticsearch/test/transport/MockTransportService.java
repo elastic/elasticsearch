@@ -279,6 +279,12 @@ public class MockTransportService extends TransportService {
                 public MeterRegistry getMeterRegistry() {
                     return meterRegistry;
                 }
+
+                @Override
+                public void attemptFlushMetrics() {}
+
+                @Override
+                public void attemptFlushTraces() {}
             },
             new CrossProjectModeDecider(settings),
             DefaultProjectResolver.INSTANCE

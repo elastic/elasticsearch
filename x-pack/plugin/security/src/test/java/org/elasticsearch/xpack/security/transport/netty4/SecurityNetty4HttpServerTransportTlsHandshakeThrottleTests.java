@@ -172,6 +172,12 @@ public class SecurityNetty4HttpServerTransportTlsHandshakeThrottleTests extends 
             public MeterRegistry getMeterRegistry() {
                 return meterRegistry;
             }
+
+            @Override
+            public void attemptFlushMetrics() {}
+
+            @Override
+            public void attemptFlushTraces() {}
         };
 
         final var server = new Netty4HttpServerTransport(

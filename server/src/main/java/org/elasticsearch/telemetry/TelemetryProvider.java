@@ -20,6 +20,23 @@ public interface TelemetryProvider {
 
     MeterRegistry getMeterRegistry();
 
+    /**
+     * Ensures buffered metrics are exported. Implementations should flush the meter provider they own
+     * (e.g. OTel SdkMeterProvider) or wait for the next Elastic APM Java agent export cycle.
+     * <p>
+     * When metrics are backed by the Elastic APM agent, there is no flush API: the implementation only waits
+     * a bounded interval derived from {@code telemetry.agent.metrics_interval}. The first HTTP request to the
+     * configured APM server can still arrive much later (agent reporter scheduling), so callers that need
+     * observable export must allow additional wall-clock time beyond this method.
+     */
+    void attemptFlushMetrics();
+
+    /**
+     * Ensures buffered traces are exported. Implementations should flush the tracer provider they own
+     * (e.g. OTel SdkTracerProvider) or wait for the next agent export cycle.
+     */
+    void attemptFlushTraces();
+
     TelemetryProvider NOOP = new TelemetryProvider() {
 
         @Override
@@ -31,5 +48,11 @@ public interface TelemetryProvider {
         public MeterRegistry getMeterRegistry() {
             return MeterRegistry.NOOP;
         }
+
+        @Override
+        public void attemptFlushMetrics() {}
+
+        @Override
+        public void attemptFlushTraces() {}
     };
 }

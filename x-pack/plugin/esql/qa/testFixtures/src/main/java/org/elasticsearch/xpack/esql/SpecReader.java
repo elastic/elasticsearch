@@ -12,6 +12,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
@@ -59,7 +60,7 @@ public final class SpecReader {
                     // parse test name
                     if (testName == null) {
                         String normalizedName = line.split("#", 2)[0].trim();
-                        String lowerCasedName = normalizedName.toLowerCase();
+                        String lowerCasedName = normalizedName.toLowerCase(Locale.ROOT);
                         if (testNames.containsKey(lowerCasedName)) {
                             throw new IllegalStateException(
                                 "Duplicate test name '"

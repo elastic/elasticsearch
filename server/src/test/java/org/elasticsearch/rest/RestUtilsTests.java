@@ -175,10 +175,7 @@ public class RestUtilsTests extends ESTestCase {
     public void testDecodeQueryStringMultiReservedParameters() {
         for (var reservedParam : INTERNAL_MARKER_REQUEST_PARAMETERS) {
             String uri = "something?" + reservedParam + "=value";
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> RestUtils.decodeQueryStringMulti(uri, uri.indexOf('?') + 1)
-            );
+            expectThrows(IllegalArgumentException.class, () -> RestUtils.decodeQueryStringMulti(uri, uri.indexOf('?') + 1));
         }
     }
 

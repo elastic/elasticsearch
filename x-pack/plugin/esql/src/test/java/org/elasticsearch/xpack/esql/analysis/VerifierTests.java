@@ -2449,7 +2449,7 @@ public class VerifierTests extends ESTestCase {
         }
         for (DataType type : unsortableTypes) {
             assertEquals(
-                "2:4: change point key [key] must be sortable",
+                "2:26: CHANGE_POINT only supports sortable keys, found expression [key] type [" + type + "]",
                 error(Strings.format("ROW key=NULL::%s, value=0\n | CHANGE_POINT value ON key", type))
             );
         }
@@ -2480,11 +2480,11 @@ public class VerifierTests extends ESTestCase {
         }
         for (DataType type : nonNumericTypes) {
             assertEquals(
-                "2:4: change point value [value] must be numeric",
+                "2:17: CHANGE_POINT only supports numeric values, found expression [value] type [" + type + "]",
                 error(Strings.format("ROW key=0, value=NULL::%s\n | CHANGE_POINT value ON key", type))
             );
         }
-        assertEquals("2:4: change point value [value] must be numeric", error("ROW key=0, value=NULL\n | CHANGE_POINT value ON key"));
+        query("ROW key=0, value=NULL\n | CHANGE_POINT value ON key");
     }
 
     public void testSortByAggregate() {

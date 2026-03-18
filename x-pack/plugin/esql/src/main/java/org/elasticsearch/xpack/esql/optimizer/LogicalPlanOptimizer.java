@@ -114,6 +114,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
     private static final List<RuleExecutor.Batch<LogicalPlan>> RULES = List.of(
         substitutions(),
+        canonicalizeExpressions(),
         operators(),
         new Batch<>("Skip Compute", new SkipQueryOnLimitZero()),
         cleanup(),
@@ -187,6 +188,10 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         );
     }
 
+    protected static Batch<LogicalPlan> canonicalizeExpressions() {
+        return new Batch<>("Canonicalize Expressions", Limiter.ONCE, new CanonicalizeExpressions());
+    }
+
     protected static Batch<LogicalPlan> operators() {
         return new Batch<>(
             "Operator Optimization",
@@ -205,7 +210,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                     count_distinct(_, 10)
                which are semantically identical
              */
-            new CanonicalizeExpressions(),
             new DeduplicateAggs(),
             new PartiallyFoldCase(),
             // boolean

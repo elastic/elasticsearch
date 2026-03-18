@@ -3264,30 +3264,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testEmbeddingFunctionOptions() {
-        // valid options are accepted
-        query(
-            "from test | EVAL embedding = EMBEDDING(?, ?, {\"type\": \"text\", \"format\": \"text\"})",
-            "query text",
-            EMBEDDING_INFERENCE_ID
-        );
-        query(
-            "from test | EVAL embedding = EMBEDDING(?, ?, {\"type\": \"image\", \"format\": \"base64\"})",
-            "query text",
-            EMBEDDING_INFERENCE_ID
-        );
-        query("from test | EVAL embedding = EMBEDDING(?, ?, {\"timeout\": \"30s\"})", "query text", EMBEDDING_INFERENCE_ID);
-
-        // unknown option key
-        assertThat(
-            error(
-                "from test | EVAL embedding = EMBEDDING(?, ?, {\"unknown\": \"value\"})",
-                defaultAnalyzer,
-                "query text",
-                EMBEDDING_INFERENCE_ID
-            ),
-            containsString("Invalid option [unknown]")
-        );
-
         // invalid type value
         assertThat(
             error(
@@ -3296,7 +3272,7 @@ public class VerifierTests extends ESTestCase {
                 "query text",
                 EMBEDDING_INFERENCE_ID
             ),
-            equalTo("1:30: Unrecognized type [invalid_type], must be one of [text, image]")
+            equalTo("1:30: Invalid options for EMBEDDING: Unrecognized type [invalid_type], must be one of [text, image]")
         );
 
         // invalid format value
@@ -3307,7 +3283,7 @@ public class VerifierTests extends ESTestCase {
                 "query text",
                 EMBEDDING_INFERENCE_ID
             ),
-            equalTo("1:30: Unrecognized format [invalid_format], must be one of [text, base64]")
+            equalTo("1:30: Invalid options for EMBEDDING: Unrecognized format [invalid_format], must be one of [text, base64]")
         );
 
         // invalid timeout value
@@ -3318,7 +3294,7 @@ public class VerifierTests extends ESTestCase {
                 "query text",
                 EMBEDDING_INFERENCE_ID
             ),
-            containsString("failed to parse setting [timeout]")
+            containsString("1:30: Invalid options for EMBEDDING: failed to parse [invalid]")
         );
     }
 

@@ -10,7 +10,7 @@ FROM dense_vector_text METADATA _score
 | WHERE KNN(text_embedding_field, query_embedding)
 ```
 
-Generate embeddings using the 'test_dense_inference' inference endpoint, specifying the data type and format:
+Generate embeddings using an inference endpoint, specifying the data type and format:
 
 ```esql
 ROW b64_input="Who is Victor Hugo?"

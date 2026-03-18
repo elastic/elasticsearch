@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -63,10 +64,6 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
     private final Expression inferenceId;
     private final Expression inputValue;
     private final MapExpression inputOptions;
-
-    private org.elasticsearch.inference.DataType resolvedDataType = org.elasticsearch.inference.DataType.TEXT;
-    private DataFormat resolvedDataFormat = DataFormat.TEXT;
-    private TimeValue resolvedTimeout = InferenceAction.Request.DEFAULT_TIMEOUT;
 
     @FunctionInfo(
         returnType = "dense_vector",
@@ -150,16 +147,26 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
         return inputValue;
     }
 
+    private String optionStringValue(String key) {
+        if (inputOptions == null) return null;
+        Expression valueExpr = inputOptions.get(key);
+        if (valueExpr == null) return null;
+        return BytesRefs.toString(((Literal) valueExpr).value());
+    }
+
     public org.elasticsearch.inference.DataType inputDataType() {
-        return resolvedDataType;
+        String value = optionStringValue(OPTION_TYPE);
+        return value == null ? org.elasticsearch.inference.DataType.TEXT : org.elasticsearch.inference.DataType.fromString(value);
     }
 
     public DataFormat inputDataFormat() {
-        return resolvedDataFormat;
+        String value = optionStringValue(OPTION_FORMAT);
+        return value == null ? DataFormat.TEXT : DataFormat.fromString(value);
     }
 
     public TimeValue inputTimeout() {
-        return resolvedTimeout;
+        String value = optionStringValue(OPTION_TIMEOUT);
+        return value == null ? InferenceAction.Request.DEFAULT_TIMEOUT : TimeValue.parseTimeValue(value, OPTION_TIMEOUT);
     }
 
     @Override
@@ -201,29 +208,12 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
 
         if (inputOptions != null) {
             TypeResolution optionsResolution = Options.resolve(inputOptions, source(), THIRD, ALLOWED_OPTIONS, optionsMap -> {
-                Object typeValue = optionsMap.get(OPTION_TYPE);
-                if (typeValue != null) {
-                    try {
-                        resolvedDataType = org.elasticsearch.inference.DataType.fromString(BytesRefs.toString(typeValue));
-                    } catch (IllegalArgumentException e) {
-                        throw new InvalidArgumentException(e.getMessage());
-                    }
-                }
-                Object formatValue = optionsMap.get(OPTION_FORMAT);
-                if (formatValue != null) {
-                    try {
-                        resolvedDataFormat = DataFormat.fromString(BytesRefs.toString(formatValue));
-                    } catch (IllegalArgumentException e) {
-                        throw new InvalidArgumentException(e.getMessage());
-                    }
-                }
-                Object timeoutValue = optionsMap.get(OPTION_TIMEOUT);
-                if (timeoutValue != null) {
-                    try {
-                        resolvedTimeout = TimeValue.parseTimeValue(BytesRefs.toString(timeoutValue), OPTION_TIMEOUT);
-                    } catch (IllegalArgumentException e) {
-                        throw new InvalidArgumentException(e.getMessage());
-                    }
+                try {
+                    inputDataType();
+                    inputDataFormat();
+                    inputTimeout();
+                } catch (IllegalArgumentException e) {
+                    throw new InvalidArgumentException("Invalid options for EMBEDDING: " + e.getMessage());
                 }
             });
             if (optionsResolution.unresolved()) {

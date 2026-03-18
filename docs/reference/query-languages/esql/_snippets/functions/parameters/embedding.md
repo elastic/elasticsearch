@@ -3,7 +3,7 @@
 ## Parameters
 
 `value`
-:   Value to generate embeddings from. Must be a non-null literal string value.
+:   Value to generate embeddings from. Must be a non-null literal string value. Use data type and format options to specify the content type and format (e.g. plain text, base64-encoded images) of the input.
 
 `inference_id`
 :   Identifier of an existing inference endpoint that will generate the embeddings. The inference endpoint must have the `embedding` task type and should use the same model that was used to embed your indexed data.

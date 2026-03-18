@@ -37,16 +37,6 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
     protected DocValuesFieldValues docValues = NO_VALUES;
     protected List<Object> ignoredValues = List.of();
 
-    FlattenedDocValuesSyntheticFieldLoader(
-        String fieldFullPath,
-        String keyedFieldFullPath,
-        @Nullable String keyedIgnoredValuesFieldFullPath,
-        String leafName,
-        boolean usesBinaryDocValues
-    ) {
-        this(fieldFullPath, keyedFieldFullPath, keyedIgnoredValuesFieldFullPath, leafName, usesBinaryDocValues, List.of());
-    }
-
     /**
      * Build a loader for flattened fields from either binary or sorted set doc values.
      *
@@ -84,7 +74,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
     public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
         Stream<Map.Entry<String, StoredFieldLoader>> flattenedLoaders = keyedIgnoredValuesFieldFullPath == null
             ? Stream.empty()
-            : Stream.of(Map.entry(keyedIgnoredValuesFieldFullPath, (StoredFieldLoader) (values) -> {
+            : Stream.of(Map.entry(keyedIgnoredValuesFieldFullPath, (values) -> {
                 ignoredValues = new ArrayList<>();
                 ignoredValues.addAll(values);
             }));
@@ -129,7 +119,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
             return null;
         }
         if (allLoaders.size() == 1) {
-            return allLoaders.get(0);
+            return allLoaders.getFirst();
         }
         return docId -> {
             boolean any = false;
@@ -142,9 +132,14 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
 
     @Override
     public boolean hasValue() {
-        if (docValues.count() > 0 || ignoredValues.isEmpty() == false) {
-            return true;
-        }
+        return hasFlattenedValues() || hasPropertyValues();
+    }
+
+    protected boolean hasFlattenedValues() {
+        return docValues.count() > 0 || ignoredValues.isEmpty() == false;
+    }
+
+    private boolean hasPropertyValues() {
         for (SourceLoader.SyntheticFieldLoader loader : mappedPropertyLoaders) {
             if (loader.hasValue()) {
                 return true;
@@ -168,15 +163,8 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
 
     @Override
     public void write(XContentBuilder b) throws IOException {
-        boolean hasFlattenedValues = docValues.count() > 0 || ignoredValues.isEmpty() == false;
-        boolean hasPropertyValues = false;
-        for (SourceLoader.SyntheticFieldLoader loader : mappedPropertyLoaders) {
-            if (loader.hasValue()) {
-                hasPropertyValues = true;
-                break;
-            }
-        }
-        if (hasFlattenedValues == false && hasPropertyValues == false) {
+        boolean hasFlattenedValues = hasFlattenedValues();
+        if (hasFlattenedValues == false && hasPropertyValues() == false) {
             return;
         }
 
@@ -199,6 +187,10 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         for (SourceLoader.SyntheticFieldLoader loader : mappedPropertyLoaders) {
             loader.reset();
         }
+    }
+
+    protected List<SourceLoader.SyntheticFieldLoader> getMappedPropertyLoaders() {
+        return mappedPropertyLoaders;
     }
 
     protected interface DocValuesFieldValues {

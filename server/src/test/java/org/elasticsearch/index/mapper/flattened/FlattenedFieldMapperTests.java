@@ -13,6 +13,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -22,9 +23,12 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -36,6 +40,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
@@ -1690,6 +1695,96 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endObject();
         });
         assertThat(syntheticSource, equalTo("{\"field\":{\"unmapped\":\"value\"}}"));
+    }
+
+    public void testBlockLoaderIncludesMappedProperties() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("properties");
+            {
+                b.startObject("status").field("type", "keyword").endObject();
+                b.startObject("code").field("type", "long").endObject();
+            }
+            b.endObject();
+        }));
+
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        assertThat(fieldType, instanceOf(RootFlattenedFieldType.class));
+        BlockLoader blockLoader = fieldType.blockLoader(null);
+        assertThat(blockLoader, instanceOf(RootFlattenedDocValuesBlockLoader.class));
+
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(
+                mapperService.documentMapper()
+                    .parse(
+                        source(
+                            b -> b.startObject("field")
+                                .field("status", "ok")
+                                .field("code", 200)
+                                .field("unmapped_key", "some_value")
+                                .endObject()
+                        )
+                    )
+                    .rootDoc()
+            );
+        }, reader -> {
+            LeafReaderContext leaf = reader.leaves().get(0);
+            BlockLoader.ColumnAtATimeReader columnReader = blockLoader.columnAtATimeReader(leaf)
+                .apply(newLimitedBreaker(ByteSizeValue.ofMb(1)));
+            try {
+                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0), 0, false);
+                assertThat(block.size(), equalTo(1));
+
+                BytesRef bytesRef = (BytesRef) block.get(0);
+                assertNotNull("block loader should return non-null value for doc with mapped properties", bytesRef);
+
+                Map<String, Object> parsed = XContentHelper.convertToMap(new BytesArray(bytesRef.utf8ToString()), false, XContentType.JSON)
+                    .v2();
+
+                assertThat("mapped keyword property must be present", parsed.get("status"), equalTo("ok"));
+                assertThat("mapped long property must be present", parsed.get("code"), equalTo(200));
+                assertThat("unmapped key must be present", parsed.get("unmapped_key"), equalTo("some_value"));
+            } finally {
+                columnReader.close();
+            }
+        });
+    }
+
+    public void testBlockLoaderWithMappedPropertiesOnly() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("properties");
+            {
+                b.startObject("status").field("type", "keyword").endObject();
+            }
+            b.endObject();
+        }));
+
+        BlockLoader blockLoader = mapperService.fieldType("field").blockLoader(null);
+
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(
+                mapperService.documentMapper().parse(source(b -> b.startObject("field").field("status", "active").endObject())).rootDoc()
+            );
+        }, reader -> {
+            LeafReaderContext leaf = reader.leaves().get(0);
+            BlockLoader.ColumnAtATimeReader columnReader = blockLoader.columnAtATimeReader(leaf)
+                .apply(newLimitedBreaker(ByteSizeValue.ofMb(1)));
+            try {
+                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0), 0, false);
+                assertThat(block.size(), equalTo(1));
+
+                BytesRef bytesRef = (BytesRef) block.get(0);
+                assertNotNull("block loader should not return null when only mapped properties have values", bytesRef);
+
+                Map<String, Object> parsed = XContentHelper.convertToMap(new BytesArray(bytesRef.utf8ToString()), false, XContentType.JSON)
+                    .v2();
+
+                assertThat(parsed.get("status"), equalTo("active"));
+            } finally {
+                columnReader.close();
+            }
+        });
     }
 
     @Override

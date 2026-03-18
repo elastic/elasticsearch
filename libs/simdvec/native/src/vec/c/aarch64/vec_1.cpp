@@ -32,8 +32,6 @@ static inline int32_t dot7u_inner(const int8_t* a, const int8_t* b, const int32_
     // registers if we use too few.
     int32x4_t acc1 = vdupq_n_s32(0);
     int32x4_t acc2 = vdupq_n_s32(0);
-    int32x4_t acc3 = vdupq_n_s32(0);
-    int32x4_t acc4 = vdupq_n_s32(0);
 
     // Some unrolling gives around 50% performance improvement.
     for (int i = 0; i < dims; i += DOT7U_STRIDE_BYTES_LEN) {
@@ -43,22 +41,11 @@ static inline int32_t dot7u_inner(const int8_t* a, const int8_t* b, const int32_
         int8x16_t va2 = vld1q_s8(a + i + 16);
         int8x16_t vb2 = vld1q_s8(b + i + 16);
 
-        int16x8_t tmp1 = vmull_s8(vget_low_s8(va1), vget_low_s8(vb1));
-        int16x8_t tmp2 = vmull_s8(vget_high_s8(va1), vget_high_s8(vb1));
-        int16x8_t tmp3 = vmull_s8(vget_low_s8(va2),  vget_low_s8(vb2));
-        int16x8_t tmp4 = vmull_s8(vget_high_s8(va2), vget_high_s8(vb2));
-
-        // Accumulate 4 x 32 bit vectors (adding adjacent 16 bit lanes).
-        acc1 = vpadalq_s16(acc1, tmp1);
-        acc2 = vpadalq_s16(acc2, tmp2);
-        acc3 = vpadalq_s16(acc3, tmp3);
-        acc4 = vpadalq_s16(acc4, tmp4);
+        acc1 = vdotq_s32(acc1, va1, vb1);
+        acc2 = vdotq_s32(acc2, va2, vb2);
     }
 
-    // reduce
-    int32x4_t acc5 = vaddq_s32(acc1, acc2);
-    int32x4_t acc6 = vaddq_s32(acc3, acc4);
-    return vaddvq_s32(vaddq_s32(acc5, acc6));
+    return vaddvq_s32(vaddq_s32(acc1, acc2));
 }
 
 EXPORT int32_t vec_dot7u(const int8_t* a, const int8_t* b, const int32_t dims) {
@@ -104,47 +91,20 @@ static inline void dot7u_inner_bulk(
         int32x4_t acc1 = vdupq_n_s32(0);
         int32x4_t acc2 = vdupq_n_s32(0);
         int32x4_t acc3 = vdupq_n_s32(0);
-        int32x4_t acc4 = vdupq_n_s32(0);
-        int32x4_t acc5 = vdupq_n_s32(0);
-        int32x4_t acc6 = vdupq_n_s32(0);
-        int32x4_t acc7 = vdupq_n_s32(0);
 
         for (int i = 0; i < blk; i += 16) {
             int8x16_t vb = vld1q_s8(b + i);
 
-            int8x16_t v0 = vld1q_s8(a0 + i);
-            int16x8_t lo0 = vmull_s8(vget_low_s8(v0), vget_low_s8(vb));
-            int16x8_t hi0 = vmull_s8(vget_high_s8(v0), vget_high_s8(vb));
-            acc0 = vpadalq_s16(acc0, lo0);
-            acc1 = vpadalq_s16(acc1, hi0);
-
-            int8x16_t v1 = vld1q_s8(a1 + i);
-            int16x8_t lo1 = vmull_s8(vget_low_s8(v1), vget_low_s8(vb));
-            int16x8_t hi1 = vmull_s8(vget_high_s8(v1), vget_high_s8(vb));
-            acc2 = vpadalq_s16(acc2, lo1);
-            acc3 = vpadalq_s16(acc3, hi1);
-
-            int8x16_t v2 = vld1q_s8(a2 + i);
-            int16x8_t lo2 = vmull_s8(vget_low_s8(v2), vget_low_s8(vb));
-            int16x8_t hi2 = vmull_s8(vget_high_s8(v2), vget_high_s8(vb));
-            acc4 = vpadalq_s16(acc4, lo2);
-            acc5 = vpadalq_s16(acc5, hi2);
-
-            int8x16_t v3 = vld1q_s8(a3 + i);
-            int16x8_t lo3 = vmull_s8(vget_low_s8(v3), vget_low_s8(vb));
-            int16x8_t hi3 = vmull_s8(vget_high_s8(v3), vget_high_s8(vb));
-            acc6 = vpadalq_s16(acc6, lo3);
-            acc7 = vpadalq_s16(acc7, hi3);
+            acc0 = vdotq_s32(acc0, vld1q_s8(a0 + i), vb);
+            acc1 = vdotq_s32(acc1, vld1q_s8(a1 + i), vb);
+            acc2 = vdotq_s32(acc2, vld1q_s8(a2 + i), vb);
+            acc3 = vdotq_s32(acc3, vld1q_s8(a3 + i), vb);
         }
-        int32x4_t acc01 = vaddq_s32(acc0, acc1);
-        int32x4_t acc23 = vaddq_s32(acc2, acc3);
-        int32x4_t acc45 = vaddq_s32(acc4, acc5);
-        int32x4_t acc67 = vaddq_s32(acc6, acc7);
 
-        int32_t acc_scalar0 = vaddvq_s32(acc01);
-        int32_t acc_scalar1 = vaddvq_s32(acc23);
-        int32_t acc_scalar2 = vaddvq_s32(acc45);
-        int32_t acc_scalar3 = vaddvq_s32(acc67);
+        int32_t acc_scalar0 = vaddvq_s32(acc0);
+        int32_t acc_scalar1 = vaddvq_s32(acc1);
+        int32_t acc_scalar2 = vaddvq_s32(acc2);
+        int32_t acc_scalar3 = vaddvq_s32(acc3);
         if (blk != dims) {
             // scalar tail
             for (int t = blk; t < dims; t++) {

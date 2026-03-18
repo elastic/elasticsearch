@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -15,13 +16,20 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
@@ -534,46 +542,38 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     public void testFlattenedSubFieldRejection() {
         Map<String, EsField> mapping = Map.of("field", new UnsupportedEsField("field", List.of("flattened")));
         EsIndex index = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Set.of());
+        unmappedLoadAndFlattenedSubfieldHelper("FROM test | KEEP field.a", index, "field.a", "field");
+        unmappedLoadAndFlattenedSubfieldHelper("FROM test | STATS x = SAMPLE(field.a, 1)", index, "field.a", "field");
+        unmappedLoadAndFlattenedSubfieldHelper("FROM test | EVAL x = TO_STRING(field.a)", index, "field.a", "field");
+        unmappedLoadAndFlattenedSubfieldHelper("FROM test | KEEP field.a.b", index, "field.a.b", "field");
+        unmappedLoadAndFlattenedSubfieldHelper("FROM test | KEEP field.a.b.c", index, "field.a.b.c", "field");
+        unmappedLoadAndFlattenedSubfieldHelper("FROM test | SORT field.x, field.z", index, "field.x", "field");
+        unmappedLoadAndFlattenedSubfieldHelper("FROM test | SORT field.x | KEEP field.z", index, "field.x", "field", "field.z", "field");
+        verificationFailure(setUnmappedLoad("FROM test | KEEP field | KEEP field.a"), index, "Unknown column [field.a]");
+        verificationFailure(
+            setUnmappedLoad("FROM test | KEEP field | WHERE field.sub.subfield == \"x\""),
+            index,
+            "Unknown column [field.sub.subfield]"
+        );
+        verificationFailure(
+            setUnmappedLoad("FROM test | KEEP field | WHERE field.a.b == \"x\" | KEEP field.a"),
+            index,
+            "Unknown column [field.a.b], did you mean [field]?"
+        );
+    }
+
+    private void unmappedLoadAndFlattenedSubfieldHelper(String query, EsIndex index, String... pairs) {
+        assert pairs.length % 2 == 0;
         String errorMessage =
             "Loading subfield [%s] when parent [%s] is of flattened field type is not supported with unmapped_fields=\"load\"";
+        String[] errors = new String[pairs.length / 2];
+        int j = 0;
 
-        verificationFailure(
-            setUnmappedLoad("FROM test | KEEP field.a"),
-            index,
-            String.format(Locale.ROOT, errorMessage, "field.a", "field")
-        );
-        verificationFailure(
-            setUnmappedLoad("FROM test | STATS x = SAMPLE(field.a, 1)"),
-            index,
-            String.format(Locale.ROOT, errorMessage, "field.a", "field")
-        );
-        verificationFailure(
-            setUnmappedLoad("FROM test | EVAL x = TO_STRING(field.a)"),
-            index,
-            String.format(Locale.ROOT, errorMessage, "field.a", "field")
-        );
-        verificationFailure(
-            setUnmappedLoad("FROM test | KEEP field.a.b"),
-            index,
-            String.format(Locale.ROOT, errorMessage, "field.a.b", "field")
-        );
-        verificationFailure(
-            setUnmappedLoad("FROM test | KEEP field.a.b.c"),
-            index,
-            String.format(Locale.ROOT, errorMessage, "field.a.b.c", "field")
-        );
-        verificationFailure(
-            setUnmappedLoad("FROM test | SORT field.x, field.z"),
-            index,
-            String.format(Locale.ROOT, errorMessage, "field.x", "field"),
-            String.format(Locale.ROOT, errorMessage, "field.z", "field")
-        );
-        verificationFailure(
-            setUnmappedLoad("FROM test | SORT field.x | KEEP field.z"),
-            index,
-            String.format(Locale.ROOT, errorMessage, "field.x", "field"),
-            String.format(Locale.ROOT, errorMessage, "field.z", "field")
-        );
+        for (int i = 0; i < pairs.length; i += 2) {
+            errors[j++] = String.format(Locale.ROOT, errorMessage, pairs[i], pairs[i + 1]);
+        }
+
+        verificationFailure(setUnmappedLoad(query), index, errors);
     }
 
     private void verificationFailure(String query, EsIndex index, String... expectedFailures) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
@@ -412,12 +413,7 @@ public class Verifier {
      * flattened subfields resolution may eventually differ from what happens when {@code unmapped_fields="load"}.
      */
     private static void checkFlattenedSubFieldLoad(LogicalPlan plan, Failures failures) {
-        plan.forEachDown(p -> {
-            if (p instanceof EsRelation == false) {
-                return;
-            }
-
-            EsRelation esRelation = (EsRelation) p;
+        plan.forEachDown(EsRelation.class, esRelation -> {
             Set<String> flattenedFieldNames = flattenedFieldNames(esRelation.output());
 
             if (flattenedFieldNames.isEmpty()) {
@@ -455,7 +451,7 @@ public class Verifier {
         for (Attribute attribute : attributes) {
             if (attribute instanceof FieldAttribute fa
                 && fa.field() instanceof UnsupportedEsField uef
-                && uef.getOriginalTypes().contains("flattened")) {
+                && uef.getOriginalTypes().contains(FlattenedFieldMapper.CONTENT_TYPE)) {
                 names.add(fa.name());
             }
         }

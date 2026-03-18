@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [ optional_fields_v2, load_flattened_field ]
+          capabilities: [ reject_loading_flattened_subfields ]
       reason: "Loading a subfield a flattened field must fail when unmapped_fields=load"
   - do:
       indices.create:
@@ -53,7 +53,6 @@ setup:
         body:
           # [foo] is flattened in index1
           query: 'SET unmapped_fields="load"; FROM index1 | KEEP foo.a'
-
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Loading subfield [foo.a] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
 
@@ -65,7 +64,6 @@ setup:
         body:
           # [foo] is flattened in index1
           query: 'SET unmapped_fields="load"; FROM index1 | KEEP foo.bar.baz'
-
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Loading subfield [foo.bar.baz] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
 
@@ -77,7 +75,6 @@ setup:
         body:
           # [foo.bar] is flattened in index2
           query: 'SET unmapped_fields="load"; FROM index2 | WHERE foo.bar.subfield == "something"'
-
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Loading subfield [foo.bar.subfield] when parent [foo.bar] is of flattened field type is not supported with unmapped_fields="load"' }
 
@@ -90,7 +87,6 @@ setup:
           # [foo] is flattened in index1
           # [foo] is keyword in index3
           query: 'SET unmapped_fields="load"; FROM index1,index3 | EVAL x = TO_STRING(foo.a), x = TO_STRING(foo.b.c.d)'
-
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Loading subfield [foo.a] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
   - contains: { error.reason: 'Loading subfield [foo.b.c.d] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
@@ -107,3 +103,25 @@ setup:
 
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Cannot use field [foo.bar] due to ambiguities being mapped as [2] incompatible types: [keyword] enforced by INSIST command, and [unsupported] in index mappings' }
+
+---
+'loading from two indices with different mappings 3':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          # [foo] is flattened in index1
+          # [foo.bar] is keyword in index4
+          query: 'SET unmapped_fields="load"; FROM index1,index4 | WHERE foo.bar.baz == "something else"'
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Loading subfield [foo.bar.baz] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
+
+---
+'loading from two indices with different mappings 4':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; from index* metadata _source | KEEP `foo.*.*.*.*.*.`'
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Loading subfield [foo.*.*.*.*.*.] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }

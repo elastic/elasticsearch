@@ -64,7 +64,7 @@ public class FieldNameUtils {
         TRange.NAME.toLowerCase(Locale.ROOT)
     );
 
-    public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches) {
+    public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
 
         // get the field names from the parsed plan combined with the ENRICH match fields from the ENRICH policy
         List<LogicalPlan> inlinestats = parsed.collect(InlineStats.class::isInstance);
@@ -298,7 +298,7 @@ public class FieldNameUtils {
         } else {
             Set<String> allFields = new HashSet<>();
             for (String name : fieldNames) {
-                addSubfields(name, allFields);
+                addRelatedFields(includePrefixFields, allFields, name);
             }
             allFields.add(MetadataAttribute.INDEX);
             return new PreAnalysisResult(allFields, wildcardJoinIndices);
@@ -309,26 +309,34 @@ public class FieldNameUtils {
      * Expands a field name into a set of names to request from field caps. For example, "a.b.c" will be expanded to:
      * <ul>
      * <li>The field itself: "a.b.c"</li>
-     * <li>Its multi-fields: "a.b.c.*"</li>
-     * <li>All dot-delimited parent prefixes: ["a", "a.b"]. This is needed to get back flattened parents, so the verifier can
-     * detect subfields of flattened.</li>
+     * <li>Its multi-fields: "a.b.c.*". A sample case where this is required is TEXT fields that may have a ".keyword" subfield that's
+     * implicitly used in some queries.</li>
+     * <li>(Only when {@code unmapped_fields="load"}) All dot-delimited parent prefixes: ["a", "a.b"]. This is needed to get back flattened
+     * parents, so the verifier can detect subfields of flattened.</li>
      * </ul>
      */
-    private static void addSubfields(String name, Set<String> allFields) {
+    private static void addRelatedFields(boolean includeFieldParentPrefixes, Set<String> allFields, String name) {
         allFields.add(name);
 
-        if (name.endsWith(WILDCARD)) {
-            return;
+        if (name.endsWith(WILDCARD) == false) {
+            allFields.add(name + ".*");
         }
 
-        allFields.add(name + ".*");
-        allFields.addAll(parentPrefixes(name));
+        if (includeFieldParentPrefixes) {
+            allFields.addAll(parentPrefixes(name));
+        }
     }
 
     /**
-     * Returns the dot-delimited parent prefixes of a field name. For example, "a.b.c" will return ["a", "a.b"]
+     * Returns the dot-delimited parent prefixes of a field name. For example, "a.b.c" will return ["a", "a.b"]. This is skipped for
+     * special field names that contain ".." because they can't possibly be subfields of a dot-delimited field. There are more complex
+     * cases where we would want to skip, but skipping them all isn't our goal here.
      */
     public static List<String> parentPrefixes(String name) {
+        if (name.contains("..")) {
+            return List.of();
+        }
+
         List<String> prefixes = new ArrayList<>();
         int pos = name.indexOf('.');
 

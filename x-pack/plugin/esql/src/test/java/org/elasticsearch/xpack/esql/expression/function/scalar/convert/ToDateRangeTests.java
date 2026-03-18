@@ -107,14 +107,16 @@ public class ToDateRangeTests extends AbstractScalarFunctionTestCase {
             caseForKeywordInvalid(
                 "from bigger than to",
                 "2021-01-01T00:00:00.000Z..2020-01-01T00:00:00.000Z",
-                "java.lang.IllegalArgumentException: date range 'from' [2021-01-01T00:00:00.000Z] must be less than or equal to 'to' [2020-01-01T00:00:00.000Z]"
+                "java.lang.IllegalArgumentException: date range 'from' [2021-01-01T00:00:00.000Z] "
+                    + "must be less than or equal to 'to' [2020-01-01T00:00:00.000Z]"
             )
         );
         suppliers.add(
             caseForKeywordInvalid(
                 "from same as to",
                 "2020-01-01T00:00:00.000Z..2020-01-01T00:00:00.000Z",
-                "java.lang.IllegalArgumentException: date range 'from' [2020-01-01T00:00:00.000Z] must be less than or equal to 'to' [2020-01-01T00:00:00.000Z]"
+                "java.lang.IllegalArgumentException: date range 'from' [2020-01-01T00:00:00.000Z] "
+                    + "must be less than or equal to 'to' [2020-01-01T00:00:00.000Z]"
             )
         );
         suppliers.add(
@@ -163,7 +165,9 @@ public class ToDateRangeTests extends AbstractScalarFunctionTestCase {
                 "keyword: " + rangeString,
                 List.of(DataType.KEYWORD),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(new BytesRef(rangeString), DataType.KEYWORD, "field")),
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef(rangeString), DataType.KEYWORD, "field")
+                    ),
                     "ToDateRangeFromStringEvaluator[field=" + read + "]",
                     DataType.DATE_RANGE,
                     equalTo(expectedRange)
@@ -174,7 +178,8 @@ public class ToDateRangeTests extends AbstractScalarFunctionTestCase {
 
     /**
      * Helper for invalid KEYWORD input: parsing throws, evaluator returns null and registers a warning.
-     * @param exceptionWarningFragment substring that must appear in the exception warning (e.g. exception message or "IllegalArgumentException")
+     * @param exceptionWarningFragment substring that must appear in the exception warning
+     *                                  (e.g. exception message or "IllegalArgumentException")
      */
     private static TestCaseSupplier caseForKeywordInvalid(String name, String rangeString, String exceptionWarningFragment) {
         final String read = "Attribute[channel=0]";
@@ -182,7 +187,9 @@ public class ToDateRangeTests extends AbstractScalarFunctionTestCase {
             "keyword invalid: " + name,
             List.of(DataType.KEYWORD),
             () -> new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(new BytesRef(rangeString), DataType.KEYWORD, "field")),
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(rangeString), DataType.KEYWORD, "field")
+                ),
                 "ToDateRangeFromStringEvaluator[field=" + read + "]",
                 DataType.DATE_RANGE,
                 nullValue()

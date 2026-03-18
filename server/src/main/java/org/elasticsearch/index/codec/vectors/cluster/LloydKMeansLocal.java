@@ -97,8 +97,8 @@ abstract class LloydKMeansLocal extends KMeansLocal {
     }
 
     /**
-     * helper that calls {@link LloydKMeansLocal#cluster(ClusteringFloatVectorValues, KMeansIntermediate)} given a set of initialized centroids,
-     * this call is not neighbor aware
+     * helper that calls {@link LloydKMeansLocal#cluster(ClusteringFloatVectorValues, KMeansIntermediate)} given a set of initialized
+     * centroids, this call is not neighbor aware
      *
      * @param vectors the vectors to cluster
      * @param centroids the initialized centroids to be shifted using k-means

@@ -10,8 +10,9 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 /**
- * The Sinkhorn algorithm (aka Iterative Proportional Fitting) finds the closest approximation to the (n x k) input matrix, such that its rows
- * and columns sum to 1/n and 1/k, respectively. In this implementation, we perform the iterations in the log domain for numerical stability.
+ * The Sinkhorn algorithm (aka Iterative Proportional Fitting) finds the closest approximation to the (n x k) input matrix, such that its
+ * rows and columns sum to 1/n and 1/k, respectively. In this implementation, we perform the iterations in the log domain for numerical
+ * stability.
  */
 public class SinkhornIterations {
     private final float[] logRowSums;
@@ -83,7 +84,8 @@ public class SinkhornIterations {
         }
     }
 
-    private static void combinePartialsAndNormalize(float[] rowVector, float[] columnvector, float[][] matrix, float normConstant, float[][] result) {
+    private static void combinePartialsAndNormalize(float[] rowVector, float[] columnvector, float[][] matrix, float normConstant,
+                                                    float[][] result) {
         for (int i = 0; i < rowVector.length; i++) {
             for (int j = 0; j < columnvector.length; j++) {
                 result[i][j] = (float) Math.exp((rowVector[i] + columnvector[j] - matrix[i][j]) / normConstant);

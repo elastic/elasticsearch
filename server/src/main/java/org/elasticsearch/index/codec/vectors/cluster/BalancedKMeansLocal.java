@@ -192,35 +192,13 @@ abstract class BalancedKMeansLocal extends KMeansLocal {
         }
 
         assign(vectors, i -> i, centroids, centroidChangedSlices, assignments, neighborhoods);
-
-        // If we were sampled, do a once over the full set of vectors to finalize the centroids
-//        if (sampleSize < n || maxIterations == 0) {
-//            centroidChanged.clear();
-//            if (neighborhoods != null) {
-//                return vectors.bestCentroidsFromNeighbours(
-//                    startOrd,
-//                    endOrd,
-//                    centroids,
-//                    ordTranslator,
-//                    centroidChanged,
-//                    neighborhoods,
-//                    assignments
-//                );
-//            } else {
-//                return vectors.bestCentroids(startOrd, endOrd, centroids, ordTranslator, centroidChanged, assignments);
-//            }
-//            // No ordinal translation needed here, we are using the full set of vectors
-//            if (stepLloyd(vectors, i -> i, centroids, centroidChangedSlices, assignments, neighborhoods)) {
-//                sampledVectors.updateCentroids(centroids, ordTranslator, centroidChangedSlices, centroidCounts, assignments);
-//            }
-//        }
     }
 
 
 
     /**
-     * helper that calls {@link BalancedKMeansLocal#cluster(ClusteringFloatVectorValues, KMeansIntermediate)} given a set of initialized centroids,
-     * this call is not neighbor aware
+     * helper that calls {@link BalancedKMeansLocal#cluster(ClusteringFloatVectorValues, KMeansIntermediate)} given a set of initialized
+     * centroids, this call is not neighbor aware
      *
      * @param vectors the vectors to cluster
      * @param centroids the initialized centroids to be shifted using k-means
@@ -229,8 +207,8 @@ abstract class BalancedKMeansLocal extends KMeansLocal {
      */
     public static void cluster(ClusteringFloatVectorValues vectors, float[][] centroids, int sampleSize, int maxIterations)
         throws IOException {
-//        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, new int[vectors.size()], vectors::ordToDoc);
-//        BalancedKMeansLocal kMeans = new LloydKMeansLocalSerial(sampleSize, maxIterations);
-//        kMeans.cluster(vectors, kMeansIntermediate);
+        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, new int[vectors.size()], vectors::ordToDoc);
+        BalancedKMeansLocal kMeans = new BalancedKMeansLocalSerial(sampleSize, maxIterations);
+        kMeans.cluster(vectors, kMeansIntermediate);
     }
 }

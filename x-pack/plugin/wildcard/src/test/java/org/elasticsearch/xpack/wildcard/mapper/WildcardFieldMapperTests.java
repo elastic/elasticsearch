@@ -73,6 +73,7 @@ import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.elasticsearch.xpack.wildcard.mapper.WildcardFieldMapper.Builder;
@@ -1235,17 +1236,24 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             List<Tuple<String, String>> values = randomList(1, maxValues, this::generateValue);
             List<String> in = values.stream().map(Tuple::v1).toList();
             List<String> docValuesValues = new ArrayList<>();
-            List<String> outExtraValues = new ArrayList<>();
+            List<String> ignoredValues = new ArrayList<>();
             values.stream().map(Tuple::v2).forEach(v -> {
                 if (ignoreAbove != null && v.length() > ignoreAbove) {
-                    outExtraValues.add(v);
+                    ignoredValues.add(v);
                 } else {
                     docValuesValues.add(v);
                 }
             });
+
             List<String> outList = new ArrayList<>(new HashSet<>(docValuesValues));
             Collections.sort(outList);
-            outList.addAll(outExtraValues);
+
+            // we must sort the ignored values since binary doc values are sorted by default
+            List<String> sortedExtraValues = new ArrayList<>(new HashSet<>(ignoredValues));
+            Collections.sort(sortedExtraValues);
+
+            outList.addAll(sortedExtraValues);
+
             Object out = outList.size() == 1 ? outList.get(0) : outList;
             return new SyntheticSourceExample(in, out, this::mapping);
         }
@@ -1286,5 +1294,43 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsDocValuesSkippers() {
         return false;
+    }
+
+    public void testIgnoredFieldStoredInBinaryDocValues() throws IOException {
+        Settings settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersions.STORE_IGNORED_WILDCARD_FIELDS_IN_BINARY_DOC_VALUES,
+            settings,
+            fieldMapping(b -> b.field("type", "wildcard").field("ignore_above", 5))
+        ).documentMapper();
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "valuetoolong")));
+
+        // New indices: no stored field, binary doc values field used instead
+        assertFalse(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField));
+        assertTrue(
+            doc.rootDoc()
+                .getFields("field._original")
+                .stream()
+                .anyMatch(f -> f instanceof org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField)
+        );
+    }
+
+    public void testIgnoredFieldStoredInStoredFieldsInPreviousIndexVersion() throws IOException {
+        Settings settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        DocumentMapper mapper = createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.STORE_IGNORED_WILDCARD_FIELDS_IN_BINARY_DOC_VALUES),
+            settings,
+            fieldMapping(b -> b.field("type", "wildcard").field("ignore_above", 5))
+        ).documentMapper();
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "valuetoolong")));
+
+        // Old indices: stored field used, no binary doc values field
+        assertTrue(doc.rootDoc().getFields("field._original").stream().anyMatch(f -> f instanceof org.apache.lucene.document.StoredField));
+        assertFalse(
+            doc.rootDoc()
+                .getFields("field._original")
+                .stream()
+                .anyMatch(f -> f instanceof org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField)
+        );
     }
 }

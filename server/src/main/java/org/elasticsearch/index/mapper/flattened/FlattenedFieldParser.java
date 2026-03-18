@@ -124,7 +124,11 @@ class FlattenedFieldParser {
             String value = parser.text();
             addField(context, path, currentName, value);
         } else if (token == XContentParser.Token.VALUE_NULL) {
-            if (nullValue != null) {
+            String key = path.pathAsText(currentName);
+            FieldMapper mappedMapper = mappedProperties.get(key);
+            if (mappedMapper != null) {
+                mappedMapper.parse(context.documentParserContext());
+            } else if (nullValue != null) {
                 addField(context, path, currentName, nullValue);
             }
         } else {

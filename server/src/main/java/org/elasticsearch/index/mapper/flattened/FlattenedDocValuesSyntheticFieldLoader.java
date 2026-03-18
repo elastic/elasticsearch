@@ -104,6 +104,8 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
                 MultiValuedBinaryFieldValues loader = new MultiValuedBinaryFieldValues(dv);
                 docValues = loader;
                 allLoaders.add(loader);
+            } else {
+                docValues = NO_VALUES;
             }
         } else {
             final SortedSetDocValues dv = DocValues.getSortedSet(reader, keyedFieldFullPath);

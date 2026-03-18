@@ -50,7 +50,7 @@ public class OTelSdkMeterSupplier implements MeterSupplier {
                     .build();
                 var otelSdk = OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build();
                 if (OTelSdkSettings.TELEMETRY_OTEL_METRICS_ENABLED.get(settings)) {
-                    // Disable JFR features but JMX are enabled by default
+                    // We disable JFR features here but JMX are enabled by default so metric collection is happening.
                     runtimeMetrics = RuntimeMetrics.builder(otelSdk).disableAllFeatures().build();
                 }
             }

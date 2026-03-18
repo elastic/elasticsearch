@@ -13,6 +13,8 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.List;
 
@@ -20,12 +22,29 @@ import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED
 
 public class SystemMetricsTests extends ESTestCase {
 
-    @SuppressForbidden(reason = "sets/clears system property for test setup/teardown")
-    public void testOTelMetricsRegisteredWhenEnabled() {
+    @Before
+    @SuppressForbidden(reason = "sets system property for test setup")
+    public void setup() {
         System.setProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "true");
-        for (boolean emitOTelMetrics : new boolean[] { false, true }) {
-            RecordingMeterRegistry registry = new RecordingMeterRegistry();
-            SystemMetrics systemMetrics = new SystemMetrics(registry, emitOTelMetrics);
+    }
+
+    @After
+    @SuppressForbidden(reason = "clears system property for test teardown")
+    public void teardown() {
+        System.clearProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY);
+    }
+
+    public void testOTelMetricsRegisteredWhenEnabled() {
+        testSystemMetrics(true);
+    }
+
+    public void testOTelMetricsNotRegisteredWhenNotEnabled() {
+        testSystemMetrics(false);
+    }
+
+    private static void testSystemMetrics(boolean emitOTelMetrics) {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        try (SystemMetrics systemMetrics = new SystemMetrics(registry, emitOTelMetrics)) {
             systemMetrics.start();
 
             List<String> registeredGauges = registry.getRecorder().getRegisteredMetrics(InstrumentType.LONG_GAUGE);
@@ -41,9 +60,6 @@ public class SystemMetricsTests extends ESTestCase {
                 registeredGauges.contains("jvm.file_descriptor.limit"),
                 emitOTelMetrics
             );
-
-            systemMetrics.close();
         }
-        System.clearProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY);
     }
 }

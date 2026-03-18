@@ -790,6 +790,89 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch("range_test").setQuery(termQuery("metrics.label", "req-0")), 1L);
     }
 
+    public void testMappedPropertyExistsQuery() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("event")
+            .field("type", "flattened")
+            .startObject("properties")
+            .startObject("host.name")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex("exists_test", Settings.EMPTY, mapping);
+
+        prepareIndex("exists_test").setId("1")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .setSource(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("event")
+                    .field("host.name", "server-a")
+                    .field("region", "us-east")
+                    .endObject()
+                    .endObject()
+            )
+            .get();
+
+        prepareIndex("exists_test").setId("2")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .setSource(XContentFactory.jsonBuilder().startObject().startObject("event").field("region", "eu-west").endObject().endObject())
+            .get();
+
+        assertHitCount(client().prepareSearch("exists_test").setQuery(existsQuery("event.host.name")), 1L);
+        assertHitCount(client().prepareSearch("exists_test").setQuery(existsQuery("event")), 2L);
+    }
+
+    public void testCrossIndexQueryWithMappedProperty() throws Exception {
+        XContentBuilder mappingWithProp = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("event")
+            .field("type", "flattened")
+            .startObject("properties")
+            .startObject("status")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex("cross_idx_a", Settings.EMPTY, mappingWithProp);
+
+        XContentBuilder mappingWithoutProp = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("event")
+            .field("type", "flattened")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex("cross_idx_b", Settings.EMPTY, mappingWithoutProp);
+
+        prepareIndex("cross_idx_a").setId("1")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .setSource(XContentFactory.jsonBuilder().startObject().startObject("event").field("status", "ok").endObject().endObject())
+            .get();
+
+        prepareIndex("cross_idx_b").setId("2")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .setSource(XContentFactory.jsonBuilder().startObject().startObject("event").field("status", "ok").endObject().endObject())
+            .get();
+
+        assertHitCount(client().prepareSearch("cross_idx_a", "cross_idx_b").setQuery(termQuery("event.status", "ok")), 2L);
+    }
+
     public void testMappedPropertyDocValueFields() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()

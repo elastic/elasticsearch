@@ -405,6 +405,14 @@ public final class FlattenedFieldMapper extends FieldMapper {
                             + "]. Only leaf field types are allowed."
                     );
                 }
+                if (propNode.containsKey("copy_to")) {
+                    throw new MapperParsingException("[copy_to] is not supported on properties of flattened field [" + flattenedName + "]");
+                }
+                if (propNode.containsKey("fields")) {
+                    throw new MapperParsingException(
+                        "[fields] (multi-fields) is not supported on properties of flattened field [" + flattenedName + "]"
+                    );
+                }
                 Mapper.TypeParser typeParser = parserContext.typeParser(type);
                 if (typeParser == null) {
                     throw new MapperParsingException("No handler for type [" + type + "] declared on property [" + propertyName + "]");

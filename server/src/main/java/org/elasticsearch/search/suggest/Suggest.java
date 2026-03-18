@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -104,35 +105,42 @@ public final class Suggest implements Iterable<Suggest.Suggestion<? extends Entr
     }
 
     /**
-     * Acquire an additional ref on each completion suggestion option's SearchHit.
-     * Called by {@link org.elasticsearch.action.search.SearchResponseMerger} so the merged response holds its own ref,
-     * independent of the per-cluster response refs established by
-     * {@link org.elasticsearch.search.suggest.completion.CompletionSuggestion.Entry.Option#setHit}.
+     * Collects completion option SearchHits from this suggest. Takes 1 ref per hit when shouldIncRef is true (constructor path);
+     * when shouldIncRef is false (stream path), hits already have 1 ref from deserialization so we do not incRef.
+     *
+     * @return null if there are no completion option hits; otherwise a list of hits to release when the response is released.
      */
-    public void incRefCompletionOptionHits() {
+    public List<SearchHit> collectCompletionOptionHits(boolean shouldIncRef) {
         if (suggestions == null) {
-            return;
+            return null;
         }
+        List<SearchHit> hits = new ArrayList<>();
         for (Suggestion<?> suggestion : suggestions) {
             if (suggestion instanceof CompletionSuggestion completionSuggestion) {
                 for (CompletionSuggestion.Entry.Option option : completionSuggestion.getOptions()) {
                     SearchHit hit = option.getHit();
                     if (hit != null) {
-                        hit.mustIncRef();
+                        hits.add(hit);
                     }
                 }
             }
         }
+        if (hits.isEmpty()) {
+            return null;
+        }
+        if (shouldIncRef) {
+            for (SearchHit hit : hits) {
+                hit.mustIncRef();
+            }
+        }
+        return hits;
     }
 
     /**
-     * Release this response's ref on each completion suggestion option's SearchHit.
-     * For regular (non-CCS) responses, releases the ref acquired by
-     * {@link org.elasticsearch.search.suggest.completion.CompletionSuggestion.Entry.Option#setHit}.
-     * For CCS merged responses, releases the additional ref acquired by {@link #incRefCompletionOptionHits}.
-     * Called when the owning {@link org.elasticsearch.action.search.SearchResponse} is released.
+     * Releases the creation ref (1 ref) on each completion option hit in this suggest.
+     * Call after building a SearchResponse from locally-built sections so the response is the sole owner.
      */
-    public void decRefCompletionOptionHits() {
+    public void releaseCompletionOptionCreationRefs() {
         if (suggestions == null) {
             return;
         }

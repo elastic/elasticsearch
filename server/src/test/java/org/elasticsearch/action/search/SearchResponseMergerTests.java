@@ -405,7 +405,6 @@ public class SearchResponseMergerTests extends ESTestCase {
                 String clusterAlias = randomBoolean() ? "" : randomAlphaOfLengthBetween(5, 10);
                 hit.shard(new SearchShardTarget("node", shardId, clusterAlias));
                 option.setHit(hit);
-                hit.decRef();
                 options.addOption(option);
                 completionSuggestion.addTerm(options);
                 suggestions.add(completionSuggestion);
@@ -427,6 +426,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     ShardSearchFailure.EMPTY_ARRAY,
                     SearchResponse.Clusters.EMPTY
                 );
+                hit.decRef(); // transfer creation ref so the response is the sole owner
                 try {
                     addResponse(searchResponseMerger, searchResponse);
                 } finally {
@@ -492,7 +492,6 @@ public class SearchResponseMergerTests extends ESTestCase {
                     )
                 );
                 option.setHit(searchHit);
-                searchHit.decRef();
                 options.addOption(option);
                 completionSuggestion.addTerm(options);
                 suggestions.add(completionSuggestion);
@@ -513,6 +512,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     ShardSearchFailure.EMPTY_ARRAY,
                     SearchResponse.Clusters.EMPTY
                 );
+                searchHit.decRef(); // transfer creation ref so the response is the sole owner
                 try {
                     addResponse(searchResponseMerger, searchResponse);
                 } finally {

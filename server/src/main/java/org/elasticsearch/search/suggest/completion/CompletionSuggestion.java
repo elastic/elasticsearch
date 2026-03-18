@@ -288,9 +288,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 if (this.hit != null) {
                     this.hit.decRef();
                 }
-                if (hit != null) {
-                    hit.mustIncRef();
-                }
                 this.hit = hit;
             }
 

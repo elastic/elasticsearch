@@ -29,6 +29,7 @@ import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.profile.SearchProfileResults;
@@ -94,6 +95,12 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     // SearchHits from top_hits aggs to release when this response is released.
     private final List<SearchHits> topHitsToRelease;
 
+    /**
+     * Completion suggestion option hits to release when this response is released (1 ref per hit).
+     */
+    @Nullable
+    private final List<SearchHit> completionOptionHitsToRelease;
+
     private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
 
     public SearchResponse(StreamInput in) throws IOException {
@@ -110,6 +117,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.topHitsToRelease = List.of();
         }
         this.suggest = in.readBoolean() ? new Suggest(in) : null;
+        this.completionOptionHitsToRelease = this.suggest != null ? this.suggest.collectCompletionOptionHits(false) : null;
         this.timedOut = in.readBoolean();
         this.terminatedEarly = in.readOptionalBoolean();
         this.profileResults = in.readOptionalWriteable(SearchProfileResults::new);
@@ -228,10 +236,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         } else {
             this.topHitsToRelease = List.of();
         }
-        if (suggest != null) {
-            suggest.incRefCompletionOptionHits();
-        }
         this.suggest = suggest;
+        this.completionOptionHitsToRelease = suggest != null ? suggest.collectCompletionOptionHits(true) : null;
         this.profileResults = profileResults;
         this.timedOut = timedOut;
         this.terminatedEarly = terminatedEarly;
@@ -274,8 +280,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             for (SearchHits h : topHitsToRelease) {
                 h.decRef();
             }
-            if (suggest != null) {
-                suggest.decRefCompletionOptionHits();
+            if (completionOptionHitsToRelease != null) {
+                for (SearchHit hit : completionOptionHitsToRelease) {
+                    hit.decRef();
+                }
             }
             hits.decRef();
             return true;

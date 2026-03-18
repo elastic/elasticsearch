@@ -24,6 +24,7 @@ import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 
@@ -255,20 +256,22 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
                 scrollId = request.scrollId();
             }
             try (var sections = SearchPhaseController.merge(true, queryPhase, fetchResults)) {
-                ActionListener.respondAndRelease(
-                    listener,
-                    new SearchResponse(
-                        sections,
-                        scrollId,
-                        this.scrollId.getContext().length,
-                        successfulOps.get(),
-                        0,
-                        buildTookInMillis(),
-                        buildShardFailures(),
-                        SearchResponse.Clusters.EMPTY,
-                        null
-                    )
+                SearchResponse response = new SearchResponse(
+                    sections,
+                    scrollId,
+                    this.scrollId.getContext().length,
+                    successfulOps.get(),
+                    0,
+                    buildTookInMillis(),
+                    buildShardFailures(),
+                    SearchResponse.Clusters.EMPTY,
+                    null
                 );
+                Suggest suggest = response.getSuggest();
+                if (suggest != null) {
+                    suggest.releaseCompletionOptionCreationRefs();
+                }
+                ActionListener.respondAndRelease(listener, response);
             }
         } catch (Exception e) {
             listener.onFailure(new ReduceSearchPhaseException("fetch", "inner finish failed", e, buildShardFailures()));

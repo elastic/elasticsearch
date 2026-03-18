@@ -15,9 +15,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
@@ -53,6 +57,43 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 import static org.hamcrest.Matchers.equalTo;
 
 public class SuggestTests extends ESTestCase {
+
+    /**
+     * Release a suggest by wrapping it in a SearchResponse (which takes 1 ref per completion option hit)
+     * and then releasing the creation ref (1 ref per hit) that the test/caller held.
+     */
+    private static void releaseSuggest(Suggest suggest) {
+        if (suggest == null) {
+            return;
+        }
+        SearchResponse response = new SearchResponse(
+            SearchHits.empty(null, Float.NaN),
+            null,
+            suggest,
+            false,
+            null,
+            null,
+            1,
+            null,
+            1,
+            1,
+            0,
+            0L,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
+        response.decRef();
+        for (Suggest.Suggestion<?> suggestion : suggest) {
+            if (suggestion instanceof CompletionSuggestion completionSuggestion) {
+                for (CompletionSuggestion.Entry.Option option : completionSuggestion.getOptions()) {
+                    SearchHit hit = option.getHit();
+                    if (hit != null) {
+                        hit.decRef();
+                    }
+                }
+            }
+        }
+    }
 
     private static final NamedXContentRegistry xContentRegistry;
     private static final List<NamedXContentRegistry.Entry> namedXContents;
@@ -180,10 +221,8 @@ public class SuggestTests extends ESTestCase {
             }
             assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, params, humanReadable), xContentType);
         } finally {
-            suggest.decRefCompletionOptionHits();
-            if (parsed != null) {
-                parsed.decRefCompletionOptionHits();
-            }
+            releaseSuggest(suggest);
+            releaseSuggest(parsed);
         }
     }
 
@@ -332,13 +371,9 @@ public class SuggestTests extends ESTestCase {
 
             assertEquals(suggest, backAgain);
         } finally {
-            suggest.decRefCompletionOptionHits();
-            if (bwcSuggest != null) {
-                bwcSuggest.decRefCompletionOptionHits();
-            }
-            if (backAgain != null) {
-                backAgain.decRefCompletionOptionHits();
-            }
+            releaseSuggest(suggest);
+            releaseSuggest(bwcSuggest);
+            releaseSuggest(backAgain);
         }
     }
 }

@@ -171,13 +171,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         var s = source();
         var field = field();
         if (field.dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
-            return new Sum(
-                s,
-                FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.COUNT),
-                filter(),
-                window(),
-                SummationMode.COMPENSATED_LITERAL
-            );
+            return new Coalesce(s, AggregateMetricDoubleSurrogate(this), List.of(new Literal(s, 0L, DataType.LONG)));
         }
 
         if (field.dataType() == EXPONENTIAL_HISTOGRAM || field.dataType() == DataType.TDIGEST) {
@@ -217,5 +211,16 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         }
 
         return null;
+    }
+
+    public static Expression AggregateMetricDoubleSurrogate(AggregateFunction af) {
+        var s = af.source();
+        return new Sum(
+            s,
+            FromAggregateMetricDouble.withMetric(s, af.field(), AggregateMetricDoubleBlockBuilder.Metric.COUNT),
+            af.filter(),
+            af.window(),
+            SummationMode.COMPENSATED_LITERAL
+        );
     }
 }

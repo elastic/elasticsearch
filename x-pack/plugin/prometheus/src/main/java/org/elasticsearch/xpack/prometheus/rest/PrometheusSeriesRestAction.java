@@ -59,6 +59,10 @@ public class PrometheusSeriesRestAction extends BaseRestHandler {
     private static final String END_PARAM = "end";
     private static final String LIMIT_PARAM = "limit";
 
+    private static final int DEFAULT_LIMIT = 10_000;
+    private static final long DEFAULT_LOOKBACK_HOURS = 24;
+    private static final String INDEX_PREFIX = "metrics-";
+
     @Override
     public String getName() {
         return "prometheus_series_action";
@@ -94,10 +98,10 @@ public class PrometheusSeriesRestAction extends BaseRestHandler {
         String endParam = request.param(END_PARAM);
         String startParam = request.param(START_PARAM);
         Instant end = endParam != null ? PromqlParserUtils.parseDate(Source.EMPTY, endParam) : Instant.now();
-        Instant start = startParam != null ? PromqlParserUtils.parseDate(Source.EMPTY, startParam) : end.minus(24, HOURS);
+        Instant start = startParam != null ? PromqlParserUtils.parseDate(Source.EMPTY, startParam) : end.minus(DEFAULT_LOOKBACK_HOURS, HOURS);
 
-        // Optional limit; default to 10 000 to avoid unbounded ESQL scans
-        int limit = request.paramAsInt(LIMIT_PARAM, 10_000);
+        // Optional limit; default to DEFAULT_LIMIT to avoid unbounded ESQL scans
+        int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
 
         // Construct the index pattern from dataset and namespace (type is always "metrics").
         // Unlike the write endpoint, ".prometheus" is NOT appended to the dataset — callers supply
@@ -106,7 +110,7 @@ public class PrometheusSeriesRestAction extends BaseRestHandler {
         // "metrics-*-*".
         String dataset = request.param(DataStream.DATASET, "*");
         String namespace = request.param(DataStream.NAMESPACE, "*");
-        String index = "metrics-" + dataset + "-" + namespace;
+        String index = INDEX_PREFIX + dataset + "-" + namespace;
 
         LogicalPlan plan = PrometheusSeriesPlanBuilder.buildPlan(index, matchSelectors, start, end, limit);
         EsqlStatement statement = new EsqlStatement(plan, List.of());

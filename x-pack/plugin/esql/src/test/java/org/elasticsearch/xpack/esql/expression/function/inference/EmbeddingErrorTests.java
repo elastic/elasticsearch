@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.inference;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -15,17 +16,25 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase
 import org.elasticsearch.xpack.esql.expression.function.ErrorsForCasesWithoutExamplesTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests error conditions and type validation for EMBEDDING function.
  */
 public class EmbeddingErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+
+    @Before
+    public void checkCapability() {
+        assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
+    }
+
     @Override
     protected List<TestCaseSupplier> cases() {
         return paramsToSuppliers(EmbeddingTests.parameters());
@@ -33,7 +42,7 @@ public class EmbeddingErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Embedding(source, args.get(0), args.get(1), null);
+        return new Embedding(source, args.get(0), args.get(1), args.get(2));
     }
 
     @Override
@@ -54,6 +63,10 @@ public class EmbeddingErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             }
 
             if (validPerPosition.get(i).contains(signature.get(i)) == false) {
+                // Map expressions have different error messages
+                if (i == 2) {
+                    return format(null, "third argument of [{}] must be a map expression, received []", sourceForSignature(signature));
+                }
                 break;
             }
         }

@@ -46,23 +46,6 @@ public class EmbeddingTests extends AbstractFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        // Two-argument case (no options)
-        suppliers.add(
-            new TestCaseSupplier(
-                List.of(KEYWORD, KEYWORD),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), KEYWORD, "text"),
-                        new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), KEYWORD, "inference_id")
-                    ),
-                    Matchers.blankOrNullString(),
-                    DENSE_VECTOR,
-                    equalTo(true)
-                )
-            )
-        );
-
-        // Three-argument case (with timeout option)
         suppliers.add(
             new TestCaseSupplier(
                 List.of(KEYWORD, KEYWORD, UNSUPPORTED),
@@ -91,8 +74,7 @@ public class EmbeddingTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        MapExpression options = args.size() > 2 ? (MapExpression) args.get(2) : null;
-        return new Embedding(source, args.get(0), args.get(1), options);
+        return new Embedding(source, args.get(0), args.get(1), args.get(2));
     }
 
     @Override

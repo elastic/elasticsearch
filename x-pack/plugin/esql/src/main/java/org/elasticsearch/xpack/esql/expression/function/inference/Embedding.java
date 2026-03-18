@@ -63,7 +63,7 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
 
     private final Expression inferenceId;
     private final Expression inputValue;
-    private final MapExpression inputOptions;
+    private final Expression inputOptions;
 
     @FunctionInfo(
         returnType = "dense_vector",
@@ -125,7 +125,7 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
                     description = "Timeout for the inference request (e.g. \"30s\", \"1m\")."
                 ) },
             optional = true
-        ) MapExpression inputOptions
+        ) Expression inputOptions
     ) {
         super(source, inputOptions == null ? List.of(inputValue, inferenceId) : List.of(inputValue, inferenceId, inputOptions));
         this.inferenceId = inferenceId;
@@ -149,7 +149,7 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
 
     private String optionStringValue(String key) {
         if (inputOptions == null) return null;
-        Expression valueExpr = inputOptions.get(key);
+        Expression valueExpr = ((MapExpression) inputOptions).get(key);
         if (valueExpr == null) return null;
         return BytesRefs.toString(((Literal) valueExpr).value());
     }

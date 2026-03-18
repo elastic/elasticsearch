@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.EnumSet;
@@ -140,9 +141,10 @@ public class NdJsonSchemaInferrer {
             // Keep in sync with NdJsonPageIterator.Decoder
             case START_OBJECT -> inferObjectSchema(parser, field);
             case VALUE_STRING -> {
-                if (DATE_FORMATTER.tryParse(parser.getText()) != null) {
+                try {
+                    DATE_FORMATTER.parse(parser.getText());
                     field.addType(DataType.DATETIME);
-                } else {
+                } catch (DateTimeParseException | IllegalArgumentException e) {
                     field.addType(DataType.KEYWORD);
                 }
             }

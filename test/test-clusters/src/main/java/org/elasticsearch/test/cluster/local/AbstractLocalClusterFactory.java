@@ -9,8 +9,6 @@
 
 package org.elasticsearch.test.cluster.local;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.cluster.LogType;
@@ -106,7 +104,6 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
     protected abstract H createHandle(Path baseWorkingDir, S spec);
 
     public static class Node {
-        private final ObjectMapper objectMapper;
         private final Path baseWorkingDir;
         private final DistributionResolver distributionResolver;
         private final LocalNodeSpec spec;
@@ -117,7 +114,6 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         private final Path logsDir;
         private final Path configDir;
         private final Path tempDir;
-        private final boolean usesFileBasedClusterSecrets;
         private final int debugPort;
 
         private Path distributionDir;
@@ -129,18 +125,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         private Set<Resource> roleFileListeners = new HashSet<>();
 
         public Node(Path baseWorkingDir, DistributionResolver distributionResolver, LocalNodeSpec spec) {
-            this(baseWorkingDir, distributionResolver, spec, null, false);
+            this(baseWorkingDir, distributionResolver, spec, null);
         }
 
-        public Node(
-            Path baseWorkingDir,
-            DistributionResolver distributionResolver,
-            LocalNodeSpec spec,
-            String suffix,
-            boolean usesFileBasedClusterSecrets
-        ) {
-            this.usesFileBasedClusterSecrets = usesFileBasedClusterSecrets;
-            this.objectMapper = new ObjectMapper();
+        public Node(Path baseWorkingDir, DistributionResolver distributionResolver, LocalNodeSpec spec, String suffix) {
             this.baseWorkingDir = baseWorkingDir;
             this.distributionResolver = distributionResolver;
             this.spec = spec;
@@ -179,13 +167,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             }
 
             writeConfiguration();
-            if (usesFileBasedClusterSecrets) {
-                writeFileBasedClusterSecrets();
-            } else {
-                createKeystore();
-                addKeystoreSettings();
-                addKeystoreFiles();
-            }
+            configureKeystore();
             configureSecurity();
 
             startElasticsearch();
@@ -489,15 +471,18 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         public void updateStoredSecureSettings() {
-            if (usesFileBasedClusterSecrets) {
-                throw new UnsupportedOperationException("updating stored secure settings is not supported in serverless test clusters");
-            }
             final Path keystoreFile = workingDir.resolve("config").resolve("elasticsearch.keystore");
             try {
                 Files.deleteIfExists(keystoreFile);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
+            createKeystore();
+            addKeystoreSettings();
+            addKeystoreFiles();
+        }
+
+        public void configureKeystore() {
             createKeystore();
             addKeystoreSettings();
             addKeystoreFiles();
@@ -554,30 +539,6 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 ).waitFor();
             } catch (InterruptedException | IOException e) {
                 throw new RuntimeException(e);
-            }
-        }
-
-        private void writeFileBasedClusterSecrets() {
-            if (spec.getKeystoreFiles().isEmpty() == false) {
-                throw new IllegalStateException(
-                    "Non-string secure secrets are not supported in serverless. Secrets: ["
-                        + spec.getKeystoreFiles().keySet().stream().collect(Collectors.joining(","))
-                        + "]"
-                );
-            }
-            Map<String, String> secrets = spec.resolveKeystore();
-            if (secrets.isEmpty() == false) {
-                try {
-                    Path settingsFile = configDir.resolve("operator/settings.json");
-                    Files.createDirectories(settingsFile.getParent());
-                    Map<String, Object> settings = Map.ofEntries(
-                        entry("metadata", Map.of("version", "1", "compatibility", spec.getVersion().toString())),
-                        entry("state", Map.of("cluster_secrets", Map.of("string_secrets", secrets)))
-                    );
-                    Files.writeString(settingsFile, objectMapper.writeValueAsString(settings));
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
             }
         }
 

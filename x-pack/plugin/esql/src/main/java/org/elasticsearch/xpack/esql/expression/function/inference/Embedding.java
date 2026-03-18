@@ -61,7 +61,7 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
     );
 
     private final Expression inferenceId;
-    private final Expression inputText;
+    private final Expression inputValue;
     private final MapExpression inputOptions;
 
     private org.elasticsearch.inference.DataType resolvedDataType = org.elasticsearch.inference.DataType.TEXT;
@@ -93,8 +93,10 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
         @Param(
             name = "value",
             type = { "keyword" },
-            description = "Value to generate embeddings from. Must be a non-null literal string value."
-        ) Expression inputText,
+            description = "Value to generate embeddings from. Must be a non-null literal string value. " +
+                "Use data type and format options to specify the content type and format " +
+                "(e.g. plain text, base64-encoded images) of the input."
+        ) Expression inputValue,
         @Param(
             name = InferenceFunction.INFERENCE_ID_PARAMETER_NAME,
             type = { "keyword" },
@@ -128,9 +130,9 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
             optional = true
         ) MapExpression inputOptions
     ) {
-        super(source, inputOptions == null ? List.of(inputText, inferenceId) : List.of(inputText, inferenceId, inputOptions));
+        super(source, inputOptions == null ? List.of(inputValue, inferenceId) : List.of(inputValue, inferenceId, inputOptions));
         this.inferenceId = inferenceId;
-        this.inputText = inputText;
+        this.inputValue = inputValue;
         this.inputOptions = inputOptions;
     }
 
@@ -145,11 +147,7 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
     }
 
     public Expression inputText() {
-        return inputText;
-    }
-
-    public MapExpression inputOptions() {
-        return inputOptions;
+        return inputValue;
     }
 
     public org.elasticsearch.inference.DataType inputDataType() {
@@ -171,12 +169,12 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
 
     @Override
     public boolean foldable() {
-        return inferenceId.foldable() && inputText.foldable();
+        return inferenceId.foldable() && inputValue.foldable();
     }
 
     @Override
     public DataType dataType() {
-        return inputText.dataType() == DataType.NULL ? DataType.NULL : DataType.DENSE_VECTOR;
+        return inputValue.dataType() == DataType.NULL ? DataType.NULL : DataType.DENSE_VECTOR;
     }
 
     @Override
@@ -185,8 +183,8 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution textResolution = isNotNull(inputText, sourceText(), FIRST).and(
-            isType(inputText, DataType.KEYWORD::equals, sourceText(), FIRST, "string")
+        TypeResolution textResolution = isNotNull(inputValue, sourceText(), FIRST).and(
+            isType(inputValue, DataType.KEYWORD::equals, sourceText(), FIRST, "string")
         );
 
         if (textResolution.unresolved()) {
@@ -238,7 +236,7 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
 
     @Override
     public void postOptimizationVerification(Failures failures) {
-        if (inputText.foldable() == false) {
+        if (inputValue.foldable() == false) {
             failures.add(Failure.fail(this, "First argument for EMBEDDING must be a constant string"));
         }
         if (inferenceId.foldable() == false) {
@@ -253,7 +251,7 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
 
     @Override
     public Embedding withInferenceResolutionError(String inferenceId, String error) {
-        return new Embedding(source(), inputText, new UnresolvedAttribute(inferenceId().source(), inferenceId, error), inputOptions);
+        return new Embedding(source(), inputValue, new UnresolvedAttribute(inferenceId().source(), inferenceId, error), inputOptions);
     }
 
     @Override
@@ -268,13 +266,13 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Embedding::new, inputText, inferenceId, inputOptions);
+        return NodeInfo.create(this, Embedding::new, inputValue, inferenceId, inputOptions);
     }
 
     @Override
     public String toString() {
         return inputOptions == null
-            ? "EMBEDDING(" + inputText + ", " + inferenceId + ")"
-            : "EMBEDDING(" + inputText + ", " + inferenceId + ", " + inputOptions + ")";
+            ? "EMBEDDING(" + inputValue + ", " + inferenceId + ")"
+            : "EMBEDDING(" + inputValue + ", " + inferenceId + ", " + inputOptions + ")";
     }
 }

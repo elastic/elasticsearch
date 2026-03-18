@@ -41,6 +41,7 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -141,6 +142,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
     public static final String KEYED_FIELD_SUFFIX = "._keyed";
     public static final String KEYED_IGNORED_VALUES_FIELD_SUFFIX = "._keyed._ignored";
     public static final String TIME_SERIES_DIMENSIONS_ARRAY_PARAM = "time_series_dimensions";
+
+    public static final NodeFeature MAPPED_PROPERTIES_FEATURE = new NodeFeature("mapper.flattened.mapped_properties");
 
     private static class Defaults {
         public static final int DEPTH_LIMIT = 20;

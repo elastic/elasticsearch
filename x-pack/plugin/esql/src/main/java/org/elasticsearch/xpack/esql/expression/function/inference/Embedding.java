@@ -227,10 +227,10 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
     @Override
     public void postOptimizationVerification(Failures failures) {
         if (inputValue.foldable() == false) {
-            failures.add(Failure.fail(this, "First argument for EMBEDDING must be a constant string"));
+            failures.add(Failure.fail(this, "first argument for [" + sourceText() + "] must be a constant string"));
         }
         if (inferenceId.foldable() == false) {
-            failures.add(Failure.fail(this, "Second argument for EMBEDDING must be a constant string"));
+            failures.add(Failure.fail(this, "second argument for [" + sourceText() + "] must be a constant string"));
         }
     }
 

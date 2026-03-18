@@ -3242,10 +3242,6 @@ public class VerifierTests extends ESTestCase {
             error("from test | EVAL embedding = " + functionName + "(42, ?)", defaultAnalyzer, inferenceId),
             equalTo("1:30: first argument of [" + functionName + "(42, ?)] must be [string], found value [42] type [integer]")
         );
-        assertThat(
-            error("from test | EVAL embedding = " + functionName + "(last_name, ?)", defaultAnalyzer, inferenceId),
-            equalTo("1:30: first argument of [" + functionName + "(last_name, ?)] must be a constant, received [last_name]")
-        );
     }
 
     private void assertInvalidEmbeddingSecondArgument(String functionName) {
@@ -3256,10 +3252,6 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("from test | EVAL embedding = " + functionName + "(?, 42)", defaultAnalyzer, "query text"),
             equalTo("1:30: second argument of [" + functionName + "(?, 42)] must be [string], found value [42] type [integer]")
-        );
-        assertThat(
-            error("from test | EVAL embedding = " + functionName + "(?, last_name)", defaultAnalyzer, "query text"),
-            equalTo("1:30: second argument of [" + functionName + "(?, last_name)] must be a constant, received [last_name]")
         );
     }
 

@@ -10,14 +10,15 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -457,7 +458,6 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
 
         var testAnalyzer = analyzer().addIndex("test", "mapping-default.json")
-            .addAnalysisTestsLookupResolutions()
             .addAnalysisTestsInferenceResolution();
 
         var err = error(testAnalyzer.query("""
@@ -472,4 +472,23 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             """));
         assertThat(err, is("2:20: Second argument for EMBEDDING must be a constant string"));
     }
+
+    public void testEmbeddingFunctionInvalidQuery() {
+        var testAnalyzer = analyzer().addIndex("test", "mapping-default.json")
+            .addAnalysisTestsLookupResolutions()
+            .addAnalysisTestsInferenceResolution();
+
+        var err = error(testAnalyzer.query("from test | EVAL embedding = EMBEDDING(last_name, ?)", EMBEDDING_INFERENCE_ID));
+        assertThat(err, is("1:30: first argument for [EMBEDDING(last_name, ?)] must be a constant string"));
+    }
+
+    public void testEmbeddingFunctionInvalidInferenceId() {
+        var testAnalyzer = analyzer().addIndex("test", "mapping-default.json")
+            .addAnalysisTestsLookupResolutions()
+            .addAnalysisTestsInferenceResolution();
+
+        var err = error(testAnalyzer.query("from test | EVAL embedding = EMBEDDING(\"query\", last_name)", EMBEDDING_INFERENCE_ID));
+        assertThat(err, is("1:30: second argument for [EMBEDDING(\"query\", last_name)] must be a constant string"));
+    }
+
 }

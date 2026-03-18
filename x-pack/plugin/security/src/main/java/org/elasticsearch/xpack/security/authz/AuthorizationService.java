@@ -460,11 +460,7 @@ public class AuthorizationService {
      * @return {@code true} if the action is allowed to proceed, {@code false} if it was denied
      *         (in which case the listener has already been notified of the failure)
      */
-    private boolean checkContextConstraint(
-        final Authentication authentication,
-        final String action,
-        final ActionListener<Void> listener
-    ) {
+    private boolean checkContextConstraint(final Authentication authentication, final String action, final ActionListener<Void> listener) {
         final Map<String, String> constraints = contextConstrainedActions.get();
         if (constraints == null) {
             return true;
@@ -475,7 +471,12 @@ public class AuthorizationService {
             if (requiredContext.equals(actualContext) == false) {
                 listener.onFailure(
                     new IllegalStateException(
-                        "action [" + action + "] requires invocation context [" + requiredContext + "] but context was [" + actualContext
+                        "action ["
+                            + action
+                            + "] requires invocation context ["
+                            + requiredContext
+                            + "] but context was ["
+                            + actualContext
                             + "]"
                     )
                 );

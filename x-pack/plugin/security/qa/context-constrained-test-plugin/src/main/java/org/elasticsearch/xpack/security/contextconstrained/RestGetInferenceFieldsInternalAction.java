@@ -41,15 +41,11 @@ public class RestGetInferenceFieldsInternalAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String[] indices = restRequest.param("index").split(",");
         var request = new GetInferenceFieldsInternalAction.Request(indices, Map.of(), false, false, null);
-        return channel -> client.execute(
-            GetInferenceFieldsInternalAction.INSTANCE,
-            request,
-            new RestActionListener<>(channel) {
-                @Override
-                protected void processResponse(GetInferenceFieldsInternalAction.Response response) throws Exception {
-                    channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, "OK: got inference fields"));
-                }
+        return channel -> client.execute(GetInferenceFieldsInternalAction.INSTANCE, request, new RestActionListener<>(channel) {
+            @Override
+            protected void processResponse(GetInferenceFieldsInternalAction.Response response) throws Exception {
+                channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, "OK: got inference fields"));
             }
-        );
+        });
     }
 }

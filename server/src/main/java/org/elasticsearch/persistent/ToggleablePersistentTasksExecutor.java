@@ -191,7 +191,7 @@ public abstract class ToggleablePersistentTasksExecutor<Params extends Persisten
         );
     }
 
-    private void stopProjectTask(ProjectId projectId, String taskId) {
+    protected void stopProjectTask(ProjectId projectId, String taskId) {
         persistentTasksService.sendProjectRemoveRequest(
             projectId,
             taskId,
@@ -207,7 +207,7 @@ public abstract class ToggleablePersistentTasksExecutor<Params extends Persisten
         }
     }
 
-    private void handleStopFailure(Exception e) {
+    protected void handleStopFailure(Exception e) {
         Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
         if (t instanceof ResourceNotFoundException == false) {
             logger.warn(() -> "Failed to remove [" + getTaskName() + "] task", e);

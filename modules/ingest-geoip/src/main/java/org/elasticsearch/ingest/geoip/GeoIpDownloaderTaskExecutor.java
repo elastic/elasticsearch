@@ -98,6 +98,7 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final Settings settings;
+    private final PersistentTasksService persistentTasksService;
 
     @FixForMultiProject(description = "These settings need to be project-scoped")
     private volatile TimeValue pollInterval;
@@ -131,6 +132,7 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.settings = clusterService.getSettings();
+        this.persistentTasksService = persistentTasksService;
         this.pollInterval = POLL_INTERVAL_SETTING.get(settings);
         this.eagerDownload = EAGER_DOWNLOAD_SETTING.get(settings);
         this.projectResolver = client.projectResolver();
@@ -215,26 +217,12 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
     /// The processor tracking and cleanup runs on all nodes.
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        final var projects = event.state().metadata().projects();
-        // Cleanup
-        for (var project : atLeastOneGeoIpProcessorByProject.keySet()) {
-            if (projects.containsKey(project) == false
-                || PersistentTasksCustomMetadata.getTaskWithId(projects.get(project), getProjectTaskId(project)) == null) {
-                if (event.localNodeMaster()) {
-                    deleteGeoIpDatabasesIndex(project, event.state());
-                }
-                tasks.remove(project);
-                atLeastOneGeoIpProcessorByProject.remove(project);
-            }
-        }
-
-        // Master reconciliation
         super.clusterChanged(event);
 
-        // Runs on all nodes
         if (event.metadataChanged() == false) {
             return;
         }
+        final var projects = event.state().metadata().projects();
         for (var projectMetadata : projects.values()) {
             ProjectId projectId = projectMetadata.id();
             atLeastOneGeoIpProcessorByProject.computeIfAbsent(projectId, k -> hasAtLeastOneGeoipProcessor(projectMetadata));
@@ -266,6 +254,30 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
                 }
             }
         }
+        // Cleanup
+        for (var project : atLeastOneGeoIpProcessorByProject.keySet()) {
+            if (projects.containsKey(project) == false
+                || PersistentTasksCustomMetadata.getTaskWithId(projects.get(project), getProjectTaskId(project)) == null) {
+                tasks.remove(project);
+                atLeastOneGeoIpProcessorByProject.remove(project);
+            }
+        }
+    }
+
+    @Override
+    protected void stopProjectTask(ProjectId projectId, String taskId) {
+        persistentTasksService.sendProjectRemoveRequest(
+            projectId,
+            taskId,
+            masterNodeTimeout(),
+            ActionListener.runAfter(
+                ActionListener.wrap(
+                    r -> logger.debug("Removed [{}] task for project [{}]", getTaskName(), projectId),
+                    this::handleStopFailure
+                ),
+                () -> deleteGeoIpDatabasesIndex(projectId, clusterService.state())
+            )
+        );
     }
 
     private void deleteGeoIpDatabasesIndex(ProjectId projectId, ClusterState state) {

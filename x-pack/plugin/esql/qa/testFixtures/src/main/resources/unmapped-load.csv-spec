@@ -559,7 +559,7 @@ partiallyUnmappedNonKeywordNoExistence
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;
-FROM sample_data, no_mapping_sample_data, employees METADATA _index
+FROM sample_data, no_mapping_sample_data, colors METADATA _index
 | EVAL event_duration = event_duration::DOUBLE
 | KEEP _index, event_duration
 | SORT _index DESC, event_duration
@@ -581,10 +581,13 @@ no_mapping_sample_data | 2764888.0
 no_mapping_sample_data | 3450232.0
 no_mapping_sample_data | 5033754.0
 no_mapping_sample_data | 8268152.0
-employees              | null
-employees              | null
-employees              | null
-employees              | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
 ;
 
 partiallyUnmappedMixedTypes
@@ -742,10 +745,10 @@ typeConflictKeywordNonExistentNoCast
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;
-FROM sample_data, employees METADATA _index
+FROM sample_data, colors METADATA _index
 | KEEP _index, message
 | SORT _index DESC, message
-| LIMIT 12
+| LIMIT 15
 ;
 
 _index:keyword | message:keyword
@@ -756,22 +759,24 @@ sample_data    | Connection error
 sample_data    | Connection error
 sample_data    | Connection error
 sample_data    | Disconnected
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
 ;
 
 typeConflictKeywordNonExistentCastToKeyword
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;
-FROM sample_data, employees METADATA _index
+FROM sample_data, colors METADATA _index
 | EVAL message = message::keyword
 | KEEP _index, message
 | SORT _index DESC, message
-| LIMIT 12
+| LIMIT 15
 ;
 
 _index:keyword | message:keyword
@@ -782,22 +787,24 @@ sample_data    | Connection error
 sample_data    | Connection error
 sample_data    | Connection error
 sample_data    | Disconnected
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
 ;
 
 typeConflictLongNonExistentCastToKeyword
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;
-FROM sample_data, employees METADATA _index
+FROM sample_data, colors METADATA _index
 | EVAL event_duration = event_duration::keyword
 | KEEP _index, event_duration
 | SORT _index DESC, event_duration
-| LIMIT 12
+| LIMIT 15
 ;
 
 _index:keyword | event_duration:keyword
@@ -808,22 +815,24 @@ sample_data    | 3450233
 sample_data    | 5033755
 sample_data    | 725448
 sample_data    | 8268153
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
 ;
 
 typeConflictLongNonExistentCastToLong
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;
-FROM sample_data, employees METADATA _index
+FROM sample_data, colors METADATA _index
 | EVAL event_duration = event_duration::long
 | KEEP _index, event_duration
 | SORT _index DESC, event_duration
-| LIMIT 12
+| LIMIT 15
 ;
 
 _index:keyword | event_duration:long
@@ -834,22 +843,24 @@ sample_data    | 2764889
 sample_data    | 3450233
 sample_data    | 5033755
 sample_data    | 8268153
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
 ;
 
 typeConflictLongNonExistentCastToDouble
 required_capability: optional_fields_v2
 
 SET unmapped_fields="load"\;
-FROM sample_data, employees METADATA _index
+FROM sample_data, colors METADATA _index
 | EVAL event_duration = event_duration::double
 | KEEP _index, event_duration
 | SORT _index DESC, event_duration
-| LIMIT 12
+| LIMIT 15
 ;
 
 _index:keyword | event_duration:double
@@ -860,11 +871,13 @@ sample_data    | 2764889.0
 sample_data    | 3450233.0
 sample_data    | 5033755.0
 sample_data    | 8268153.0
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
+colors         | null
 ;
 
 #################################
@@ -912,41 +925,33 @@ required_capability: index_metadata_field
 
 SET unmapped_fields="load"\;
 FROM sample_data_ts_long, sample_data, no_mapping_sample_data METADATA _index
-| EVAL ts = @timestamp::double
-| KEEP _index, ts
-| SORT _index, ts
+| EVAL d = event_duration::double
+| KEEP _index, d
+| SORT _index, d
 ;
 
-warning:Line 3:13: evaluation of [@timestamp::double] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 3:13: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number [2024-10-23T12:15:03.360Z]
-warning:Line 3:13: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number [2024-10-23T12:27:28.948Z]
-warning:Line 3:13: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number [2024-10-23T13:33:34.937Z]
-warning:Line 3:13: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number [2024-10-23T13:51:54.732Z]
-warning:Line 3:13: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number [2024-10-23T13:52:55.015Z]
-warning:Line 3:13: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number [2024-10-23T13:53:55.832Z]
-warning:Line 3:13: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number [2024-10-23T13:55:01.543Z]
-_index:keyword         | ts:double
-no_mapping_sample_data | null
-no_mapping_sample_data | null
-no_mapping_sample_data | null
-no_mapping_sample_data | null
-no_mapping_sample_data | null
-no_mapping_sample_data | null
-no_mapping_sample_data | null
-sample_data            | 1698063303360.0
-sample_data            | 1698064048948.0
-sample_data            | 1698068014937.0
-sample_data            | 1698069114732.0
-sample_data            | 1698069175015.0
-sample_data            | 1698069235832.0
-sample_data            | 1698069301543.0
-sample_data_ts_long    | 1698063303360.0
-sample_data_ts_long    | 1698064048948.0
-sample_data_ts_long    | 1698068014937.0
-sample_data_ts_long    | 1698069114732.0
-sample_data_ts_long    | 1698069175015.0
-sample_data_ts_long    | 1698069235832.0
-sample_data_ts_long    | 1698069301543.0
+_index:keyword         | d:double
+no_mapping_sample_data | 725447.0
+no_mapping_sample_data | 1232381.0
+no_mapping_sample_data | 1756466.0
+no_mapping_sample_data | 2764888.0
+no_mapping_sample_data | 3450232.0
+no_mapping_sample_data | 5033754.0
+no_mapping_sample_data | 8268152.0
+sample_data            | 725448.0
+sample_data            | 1232382.0
+sample_data            | 1756467.0
+sample_data            | 2764889.0
+sample_data            | 3450233.0
+sample_data            | 5033755.0
+sample_data            | 8268153.0
+sample_data_ts_long    | 725447.0
+sample_data_ts_long    | 1232381.0
+sample_data_ts_long    | 1756466.0
+sample_data_ts_long    | 2764888.0
+sample_data_ts_long    | 3450232.0
+sample_data_ts_long    | 5033754.0
+sample_data_ts_long    | 8268152.0
 ;
 
 typeConflictLongDateUnmappedCastToDate
@@ -993,39 +998,35 @@ required_capability: optional_fields_v2
 required_capability: index_metadata_field
 
 SET unmapped_fields="load"\;
-FROM sample_data_ts_long, sample_data, employees METADATA _index
+FROM sample_data_ts_long, sample_data, colors METADATA _index
 | EVAL ts = @timestamp::keyword
 | KEEP _index, ts
-| SORT _index, ts
+| SORT _index DESC, ts
 | LIMIT 25
 ;
 
-_index:keyword | ts:keyword
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
+_index:keyword      | ts:keyword
+sample_data_ts_long | 1698063303360
+sample_data_ts_long | 1698064048948
+sample_data_ts_long | 1698068014937
+sample_data_ts_long | 1698069114732
+sample_data_ts_long | 1698069175015
+sample_data_ts_long | 1698069235832
+sample_data_ts_long | 1698069301543
+sample_data         | 2023-10-23T12:15:03.360Z
+sample_data         | 2023-10-23T12:27:28.948Z
+sample_data         | 2023-10-23T13:33:34.937Z
+sample_data         | 2023-10-23T13:51:54.732Z
+sample_data         | 2023-10-23T13:52:55.015Z
+sample_data         | 2023-10-23T13:53:55.832Z
+sample_data         | 2023-10-23T13:55:01.543Z
+colors              | null
+colors              | null
+colors              | null
+colors              | null
+colors              | null
+colors              | null
+colors              | null
 ;
 
 typeConflictLongDateNonExistentCastToDouble
@@ -1033,39 +1034,35 @@ required_capability: optional_fields_v2
 required_capability: index_metadata_field
 
 SET unmapped_fields="load"\;
-FROM sample_data_ts_long, sample_data, employees METADATA _index
+FROM sample_data_ts_long, sample_data, colors METADATA _index
 | EVAL ts = @timestamp::double
 | KEEP _index, ts
-| SORT _index, ts
+| SORT _index DESC, ts
 | LIMIT 25
 ;
 
-_index:keyword | ts:double
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
+_index:keyword      | ts:double
+sample_data_ts_long | 1698063303360.0
+sample_data_ts_long | 1698064048948.0
+sample_data_ts_long | 1698068014937.0
+sample_data_ts_long | 1698069114732.0
+sample_data_ts_long | 1698069175015.0
+sample_data_ts_long | 1698069235832.0
+sample_data_ts_long | 1698069301543.0
+sample_data         | 1698063303360.0
+sample_data         | 1698064048948.0
+sample_data         | 1698068014937.0
+sample_data         | 1698069114732.0
+sample_data         | 1698069175015.0
+sample_data         | 1698069235832.0
+sample_data         | 1698069301543.0
+colors              | null
+colors              | null
+colors              | null
+colors              | null
+colors              | null
+colors              | null
+colors              | null
 ;
 
 typeConflictLongDateNonExistentCastToDate
@@ -1073,39 +1070,35 @@ required_capability: optional_fields_v2
 required_capability: index_metadata_field
 
 SET unmapped_fields="load"\;
-FROM sample_data_ts_long, sample_data, employees METADATA _index
+FROM sample_data_ts_long, sample_data, colors METADATA _index
 | EVAL ts = @timestamp::date
 | KEEP _index, ts
-| SORT _index, ts
+| SORT _index DESC, ts
 | LIMIT 25
 ;
 
-_index:keyword | ts:datetime
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
+_index:keyword      | ts:datetime
+sample_data_ts_long | 2023-10-23T12:15:03.360Z
+sample_data_ts_long | 2023-10-23T12:27:28.948Z
+sample_data_ts_long | 2023-10-23T13:33:34.937Z
+sample_data_ts_long | 2023-10-23T13:51:54.732Z
+sample_data_ts_long | 2023-10-23T13:52:55.015Z
+sample_data_ts_long | 2023-10-23T13:53:55.832Z
+sample_data_ts_long | 2023-10-23T13:55:01.543Z
+sample_data         | 2023-10-23T12:15:03.360Z
+sample_data         | 2023-10-23T12:27:28.948Z
+sample_data         | 2023-10-23T13:33:34.937Z
+sample_data         | 2023-10-23T13:51:54.732Z
+sample_data         | 2023-10-23T13:52:55.015Z
+sample_data         | 2023-10-23T13:53:55.832Z
+sample_data         | 2023-10-23T13:55:01.543Z
+colors              | null
+colors              | null
+colors              | null
+colors              | null
+colors              | null
+colors              | null
+colors              | null
 ;
 
 #####################################################
@@ -1117,44 +1110,42 @@ required_capability: optional_fields_v2
 required_capability: index_metadata_field
 
 SET unmapped_fields="load"\;
-FROM sample_data_ts_long, sample_data, no_mapping_sample_data, employees METADATA _index
+FROM sample_data_ts_long, sample_data, no_mapping_sample_data, colors METADATA _index
 | EVAL ts = @timestamp::keyword
 | KEEP _index, ts
-| SORT _index, ts
+| SORT _index DESC, ts
 | LIMIT 30
 ;
 
-_index:keyword | ts:keyword
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
+_index:keyword         | ts:keyword
+sample_data_ts_long    | 1698063303360
+sample_data_ts_long    | 1698064048948
+sample_data_ts_long    | 1698068014937
+sample_data_ts_long    | 1698069114732
+sample_data_ts_long    | 1698069175015
+sample_data_ts_long    | 1698069235832
+sample_data_ts_long    | 1698069301543
+sample_data            | 2023-10-23T12:15:03.360Z
+sample_data            | 2023-10-23T12:27:28.948Z
+sample_data            | 2023-10-23T13:33:34.937Z
+sample_data            | 2023-10-23T13:51:54.732Z
+sample_data            | 2023-10-23T13:52:55.015Z
+sample_data            | 2023-10-23T13:53:55.832Z
+sample_data            | 2023-10-23T13:55:01.543Z
+no_mapping_sample_data | 2024-10-23T12:15:03.360Z
+no_mapping_sample_data | 2024-10-23T12:27:28.948Z
+no_mapping_sample_data | 2024-10-23T13:33:34.937Z
+no_mapping_sample_data | 2024-10-23T13:51:54.732Z
+no_mapping_sample_data | 2024-10-23T13:52:55.015Z
+no_mapping_sample_data | 2024-10-23T13:53:55.832Z
+no_mapping_sample_data | 2024-10-23T13:55:01.543Z
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
 ;
 
 typeConflictLongDateUnmappedNonExistentCastToDouble
@@ -1162,52 +1153,42 @@ required_capability: optional_fields_v2
 required_capability: index_metadata_field
 
 SET unmapped_fields="load"\;
-FROM sample_data_ts_long, sample_data, no_mapping_sample_data, employees METADATA _index
-| EVAL ts = @timestamp::double
-| KEEP _index, ts
-| SORT _index, ts
+FROM sample_data_ts_long, sample_data, no_mapping_sample_data, colors METADATA _index
+| EVAL d = event_duration::double
+| KEEP _index, d
+| SORT _index DESC, d
 | LIMIT 30
 ;
 
-warning:Line 3:13: evaluation of [@timestamp::double] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 3:13: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number [2024-10-23T12:15:03.360Z]
-warning:Line 3:13: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number [2024-10-23T12:27:28.948Z]
-warning:Line 3:13: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number [2024-10-23T13:33:34.937Z]
-warning:Line 3:13: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number [2024-10-23T13:51:54.732Z]
-warning:Line 3:13: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number [2024-10-23T13:52:55.015Z]
-warning:Line 3:13: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number [2024-10-23T13:53:55.832Z]
-warning:Line 3:13: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number [2024-10-23T13:55:01.543Z]
-_index:keyword | ts:double
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
+_index:keyword         | d:double
+sample_data_ts_long    | 725447.0
+sample_data_ts_long    | 1232381.0
+sample_data_ts_long    | 1756466.0
+sample_data_ts_long    | 2764888.0
+sample_data_ts_long    | 3450232.0
+sample_data_ts_long    | 5033754.0
+sample_data_ts_long    | 8268152.0
+sample_data            | 725448.0
+sample_data            | 1232382.0
+sample_data            | 1756467.0
+sample_data            | 2764889.0
+sample_data            | 3450233.0
+sample_data            | 5033755.0
+sample_data            | 8268153.0
+no_mapping_sample_data | 725447.0
+no_mapping_sample_data | 1232381.0
+no_mapping_sample_data | 1756466.0
+no_mapping_sample_data | 2764888.0
+no_mapping_sample_data | 3450232.0
+no_mapping_sample_data | 5033754.0
+no_mapping_sample_data | 8268152.0
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
 ;
 
 typeConflictLongDateUnmappedNonExistentCastToDate
@@ -1215,44 +1196,42 @@ required_capability: optional_fields_v2
 required_capability: index_metadata_field
 
 SET unmapped_fields="load"\;
-FROM sample_data_ts_long, sample_data, no_mapping_sample_data, employees METADATA _index
+FROM sample_data_ts_long, sample_data, no_mapping_sample_data, colors METADATA _index
 | EVAL ts = @timestamp::date
 | KEEP _index, ts
-| SORT _index, ts
+| SORT _index DESC, ts
 | LIMIT 30
 ;
 
-_index:keyword | ts:datetime
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
-employees      | null
+_index:keyword         | ts:datetime
+sample_data_ts_long    | 2023-10-23T12:15:03.360Z
+sample_data_ts_long    | 2023-10-23T12:27:28.948Z
+sample_data_ts_long    | 2023-10-23T13:33:34.937Z
+sample_data_ts_long    | 2023-10-23T13:51:54.732Z
+sample_data_ts_long    | 2023-10-23T13:52:55.015Z
+sample_data_ts_long    | 2023-10-23T13:53:55.832Z
+sample_data_ts_long    | 2023-10-23T13:55:01.543Z
+sample_data            | 2023-10-23T12:15:03.360Z
+sample_data            | 2023-10-23T12:27:28.948Z
+sample_data            | 2023-10-23T13:33:34.937Z
+sample_data            | 2023-10-23T13:51:54.732Z
+sample_data            | 2023-10-23T13:52:55.015Z
+sample_data            | 2023-10-23T13:53:55.832Z
+sample_data            | 2023-10-23T13:55:01.543Z
+no_mapping_sample_data | 2024-10-23T12:15:03.360Z
+no_mapping_sample_data | 2024-10-23T12:27:28.948Z
+no_mapping_sample_data | 2024-10-23T13:33:34.937Z
+no_mapping_sample_data | 2024-10-23T13:51:54.732Z
+no_mapping_sample_data | 2024-10-23T13:52:55.015Z
+no_mapping_sample_data | 2024-10-23T13:53:55.832Z
+no_mapping_sample_data | 2024-10-23T13:55:01.543Z
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
+colors                 | null
 ;
 
 fieldIsPartiallyUnmappedPartiallySourceIsDisabledMultiIndex

@@ -216,14 +216,33 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
     }
 
     /**
-     * Determines the appropriate index to use for the force merge step. If a clone index already exists and
-     * is fully active, it will be returned. If no clone index exists but the original index has 0 replicas,
-     * returns the original index. If neither of these conditions are met, returns null.
+     * Checks whether a clone of the index is needed for the force merge step.
+     * A clone is needed if the original index has more than 0 replicas and
+     * a clone does not already exist.
      */
-    String getIndexForForceMerge() {
+    boolean isCloneNeeded() {
         ProjectMetadata projectMetadata = projectState.metadata();
         IndexMetadata indexMetadata = projectMetadata.index(indexName);
         String cloneIndexName = getDLMCloneIndexName();
+        boolean cloneExists = projectMetadata.indices().containsKey(cloneIndexName);
+        if (cloneExists) {
+            return false;
+        }
+        return indexMetadata.getNumberOfReplicas() != 0;
+    }
+
+    /**
+     * Determines the appropriate index to use for the force merge step. If a clone index already exists and
+     * is fully active, it will be returned. If no clone index exists but the original index has 0 replicas,
+     * returns the original index.
+     */
+    String getIndexForForceMerge() {
+        ProjectMetadata projectMetadata = projectState.metadata();
+        String cloneIndexName = getDLMCloneIndexName();
+        if (isCloneNeeded()) {
+            return cloneIndexName;
+        }
+
         boolean cloneExists = projectMetadata.indices().containsKey(cloneIndexName);
         if (cloneExists) {
             logger.debug("DLM has already cloned index [{}] in index [{}]", indexName, cloneIndexName);
@@ -235,14 +254,13 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
             }
             return cloneIndexName;
         }
-        if (indexMetadata.getNumberOfReplicas() == 0) {
-            logger.debug(
-                "Skipping DLM clone step for index [{}] as it already has 0 replicas and can be used for force merge directly",
-                indexName
-            );
-            return indexName;
-        }
-        return null;
+        // if we reach here, then it means the original index has 0 replicas, and we can skip the clone step and proceed
+        // with the original index for force merge
+        logger.debug(
+            "Skipping DLM clone step for index [{}] as it already has 0 replicas and can be used for force merge directly",
+            indexName
+        );
+        return indexName;
     }
 
     /**

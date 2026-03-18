@@ -51,7 +51,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCase {
     private ProjectId projectId;
@@ -132,11 +131,11 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
         };
     }
 
-    public void testGetIndexForForceMergeReturnsNullWhenNoExistingClone() {
+    public void testGetIndexForForceMergeReturnsCloneIndexWhenNoExistingClone() {
         ProjectState projectState = createProjectState(2);
         DataStreamLifecycleConvertToFrozen convert = new DataStreamLifecycleConvertToFrozen(indexName, client, projectState, licenseState);
         String indexForForceMerge = convert.getIndexForForceMerge();
-        assertThat(indexForForceMerge, is(nullValue()));
+        assertThat(indexForForceMerge, is(convert.getDLMCloneIndexName()));
     }
 
     public void testGetIndexForForceMergeReturnsCloneWhenCloneExists() {

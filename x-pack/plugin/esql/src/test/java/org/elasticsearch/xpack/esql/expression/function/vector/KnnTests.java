@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function.fulltext;
+package org.elasticsearch.xpack.esql.expression.function.vector;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunctionTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -94,6 +94,6 @@ public class KnnTests extends SingleFieldFullTextFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Knn(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null, randomIntBetween(1, 100), null, List.of());
+        return new Knn(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null, null, null, List.of());
     }
 }

@@ -78,14 +78,14 @@ public interface SnapshotShardContextFactory {
         ClusterService clusterService,
         IndexShard indexShard,
         Snapshot snapshot,
-        boolean canRelocateDuringSnapshot,
+        boolean supportsRelocationDuringSnapshot,
         @Nullable IndexShardSnapshotStatus snapshotStatus // null when the shard snapshot runs on a remote node
     ) {
         final var shardId = indexShard.shardId();
         if (indexShard.routingEntry().primary() == false) {
             throw new IndexShardSnapshotFailedException(shardId, "snapshot should be performed only on primary");
         }
-        if (canRelocateDuringSnapshot == false && indexShard.routingEntry().relocating()) {
+        if (supportsRelocationDuringSnapshot == false && indexShard.routingEntry().relocating()) {
             // do not snapshot when in the process of relocation of primaries so we won't get conflicts
             throw new IndexShardSnapshotFailedException(shardId, "cannot snapshot while relocating");
         }

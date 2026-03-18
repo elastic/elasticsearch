@@ -1613,6 +1613,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByAfterStats() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | stats avg_salary = avg(salary) by first_name
@@ -1651,6 +1652,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByAfterEval() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | eval x = salary + 1
@@ -1720,6 +1722,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * }
      */
     public void testLimitByExpressionWithEval() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         var optimized = optimizedPlan(physicalPlan("""
             from test
             | where emp_no > 0

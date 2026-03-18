@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
+import org.junit.BeforeClass;
 
 import java.util.EnumSet;
 import java.util.Map;
@@ -18,8 +19,12 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
 
 public class LimitByGoldenTests extends GoldenTestCase {
 
-    public void testLimitByWithoutSort() {
+    @BeforeClass
+    public static void checkLimitByCapability() {
         assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+    }
+
+    public void testLimitByWithoutSort() {
         runGoldenTest(
             """
                 FROM employees

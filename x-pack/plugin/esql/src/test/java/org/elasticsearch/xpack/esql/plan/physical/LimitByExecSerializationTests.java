@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.List;
 
 public class LimitByExecSerializationTests extends AbstractPhysicalPlanSerializationTests<LimitByExec> {
+
     public static LimitByExec randomLimitByExec(int depth) {
         Source source = randomSource();
         PhysicalPlan child = randomChild(depth);

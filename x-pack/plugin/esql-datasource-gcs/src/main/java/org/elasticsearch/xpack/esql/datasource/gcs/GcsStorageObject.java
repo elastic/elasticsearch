@@ -159,7 +159,6 @@ public final class GcsStorageObject implements StorageObject {
     private void fetchMetadataViaRangeRead() throws IOException {
         try {
             ReadChannel reader = storage.reader(BlobId.of(bucket, objectName));
-            reader.seek(0);
             reader.limit(1);
             int bytesRead;
             try (InputStream is = Channels.newInputStream(reader)) {

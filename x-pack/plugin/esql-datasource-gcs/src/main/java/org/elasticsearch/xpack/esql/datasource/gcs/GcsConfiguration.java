@@ -87,9 +87,6 @@ public record GcsConfiguration(String serviceAccountCredentials, String projectI
         return "none".equals(auth);
     }
 
-    /**
-     * Returns true if explicit service account credentials are provided.
-     */
     public boolean hasCredentials() {
         return serviceAccountCredentials != null;
     }

@@ -192,9 +192,7 @@ public final class GcsStorageProvider implements StorageProvider {
     }
 
     private boolean existsViaRead(String bucket, String objectName, StoragePath path) throws IOException {
-        try {
-            ReadChannel reader = storage().reader(BlobId.of(bucket, objectName));
-            reader.close();
+        try (ReadChannel reader = storage().reader(BlobId.of(bucket, objectName))) {
             return true;
         } catch (StorageException e) {
             if (e.getCode() == 404) {

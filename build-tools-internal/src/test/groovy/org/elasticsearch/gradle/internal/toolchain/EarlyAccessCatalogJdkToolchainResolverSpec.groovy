@@ -111,6 +111,24 @@ class EarlyAccessCatalogJdkToolchainResolverSpec extends AbstractToolchainResolv
         ]
     }
 
+    def "prefers ga over rc over ea when build numbers are the same"() {
+        given:
+        def rcBuild = new EarlyAccessCatalogJdkToolchainResolver.PreReleaseJdkBuild(JavaLanguageVersion.of(26), 35, 'rc')
+        def gaBuild = new EarlyAccessCatalogJdkToolchainResolver.PreReleaseJdkBuild(JavaLanguageVersion.of(26), 35, 'ga')
+        def eaBuild = new EarlyAccessCatalogJdkToolchainResolver.PreReleaseJdkBuild(JavaLanguageVersion.of(26), 35, 'ea')
+
+        when:
+        def builds = [rcBuild, gaBuild, eaBuild]
+        def best = builds.stream().max(
+            Comparator.comparingInt(EarlyAccessCatalogJdkToolchainResolver.PreReleaseJdkBuild::buildNumber)
+                .thenComparingInt(EarlyAccessCatalogJdkToolchainResolver.PreReleaseJdkBuild::typeRank)
+        )
+
+        then:
+        best.isPresent()
+        best.get().type() == 'ga'
+    }
+
     def "returns empty when version is not in catalog"() {
         given:
         def resolver = new EarlyAccessCatalogJdkToolchainResolver() {

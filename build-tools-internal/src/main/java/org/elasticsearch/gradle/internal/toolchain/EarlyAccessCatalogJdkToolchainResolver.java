@@ -31,6 +31,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -62,6 +63,13 @@ public abstract class EarlyAccessCatalogJdkToolchainResolver extends AbstractCus
     EarlyAccessJdkBuildResolver earlyAccessJdkBuildResolver = (languageVersion) -> findLatestPreReleaseBuild(languageVersion);
 
     public record PreReleaseJdkBuild(JavaLanguageVersion languageVersion, int buildNumber, String type) implements JdkBuild {
+
+        private static final Map<String, Integer> TYPE_RANK = Map.of("ea", 0, "rc", 1, "ga", 2);
+
+        int typeRank() {
+            return TYPE_RANK.getOrDefault(type, -1);
+        }
+
         @Override
         public String url(String os, String arch, String extension) {
             // examples:
@@ -169,14 +177,17 @@ public abstract class EarlyAccessCatalogJdkToolchainResolver extends AbstractCus
         }
     }
 
+    private static final Comparator<PreReleaseJdkBuild> BUILD_COMPARATOR = Comparator.comparingInt(PreReleaseJdkBuild::buildNumber)
+        .thenComparingInt(PreReleaseJdkBuild::typeRank);
+
     public static Optional<PreReleaseJdkBuild> findPreReleaseBuild(JavaLanguageVersion languageVersion, int buildNumber) {
         return findRecentPreReleaseBuild(languageVersion).stream()
             .filter(preReleaseJdkBuild -> preReleaseJdkBuild.buildNumber == buildNumber)
-            .max(Comparator.comparingInt(PreReleaseJdkBuild::buildNumber));
+            .max(BUILD_COMPARATOR);
     }
 
     public static Optional<PreReleaseJdkBuild> findLatestPreReleaseBuild(JavaLanguageVersion languageVersion) {
-        return findRecentPreReleaseBuild(languageVersion).stream().max(Comparator.comparingInt(PreReleaseJdkBuild::buildNumber));
+        return findRecentPreReleaseBuild(languageVersion).stream().max(BUILD_COMPARATOR);
     }
 
 }

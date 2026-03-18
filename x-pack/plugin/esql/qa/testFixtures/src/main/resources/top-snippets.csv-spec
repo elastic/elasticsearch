@@ -123,7 +123,7 @@ ROW positions = ["Senior Team Lead", "Lead Architect"]
 ;
 
 snippets:keyword
-[Senior Team Lead, Lead Architect]
+[Lead Architect, Senior Team Lead]
 ;
 
 topSnippetsWithGeneratedField
@@ -207,6 +207,94 @@ ROW content = "Sauron, the Dark Lord, has gathered to him all the Rings of Power
 
 snippets:keyword
 [All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of, ring that rules them all - which has fallen into the hands of the hobbit\, Bilbo Baggins.]
+;
+
+topSnippetsHighlightDefaults
+required_capability: top_snippets_highlight
+
+ROW content = "Sauron, the Dark Lord, has gathered to him all the Rings of Power."
+| EVAL snippets = TOP_SNIPPETS(content, "rings", { "highlight": true })
+| KEEP snippets
+;
+
+snippets:keyword
+Sauron, the Dark Lord, has gathered to him all the <em>Rings</em> of Power.
+;
+
+topSnippetsHighlightCustomTags
+required_capability: top_snippets_highlight
+
+ROW content = "Sauron, the Dark Lord, has gathered to him all the Rings of Power."
+| EVAL snippets = TOP_SNIPPETS(content, "rings", { "highlight": true, "pre_tags": "<b>", "post_tags": "</b>" })
+| KEEP snippets
+;
+
+snippets:keyword
+Sauron, the Dark Lord, has gathered to him all the <b>Rings</b> of Power.
+;
+
+topSnippetsHighlightMultipleTerms
+required_capability: top_snippets_highlight
+
+ROW content = "The One Ring rules them all. Sauron forged the Ring in Mount Doom."
+| EVAL snippets = TOP_SNIPPETS(content, "ring sauron", { "highlight": true, "num_snippets": 2, "num_words": 300 })
+| KEEP snippets
+;
+
+snippets:keyword
+The One <em>Ring</em> rules them all. <em>Sauron</em> forged the <em>Ring</em> in Mount Doom.
+;
+
+topSnippetsHighlightNoMatch
+required_capability: top_snippets_highlight
+
+ROW content = "A plain text with no matching terms."
+| EVAL snippets = TOP_SNIPPETS(content, "nonexistent", { "highlight": true })
+| KEEP snippets
+;
+
+snippets:keyword
+null
+;
+
+topSnippetsHighlightFalse
+required_capability: top_snippets_highlight
+
+ROW content = "The Ring of Power was forged by Sauron."
+| EVAL snippets = TOP_SNIPPETS(content, "ring", { "highlight": false })
+| KEEP snippets
+;
+
+snippets:keyword
+The Ring of Power was forged by Sauron.
+;
+
+topSnippetsHighlightFromIndex
+required_capability: top_snippets_highlight
+required_capability: match_function
+
+FROM books
+| WHERE MATCH(title, "Return")
+| EVAL snippets = TOP_SNIPPETS(description, "Tolkien", { "num_snippets": 1, "num_words": 25, "highlight": true })
+| KEEP book_no, snippets
+| SORT book_no
+;
+
+book_no:keyword | snippets:keyword
+2714            | Concluding the story begun in The Hobbit, this is the final part of <em>Tolkien</em> s epic masterpiece, The Lord of the Rings, featuring an exclusive
+7350            | <em>Tolkien</em> for long believed would be a far shorter book, 'a sequel to The Hobbit'.
+;
+
+topSnippetsHighlightWithHtmlEncoder
+required_capability: top_snippets_highlight
+
+ROW content = "Use <b>bold</b> tags & special chars with the Ring."
+| EVAL snippets = TOP_SNIPPETS(content, "ring", { "highlight": true, "encoder": "html" })
+| KEEP snippets
+;
+
+snippets:keyword
+Use &lt;b&gt;bold&lt;&#x2F;b&gt; tags &amp; special chars with the <em>Ring</em>.
 ;
 
 topSnippetsWithFoldableConcatQuery

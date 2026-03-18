@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -38,19 +39,22 @@ public final class TopSnippetsEvaluator implements ExpressionEvaluator {
 
   private final int numSnippets;
 
+  private final PassageFormatter highlightFormatter;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public TopSnippetsEvaluator(Source source, ExpressionEvaluator field, ExpressionEvaluator query,
       ChunkingSettings chunkingSettings, MemoryIndexChunkScorer scorer, int numSnippets,
-      DriverContext driverContext) {
+      PassageFormatter highlightFormatter, DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.query = query;
     this.chunkingSettings = chunkingSettings;
     this.scorer = scorer;
     this.numSnippets = numSnippets;
+    this.highlightFormatter = highlightFormatter;
     this.driverContext = driverContext;
   }
 
@@ -86,7 +90,7 @@ public final class TopSnippetsEvaluator implements ExpressionEvaluator {
           continue position;
         }
         try {
-          TopSnippets.process(result, p, fieldBlock, queryBlock, this.chunkingSettings, this.scorer, this.numSnippets);
+          TopSnippets.process(result, p, fieldBlock, queryBlock, this.chunkingSettings, this.scorer, this.numSnippets, this.highlightFormatter);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -126,20 +130,23 @@ public final class TopSnippetsEvaluator implements ExpressionEvaluator {
 
     private final int numSnippets;
 
+    private final PassageFormatter highlightFormatter;
+
     public Factory(Source source, ExpressionEvaluator.Factory field,
         ExpressionEvaluator.Factory query, ChunkingSettings chunkingSettings,
-        MemoryIndexChunkScorer scorer, int numSnippets) {
+        MemoryIndexChunkScorer scorer, int numSnippets, PassageFormatter highlightFormatter) {
       this.source = source;
       this.field = field;
       this.query = query;
       this.chunkingSettings = chunkingSettings;
       this.scorer = scorer;
       this.numSnippets = numSnippets;
+      this.highlightFormatter = highlightFormatter;
     }
 
     @Override
     public TopSnippetsEvaluator get(DriverContext context) {
-      return new TopSnippetsEvaluator(source, field.get(context), query.get(context), chunkingSettings, scorer, numSnippets, context);
+      return new TopSnippetsEvaluator(source, field.get(context), query.get(context), chunkingSettings, scorer, numSnippets, highlightFormatter, context);
     }
 
     @Override

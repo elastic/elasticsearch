@@ -96,4 +96,32 @@ public class MemoryIndexChunkScorerTests extends ESTestCase {
         assertTrue(scoredChunks.isEmpty());
     }
 
+    public void testSessionScoreMatchesOneShot() throws IOException {
+        MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
+        String queryText = "dogs play walk";
+        int maxResults = 3;
+
+        List<ScoredChunk> oneShotResult = scorer.scoreChunks(CHUNKS, queryText, maxResults, true);
+
+        try (var session = scorer.openSession(CHUNKS)) {
+            List<ScoredChunk> sessionResult = session.score(queryText, maxResults, true);
+            assertThat(sessionResult.size(), equalTo(oneShotResult.size()));
+            for (int i = 0; i < oneShotResult.size(); i++) {
+                assertThat(sessionResult.get(i).content(), equalTo(oneShotResult.get(i).content()));
+                assertThat(sessionResult.get(i).score(), equalTo(oneShotResult.get(i).score()));
+            }
+        }
+    }
+
+    public void testSessionExposesLuceneComponents() throws IOException {
+        MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
+
+        try (var session = scorer.openSession(CHUNKS)) {
+            assertNotNull(session.searcher());
+            assertNotNull(session.reader());
+            assertNotNull(session.analyzer());
+            assertThat(session.reader().numDocs(), equalTo(CHUNKS.size()));
+        }
+    }
+
 }

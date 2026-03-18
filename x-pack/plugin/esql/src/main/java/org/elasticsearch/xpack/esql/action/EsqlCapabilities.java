@@ -2307,7 +2307,12 @@ public class EsqlCapabilities {
          * causing false type conflicts in ES|QL when querying across indices.
          * https://github.com/elastic/elasticsearch/issues/144179
          */
-        FIX_PASSTHROUGH_FIELD_CAPS_OBJECT_PARENT
+        FIX_PASSTHROUGH_FIELD_CAPS_OBJECT_PARENT,
+
+        /**
+         * Support for highlight markup in {@code TOP_SNIPPETS} via the {@code highlight} option.
+         */
+        TOP_SNIPPETS_HIGHLIGHT
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

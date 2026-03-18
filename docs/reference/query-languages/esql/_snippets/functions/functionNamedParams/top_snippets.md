@@ -9,3 +9,23 @@
 :   (integer) The maximum number of words to return in each snippet.
 
 
+`highlight`
+:   (boolean) When true, wraps matched query terms in the returned snippets with markup tags.
+Defaults to false.
+
+
+`pre_tags`
+:   (keyword) Opening tag for highlighted terms. Only applies when highlight is true.
+Defaults to `<em>`.
+
+
+`post_tags`
+:   (keyword) Closing tag for highlighted terms. Only applies when highlight is true.
+Defaults to `</em>`.
+
+
+`encoder`
+:   (keyword) Controls HTML encoding of snippet text before tagging: `default` (no encoding) or `html`.
+Only applies when highlight is true. Defaults to `default`.
+
+

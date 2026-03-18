@@ -165,6 +165,17 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
     }
 
     private static MapExpression createOptions(Integer numSnippets, Integer numWords) {
+        return createOptions(numSnippets, numWords, null, null, null, null);
+    }
+
+    private static MapExpression createOptions(
+        Integer numSnippets,
+        Integer numWords,
+        Boolean highlight,
+        String preTags,
+        String postTags,
+        String encoder
+    ) {
         List<Expression> optionsMap = new ArrayList<>();
 
         if (Objects.nonNull(numSnippets)) {
@@ -175,6 +186,26 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         if (Objects.nonNull(numWords)) {
             optionsMap.add(Literal.keyword(Source.EMPTY, "num_words"));
             optionsMap.add(new Literal(Source.EMPTY, numWords, DataType.INTEGER));
+        }
+
+        if (Objects.nonNull(highlight)) {
+            optionsMap.add(Literal.keyword(Source.EMPTY, "highlight"));
+            optionsMap.add(new Literal(Source.EMPTY, highlight, DataType.BOOLEAN));
+        }
+
+        if (Objects.nonNull(preTags)) {
+            optionsMap.add(Literal.keyword(Source.EMPTY, "pre_tags"));
+            optionsMap.add(Literal.keyword(Source.EMPTY, preTags));
+        }
+
+        if (Objects.nonNull(postTags)) {
+            optionsMap.add(Literal.keyword(Source.EMPTY, "post_tags"));
+            optionsMap.add(Literal.keyword(Source.EMPTY, postTags));
+        }
+
+        if (Objects.nonNull(encoder)) {
+            optionsMap.add(Literal.keyword(Source.EMPTY, "encoder"));
+            optionsMap.add(Literal.keyword(Source.EMPTY, encoder));
         }
 
         return optionsMap.isEmpty() ? null : new MapExpression(Source.EMPTY, optionsMap);
@@ -273,8 +304,78 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         assertThat(result, equalTo(expected));
     }
 
+    public void testHighlightDefaultTags() {
+        String text = "The Adirondack Park is a beautiful wilderness area.";
+        List<String> result = processWithHighlight(text, "park", 5, 300, true, null, null, null);
+        assertNotNull(result);
+        assertThat(result, hasSize(1));
+        assertThat(result.get(0), containsString("<em>Park</em>"));
+        assertThat(result.get(0), containsString("Adirondack"));
+    }
+
+    public void testHighlightCustomTags() {
+        String text = "The Adirondack Park is a beautiful wilderness area.";
+        List<String> result = processWithHighlight(text, "park", 5, 300, true, "<b>", "</b>", null);
+        assertNotNull(result);
+        assertThat(result, hasSize(1));
+        assertThat(result.get(0), containsString("<b>Park</b>"));
+    }
+
+    public void testHighlightMultipleTerms() {
+        String text = "Elasticsearch is a search engine. Lucene powers Elasticsearch.";
+        List<String> result = processWithHighlight(text, "elasticsearch lucene", 5, 300, true, null, null, null);
+        assertNotNull(result);
+        for (String snippet : result) {
+            if (snippet.contains("Elasticsearch")) {
+                assertThat(snippet, containsString("<em>Elasticsearch</em>"));
+            }
+            if (snippet.contains("Lucene")) {
+                assertThat(snippet, containsString("<em>Lucene</em>"));
+            }
+        }
+    }
+
+    public void testHighlightFalseReturnsPlainText() {
+        String text = "The Adirondack Park is a beautiful wilderness area.";
+        List<String> withHighlight = processWithHighlight(text, "park", 5, 300, true, null, null, null);
+        List<String> withoutHighlight = processWithHighlight(text, "park", 5, 300, false, null, null, null);
+        List<String> noHighlightOption = process(text, "park", 5, 300);
+
+        assertNotNull(withHighlight);
+        assertNotNull(withoutHighlight);
+        assertNotNull(noHighlightOption);
+        assertThat(withHighlight.get(0), containsString("<em>"));
+        assertFalse(withoutHighlight.get(0).contains("<em>"));
+        assertFalse(noHighlightOption.get(0).contains("<em>"));
+        assertThat(withoutHighlight, equalTo(noHighlightOption));
+    }
+
+    public void testHighlightHtmlEncoder() {
+        String text = "Use <b>bold</b> & special chars with the Ring.";
+        List<String> result = processWithHighlight(text, "ring", 5, 300, true, null, null, "html");
+        assertNotNull(result);
+        assertThat(result, hasSize(1));
+        assertThat(result.get(0), containsString("&lt;b&gt;"));
+        assertThat(result.get(0), containsString("&lt;&#x2F;b&gt;"));
+        assertThat(result.get(0), containsString("&amp;"));
+        assertThat(result.get(0), containsString("<em>Ring</em>"));
+    }
+
     private List<String> process(String str, String query, int numSnippets, int numWords) {
-        MapExpression optionsMap = createOptions(numSnippets, numWords);
+        return processWithHighlight(str, query, numSnippets, numWords, null, null, null, null);
+    }
+
+    private List<String> processWithHighlight(
+        String str,
+        String query,
+        int numSnippets,
+        int numWords,
+        Boolean highlight,
+        String preTags,
+        String postTags,
+        String encoder
+    ) {
+        MapExpression optionsMap = createOptions(numSnippets, numWords, highlight, preTags, postTags, encoder);
 
         try (
             ExpressionEvaluator eval = evaluator(

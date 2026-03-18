@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.common.chunks;
 
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -24,16 +25,21 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.ElasticsearchException;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Utility class for scoring pre-determined chunks using an in-memory Lucene index.
+ * <p>
+ * For one-shot scoring, use {@link #scoreChunks}. When both scoring and additional
+ * operations (e.g. highlighting) are needed on the same chunks, use {@link #openSession}
+ * to build the index once and reuse it.
  */
 public class MemoryIndexChunkScorer {
 
-    private static final String CONTENT_FIELD = "content";
+    public static final String CONTENT_FIELD = "content";
 
     private final StandardAnalyzer analyzer;
 
@@ -56,23 +62,73 @@ public class MemoryIndexChunkScorer {
         if (chunks == null || chunks.isEmpty() || inferenceText == null || inferenceText.trim().isEmpty()) {
             return new ArrayList<>();
         }
+        try (Session session = openSession(chunks)) {
+            return session.score(inferenceText, maxResults, backfillResults);
+        } catch (IOException e) {
+            throw new ElasticsearchException("Failed to score chunks", e);
+        }
+    }
 
-        try (Directory directory = new ByteBuffersDirectory()) {
-            IndexWriterConfig config = new IndexWriterConfig(analyzer);
-            try (IndexWriter writer = new IndexWriter(directory, config)) {
-                for (String chunk : chunks) {
-                    Document doc = new Document();
-                    doc.add(new TextField(CONTENT_FIELD, chunk, Field.Store.YES));
-                    writer.addDocument(doc);
+    /**
+     * Opens a reusable session that indexes the given chunks once. The caller can then
+     * {@link Session#score score} against the in-memory index, and access the underlying
+     * Lucene components (via {@link Session#searcher()}, {@link Session#reader()},
+     * {@link Session#analyzer()}) for additional operations such as highlighting.
+     *
+     * @param chunks the text chunks to index
+     * @return a closeable session; the caller is responsible for closing it
+     */
+    public Session openSession(List<String> chunks) {
+        return new Session(chunks, analyzer);
+    }
+
+    /**
+     * Keeps an in-memory Lucene index alive across multiple operations so the index is built
+     * once and reused. Exposes the underlying {@link IndexSearcher}, {@link DirectoryReader},
+     * and {@link StandardAnalyzer} for consumers that need direct access (e.g. highlighting).
+     * Implements {@link Closeable} to manage the directory and reader lifecycle.
+     */
+    public static class Session implements Closeable {
+
+        private final Directory directory;
+        private final DirectoryReader reader;
+        private final IndexSearcher searcher;
+        private final StandardAnalyzer analyzer;
+        private final List<String> chunks;
+
+        Session(List<String> chunks, StandardAnalyzer analyzer) {
+            this.analyzer = analyzer;
+            this.chunks = chunks;
+            try {
+                this.directory = new ByteBuffersDirectory();
+                IndexWriterConfig config = new IndexWriterConfig(analyzer);
+                try (IndexWriter writer = new IndexWriter(directory, config)) {
+                    for (String chunk : chunks) {
+                        Document doc = new Document();
+                        doc.add(new TextField(CONTENT_FIELD, chunk, Field.Store.YES));
+                        writer.addDocument(doc);
+                    }
+                    writer.commit();
                 }
-                writer.commit();
+                this.reader = DirectoryReader.open(directory);
+                this.searcher = new IndexSearcher(reader);
+            } catch (IOException e) {
+                throw new ElasticsearchException("Failed to build in-memory chunk index", e);
             }
+        }
 
-            try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-
-                org.apache.lucene.util.QueryBuilder qb = new QueryBuilder(analyzer);
-                Query query = qb.createBooleanQuery(CONTENT_FIELD, inferenceText, BooleanClause.Occur.SHOULD);
+        /**
+         * Scores indexed chunks against the given query text using BM25.
+         *
+         * @param queryText the query text to compare against
+         * @param maxResults maximum number of results to return
+         * @param backfillResults if true, backfills no matches with the first chunks with scores of 0
+         * @return scored chunks ordered by relevance
+         */
+        public List<ScoredChunk> score(String queryText, int maxResults, boolean backfillResults) {
+            try {
+                QueryBuilder qb = new QueryBuilder(analyzer);
+                Query query = qb.createBooleanQuery(CONTENT_FIELD, queryText, BooleanClause.Occur.SHOULD);
                 int numResults = Math.min(maxResults, chunks.size());
                 TopDocs topDocs = searcher.search(query, numResults);
 
@@ -86,9 +142,27 @@ public class MemoryIndexChunkScorer {
                 return backfillResults && scoredChunks.isEmpty()
                     ? chunks.subList(0, Math.min(maxResults, chunks.size())).stream().map(c -> new ScoredChunk(c, 0.0f)).toList()
                     : scoredChunks;
+            } catch (IOException e) {
+                throw new ElasticsearchException("Failed to score chunks", e);
             }
-        } catch (IOException e) {
-            throw new ElasticsearchException("Failed to score chunks", e);
+        }
+
+        public IndexSearcher searcher() {
+            return searcher;
+        }
+
+        public DirectoryReader reader() {
+            return reader;
+        }
+
+        public StandardAnalyzer analyzer() {
+            return analyzer;
+        }
+
+        @Override
+        public void close() throws IOException {
+            reader.close();
+            directory.close();
         }
     }
 

@@ -7,7 +7,16 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.highlight.DefaultEncoder;
+import org.apache.lucene.search.highlight.Encoder;
+import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
+import org.apache.lucene.search.uhighlight.CustomSeparatorBreakIterator;
+import org.apache.lucene.search.uhighlight.PassageFormatter;
+import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,7 +25,11 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.lucene.search.uhighlight.CustomPassageFormatter;
+import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
+import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
 import org.elasticsearch.xpack.core.common.chunks.ScoredChunk;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
@@ -75,10 +88,22 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
     private static final String NUM_SNIPPETS = "num_snippets";
     private static final String NUM_WORDS = "num_words";
+    private static final String HIGHLIGHT = "highlight";
+    private static final String PRE_TAGS = "pre_tags";
+    private static final String POST_TAGS = "post_tags";
+    private static final String ENCODER = "encoder";
+
+    static final String DEFAULT_PRE_TAGS = "<em>";
+    static final String DEFAULT_POST_TAGS = "</em>";
+    static final String DEFAULT_ENCODER = "default";
 
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
         entry(NUM_SNIPPETS, DataType.INTEGER),
-        entry(NUM_WORDS, DataType.INTEGER)
+        entry(NUM_WORDS, DataType.INTEGER),
+        entry(HIGHLIGHT, DataType.BOOLEAN),
+        entry(PRE_TAGS, DataType.KEYWORD),
+        entry(POST_TAGS, DataType.KEYWORD),
+        entry(ENCODER, DataType.KEYWORD)
     );
 
     @FunctionInfo(
@@ -127,7 +152,23 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
                 ),
                 @MapParam.MapParamEntry(name = "num_words", type = "integer", description = """
                     The maximum number of words to return in each snippet.
-                    """, valueHint = { "300" }) }
+                    """, valueHint = { "300" }),
+                @MapParam.MapParamEntry(name = "highlight", type = "boolean", description = """
+                    When true, wraps matched query terms in the returned snippets with markup tags.
+                    Defaults to false.
+                    """, valueHint = { "true" }),
+                @MapParam.MapParamEntry(name = "pre_tags", type = "keyword", description = """
+                    Opening tag for highlighted terms. Only applies when highlight is true.
+                    Defaults to `<em>`.
+                    """, valueHint = { "<em>" }),
+                @MapParam.MapParamEntry(name = "post_tags", type = "keyword", description = """
+                    Closing tag for highlighted terms. Only applies when highlight is true.
+                    Defaults to `</em>`.
+                    """, valueHint = { "</em>" }),
+                @MapParam.MapParamEntry(name = "encoder", type = "keyword", description = """
+                    Controls HTML encoding of snippet text before tagging: `default` (no encoding) or `html`.
+                    Only applies when highlight is true. Defaults to `default`.
+                    """, valueHint = { "default" }) }
         ) Expression options
     ) {
         super(source, options == null ? List.of(field, query) : List.of(field, query, options));
@@ -204,12 +245,36 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
     private static void validateOptions(Map<String, Object> options) {
         validateOptionValueIsPositiveInteger(options, NUM_SNIPPETS);
         validateOptionValueIsPositiveInteger(options, NUM_WORDS);
+        validateEncoder(options);
+        validateHighlightOnlyOptions(options);
     }
 
     private static void validateOptionValueIsPositiveInteger(Map<String, Object> options, String paramName) {
         Object value = options.get(paramName);
         if (value != null && ((Number) value).intValue() <= 0) {
             throw new InvalidArgumentException("'{}' option must be a positive integer, found [{}]", paramName, value);
+        }
+    }
+
+    private static void validateEncoder(Map<String, Object> options) {
+        Object value = options.get(ENCODER);
+        if (value != null && "default".equals(value) == false && "html".equals(value) == false) {
+            throw new InvalidArgumentException("'{}' option must be 'default' or 'html', found [{}]", ENCODER, value);
+        }
+    }
+
+    private static void validateHighlightOnlyOptions(Map<String, Object> options) {
+        boolean highlight = Boolean.TRUE.equals(options.get(HIGHLIGHT));
+        if (highlight == false) {
+            if (options.containsKey(PRE_TAGS) || options.containsKey(POST_TAGS) || options.containsKey(ENCODER)) {
+                throw new InvalidArgumentException(
+                    "'{}', '{}', and '{}' options require '{}' to be true",
+                    PRE_TAGS,
+                    POST_TAGS,
+                    ENCODER,
+                    HIGHLIGHT
+                );
+            }
         }
     }
 
@@ -266,7 +331,8 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         BytesRefBlock query,
         @Fixed ChunkingSettings chunkingSettings,
         @Fixed MemoryIndexChunkScorer scorer,
-        @Fixed int numSnippets
+        @Fixed int numSnippets,
+        @Fixed(includeInToString = false) PassageFormatter highlightFormatter
     ) {
         int valueCount = field.getValueCount(position);
         if (valueCount == 0) {
@@ -290,40 +356,108 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
         int firstValueIndex = field.getFirstValueIndex(position);
 
-        // Collect scored chunks from all values and return the top N overall
-        ArrayList<ScoredChunk> allScoredChunks = new ArrayList<>();
-
+        // Collect all chunks from all field values upfront so we build one index
+        ArrayList<String> allChunks = new ArrayList<>();
         for (int i = 0; i < valueCount; i++) {
             BytesRef value = field.getBytesRef(firstValueIndex + i, scratch);
-            String content = value.utf8ToString();
-
-            List<String> chunks = chunkText(content, chunkingSettings);
-            allScoredChunks.addAll(scorer.scoreChunks(chunks, queryString, numSnippets, false));
+            allChunks.addAll(chunkText(value.utf8ToString(), chunkingSettings));
         }
 
-        List<String> snippets = allScoredChunks.stream()
-            .sorted(Comparator.comparing(ScoredChunk::score).reversed())
-            .map(ScoredChunk::content)
-            .limit(numSnippets)
-            .toList();
+        try (var session = scorer.openSession(allChunks)) {
+            List<ScoredChunk> scored = session.score(queryString, allChunks.size(), false);
 
-        if (snippets.isEmpty()) {
-            builder.appendNull();
-            return;
+            List<String> snippets = scored.stream()
+                .sorted(Comparator.comparing(ScoredChunk::score).reversed())
+                .map(ScoredChunk::content)
+                .limit(numSnippets)
+                .toList();
+
+            if (snippets.isEmpty()) {
+                builder.appendNull();
+                return;
+            }
+
+            if (highlightFormatter != null) {
+                snippets = highlightSnippets(session, snippets, queryString, highlightFormatter);
+            }
+
+            emitChunks(builder, snippets);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to process snippets", e);
+        }
+    }
+
+    /**
+     * Adds highlight markup around matched query terms within each snippet, reusing the session's
+     * in-memory index rather than building a new one. Uses {@code OffsetSource.ANALYSIS} so the
+     * highlighter re-tokenizes the provided text and only needs the index's searcher/reader for
+     * query weight construction.
+     */
+    private static List<String> highlightSnippets(
+        MemoryIndexChunkScorer.Session session,
+        List<String> snippets,
+        String queryText,
+        PassageFormatter formatter
+    ) throws IOException {
+        QueryBuilder qb = new QueryBuilder(session.analyzer());
+        Query query = qb.createBooleanQuery(MemoryIndexChunkScorer.CONTENT_FIELD, queryText, BooleanClause.Occur.SHOULD);
+        if (query == null) {
+            return snippets;
         }
 
-        emitChunks(builder, snippets);
+        UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(session.searcher(), session.analyzer());
+        builder.withFormatter(formatter);
+        builder.withBreakIterator(() -> new CustomSeparatorBreakIterator(CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR));
+
+        CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
+            builder,
+            UnifiedHighlighter.OffsetSource.ANALYSIS,
+            null,
+            "",
+            MemoryIndexChunkScorer.CONTENT_FIELD,
+            query,
+            0,
+            Integer.MAX_VALUE - 1,
+            Integer.MAX_VALUE,
+            IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey(),
+            false,
+            false
+        );
+
+        var leafReader = session.reader().leaves().get(0).reader();
+        List<String> result = new ArrayList<>(snippets.size());
+        for (String snippet : snippets) {
+            Snippet[] highlighted = highlighter.highlightField(leafReader, 0, () -> snippet);
+            if (highlighted == null || highlighted.length == 0) {
+                result.add(snippet);
+            } else {
+                StringBuilder sb = new StringBuilder();
+                for (Snippet s : highlighted) {
+                    sb.append(s.getText());
+                }
+                result.add(sb.toString());
+            }
+        }
+        return result;
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         int numSnippets;
         int numWords;
+        PassageFormatter highlightFormatter = null;
         if (options != null) {
             Map<String, Object> opts = new HashMap<>();
             Options.populateMap((MapExpression) options, opts, source(), THIRD, ALLOWED_OPTIONS);
             numSnippets = numSnippets(opts);
             numWords = numWords(opts);
+            if (Boolean.TRUE.equals(opts.get(HIGHLIGHT))) {
+                String preTags = opts.containsKey(PRE_TAGS) ? (String) opts.get(PRE_TAGS) : DEFAULT_PRE_TAGS;
+                String postTags = opts.containsKey(POST_TAGS) ? (String) opts.get(POST_TAGS) : DEFAULT_POST_TAGS;
+                String encoderType = opts.containsKey(ENCODER) ? (String) opts.get(ENCODER) : DEFAULT_ENCODER;
+                Encoder encoder = "html".equals(encoderType) ? new SimpleHTMLEncoder() : new DefaultEncoder();
+                highlightFormatter = new CustomPassageFormatter(preTags, postTags, encoder, 0);
+            }
         } else {
             numSnippets = DEFAULT_NUM_SNIPPETS;
             numWords = DEFAULT_WORD_SIZE;
@@ -338,7 +472,8 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
             toEvaluator.apply(query),
             chunkingSettings,
             scorer,
-            numSnippets
+            numSnippets,
+            highlightFormatter
         );
     }
 }

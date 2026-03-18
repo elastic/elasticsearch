@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -15,6 +16,11 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -23,7 +29,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
@@ -529,7 +537,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         verificationFailure(query, "Subqueries and views are not supported with unmapped_fields=\"load\"");
         verificationFailure(query, "FORK is not supported with unmapped_fields=\"load\"");
     }
-
+    
     private static final String UNMAPPED_TIMESTAMP_SUFFIX = UnresolvedTimestamp.UNRESOLVED_SUFFIX + Verifier.UNMAPPED_TIMESTAMP_SUFFIX;
 
     public void testTbucketWithUnmappedTimestamp() {
@@ -694,6 +702,67 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             for (String expected : expectedFailures) {
                 assertThat(e.getMessage(), containsString(expected + UNMAPPED_TIMESTAMP_SUFFIX));
             }
+        }
+    }
+
+    /**
+     * Verify that referencing a sub-field of a flattened field (e.g. "foo.bar" when "foo" is flattened) is rejected
+     */
+    public void testFlattenedSubFieldRejection() {
+        Map<String, EsField> mapping = Map.of("field", new UnsupportedEsField("field", List.of("flattened")));
+        EsIndex index = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Set.of());
+        String errorMessage =
+            "Loading subfield [%s] when parent [%s] is of flattened field type is not supported with unmapped_fields=\"load\"";
+
+        verificationFailure(
+            setUnmappedLoad("FROM test | KEEP field.a"),
+            index,
+            String.format(Locale.ROOT, errorMessage, "field.a", "field")
+        );
+        verificationFailure(
+            setUnmappedLoad("FROM test | STATS x = SAMPLE(field.a, 1)"),
+            index,
+            String.format(Locale.ROOT, errorMessage, "field.a", "field")
+        );
+        verificationFailure(
+            setUnmappedLoad("FROM test | EVAL x = TO_STRING(field.a)"),
+            index,
+            String.format(Locale.ROOT, errorMessage, "field.a", "field")
+        );
+        verificationFailure(
+            setUnmappedLoad("FROM test | KEEP field.a.b"),
+            index,
+            String.format(Locale.ROOT, errorMessage, "field.a.b", "field")
+        );
+        verificationFailure(
+            setUnmappedLoad("FROM test | KEEP field.a.b.c"),
+            index,
+            String.format(Locale.ROOT, errorMessage, "field.a.b.c", "field")
+        );
+        verificationFailure(
+            setUnmappedLoad("FROM test | SORT field.x, field.z"),
+            index,
+            String.format(Locale.ROOT, errorMessage, "field.x", "field"),
+            String.format(Locale.ROOT, errorMessage, "field.z", "field")
+        );
+        verificationFailure(
+            setUnmappedLoad("FROM test | SORT field.x | KEEP field.z"),
+            index,
+            String.format(Locale.ROOT, errorMessage, "field.x", "field"),
+            String.format(Locale.ROOT, errorMessage, "field.z", "field")
+        );
+    }
+
+    private void verificationFailure(String query, EsIndex index, String... expectedFailures) {
+        EsqlStatement statement = TEST_PARSER.createStatement(query);
+        Map<IndexPattern, IndexResolution> indexResolutions = Map.of(
+            new IndexPattern(Source.EMPTY, index.name()),
+            IndexResolution.valid(index)
+        );
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(indexResolutions, TEST_VERIFIER, configuration(query), statement);
+        var e = expectThrows(VerificationException.class, () -> analyzer.analyze(statement.plan()));
+        for (String expectedFailure : expectedFailures) {
+            assertThat(e.getMessage(), containsString(expectedFailure));
         }
     }
 

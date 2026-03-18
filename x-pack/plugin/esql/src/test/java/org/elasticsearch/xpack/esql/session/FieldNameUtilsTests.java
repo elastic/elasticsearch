@@ -141,7 +141,8 @@ public class FieldNameUtilsTests extends ESTestCase {
                 "salary_change.int.*",
                 "salary_change.int",
                 "salary_change.long.*",
-                "salary_change.long"
+                "salary_change.long",
+                "salary_change"
             )
         );
     }
@@ -160,7 +161,16 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | where languages.long < avg_worked_seconds
                 | limit 1
                 | keep emp_no""",
-            Set.of("_index", "emp_no", "emp_no.*", "languages.long", "languages.long.*", "avg_worked_seconds", "avg_worked_seconds.*")
+            Set.of(
+                "_index",
+                "emp_no",
+                "emp_no.*",
+                "languages.long",
+                "languages.long.*",
+                "avg_worked_seconds",
+                "avg_worked_seconds.*",
+                "languages"
+            )
         );
     }
 
@@ -908,7 +918,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | eval salary_change = mv_sum(salary_change.int)
             | sort emp_no
             | keep emp_no, salary_change.int, salary_change
-            | limit 7""", Set.of("_index", "emp_no", "emp_no.*", "salary_change.int", "salary_change.int.*"));
+            | limit 7""", Set.of("_index", "emp_no", "emp_no.*", "salary_change.int", "salary_change.int.*", "salary_change"));
     }
 
     public void testMetaIndexAliasedInAggs() {
@@ -977,7 +987,10 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testMaxOfLong() {
-        assertFieldNames("from employees | stats l = max(languages.long)", Set.of("_index", "languages.long", "languages.long.*"));
+        assertFieldNames(
+            "from employees | stats l = max(languages.long)",
+            Set.of("_index", "languages.long", "languages.long.*", "languages")
+        );
     }
 
     public void testGroupByAlias() {
@@ -1015,11 +1028,14 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testByLongAndLong() {
-        assertFieldNames("""
-            from employees
-            | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
-            | stats c = count(languages.long) by languages.long, trunk_worked_seconds
-            | sort c desc""", Set.of("_index", "avg_worked_seconds", "avg_worked_seconds.*", "languages.long", "languages.long.*"));
+        assertFieldNames(
+            """
+                from employees
+                | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
+                | stats c = count(languages.long) by languages.long, trunk_worked_seconds
+                | sort c desc""",
+            Set.of("_index", "avg_worked_seconds", "avg_worked_seconds.*", "languages.long", "languages.long.*", "languages")
+        );
     }
 
     public void testByDateAndKeywordAndIntWithAlias() {
@@ -1057,7 +1073,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             """
                 from employees
                 | stats p0 = percentile(salary_change.long, 0), p50 = percentile(salary_change.long, 50)""",
-            Set.of("_index", "salary_change.long", "salary_change.long.*")
+            Set.of("_index", "salary_change", "salary_change.long", "salary_change.long.*")
         );
     }
 
@@ -1125,7 +1141,16 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | eval trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
                 | stats c = count(gender) by languages.long, trunk_worked_seconds
                 | sort c desc""",
-            Set.of("_index", "avg_worked_seconds", "avg_worked_seconds.*", "languages.long", "languages.long.*", "gender", "gender.*")
+            Set.of(
+                "_index",
+                "avg_worked_seconds",
+                "avg_worked_seconds.*",
+                "languages.long",
+                "languages.long.*",
+                "gender",
+                "gender.*",
+                "languages"
+            )
         );
     }
 
@@ -1635,7 +1660,8 @@ public class FieldNameUtilsTests extends ESTestCase {
                 "network.total_cost",
                 "network.total_cost.*",
                 "cluster",
-                "cluster.*"
+                "cluster.*",
+                "network"
             )
 
         );
@@ -1972,20 +1998,24 @@ public class FieldNameUtilsTests extends ESTestCase {
                 "language_name.*",
                 "message.*",
                 "type.*",
-                "language.name.*"
+                "language.name.*",
+                "language"
             )
         );
     }
 
     public void testJoinMaskingKeep2() {
-        assertFieldNames("""
-            from languag*
-            | eval type = "foo"
-            | rename type as message
-            | lookup join message_types_lookup on message
-            | rename type as message
-            | lookup join message_types_lookup on message
-            | keep `language.name`""", Set.of("_index", "language.name", "type", "message", "message.*", "type.*", "language.name.*"));
+        assertFieldNames(
+            """
+                from languag*
+                | eval type = "foo"
+                | rename type as message
+                | lookup join message_types_lookup on message
+                | rename type as message
+                | lookup join message_types_lookup on message
+                | keep `language.name`""",
+            Set.of("_index", "language.name", "type", "message", "message.*", "type.*", "language.name.*", "language")
+        );
     }
 
     public void testEnrichMaskingEvalOn() {
@@ -2846,7 +2876,11 @@ public class FieldNameUtilsTests extends ESTestCase {
                 "city.country.continent.planet.name.*",
                 "city.name.*",
                 "city.country.name.*",
-                "airport.*"
+                "airport.*",
+                "city",
+                "city.country",
+                "city.country.continent",
+                "city.country.continent.planet"
             )
         );
     }
@@ -2869,7 +2903,11 @@ public class FieldNameUtilsTests extends ESTestCase {
                 "city.country.continent.planet.name.*",
                 "city.name.*",
                 "city.country.name.*",
-                "airport.*"
+                "airport.*",
+                "city",
+                "city.country",
+                "city.country.continent",
+                "city.country.continent.planet"
             )
         );
     }
@@ -2893,7 +2931,11 @@ public class FieldNameUtilsTests extends ESTestCase {
                 "city.country.continent.planet.name.*",
                 "city.name.*",
                 "city.country.name.*",
-                "airport.*"
+                "airport.*",
+                "city",
+                "city.country",
+                "city.country.continent",
+                "city.country.continent.planet"
             )
         );
     }

@@ -79,12 +79,12 @@ public final class PushDownAndCombineLimitBy extends OptimizerRules.Parameterize
     }
 
     private static LimitBy combineLimitBys(LimitBy upper, LimitBy lower, FoldContext ctx) {
-        var upperLimitValue = (int) upper.limit().fold(ctx);
-        var lowerLimitValue = (int) lower.limit().fold(ctx);
+        var upperLimitValue = (int) upper.limitPerGroup().fold(ctx);
+        var lowerLimitValue = (int) lower.limitPerGroup().fold(ctx);
         if (lowerLimitValue <= upperLimitValue) {
             return lower;
         } else {
-            return new LimitBy(upper.source(), upper.limit(), lower.child(), upper.groupings(), upper.duplicated());
+            return new LimitBy(upper.source(), upper.limitPerGroup(), lower.child(), upper.groupings(), upper.duplicated());
         }
     }
 

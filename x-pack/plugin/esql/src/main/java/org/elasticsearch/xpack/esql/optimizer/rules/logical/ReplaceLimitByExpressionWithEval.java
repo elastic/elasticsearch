@@ -58,7 +58,7 @@ public final class ReplaceLimitByExpressionWithEval extends OptimizerRules.Optim
 
         var originalOutput = limitBy.output();
         var evalChild = new Eval(limitBy.source(), limitBy.child(), evals);
-        var newLimitBy = new LimitBy(limitBy.source(), limitBy.limit(), evalChild, newGroupings, limitBy.duplicated());
+        var newLimitBy = new LimitBy(limitBy.source(), limitBy.limitPerGroup(), evalChild, newGroupings, limitBy.duplicated());
         return new Project(limitBy.source(), newLimitBy, originalOutput);
     }
 }

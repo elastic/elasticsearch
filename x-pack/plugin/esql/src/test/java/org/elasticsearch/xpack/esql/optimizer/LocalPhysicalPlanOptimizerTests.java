@@ -2523,7 +2523,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var limit = as(plan, LimitExec.class);
 
         var limitBy = as(limit.child(), LimitByExec.class);
-        assertThat(limitBy.limit().fold(FoldContext.small()), is(10));
+        assertThat(limitBy.limitPerGroup().fold(FoldContext.small()), is(10));
         assertThat(limitBy.groupings(), hasSize(1));
         assertThat(Expressions.names(limitBy.groupings()), contains("first_name"));
 
@@ -2542,7 +2542,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var limit = as(plan, LimitExec.class);
 
         var limitBy = as(limit.child(), LimitByExec.class);
-        assertThat(limitBy.limit().fold(FoldContext.small()), is(5));
+        assertThat(limitBy.limitPerGroup().fold(FoldContext.small()), is(5));
         assertThat(limitBy.groupings(), hasSize(2));
         assertThat(Expressions.names(limitBy.groupings()), contains("first_name", "last_name"));
 
@@ -2561,7 +2561,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var limit = as(plan, LimitExec.class);
 
         var limitBy = as(limit.child(), LimitByExec.class);
-        assertThat(limitBy.limit().fold(FoldContext.small()), is(10));
+        assertThat(limitBy.limitPerGroup().fold(FoldContext.small()), is(10));
         assertThat(limitBy.groupings(), hasSize(1));
         assertThat(Expressions.names(limitBy.groupings()), contains("first_name"));
 

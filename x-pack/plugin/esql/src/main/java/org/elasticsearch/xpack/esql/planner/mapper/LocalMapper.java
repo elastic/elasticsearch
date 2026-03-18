@@ -103,7 +103,7 @@ public class LocalMapper {
         }
 
         if (unary instanceof LimitBy limitBy) {
-            return new LimitByExec(limitBy.source(), mappedChild, limitBy.limit(), limitBy.groupings(), null);
+            return new LimitByExec(limitBy.source(), mappedChild, limitBy.limitPerGroup(), limitBy.groupings(), null);
         }
 
         if (unary instanceof TopN topN) {

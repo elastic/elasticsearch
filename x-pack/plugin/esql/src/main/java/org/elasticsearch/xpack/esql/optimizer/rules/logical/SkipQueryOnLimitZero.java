@@ -25,7 +25,7 @@ public final class SkipQueryOnLimitZero extends OptimizerRules.ParameterizedOpti
                 return PruneEmptyPlans.skipPlan(limit);
             }
         } else if (plan instanceof LimitBy limitBy) {
-            if (limitBy.limit().foldable() && Integer.valueOf(0).equals(limitBy.limit().fold(ctx.foldCtx()))) {
+            if (limitBy.limitPerGroup().foldable() && Integer.valueOf(0).equals(limitBy.limitPerGroup().fold(ctx.foldCtx()))) {
                 return PruneEmptyPlans.skipPlan(limitBy);
             }
         }

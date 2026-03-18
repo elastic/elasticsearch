@@ -20,9 +20,9 @@ public class LimitByExecSerializationTests extends AbstractPhysicalPlanSerializa
     public static LimitByExec randomLimitByExec(int depth) {
         Source source = randomSource();
         PhysicalPlan child = randomChild(depth);
-        Expression limit = randomLimitPerGroup();
+        Expression limitPerGroup = randomLimitPerGroup();
         List<Expression> groupings = randomGroupings();
-        return new LimitByExec(source, child, limit, groupings, randomEstimatedRowSize());
+        return new LimitByExec(source, child, limitPerGroup, groupings, randomEstimatedRowSize());
     }
 
     private static Expression randomLimitPerGroup() {
@@ -41,17 +41,17 @@ public class LimitByExecSerializationTests extends AbstractPhysicalPlanSerializa
     @Override
     protected LimitByExec mutateInstance(LimitByExec instance) throws IOException {
         PhysicalPlan child = instance.child();
-        Expression limit = instance.limit();
+        Expression limitPerGroup = instance.limitPerGroup();
         List<Expression> groupings = instance.groupings();
         Integer estimatedRowSize = instance.estimatedRowSize();
         switch (between(0, 3)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
-            case 1 -> limit = randomValueOtherThan(limit, LimitByExecSerializationTests::randomLimitPerGroup);
+            case 1 -> limitPerGroup = randomValueOtherThan(limitPerGroup, LimitByExecSerializationTests::randomLimitPerGroup);
             case 2 -> groupings = randomValueOtherThan(groupings, LimitByExecSerializationTests::randomGroupings);
             case 3 -> estimatedRowSize = randomValueOtherThan(estimatedRowSize, LimitByExecSerializationTests::randomEstimatedRowSize);
             default -> throw new AssertionError("Unexpected case");
         }
-        return new LimitByExec(instance.source(), child, limit, groupings, estimatedRowSize);
+        return new LimitByExec(instance.source(), child, limitPerGroup, groupings, estimatedRowSize);
     }
 
     @Override

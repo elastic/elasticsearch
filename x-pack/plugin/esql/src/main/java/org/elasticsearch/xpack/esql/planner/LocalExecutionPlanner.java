@@ -1420,7 +1420,7 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planLimitBy(LimitByExec limitBy, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(limitBy.child(), context);
-        int limitValue = (Integer) limitBy.limit().fold(context.foldCtx);
+        int limitValue = (Integer) limitBy.limitPerGroup().fold(context.foldCtx);
         Layout layout = source.layout;
         List<Integer> groupKeys = limitBy.groupings()
             .stream()

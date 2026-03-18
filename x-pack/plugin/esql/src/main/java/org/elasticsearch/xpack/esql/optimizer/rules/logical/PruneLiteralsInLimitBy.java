@@ -39,8 +39,8 @@ public final class PruneLiteralsInLimitBy extends OptimizerRules.OptimizerRule<L
             return limitBy;
         }
         if (newGroupings.isEmpty()) {
-            return new Limit(limitBy.source(), limitBy.limit(), limitBy.child());
+            return new Limit(limitBy.source(), limitBy.limitPerGroup(), limitBy.child());
         }
-        return new LimitBy(limitBy.source(), limitBy.limit(), limitBy.child(), newGroupings, limitBy.duplicated());
+        return new LimitBy(limitBy.source(), limitBy.limitPerGroup(), limitBy.child(), newGroupings, limitBy.duplicated());
     }
 }

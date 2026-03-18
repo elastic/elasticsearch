@@ -1587,7 +1587,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var defaultLimit = as(optimized, LimitExec.class);
 
         var limitBy = as(defaultLimit.child(), LimitByExec.class);
-        assertThat(limitBy.limit().fold(FoldContext.small()), is(5));
+        assertThat(limitBy.limitPerGroup().fold(FoldContext.small()), is(5));
         assertThat(limitBy.groupings(), hasSize(2));
         assertThat(names(limitBy.groupings()), contains("first_name", "last_name"));
 
@@ -1626,7 +1626,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var defaultLimit = as(eval.child(), LimitExec.class);
 
         var limitBy = as(defaultLimit.child(), LimitByExec.class);
-        assertThat(limitBy.limit().fold(FoldContext.small()), is(5));
+        assertThat(limitBy.limitPerGroup().fold(FoldContext.small()), is(5));
         assertThat(limitBy.groupings(), hasSize(1));
         assertThat(names(limitBy.groupings()), contains("first_name"));
 
@@ -1663,7 +1663,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var defaultLimit = as(eval.child(), LimitExec.class);
 
         var limitBy = as(defaultLimit.child(), LimitByExec.class);
-        assertThat(limitBy.limit().fold(FoldContext.small()), is(10));
+        assertThat(limitBy.limitPerGroup().fold(FoldContext.small()), is(10));
         assertThat(limitBy.groupings(), hasSize(1));
         assertThat(names(limitBy.groupings()), contains("first_name"));
 
@@ -1732,7 +1732,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var defaultLimit = as(topProject.child(), LimitExec.class);
 
         var limitBy = as(defaultLimit.child(), LimitByExec.class);
-        assertThat(limitBy.limit().fold(FoldContext.small()), is(10));
+        assertThat(limitBy.limitPerGroup().fold(FoldContext.small()), is(10));
         assertThat(limitBy.groupings(), hasSize(1));
         var groupKey = as(limitBy.groupings().get(0), ReferenceAttribute.class);
         // TODO Check the groupKey is contained in the exchange

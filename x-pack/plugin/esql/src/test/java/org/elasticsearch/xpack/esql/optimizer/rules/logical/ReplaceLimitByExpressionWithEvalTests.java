@@ -51,7 +51,7 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
 
         var defaultLimit = as(plan, Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(1));
+        assertThat(((Literal) limit.limitPerGroup()).value(), equalTo(1));
         assertThat(Expressions.names(limit.groupings()), contains("emp_no"));
         as(limit.child(), EsRelation.class);
     }
@@ -72,7 +72,7 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
 
         var defaultLimit = as(plan, Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(2));
+        assertThat(((Literal) limit.limitPerGroup()).value(), equalTo(2));
         assertThat(Expressions.names(limit.groupings()), contains("emp_no", "salary"));
         as(limit.child(), EsRelation.class);
     }
@@ -130,7 +130,7 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
 
         var defaultLimit = as(plan, Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(1));
+        assertThat(((Literal) limit.limitPerGroup()).value(), equalTo(1));
         assertThat(Expressions.names(limit.groupings()), contains("emp_no"));
         as(limit.child(), EsRelation.class);
     }
@@ -157,7 +157,7 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
         assertThat(Expressions.names(project.projections()), contains("emp_no"));
         var defaultLimit = as(project.child(), Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(1));
+        assertThat(((Literal) limit.limitPerGroup()).value(), equalTo(1));
         var eval = as(limit.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
         var alias = as(eval.fields().getFirst(), Alias.class);
@@ -187,7 +187,7 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
         assertThat(Expressions.names(project.projections()), contains("emp_no", "salary"));
         var defaultLimit = as(project.child(), Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(1));
+        assertThat(((Literal) limit.limitPerGroup()).value(), equalTo(1));
         var eval = as(limit.child(), Eval.class);
         assertThat(eval.fields(), hasSize(2));
         var alias0 = as(eval.fields().get(0), Alias.class);
@@ -220,7 +220,7 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
         assertThat(Expressions.names(project.projections()), contains("emp_no", "salary"));
         var defaultLimit = as(project.child(), Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(1));
+        assertThat(((Literal) limit.limitPerGroup()).value(), equalTo(1));
         assertThat(limit.groupings(), hasSize(2));
         assertThat(Expressions.name(limit.groupings().get(0)), equalTo("emp_no"));
         assertThat(Expressions.name(limit.groupings().get(1)), startsWith("$$limit_by$1$"));
@@ -253,7 +253,7 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
         assertThat(Expressions.names(project.projections()), contains("emp_no"));
         var defaultLimit = as(project.child(), Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(1));
+        assertThat(((Literal) limit.limitPerGroup()).value(), equalTo(1));
         var eval = as(limit.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
         var alias = as(eval.fields().getFirst(), Alias.class);
@@ -278,7 +278,7 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
 
         var defaultLimit = as(plan, Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(1));
+        assertThat(((Literal) limit.limitPerGroup()).value(), equalTo(1));
         assertThat(Expressions.names(limit.groupings()), contains("emp_no"));
         as(limit.child(), EsRelation.class);
     }
@@ -305,7 +305,7 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
         var project = as(plan, Project.class);
         var defaultLimit = as(project.child(), Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(1));
+        assertThat(((Literal) limit.limitPerGroup()).value(), equalTo(1));
         assertThat(limit.groupings(), hasSize(2));
         assertThat(Expressions.name(limit.groupings().get(0)), equalTo("x"));
         assertThat(Expressions.name(limit.groupings().get(1)), startsWith("$$limit_by$1$"));
@@ -341,7 +341,7 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
         assertThat(Expressions.names(project.projections()), contains("emp_no", "salary"));
         var defaultLimit = as(project.child(), Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(1));
+        assertThat(((Literal) limit.limitPerGroup()).value(), equalTo(1));
         assertThat(limit.groupings(), hasSize(2));
         assertThat(Expressions.name(limit.groupings().get(0)), equalTo("emp_no"));
         assertThat(Expressions.name(limit.groupings().get(1)), startsWith("$$limit_by$1$"));

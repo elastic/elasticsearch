@@ -32,13 +32,13 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
         LimitByExec::readFrom
     );
 
-    private final Expression limit;
+    private final Expression limitPerGroup;
     private final List<Expression> groupings;
     private final Integer estimatedRowSize;
 
-    public LimitByExec(Source source, PhysicalPlan child, Expression limit, List<Expression> groupings, Integer estimatedRowSize) {
+    public LimitByExec(Source source, PhysicalPlan child, Expression limitPerGroup, List<Expression> groupings, Integer estimatedRowSize) {
         super(source, child);
-        this.limit = limit;
+        this.limitPerGroup = limitPerGroup;
         this.groupings = groupings;
         this.estimatedRowSize = estimatedRowSize;
     }
@@ -56,7 +56,7 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
-        out.writeNamedWriteable(limit());
+        out.writeNamedWriteable(limitPerGroup());
         out.writeOptionalVInt(estimatedRowSize);
         out.writeNamedWriteableCollection(groupings());
     }
@@ -68,16 +68,16 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<? extends LimitByExec> info() {
-        return NodeInfo.create(this, LimitByExec::new, child(), limit, groupings, estimatedRowSize);
+        return NodeInfo.create(this, LimitByExec::new, child(), limitPerGroup, groupings, estimatedRowSize);
     }
 
     @Override
     public LimitByExec replaceChild(PhysicalPlan newChild) {
-        return new LimitByExec(source(), newChild, limit, groupings, estimatedRowSize);
+        return new LimitByExec(source(), newChild, limitPerGroup, groupings, estimatedRowSize);
     }
 
-    public Expression limit() {
-        return limit;
+    public Expression limitPerGroup() {
+        return limitPerGroup;
     }
 
     public List<Expression> groupings() {
@@ -96,12 +96,12 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
         state.add(needsSortedDocIds, output);
         int size = state.consumeAllFields(true);
         size = Math.max(size, 1);
-        return Objects.equals(this.estimatedRowSize, size) ? this : new LimitByExec(source(), child(), limit, groupings, size);
+        return Objects.equals(this.estimatedRowSize, size) ? this : new LimitByExec(source(), child(), limitPerGroup, groupings, size);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(limit, groupings, estimatedRowSize, child());
+        return Objects.hash(limitPerGroup, groupings, estimatedRowSize, child());
     }
 
     @Override
@@ -115,7 +115,7 @@ public class LimitByExec extends UnaryExec implements EstimatesRowSize {
         }
 
         LimitByExec other = (LimitByExec) obj;
-        return Objects.equals(limit, other.limit)
+        return Objects.equals(limitPerGroup, other.limitPerGroup)
             && Objects.equals(groupings, other.groupings)
             && Objects.equals(estimatedRowSize, other.estimatedRowSize)
             && Objects.equals(child(), other.child());

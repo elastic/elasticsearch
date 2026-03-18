@@ -58,7 +58,7 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
         var defaultLimit = as(plan, Limit.class);
         assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
         var limit = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(1));
+        assertThat(((Literal) limit.limitPerGroup()).value(), equalTo(1));
         assertThat(Expressions.names(limit.groupings()), contains("emp_no"));
     }
 
@@ -80,11 +80,11 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
         var defaultLimit = as(plan, Limit.class);
         assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
         var limit1 = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) limit1.limit()).value(), equalTo(1));
+        assertThat(((Literal) limit1.limitPerGroup()).value(), equalTo(1));
         assertThat(limit1.groupings().size(), equalTo(1));
         assertThat(Expressions.names(limit1.groupings()), contains("first_name"));
         var limit2 = as(limit1.child(), LimitBy.class);
-        assertThat(((Literal) limit2.limit()).value(), equalTo(1));
+        assertThat(((Literal) limit2.limitPerGroup()).value(), equalTo(1));
         assertThat(limit2.groupings().size(), equalTo(1));
         assertThat(Expressions.names(limit2.groupings()), contains("emp_no"));
     }
@@ -109,12 +109,12 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
         var defaultLimit = as(plan, Limit.class);
         assertThat(((Literal) defaultLimit.limit()).value(), equalTo(2));
         var limit = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(2));
+        assertThat(((Literal) limit.limitPerGroup()).value(), equalTo(2));
         assertThat(Expressions.names(limit.groupings()), contains("emp_no"));
         var limit2 = as(limit.child(), Limit.class);
         assertThat(((Literal) limit2.limit()).value(), equalTo(2));
         var limit3 = as(limit2.child(), LimitBy.class);
-        assertThat(((Literal) limit3.limit()).value(), equalTo(1));
+        assertThat(((Literal) limit3.limitPerGroup()).value(), equalTo(1));
         assertThat(Expressions.names(limit3.groupings()), contains("emp_no"));
     }
 
@@ -143,7 +143,7 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
         var agg = as(topN.child(), Aggregate.class);
         assertThat(Expressions.names(agg.groupings()), contains("languages"));
         var limit = as(agg.child(), LimitBy.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(2));
+        assertThat(((Literal) limit.limitPerGroup()).value(), equalTo(2));
         assertThat(Expressions.names(limit.groupings()), contains("languages"));
         var innerTopN = as(limit.child(), TopN.class);
         assertThat(innerTopN.limit().fold(FoldContext.small()), equalTo(1000));
@@ -170,7 +170,7 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
 
         var defaultLimit = as(plan, Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(5));
+        assertThat(((Literal) limit.limitPerGroup()).value(), equalTo(5));
         assertThat(Expressions.names(limit.groupings()), contains("language_name"));
         var enrich = as(limit.child(), Enrich.class);
         as(enrich.child(), EsRelation.class);
@@ -195,7 +195,7 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
 
         var defaultLimit = as(plan, Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(5));
+        assertThat(((Literal) limit.limitPerGroup()).value(), equalTo(5));
         assertThat(Expressions.names(limit.groupings()), contains("language_name"));
         var enrich = as(limit.child(), Enrich.class);
         as(enrich.child(), EsRelation.class);
@@ -220,7 +220,7 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
 
         var defaultLimit = as(plan, Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(5));
+        assertThat(((Literal) limit.limitPerGroup()).value(), equalTo(5));
         assertThat(Expressions.names(limit.groupings()), contains("language_name"));
         var enrich = as(limit.child(), Enrich.class);
         as(enrich.child(), EsRelation.class);
@@ -245,7 +245,7 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
 
         var defaultLimit = as(plan, Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(5));
+        assertThat(((Literal) limit.limitPerGroup()).value(), equalTo(5));
         assertThat(Expressions.names(limit.groupings()), contains("emp_no", "language_name"));
         var enrich = as(limit.child(), Enrich.class);
         as(enrich.child(), EsRelation.class);
@@ -271,7 +271,7 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
         var enrich = as(plan, Enrich.class);
         var defaultLimit = as(enrich.child(), Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(5));
+        assertThat(((Literal) limit.limitPerGroup()).value(), equalTo(5));
         assertThat(Expressions.names(limit.groupings()), contains("emp_no"));
         as(limit.child(), EsRelation.class);
     }
@@ -288,7 +288,7 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
 
         var defaultLimit = as(plan, Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(5));
+        assertThat(((Literal) limit.limitPerGroup()).value(), equalTo(5));
         assertThat(Expressions.names(limit.groupings()), contains("emp_no"));
         var fork = as(limit.child(), Fork.class);
         for (var branch : fork.children()) {
@@ -318,13 +318,13 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
 
         var defaultLimit = as(plan, Limit.class);
         var upperLimitBy = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) upperLimitBy.limit()).value(), equalTo(5));
+        assertThat(((Literal) upperLimitBy.limitPerGroup()).value(), equalTo(5));
         assertThat(Expressions.names(upperLimitBy.groupings()), contains("emp_no"));
         assertTrue(upperLimitBy.duplicated());
 
         var mvExpand = as(upperLimitBy.child(), MvExpand.class);
         var lowerLimitBy = as(mvExpand.child(), LimitBy.class);
-        assertThat(((Literal) lowerLimitBy.limit()).value(), equalTo(5));
+        assertThat(((Literal) lowerLimitBy.limitPerGroup()).value(), equalTo(5));
         assertThat(Expressions.names(lowerLimitBy.groupings()), contains("emp_no"));
         assertFalse(lowerLimitBy.duplicated());
 
@@ -355,14 +355,14 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
 
         var defaultLimit = as(plan, Limit.class);
         var upperLimitBy = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) upperLimitBy.limit()).value(), equalTo(5));
+        assertThat(((Literal) upperLimitBy.limitPerGroup()).value(), equalTo(5));
         assertThat(Expressions.names(upperLimitBy.groupings()), contains("emp_no"));
         assertTrue(upperLimitBy.duplicated());
 
         var join = as(upperLimitBy.child(), Join.class);
         var eval = as(join.left(), Eval.class);
         var lowerLimitBy = as(eval.child(), LimitBy.class);
-        assertThat(((Literal) lowerLimitBy.limit()).value(), equalTo(5));
+        assertThat(((Literal) lowerLimitBy.limitPerGroup()).value(), equalTo(5));
         assertThat(Expressions.names(lowerLimitBy.groupings()), contains("emp_no"));
         assertFalse(lowerLimitBy.duplicated());
         as(lowerLimitBy.child(), EsRelation.class);
@@ -391,7 +391,7 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
 
         var defaultLimit = as(plan, Limit.class);
         var limitBy = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) limitBy.limit()).value(), equalTo(5));
+        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(5));
         assertThat(Expressions.names(limitBy.groupings()), contains("language_name"));
         assertFalse(limitBy.duplicated());
 
@@ -423,7 +423,7 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
 
         var defaultLimit = as(plan, Limit.class);
         var upperLimitBy = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) upperLimitBy.limit()).value(), equalTo(5));
+        assertThat(((Literal) upperLimitBy.limitPerGroup()).value(), equalTo(5));
         assertThat(Expressions.names(upperLimitBy.groupings()), contains("language_name"));
         assertFalse(upperLimitBy.duplicated());
 
@@ -458,13 +458,13 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
 
         var defaultLimit = as(plan, Limit.class);
         var upperLimitBy = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) upperLimitBy.limit()).value(), equalTo(5));
+        assertThat(((Literal) upperLimitBy.limitPerGroup()).value(), equalTo(5));
         assertThat(Expressions.names(upperLimitBy.groupings()), contains("language_code"));
         assertTrue(upperLimitBy.duplicated());
 
         var join = as(upperLimitBy.child(), Join.class);
         var lowerLimitBy = as(join.left(), LimitBy.class);
-        assertThat(((Literal) lowerLimitBy.limit()).value(), equalTo(5));
+        assertThat(((Literal) lowerLimitBy.limitPerGroup()).value(), equalTo(5));
         assertThat(lowerLimitBy.groupings(), equalTo(upperLimitBy.groupings()));
         assertFalse(lowerLimitBy.duplicated());
         var project = as(lowerLimitBy.child(), Project.class);

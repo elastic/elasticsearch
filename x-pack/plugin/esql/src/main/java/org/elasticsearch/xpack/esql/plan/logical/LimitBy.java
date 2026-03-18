@@ -27,7 +27,7 @@ import java.util.Objects;
 public class LimitBy extends UnaryPlan implements TelemetryAware, PipelineBreaker {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "LimitBy", LimitBy::new);
 
-    private final Expression limit;
+    private final Expression limitPerGroup;
     private final List<Expression> groupings;
 
     /**
@@ -38,13 +38,13 @@ public class LimitBy extends UnaryPlan implements TelemetryAware, PipelineBreake
      */
     private final transient boolean duplicated;
 
-    public LimitBy(Source source, Expression limit, LogicalPlan child, List<Expression> groupings) {
-        this(source, limit, child, groupings, false);
+    public LimitBy(Source source, Expression limitPerGroup, LogicalPlan child, List<Expression> groupings) {
+        this(source, limitPerGroup, child, groupings, false);
     }
 
-    public LimitBy(Source source, Expression limit, LogicalPlan child, List<Expression> groupings, boolean duplicated) {
+    public LimitBy(Source source, Expression limitPerGroup, LogicalPlan child, List<Expression> groupings, boolean duplicated) {
         super(source, child);
-        this.limit = limit;
+        this.limitPerGroup = limitPerGroup;
         this.groupings = groupings;
         this.duplicated = duplicated;
     }
@@ -62,7 +62,7 @@ public class LimitBy extends UnaryPlan implements TelemetryAware, PipelineBreake
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        out.writeNamedWriteable(limit());
+        out.writeNamedWriteable(limitPerGroup());
         out.writeNamedWriteable(child());
         out.writeNamedWriteableCollection(groupings());
     }
@@ -74,16 +74,16 @@ public class LimitBy extends UnaryPlan implements TelemetryAware, PipelineBreake
 
     @Override
     protected NodeInfo<LimitBy> info() {
-        return NodeInfo.create(this, LimitBy::new, limit, child(), groupings, duplicated);
+        return NodeInfo.create(this, LimitBy::new, limitPerGroup, child(), groupings, duplicated);
     }
 
     @Override
     public LimitBy replaceChild(LogicalPlan newChild) {
-        return new LimitBy(source(), limit, newChild, groupings, duplicated);
+        return new LimitBy(source(), limitPerGroup, newChild, groupings, duplicated);
     }
 
-    public Expression limit() {
-        return limit;
+    public Expression limitPerGroup() {
+        return limitPerGroup;
     }
 
     public List<Expression> groupings() {
@@ -95,17 +95,17 @@ public class LimitBy extends UnaryPlan implements TelemetryAware, PipelineBreake
     }
 
     public LimitBy withDuplicated(boolean duplicated) {
-        return new LimitBy(source(), limit, child(), groupings, duplicated);
+        return new LimitBy(source(), limitPerGroup, child(), groupings, duplicated);
     }
 
     @Override
     public boolean expressionsResolved() {
-        return limit.resolved() && Resolvables.resolved(groupings);
+        return limitPerGroup.resolved() && Resolvables.resolved(groupings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(limit, child(), duplicated, groupings);
+        return Objects.hash(limitPerGroup, child(), duplicated, groupings);
     }
 
     @Override
@@ -119,7 +119,7 @@ public class LimitBy extends UnaryPlan implements TelemetryAware, PipelineBreake
 
         LimitBy other = (LimitBy) obj;
 
-        return Objects.equals(limit, other.limit)
+        return Objects.equals(limitPerGroup, other.limitPerGroup)
             && Objects.equals(child(), other.child())
             && (duplicated == other.duplicated)
             && Objects.equals(groupings, other.groupings);

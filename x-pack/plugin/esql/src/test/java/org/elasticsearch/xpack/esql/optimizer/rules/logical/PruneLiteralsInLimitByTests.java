@@ -118,7 +118,7 @@ public class PruneLiteralsInLimitByTests extends AbstractLogicalPlanOptimizerTes
         var eval = assertEvalFields(as(plan, Eval.class), new String[] { "x" }, new Object[] { 5 });
         var defaultLimit = as(eval.child(), Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(1));
+        assertThat(((Literal) limit.limitPerGroup()).value(), equalTo(1));
         assertThat(limit.groupings().size(), equalTo(1));
         assertThat(Expressions.names(limit.groupings()), contains("emp_no"));
         as(limit.child(), EsRelation.class);

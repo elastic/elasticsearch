@@ -1093,8 +1093,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             """);
         assertThat(plan, instanceOf(LimitBy.class));
         LimitBy limitBy = (LimitBy) plan;
-        assertThat(limitBy.limit(), instanceOf(Literal.class));
-        assertThat(((Literal) limitBy.limit()).value(), equalTo(10));
+        assertThat(limitBy.limitPerGroup(), instanceOf(Literal.class));
+        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(10));
 
         assertThat(limitBy.groupings().size(), equalTo(2));
         assertThat(limitBy.groupings().get(0), instanceOf(UnresolvedAttribute.class));
@@ -1131,8 +1131,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             """);
         assertThat(plan, instanceOf(LimitBy.class));
         LimitBy limitBy = (LimitBy) plan;
-        assertThat(limitBy.limit(), instanceOf(Literal.class));
-        assertThat(((Literal) limitBy.limit()).value(), equalTo(10));
+        assertThat(limitBy.limitPerGroup(), instanceOf(Literal.class));
+        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(10));
 
         assertThat(limitBy.groupings(), everyItem(instanceOf(UnresolvedAttribute.class)));
         assertThat(limitBy.groupings().size(), equalTo(1));

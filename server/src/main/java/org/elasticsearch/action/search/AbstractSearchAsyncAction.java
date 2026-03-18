@@ -41,7 +41,6 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
@@ -584,7 +583,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         int numFailures = failures.length;
         assert numSuccess + numFailures == getNumShards()
             : "numSuccess(" + numSuccess + ") + numFailures(" + numFailures + ") != totalShards(" + getNumShards() + ")";
-        SearchResponse response = new SearchResponse(
+        return new SearchResponse(
             internalSearchResponse,
             scrollId,
             getNumShards(),
@@ -595,11 +594,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             clusters,
             searchContextId
         );
-        Suggest suggest = response.getSuggest();
-        if (suggest != null) {
-            suggest.releaseCompletionOptionCreationRefs();
-        }
-        return response;
     }
 
     /**

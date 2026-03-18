@@ -233,7 +233,11 @@ public final class SearchPhaseController {
             if (reducedQueryPhase.suggest != null && fetchResults.isEmpty() == false) {
                 mergeSuggest(reducedQueryPhase, fetchResultsArray, hits.getHits().length, reducedQueryPhase.sortedTopDocs.scoreDocs);
             }
-            var res = reducedQueryPhase.buildResponse(hits, fetchResults);
+            // Take refs on completion option hits before returning (fetch result is released when caller exits try-with-resources)
+            var completionOptionHitsToRelease = reducedQueryPhase.suggest != null
+                ? reducedQueryPhase.suggest.collectCompletionOptionHits(true)
+                : null;
+            var res = reducedQueryPhase.buildResponse(hits, fetchResults, completionOptionHitsToRelease);
             hits = null;
             return res;
         } finally {
@@ -596,7 +600,11 @@ public final class SearchPhaseController {
          * Creates a new search response from the given merged hits.
          * @see #merge(boolean, ReducedQueryPhase, AtomicArray)
          */
-        public SearchResponseSections buildResponse(SearchHits hits, Collection<? extends SearchPhaseResult> fetchResults) {
+        public SearchResponseSections buildResponse(
+            SearchHits hits,
+            Collection<? extends SearchPhaseResult> fetchResults,
+            @Nullable List<SearchHit> completionOptionHitsToRelease
+        ) {
             return new SearchResponseSections(
                 hits,
                 aggregations,
@@ -606,7 +614,8 @@ public final class SearchPhaseController {
                 buildSearchProfileResults(fetchResults),
                 numReducePhases,
                 timeRangeFilterFromMillis,
-                topHitsToRelease
+                topHitsToRelease,
+                completionOptionHitsToRelease
             );
         }
 

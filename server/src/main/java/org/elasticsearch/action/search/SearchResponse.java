@@ -172,6 +172,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             shardFailures,
             clusters,
             null,
+            null,
             null
         );
     }
@@ -203,7 +204,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             shardFailures,
             clusters,
             pointInTimeId,
-            searchResponseSections.transferTopHitsToRelease()
+            searchResponseSections.transferTopHitsToRelease(),
+            searchResponseSections.transferCompletionOptionHitsToRelease()
         );
         this.timeRangeFilterFromMillis = searchResponseSections.timeRangeFilterFromMillis;
     }
@@ -224,7 +226,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         ShardSearchFailure[] shardFailures,
         Clusters clusters,
         BytesReference pointInTimeId,
-        @Nullable List<SearchHits> topHitsToRelease
+        @Nullable List<SearchHits> topHitsToRelease,
+        @Nullable List<SearchHit> completionOptionHitsToRelease
     ) {
         this.hits = hits;
         hits.incRef();
@@ -237,7 +240,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.topHitsToRelease = List.of();
         }
         this.suggest = suggest;
-        this.completionOptionHitsToRelease = suggest != null ? suggest.collectCompletionOptionHits(true) : null;
+        this.completionOptionHitsToRelease = completionOptionHitsToRelease != null
+            ? completionOptionHitsToRelease
+            : (suggest != null ? suggest.collectCompletionOptionHits(true) : null);
         this.profileResults = profileResults;
         this.timedOut = timedOut;
         this.terminatedEarly = terminatedEarly;
@@ -1269,6 +1274,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             tookInMillisSupplier.get(),
             ShardSearchFailure.EMPTY_ARRAY,
             clusters,
+            null,
             null,
             null
         );

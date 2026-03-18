@@ -104,10 +104,10 @@ public final class Suggest implements Iterable<Suggest.Suggestion<? extends Entr
     }
 
     /**
-     * Collects completion option SearchHits from this suggest. Takes 1 ref per hit when shouldIncRef is true (constructor path);
-     * when shouldIncRef is false (stream path), hits already have 1 ref from deserialization so we do not incRef.
+     * Collects completion option SearchHits from this suggest. When shouldIncRef is true (constructor/merge path),
+     * takes 1 ref per hit. When false (stream path), hits already have 1 ref from deserialization so we do not incRef.
      *
-     * @return null if there are no completion option hits; otherwise a list of hits to release when the response is released.
+     * @return null if there are no completion option hits; otherwise an immutable list of hits to release when the response is released.
      */
     public List<SearchHit> collectCompletionOptionHits(boolean shouldIncRef) {
         if (suggestions == null) {
@@ -132,27 +132,7 @@ public final class Suggest implements Iterable<Suggest.Suggestion<? extends Entr
                 hit.mustIncRef();
             }
         }
-        return hits;
-    }
-
-    /**
-     * Releases the creation ref (1 ref) on each completion option hit in this suggest.
-     * Call after building a SearchResponse from locally-built sections so the response is the sole owner.
-     */
-    public void releaseCompletionOptionCreationRefs() {
-        if (suggestions == null) {
-            return;
-        }
-        for (Suggestion<?> suggestion : suggestions) {
-            if (suggestion instanceof CompletionSuggestion completionSuggestion) {
-                for (CompletionSuggestion.Entry.Option option : completionSuggestion.getOptions()) {
-                    SearchHit hit = option.getHit();
-                    if (hit != null) {
-                        hit.decRef();
-                    }
-                }
-            }
-        }
+        return Collections.unmodifiableList(hits);
     }
 
     @Override

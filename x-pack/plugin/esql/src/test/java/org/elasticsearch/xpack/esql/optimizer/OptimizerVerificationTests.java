@@ -25,10 +25,12 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadEnrichPolicyResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -534,5 +536,30 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
              it : either move the SORT after it, or add a LIMIT before the SORT
             line 5:3: INLINE STATS [INLINE STATS s = sum(salary) BY first_name] cannot yet have an unbounded SORT [SORT languages]\
              before it : either move the SORT after it, or add a LIMIT before the SORT"""));
+    }
+
+
+    public void testEmbeddingLiteralValues() {
+        assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
+
+        var analyzer =AnalyzerTestUtils.expandedDefaultAnalyzer();
+
+        var err =
+            error(
+                """
+                    from test
+                    | EVAL embedding = EMBEDDING(first_name, "embedding-inference-id")
+                    """, analyzer
+            );
+        assertThat(err, is("2:20: First argument for EMBEDDING must be a constant string"));
+
+        err =
+            error(
+                """
+                    from test
+                    | EVAL embedding = EMBEDDING("my text", first_name)
+                    """, analyzer
+            );
+        assertThat(err, is("2:20: Second argument for EMBEDDING must be a constant string"));
     }
 }

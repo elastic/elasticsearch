@@ -11,6 +11,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -34,14 +37,13 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
  * EMBEDDING function converts text to dense vector embeddings using an inference endpoint with the {@code embedding} task type.
  */
-public class Embedding extends InferenceFunction<Embedding> implements OptionalArgument {
+public class Embedding extends InferenceFunction<Embedding> implements OptionalArgument, PostOptimizationVerificationAware {
 
     private static final String OPTION_TYPE = "type";
     private static final String OPTION_FORMAT = "format";
@@ -117,12 +119,12 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("doesn't escape the node");
+        throw new UnsupportedOperationException("Must be replaced at the coordinator node and should never be serialized");
     }
 
     @Override
     public String getWriteableName() {
-        throw new UnsupportedOperationException("doesn't escape the node");
+        throw new UnsupportedOperationException("Must be replaced at the coordinator node and should never be serialized");
     }
 
     public Expression inputText() {
@@ -148,20 +150,7 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
 
     @Override
     public boolean foldable() {
-        if (inferenceId.foldable() == false || inputText.foldable() == false) {
-            return false;
-        }
-        if (inputOptions != null) {
-            if (inputOptions.resolved() == false) {
-                return false;
-            }
-            for (Expression e : inputOptions.children()) {
-                if (e.foldable() == false) {
-                    return false;
-                }
-            }
-        }
-        return true;
+        return inferenceId.foldable() && inputText.foldable();
     }
 
     @Override
@@ -175,16 +164,16 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution textResolution = isNotNull(inputText, sourceText(), FIRST).and(isFoldable(inputText, sourceText(), FIRST))
+        TypeResolution textResolution = isNotNull(inputText, sourceText(), FIRST)
             .and(isType(inputText, DataType.KEYWORD::equals, sourceText(), FIRST, "string"));
 
         if (textResolution.unresolved()) {
             return textResolution;
         }
 
-        TypeResolution inferenceIdResolution = isNotNull(inferenceId, sourceText(), SECOND).and(
-            isType(inferenceId, DataType.KEYWORD::equals, sourceText(), SECOND, "string")
-        ).and(isFoldable(inferenceId, sourceText(), SECOND));
+        TypeResolution inferenceIdResolution = isNotNull(inferenceId, sourceText(), SECOND)
+            .and(isType(inferenceId, DataType.KEYWORD::equals, sourceText(), SECOND, "string")
+        );
 
         if (inferenceIdResolution.unresolved()) {
             return inferenceIdResolution;
@@ -215,6 +204,16 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
         }
 
         return TypeResolution.TYPE_RESOLVED;
+    }
+
+    @Override
+    public void postOptimizationVerification(Failures failures) {
+        if (inputText.foldable() == false) {
+            failures.add(Failure.fail(this, "First argument for EMBEDDING must be a constant string"));
+        }
+        if (inferenceId.foldable() == false) {
+            failures.add(Failure.fail(this, "Second argument for EMBEDDING must be a constant string"));
+        }
     }
 
     @Override

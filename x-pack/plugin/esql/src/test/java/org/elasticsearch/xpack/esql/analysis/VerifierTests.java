@@ -3313,6 +3313,26 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testEmbeddingLiteralValues() {
+        assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
+
+        query("""
+            row text = "My text value"
+            | EVAL embedding = EMBEDDING(text, ?)
+            """, EMBEDDING_INFERENCE_ID
+        );
+        query("""
+            from test
+            | EVAL embedding = EMBEDDING(CONCAT("hello", "world"), ?)
+            """, EMBEDDING_INFERENCE_ID
+        );
+        query("""
+            row text = "My text value"
+            | EVAL embedding = EMBEDDING(text, CONCAT("embedding-", "inference-id"))
+            """
+        );
+    }
+
     public void testInlineStatsInTSNotAllowed() {
         assertThat(error("TS test | INLINE STATS max(network.connections)", tsdb), equalTo("""
             1:11: INLINE STATS [INLINE STATS max(network.connections)] \

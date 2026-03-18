@@ -155,7 +155,7 @@ public class QuerySettingsTests extends ESTestCase {
             );
             EsqlStatement statement = new EsqlStatement(null, List.of(setting));
             QuerySettings.validate(statement, SNAPSHOT_CTX_WITH_CPS_DISABLED);
-            assertThat(statement.setting(def), is(nullValue()));
+            assertThat(statement.setting(def), is(ApproximationSettings.EXPLICIT_NULL));
         }
 
         assertValid(def, new MapExpression(Source.EMPTY, List.of()), equalTo(ApproximationSettings.DEFAULT));

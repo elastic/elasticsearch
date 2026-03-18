@@ -21,6 +21,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 /**
  * Evaluator for RANGE_WITHIN(value, range) -> boolean.
  * Supports (date, date_range) and (date_range, date_range) with search WITHIN/CONTAINS semantics (range is container).
+ *
+ * TODO: Move type branching out of the per-position hot path. Other functions use one evaluator per type
+ * combination (via @Evaluator annotations), so the branch is at factory/evaluator-creation time, not per row.
+ * Ideally add date_range support to @Evaluator annotations first to avoid scaffolding; then refactor to
+ * separate evaluators for (date, date_range) vs (date_range, date_range). Fine to merge as-is; prioritize
+ * this follow-up so we don't forget.
  */
 public class RangeWithinEvaluator implements ExpressionEvaluator {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RangeWithinEvaluator.class);

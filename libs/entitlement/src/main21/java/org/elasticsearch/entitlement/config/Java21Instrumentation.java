@@ -81,9 +81,7 @@ public class Java21Instrumentation implements InstrumentationConfig {
         });
 
         builder.on(MemorySegment.class, rule -> {
-            rule.calling(MemorySegment::reinterpret, Long.class)
-                .enforce(Policies::loadingNativeLibraries)
-                .elseThrowNotEntitled();
+            rule.calling(MemorySegment::reinterpret, Long.class).enforce(Policies::loadingNativeLibraries).elseThrowNotEntitled();
             rule.calling(MemorySegment::reinterpret, TypeToken.of(Arena.class), new TypeToken<Consumer<MemorySegment>>() {})
                 .enforce(Policies::loadingNativeLibraries)
                 .elseThrowNotEntitled();

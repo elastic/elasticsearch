@@ -22,8 +22,11 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -220,6 +223,52 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
             assertEquals(new BytesRef("Bob"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(1, new BytesRef()));
             assertEquals(87.3, ((DoubleBlock) page.getBlock(1)).getDouble(1), 0.001);
+        }
+    }
+
+    public void testCircuitBreaker() throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("score")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            var groups = new ArrayList<Group>();
+            for (int i = 0; i < 1000; i++) {
+                Group group = factory.newGroup();
+                group.add("id", (long) i);
+                group.add("score", i * 1.5);
+                groups.add(group);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+
+        {
+            var limitedFactory = new BlockFactory(new LimitedBreaker("test", ByteSizeValue.ofBytes(100)), this.blockFactory.bigArrays());
+            var reader = new ParquetFormatReader(limitedFactory);
+
+            // Read the schema, without creating any ESQL block. This is enough to trip the breaker.
+            assertThrows(CircuitBreakingException.class, () -> reader.metadata(storageObject));
+
+            // Sanity check
+            assertEquals(0, limitedFactory.breaker().getUsed());
+        }
+
+        {
+            var limitedFactory = new BlockFactory(new LimitedBreaker("test", ByteSizeValue.ofBytes(1000)), this.blockFactory.bigArrays());
+            var reader = new ParquetFormatReader(limitedFactory);
+
+            // Read the schema is now ok
+            var metadata = reader.metadata(storageObject);
+            assertEquals(0, limitedFactory.breaker().getUsed());
+
+            // Reading a page trips the breaker
+            assertThrows(CircuitBreakingException.class, () -> reader.read(storageObject, List.of("id", "score"), 1000).next());
+            assertEquals(0, limitedFactory.breaker().getUsed());
         }
     }
 

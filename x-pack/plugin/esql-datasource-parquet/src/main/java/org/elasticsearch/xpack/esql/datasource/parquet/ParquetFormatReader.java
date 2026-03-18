@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.ParquetReadOptions;
+import org.apache.parquet.bytes.HeapByteBufferAllocator;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnReader;
 import org.apache.parquet.column.impl.ColumnReadStoreImpl;
@@ -82,10 +83,21 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         this.blockFactory = blockFactory;
     }
 
+    /**
+     * Creates a ParquetReadOptions.Builder initialized with an allocator backed by the block factory's circuit breaker.
+     */
+    private ParquetReadOptions.Builder readOptionsBuilder() {
+        // Note: all read operations happen synchronously with the ESQL engine. If some operations
+        // change to be async, we'll have to unwrap the breaker if it's a LocalBreaker.
+        var breaker = blockFactory.breaker();
+        var allocator = new CircuitBreakerByteBufferAllocator(new HeapByteBufferAllocator(), breaker);
+        return ParquetReadOptions.builder().withAllocator(allocator);
+    }
+
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
         InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
-        ParquetReadOptions options = ParquetReadOptions.builder().build();
+        ParquetReadOptions options = readOptionsBuilder().build();
 
         try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile, options)) {
             FileMetaData fileMetaData = reader.getFileMetaData();
@@ -200,7 +212,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         int rowLimit = context.rowLimit();
 
         InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
-        ParquetReadOptions options = ParquetReadOptions.builder().build();
+        ParquetReadOptions options = readOptionsBuilder().build();
         ParquetFileReader reader = ParquetFileReader.open(parquetInputFile, options);
 
         FileMetaData fileMetaData = reader.getFileMetaData();
@@ -246,7 +258,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     @Override
     public List<long[]> discoverSplitRanges(StorageObject object) throws IOException {
         InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
-        ParquetReadOptions options = ParquetReadOptions.builder().build();
+        ParquetReadOptions options = readOptionsBuilder().build();
         try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile, options)) {
             List<BlockMetaData> rowGroups = reader.getRowGroups();
             if (rowGroups.size() <= 1) {
@@ -276,7 +288,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         ErrorPolicy errorPolicy
     ) throws IOException {
         InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
-        ParquetReadOptions options = ParquetReadOptions.builder().withRange(rangeStart, rangeEnd).build();
+        ParquetReadOptions options = readOptionsBuilder().withRange(rangeStart, rangeEnd).build();
         ParquetFileReader reader = ParquetFileReader.open(parquetInputFile, options);
 
         FileMetaData fileMetaData = reader.getFileMetaData();
@@ -493,25 +505,26 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
 
         private boolean advanceRowGroup() throws IOException {
-            PageReadStore rowGroup = reader.readNextRowGroup();
-            if (rowGroup == null) {
-                exhausted = true;
-                return false;
-            }
-            rowsRemainingInGroup = rowGroup.getRowCount();
-            ColumnReadStoreImpl store = new ColumnReadStoreImpl(
-                rowGroup,
-                new NoOpGroupConverter(projectedSchema),
-                projectedSchema,
-                createdBy
-            );
-            columnReaders = new ColumnReader[columnInfos.length];
-            for (int i = 0; i < columnInfos.length; i++) {
-                if (columnInfos[i] != null) {
-                    columnReaders[i] = store.getColumnReader(columnInfos[i].descriptor);
+            try (PageReadStore rowGroup = reader.readNextRowGroup()) {
+                if (rowGroup == null) {
+                    exhausted = true;
+                    return false;
                 }
+                rowsRemainingInGroup = rowGroup.getRowCount();
+                ColumnReadStoreImpl store = new ColumnReadStoreImpl(
+                    rowGroup,
+                    new NoOpGroupConverter(projectedSchema),
+                    projectedSchema,
+                    createdBy
+                );
+                columnReaders = new ColumnReader[columnInfos.length];
+                for (int i = 0; i < columnInfos.length; i++) {
+                    if (columnInfos[i] != null) {
+                        columnReaders[i] = store.getColumnReader(columnInfos[i].descriptor);
+                    }
+                }
+                return rowsRemainingInGroup > 0;
             }
-            return rowsRemainingInGroup > 0;
         }
 
         @Override

@@ -20,6 +20,10 @@ configurations {
   orcFixtureGenerator
 }
 
+configurations.all {
+  resolutionStrategy.force "io.airlift:aircompressor:${versions.aircompressor}"
+}
+
 // OrcFixtureGenerator lives in its own source set so TestingConventions doesn't load it
 // (it depends on Hadoop which conflicts with repository-azure on the test classpath).
 sourceSets {

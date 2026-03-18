@@ -136,12 +136,10 @@ public final class S3StorageProvider implements StorageProvider {
             return true;
         } catch (NoSuchKeyException e) {
             return false;
-        } catch (S3Exception e) {
-            if (e.statusCode() == 403) {
+        } catch (Exception e) {
+            if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
                 return existsViaRangeGet(bucket, key, path);
             }
-            throw new IOException("Failed to check existence of " + path + credentialHint(), e);
-        } catch (Exception e) {
             throw new IOException("Failed to check existence of " + path + credentialHint(), e);
         }
     }
@@ -278,22 +276,17 @@ public final class S3StorageProvider implements StorageProvider {
                 currentBatch = response.contents().iterator();
                 continuationToken = response.nextContinuationToken();
                 hasMorePages = response.isTruncated();
-            } catch (S3Exception e) {
-                if (e.statusCode() == 403) {
-                    throw new RuntimeException(
-                        "Access denied listing objects in bucket ["
-                            + bucket
-                            + "] with prefix ["
-                            + prefix
-                            + "]. "
-                            + "Verify that the configured credentials have s3:ListBucket permission on this bucket, "
-                            + "or use exact file paths instead of glob patterns.",
-                        e
-                    );
-                }
-                throw new RuntimeException("Failed to list objects in bucket [" + bucket + "] with prefix [" + prefix + "]", e);
             } catch (Exception e) {
-                throw new RuntimeException("Failed to list objects in bucket [" + bucket + "] with prefix [" + prefix + "]", e);
+                String msg = (e instanceof S3Exception s3e && s3e.statusCode() == 403)
+                    ? "Access denied listing objects in bucket ["
+                        + bucket
+                        + "] with prefix ["
+                        + prefix
+                        + "]. "
+                        + "Verify that the configured credentials have s3:ListBucket permission on this bucket, "
+                        + "or use exact file paths instead of glob patterns."
+                    : "Failed to list objects in bucket [" + bucket + "] with prefix [" + prefix + "]";
+                throw new RuntimeException(msg, e);
             }
         }
     }

@@ -107,7 +107,7 @@ public class S3Configuration {
     }
 
     public boolean isAnonymous() {
-        return "none".equalsIgnoreCase(auth);
+        return "none".equals(auth);
     }
 
     public boolean hasCredentials() {

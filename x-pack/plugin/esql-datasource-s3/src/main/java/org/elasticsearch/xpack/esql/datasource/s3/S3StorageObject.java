@@ -220,12 +220,14 @@ public final class S3StorageObject implements StorageObject {
                 }
                 cachedLength = total;
             }
-        } catch (NoSuchKeyException e) {
-            setNotFound();
         } catch (IOException e) {
             throw e;
         } catch (Exception e) {
-            throw new IOException("Failed to get metadata for " + path + " (HEAD denied, range GET also failed)", e);
+            if (e instanceof NoSuchKeyException) {
+                setNotFound();
+            } else {
+                throw new IOException("Failed to get metadata for " + path + " (HEAD denied, range GET also failed)", e);
+            }
         }
     }
 

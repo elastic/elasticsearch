@@ -18,7 +18,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.EMBEDDING_INFERENCE_ID;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -457,8 +456,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     public void testEmbeddingLiteralValues() {
         assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
 
-        var testAnalyzer = analyzer().addIndex("test", "mapping-default.json")
-            .addAnalysisTestsInferenceResolution();
+        var testAnalyzer = analyzer().addIndex("test", "mapping-default.json").addAnalysisTestsInferenceResolution();
 
         var err = error(testAnalyzer.query("""
             from test

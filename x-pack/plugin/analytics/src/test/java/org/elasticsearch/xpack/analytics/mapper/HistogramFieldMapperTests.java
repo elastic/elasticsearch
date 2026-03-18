@@ -454,8 +454,8 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         {
             expected.startArray("field");
             expected.startObject().field("values", new double[] { 1, 2, 3 }).field("counts", new int[] { 1, 2, 3 }).endObject();
-            expected.startObject().field("counts", new int[] { 4, 5, 6 }).field("values", new double[] { 4, 5, 6 }).endObject();
             expected.value(randomString);
+            expected.startObject().field("counts", new int[] { 4, 5, 6 }).field("values", new double[] { 4, 5, 6 }).endObject();
             expected.endArray();
         }
         expected.endObject();

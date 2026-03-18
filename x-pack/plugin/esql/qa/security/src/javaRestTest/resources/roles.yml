@@ -15,7 +15,7 @@ user1:
     - cluster:monitor/main
     - manage_enrich
   indices:
-    - names: ['index-user1', 'view-user1', "view", 'other-view-user1', 'index', "test-enrich" ]
+    - names: ['index-user1', 'view-user1', "view", 'other-view-user1', 'index', "test-enrich", 'first-alias' ]
       privileges:
         - read
         - write

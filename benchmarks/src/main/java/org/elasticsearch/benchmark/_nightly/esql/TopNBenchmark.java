@@ -10,9 +10,9 @@
 package org.elasticsearch.benchmark._nightly.esql;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -26,6 +26,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -57,14 +58,14 @@ import java.util.stream.Stream;
 @State(Scope.Thread)
 @Fork(1)
 public class TopNBenchmark {
+
     static {
-        LogConfigurator.configureESLogging();
+        Utils.configureBenchmarkLogging();
     }
 
-    private static final BlockFactory blockFactory = BlockFactory.getInstance(
-        new NoopCircuitBreaker("noop"),
-        BigArrays.NON_RECYCLING_INSTANCE
-    );
+    private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     private static final int BLOCK_LENGTH = 4 * 1024;
 
@@ -80,7 +81,6 @@ public class TopNBenchmark {
     private static final String AND = "_and_";
 
     static {
-        LogConfigurator.configureESLogging();
         // Smoke test all the expected values and force loading subclasses more like prod
         selfTest();
     }
@@ -128,7 +128,7 @@ public class TopNBenchmark {
     public int topCount;
 
     private static Operator operator(String data, int topCount, boolean sortedInput) {
-        String[] dataSpec = data.split("_and_");
+        String[] dataSpec = data.split(AND);
         List<ElementType> elementTypes = Arrays.stream(dataSpec).map(TopNBenchmark::elementType).toList();
         List<TopNEncoder> encoders = Arrays.stream(dataSpec).map(TopNBenchmark::encoder).toList();
         List<TopNOperator.SortOrder> sortOrders = IntStream.range(0, dataSpec.length).mapToObj(c -> sortOrder(c, dataSpec[c])).toList();
@@ -159,6 +159,7 @@ public class TopNBenchmark {
             encoders,
             sortOrders,
             8 * 1024,
+            Long.MAX_VALUE,
             sortedInput ? TopNOperator.InputOrdering.SORTED : TopNOperator.InputOrdering.NOT_SORTED,
             minCompetitive // This is optional, but doesn't add much overhead either way
         );
@@ -204,7 +205,7 @@ public class TopNBenchmark {
     }
 
     private static Page page(boolean sortedInput, String data) {
-        String[] dataSpec = data.split("_and_");
+        String[] dataSpec = data.split(AND);
         return new Page(Arrays.stream(dataSpec).map(d -> block(sortedInput, d)).toArray(Block[]::new));
     }
 
@@ -230,7 +231,7 @@ public class TopNBenchmark {
             }
             case BOOLEANS -> {
                 BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(BLOCK_LENGTH);
-                maybeSort(sortedInput, data, new Random().ints(BLOCK_LENGTH, 0, 1).boxed()).forEach(i -> builder.appendBoolean(i == 1));
+                maybeSort(sortedInput, data, new Random().ints(BLOCK_LENGTH, 0, 2).boxed()).forEach(i -> builder.appendBoolean(i == 1));
                 yield builder.build();
             }
             case BYTES_REFS -> {
@@ -268,11 +269,15 @@ public class TopNBenchmark {
             }
             operator.finish();
             List<Page> results = new ArrayList<>();
-            Page p;
-            while ((p = operator.getOutput()) != null) {
-                results.add(p);
+            try {
+                Page p;
+                while ((p = operator.getOutput()) != null) {
+                    results.add(p);
+                }
+                checkExpected(topCount, results);
+            } finally {
+                Releasables.close(results);
             }
-            checkExpected(topCount, results);
         }
     }
 }

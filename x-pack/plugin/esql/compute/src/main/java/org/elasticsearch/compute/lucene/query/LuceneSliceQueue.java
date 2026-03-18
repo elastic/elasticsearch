@@ -21,6 +21,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.PartialLeafReaderContext;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -202,6 +203,7 @@ public final class LuceneSliceQueue {
         Function<ShardContext, List<QueryAndTags>> queryFunction,
         DataPartitioning dataPartitioning,
         Function<Query, PartitioningStrategy> autoStrategy,
+        int docThresholdForAutoStrategy,
         int taskConcurrency,
         Function<ShardContext, ScoreMode> scoreModeFunction
     ) {
@@ -228,15 +230,25 @@ public final class LuceneSliceQueue {
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
-                    PartitioningStrategy partitioning = PartitioningStrategy.pick(dataPartitioning, autoStrategy, ctx, query);
+                    var partitioning = PartitioningStrategy.pick(dataPartitioning, autoStrategy, docThresholdForAutoStrategy, ctx, query);
                     partitioningStrategies.put(ctx.shardIdentifier(), partitioning);
                     List<List<PartialLeafReaderContext>> groups = partitioning.groups(ctx.searcher(), taskConcurrency);
-                    Weight weight = weight(ctx, query, scoreMode);
+                    var weightAndCache = weight(ctx, query, scoreMode, partitioning);
                     boolean queryHead = true;
                     for (List<PartialLeafReaderContext> group : groups) {
                         if (group.isEmpty() == false) {
                             final int slicePosition = nextSliceId++;
-                            slices.add(new LuceneSlice(slicePosition, queryHead, ctx, group, weight, queryAndExtra.tags));
+                            slices.add(
+                                new LuceneSlice(
+                                    slicePosition,
+                                    queryHead,
+                                    ctx,
+                                    group,
+                                    weightAndCache.weight,
+                                    queryAndExtra.tags,
+                                    weightAndCache.blockedOnCaching
+                                )
+                            );
                             queryHead = false;
                         }
                     }
@@ -271,16 +283,12 @@ public final class LuceneSliceQueue {
         },
         /**
          * See {@link DataPartitioning#SEGMENT}.
+         * Uses the searcher's {@link IndexSearcher#getSlices()} to partition segments.
          */
         SEGMENT(1) {
             @Override
             List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int taskConcurrency) {
-                IndexSearcher.LeafSlice[] gs = IndexSearcher.slices(
-                    searcher.getLeafContexts(),
-                    MAX_DOCS_PER_SLICE,
-                    MAX_SEGMENTS_PER_SLICE,
-                    false
-                );
+                IndexSearcher.LeafSlice[] gs = searcher.getSlices();
                 return Arrays.stream(gs).map(g -> Arrays.stream(g.partitions).map(PartialLeafReaderContext::new).toList()).toList();
             }
         },
@@ -323,6 +331,7 @@ public final class LuceneSliceQueue {
         private static PartitioningStrategy pick(
             DataPartitioning dataPartitioning,
             Function<Query, PartitioningStrategy> autoStrategy,
+            int docThresholdForAutoStrategy,
             ShardContext ctx,
             Query query
         ) {
@@ -330,29 +339,40 @@ public final class LuceneSliceQueue {
                 case SHARD -> PartitioningStrategy.SHARD;
                 case SEGMENT -> PartitioningStrategy.SEGMENT;
                 case DOC -> PartitioningStrategy.DOC;
-                case AUTO -> forAuto(autoStrategy, ctx, query);
+                case AUTO -> forAuto(autoStrategy, ctx, query, docThresholdForAutoStrategy);
             };
         }
 
-        /**
-         * {@link DataPartitioning#AUTO} resolves to {@link #SHARD} for indices
-         * with fewer than this many documents.
-         */
-        private static final int SMALL_INDEX_BOUNDARY = MAX_DOCS_PER_SLICE;
-
-        private static PartitioningStrategy forAuto(Function<Query, PartitioningStrategy> autoStrategy, ShardContext ctx, Query query) {
-            if (ctx.searcher().getIndexReader().maxDoc() < SMALL_INDEX_BOUNDARY) {
+        private static PartitioningStrategy forAuto(
+            Function<Query, PartitioningStrategy> autoStrategy,
+            ShardContext ctx,
+            Query query,
+            int docThresholdForAutoStrategy
+        ) {
+            if (ctx.searcher().getIndexReader().maxDoc() < docThresholdForAutoStrategy) {
                 return PartitioningStrategy.SHARD;
             }
             return autoStrategy.apply(query);
         }
     }
 
-    static Weight weight(ShardContext ctx, Query query, ScoreMode scoreMode) {
-        var searcher = ctx.searcher();
+    record WeightAndCache(Weight weight, LuceneSlice.BlockedOnCaching blockedOnCaching) {}
+
+    private static WeightAndCache weight(ShardContext ctx, Query query, ScoreMode scoreMode, PartitioningStrategy partitioning) {
         try {
-            Query actualQuery = scoreMode.needsScores() ? query : new ConstantScoreQuery(query);
-            return searcher.createWeight(actualQuery, scoreMode, 1);
+            if (scoreMode == ScoreMode.COMPLETE_NO_SCORES && partitioning == PartitioningStrategy.DOC) {
+                DocPartitioningQueryCache queryCache = new DocPartitioningQueryCache(ctx.searcher().getQueryCache());
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    ctx.searcher().getIndexReader(),
+                    ctx.searcher().getSimilarity(),
+                    queryCache,
+                    ctx.searcher().getQueryCachingPolicy(),
+                    false
+                );
+                return new WeightAndCache(searcher.createWeight(query, scoreMode, 1), queryCache::blockedOnCaching);
+            } else {
+                return new WeightAndCache(ctx.searcher().createWeight(query, scoreMode, 1), LuceneSlice.NEVER_BLOCKED);
+            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

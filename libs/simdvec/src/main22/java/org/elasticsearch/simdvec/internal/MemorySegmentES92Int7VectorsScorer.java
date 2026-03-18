@@ -20,8 +20,8 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
 
     private static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
 
-    public MemorySegmentES92Int7VectorsScorer(IndexInput in, int dimensions, int bulkSize, MemorySegment memorySegment) {
-        super(in, dimensions, bulkSize, memorySegment);
+    public MemorySegmentES92Int7VectorsScorer(IndexInput in, int dimensions, int bulkSize) {
+        super(in, dimensions, bulkSize);
     }
 
     @Override
@@ -37,23 +37,22 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
         } else {
             return panamaInt7DotProduct(q);
         }
-
     }
 
     private long nativeInt7DotProduct(byte[] q) throws IOException {
-        final MemorySegment segment = memorySegment.asSlice(in.getFilePointer(), dimensions);
-        final MemorySegment querySegment = MemorySegment.ofArray(q);
-        final long res = Similarities.dotProductI7u(segment, querySegment, dimensions);
-        in.skipBytes(dimensions);
-        return res;
+        return IndexInputUtils.withSlice(in, dimensions, this::getScratch, segment -> {
+            final MemorySegment querySegment = MemorySegment.ofArray(q);
+            return (long) Similarities.dotProductI7u(segment, querySegment, dimensions);
+        });
     }
 
     private void nativeInt7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
-        final MemorySegment scoresSegment = MemorySegment.ofArray(scores);
-        final MemorySegment segment = memorySegment.asSlice(in.getFilePointer(), dimensions * count);
-        final MemorySegment querySegment = MemorySegment.ofArray(q);
-        Similarities.dotProductI7uBulk(segment, querySegment, dimensions, count, scoresSegment);
-        in.skipBytes(dimensions * count);
+        IndexInputUtils.withSlice(in, (long) dimensions * count, this::getScratch, segment -> {
+            final MemorySegment scoresSegment = MemorySegment.ofArray(scores);
+            final MemorySegment querySegment = MemorySegment.ofArray(q);
+            Similarities.dotProductI7uBulk(segment, querySegment, dimensions, count, scoresSegment);
+            return null;
+        });
     }
 
     @Override

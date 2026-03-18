@@ -48,28 +48,28 @@ model {
     gcc(Gcc) {
       target("aarch64") {
         cppCompiler.executable = "/usr/bin/g++"
-        cppCompiler.withArguments { args -> args.addAll(["-O3", "-march=armv8-a"]) }
+        cppCompiler.withArguments { args -> args.addAll(["-std=c++17", "-O3", "-march=armv8.2-a+dotprod"]) }
       }
       target("amd64") {
         cppCompiler.executable = "/usr/bin/g++"
-        cppCompiler.withArguments { args -> args.addAll(["-O3", "-march=core-avx2"]) }
+        cppCompiler.withArguments { args -> args.addAll(["-std=c++17", "-O3", "-march=core-avx2"]) }
       }
     }
     cl(VisualCpp) {
       eachPlatform { toolchain ->
         def platform = toolchain.getPlatform()
         if (platform.name == "x64") {
-          cppCompiler.withArguments { args -> args.addAll(["/O2", "/LD", "-march=core-avx2"]) }
+          cppCompiler.withArguments { args -> args.addAll(["/std:c++17", "/O2", "/LD", "-march=core-avx2"]) }
         }
       }
     }
     clang(Clang) {
       target("aarch64") {
-        cppCompiler.withArguments { args -> args.addAll(["-O3", "-march=armv8-a"]) }
+        cppCompiler.withArguments { args -> args.addAll(["-std=c++17", "-O3", "-march=armv8.2-a+dotprod"]) }
       }
 
       target("amd64") {
-        cppCompiler.withArguments { args -> args.addAll(["-O3", "-march=core-avx2"]) }
+        cppCompiler.withArguments { args -> args.addAll(["-std=c++17", "-O3", "-march=core-avx2"]) }
       }
     }
   }

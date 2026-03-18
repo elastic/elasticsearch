@@ -115,7 +115,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput {
                 // TODO track blocks read over the wire.... Or slice them from BigArrays? Something.
                 var in = new BlockStreamInput(
                     this,
-                    new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
+                    BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST)).build()
                 );
                 Block b = Block.readTypedBlock(in);
                 cachedBlocks.put(id, b);

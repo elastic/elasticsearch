@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -142,29 +142,21 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
 
     private static final DenseVectorBinaryEvaluator DIV_DENSE_VECTOR_EVALUATOR = new DenseVectorBinaryEvaluator() {
         @Override
-        public EvalOperator.ExpressionEvaluator.Factory vectorsOperation(
+        public ExpressionEvaluator.Factory vectorsOperation(
             Source source,
-            EvalOperator.ExpressionEvaluator.Factory lhs,
-            EvalOperator.ExpressionEvaluator.Factory rhs
+            ExpressionEvaluator.Factory lhs,
+            ExpressionEvaluator.Factory rhs
         ) {
             return new DenseVectorsEvaluator.Factory(source, lhs, rhs, Div::divDenseVectorElements, OP_NAME);
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator.Factory scalarVectorOperation(
-            Source source,
-            float lhs,
-            EvalOperator.ExpressionEvaluator.Factory rhs
-        ) {
+        public ExpressionEvaluator.Factory scalarVectorOperation(Source source, float lhs, ExpressionEvaluator.Factory rhs) {
             return new DenseVectorScalarEvaluator.Factory(source, lhs, rhs, Div::divDenseVectorElements, OP_NAME);
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator.Factory vectorScalarOperation(
-            Source source,
-            EvalOperator.ExpressionEvaluator.Factory lhs,
-            float rhs
-        ) {
+        public ExpressionEvaluator.Factory vectorScalarOperation(Source source, ExpressionEvaluator.Factory lhs, float rhs) {
             return new DenseVectorScalarEvaluator.Factory(source, lhs, rhs, Div::divDenseVectorElements, OP_NAME);
         }
     };

@@ -25,12 +25,12 @@ public class MvMinLongsFromDocValuesBlockLoader extends AbstractLongsFromDocValu
     }
 
     @Override
-    protected AllReader singletonReader(TrackingNumericDocValues docValues) {
+    protected ColumnAtATimeReader singletonReader(TrackingNumericDocValues docValues) {
         return new Singleton(docValues);
     }
 
     @Override
-    protected AllReader sortedReader(TrackingSortedNumericDocValues docValues) {
+    protected ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues) {
         return new MvMinSorted(docValues);
     }
 
@@ -56,11 +56,6 @@ public class MvMinLongsFromDocValuesBlockLoader extends AbstractLongsFromDocValu
                 }
                 return builder.build();
             }
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (LongBuilder) builder);
         }
 
         private void read(int doc, LongBuilder builder) throws IOException {

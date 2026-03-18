@@ -884,7 +884,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public void updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) {
         if (mapperService != null) {
-            mapperService.updateMapping(currentIndexMetadata, newIndexMetadata);
+            // Mapper service re-parses the mapping here, potentially adding deprecation warning response headers, but we're in the process
+            // of applying the cluster state and have no way to send these warnings back to the client so we just drop them. We will have
+            // generated, and sent back, the same headers while handling the request that created this mapping in the first place.
+            try (var ignored = threadPool.getThreadContext().newStoredContext()) {
+                mapperService.updateMapping(currentIndexMetadata, newIndexMetadata);
+            }
         }
     }
 

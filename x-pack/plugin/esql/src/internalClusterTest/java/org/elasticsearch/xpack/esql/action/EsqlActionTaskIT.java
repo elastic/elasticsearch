@@ -507,14 +507,12 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                     assertThat(tasks, hasSize(1));
                     foundTasks.addAll(tasks);
                 });
-                final String sessionId = foundTasks.get(0).taskId().toString();
                 assertTrue(fetchingStarted.await(1, TimeUnit.MINUTES));
                 List<String> sinkKeys = exchangeService.sinkKeys()
                     .stream()
                     .filter(
-                        s -> s.startsWith(sessionId)
-                            // exclude the node-level reduction sink
-                            && s.endsWith("[n]") == false
+                        // exclude the node-level reduction sink
+                        s -> s.endsWith("[n]") == false
                     )
                     .toList();
                 assertThat(sinkKeys.toString(), sinkKeys.size(), equalTo(1));

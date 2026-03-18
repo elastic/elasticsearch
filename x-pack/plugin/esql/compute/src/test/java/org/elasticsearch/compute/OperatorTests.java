@@ -28,6 +28,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -184,14 +185,15 @@ public class OperatorTests extends MapperServiceTestCase {
                         "v",
                         ElementType.LONG,
                         false,
-                        f -> ValuesSourceReaderOperator.load(new LongsBlockLoader("v"))
+                        (ctx, f) -> ValuesSourceReaderOperator.load(new LongsBlockLoader("v"))
                     )
                 ),
                 new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
                     throw new UnsupportedOperationException();
                 }, 0.8)),
                 randomBoolean(),
-                0
+                0,
+                randomDoubleBetween(0.1, 10.0, true)
             );
             List<Page> pages = new ArrayList<>();
             DriverContext driverContext = driverContext();
@@ -368,9 +370,9 @@ public class OperatorTests extends MapperServiceTestCase {
     }
 
     public void testPushRoundToCountToQuery() throws IOException {
-        int firstGroupDocs = randomIntBetween(0, 10_000);
-        int secondGroupDocs = randomIntBetween(0, 10_000);
-        int thirdGroupDocs = randomIntBetween(0, 10_000);
+        int firstGroupDocs = randomIntBetween(1, 10_000);
+        int secondGroupDocs = randomIntBetween(1, 10_000);
+        int thirdGroupDocs = randomIntBetween(1, 10_000);
 
         CheckedConsumer<DirectoryReader, IOException> verifier = reader -> {
             Query firstGroupQuery = LongPoint.newRangeQuery("g", Long.MIN_VALUE, 99);
@@ -406,16 +408,14 @@ public class OperatorTests extends MapperServiceTestCase {
             // Reduce driver
             List<Page> reduceDriverPages = new ArrayList<>();
             try (CannedSourceOperator sourceOperator = new CannedSourceOperator(dataDriverPages.iterator())) {
-                HashAggregationOperator.HashAggregationOperatorFactory aggFactory =
-                    new HashAggregationOperator.HashAggregationOperatorFactory(
-                        List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
-                        AggregatorMode.INTERMEDIATE,
-                        List.of(CountAggregatorFunction.supplier().groupingAggregatorFactory(AggregatorMode.INTERMEDIATE, List.of(1, 2))),
-                        Integer.MAX_VALUE,
-                        Integer.MAX_VALUE,
-                        1.0,
-                        null
-                    );
+                HashAggregationOperator.Factory aggFactory = new HashAggregationOperator.Builder().groups(
+                    List.of(new BlockHash.GroupSpec(0, ElementType.LONG))
+                )
+                    .mode(AggregatorMode.INTERMEDIATE)
+                    .aggregators(
+                        List.of(CountAggregatorFunction.supplier().groupingAggregatorFactory(AggregatorMode.INTERMEDIATE, List.of(1, 2)))
+                    )
+                    .build();
                 DriverContext driverContext = driverContext();
                 try (
                     Driver driver = TestDriverFactory.create(
@@ -478,8 +478,8 @@ public class OperatorTests extends MapperServiceTestCase {
      * A {@link DriverContext} that won't throw {@link CircuitBreakingException}.
      */
     protected final DriverContext driverContext() {
-        var breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-        return new DriverContext(bigArrays(), BlockFactory.getInstance(breaker, bigArrays()), null);
+        var breaker = new LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
+        return new DriverContext(bigArrays(), BlockFactory.builder(bigArrays()).breaker(breaker).build(), null);
     }
 
     public static void assertDriverContext(DriverContext driverContext) {
@@ -511,6 +511,7 @@ public class OperatorTests extends MapperServiceTestCase {
             new IndexedByShardIdFromSingleton<>(searchContext),
             ctx -> queryAndTags,
             randomFrom(DataPartitioning.values()),
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
             randomIntBetween(1, 10),
             tagTypes,
             LuceneOperator.NO_LIMIT

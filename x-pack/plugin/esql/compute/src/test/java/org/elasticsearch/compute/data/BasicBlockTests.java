@@ -27,11 +27,14 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -44,8 +47,6 @@ import java.util.stream.LongStream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
-import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
-import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -55,13 +56,12 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class BasicBlockTests extends ESTestCase {
-    final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
-    final BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
+    final CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofGb(1));
+    final CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+    final BlockFactory blockFactory = BlockFactory.builder(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService))
+        .build();
 
     @Before
     @After
@@ -729,16 +729,24 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     public void testBytesRefBlockOnGeoPoints() {
-        testBytesRefBlock(() -> GEO.asWkb(GeometryTestUtils.randomPoint()), false, GEO::wkbToWkt);
+        testBytesRefBlock(
+            () -> new BytesRef(WellKnownBinary.toWKB(GeometryTestUtils.randomPoint(), ByteOrder.LITTLE_ENDIAN)),
+            false,
+            wkb -> WellKnownText.fromWKB(wkb.bytes, wkb.offset, wkb.length)
+        );
     }
 
     public void testBytesRefBlockOnCartesianPoints() {
-        testBytesRefBlock(() -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint()), false, CARTESIAN::wkbToWkt);
+        testBytesRefBlock(
+            () -> new BytesRef(WellKnownBinary.toWKB(ShapeTestUtils.randomPoint(), ByteOrder.LITTLE_ENDIAN)),
+            false,
+            wkb -> WellKnownText.fromWKB(wkb.bytes, wkb.offset, wkb.length)
+        );
     }
 
     public void testBytesRefBlockBuilderWithNulls() {
         int positionCount = randomIntBetween(0, 16 * 1024);
-        final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
+        final int builderEstimateSize = positionCount == 0 ? 0 : (randomBoolean() ? randomIntBetween(1, positionCount) : positionCount);
         try (var blockBuilder = blockFactory.newBytesRefBlockBuilder(builderEstimateSize)) {
             BytesRef[] values = new BytesRef[positionCount];
             for (int i = 0; i < positionCount; i++) {
@@ -1442,13 +1450,6 @@ public class BasicBlockTests extends ESTestCase {
         return randomFrom(Block.MvOrdering.values());
     }
 
-    // A breaker service that always returns the given breaker for getBreaker(CircuitBreaker.REQUEST)
-    static CircuitBreakerService mockBreakerService(CircuitBreaker breaker) {
-        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
-        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
-        return breakerService;
-    }
-
     public void testRefCountingArrayBlock() {
         Block block = randomArrayBlock();
         assertThat(breaker.getUsed(), greaterThan(0L));
@@ -1853,9 +1854,9 @@ public class BasicBlockTests extends ESTestCase {
     }
 
     public static Block assertDeepCopy(Block block) {
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-into", ByteSizeValue.ofGb(1));
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
-        BlockFactory into = new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
+        CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofGb(1));
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService);
+        BlockFactory into = BlockFactory.builder(bigArrays).build();
         try (Block deepCopy = block.deepCopy(into)) {
             assertThat(deepCopy, equalTo(block));
 

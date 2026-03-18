@@ -34,11 +34,8 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.parser.QueryParam;
-import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -50,8 +47,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.toQueryParams;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
@@ -2452,7 +2449,7 @@ public class VerifierTests extends ESTestCase {
         }
         for (DataType type : unsortableTypes) {
             assertEquals(
-                "2:4: change point key [key] must be sortable",
+                "2:26: CHANGE_POINT only supports sortable keys, found expression [key] type [" + type + "]",
                 error(Strings.format("ROW key=NULL::%s, value=0\n | CHANGE_POINT value ON key", type))
             );
         }
@@ -2483,11 +2480,11 @@ public class VerifierTests extends ESTestCase {
         }
         for (DataType type : nonNumericTypes) {
             assertEquals(
-                "2:4: change point value [value] must be numeric",
+                "2:17: CHANGE_POINT only supports numeric values, found expression [value] type [" + type + "]",
                 error(Strings.format("ROW key=0, value=NULL::%s\n | CHANGE_POINT value ON key", type))
             );
         }
-        assertEquals("2:4: change point value [value] must be numeric", error("ROW key=0, value=NULL\n | CHANGE_POINT value ON key"));
+        query("ROW key=0, value=NULL\n | CHANGE_POINT value ON key");
     }
 
     public void testSortByAggregate() {
@@ -3583,22 +3580,6 @@ public class VerifierTests extends ESTestCase {
         );
         assertThat(
             error(
-                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_snippets\": null})",
-                fullTextAnalyzer,
-                ParsingException.class
-            ),
-            equalTo("1:57: Invalid named parameter [\"num_snippets\":null], NULL is not supported")
-        );
-        assertThat(
-            error(
-                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": null})",
-                fullTextAnalyzer,
-                ParsingException.class
-            ),
-            equalTo("1:57: Invalid named parameter [\"num_words\":null], NULL is not supported")
-        );
-        assertThat(
-            error(
                 "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"invalid\": \"foobar\"})",
                 fullTextAnalyzer,
                 VerificationException.class
@@ -3893,6 +3874,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testLimitByNotEnabled() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         assertThat(error("""
             FROM test
             | LIMIT 5 BY languages
@@ -3917,19 +3899,6 @@ public class VerifierTests extends ESTestCase {
 
     private void query(String query, Analyzer analyzer, Object... params) {
         analyzer.analyze(TEST_PARSER.parseQuery(query, toQueryParams(params)));
-    }
-
-    private static QueryParams toQueryParams(Object... params) {
-        List<QueryParam> parameters = new ArrayList<>();
-        for (Object param : params) {
-            switch (param) {
-                case null -> parameters.add(paramAsConstant(null, null));
-                case String s -> parameters.add(paramAsConstant(null, s));
-                case Number number -> parameters.add(paramAsConstant(null, number));
-                default -> throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
-            }
-        }
-        return new QueryParams(parameters);
     }
 
     private String error(String query) {

@@ -48,7 +48,7 @@ model {
     gcc(Gcc) {
       target("aarch64") {
         cppCompiler.executable = "/usr/bin/g++"
-        cppCompiler.withArguments { args -> args.addAll(["-std=c++17", "-O3", "-march=armv8-a"]) }
+        cppCompiler.withArguments { args -> args.addAll(["-std=c++17", "-O3", "-march=armv8.2-a+dotprod"]) }
       }
       target("amd64") {
         cppCompiler.executable = "/usr/bin/g++"
@@ -65,7 +65,7 @@ model {
     }
     clang(Clang) {
       target("aarch64") {
-        cppCompiler.withArguments { args -> args.addAll(["-std=c++17", "-O3", "-march=armv8-a"]) }
+        cppCompiler.withArguments { args -> args.addAll(["-std=c++17", "-O3", "-march=armv8.2-a+dotprod"]) }
       }
 
       target("amd64") {

@@ -260,7 +260,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 ranges.add(new long[] { block.getStartingPos(), block.getTotalByteSize() });
             }
             List<long[]> coalesced = coalesceRowGroupRanges(ranges, DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES);
-            return coalesced.size() <= 1 ? List.of() : coalesced;
+            // If the whole file fits into a single macro-split target, keep row-group split granularity
+            // (i.e. return the original ranges) to preserve parallelism.
+            return coalesced.size() < 2 ? ranges : coalesced;
         }
     }
 

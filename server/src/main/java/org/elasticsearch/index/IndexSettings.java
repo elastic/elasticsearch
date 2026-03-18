@@ -2116,7 +2116,7 @@ public final class IndexSettings {
 
     public IgnoredSourceFieldMapper.IgnoredSourceFormat getIgnoredSourceFormat() {
         if (getIndexMappingSourceMode() == SourceFieldMapper.Mode.SYNTHETIC) {
-            return IgnoredSourceFieldMapper.ignoredSourceFormat(getIndexVersionCreated());
+            return IgnoredSourceFieldMapper.ignoredSourceFormat(this);
         } else {
             return IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
         }

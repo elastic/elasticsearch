@@ -78,6 +78,7 @@ all we have to decide is what to do with the time that is given to us
 
 embedding with multiple knn queries in fork
 required_capability: embedding_function
+required_capability: fork_v9
 
 FROM dense_vector_text METADATA _score
 | FORK (EVAL query_embedding = EMBEDDING("be excellent to each other", "test_embedding_inference") | WHERE KNN(text_embedding_field, query_embedding))

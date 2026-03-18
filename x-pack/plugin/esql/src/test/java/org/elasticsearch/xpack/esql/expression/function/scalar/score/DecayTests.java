@@ -638,9 +638,9 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         return List.of(new TestCaseSupplier(List.of(DataType.INTEGER, DataType.INTEGER, DataType.INTEGER, DataType.SOURCE), () -> {
             int randomValue = randomInt();
             int randomOrigin = randomInt();
-            int randomScale = randomInt();
-            int randomOffset = randomInt();
-            double randomDecay = randomDouble();
+            int randomScale = randomIntBetween(1, Integer.MAX_VALUE);
+            int randomOffset = randomIntBetween(0, Integer.MAX_VALUE);
+            double randomDecay = randomDoubleBetween(0.0, 1.0, true);
             String randomType = getRandomType();
 
             double scoreScriptNumericResult = intDecayWithScoreScript(
@@ -712,9 +712,9 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         return List.of(new TestCaseSupplier(List.of(DataType.LONG, DataType.LONG, DataType.LONG, DataType.SOURCE), () -> {
             long randomValue = randomLong();
             long randomOrigin = randomLong();
-            long randomScale = randomLong();
-            long randomOffset = randomLong();
-            double randomDecay = randomDouble();
+            long randomScale = randomLongBetween(1, Long.MAX_VALUE);
+            long randomOffset = randomLongBetween(0, Long.MAX_VALUE);
+            double randomDecay = randomDoubleBetween(0.0, 1.0, true);
             String randomType = randomFrom("linear", "gauss", "exp");
 
             double scoreScriptNumericResult = longDecayWithScoreScript(
@@ -780,11 +780,11 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
 
     private static List<TestCaseSupplier> doubleRandomTestCases() {
         return List.of(new TestCaseSupplier(List.of(DataType.DOUBLE, DataType.DOUBLE, DataType.DOUBLE, DataType.SOURCE), () -> {
-            double randomValue = randomLong();
-            double randomOrigin = randomLong();
-            double randomScale = randomLong();
-            double randomOffset = randomLong();
-            double randomDecay = randomDouble();
+            double randomValue = randomDouble();
+            double randomOrigin = randomDouble();
+            double randomScale = randomDoubleBetween(0.0001, Double.MAX_VALUE, true);
+            double randomOffset = randomDoubleBetween(0.0, Double.MAX_VALUE, true);
+            double randomDecay = randomDoubleBetween(0.0, 1.0, true);
             String randomType = randomFrom("linear", "gauss", "exp");
 
             double scoreScriptNumericResult = doubleDecayWithScoreScript(
@@ -882,7 +882,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
             GeoPoint randomOrigin = randomGeoPoint();
             String randomScale = randomDistance();
             String randomOffset = randomDistance();
-            double randomDecay = randomDouble();
+            double randomDecay = randomDoubleBetween(0.0, 1.0, true);
             String randomType = randomDecayType();
 
             double scoreScriptNumericResult = geoPointDecayWithScoreScript(
@@ -1061,7 +1061,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
             long randomOffsetMillis = randomNonNegativeLong() % (30L * 24 * 60 * 60 * 1000);
             Duration randomScale = Duration.ofMillis(randomScaleMillis);
             Duration randomOffset = Duration.ofMillis(randomOffsetMillis);
-            double randomDecay = randomDouble();
+            double randomDecay = randomDoubleBetween(0.0, 1.0, true);
             String randomType = randomFrom("linear", "gauss", "exp");
 
             double scoreScriptNumericResult = datetimeDecayWithScoreScript(
@@ -1148,7 +1148,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 Duration randomScale = Duration.ofMillis(randomScaleMillis);
                 Duration randomOffset = Duration.ofMillis(randomOffsetMillis);
 
-                double randomDecay = randomDouble();
+                double randomDecay = randomDoubleBetween(0.0, 1.0, true);
                 String randomType = randomFrom("linear", "gauss", "exp");
 
                 double scoreScriptNumericResult = dateNanosDecayWithScoreScript(

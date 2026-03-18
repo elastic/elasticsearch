@@ -55,7 +55,7 @@ public abstract class EarlyAccessCatalogJdkToolchainResolver extends AbstractCus
 
     @FunctionalInterface
     interface EarlyAccessJdkBuildResolver {
-        PreReleaseJdkBuild findLatestEABuild(JavaLanguageVersion languageVersion);
+        Optional<PreReleaseJdkBuild> findLatestEABuild(JavaLanguageVersion languageVersion);
     }
 
     // allow overriding for testing
@@ -64,24 +64,26 @@ public abstract class EarlyAccessCatalogJdkToolchainResolver extends AbstractCus
     public record PreReleaseJdkBuild(JavaLanguageVersion languageVersion, int buildNumber, String type) implements JdkBuild {
         @Override
         public String url(String os, String arch, String extension) {
-            // example:
+            // examples:
             // https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26-ea+6/openjdk-26-ea+6_linux-aarch64_bin.tar.gz
+            // https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26-rc+30/openjdk-26_linux-x64_bin.tar.gz
+            // https://builds.es-jdk-archive.com/jdks/openjdk/26/openjdk-26/openjdk-26_linux-x64_bin.tar.gz
 
-            // RCs don't attach a special suffix to the artifact name
-            String releaseTypeSuffix = type.equals("ea") ? "-" + type + "+" + buildNumber : "";
+            // EA builds include the type+build in both folder and artifact name
+            // RC builds include type+build in folder only
+            // GA builds use just the version for both folder and artifact
+            String folderSuffix = type.equals("ga") ? "" : "-" + type + "+" + buildNumber;
+            String artifactSuffix = type.equals("ea") ? "-" + type + "+" + buildNumber : "";
             return "https://builds.es-jdk-archive.com/jdks/openjdk/"
                 + languageVersion.asInt()
                 + "/"
                 + "openjdk-"
                 + languageVersion.asInt()
-                + "-"
-                + type
-                + "+"
-                + buildNumber
+                + folderSuffix
                 + "/"
                 + "openjdk-"
                 + languageVersion.asInt()
-                + releaseTypeSuffix
+                + artifactSuffix
                 + "_"
                 + os
                 + "-"
@@ -132,7 +134,7 @@ public abstract class EarlyAccessCatalogJdkToolchainResolver extends AbstractCus
         }
 
         JavaLanguageVersion languageVersion = javaToolchainSpec.getLanguageVersion().get();
-        return Optional.of(earlyAccessJdkBuildResolver.findLatestEABuild(languageVersion));
+        return earlyAccessJdkBuildResolver.findLatestEABuild(languageVersion);
     }
 
     static List<PreReleaseJdkBuild> findRecentPreReleaseBuild(JavaLanguageVersion languageVersion) {
@@ -142,7 +144,10 @@ public abstract class EarlyAccessCatalogJdkToolchainResolver extends AbstractCus
                 ObjectMapper mapper = new ObjectMapper();
                 JsonNode node = mapper.readTree(is);
                 ObjectNode majors = (ObjectNode) node.get("majors");
-                ObjectNode perVersion = (ObjectNode) majors.get("" + languageVersion.asInt());
+                JsonNode perVersion = majors.get("" + languageVersion.asInt());
+                if (perVersion == null) {
+                    return List.of();
+                }
                 ArrayNode buildsNode = (ArrayNode) perVersion.get("builds");
                 List<JsonNode> buildsList = new ArrayList<>();
                 buildsNode.forEach(buildsList::add);
@@ -164,15 +169,14 @@ public abstract class EarlyAccessCatalogJdkToolchainResolver extends AbstractCus
         }
     }
 
-    public static PreReleaseJdkBuild findPreReleaseBuild(JavaLanguageVersion languageVersion, int buildNumber) {
+    public static Optional<PreReleaseJdkBuild> findPreReleaseBuild(JavaLanguageVersion languageVersion, int buildNumber) {
         return findRecentPreReleaseBuild(languageVersion).stream()
             .filter(preReleaseJdkBuild -> preReleaseJdkBuild.buildNumber == buildNumber)
-            .max(Comparator.comparingInt(PreReleaseJdkBuild::buildNumber))
-            .get();
+            .max(Comparator.comparingInt(PreReleaseJdkBuild::buildNumber));
     }
 
-    public static PreReleaseJdkBuild findLatestPreReleaseBuild(JavaLanguageVersion languageVersion) {
-        return findRecentPreReleaseBuild(languageVersion).stream().max(Comparator.comparingInt(PreReleaseJdkBuild::buildNumber)).get();
+    public static Optional<PreReleaseJdkBuild> findLatestPreReleaseBuild(JavaLanguageVersion languageVersion) {
+        return findRecentPreReleaseBuild(languageVersion).stream().max(Comparator.comparingInt(PreReleaseJdkBuild::buildNumber));
     }
 
 }

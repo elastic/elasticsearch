@@ -1180,7 +1180,8 @@ public class Security extends Plugin
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver
+            projectRoutingResolver,
+            contextConstrainedActions::get
         );
 
         components.add(nativeRolesStore); // used by roles actions

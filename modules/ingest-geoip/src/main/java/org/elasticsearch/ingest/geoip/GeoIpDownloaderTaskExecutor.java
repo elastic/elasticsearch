@@ -257,7 +257,7 @@ public final class GeoIpDownloaderTaskExecutor extends ToggleablePersistentTasks
             }
         }
         // Cleanup
-        for (var project : atLeastOneGeoIpProcessorByProject.keySet()) {
+        for (var project : tasks.keySet()) {
             if (projects.containsKey(project) == false
                 || PersistentTasksCustomMetadata.getTaskWithId(projects.get(project), getProjectTaskId(project)) == null) {
                 tasks.remove(project);

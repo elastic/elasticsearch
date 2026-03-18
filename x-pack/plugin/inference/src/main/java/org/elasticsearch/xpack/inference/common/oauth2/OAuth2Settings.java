@@ -128,8 +128,8 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
     public ValidationResult<OAuth2Settings> updateServiceSettings(Map<String, Object> map, ValidationException validationException) {
         var updated = fromMapForUpdate(map, validationException);
 
-        var clientIdToUpdate = updated.clientId() != null ? updated.clientId() : clientId;
-        var scopesToUpdate = updated.scopes() != null ? updated.scopes() : scopes;
+        var clientIdToUpdate = updated.clientId() != null ? updated.clientId() : this.clientId;
+        var scopesToUpdate = updated.scopes() != null ? updated.scopes() : this.scopes;
 
         return validateFields(clientIdToUpdate, scopesToUpdate, validationException);
     }

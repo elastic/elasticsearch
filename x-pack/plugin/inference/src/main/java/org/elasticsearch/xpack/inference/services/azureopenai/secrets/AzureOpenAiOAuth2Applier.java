@@ -56,24 +56,18 @@ public record AzureOpenAiOAuth2Applier(
             clientSecretCredential.getToken(tokenRequestContext).subscribe(token -> {
                 request.setHeader(HttpHeaders.AUTHORIZATION, bearerToken(token.getToken()));
                 listener.onResponse(request);
-            },
-                e -> listener.onFailure(
-                    new ElasticsearchException(
-                        Strings.format("Failed to retrieve access token for Azure OpenAI request for inference id: [%s]", inferenceId),
-                        e
-                    )
-                )
-            );
+            }, e -> onFailure(listener, e));
         } catch (Exception e) {
-            listener.onFailure(
-                new ElasticsearchException(
-                    Strings.format(
-                        "Failed attempting to retrieve access token for Azure OpenAI request for inference id: [%s]",
-                        inferenceId
-                    ),
-                    e
-                )
-            );
+            onFailure(listener, e);
         }
+    }
+
+    private void onFailure(ActionListener<HttpRequestBase> listener, Throwable e) {
+        listener.onFailure(
+            new ElasticsearchException(
+                Strings.format("Failed attempting to retrieve access token for Azure OpenAI request for inference id: [%s]", inferenceId),
+                e
+            )
+        );
     }
 }

@@ -61,7 +61,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends AzureOpenAiServiceSett
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_440);
 
     private final Integer dimensions;
-    private final Boolean dimensionsSetByUser;
+    private final boolean dimensionsSetByUser;
     private final Integer maxInputTokens;
     private final SimilarityMeasure similarity;
 
@@ -76,7 +76,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends AzureOpenAiServiceSett
             validationException
         );
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Boolean dimensionsSetByUser = extractOptionalBoolean(map, ServiceFields.DIMENSIONS_SET_BY_USER, validationException);
+        var dimensionsSetByUser = extractOptionalBoolean(map, ServiceFields.DIMENSIONS_SET_BY_USER, validationException);
 
         switch (context) {
             case REQUEST -> {
@@ -112,7 +112,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends AzureOpenAiServiceSett
         String deploymentId,
         String apiVersion,
         @Nullable Integer dimensions,
-        Boolean dimensionsSetByUser,
+        boolean dimensionsSetByUser,
         @Nullable Integer maxInputTokens,
         @Nullable SimilarityMeasure similarity,
         @Nullable RateLimitSettings rateLimitSettings
@@ -125,7 +125,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends AzureOpenAiServiceSett
         String deploymentId,
         String apiVersion,
         @Nullable Integer dimensions,
-        Boolean dimensionsSetByUser,
+        boolean dimensionsSetByUser,
         @Nullable Integer maxInputTokens,
         @Nullable SimilarityMeasure similarity,
         @Nullable RateLimitSettings rateLimitSettings,
@@ -139,7 +139,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends AzureOpenAiServiceSett
             oAuth2Settings
         );
         this.dimensions = dimensions;
-        this.dimensionsSetByUser = Objects.requireNonNull(dimensionsSetByUser);
+        this.dimensionsSetByUser = dimensionsSetByUser;
         this.maxInputTokens = maxInputTokens;
         this.similarity = similarity;
     }
@@ -147,7 +147,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends AzureOpenAiServiceSett
     private AzureOpenAiEmbeddingsServiceSettings(
         CommonFields commonFields,
         @Nullable Integer dimensions,
-        Boolean dimensionsSetByUser,
+        boolean dimensionsSetByUser,
         @Nullable Integer maxInputTokens,
         @Nullable SimilarityMeasure similarity
     ) {
@@ -183,6 +183,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends AzureOpenAiServiceSett
         return dimensions;
     }
 
+    @Override
     public Boolean dimensionsSetByUser() {
         return dimensionsSetByUser;
     }

@@ -39,12 +39,7 @@ public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable 
 
     public static final String TENANT_ID_FIELD = "tenant_id";
 
-    public static final String REQUIRED_FIELDS = String.join(
-        ", ",
-        OAuth2Settings.CLIENT_ID_FIELD,
-        TENANT_ID_FIELD,
-        OAuth2Settings.SCOPES_FIELD
-    );
+    public static final String REQUIRED_FIELDS = String.join(", ", OAuth2Settings.REQUIRED_FIELDS, TENANT_ID_FIELD);
 
     public static final String REQUIRED_FIELDS_DESCRIPTION = Strings.format("OAuth2 requires the fields [%s], to be set.", REQUIRED_FIELDS);
 
@@ -186,8 +181,7 @@ public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable 
         return Objects.hash(oauth2Settings, tenantId);
     }
 
-    public static Map<String, SettingsConfiguration> getAzureOAuth2Configurations() {
-        var supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
+    public static Map<String, SettingsConfiguration> configurations(EnumSet<TaskType> supportedTaskTypes) {
         var config = new HashMap<>(
             Map.of(
                 TENANT_ID_FIELD,

@@ -126,9 +126,7 @@ public abstract class AzureOpenAiServiceSettings extends FilteredXContentObject 
     public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         if (oAuth2Settings == null) {
             if (AzureOpenAiOAuth2Settings.hasAnyOAuth2Fields(serviceSettings)) {
-                var validationException = new ValidationException();
-                validationException.addValidationError(OAUTH2_SETTINGS_NOT_CONFIGURED_ERROR);
-                throw validationException;
+                throw new ValidationException().addValidationError(OAUTH2_SETTINGS_NOT_CONFIGURED_ERROR);
             }
             return this;
         }

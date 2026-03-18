@@ -30,6 +30,10 @@ public class AzureOpenAiEntraIdApiKeySecrets extends AzureOpenAiSecretSettings {
 
     public AzureOpenAiEntraIdApiKeySecrets(@Nullable SecureString apiKey, @Nullable SecureString entraId) {
         Objects.requireNonNullElse(apiKey, entraId);
+
+        if (apiKey != null && entraId != null) {
+            throw new IllegalArgumentException("Only one of apiKey or entraId can be set, but both were provided");
+        }
         this.apiKey = apiKey;
         this.entraId = entraId;
     }

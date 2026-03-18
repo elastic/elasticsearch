@@ -51,6 +51,16 @@ public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSeriali
         }
     }
 
+    public void testOnlyOneSecretFieldSet() {
+        expectThrows(NullPointerException.class, () -> new AzureOpenAiEntraIdApiKeySecrets(null, null));
+
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new AzureOpenAiEntraIdApiKeySecrets(new SecureString("apiKey".toCharArray()), new SecureString("entraId".toCharArray()))
+        );
+        assertThat(exception.getMessage(), is("Only one of apiKey or entraId can be set, but both were provided"));
+    }
+
     public void testNewSecretSettingsApiKey() {
         var initialSettings = createRandomEntraIdApiKeySecrets();
         var apiKey = randomSecureStringOfLength(15);

@@ -32,10 +32,9 @@ public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretSettings {
     public static final String NAME = "azure_openai_oauth2_client_secret";
 
     public static final String USE_CLIENT_SECRET_ERROR = Strings.format(
-        "To use OAuth2 the [%s] field must be set, " + "either remove fields [%s], or provide the [%s] field.",
+        "To use OAuth2 the [%1$s] field must be set, either remove fields [%2$s], or provide the [%1$s] field.",
         CLIENT_SECRET_FIELD,
-        REQUIRED_FIELDS,
-        CLIENT_SECRET_FIELD
+        REQUIRED_FIELDS
     );
 
     private final OAuth2Secrets secrets;
@@ -88,11 +87,10 @@ public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretSettings {
         return Objects.hash(secrets);
     }
 
-    public static Map<String, SettingsConfiguration> getClientSecretConfiguration() {
+    public static Map<String, SettingsConfiguration> getClientSecretConfiguration(EnumSet<TaskType> supportedTaskTypes) {
         return Map.of(
             CLIENT_SECRET_FIELD,
-            new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION))
-                .setDescription(EXACTLY_ONE_CONFIG_DESCRIPTION)
+            new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(EXACTLY_ONE_CONFIG_DESCRIPTION)
                 .setLabel("OAuth2 Client Secret")
                 .setRequired(false)
                 .setSensitive(true)

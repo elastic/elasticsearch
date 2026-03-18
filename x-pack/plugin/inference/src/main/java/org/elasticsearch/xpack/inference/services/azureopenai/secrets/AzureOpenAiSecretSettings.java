@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.azureopenai.secrets;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
@@ -82,39 +81,30 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
         return new AzureOpenAiOAuth2Secrets(clientSecret);
     }
 
-    public static class Configuration {
-        public static Map<String, SettingsConfiguration> get() {
-            return configuration.getOrCompute();
-        }
-
-        private static final LazyInitializable<Map<String, SettingsConfiguration>, RuntimeException> configuration =
-            new LazyInitializable<>(() -> {
-                var configurationMap = new HashMap<String, SettingsConfiguration>();
-                configurationMap.put(
-                    API_KEY,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION))
-                        .setDescription(EXACTLY_ONE_CONFIG_DESCRIPTION)
-                        .setLabel("API Key")
-                        .setRequired(false)
-                        .setSensitive(true)
-                        .setUpdatable(true)
-                        .setType(SettingsConfigurationFieldType.STRING)
-                        .build()
-                );
-                configurationMap.put(
-                    ENTRA_ID,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION))
-                        .setDescription(EXACTLY_ONE_CONFIG_DESCRIPTION)
-                        .setLabel("Entra ID")
-                        .setRequired(false)
-                        .setSensitive(true)
-                        .setUpdatable(true)
-                        .setType(SettingsConfigurationFieldType.STRING)
-                        .build()
-                );
-                configurationMap.putAll(AzureOpenAiOAuth2Secrets.getClientSecretConfiguration());
-                return Collections.unmodifiableMap(configurationMap);
-            });
+    public static Map<String, SettingsConfiguration> configurations(EnumSet<TaskType> supportedTaskTypes) {
+        var configurationMap = new HashMap<String, SettingsConfiguration>();
+        configurationMap.put(
+            API_KEY,
+            new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(EXACTLY_ONE_CONFIG_DESCRIPTION)
+                .setLabel("API Key")
+                .setRequired(false)
+                .setSensitive(true)
+                .setUpdatable(true)
+                .setType(SettingsConfigurationFieldType.STRING)
+                .build()
+        );
+        configurationMap.put(
+            ENTRA_ID,
+            new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(EXACTLY_ONE_CONFIG_DESCRIPTION)
+                .setLabel("Entra ID")
+                .setRequired(false)
+                .setSensitive(true)
+                .setUpdatable(true)
+                .setType(SettingsConfigurationFieldType.STRING)
+                .build()
+        );
+        configurationMap.putAll(AzureOpenAiOAuth2Secrets.getClientSecretConfiguration(supportedTaskTypes));
+        return Collections.unmodifiableMap(configurationMap);
     }
 
     @Override

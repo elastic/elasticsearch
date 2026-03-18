@@ -371,8 +371,8 @@ public class AzureOpenAiService extends SenderService<AzureOpenAiModel> {
                         .build()
                 );
 
-                configurationMap.putAll(AzureOpenAiSecretSettings.Configuration.get());
-                configurationMap.putAll(AzureOpenAiOAuth2Settings.getAzureOAuth2Configurations());
+                configurationMap.putAll(AzureOpenAiSecretSettings.configurations(SUPPORTED_TASK_TYPES));
+                configurationMap.putAll(AzureOpenAiOAuth2Settings.configurations(SUPPORTED_TASK_TYPES));
                 configurationMap.putAll(
                     RateLimitSettings.toSettingsConfigurationWithDescription(
                         "The azureopenai service sets a default number of requests allowed per minute depending on the task type.",

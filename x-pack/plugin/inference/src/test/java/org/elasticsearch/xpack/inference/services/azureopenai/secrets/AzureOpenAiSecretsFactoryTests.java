@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiOAuth2SettingsTests;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionServiceSettingsTests;
 import org.junit.After;
 import org.junit.Before;
@@ -23,6 +24,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils.API_KEY_HEADER;
+import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiOAuth2Secrets.USE_CLIENT_SECRET_ERROR;
 import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretsFactory.NOOP_SECRETS_APPLIER;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -113,6 +115,36 @@ public class AzureOpenAiSecretsFactoryTests extends ESTestCase {
             )
         );
 
-        assertThat(thrownException.getMessage(), containsString("OAuth2 requires the fields [client_id, tenant_id, scopes], to be set."));
+        assertThat(thrownException.getMessage(), containsString("OAuth2 requires the fields [client_id, scopes, tenant_id], to be set."));
+    }
+
+    public void testCreateSecretsApplier_ApiKey_ThrowsException_WhenOAuth2SettingsArePresent() {
+        var secretSettings = new AzureOpenAiEntraIdApiKeySecrets(randomSecureStringOfLength(10), null);
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AzureOpenAiSecretsFactory.createSecretsApplier(
+                TEST_INFERENCE_ID,
+                threadPool,
+                secretSettings,
+                AzureOpenAiCompletionServiceSettingsTests.createRandom(AzureOpenAiOAuth2SettingsTests.createRandom())
+            )
+        );
+
+        assertThat(thrownException.getMessage(), containsString(USE_CLIENT_SECRET_ERROR));
+    }
+
+    public void testCreateSecretsApplier_EntraId_ThrowsException_WhenOAuth2SettingsArePresent() {
+        var secretSettings = new AzureOpenAiEntraIdApiKeySecrets(null, randomSecureStringOfLength(10));
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AzureOpenAiSecretsFactory.createSecretsApplier(
+                TEST_INFERENCE_ID,
+                threadPool,
+                secretSettings,
+                AzureOpenAiCompletionServiceSettingsTests.createRandom(AzureOpenAiOAuth2SettingsTests.createRandom())
+            )
+        );
+
+        assertThat(thrownException.getMessage(), containsString(USE_CLIENT_SECRET_ERROR));
     }
 }

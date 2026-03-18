@@ -1,0 +1,16 @@
+{
+  "properties": {
+    "date_range": {
+      "type": "date_range"
+    },
+    "decade": {
+      "type": "keyword"
+    },
+    "description": {
+      "type": "keyword"
+    },
+    "join_key": {
+      "type": "integer"
+    }
+  }
+}

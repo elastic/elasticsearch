@@ -1,0 +1,10 @@
+{
+  "properties": {
+    "some_date": {
+      "type": "date"
+    },
+    "join_key": {
+      "type": "integer"
+    }
+  }
+}

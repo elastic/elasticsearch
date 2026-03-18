@@ -1,0 +1,2 @@
+lookup_range:date_range,join_key:integer
+1952-01-01..1954-01-01,1

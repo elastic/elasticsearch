@@ -251,6 +251,206 @@ date:date                     | in_june:boolean | in_july:boolean
 2024-06-15T12:00:00.000Z      | true            | false
 ;
 
+// RANGE_WITHIN with LOOKUP JOIN: date from lookup, date_range from FROM (existing indices only).
+// join_key=1 matches two rows in multi_column_joinable_lookup, so LOOKUP JOIN emits multi-value warnings.
+rangeWithinDateFromLookupRangeFromFrom
+required_capability: range_within
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM decades
+| EVAL join_key = 1
+| LOOKUP JOIN multi_column_joinable_lookup ON join_key == id_int
+| WHERE RANGE_WITHIN(date, date_range)
+| KEEP date_range, decade, description, date
+| SORT decade, date
+;
+
+warningRegex: evaluation of \[LOOKUP JOIN multi_column_joinable_lookup ON join_key == id_int\] failed, treating result as null
+warningRegex: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+date_range:date_range                              | decade:integer | description:keyword      | date:date
+1980-01-01T00:00:00.000Z..1989-12-31T23:59:59.999Z | 1980           | Radical Eighties          | 1980-02-29T23:59:59.999Z
+1990-01-01T00:00:00.000Z..1999-12-31T23:59:59.999Z | 1990           | Nineties Nostalgia        | 1999-05-02T00:00:01.000Z
+;
+
+###############################################
+# RANGE_WITHIN with LOOKUP JOIN (date_ranges, decades_main, lookup_with_date, lookup_with_date_range)
+###############################################
+
+// Date from FROM, date_range from LOOKUP
+rangeWithinDateFromFromRangeFromLookup
+required_capability: range_within
+required_capability: join_lookup_v12
+
+FROM employees
+| EVAL join_key = 1
+| LOOKUP JOIN date_ranges ON join_key
+| WHERE RANGE_WITHIN(hire_date, date_range)
+| KEEP emp_no, hire_date, description
+| SORT emp_no, description
+| LIMIT 8
+;
+
+ignoreOrder:true
+emp_no:integer | hire_date:date                | description:keyword
+10001          | 1986-06-26T00:00:00.000Z      | 1986
+10002          | 1985-11-21T00:00:00.000Z      | 1985
+10003          | 1986-08-28T00:00:00.000Z      | 1986
+10004          | 1986-12-01T00:00:00.000Z      | 1986
+10009          | 1985-02-18T00:00:00.000Z      | 1985
+10013          | 1985-10-20T00:00:00.000Z      | 1985
+10014          | 1987-03-11T00:00:00.000Z      | 1987
+10015          | 1987-07-02T00:00:00.000Z      | 1987
+;
+
+// Literal date + date_range from LOOKUP (1985-06-15 in 1985 range)
+rangeWithinLiteralDateLookupRange1985
+required_capability: range_within
+required_capability: join_lookup_v12
+
+FROM employees
+| EVAL join_key = 1
+| LOOKUP JOIN date_ranges ON join_key
+| WHERE RANGE_WITHIN(TO_DATETIME("1985-06-15"), date_range)
+| KEEP emp_no, description
+| SORT emp_no
+| LIMIT 5
+;
+
+ignoreOrder:true
+emp_no:integer | description:keyword
+10001          | 1985
+10002          | 1985
+10003          | 1985
+10004          | 1985
+10005          | 1985
+;
+
+// Literal date + date_range from LOOKUP (1986-06-15 in 1986 range)
+rangeWithinLiteralDateLookupRange1986
+required_capability: range_within
+required_capability: join_lookup_v12
+
+FROM employees
+| EVAL join_key = 1
+| LOOKUP JOIN date_ranges ON join_key
+| WHERE RANGE_WITHIN(TO_DATETIME("1986-06-15"), date_range)
+| KEEP emp_no, description
+| SORT emp_no
+| LIMIT 5
+;
+
+ignoreOrder:true
+emp_no:integer | description:keyword
+10001          | 1986
+10002          | 1986
+10003          | 1986
+10004          | 1986
+10005          | 1986
+;
+
+// Date from LOOKUP, date_range from FROM (decades_main + lookup_with_date)
+rangeWithinDateFromLookupRangeFromFromDecadesMain
+required_capability: range_within
+required_capability: join_lookup_v12
+
+FROM decades_main
+| LOOKUP JOIN lookup_with_date ON join_key
+| WHERE RANGE_WITHIN(some_date, date_range)
+| KEEP date_range, some_date
+;
+
+date_range:date_range                              | some_date:date
+1950-01-01T00:00:00.000Z..1959-12-31T23:59:59.999Z | 1955-06-15T00:00:00.000Z
+;
+
+// date_range from FROM, date_range from LOOKUP (decades_main + lookup_with_date_range)
+rangeWithinRangeFromFromRangeFromLookup
+required_capability: range_within
+required_capability: join_lookup_v12
+
+FROM decades_main
+| LOOKUP JOIN lookup_with_date_range ON join_key
+| WHERE RANGE_WITHIN(date_range, lookup_range)
+| KEEP date_range, lookup_range
+;
+
+date_range:date_range                              | lookup_range:date_range
+1950-01-01T00:00:00.000Z..1959-12-31T23:59:59.999Z | 1952-01-01T00:00:00.000Z..1953-12-31T23:59:59.999Z
+;
+
+// Multiple ranges in WHERE (OR)
+rangeWithinMultipleRangesInWhere
+required_capability: range_within
+required_capability: join_lookup_v12
+
+FROM employees
+| EVAL join_key = 1
+| LOOKUP JOIN date_ranges ON join_key
+| WHERE RANGE_WITHIN(TO_DATETIME("1985-06-15"), date_range) OR RANGE_WITHIN(TO_DATETIME("1988-06-15"), date_range)
+| KEEP emp_no, description
+| SORT emp_no, description
+| LIMIT 6
+;
+
+ignoreOrder:true
+emp_no:integer | description:keyword
+10001          | 1985
+10001          | 1988
+10002          | 1985
+10002          | 1988
+10003          | 1985
+10003          | 1988
+;
+
+// Boundary: 1985-01-01 at start of 1985 range
+rangeWithinBoundaryCondition
+required_capability: range_within
+required_capability: join_lookup_v12
+
+FROM employees
+| EVAL join_key = 1
+| LOOKUP JOIN date_ranges ON join_key
+| WHERE RANGE_WITHIN(TO_DATETIME("1985-01-01"), date_range)
+| KEEP emp_no, description
+| SORT emp_no
+| LIMIT 3
+;
+
+ignoreOrder:true
+emp_no:integer | description:keyword
+10001          | 1985
+10002          | 1985
+10003          | 1985
+;
+
+// Date from FROM with literal range (join still multiplies rows; filter by literal range)
+rangeWithinLeftSideDateLiteralRange
+required_capability: range_within
+required_capability: join_lookup_v12
+
+FROM employees
+| EVAL join_key = 1
+| LOOKUP JOIN date_ranges ON join_key
+| WHERE RANGE_WITHIN(hire_date, TO_DATE_RANGE("1986-01-01T00:00:00Z..1987-01-01T00:00:00Z"))
+| KEEP emp_no, hire_date, description
+| SORT emp_no, description
+| LIMIT 8
+;
+
+ignoreOrder:true
+emp_no:integer | hire_date:date                | description:keyword
+10001          | 1986-06-26T00:00:00.000Z      | 1985
+10001          | 1986-06-26T00:00:00.000Z      | 1986
+10001          | 1986-06-26T00:00:00.000Z      | 1987
+10001          | 1986-06-26T00:00:00.000Z      | 1988
+10003          | 1986-08-28T00:00:00.000Z      | 1985
+10003          | 1986-08-28T00:00:00.000Z      | 1986
+10003          | 1986-08-28T00:00:00.000Z      | 1987
+10003          | 1986-08-28T00:00:00.000Z      | 1988
+;
+
 ###############################################
 # range_min / range_max tests
 ###############################################

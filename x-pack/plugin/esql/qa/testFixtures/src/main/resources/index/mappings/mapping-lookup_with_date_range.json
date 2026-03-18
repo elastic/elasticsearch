@@ -1,0 +1,10 @@
+{
+  "properties": {
+    "lookup_range": {
+      "type": "date_range"
+    },
+    "join_key": {
+      "type": "integer"
+    }
+  }
+}

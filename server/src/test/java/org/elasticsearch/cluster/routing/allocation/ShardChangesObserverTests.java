@@ -161,17 +161,23 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         final var observer = new ShardChangesObserver(meterRegistry, nowMillis::get);
 
         final var reason = randomFrom(UnassignedInfo.Reason.values());
+        // delayed=true is only valid for NODE_LEFT and NODE_RESTARTING
+        final boolean delayed = (reason == UnassignedInfo.Reason.NODE_LEFT || reason == UnassignedInfo.Reason.NODE_RESTARTING)
+            && randomBoolean();
+        // ALLOCATION_FAILED needs failedAllocations > 0; NODE_RESTARTING needs a lastAllocatedNodeId
+        final int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? randomIntBetween(1, 5) : 0;
+        final String lastAllocatedNodeId = reason == UnassignedInfo.Reason.NODE_RESTARTING ? randomIdentifier() : null;
         final var unassignedInfo = new UnassignedInfo(
             reason,
             null,
             null,
-            0,
+            failedAllocations,
             System.nanoTime(),
             unassignedAtMillis,
-            false,
-            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            delayed,
+            delayed ? UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION : UnassignedInfo.AllocationStatus.NO_ATTEMPT,
             Collections.emptySet(),
-            null
+            lastAllocatedNodeId
         );
         final var shardId = new ShardId("test-index", "_na_", 0);
         final var primary = randomBoolean();
@@ -189,8 +195,10 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
             equalTo(0)
         );
 
+        // replica shards must recover from primary
+        final var recoverySource = primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE;
         final var initializedShard = shardRoutingBuilder(shardId, "node-1", primary, ShardRoutingState.INITIALIZING).withRecoverySource(
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE
+            recoverySource
         ).withUnassignedInfo(unassignedInfo).build();
         final long initializedTimeMillis = System.currentTimeMillis();
         nowMillis.set(initializedTimeMillis);
@@ -210,14 +218,17 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         assertThat(initializedMetricValue.getLong(), equalTo(Math.max(0, initializedTimeMillis - unassignedAtMillis)));
         assertThat(initializedMetricValue.attributes().get("primary"), equalTo(primary));
         assertThat(initializedMetricValue.attributes().get("reason"), equalTo(reason.name()));
+        assertThat(initializedMetricValue.attributes().get("delayed"), equalTo(delayed));
 
         final List<Measurement> startedMetrics = recorder.getMeasurements(
             InstrumentType.LONG_HISTOGRAM,
             ShardChangesObserver.UNASSIGNED_TO_STARTED_METRIC
         );
+        assertThat(startedMetrics, hasSize(1));
         final var startedMetricValue = startedMetrics.getFirst();
         assertThat(startedMetricValue.getLong(), equalTo(Math.max(0, startedTimeMillis - unassignedAtMillis)));
         assertThat(startedMetricValue.attributes().get("primary"), equalTo(primary));
         assertThat(startedMetricValue.attributes().get("reason"), equalTo(reason.name()));
+        assertThat(startedMetricValue.attributes().get("delayed"), equalTo(delayed));
     }
 }

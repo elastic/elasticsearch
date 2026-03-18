@@ -17,14 +17,34 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 /// Observes shard state transitions during allocation rounds, logging them and emitting APM timing metrics.
 public class ShardChangesObserver implements RoutingChangesObserver {
 
     public static final String UNASSIGNED_TO_INITIALIZING_METRIC = "es.allocator.shards.unassigned_to_initializing.duration.histogram";
     public static final String UNASSIGNED_TO_STARTED_METRIC = "es.allocator.shards.unassigned_to_started.duration.histogram";
+
+    private static final Map<Boolean, Map<UnassignedInfo.Reason, Map<String, Object>>> PRIMARY_ATTRIBUTES = Map.of(
+        false,
+        buildAttributesByReason(true, false),
+        true,
+        buildAttributesByReason(true, true)
+    );
+    private static final Map<Boolean, Map<UnassignedInfo.Reason, Map<String, Object>>> REPLICA_ATTRIBUTES = Map.of(
+        false,
+        buildAttributesByReason(false, false),
+        true,
+        buildAttributesByReason(false, true)
+    );
+
+    private static Map<UnassignedInfo.Reason, Map<String, Object>> buildAttributesByReason(boolean primary, boolean delayed) {
+        return Arrays.stream(UnassignedInfo.Reason.values())
+            .collect(Collectors.toUnmodifiableMap(r -> r, r -> Map.of("primary", primary, "reason", r.name(), "delayed", delayed)));
+    }
 
     public static final ShardChangesObserver NOOP = new ShardChangesObserver(MeterRegistry.NOOP);
 
@@ -75,6 +95,7 @@ public class ShardChangesObserver implements RoutingChangesObserver {
             initializingShard.recoverySource().getType(),
             startedShard.currentNodeId()
         );
+        // Relocation target shards have no unassignedInfo
         UnassignedInfo info = initializingShard.unassignedInfo();
         if (info != null) {
             long durationMillis = currentTimeMillisSupplier.getAsLong() - info.unassignedTimeMillis();
@@ -108,6 +129,6 @@ public class ShardChangesObserver implements RoutingChangesObserver {
     }
 
     private static Map<String, Object> attributes(UnassignedInfo info, ShardRouting shard) {
-        return Map.of("primary", shard.primary(), "reason", info.reason().name());
+        return (shard.primary() ? PRIMARY_ATTRIBUTES : REPLICA_ATTRIBUTES).get(info.delayed()).get(info.reason());
     }
 }

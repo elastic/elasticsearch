@@ -103,23 +103,8 @@ public class AllocationService {
         SnapshotsInfoService snapshotsInfoService,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy
     ) {
-        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, shardRoutingRoleStrategy);
+        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, shardRoutingRoleStrategy, MeterRegistry.NOOP);
         setExistingShardsAllocators(Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator));
-    }
-
-    public AllocationService(
-        AllocationDeciders allocationDeciders,
-        ShardsAllocator shardsAllocator,
-        ClusterInfoService clusterInfoService,
-        SnapshotsInfoService snapshotsInfoService,
-        ShardRoutingRoleStrategy shardRoutingRoleStrategy
-    ) {
-        this.allocationDeciders = allocationDeciders;
-        this.shardsAllocator = shardsAllocator;
-        this.clusterInfoService = clusterInfoService;
-        this.snapshotsInfoService = snapshotsInfoService;
-        this.shardRoutingRoleStrategy = shardRoutingRoleStrategy;
-        this.shardChangesObserver = ShardChangesObserver.NOOP;
     }
 
     public AllocationService(

@@ -164,7 +164,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         this.size = size == null ? Math.min(DEFAULT_SIZE_VALUE, rankWindowSize) : size;
     }
 
-    DiversifyRetrieverBuilder(
+    private DiversifyRetrieverBuilder(
         List<RetrieverSource> innerRetrievers,
         ResultDiversificationType diversificationType,
         String diversificationField,
@@ -268,6 +268,20 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                 validationException
             );
         }
+
+        // don't handle string encoded query vectors yet
+        if (queryVector != null && queryVector.get().isStringVector()) {
+            validationException = addValidationError(
+                String.format(
+                    Locale.ROOT,
+                    "[%s] retriever cannot have a [%s] that is string encoded",
+                    getName(),
+                    QUERY_VECTOR_FIELD.getPreferredName()
+                ),
+                validationException
+            );
+        }
+
         return validationException;
     }
 
@@ -369,13 +383,6 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         }
 
         ResultDiversificationContext diversificationContext = getResultDiversificationContext();
-
-        // don't handle string encoded query vectors yet
-        if (diversificationContext.getQueryVector() != null && diversificationContext.getQueryVector().isStringVector()) {
-            throw new IllegalArgumentException(
-                String.format(Locale.ROOT, "[%s] for diversification cannot be string encoded", QUERY_VECTOR_FIELD.getPreferredName())
-            );
-        }
 
         // gather and set the query vectors
         // and create our intermediate results set

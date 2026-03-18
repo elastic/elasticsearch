@@ -246,7 +246,7 @@ setup:
 ---
 "MMR diversification using semantic_text field cannot use string encoded query vector":
   - do:
-      catch: /\[query_vector\] for diversification cannot be string encoded/
+      catch: /\[diversify\] retriever cannot have a \[query_vector\] that is string encoded/
       search:
         index: test-result-diversification-semantic-text-index
         body:
@@ -265,7 +265,7 @@ setup:
                         query: "What causes muscle soreness after running?"
 
   - match: { status: 400 }
-  - match: { error.type: status_exception }
+  - match: { error.type: action_request_validation_exception }
 
 ---
 "MMR diversification using semantic_text field with copy_to":

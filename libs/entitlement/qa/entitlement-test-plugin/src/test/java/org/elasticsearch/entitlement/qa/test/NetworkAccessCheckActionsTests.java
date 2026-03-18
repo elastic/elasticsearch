@@ -36,6 +36,17 @@ import java.security.Security;
 public class NetworkAccessCheckActionsTests extends ESTestCase {
 
     /**
+     * Verifies the normal (non-FIPS) path: when the LDAP CertStore provider is present,
+     * {@code CertStore.getInstance("LDAP", null)} throws {@link java.security.InvalidAlgorithmParameterException}
+     * because null params are invalid for LDAP. The first catch block handles this and the method
+     * completes normally.
+     */
+    public void testCreateLDAPCertStore_doesNotPropagate_whenProviderPresent() throws Exception {
+        assumeTrue("LDAP CertStore provider must be present for this test", Security.getProviders("CertStore.LDAP") != null);
+        NetworkAccessCheckActions.createLDAPCertStore();
+    }
+
+    /**
      * Reproduces the FIPS failure: when the LDAP CertStore provider is absent,
      * {@code createLDAPCertStore()} must complete normally instead of propagating
      * {@link NoSuchAlgorithmException}.
@@ -120,12 +131,15 @@ public class NetworkAccessCheckActionsTests extends ESTestCase {
         Provider[] allProviders = Security.getProviders();
         int[] positions = new int[providers.length];
         for (int j = 0; j < providers.length; j++) {
+            int found = -1;
             for (int i = 0; i < allProviders.length; i++) {
                 if (allProviders[i] == providers[j]) {
-                    positions[j] = i + 1; // insertProviderAt uses 1-based index
+                    found = i + 1; // insertProviderAt uses 1-based index
                     break;
                 }
             }
+            assertNotEquals("Provider " + providers[j].getName() + " not found in installed providers", -1, found);
+            positions[j] = found;
             Security.removeProvider(providers[j].getName());
         }
         return positions;

@@ -11,10 +11,7 @@ package org.elasticsearch.benchmark._nightly.esql;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.Utils;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -22,14 +19,13 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.compute.operator.GroupKeyEncoder;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
+import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -44,12 +40,10 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 @Warmup(iterations = 5)
 @Measurement(iterations = 7)
@@ -57,17 +51,15 @@ import java.util.stream.Stream;
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Thread)
 @Fork(1)
-public class TopNBenchmark {
-
-    static {
-        Utils.configureBenchmarkLogging();
-    }
+public class GroupedTopNBenchmark {
 
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
         .breaker(new NoopCircuitBreaker("none"))
         .build();
 
     private static final int BLOCK_LENGTH = 4 * 1024;
+    private static final int NUM_PAGES = 1024;
+    private static final int SELF_TEST_PAGES = 16;
 
     private static final String LONGS = "longs";
     private static final String INTS = "ints";
@@ -81,16 +73,20 @@ public class TopNBenchmark {
     private static final String AND = "_and_";
 
     static {
+        Utils.configureBenchmarkLogging();
         // Smoke test all the expected values and force loading subclasses more like prod
         selfTest();
     }
 
     static void selfTest() {
         try {
-            for (String data : TopNBenchmark.class.getField("data").getAnnotationsByType(Param.class)[0].value()) {
-                for (String topCount : TopNBenchmark.class.getField("topCount").getAnnotationsByType(Param.class)[0].value()) {
-                    for (String sortedInput : TopNBenchmark.class.getField("sortedInput").getAnnotationsByType(Param.class)[0].value()) {
-                        run(data, Integer.parseInt(topCount), Boolean.parseBoolean(sortedInput));
+            for (String data : GroupedTopNBenchmark.class.getField("data").getAnnotationsByType(Param.class)[0].value()) {
+                for (String topCount : GroupedTopNBenchmark.class.getField("topCount").getAnnotationsByType(Param.class)[0].value()) {
+                    for (String groupCount : GroupedTopNBenchmark.class.getField("groupCount").getAnnotationsByType(Param.class)[0]
+                        .value()) {
+                        for (String gk : GroupedTopNBenchmark.class.getField("groupKeys").getAnnotationsByType(Param.class)[0].value()) {
+                            run(data, Integer.parseInt(topCount), Integer.parseInt(groupCount), gk, SELF_TEST_PAGES);
+                        }
                     }
                 }
             }
@@ -99,69 +95,42 @@ public class TopNBenchmark {
         }
     }
 
-    @Param(
-        {
-            LONGS + ASC,
-            LONGS + DESC,
-            INTS + ASC,
-            DOUBLES + ASC,
-            BOOLEANS + ASC,
-            BYTES_REFS + ASC,
-            LONGS + ASC + AND + LONGS + ASC,
-            LONGS + ASC + AND + LONGS + DESC,
-            LONGS + DESC + AND + LONGS + DESC,
-            LONGS + ASC + AND + BYTES_REFS + ASC,
-            LONGS + DESC + AND + BYTES_REFS + DESC }
-    )
+    @Param({ LONGS + ASC, LONGS + DESC, BYTES_REFS + ASC, LONGS + ASC + AND + LONGS + ASC, LONGS + ASC + AND + BYTES_REFS + ASC })
     public String data;
 
-    @Param({ "true", "false" })
-    public boolean sortedInput;
-
-    /*
-        - 4096 is the page size,
-        - 10000 reflects using a LIMIT with smaller pages, which seems to be a more realistic
-          benchmark than having a LIMIT 10 and receiving pages from the data nodes that
-          contain 4096 documents
-     */
-    @Param({ "10", "1000", "4096", "10000" })
+    @Param({ "1", "10", "1000" })
     public int topCount;
 
-    private static Operator operator(String data, int topCount, boolean sortedInput) {
+    @Param({ "10", "100", "1000" })
+    public int groupCount;
+
+    @Param({ LONGS, BYTES_REFS, LONGS + AND + LONGS, BYTES_REFS + AND + BYTES_REFS, LONGS + AND + BYTES_REFS })
+    public String groupKeys;
+
+    private static Operator operator(String data, int topCount, String groupKeys) {
         String[] dataSpec = data.split(AND);
-        List<ElementType> elementTypes = Arrays.stream(dataSpec).map(TopNBenchmark::elementType).toList();
-        List<TopNEncoder> encoders = Arrays.stream(dataSpec).map(TopNBenchmark::encoder).toList();
+        List<ElementType> elementTypes = new ArrayList<>(Arrays.stream(dataSpec).map(GroupedTopNBenchmark::elementType).toList());
+        List<TopNEncoder> encoders = new ArrayList<>(Arrays.stream(dataSpec).map(GroupedTopNBenchmark::encoder).toList());
         List<TopNOperator.SortOrder> sortOrders = IntStream.range(0, dataSpec.length).mapToObj(c -> sortOrder(c, dataSpec[c])).toList();
-        CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(
-            CircuitBreakerMetrics.NOOP,
-            Settings.EMPTY,
-            List.of(),
-            ClusterSettings.createBuiltInClusterSettings()
-        );
-        SharedMinCompetitive.Supplier minCompetitive = new SharedMinCompetitive.Supplier(
-            blockFactory.breaker(),
-            IntStream.range(0, encoders.size())
-                .mapToObj(
-                    i -> new SharedMinCompetitive.KeyConfig(
-                        elementTypes.get(i),
-                        encoders.get(i),
-                        sortOrders.get(i).asc(),
-                        sortOrders.get(i).nullsFirst()
-                    )
-                )
-                .toList()
-        );
-        return new TopNOperator(
+
+        String[] groupKeySpec = groupKeys.split(AND);
+        int[] groupKeyChannels = new int[groupKeySpec.length];
+        for (int i = 0; i < groupKeySpec.length; i++) {
+            groupKeyChannels[i] = elementTypes.size();
+            elementTypes.add(elementType(groupKeySpec[i]));
+            encoders.add(TopNEncoder.DEFAULT_UNSORTABLE);
+        }
+
+        return new GroupedTopNOperator(
             blockFactory,
-            breakerService.getBreaker(CircuitBreaker.REQUEST),
+            blockFactory.breaker(),
             topCount,
             elementTypes,
             encoders,
             sortOrders,
+            new GroupKeyEncoder(groupKeyChannels, elementTypes, new BreakingBytesRefBuilder(blockFactory.breaker(), "group-key-encoder")),
             8 * 1024,
-            Long.MAX_VALUE,
-            sortedInput ? TopNOperator.InputOrdering.SORTED : TopNOperator.InputOrdering.NOT_SORTED,
-            minCompetitive // This is optional, but doesn't add much overhead either way
+            Long.MAX_VALUE
         );
     }
 
@@ -198,73 +167,102 @@ public class TopNBenchmark {
         return new TopNOperator.SortOrder(channel, ascDesc(data), false);
     }
 
-    private static void checkExpected(int topCount, List<Page> pages) {
-        if (topCount != pages.stream().mapToLong(Page::getPositionCount).sum()) {
-            throw new AssertionError("expected [" + topCount + "] but got [" + pages.size() + "]");
+    private static void checkExpected(int topCount, int groupCount, int numPages, List<Page> pages) {
+        int effectiveGroupCount = Math.min(groupCount, BLOCK_LENGTH);
+        long expectedOutput = 0;
+        for (int g = 0; g < effectiveGroupCount; g++) {
+            int rowsPerPage = BLOCK_LENGTH / effectiveGroupCount + (g < BLOCK_LENGTH % effectiveGroupCount ? 1 : 0);
+            long totalRowsForGroup = (long) rowsPerPage * numPages;
+            expectedOutput += Math.min(topCount, totalRowsForGroup);
+        }
+        long actualOutput = pages.stream().mapToLong(Page::getPositionCount).sum();
+        if (expectedOutput != actualOutput) {
+            throw new AssertionError("expected [" + expectedOutput + "] but got [" + actualOutput + "]");
         }
     }
 
-    private static Page page(boolean sortedInput, String data) {
+    private static Page page(String data, int groupCount, String groupKeys) {
         String[] dataSpec = data.split(AND);
-        return new Page(Arrays.stream(dataSpec).map(d -> block(sortedInput, d)).toArray(Block[]::new));
+        String[] groupKeySpec = groupKeys.split(AND);
+        int effectiveGroupCount = Math.min(groupCount, BLOCK_LENGTH);
+        int divisor = (int) Math.ceil(Math.sqrt(effectiveGroupCount));
+
+        Block[] blocks = new Block[dataSpec.length + groupKeySpec.length];
+        for (int i = 0; i < dataSpec.length; i++) {
+            blocks[i] = block(dataSpec[i]);
+        }
+        for (int k = 0; k < groupKeySpec.length; k++) {
+            blocks[dataSpec.length + k] = groupKeyBlock(groupKeySpec[k], effectiveGroupCount, divisor, k, groupKeySpec.length);
+        }
+        return new Page(blocks);
     }
 
-    // This creates blocks with uniformly random distributed and sorted data
-    private static Block block(boolean sortedInput, String data) {
+    private static Block block(String data) {
         return switch (data.replace(ASC, "").replace(DESC, "")) {
             case LONGS -> {
                 var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
-                maybeSort(sortedInput, data, new Random().longs(BLOCK_LENGTH, 0, Long.MAX_VALUE).boxed()).forEach(builder::appendLong);
+                new Random().longs(BLOCK_LENGTH, 0, Long.MAX_VALUE).forEach(builder::appendLong);
                 yield builder.build();
             }
             case INTS -> {
                 var builder = blockFactory.newIntBlockBuilder(BLOCK_LENGTH);
-                maybeSort(sortedInput, data, new Random().ints(BLOCK_LENGTH, 0, Integer.MAX_VALUE).boxed()).forEach(builder::appendInt);
+                new Random().ints(BLOCK_LENGTH, 0, Integer.MAX_VALUE).forEach(builder::appendInt);
                 yield builder.build();
             }
             case DOUBLES -> {
                 var builder = blockFactory.newDoubleBlockBuilder(BLOCK_LENGTH);
-                maybeSort(sortedInput, data, new Random().doubles(BLOCK_LENGTH, 0, Double.MAX_VALUE).boxed()).forEach(
-                    builder::appendDouble
-                );
+                new Random().doubles(BLOCK_LENGTH, 0, Double.MAX_VALUE).forEach(builder::appendDouble);
                 yield builder.build();
             }
             case BOOLEANS -> {
                 BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(BLOCK_LENGTH);
-                maybeSort(sortedInput, data, new Random().ints(BLOCK_LENGTH, 0, 2).boxed()).forEach(i -> builder.appendBoolean(i == 1));
+                new Random().ints(BLOCK_LENGTH, 0, 2).forEach(i -> builder.appendBoolean(i == 1));
                 yield builder.build();
             }
             case BYTES_REFS -> {
                 BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(BLOCK_LENGTH);
-                maybeSort(sortedInput, data, new Random().ints(BLOCK_LENGTH, 0, Integer.MAX_VALUE).boxed()).forEach(
-                    i -> builder.appendBytesRef(new BytesRef(i.toString()))
-                );
+                new Random().ints(BLOCK_LENGTH, 0, Integer.MAX_VALUE)
+                    .forEach(i -> builder.appendBytesRef(new BytesRef(Integer.toString(i))));
                 yield builder.build();
             }
             default -> throw new UnsupportedOperationException("unsupported data [" + data + "]");
         };
     }
 
-    private static <T extends Comparable<T>> List<T> maybeSort(boolean sortedInput, String data, Stream<T> randomValues) {
-        List<T> values = new ArrayList<>();
-        randomValues.forEachOrdered(values::add);
-        if (sortedInput) {
-            values.sort(Comparator.naturalOrder());
-            return ascDesc(data) ? values : values.reversed();
-        }
-        return values;
+    private static Block groupKeyBlock(String groupKeyType, int effectiveGroupCount, int divisor, int keyIndex, int groupKeyCount) {
+        return switch (groupKeyType) {
+            case LONGS -> {
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    int groupId = i % effectiveGroupCount;
+                    long keyValue = groupKeyCount == 1 ? groupId : (keyIndex == 0 ? groupId / divisor : groupId % divisor);
+                    builder.appendLong(keyValue);
+                }
+                yield builder.build();
+            }
+            case BYTES_REFS -> {
+                BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    int groupId = i % effectiveGroupCount;
+                    long keyValue = groupKeyCount == 1 ? groupId : (keyIndex == 0 ? groupId / divisor : groupId % divisor);
+                    builder.appendBytesRef(new BytesRef(Long.toString(keyValue)));
+                }
+                yield builder.build();
+            }
+            default -> throw new IllegalArgumentException("unsupported group key type [" + groupKeyType + "]");
+        };
     }
 
     @Benchmark
-    @OperationsPerInvocation(1024 * BLOCK_LENGTH)
+    @OperationsPerInvocation(NUM_PAGES * BLOCK_LENGTH)
     public void run() {
-        run(data, topCount, sortedInput);
+        run(data, topCount, groupCount, groupKeys, NUM_PAGES);
     }
 
-    private static void run(String data, int topCount, boolean sortedInput) {
-        try (Operator operator = operator(data, topCount, sortedInput)) {
-            Page page = page(sortedInput, data);
-            for (int i = 0; i < 1024; i++) {
+    private static void run(String data, int topCount, int groupCount, String groupKeys, int numPages) {
+        try (Operator operator = operator(data, topCount, groupKeys)) {
+            Page page = page(data, groupCount, groupKeys);
+            for (int i = 0; i < numPages; i++) {
                 operator.addInput(page.shallowCopy());
             }
             operator.finish();
@@ -274,7 +272,7 @@ public class TopNBenchmark {
                 while ((p = operator.getOutput()) != null) {
                     results.add(p);
                 }
-                checkExpected(topCount, results);
+                checkExpected(topCount, groupCount, numPages, results);
             } finally {
                 Releasables.close(results);
             }

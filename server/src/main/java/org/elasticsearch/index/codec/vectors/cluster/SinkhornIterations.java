@@ -14,6 +14,13 @@ package org.elasticsearch.index.codec.vectors.cluster;
  * and columns sum to 1/n and 1/k, respectively. In this implementation, we perform the iterations in the log domain for numerical stability.
  */
 public class SinkhornIterations {
+    private final float[] logRowSums;
+    private final float[] logColumnSums;
+
+    SinkhornIterations(int nRows, int nColumns) {
+        logRowSums = new float[nRows];
+        logColumnSums = new float[nColumns];
+    }
     /**
      * Run the Sinkhorn algorithm.
      * @param input The input 2D array of double values (log probabilities/values). We assume that it is not null,
@@ -22,15 +29,12 @@ public class SinkhornIterations {
      * @param eps the amount of entropic regularization (the temperature coefficient of the LogSumExp approximation to the min)
      * @param result the solution with rows summing to 1/n and columns summing to 1/k.
      */
-    public static void compute(float[][] input, int iterations, float eps, float[][] result) {
+    public void compute(float[][] input, int iterations, float eps, float[][] result) {
         int nRows = input.length;
         int nColumns = input[0].length;
 
         float logRowSumTarget = -eps * (float) Math.log(nRows);
         float logColumnSumTarget = -eps * (float) Math.log(nColumns);
-
-        float[] logRowSums = new float[nRows];
-        float[] logColumnSums = new float[nColumns];
 
         for (int i = 0; i < iterations; i++) {
             // Update logRowSums (normalize across columns)

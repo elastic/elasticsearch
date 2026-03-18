@@ -140,6 +140,7 @@ abstract class BalancedKMeansLocal extends KMeansLocal {
 
         float eta = this.gamma;
 
+        SinkhornIterations sinkhorn = new SinkhornIterations(miniBatchSize, k);
         OnlineQuantileEstimator medianEstimator = null; // We cannot initialize the estimator now because we need to know its range.
 
         ClusteringFloatVectorValuesSlice sampledVectors = new ClusteringFloatVectorValuesSlice(vectors, miniBatchSize);
@@ -173,7 +174,7 @@ abstract class BalancedKMeansLocal extends KMeansLocal {
                 float eps = Math.max(eta * current_median, etaMin);
                 // Perform Shinkhorn iterations in log domain to obtain a balanced assignment.
                 int iterations = (i == maxIterations - 1)? sinkhornIterations: 2 * sinkhornIterations;
-                SinkhornIterations.compute(distances, iterations, eps, softAssignments);
+                sinkhorn.compute(distances, iterations, eps, softAssignments);
 
                 // Update the centroids using SGD.
                 updateCentroids(sampledVectors, ordTranslator, cumulative_cluster_weights, softAssignments, centroids);

@@ -43,6 +43,8 @@ public class LogSumExpTests extends ESTestCase {
 
         Random random = random();
 
+        SinkhornIterations sinkhornIterations = new SinkhornIterations(nRows, nCols);
+
         for (int iter = 0; iter < 1_000; iter++) {
             for (int i = 0; i < nRows; i++) {
                 for (int j = 0; j < nCols; j++) {
@@ -50,7 +52,7 @@ public class LogSumExpTests extends ESTestCase {
                 }
             }
 
-            SinkhornIterations.compute(x, 20, 0.5f, result);
+            sinkhornIterations.compute(x, 20, 0.5f, result);
 
             for (int i = 0; i < result.length; i++) {
                 float sum = 0;

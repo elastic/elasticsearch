@@ -101,9 +101,9 @@ public abstract class AzureOpenAiServiceSettingsTests<T extends AzureOpenAiServi
         assertThat(serviceSettings.deploymentId(), is(DEPLOYMENT_ID));
         assertThat(serviceSettings.apiVersion(), is(API_VERSION));
         assertNotNull(serviceSettings.oAuth2Settings());
-        assertThat(serviceSettings.oAuth2Settings().getClientId(), is(OAuth2SettingsTests.CLIENT_ID));
-        assertThat(serviceSettings.oAuth2Settings().getScopes(), is(OAuth2SettingsTests.SCOPES));
-        assertThat(serviceSettings.oAuth2Settings().getTenantId(), is(TENANT_ID));
+        assertThat(serviceSettings.oAuth2Settings().clientId(), is(OAuth2SettingsTests.CLIENT_ID));
+        assertThat(serviceSettings.oAuth2Settings().scopes(), is(OAuth2SettingsTests.SCOPES));
+        assertThat(serviceSettings.oAuth2Settings().tenantId(), is(TENANT_ID));
     }
 
     public void testUpdateServiceSettings_WhenOAuth2Null_ThrowsWhenNewSettingsContainsOAuth2Values() {

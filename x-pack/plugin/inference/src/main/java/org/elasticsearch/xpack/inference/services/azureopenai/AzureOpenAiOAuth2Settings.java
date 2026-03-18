@@ -123,16 +123,16 @@ public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable 
         this.tenantId = in.readString();
     }
 
-    public String getClientId() {
-        return oauth2Settings.getClientId();
+    public String clientId() {
+        return oauth2Settings.clientId();
     }
 
-    public String getTenantId() {
+    public String tenantId() {
         return tenantId;
     }
 
-    public List<String> getScopes() {
-        return oauth2Settings.getScopes();
+    public List<String> scopes() {
+        return oauth2Settings.scopes();
     }
 
     public AzureOpenAiOAuth2Settings updateServiceSettings(Map<String, Object> serviceSettings, ValidationException validationException) {

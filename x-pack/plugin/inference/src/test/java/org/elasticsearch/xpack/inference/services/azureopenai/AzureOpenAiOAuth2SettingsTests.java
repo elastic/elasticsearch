@@ -60,9 +60,9 @@ public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerialization
         var settings = AzureOpenAiOAuth2Settings.fromMap(map, validationException);
 
         assertNotNull(settings);
-        assertThat(settings.getClientId(), is(OAuth2SettingsTests.CLIENT_ID));
-        assertThat(settings.getScopes(), is(OAuth2SettingsTests.SCOPES));
-        assertThat(settings.getTenantId(), is(TENANT_ID));
+        assertThat(settings.clientId(), is(OAuth2SettingsTests.CLIENT_ID));
+        assertThat(settings.scopes(), is(OAuth2SettingsTests.SCOPES));
+        assertThat(settings.tenantId(), is(TENANT_ID));
         assertThat(validationException.validationErrors(), is(empty()));
     }
 
@@ -136,9 +136,9 @@ public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerialization
 
         var updated = settings.updateServiceSettings(new HashMap<>(), validationException);
 
-        assertThat(updated.getClientId(), is(OAuth2SettingsTests.CLIENT_ID));
-        assertThat(updated.getScopes(), is(OAuth2SettingsTests.SCOPES));
-        assertThat(updated.getTenantId(), is(TENANT_ID));
+        assertThat(updated.clientId(), is(OAuth2SettingsTests.CLIENT_ID));
+        assertThat(updated.scopes(), is(OAuth2SettingsTests.SCOPES));
+        assertThat(updated.tenantId(), is(TENANT_ID));
     }
 
     public void testUpdateServiceSettings_UpdateTenantId_ReplacesTenantId() {
@@ -154,9 +154,9 @@ public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerialization
             validationException
         );
 
-        assertThat(updated.getClientId(), is(OAuth2SettingsTests.CLIENT_ID));
-        assertThat(updated.getScopes(), is(OAuth2SettingsTests.SCOPES));
-        assertThat(updated.getTenantId(), is(newTenantId));
+        assertThat(updated.clientId(), is(OAuth2SettingsTests.CLIENT_ID));
+        assertThat(updated.scopes(), is(OAuth2SettingsTests.SCOPES));
+        assertThat(updated.tenantId(), is(newTenantId));
     }
 
     public void testUpdateServiceSettings_UpdateClientIdAndScopes_ReplacesOAuthFields() {
@@ -173,9 +173,9 @@ public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerialization
             validationException
         );
 
-        assertThat(updated.getClientId(), is(newClientId));
-        assertThat(updated.getScopes(), is(newScopes));
-        assertThat(updated.getTenantId(), is(TENANT_ID));
+        assertThat(updated.clientId(), is(newClientId));
+        assertThat(updated.scopes(), is(newScopes));
+        assertThat(updated.tenantId(), is(TENANT_ID));
     }
 
     @Override
@@ -190,9 +190,9 @@ public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerialization
 
     @Override
     protected AzureOpenAiOAuth2Settings mutateInstance(AzureOpenAiOAuth2Settings instance) throws IOException {
-        var clientId = instance.getClientId();
-        var scopes = instance.getScopes();
-        var tenantId = instance.getTenantId();
+        var clientId = instance.clientId();
+        var scopes = instance.scopes();
+        var tenantId = instance.tenantId();
         switch (randomInt(2)) {
             case 0 -> clientId = randomValueOtherThan(clientId, () -> randomAlphaOfLength(12));
             case 1 -> scopes = randomValueOtherThan(scopes, () -> List.of(randomAlphaOfLength(10)));

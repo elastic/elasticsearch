@@ -180,9 +180,9 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AzureOpenAiServic
         assertThat(updated.resourceName(), is(settings.resourceName()));
         assertThat(updated.deploymentId(), is(settings.deploymentId()));
         assertThat(updated.apiVersion(), is(settings.apiVersion()));
-        assertThat(updated.oAuth2Settings().getClientId(), is(OAuth2SettingsTests.CLIENT_ID));
-        assertThat(updated.oAuth2Settings().getScopes(), is(OAuth2SettingsTests.SCOPES));
-        assertThat(updated.oAuth2Settings().getTenantId(), is(TENANT_ID));
+        assertThat(updated.oAuth2Settings().clientId(), is(OAuth2SettingsTests.CLIENT_ID));
+        assertThat(updated.oAuth2Settings().scopes(), is(OAuth2SettingsTests.SCOPES));
+        assertThat(updated.oAuth2Settings().tenantId(), is(TENANT_ID));
     }
 
     public void testUpdateServiceSettings_WhenOAuth2SettingsPresent_UpdateTenantId_ReturnsSettingsWithUpdatedOAuth2() {
@@ -197,9 +197,9 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AzureOpenAiServic
         );
 
         assertThat(updated.resourceName(), is(settings.resourceName()));
-        assertThat(updated.oAuth2Settings().getClientId(), is(OAuth2SettingsTests.CLIENT_ID));
-        assertThat(updated.oAuth2Settings().getScopes(), is(OAuth2SettingsTests.SCOPES));
-        assertThat(updated.oAuth2Settings().getTenantId(), is(NEW_TENANT_ID));
+        assertThat(updated.oAuth2Settings().clientId(), is(OAuth2SettingsTests.CLIENT_ID));
+        assertThat(updated.oAuth2Settings().scopes(), is(OAuth2SettingsTests.SCOPES));
+        assertThat(updated.oAuth2Settings().tenantId(), is(NEW_TENANT_ID));
     }
 
     public void testUpdateServiceSettings_WhenOAuth2SettingsPresent_UpdateClientIdAndScopes_ReturnsSettingsWithUpdatedOAuth2() {
@@ -214,9 +214,9 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AzureOpenAiServic
         );
 
         assertThat(updated.resourceName(), is(settings.resourceName()));
-        assertThat(updated.oAuth2Settings().getClientId(), is(NEW_CLIENT_ID));
-        assertThat(updated.oAuth2Settings().getScopes(), is(NEW_SCOPES));
-        assertThat(updated.oAuth2Settings().getTenantId(), is(TENANT_ID));
+        assertThat(updated.oAuth2Settings().clientId(), is(NEW_CLIENT_ID));
+        assertThat(updated.oAuth2Settings().scopes(), is(NEW_SCOPES));
+        assertThat(updated.oAuth2Settings().tenantId(), is(TENANT_ID));
     }
 
     @Override

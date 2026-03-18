@@ -39,13 +39,13 @@ public record AzureOpenAiOAuth2Applier(
             throw new ValidationException().addValidationError(REQUIRED_FIELDS_DESCRIPTION);
         }
 
-        var credential = new ClientSecretCredentialBuilder().tenantId(serviceSettings.oAuth2Settings().getTenantId())
-            .clientId(serviceSettings.oAuth2Settings().getClientId())
+        var credential = new ClientSecretCredentialBuilder().tenantId(serviceSettings.oAuth2Settings().tenantId())
+            .clientId(serviceSettings.oAuth2Settings().clientId())
             .clientSecret(oauth2Secrets.getClientSecret().toString())
             .executorService(threadPool.executor(UTILITY_THREAD_POOL_NAME))
             .build();
 
-        var tokenRequestContext = new TokenRequestContext().setScopes(serviceSettings.oAuth2Settings().getScopes());
+        var tokenRequestContext = new TokenRequestContext().setScopes(serviceSettings.oAuth2Settings().scopes());
 
         return new AzureOpenAiOAuth2Applier(inferenceId, credential, tokenRequestContext);
     }

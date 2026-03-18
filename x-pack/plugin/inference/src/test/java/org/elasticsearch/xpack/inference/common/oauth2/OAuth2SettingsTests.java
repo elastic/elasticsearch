@@ -62,8 +62,8 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
         assertTrue(validationResult.isSuccess());
         var settings = validationResult.result();
         assertNotNull(settings);
-        assertThat(settings.getClientId(), is(CLIENT_ID));
-        assertThat(settings.getScopes(), is(SCOPES));
+        assertThat(settings.clientId(), is(CLIENT_ID));
+        assertThat(settings.scopes(), is(SCOPES));
         assertThat(validationException.validationErrors(), is(empty()));
     }
 
@@ -143,8 +143,8 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
 
         var updated = validationResult.result();
         assertNotNull(updated);
-        assertThat(updated.getClientId(), is(CLIENT_ID));
-        assertThat(updated.getScopes(), is(SCOPES));
+        assertThat(updated.clientId(), is(CLIENT_ID));
+        assertThat(updated.scopes(), is(SCOPES));
     }
 
     public void testUpdateServiceSettings_UpdateClientId_ReplacesClientId() {
@@ -161,8 +161,8 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
 
         var updated = validationResult.result();
         assertNotNull(updated);
-        assertThat(updated.getClientId(), is(newClientId));
-        assertThat(updated.getScopes(), is(SCOPES));
+        assertThat(updated.clientId(), is(newClientId));
+        assertThat(updated.scopes(), is(SCOPES));
     }
 
     public void testUpdateServiceSettings_UpdateScopes_ReplacesScopes() {
@@ -179,8 +179,8 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
 
         var updated = validationResult.result();
         assertNotNull(updated);
-        assertThat(updated.getClientId(), is(CLIENT_ID));
-        assertThat(updated.getScopes(), is(newScopes));
+        assertThat(updated.clientId(), is(CLIENT_ID));
+        assertThat(updated.scopes(), is(newScopes));
     }
 
     @Override
@@ -195,8 +195,8 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
 
     @Override
     protected OAuth2Settings mutateInstance(OAuth2Settings instance) throws IOException {
-        var clientId = instance.getClientId();
-        var scopes = instance.getScopes();
+        var clientId = instance.clientId();
+        var scopes = instance.scopes();
         switch (randomInt(1)) {
             case 0 -> clientId = randomValueOtherThan(clientId, () -> randomAlphaOfLength(12));
             case 1 -> scopes = randomValueOtherThan(scopes, () -> List.of(randomAlphaOfLength(10)));

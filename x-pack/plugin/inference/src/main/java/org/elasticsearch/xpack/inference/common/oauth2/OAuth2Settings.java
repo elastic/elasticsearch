@@ -117,11 +117,11 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
         this(in.readString(), in.readStringCollectionAsImmutableList());
     }
 
-    public String getClientId() {
+    public String clientId() {
         return clientId;
     }
 
-    public List<String> getScopes() {
+    public List<String> scopes() {
         return scopes;
     }
 

@@ -83,7 +83,22 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortOneField() throws IOException {
         int docs = docs();
         heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true, fields());
-        assertCircuitBreaks(attempt -> buildSubqueriesWithSort(maxSubqueries(), "manybigfields", "f000"));
+        int subqueries = isServerless() ? MIN_SUBQUERIES : MAX_SUBQUERIES;
+        ListMatcher columns = matchesList();
+        for (int f = 0; f < fields(); f++) {
+            columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).entry("type", "keyword"));
+        }
+        // serverless behaves differently from stateful
+        try {
+            Map<?, ?> response = buildSubqueriesWithSort(subqueries, "manybigfields", "f000");
+            assertMap(response, matchesMap().entry("columns", columns));
+        } catch (ResponseException e) {
+            Map<?, ?> map = responseAsMap(e.getResponse());
+            assertMap(
+                map,
+                matchesMap().entry("status", 429).entry("error", matchesMap().extraOk().entry("type", "circuit_breaking_exception"))
+            );
+        }
     }
 
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortManyFields() throws IOException {
@@ -94,7 +109,22 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         for (int f = 1; f < 11; f++) {
             sortKeys.append(", f").append(String.format(Locale.ROOT, "%03d", f));
         }
-        assertCircuitBreaks(attempt -> buildSubqueriesWithSort(maxSubqueries(), "manybigfields", sortKeys.toString()));
+        int subqueries = isServerless() ? MIN_SUBQUERIES : MAX_SUBQUERIES;
+        ListMatcher columns = matchesList();
+        for (int f = 0; f < fields(); f++) {
+            columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).entry("type", "keyword"));
+        }
+        // serverless behaves differently from stateful
+        try {
+            Map<?, ?> response = buildSubqueriesWithSort(subqueries, "manybigfields", sortKeys.toString());
+            assertMap(response, matchesMap().entry("columns", columns));
+        } catch (ResponseException e) {
+            Map<?, ?> map = responseAsMap(e.getResponse());
+            assertMap(
+                map,
+                matchesMap().entry("status", 429).entry("error", matchesMap().extraOk().entry("type", "circuit_breaking_exception"))
+            );
+        }
     }
 
     public void testManyRandomNumericFieldsInSubqueryIntermediateResultsWithSortManyFields() throws IOException {

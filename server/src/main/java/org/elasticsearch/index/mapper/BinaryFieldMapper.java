@@ -102,6 +102,11 @@ public class BinaryFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean usesBinaryDocValues() {
+            return hasDocValues();
+        }
+
+        @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return SourceValueFetcher.identity(name(), context, format);
         }

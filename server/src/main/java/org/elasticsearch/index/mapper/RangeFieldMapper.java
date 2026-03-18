@@ -293,6 +293,11 @@ public class RangeFieldMapper extends FieldMapper {
             return rangeType.name;
         }
 
+        @Override
+        public boolean usesBinaryDocValues() {
+            return hasDocValues();
+        }
+
         public DateFormatter dateTimeFormatter() {
             return dateTimeFormatter;
         }

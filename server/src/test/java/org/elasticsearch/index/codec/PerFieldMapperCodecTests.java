@@ -93,6 +93,23 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         }
         """;
 
+    private static final String MAPPING_WITH_BINARY = """
+        {
+            "properties": {
+                "blob": {
+                    "type": "binary",
+                    "doc_values": true
+                },
+                "ages": {
+                    "type": "integer_range"
+                },
+                "name": {
+                    "type": "keyword"
+                }
+            }
+        }
+        """;
+
     public void testUseBloomFilter() throws IOException {
         final boolean timeSeries = randomBoolean();
         final boolean randomSyntheticId = syntheticId(timeSeries);
@@ -245,6 +262,26 @@ public class PerFieldMapperCodecTests extends ESTestCase {
             mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         }
         return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
+    }
+
+    public void testUseBinaryDocValuesFormatForBinaryField() throws IOException {
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.STANDARD, MAPPING_WITH_BINARY);
+        assertThat(perFieldMapperCodec.useBinaryDocValuesFormat("blob"), is(true));
+    }
+
+    public void testUseBinaryDocValuesFormatForRangeField() throws IOException {
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.STANDARD, MAPPING_WITH_BINARY);
+        assertThat(perFieldMapperCodec.useBinaryDocValuesFormat("ages"), is(true));
+    }
+
+    public void testDoNotUseBinaryDocValuesFormatForKeywordField() throws IOException {
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.STANDARD, MAPPING_WITH_BINARY);
+        assertThat(perFieldMapperCodec.useBinaryDocValuesFormat("name"), is(false));
+    }
+
+    public void testDoNotUseBinaryDocValuesFormatForMetaFields() throws IOException {
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.STANDARD, MAPPING_WITH_BINARY);
+        assertThat(perFieldMapperCodec.useBinaryDocValuesFormat("_primary_term"), is(false));
     }
 
     public void testUseES87TSDBEncodingSettingDisabled() throws IOException {

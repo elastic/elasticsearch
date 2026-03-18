@@ -126,6 +126,13 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Returns whether this field stores its doc values using Lucene's {@link org.apache.lucene.index.DocValuesType#BINARY} type.
+     */
+    public boolean usesBinaryDocValues() {
+        return false;
+    }
+
+    /**
      * Returns the collapse type of the field
      * CollapseType.NONE means the field can'be used for collapsing.
      * @return collapse type of the field

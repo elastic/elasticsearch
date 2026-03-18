@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.esql.expression.function.inference;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -41,13 +43,19 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNot
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * EMBEDDING function converts text to dense vector embeddings using an inference endpoint with the {@code embedding} task type.
+ * EMBEDDING function converts input to dense vector embeddings using an inference endpoint with the {@code embedding} task type.
+ * It can manage multiple data types and formats (e.g. text, images) based on the options provided
  */
 public class Embedding extends InferenceFunction<Embedding> implements OptionalArgument, PostOptimizationVerificationAware {
 
     private static final String OPTION_TYPE = "type";
     private static final String OPTION_FORMAT = "format";
-    private static final Map<String, DataType> ALLOWED_OPTIONS = Map.of(OPTION_TYPE, DataType.KEYWORD, OPTION_FORMAT, DataType.KEYWORD);
+    private static final String OPTION_TIMEOUT = "timeout";
+    private static final Map<String, DataType> ALLOWED_OPTIONS = Map.of(
+        OPTION_TYPE, DataType.KEYWORD,
+        OPTION_FORMAT, DataType.KEYWORD,
+        OPTION_TIMEOUT, DataType.KEYWORD
+    );
 
     private final Expression inferenceId;
     private final Expression inputText;
@@ -55,13 +63,14 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
 
     private org.elasticsearch.inference.DataType resolvedDataType = org.elasticsearch.inference.DataType.TEXT;
     private DataFormat resolvedDataFormat = DataFormat.TEXT;
+    private TimeValue resolvedTimeout = InferenceAction.Request.DEFAULT_TIMEOUT;
 
     @FunctionInfo(
         returnType = "dense_vector",
         description = "Generates dense vector embeddings from multimodal input using a specified "
             + "[inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md) "
             + "with the {@code embedding} task type. "
-            + "Use this function to generate query vectors for KNN searches against your vectorized data "
+            + "Use this function to generate query vectors for KNN searches from multimodal inputs against your vectorized data "
             + "or other dense vector based operations.",
         appliesTo = { @FunctionAppliesTo(version = "9.5.0", lifeCycle = FunctionAppliesToLifecycle.PREVIEW), },
         examples = {
@@ -107,6 +116,11 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
                     name = "format",
                     type = { "keyword" },
                     description = "Format of the input content (e.g. \"text\", \"base64\")."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "timeout",
+                    type = { "keyword" },
+                    description = "Timeout for the inference request (e.g. \"30s\", \"1m\")."
                 ) },
             optional = true
         ) MapExpression inputOptions
@@ -141,6 +155,10 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
 
     public DataFormat inputDataFormat() {
         return resolvedDataFormat;
+    }
+
+    public TimeValue inputTimeout() {
+        return resolvedTimeout;
     }
 
     @Override
@@ -193,6 +211,14 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
                 if (formatValue != null) {
                     try {
                         resolvedDataFormat = DataFormat.fromString(BytesRefs.toString(formatValue));
+                    } catch (IllegalArgumentException e) {
+                        throw new InvalidArgumentException(e.getMessage());
+                    }
+                }
+                Object timeoutValue = optionsMap.get(OPTION_TIMEOUT);
+                if (timeoutValue != null) {
+                    try {
+                        resolvedTimeout = TimeValue.parseTimeValue(BytesRefs.toString(timeoutValue), OPTION_TIMEOUT);
                     } catch (IllegalArgumentException e) {
                         throw new InvalidArgumentException(e.getMessage());
                     }

@@ -51,7 +51,8 @@ public class EmbeddingOperatorTests extends InferenceOperatorTestCase<DenseEmbed
             TaskType.EMBEDDING,
             evaluatorFactory(inputChannel),
             DataType.TEXT,
-            DataFormat.TEXT
+            DataFormat.TEXT,
+            InferenceAction.Request.DEFAULT_TIMEOUT
         );
     }
 
@@ -133,7 +134,8 @@ public class EmbeddingOperatorTests extends InferenceOperatorTestCase<DenseEmbed
             TaskType.EMBEDDING,
             evaluatorFactory(inputChannel),
             DataType.TEXT,
-            DataFormat.TEXT
+            DataFormat.TEXT,
+            InferenceAction.Request.DEFAULT_TIMEOUT
         );
 
         var runner = new TestDriverRunner().builder(driverContext());
@@ -149,7 +151,8 @@ public class EmbeddingOperatorTests extends InferenceOperatorTestCase<DenseEmbed
             TaskType.EMBEDDING,
             evaluatorFactory(inputChannel),
             DataType.IMAGE,
-            DataFormat.BASE64
+            DataFormat.BASE64,
+            InferenceAction.Request.DEFAULT_TIMEOUT
         );
 
         var runner = new TestDriverRunner().builder(driverContext());

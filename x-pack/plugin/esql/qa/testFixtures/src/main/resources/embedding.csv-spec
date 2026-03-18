@@ -76,7 +76,7 @@ all we have to decide is what to do with the time that is given to us
 ;
 
 
-embedding with multiple knn queries in fork#[skip:-9.4.99,reason:vector scoring order differs on older versions]
+embedding with multiple knn queries in fork
 required_capability: embedding_function
 
 FROM dense_vector_text METADATA _score
@@ -131,4 +131,16 @@ ROW b64_input="Who is Victor Hugo?"
 
 b64_input:keyword              | embedding:dense_vector
 Who is Victor Hugo?            | [-56.0, -50.0, -48.0]
+;
+
+
+embedding with timeout option
+required_capability: embedding_function
+
+ROW input="Who is Victor Hugo?"
+| EVAL embedding = EMBEDDING("Who is Victor Hugo?", "test_embedding_inference", {"timeout": "30s"})
+;
+
+input:keyword       | embedding:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
 ;

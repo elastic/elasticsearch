@@ -222,7 +222,8 @@ public class InferenceFunctionEvaluator {
                         TaskType.EMBEDDING,
                         expressionEvaluatorFactory(embedding.inputText(), foldContext),
                         embedding.inputDataType(),
-                        embedding.inputDataFormat()
+                        embedding.inputDataFormat(),
+                        embedding.inputTimeout()
                     );
                     case CompletionFunction completion -> new CompletionOperator.Factory(
                         inferenceService,

@@ -590,7 +590,6 @@ public class EsqlFunctionRegistry {
                 defTS3(FirstOverTime.class, FirstOverTime::new, "first_over_time"),
                 def(PercentileOverTime.class, bi(PercentileOverTime::new), "percentile_over_time"),
                 // dense vector functions
-                def(Embedding.class, tri((src, a, b, c) -> new Embedding(src, a, b, (MapExpression) c)), "embedding"),
                 def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding"),
                 def(CosineSimilarity.class, CosineSimilarity::new, "v_cosine"),
                 def(DotProduct.class, DotProduct::new, "v_dot_product"),
@@ -607,7 +606,9 @@ public class EsqlFunctionRegistry {
                 def(Delay.class, Delay::new, "delay"),
                 // dense vector functions
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
-                def(ToDateRange.class, ToDateRange::new, "to_date_range", "to_daterange") } };
+                def(ToDateRange.class, ToDateRange::new, "to_date_range", "to_daterange"),
+                def(Embedding.class, tri((src, a, b, c) -> new Embedding(src, a, b, (MapExpression) c)), "embedding"),
+            } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

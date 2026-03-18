@@ -337,28 +337,17 @@ public final class GcsStorageProvider implements StorageProvider {
 
                 com.google.api.gax.paging.Page<Blob> page = storage.list(bucket, options);
                 currentIterator = page.iterateAll().iterator();
-            } catch (StorageException e) {
-                if (e.getCode() == 403) {
-                    throw new UncheckedIOException(
-                        new IOException(
-                            "Access denied listing objects in bucket ["
-                                + bucket
-                                + "] with prefix ["
-                                + prefix
-                                + "]. "
-                                + "Verify that the configured credentials have storage.objects.list permission, "
-                                + "or use exact file paths instead of glob patterns.",
-                            e
-                        )
-                    );
-                }
-                throw new UncheckedIOException(
-                    new IOException("Failed to list objects in bucket [" + bucket + "] with prefix [" + prefix + "]", e)
-                );
             } catch (Exception e) {
-                throw new UncheckedIOException(
-                    new IOException("Failed to list objects in bucket [" + bucket + "] with prefix [" + prefix + "]", e)
-                );
+                String msg = (e instanceof StorageException se && se.getCode() == 403)
+                    ? "Access denied listing objects in bucket ["
+                        + bucket
+                        + "] with prefix ["
+                        + prefix
+                        + "]. "
+                        + "Verify that the configured credentials have storage.objects.list permission, "
+                        + "or use exact file paths instead of glob patterns."
+                    : "Failed to list objects in bucket [" + bucket + "] with prefix [" + prefix + "]";
+                throw new UncheckedIOException(new IOException(msg, e));
             }
         }
     }

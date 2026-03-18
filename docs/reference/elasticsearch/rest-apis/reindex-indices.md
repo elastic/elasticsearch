@@ -706,7 +706,7 @@ The remote hosts that you can use depend on whether you're using the versioned {
 
   The list of allowed hosts must be configured on any node that will coordinate the reindex.
 
-* In {{serverless-full}}, remote hosts in {{ech}} and other {{serverless-short}} projects are allowed. {applies_to}`serverless: preview`
+* In {{serverless-full}}, all remote hosts in any {{ecloud}} region are allowed, including {{ech}} deployments and {{serverless-short}} projects. {applies_to}`serverless: preview`
 
 ### Compatibility [reindex-remote-compatibility]
 
@@ -803,7 +803,7 @@ Documents are always written to the destination index on the origin project.
 There are two ways to use reindex to move data between projects in {{cps-init}}:
 
 * [**Reindex across linked projects**](#reindex-cps-linked): reindex from the origin project and its [linked projects](docs-content://explore-analyze/cross-project-search/cross-project-search-link-projects.md).
-* [**Reindex from a remote project**](#reindex-cps-remote): reindex from a {{serverless-short}} project or {{ech}} deployment that is not linked to the origin project, by specifying `source.remote.host`.
+* [**Reindex from a remote project**](#reindex-cps-remote): reindex from another {{serverless-short}} project or an {{ech}} deployment by connecting over HTTP with `source.remote.host`.
 
 ### Reindex across linked projects [reindex-cps-linked]
 
@@ -831,10 +831,10 @@ POST _reindex
 
 ### Reindex from a remote project [reindex-cps-remote]
 
-When using `source.remote.host`, you can reindex from {{serverless-short}} projects or {{ech}} deployments that are not linked to the origin project.
+When using `source.remote.host`, you can reindex from another {{serverless-short}} project or an {{ech}} deployment over HTTP.
 
 The `source.index` field on the remote side also resolves across the remote project and all of its linked projects.
-For {{cps}} to work on the remote side, you must authenticate with a Cloud API key. An {{es}} API key only provides access to the remote project itself, not its linked projects.
+For {{cps}} to work on the remote side, you must authenticate with an [{{ecloud}} API key](docs-content://deploy-manage/api-keys/elastic-cloud-api-keys.md). An [{{es}} API key](docs-content://deploy-manage/api-keys/elasticsearch-api-keys.md) only provides access to the remote project itself, not its linked projects.
 
 The following request reindexes documents from the `logs` index on a remote project. The source targets the `logs` index on the remote project and any of its linked projects, but not the `logs` index on the origin project (the project you sent the reindex request to):
 

@@ -77,11 +77,7 @@ public interface IndexSettingProvider {
      * @param requestSource      The request source for the mapping update request
      * @param additionalSettings A settings builder to which additional settings can be added
      */
-    default void preUpdateMappings(
-        IndexMetadata indexMetadata,
-        CompressedXContent requestSource,
-        Settings.Builder additionalSettings
-    ) {}
+    default void preUpdateMappings(IndexMetadata indexMetadata, CompressedXContent requestSource, Settings.Builder additionalSettings) {}
 
     /**
      * Infrastructure class that holds services that can be used by {@link IndexSettingProvider} instances.

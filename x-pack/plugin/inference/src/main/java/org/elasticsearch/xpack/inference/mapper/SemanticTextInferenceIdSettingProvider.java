@@ -34,7 +34,6 @@ import java.util.function.Supplier;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
-import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_ELSER_ENDPOINT_ID_V2;
 
 /**
  * An {@link IndexSettingProvider} that injects {@link SemanticTextFieldMapper#INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID}
@@ -85,7 +84,13 @@ public class SemanticTextInferenceIdSettingProvider implements IndexSettingProvi
             return;
         }
 
-        if (hasSemanticTextField(indexName, templateIndexMode, indexTemplateAndCreateRequestSettings, combinedTemplateMappings, indexVersion) == false) {
+        if (hasSemanticTextField(
+            indexName,
+            templateIndexMode,
+            indexTemplateAndCreateRequestSettings,
+            combinedTemplateMappings,
+            indexVersion
+        ) == false) {
             return;
         }
 
@@ -156,8 +161,13 @@ public class SemanticTextInferenceIdSettingProvider implements IndexSettingProvi
         if (indexMetadata.getSettings().hasValue(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.getKey())) {
             return;
         }
-        if (hasSemanticTextField(indexMetadata.getIndex().getName(), indexMetadata.getIndexMode(), indexMetadata.getSettings(), List.of(requestSource),
-            SETTING_INDEX_VERSION_CREATED.get(indexMetadata.getSettings())) == false) {
+        if (hasSemanticTextField(
+            indexMetadata.getIndex().getName(),
+            indexMetadata.getIndexMode(),
+            indexMetadata.getSettings(),
+            List.of(requestSource),
+            SETTING_INDEX_VERSION_CREATED.get(indexMetadata.getSettings())
+        ) == false) {
             return;
         }
         ModelRegistry modelRegistry = modelRegistrySupplier.get();

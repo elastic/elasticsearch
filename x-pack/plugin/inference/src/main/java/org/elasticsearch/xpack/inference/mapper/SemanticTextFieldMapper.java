@@ -219,13 +219,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     public static TypeParser parser(Supplier<ModelRegistry> modelRegistry) {
         return new TypeParser(
-            (n, c) -> new Builder(
-                n,
-                c::bitSetProducer,
-                c.getIndexSettings(),
-                modelRegistry.get(),
-                c.getVectorsFormatProviders()
-            ),
+            (n, c) -> new Builder(n, c::bitSetProducer, c.getIndexSettings(), modelRegistry.get(), c.getVectorsFormatProviders()),
             List.of(validateParserContext(CONTENT_TYPE))
         );
     }

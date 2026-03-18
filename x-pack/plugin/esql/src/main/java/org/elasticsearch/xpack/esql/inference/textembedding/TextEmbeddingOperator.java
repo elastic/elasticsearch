@@ -19,10 +19,6 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
  * {@link TextEmbeddingOperator} is an {@link InferenceOperator} that performs plain-text embedding inference.
  * It evaluates a text expression for each input row, constructs text embedding inference requests,
  * and emits the dense vector embeddings as output.
- * <p>
- * Dispatch is handled by the default {@code dispatchInferenceRequest} which calls
- * {@link InferenceService#executeInference}.
- * </p>
  */
 public class TextEmbeddingOperator extends InferenceOperator {
 
@@ -30,13 +26,12 @@ public class TextEmbeddingOperator extends InferenceOperator {
         DriverContext driverContext,
         InferenceService inferenceService,
         String inferenceId,
-        TaskType taskType,
         ExpressionEvaluator inputEvaluator
     ) {
         super(
             driverContext,
             inferenceService,
-            new TextEmbeddingRequestIterator.Factory(inferenceId, taskType, inputEvaluator),
+            new TextEmbeddingRequestIterator.Factory(inferenceId, TaskType.TEXT_EMBEDDING, inputEvaluator),
             new EmbeddingOutputBuilder(driverContext.blockFactory())
         );
     }
@@ -52,7 +47,6 @@ public class TextEmbeddingOperator extends InferenceOperator {
     public record Factory(
         InferenceService inferenceService,
         String inferenceId,
-        TaskType taskType,
         ExpressionEvaluator.Factory textEvaluatorFactory
     ) implements OperatorFactory {
 
@@ -67,7 +61,6 @@ public class TextEmbeddingOperator extends InferenceOperator {
                 driverContext,
                 inferenceService,
                 inferenceId,
-                taskType,
                 textEvaluatorFactory.get(driverContext)
             );
         }

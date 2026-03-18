@@ -36,7 +36,6 @@ public class EmbeddingOperator extends InferenceOperator {
         DriverContext driverContext,
         InferenceService inferenceService,
         String inferenceId,
-        TaskType taskType,
         ExpressionEvaluator inputEvaluator,
         DataType dataType,
         DataFormat dataFormat,
@@ -45,13 +44,13 @@ public class EmbeddingOperator extends InferenceOperator {
         super(
             driverContext,
             inferenceService,
-            new EmbeddingRequestIterator.Factory(inferenceId, taskType, inputEvaluator, dataType, dataFormat, timeout),
+            new EmbeddingRequestIterator.Factory(inferenceId, TaskType.EMBEDDING, inputEvaluator, dataType, dataFormat, timeout),
             new EmbeddingOutputBuilder(driverContext.blockFactory())
         );
     }
 
     @Override
-    protected void dispatchInferenceRequest(BaseInferenceActionRequest request, ActionListener<InferenceAction.Response> listener) {
+    protected void dispatchInferenceRequest(InferenceService inferenceService, BaseInferenceActionRequest request, ActionListener<InferenceAction.Response> listener) {
         inferenceService.executeEmbeddingInference((EmbeddingAction.Request) request, listener);
     }
 
@@ -66,7 +65,6 @@ public class EmbeddingOperator extends InferenceOperator {
     public record Factory(
         InferenceService inferenceService,
         String inferenceId,
-        TaskType taskType,
         ExpressionEvaluator.Factory textEvaluatorFactory,
         DataType dataType,
         DataFormat dataFormat,
@@ -84,7 +82,6 @@ public class EmbeddingOperator extends InferenceOperator {
                 driverContext,
                 inferenceService,
                 inferenceId,
-                taskType,
                 textEvaluatorFactory.get(driverContext),
                 dataType,
                 dataFormat,

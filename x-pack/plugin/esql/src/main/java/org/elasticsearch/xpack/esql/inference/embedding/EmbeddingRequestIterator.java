@@ -20,7 +20,6 @@ import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.AbstractEmbeddingRequestIterator;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem.PositionValueCountsBuilder;
@@ -45,13 +44,12 @@ class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
 
     EmbeddingRequestIterator(
         String inferenceId,
-        TaskType taskType,
         BytesRefBlock textBlock,
         DataType dataType,
         DataFormat dataFormat,
         TimeValue timeout
     ) {
-        super(inferenceId, taskType, textBlock);
+        super(inferenceId, TaskType.EMBEDDING, textBlock);
         this.dataType = dataType;
         this.dataFormat = dataFormat;
         this.timeout = timeout;
@@ -92,7 +90,6 @@ class EmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
         public BulkInferenceRequestItemIterator create(Page inputPage) {
             return new EmbeddingRequestIterator(
                 inferenceId,
-                taskType,
                 (BytesRefBlock) textEvaluator.eval(inputPage),
                 dataType,
                 dataFormat,

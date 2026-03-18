@@ -14,7 +14,6 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.TestDriverRunner;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingResults;
@@ -37,7 +36,7 @@ public class TextEmbeddingOperatorTests extends InferenceOperatorTestCase<DenseE
     private int inputChannel;
 
     @Before
-    public void initEmbeddingChannels() {
+    public void initTextEmbeddingChannels() {
         inputChannel = between(0, inputsCount - 1);
     }
 
@@ -46,7 +45,6 @@ public class TextEmbeddingOperatorTests extends InferenceOperatorTestCase<DenseE
         return new TextEmbeddingOperator.Factory(
             mockedInferenceService(),
             SIMPLE_INFERENCE_ID,
-            TaskType.EMBEDDING,
             evaluatorFactory(inputChannel)
         );
     }
@@ -132,7 +130,6 @@ public class TextEmbeddingOperatorTests extends InferenceOperatorTestCase<DenseE
         Operator.OperatorFactory factory = new TextEmbeddingOperator.Factory(
             failingService,
             SIMPLE_INFERENCE_ID,
-            TaskType.EMBEDDING,
             evaluatorFactory(inputChannel)
         );
 

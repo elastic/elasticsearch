@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.inference.embedding;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.test.ComputeTestCase;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.TaskType;
@@ -39,7 +38,6 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
         try (
             EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
                 inferenceId,
-                TaskType.EMBEDDING,
                 inputBlock,
                 DataType.TEXT,
                 DataFormat.TEXT,
@@ -61,7 +59,6 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
         try (
             EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
                 inferenceId,
-                TaskType.EMBEDDING,
                 inputBlock,
                 DataType.TEXT,
                 DataFormat.TEXT,
@@ -120,7 +117,6 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
             try (
                 EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
                     inferenceId,
-                    TaskType.EMBEDDING,
                     inputBlock,
                     DataType.TEXT,
                     DataFormat.TEXT,
@@ -168,7 +164,6 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
             try (
                 EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
                     inferenceId,
-                    TaskType.EMBEDDING,
                     inputBlock,
                     DataType.TEXT,
                     DataFormat.TEXT,
@@ -208,7 +203,6 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
             try (
                 EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
                     inferenceId,
-                    TaskType.EMBEDDING,
                     inputBlock,
                     DataType.TEXT,
                     DataFormat.TEXT,
@@ -251,7 +245,6 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
             try (
                 EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
                     inferenceId,
-                    TaskType.EMBEDDING,
                     inputBlock,
                     DataType.TEXT,
                     DataFormat.TEXT,
@@ -297,7 +290,6 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
         try (
             EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
                 inferenceId,
-                TaskType.EMBEDDING,
                 inputBlock,
                 DataType.TEXT,
                 DataFormat.TEXT,
@@ -337,7 +329,6 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
             try (
                 EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
                     inferenceId,
-                    TaskType.EMBEDDING,
                     inputBlock,
                     DataType.TEXT,
                     DataFormat.TEXT,
@@ -379,7 +370,6 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
             try (
                 EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
                     inferenceId,
-                    TaskType.EMBEDDING,
                     inputBlock,
                     DataType.IMAGE,
                     DataFormat.BASE64,
@@ -416,7 +406,6 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
             try (
                 EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
                     inferenceId,
-                    TaskType.EMBEDDING,
                     inputBlock,
                     DataType.TEXT,
                     null,
@@ -444,7 +433,6 @@ public class EmbeddingRequestIteratorTests extends ComputeTestCase {
         try (
             EmbeddingRequestIterator requestIterator = new EmbeddingRequestIterator(
                 inferenceId,
-                TaskType.EMBEDDING,
                 inputBlock,
                 dataType,
                 dataFormat,

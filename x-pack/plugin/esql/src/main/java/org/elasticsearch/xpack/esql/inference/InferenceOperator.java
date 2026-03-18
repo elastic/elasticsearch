@@ -46,7 +46,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
     public static final int DEFAULT_MAX_OUTSTANDING_PAGES = 10;
     public static final int DEFAULT_MAX_OUTSTANDING_REQUESTS = 50;
 
-    protected final InferenceService inferenceService;
+    private final InferenceService inferenceService;
     private final OutputBuilder outputBuilder;
     private final BulkInferenceRequestItemIterator.Factory inferenceRequestsFactory;
     private final Queue<BulkInferenceOperation> ongoingBulkOperations;
@@ -181,7 +181,11 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
      * Dispatches an inference request to the appropriate InferenceService method.
      * Subclasses may override this to route to a different service method (e.g. {@code executeEmbeddingInference}).
      */
-    protected void dispatchInferenceRequest(BaseInferenceActionRequest request, ActionListener<InferenceAction.Response> listener) {
+    protected void dispatchInferenceRequest(
+        InferenceService inferenceService,
+        BaseInferenceActionRequest request,
+        ActionListener<InferenceAction.Response> listener
+    ) {
         inferenceService.executeInference((InferenceAction.Request) request, listener);
     }
 
@@ -200,6 +204,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         }
 
         dispatchInferenceRequest(
+            inferenceService,
             request.inferenceRequest(),
             new ThreadedActionListener<>(
                 inferenceService.threadPool().executor(ThreadPool.Names.SEARCH),

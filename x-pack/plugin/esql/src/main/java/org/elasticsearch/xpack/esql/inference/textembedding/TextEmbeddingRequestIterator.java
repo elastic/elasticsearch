@@ -29,8 +29,8 @@ import java.util.List;
  */
 class TextEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
 
-    TextEmbeddingRequestIterator(String inferenceId, TaskType taskType, BytesRefBlock textBlock) {
-        super(inferenceId, taskType, textBlock);
+    TextEmbeddingRequestIterator(String inferenceId, BytesRefBlock textBlock) {
+        super(inferenceId, TaskType.TEXT_EMBEDDING, textBlock);
     }
 
     @Override
@@ -50,7 +50,7 @@ class TextEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
 
         @Override
         public BulkInferenceRequestItemIterator create(Page inputPage) {
-            return new TextEmbeddingRequestIterator(inferenceId, taskType, (BytesRefBlock) textEvaluator.eval(inputPage));
+            return new TextEmbeddingRequestIterator(inferenceId, (BytesRefBlock) textEvaluator.eval(inputPage));
         }
 
         @Override

@@ -22,7 +22,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -213,13 +212,11 @@ public class InferenceFunctionEvaluator {
                     case TextEmbedding textEmbedding -> new TextEmbeddingOperator.Factory(
                         inferenceService,
                         inferenceId(inferenceFunction, foldContext),
-                        TaskType.TEXT_EMBEDDING,
                         expressionEvaluatorFactory(textEmbedding.inputText(), foldContext)
                     );
                     case Embedding embedding -> new EmbeddingOperator.Factory(
                         inferenceService,
                         inferenceId(inferenceFunction, foldContext),
-                        TaskType.EMBEDDING,
                         expressionEvaluatorFactory(embedding.inputText(), foldContext),
                         embedding.inputDataType(),
                         embedding.inputDataFormat(),

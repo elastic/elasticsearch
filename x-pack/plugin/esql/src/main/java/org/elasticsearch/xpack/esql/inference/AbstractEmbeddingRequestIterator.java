@@ -20,8 +20,7 @@ import java.util.NoSuchElementException;
  * Abstract base class for embedding request iterators.
  * <p>
  * Provides common iteration logic for converting a block of text strings into inference request items.
- * Subclasses implement {@link #buildRequestItem} to produce typed requests and bind the appropriate
- * {@link org.elasticsearch.xpack.esql.inference.InferenceService} dispatch method as an executor.
+ * Subclasses implement {@link #buildRequestItem} to produce an inference typed requests
  * </p>
  */
 public abstract class AbstractEmbeddingRequestIterator implements BulkInferenceRequestItemIterator {
@@ -76,7 +75,7 @@ public abstract class AbstractEmbeddingRequestIterator implements BulkInferenceR
     }
 
     /**
-     * Subclasses produce a typed request and bind the appropriate InferenceService method as executor.
+     * Subclasses produce a typed inference request
      *
      * @param text the text to embed, or null for a null-input position
      * @param pvcs the position value counts builder for this batch

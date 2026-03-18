@@ -16,7 +16,6 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingResults;
@@ -48,7 +47,6 @@ public class EmbeddingOperatorTests extends InferenceOperatorTestCase<DenseEmbed
         return new EmbeddingOperator.Factory(
             mockedInferenceService(),
             SIMPLE_INFERENCE_ID,
-            TaskType.EMBEDDING,
             evaluatorFactory(inputChannel),
             DataType.TEXT,
             DataFormat.TEXT,
@@ -131,7 +129,6 @@ public class EmbeddingOperatorTests extends InferenceOperatorTestCase<DenseEmbed
         Operator.OperatorFactory factory = new EmbeddingOperator.Factory(
             failingService,
             SIMPLE_INFERENCE_ID,
-            TaskType.EMBEDDING,
             evaluatorFactory(inputChannel),
             DataType.TEXT,
             DataFormat.TEXT,
@@ -148,7 +145,6 @@ public class EmbeddingOperatorTests extends InferenceOperatorTestCase<DenseEmbed
         Operator.OperatorFactory factory = new EmbeddingOperator.Factory(
             mockedInferenceService(),
             SIMPLE_INFERENCE_ID,
-            TaskType.EMBEDDING,
             evaluatorFactory(inputChannel),
             DataType.IMAGE,
             DataFormat.BASE64,

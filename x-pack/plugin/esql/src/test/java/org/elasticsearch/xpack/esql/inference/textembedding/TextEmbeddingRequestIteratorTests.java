@@ -34,7 +34,6 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
         try (
             TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(
                 inferenceId,
-                TaskType.TEXT_EMBEDDING,
                 inputBlock
             )
         ) {
@@ -56,7 +55,6 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
         try (
             TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(
                 inferenceId,
-                TaskType.TEXT_EMBEDDING,
                 inputBlock
             )
         ) {
@@ -118,7 +116,6 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
             try (
                 TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(
                     inferenceId,
-                    TaskType.TEXT_EMBEDDING,
                     inputBlock
                 )
             ) {
@@ -163,7 +160,6 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
             try (
                 TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(
                     inferenceId,
-                    TaskType.TEXT_EMBEDDING,
                     inputBlock
                 )
             ) {
@@ -200,7 +196,6 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
             try (
                 TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(
                     inferenceId,
-                    TaskType.TEXT_EMBEDDING,
                     inputBlock
                 )
             ) {
@@ -241,7 +236,6 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
             try (
                 TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(
                     inferenceId,
-                    TaskType.TEXT_EMBEDDING,
                     inputBlock
                 )
             ) {
@@ -284,7 +278,6 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
         try (
             TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(
                 inferenceId,
-                TaskType.TEXT_EMBEDDING,
                 inputBlock
             )
         ) {
@@ -318,7 +311,6 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
             try (
                 TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(
                     inferenceId,
-                    TaskType.TEXT_EMBEDDING,
                     inputBlock
                 )
             ) {
@@ -355,7 +347,7 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
             BytesRefBlock inputBlock = blockBuilder.build();
 
             try (
-                TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(inferenceId, TaskType.EMBEDDING, inputBlock)
+                TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(inferenceId, inputBlock)
             ) {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem requestItem = requestIterator.next();
@@ -373,7 +365,6 @@ public class TextEmbeddingRequestIteratorTests extends ComputeTestCase {
         try (
             TextEmbeddingRequestIterator requestIterator = new TextEmbeddingRequestIterator(
                 inferenceId,
-                TaskType.TEXT_EMBEDDING,
                 inputBlock
             )
         ) {

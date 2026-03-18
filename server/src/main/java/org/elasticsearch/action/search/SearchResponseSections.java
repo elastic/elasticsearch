@@ -75,7 +75,18 @@ public class SearchResponseSections implements Releasable {
         int numReducePhases,
         Long timeRangeFilterFromMillis
     ) {
-        this(hits, aggregations, suggest, timedOut, terminatedEarly, profileResults, numReducePhases, timeRangeFilterFromMillis, null, null);
+        this(
+            hits,
+            aggregations,
+            suggest,
+            timedOut,
+            terminatedEarly,
+            profileResults,
+            numReducePhases,
+            timeRangeFilterFromMillis,
+            null,
+            null
+        );
     }
 
     public SearchResponseSections(

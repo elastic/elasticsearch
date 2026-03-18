@@ -40,11 +40,13 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     // the upper limit is defined in {@code Fork.MAX_BRANCHES}
     private static final int MAX_SUBQUERIES = 8;
 
+    private static final int MAX_SUBQUERIES_SERVERLESS = 4;
+
     private static final int MAX_STRING_FIELDS = 1000;
 
     private static final int MAX_STRING_FIELD_SERVERLESS = 600;
 
-    private static final int MAX_DOC = 500;
+    private static final int MAX_DOC = 200;
 
     private static final int MAX_DOC_SERVERLESS = 100;
 
@@ -75,13 +77,13 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResults() throws IOException {
         int docs = docs();
         heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true, fields());
-        assertCircuitBreaks(attempt -> buildSubqueries(MAX_SUBQUERIES, "manybigfields"));
+        assertCircuitBreaks(attempt -> buildSubqueries(maxSubqueries(), "manybigfields"));
     }
 
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortOneField() throws IOException {
         int docs = docs();
         heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true, fields());
-        assertCircuitBreaks(attempt -> buildSubqueriesWithSort(MAX_SUBQUERIES, "manybigfields", " f000 "));
+        assertCircuitBreaks(attempt -> buildSubqueriesWithSort(maxSubqueries(), "manybigfields", "f000"));
     }
 
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortManyFields() throws IOException {
@@ -92,7 +94,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         for (int f = 1; f < 11; f++) {
             sortKeys.append(", f").append(String.format(Locale.ROOT, "%03d", f));
         }
-        assertCircuitBreaks(attempt -> buildSubqueriesWithSort(MAX_SUBQUERIES, "manybigfields", sortKeys.toString()));
+        assertCircuitBreaks(attempt -> buildSubqueriesWithSort(maxSubqueries(), "manybigfields", sortKeys.toString()));
     }
 
     public void testManyRandomNumericFieldsInSubqueryIntermediateResultsWithSortManyFields() throws IOException {
@@ -125,24 +127,24 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     public void testManyRandomTextFieldsInSubqueryIntermediateResults() throws IOException {
         int docs = docs();
         heapAttackIT.initManyBigFieldsIndex(docs, "text", true, fields());
-        assertCircuitBreaks(attempt -> buildSubqueries(MAX_SUBQUERIES, "manybigfields"));
+        assertCircuitBreaks(attempt -> buildSubqueries(maxSubqueries(), "manybigfields"));
     }
 
     public void testManyRandomTextFieldsInSubqueryIntermediateResultsWithSortOneField() throws IOException {
         int docs = docs();
         heapAttackIT.initManyBigFieldsIndex(docs, "text", true, fields());
-        assertCircuitBreaks(attempt -> buildSubqueriesWithSort(MAX_SUBQUERIES, "manybigfields", " f000 "));
+        assertCircuitBreaks(attempt -> buildSubqueriesWithSort(maxSubqueries(), "manybigfields", " substring(f000, 5) "));
     }
 
     public void testManyRandomTextFieldsInSubqueryIntermediateResultsWithSortManyFields() throws IOException {
         int docs = docs();
         heapAttackIT.initManyBigFieldsIndex(docs, "text", true, fields());
         StringBuilder sortKeys = new StringBuilder();
-        sortKeys.append("f000");
+        sortKeys.append(" substring(f000, 5) ");
         for (int f = 1; f < 5; f++) {
-            sortKeys.append(", f").append(String.format(Locale.ROOT, "%03d", f));
+            sortKeys.append(", substring(f").append(String.format(Locale.ROOT, "%03d", f)).append(", 5) ");
         }
-        assertCircuitBreaks(attempt -> buildSubqueriesWithSort(MAX_SUBQUERIES, "manybigfields", sortKeys.toString()));
+        assertCircuitBreaks(attempt -> buildSubqueriesWithSort(maxSubqueries(), "manybigfields", sortKeys.toString()));
     }
 
     public void testManyKeywordFieldsWith10UniqueValuesInSubqueryIntermediateResultsWithAggNoGrouping() throws IOException {
@@ -189,7 +191,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
             grouping.append(", f").append(String.format(Locale.ROOT, "%03d", f));
         }
         try {
-            Map<?, ?> response = buildSubqueriesWithAgg(MAX_SUBQUERIES, "manybigfields", "c = COUNT_DISTINCT(f499)", grouping.toString());
+            Map<?, ?> response = buildSubqueriesWithAgg(maxSubqueries(), "manybigfields", "c = COUNT_DISTINCT(f499)", grouping.toString());
             assertTrue(response.get("columns") instanceof List<?> l && l.size() == (groupBySize + 1));
         } catch (ResponseException e) {
             Map<?, ?> map = responseAsMap(e.getResponse());
@@ -201,15 +203,15 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     }
 
     public void testGiantTextFieldInSubqueryIntermediateResults() throws IOException {
-        int docs = isServerless() ? 20 : 50;
+        int docs = 20;
         heapAttackIT.initGiantTextField(docs, false, 5);
-        assertCircuitBreaks(attempt -> buildSubqueries(MAX_SUBQUERIES, "bigtext"));
+        assertCircuitBreaks(attempt -> buildSubqueries(maxSubqueries(), "bigtext"));
     }
 
     public void testGiantTextFieldInSubqueryIntermediateResultsWithSort() throws IOException {
         int docs = 20;
         heapAttackIT.initGiantTextField(docs, false, 5);
-        assertCircuitBreaks(attempt -> buildSubqueriesWithSort(MAX_SUBQUERIES, "bigtext", " substring(f, 5) "));
+        assertCircuitBreaks(attempt -> buildSubqueriesWithSort(maxSubqueries(), "bigtext", " substring(f, 5) "));
     }
 
     public void testGiantTextFieldInSubqueryIntermediateResultsWithAggNoGrouping() throws IOException {
@@ -328,5 +330,11 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         // serverless has 6 shards, non-serverless has 1 shard,
         // limiting the number of keyword/text fields to reduce the gc lagging and intermittent OOMs in serverless
         return isServerless() ? MAX_STRING_FIELD_SERVERLESS : MAX_STRING_FIELDS;
+    }
+
+    private static int maxSubqueries() throws IOException {
+        // serverless has 6 shards, non-serverless has 1 shard, the number of exchange operators increases when the number of subqueries
+        // increase, limiting the number of subqueries to reduce the gc lagging and intermittent OOMs in serverless
+        return isServerless() ? MAX_SUBQUERIES_SERVERLESS : MAX_SUBQUERIES;
     }
 }

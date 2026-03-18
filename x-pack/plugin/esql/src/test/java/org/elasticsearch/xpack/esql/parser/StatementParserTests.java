@@ -1089,6 +1089,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitBy() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.LIMIT_BY.isEnabled());
         LogicalPlan plan = query("""
                 FROM foo
                 | SORT @timestamp DESC
@@ -1128,6 +1129,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitByQualifiedName() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.LIMIT_BY.isEnabled());
         LogicalPlan plan = query("""
                 FROM foo
                 | SORT @timestamp DESC
@@ -3215,11 +3217,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         for (Map.Entry<String, String> command : commands.entrySet()) {
             String cmd = command.getKey();
-            String error = command.getValue();
-            expectError(
-                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"option\":null})"),
-                LoggerMessageFormat.format(null, "line 1:{}: {}", error, "Invalid named parameter [\"option\":null], NULL is not supported")
-            );
+            query(LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"option\":null})"));
         }
     }
 
@@ -3946,13 +3944,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError(
             "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"task_settings\": 3 }",
             "Option [task_settings] must be a map, found [3]"
-        );
-    }
-
-    public void testCompletionTaskSettingsNull() {
-        expectError(
-            "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"task_settings\": null }",
-            "Invalid named parameter [\"task_settings\":null], NULL is not supported"
         );
     }
 

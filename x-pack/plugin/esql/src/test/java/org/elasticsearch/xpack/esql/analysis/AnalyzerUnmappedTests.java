@@ -14,16 +14,27 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.util.List;
+import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzeStatement;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -530,6 +541,68 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     private static String setUnmappedLoad(String query) {
         assumeTrue("Requires OPTIONAL_FIELDS_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
         return "SET unmapped_fields=\"load\"; " + query;
+    }
+
+    /**
+     * Reproducer for #141927: with unmapped_fields=load, full-text search (MATCH, match operator, MATCH_PHRASE, etc.)
+     * must fail at analysis instead of returning empty results.
+     * <p>
+     * One assertion per forbidden full-text function so that re-enabling any of them (e.g. QSTR, KNN, MATCH_PHRASE)
+     * would cause this test to fail. When full-text function support grows, this test will need updates; see #144121.
+     */
+    public void testUnmappedFieldsLoadWithFullTextSearchFails() {
+        // Assert the new message format and that the specific full-text function is named in brackets
+        // Function names in error messages use Function.functionName() (class simple name upper-cased) or override (e.g. QSTR, :)
+        verificationFailure(
+            setUnmappedLoad("FROM test | WHERE first_name:\"foo\" | KEEP first_name"),
+            "does not support full-text search function [:]"
+        );
+        verificationFailure(
+            setUnmappedLoad("FROM test | WHERE match(first_name, \"foo\") | KEEP first_name"),
+            "does not support full-text search function [MATCH]"
+        );
+        verificationFailure(
+            setUnmappedLoad("FROM test | WHERE match_phrase(first_name, \"foo bar\") | KEEP first_name"),
+            "does not support full-text search function [MatchPhrase]"
+        );
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            verificationFailure(
+                setUnmappedLoad("FROM test | WHERE multi_match(\"foo\", first_name) | KEEP first_name"),
+                "does not support full-text search function [MultiMatch]"
+            );
+        }
+        if (EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled()) {
+            verificationFailure(
+                setUnmappedLoad("FROM test | WHERE qstr(\"first_name: foo\") | KEEP first_name"),
+                "does not support full-text search function [QSTR]"
+            );
+        }
+        if (EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled()) {
+            verificationFailure(
+                setUnmappedLoad("FROM test | WHERE kql(\"first_name: foo\") | KEEP first_name"),
+                "does not support full-text search function [KQL]"
+            );
+        }
+        verificationFailureWithMapping(
+            "mapping-full_text_search.json",
+            setUnmappedLoad("FROM test | WHERE knn(vector, [1, 2, 3]) | KEEP vector"),
+            "does not support full-text search function [KNN]"
+        );
+    }
+
+    private void verificationFailureWithMapping(String mapping, String statement, String expectedFailure) {
+        var st = TEST_PARSER.createStatement(statement);
+        var indexResolutions = Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping(mapping, "test"));
+        var analyzer = analyzer(
+            indexResolutions,
+            defaultLookupResolution(),
+            defaultEnrichResolution(),
+            TEST_VERIFIER,
+            configuration(statement),
+            st.setting(UNMAPPED_FIELDS)
+        );
+        var e = expectThrows(VerificationException.class, () -> analyzer.analyze(st.plan()));
+        assertThat(e.getMessage(), containsString(expectedFailure));
     }
 
     @Override

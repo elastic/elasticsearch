@@ -42,7 +42,7 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
     private long nativeInt7DotProduct(byte[] q) throws IOException {
         return IndexInputUtils.withSlice(in, dimensions, this::getScratch, segment -> {
             final MemorySegment querySegment = MemorySegment.ofArray(q);
-            return Similarities.dotProductI7u(segment, querySegment, dimensions);
+            return (long) Similarities.dotProductI7u(segment, querySegment, dimensions);
         });
     }
 

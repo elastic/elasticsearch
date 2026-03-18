@@ -183,6 +183,13 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             """);
     }
 
+    public void testInlineStatsAggAndGroup() throws Exception {
+        runTests("""
+            FROM employees
+            | INLINE STATS s = SUM(does_not_exist1::DOUBLE) BY does_not_exist2
+            """);
+    }
+
     public void testStatsAggAndAliasedGroup() throws Exception {
         runTests("""
             FROM employees
@@ -209,13 +216,6 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM employees
             | STATS s = SUM(does_not_exist1) + does_not_exist2, c = COUNT(*) BY does_not_exist3, emp_no, does_not_exist2
             """, STAGES);
-    }
-
-    public void testInlineStats() throws Exception {
-        runTests("""
-            FROM employees
-            | STATS s = SUM(does_not_exist1::DOUBLE) BY does_not_exist2
-            """);
     }
 
     public void testInlineStatsMixed() throws Exception {
@@ -324,6 +324,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     }
 
     public void testSubqueryKeepUnmapped() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runTestsNullifyOnly("""
             FROM employees, (FROM languages | KEEP language_code)
             | KEEP emp_no, language_code, does_not_exist
@@ -331,6 +332,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     }
 
     public void testSubqueryWithStats() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runTestsNullifyOnly("""
             FROM employees, (FROM sample_data | STATS max_ts = MAX(@timestamp) BY does_not_exist)
             | KEEP emp_no, max_ts, does_not_exist
@@ -338,6 +340,7 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     }
 
     public void testSubqueryKeepMultipleUnmapped() throws Exception {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runTestsNullifyOnly("""
             FROM employees,
                 (FROM languages | KEEP language_code, unmapped1, unmapped2)
@@ -589,25 +592,6 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     }
 
     public void testSubquerysMixAndLookupJoinNullify() throws Exception {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        runTestsNullifyOnly("""
-            FROM employees,
-                (FROM languages
-                 | WHERE language_code > 10
-                 | RENAME language_name as languageName),
-                (FROM sample_data
-                | STATS max(@timestamp)),
-                (FROM employees
-                | EVAL language_code = languages
-                | LOOKUP JOIN languages_lookup ON language_code)
-            | WHERE emp_no > 10000 OR does_not_exist1::LONG < 10
-            | STATS count(*) BY emp_no, language_code, does_not_exist2
-            | RENAME emp_no AS empNo, language_code AS languageCode
-            | MV_EXPAND languageCode
-            """, STAGES);
-    }
-
-    public void testSubquerysMixAndLookupJoinLoad() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         runTestsNullifyOnly("""
             FROM employees,

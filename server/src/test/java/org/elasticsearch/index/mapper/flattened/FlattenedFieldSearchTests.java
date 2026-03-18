@@ -418,18 +418,32 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
 
     public void testTermsAggregationWithDuplicateValues() throws IOException {
         String indexName = "test-noindex-terms-agg";
-        createIndex(indexName, indicesAdmin().prepareCreate(indexName).setMapping("""
-            {
-              "properties": {
-                "labels": {
-                  "type": "flattened",
-                  "index": false
-                }
-              }
-            }"""));
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("labels")
+            .field("type", "flattened")
+            .field("index", false)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex(indexName, Settings.EMPTY, mapping);
 
-        prepareIndex(indexName).setId("1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
-            {"labels": {"key1": "foo", "key2": "foo", "key3": "bar"}}""", XContentType.JSON).get();
+        prepareIndex(indexName).setId("1")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .setSource(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("labels")
+                    .field("key1", "foo")
+                    .field("key2", "foo")
+                    .field("key3", "bar")
+                    .endObject()
+                    .endObject()
+            )
+            .get();
 
         TermsAggregationBuilder builder = terms("terms").field("labels");
         assertNoFailuresAndResponse(client().prepareSearch(indexName).addAggregation(builder), response -> {
@@ -449,18 +463,31 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
 
     public void testNoRootDocValuesFieldWhenIndexFalse() throws Exception {
         String indexName = "test-noindex-no-root-dv";
-        createIndex(indexName, indicesAdmin().prepareCreate(indexName).setMapping("""
-            {
-              "properties": {
-                "labels": {
-                  "type": "flattened",
-                  "index": false
-                }
-              }
-            }"""));
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("labels")
+            .field("type", "flattened")
+            .field("index", false)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex(indexName, Settings.EMPTY, mapping);
 
-        prepareIndex(indexName).setId("1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource("""
-            {"labels": {"key1": "value1", "key2": "value2"}}""", XContentType.JSON).get();
+        prepareIndex(indexName).setId("1")
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .setSource(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("labels")
+                    .field("key1", "value1")
+                    .field("key2", "value2")
+                    .endObject()
+                    .endObject()
+            )
+            .get();
 
         var indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
         var shard = indexService.getShard(0);

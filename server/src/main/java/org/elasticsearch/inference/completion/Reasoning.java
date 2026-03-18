@@ -10,6 +10,7 @@
 package org.elasticsearch.inference.completion;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,7 +23,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Objects;
 
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_REASONING_MAX_TOKENS_REMOVED;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.EFFORT_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ENABLED_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.EXCLUDE_FIELD;
@@ -33,19 +36,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * This class represents the reasoning configuration for a completion request.
  * It encapsulates various parameters that control the reasoning process.
- * @param effort The {@link ReasoningEffort} level to apply. This is an optional parameter.
- * @param summary The {@link ReasoningSummary} level to provide. This is an optional parameter.
- * @param exclude Whether to exclude reasoning from the response. This is an optional parameter.
- * @param enabled Whether to enable reasoning. This is an optional parameter.
+ *
  * @see ReasoningEffort
  * @see ReasoningSummary
  */
-public record Reasoning(
-    @Nullable ReasoningEffort effort,
-    @Nullable ReasoningSummary summary,
-    @Nullable Boolean exclude,
-    @Nullable Boolean enabled
-) implements ToXContentObject, NamedWriteable {
+public final class Reasoning implements ToXContentObject, NamedWriteable {
 
     public static final String NAME = "reasoning";
 
@@ -63,6 +58,35 @@ public record Reasoning(
         }
     );
 
+    @Nullable
+    private final ReasoningEffort effort;
+    @Nullable
+    private final ReasoningSummary summary;
+    @Nullable
+    private final Boolean exclude;
+    @Nullable
+    private final Boolean enabled;
+
+    /**
+     * Constructor returning instance of {@link Reasoning}.
+     *
+     * @param effort  The {@link ReasoningEffort} level to apply. This is an optional parameter.
+     * @param summary The {@link ReasoningSummary} level to provide. This is an optional parameter.
+     * @param exclude Whether to exclude reasoning from the response. This is an optional parameter.
+     * @param enabled Whether to enable reasoning. This is an optional parameter.
+     */
+    public Reasoning(
+        @Nullable ReasoningEffort effort,
+        @Nullable ReasoningSummary summary,
+        @Nullable Boolean exclude,
+        @Nullable Boolean enabled
+    ) {
+        this.effort = effort;
+        this.summary = summary;
+        this.exclude = exclude;
+        this.enabled = enabled;
+    }
+
     static {
         PARSER.declareRequiredFieldSet(EFFORT_FIELD, ENABLED_FIELD);
 
@@ -78,6 +102,7 @@ public record Reasoning(
      * <ul>
      *     <li>If [effort] is null and [enabled] is false, an exception is thrown.</li>
      * </ul>
+     *
      * @param effort The reasoning effort level to validate.
      * @param enabled `enabled` field to validate.
      */
@@ -88,17 +113,21 @@ public record Reasoning(
     }
 
     public Reasoning(StreamInput in) throws IOException {
-        this(
-            in.readOptionalEnum(ReasoningEffort.class),
-            in.readOptionalEnum(ReasoningSummary.class),
-            in.readOptionalBoolean(),
-            in.readOptionalBoolean()
-        );
+        this.effort = in.readOptionalEnum(ReasoningEffort.class);
+        if (in.getTransportVersion().supports(CHAT_COMPLETION_REASONING_MAX_TOKENS_REMOVED) == false) {
+            in.readOptionalVLong();
+        }
+        this.summary = in.readOptionalEnum(ReasoningSummary.class);
+        this.exclude = in.readOptionalBoolean();
+        this.enabled = in.readOptionalBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalEnum(effort);
+        if (out.getTransportVersion().supports(CHAT_COMPLETION_REASONING_MAX_TOKENS_REMOVED) == false) {
+            out.writeOptionalVLong(null);
+        }
         out.writeOptionalEnum(summary);
         out.writeOptionalBoolean(exclude);
         out.writeOptionalBoolean(enabled);
@@ -126,6 +155,47 @@ public record Reasoning(
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Nullable
+    public ReasoningEffort effort() {
+        return effort;
+    }
+
+    @Nullable
+    public ReasoningSummary summary() {
+        return summary;
+    }
+
+    @Nullable
+    public Boolean exclude() {
+        return exclude;
+    }
+
+    @Nullable
+    public Boolean enabled() {
+        return enabled;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) return true;
+        if (obj == null || obj.getClass() != this.getClass()) return false;
+        var that = (Reasoning) obj;
+        return Objects.equals(this.effort, that.effort)
+            && Objects.equals(this.summary, that.summary)
+            && Objects.equals(this.exclude, that.exclude)
+            && Objects.equals(this.enabled, that.enabled);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(effort, summary, exclude, enabled);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.format("Reasoning[effort=%s, summary=%s, exclude=%s, enabled=%s]", effort, summary, exclude, enabled);
     }
 
     /**

@@ -67,6 +67,24 @@ public class ReasoningTests extends AbstractBWCSerializationTestCase<Reasoning> 
         }
     }
 
+    /**
+     * `max_tokens` previously was supported field and this test was not throwing exception.
+     * We need to explicitly validate unknown field exception is being thrown now.
+     * @throws IOException if there are errors creating the parser
+     */
+    public void testParsingReasoning_OnlyMaxTokens_ThrowsException_UnknownField() throws IOException {
+        String reasoningJson = """
+            {
+                "max_tokens": 25
+            }
+            """;
+
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningJson)) {
+            var exception = assertThrows(XContentParseException.class, () -> Reasoning.PARSER.apply(parser, null));
+            assertThat(exception.getMessage(), is("[2:5] [Reasoning] unknown field [max_tokens]"));
+        }
+    }
+
     public void testParsingReasoning_OnlyEnabled() throws IOException {
         String reasoningJson = """
             {
@@ -79,6 +97,25 @@ public class ReasoningTests extends AbstractBWCSerializationTestCase<Reasoning> 
             var expected = new Reasoning(null, null, null, true);
 
             assertThat(reasoning, is(expected));
+        }
+    }
+
+    /**
+     * `max_tokens` previously was supported field and this test was throwing different exception.
+     * We need to explicitly validate unknown field exception is being thrown now.
+     * @throws IOException if there are errors creating the parser
+     */
+    public void testParsingReasoning_BothEffortAndMaxTokens_ThrowsException() throws IOException {
+        String reasoningJson = """
+            {
+                "effort": "medium",
+                "max_tokens": 25
+            }
+            """;
+
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningJson)) {
+            var exception = assertThrows(XContentParseException.class, () -> Reasoning.PARSER.apply(parser, null));
+            assertThat(exception.getMessage(), is("[3:5] [Reasoning] unknown field [max_tokens]"));
         }
     }
 
@@ -104,7 +141,7 @@ public class ReasoningTests extends AbstractBWCSerializationTestCase<Reasoning> 
         String reasoningJson = "{}";
 
         try (var parser = createParser(JsonXContent.jsonXContent, reasoningJson)) {
-            var exception = assertThrows(IllegalArgumentException.class, () -> Reasoning.PARSER.apply(parser, null));
+            var exception = assertThrows(XContentParseException.class, () -> Reasoning.PARSER.apply(parser, null));
             assertThat(exception.getMessage(), is("Required one of fields [effort, enabled], but none were specified."));
         }
     }

@@ -762,7 +762,7 @@ public class AllocationService {
         }
     }
 
-    public RoutingAllocation createImmutableRoutingAllocation(ClusterState clusterState, long currentNanoTime) {
+    private RoutingAllocation createImmutableRoutingAllocation(ClusterState clusterState, long currentNanoTime) {
         return new ImmutableRoutingAllocation(
             allocationDeciders,
             clusterState,
@@ -798,6 +798,17 @@ public class AllocationService {
         return existingShardsAllocators.values().stream().mapToInt(ExistingShardsAllocator::getNumberOfInFlightFetches).sum();
     }
 
+    public ShardAllocationDecision explainShardAllocation(
+        ShardRouting shardRouting,
+        ClusterState clusterState,
+        long currentNanoTime,
+        RoutingAllocation.DebugMode debugMode
+    ) {
+        RoutingAllocation immutableRoutingAllocation = createImmutableRoutingAllocation(clusterState, currentNanoTime);
+        immutableRoutingAllocation.setDebugMode(debugMode);
+        return explainShardAllocation(shardRouting, immutableRoutingAllocation);
+    }
+
     public ShardAllocationDecision explainShardAllocation(ShardRouting shardRouting, RoutingAllocation allocation) {
         assert allocation.debugDecision();
         AllocateUnassignedDecision allocateDecision = shardRouting.unassigned()
@@ -810,8 +821,13 @@ public class AllocationService {
         }
     }
 
-    public Function<ShardRouting, ShardAllocationDecision> explainAssignedShardAllocationFunction(RoutingAllocation allocation) {
-        assert allocation.debugDecision();
+    public Function<ShardRouting, ShardAllocationDecision> explainAssignedShardAllocationFunction(
+        ClusterState clusterState,
+        long currentNanoTime,
+        RoutingAllocation.DebugMode debugMode
+    ) {
+        assert debugMode == RoutingAllocation.DebugMode.ON || debugMode == RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS;
+        final RoutingAllocation allocation = createImmutableRoutingAllocation(clusterState, currentNanoTime);
         final Function<ShardRouting, ShardAllocationDecision> explainFunction = shardsAllocator.explainShardAllocationFunction(allocation);
         if (Assertions.ENABLED) {
             return shard -> {

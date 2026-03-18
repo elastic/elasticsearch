@@ -223,9 +223,6 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             );
         }
 
-        final RoutingAllocation allocation = allocationService.createImmutableRoutingAllocation(currentState, System.nanoTime());
-        allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
-
         // We also need the set of node IDs which are currently shutting down.
         Set<String> shuttingDownNodes = currentState.metadata().nodeShutdowns().getAll().keySet();
 
@@ -240,7 +237,12 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
 
         if (unassignedShards.isEmpty() == false) {
             var shardRouting = unassignedShards.get(0);
-            ShardAllocationDecision decision = allocationService.explainShardAllocation(shardRouting, allocation);
+            ShardAllocationDecision decision = allocationService.explainShardAllocation(
+                shardRouting,
+                currentState,
+                System.nanoTime(),
+                RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS
+            );
 
             return new ShutdownShardMigrationStatus(
                 SingleNodeShutdownMetadata.Status.STALLED,
@@ -301,7 +303,11 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             @Override
             public ShardAllocationDecision apply(ShardRouting shardRouting) {
                 if (this.allocationExplainFunctionInternal == null) {
-                    this.allocationExplainFunctionInternal = allocationService.explainAssignedShardAllocationFunction(allocation);
+                    this.allocationExplainFunctionInternal = allocationService.explainAssignedShardAllocationFunction(
+                        currentState,
+                        System.nanoTime(),
+                        RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS
+                    );
                 }
                 return this.allocationExplainFunctionInternal.apply(shardRouting);
             }

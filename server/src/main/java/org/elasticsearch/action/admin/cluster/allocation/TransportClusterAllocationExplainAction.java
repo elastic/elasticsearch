@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation.DebugMode;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -96,14 +95,13 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
     ) {
         final ClusterInfo clusterInfo = clusterInfoService.getClusterInfo();
         final Collection<ProjectId> projectIds = projectResolver.getProjectIds(state);
-        final RoutingAllocation allocation = allocationService.createImmutableRoutingAllocation(state, System.nanoTime());
 
-        ShardRouting shardRouting = findShardToExplain(request, allocation, projectIds);
+        ShardRouting shardRouting = findShardToExplain(request, state, projectIds);
         logger.debug("explaining the allocation for [{}], found shard [{}]", request, shardRouting);
 
         ClusterAllocationExplanation cae = explainShard(
             shardRouting,
-            allocation,
+            state,
             request.includeDiskInfo() ? clusterInfo : null,
             request.includeYesDecisions(),
             request.useAnyUnassignedShard() == false,
@@ -115,27 +113,27 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
     // public for testing
     public static ClusterAllocationExplanation explainShard(
         ShardRouting shardRouting,
-        RoutingAllocation allocation,
+        ClusterState clusterState,
         ClusterInfo clusterInfo,
         boolean includeYesDecisions,
         boolean isSpecificShard,
         AllocationService allocationService
     ) {
 
-        allocation.setDebugMode(includeYesDecisions ? DebugMode.ON : DebugMode.EXCLUDE_YES_DECISIONS);
+        DebugMode debugMode = includeYesDecisions ? DebugMode.ON : DebugMode.EXCLUDE_YES_DECISIONS;
 
         ShardAllocationDecision shardDecision;
         if (shardRouting.initializing() || shardRouting.relocating()) {
             shardDecision = ShardAllocationDecision.NOT_TAKEN;
         } else {
-            shardDecision = allocationService.explainShardAllocation(shardRouting, allocation);
+            shardDecision = allocationService.explainShardAllocation(shardRouting, clusterState, System.nanoTime(), debugMode);
         }
 
         return new ClusterAllocationExplanation(
             isSpecificShard,
             shardRouting,
-            shardRouting.currentNodeId() != null ? allocation.nodes().get(shardRouting.currentNodeId()) : null,
-            shardRouting.relocatingNodeId() != null ? allocation.nodes().get(shardRouting.relocatingNodeId()) : null,
+            shardRouting.currentNodeId() != null ? clusterState.nodes().get(shardRouting.currentNodeId()) : null,
+            shardRouting.relocatingNodeId() != null ? clusterState.nodes().get(shardRouting.relocatingNodeId()) : null,
             clusterInfo,
             shardDecision
         );
@@ -144,14 +142,17 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
     // public for testing
     public static ShardRouting findShardToExplain(
         ClusterAllocationExplainRequest request,
-        RoutingAllocation allocation,
+        ClusterState clusterState,
         Collection<ProjectId> projectIds
     ) {
         ShardRouting foundShard = null;
         if (request.useAnyUnassignedShard()) {
             // If we can use any shard, return the first unassigned primary (if there is one) or the first unassigned replica (if not)
-            for (ShardRouting unassigned : allocation.routingNodes().unassigned()) {
-                final ProjectId projectId = allocation.metadata().lookupProject(unassigned.index()).map(ProjectMetadata::id).orElse(null);
+            for (ShardRouting unassigned : clusterState.getRoutingNodes().unassigned()) {
+                final ProjectId projectId = clusterState.getMetadata()
+                    .lookupProject(unassigned.index())
+                    .map(ProjectMetadata::id)
+                    .orElse(null);
                 if (projectIds.contains(projectId)) {
                     if (foundShard == null || unassigned.primary()) {
                         foundShard = unassigned;
@@ -173,12 +174,12 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
             final ProjectId projectId = projectIds.iterator().next();
             String index = request.getIndex();
             int shard = request.getShard();
-            final IndexShardRoutingTable indexShardRoutingTable = allocation.routingTable(projectId).shardRoutingTable(index, shard);
+            final IndexShardRoutingTable indexShardRoutingTable = clusterState.routingTable(projectId).shardRoutingTable(index, shard);
             if (request.isPrimary()) {
                 // If we're looking for the primary shard, there's only one copy, so pick it directly
                 foundShard = indexShardRoutingTable.primaryShard();
                 if (request.getCurrentNode() != null) {
-                    DiscoveryNode primaryNode = allocation.nodes().resolveNode(request.getCurrentNode());
+                    DiscoveryNode primaryNode = clusterState.nodes().resolveNode(request.getCurrentNode());
                     // the primary is assigned to a node other than the node specified in the request
                     if (primaryNode.getId().equals(foundShard.currentNodeId()) == false) {
                         throw new IllegalArgumentException(
@@ -192,7 +193,7 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
                 if (request.getCurrentNode() != null) {
                     // the request is to explain a replica shard already assigned on a particular node,
                     // so find that shard copy
-                    DiscoveryNode replicaNode = allocation.nodes().resolveNode(request.getCurrentNode());
+                    DiscoveryNode replicaNode = clusterState.nodes().resolveNode(request.getCurrentNode());
                     for (ShardRouting replica : replicaShardRoutings) {
                         if (replicaNode.getId().equals(replica.currentNodeId())) {
                             foundShard = replica;

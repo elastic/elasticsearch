@@ -356,8 +356,7 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
     /**
      * Create an immutable routing allocation
      * <p>
-     * Use of this is only to support legacy applications, use
-     * {@link AllocationService#createImmutableRoutingAllocation(ClusterState, long)} instead
+     * Use of this is only to support legacy applications
      */
     @Deprecated
     public static RoutingAllocation immutable(

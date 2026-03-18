@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.allocation.Explanations;
 import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
-import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -122,14 +121,10 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         AllocationDeciders allocationDeciders = new AllocationDeciders(
             List.of(new CanRemainNoAllocationDecider(), new CanAllocateNotPreferredAllocationDecider())
         );
-        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
-            .allocationDeciders(allocationDeciders)
-            .clusterInfo(clusterInfo)
-            .build();
 
         ClusterAllocationExplanation allocationExplanation = TransportClusterAllocationExplainAction.explainShard(
             shardRouting,
-            allocation,
+            clusterState,
             clusterInfo,
             randomBoolean(),
             true,
@@ -178,21 +173,16 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         logger.info("---> Cluster state: " + clusterState);
         final ProjectId projectId = clusterState.metadata().projects().keySet().iterator().next();
         ShardRouting shardRouting = clusterState.globalRoutingTable().routingTable(projectId).index("idx").shard(0).primaryShard();
-        ClusterInfo clusterInfo = ClusterInfo.builder().build();
         // Set up allocation deciders that will say: 1) shard not-preferred to remain where it is and 2) shard allocation elsewhere is
         // not-preferred. Relocation should _not_ proceed, no target node for the MoveDecision.
         AllocationDeciders allocationDeciders = new AllocationDeciders(
             List.of(new CanRemainNotPreferredAllocationDecider(), new CanAllocateNotPreferredAllocationDecider())
         );
-        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
-            .allocationDeciders(allocationDeciders)
-            .clusterInfo(clusterInfo)
-            .build();
 
         ClusterAllocationExplanation allocationExplanation = TransportClusterAllocationExplainAction.explainShard(
             shardRouting,
-            allocation,
-            clusterInfo,
+            clusterState,
+            ClusterInfo.EMPTY,
             randomBoolean(),
             true,
             new AllocationService(
@@ -240,19 +230,14 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         logger.info("---> Cluster state: " + clusterState);
         final ProjectId projectId = clusterState.metadata().projects().keySet().iterator().next();
         ShardRouting shardRouting = clusterState.globalRoutingTable().routingTable(projectId).index("idx").shard(0).primaryShard();
-        ClusterInfo clusterInfo = ClusterInfo.builder().build();
         // Set up allocation deciders that will say: 1) shard not-preferred to remain where it is and 2) shard can be allocated elsewhere
         // (the default without a decider to say no). Relocation should proceed, there should be a target node for the MoveDecision.
         AllocationDeciders allocationDeciders = new AllocationDeciders(List.of(new CanRemainNotPreferredAllocationDecider()));
-        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
-            .allocationDeciders(allocationDeciders)
-            .clusterInfo(clusterInfo)
-            .build();
 
         ClusterAllocationExplanation allocationExplanation = TransportClusterAllocationExplainAction.explainShard(
             shardRouting,
-            allocation,
-            clusterInfo,
+            clusterState,
+            ClusterInfo.EMPTY,
             randomBoolean(),
             true,
             new AllocationService(
@@ -296,21 +281,16 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         logger.info("---> Cluster state: " + clusterState);
         final ProjectId projectId = clusterState.metadata().projects().keySet().iterator().next();
         ShardRouting shardRouting = clusterState.globalRoutingTable().routingTable(projectId).index("idx").shard(0).primaryShard();
-        ClusterInfo clusterInfo = ClusterInfo.builder().build();
         // Set up allocation deciders that will say: 1) shard not-preferred to remain where it is and 2) shard allocation elsewhere is
         // throttled. Relocation should _not_ proceed, no target node for the MoveDecision. /// TODO DIANNA NOT MERGE
         AllocationDeciders allocationDeciders = new AllocationDeciders(
             List.of(new CanRemainNotPreferredAllocationDecider(), new CanAllocateThrottledAllocationDecider())
         );
-        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
-            .allocationDeciders(allocationDeciders)
-            .clusterInfo(clusterInfo)
-            .build();
 
         ClusterAllocationExplanation allocationExplanation = TransportClusterAllocationExplainAction.explainShard(
             shardRouting,
-            allocation,
-            clusterInfo,
+            clusterState,
+            ClusterInfo.EMPTY,
             randomBoolean(),
             true,
             new AllocationService(
@@ -361,10 +341,9 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         final ProjectId projectId = clusterState.metadata().projects().keySet().iterator().next();
 
         ShardRouting shard = clusterState.globalRoutingTable().routingTable(projectId).index("idx").shard(0).primaryShard();
-        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState).build();
         ClusterAllocationExplanation cae = TransportClusterAllocationExplainAction.explainShard(
             shard,
-            allocation,
+            clusterState,
             null,
             randomBoolean(),
             true,
@@ -437,13 +416,13 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomBoolean(), ShardRoutingState.UNASSIGNED);
         ClusterAllocationExplainRequest request = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT);
         Set<ProjectId> projectIds = clusterState.metadata().projects().keySet();
-        ShardRouting shard = findShardToExplain(request, routingAllocation(clusterState), projectIds);
+        ShardRouting shard = findShardToExplain(request, clusterState, projectIds);
         assertEquals(clusterState.getRoutingTable().index("idx").shard(0).primaryShard(), shard);
 
         // find unassigned replica
         clusterState = ClusterStateCreationUtils.state("idx", randomBoolean(), ShardRoutingState.STARTED, ShardRoutingState.UNASSIGNED);
         request = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT);
-        shard = findShardToExplain(request, routingAllocation(clusterState), projectIds);
+        shard = findShardToExplain(request, clusterState, projectIds);
         assertEquals(clusterState.getRoutingTable().index("idx").shard(0).replicaShards().get(0), shard);
 
         // prefer unassigned primary to replica
@@ -472,7 +451,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         }
         clusterState = ClusterState.builder(clusterState).routingTable(routingTableBuilder.build()).build();
         request = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT);
-        shard = findShardToExplain(request, routingAllocation(clusterState), projectIds);
+        shard = findShardToExplain(request, clusterState, projectIds);
         assertEquals(clusterState.getRoutingTable().index(redIndex).shard(0).primaryShard(), shard);
 
         // no unassigned shard to explain
@@ -486,7 +465,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         assertThat(
             expectThrows(
                 IllegalArgumentException.class,
-                () -> findShardToExplain(anyUnassignedShardsRequest, routingAllocation(allStartedClusterState), projectIds)
+                () -> findShardToExplain(anyUnassignedShardsRequest, allStartedClusterState, projectIds)
             ).getMessage(),
             allOf(
                 // no point in asserting the precise wording of the message into this test, but we care that it contains these bits:
@@ -501,7 +480,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomBoolean(), randomFrom(ShardRoutingState.values()));
         Set<ProjectId> projectIds = clusterState.metadata().projects().keySet();
         ClusterAllocationExplainRequest request = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT, "idx", 0, true, null);
-        ShardRouting shard = findShardToExplain(request, routingAllocation(clusterState), projectIds);
+        ShardRouting shard = findShardToExplain(request, clusterState, projectIds);
         assertEquals(clusterState.getRoutingTable().index("idx").shard(0).primaryShard(), shard);
     }
 
@@ -516,7 +495,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         );
         Set<ProjectId> projectIds = clusterState.metadata().projects().keySet();
         ClusterAllocationExplainRequest request = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT, "idx", 0, false, null);
-        ShardRouting shard = findShardToExplain(request, routingAllocation(clusterState), projectIds);
+        ShardRouting shard = findShardToExplain(request, clusterState, projectIds);
         assertEquals(
             clusterState.getRoutingTable()
                 .index("idx")
@@ -538,7 +517,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             ShardRoutingState.STARTED
         );
         request = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT, "idx", 0, false, null);
-        shard = findShardToExplain(request, routingAllocation(clusterState), projectIds);
+        shard = findShardToExplain(request, clusterState, projectIds);
         assertEquals(
             clusterState.getRoutingTable().index("idx").shard(0).replicaShards().stream().filter(ShardRouting::started).findFirst().get(),
             shard
@@ -565,8 +544,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             primary,
             shardToExplain.currentNodeId()
         );
-        RoutingAllocation allocation = routingAllocation(clusterState);
-        ShardRouting foundShard = findShardToExplain(request, allocation, Set.of(projectId));
+        ShardRouting foundShard = findShardToExplain(request, clusterState, Set.of(projectId));
         assertEquals(shardToExplain, foundShard);
 
         // shard is not assigned to given node
@@ -584,10 +562,6 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             primary,
             explainNode
         );
-        expectThrows(IllegalArgumentException.class, () -> findShardToExplain(failingRequest, allocation, Set.of(projectId)));
-    }
-
-    private static RoutingAllocation routingAllocation(ClusterState clusterState) {
-        return TestRoutingAllocationFactory.forClusterState(clusterState).build();
+        expectThrows(IllegalArgumentException.class, () -> findShardToExplain(failingRequest, clusterState, Set.of(projectId)));
     }
 }

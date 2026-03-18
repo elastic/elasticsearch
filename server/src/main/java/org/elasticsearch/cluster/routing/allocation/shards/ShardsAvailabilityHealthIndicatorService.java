@@ -513,9 +513,12 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
      */
     private List<Diagnosis.Definition> explainAllocationsAndDiagnoseDeciders(ShardRouting shardRouting, ClusterState state) {
         LOGGER.trace("Executing allocation explain on shard [{}]", shardRouting.shardId());
-        RoutingAllocation allocation = allocationService.createImmutableRoutingAllocation(state, System.nanoTime());
-        allocation.setDebugMode(RoutingAllocation.DebugMode.ON);
-        ShardAllocationDecision shardAllocationDecision = allocationService.explainShardAllocation(shardRouting, allocation);
+        ShardAllocationDecision shardAllocationDecision = allocationService.explainShardAllocation(
+            shardRouting,
+            state,
+            System.nanoTime(),
+            RoutingAllocation.DebugMode.ON
+        );
         AllocateUnassignedDecision allocateDecision = shardAllocationDecision.getAllocateDecision();
         if (LOGGER.isTraceEnabled()) {
             if (allocateDecision.isDecisionTaken()) {

@@ -585,9 +585,6 @@ colors                 | null
 colors                 | null
 colors                 | null
 colors                 | null
-colors                 | null
-colors                 | null
-colors                 | null
 ;
 
 partiallyUnmappedMixedTypes
@@ -766,6 +763,7 @@ colors         | null
 colors         | null
 colors         | null
 colors         | null
+colors         | null
 ;
 
 typeConflictKeywordNonExistentCastToKeyword
@@ -787,6 +785,7 @@ sample_data    | Connection error
 sample_data    | Connection error
 sample_data    | Connection error
 sample_data    | Disconnected
+colors         | null
 colors         | null
 colors         | null
 colors         | null
@@ -822,6 +821,7 @@ colors         | null
 colors         | null
 colors         | null
 colors         | null
+colors         | null
 ;
 
 typeConflictLongNonExistentCastToLong
@@ -850,6 +850,7 @@ colors         | null
 colors         | null
 colors         | null
 colors         | null
+colors         | null
 ;
 
 typeConflictLongNonExistentCastToDouble
@@ -871,6 +872,7 @@ sample_data    | 2764889.0
 sample_data    | 3450233.0
 sample_data    | 5033755.0
 sample_data    | 8268153.0
+colors         | null
 colors         | null
 colors         | null
 colors         | null
@@ -945,13 +947,13 @@ sample_data            | 2764889.0
 sample_data            | 3450233.0
 sample_data            | 5033755.0
 sample_data            | 8268153.0
-sample_data_ts_long    | 725447.0
-sample_data_ts_long    | 1232381.0
-sample_data_ts_long    | 1756466.0
-sample_data_ts_long    | 2764888.0
-sample_data_ts_long    | 3450232.0
-sample_data_ts_long    | 5033754.0
-sample_data_ts_long    | 8268152.0
+sample_data_ts_long    | 725448.0
+sample_data_ts_long    | 1232382.0
+sample_data_ts_long    | 1756467.0
+sample_data_ts_long    | 2764889.0
+sample_data_ts_long    | 3450233.0
+sample_data_ts_long    | 5033755.0
+sample_data_ts_long    | 8268153.0
 ;
 
 typeConflictLongDateUnmappedCastToDate
@@ -1027,6 +1029,10 @@ colors              | null
 colors              | null
 colors              | null
 colors              | null
+colors              | null
+colors              | null
+colors              | null
+colors              | null
 ;
 
 typeConflictLongDateNonExistentCastToDouble
@@ -1042,20 +1048,24 @@ FROM sample_data_ts_long, sample_data, colors METADATA _index
 ;
 
 _index:keyword      | ts:double
-sample_data_ts_long | 1698063303360.0
-sample_data_ts_long | 1698064048948.0
-sample_data_ts_long | 1698068014937.0
-sample_data_ts_long | 1698069114732.0
-sample_data_ts_long | 1698069175015.0
-sample_data_ts_long | 1698069235832.0
-sample_data_ts_long | 1698069301543.0
-sample_data         | 1698063303360.0
-sample_data         | 1698064048948.0
-sample_data         | 1698068014937.0
-sample_data         | 1698069114732.0
-sample_data         | 1698069175015.0
-sample_data         | 1698069235832.0
-sample_data         | 1698069301543.0
+sample_data_ts_long | 1.69806330336E12
+sample_data_ts_long | 1.698064048948E12
+sample_data_ts_long | 1.698068014937E12
+sample_data_ts_long | 1.698069114732E12
+sample_data_ts_long | 1.698069175015E12
+sample_data_ts_long | 1.698069235832E12
+sample_data_ts_long | 1.698069301543E12
+sample_data         | 1.69806330336E12
+sample_data         | 1.698064048948E12
+sample_data         | 1.698068014937E12
+sample_data         | 1.698069114732E12
+sample_data         | 1.698069175015E12
+sample_data         | 1.698069235832E12
+sample_data         | 1.698069301543E12
+colors              | null
+colors              | null
+colors              | null
+colors              | null
 colors              | null
 colors              | null
 colors              | null
@@ -1092,6 +1102,10 @@ sample_data         | 2023-10-23T13:51:54.732Z
 sample_data         | 2023-10-23T13:52:55.015Z
 sample_data         | 2023-10-23T13:53:55.832Z
 sample_data         | 2023-10-23T13:55:01.543Z
+colors              | null
+colors              | null
+colors              | null
+colors              | null
 colors              | null
 colors              | null
 colors              | null
@@ -1146,6 +1160,8 @@ colors                 | null
 colors                 | null
 colors                 | null
 colors                 | null
+colors                 | null
+colors                 | null
 ;
 
 typeConflictLongDateUnmappedNonExistentCastToDouble
@@ -1161,13 +1177,13 @@ FROM sample_data_ts_long, sample_data, no_mapping_sample_data, colors METADATA _
 ;
 
 _index:keyword         | d:double
-sample_data_ts_long    | 725447.0
-sample_data_ts_long    | 1232381.0
-sample_data_ts_long    | 1756466.0
-sample_data_ts_long    | 2764888.0
-sample_data_ts_long    | 3450232.0
-sample_data_ts_long    | 5033754.0
-sample_data_ts_long    | 8268152.0
+sample_data_ts_long    | 725448.0
+sample_data_ts_long    | 1232382.0
+sample_data_ts_long    | 1756467.0
+sample_data_ts_long    | 2764889.0
+sample_data_ts_long    | 3450233.0
+sample_data_ts_long    | 5033755.0
+sample_data_ts_long    | 8268153.0
 sample_data            | 725448.0
 sample_data            | 1232382.0
 sample_data            | 1756467.0
@@ -1182,6 +1198,8 @@ no_mapping_sample_data | 2764888.0
 no_mapping_sample_data | 3450232.0
 no_mapping_sample_data | 5033754.0
 no_mapping_sample_data | 8268152.0
+colors                 | null
+colors                 | null
 colors                 | null
 colors                 | null
 colors                 | null
@@ -1225,6 +1243,8 @@ no_mapping_sample_data | 2024-10-23T13:51:54.732Z
 no_mapping_sample_data | 2024-10-23T13:52:55.015Z
 no_mapping_sample_data | 2024-10-23T13:53:55.832Z
 no_mapping_sample_data | 2024-10-23T13:55:01.543Z
+colors                 | null
+colors                 | null
 colors                 | null
 colors                 | null
 colors                 | null

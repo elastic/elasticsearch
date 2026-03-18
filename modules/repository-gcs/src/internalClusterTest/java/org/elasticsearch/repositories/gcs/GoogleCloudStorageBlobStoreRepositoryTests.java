@@ -468,6 +468,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 trackRequest(StorageOperation.INSERT.key());
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/*uploadType=multipart*", request)) {
                 trackRequest(StorageOperation.INSERT.key());
+            } else if (Regex.simpleMatch("POST /storage/v1/b/*/o/*/rewriteTo/b/*/o/*", request)) {
+                trackRequest(StorageOperation.COPY.key());
             }
         }
     }

@@ -39,7 +39,7 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
     );
 
     @FunctionInfo(
-        returnType = { "integer", "long", "double", "float" },
+        returnType = { "integer", "long", "double" },
         description = "The values representing the y-axis values of a sparkline graph for a given aggregation over a period of time.",
         type = FunctionType.AGGREGATE,
         examples = { @Example(file = "stats_sparkline", tag = "sparkline") }
@@ -48,7 +48,7 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
         Source source,
         @Param(
             name = "field",
-            type = { "integer", "long", "double", "float" },
+            type = { "integer", "long", "double" },
             description = "Expression that calculates the y-axis value of the sparkline graph for each datapoint."
         ) Expression field,
         @Param(
@@ -96,10 +96,10 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
 
         TypeResolution resolution = isType(
             field(),
-            dt -> dt == DataType.INTEGER || dt == DataType.LONG || dt == DataType.DOUBLE || dt == DataType.FLOAT,
+            dt -> dt == DataType.INTEGER || dt == DataType.LONG || dt == DataType.DOUBLE,
             sourceText(),
             FIRST,
-            "integer or long or double or float"
+            "integer or long or double"
         ).and(
             isType(
                 key(),

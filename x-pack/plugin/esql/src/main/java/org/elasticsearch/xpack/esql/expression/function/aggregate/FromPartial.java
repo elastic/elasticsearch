@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
@@ -19,16 +17,16 @@ import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
-import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -36,11 +34,7 @@ import java.util.stream.IntStream;
  * @see ToPartial
  */
 public class FromPartial extends AggregateFunction implements ToAggregator {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "FromPartial",
-        FromPartial::new
-    );
+    private static final String NAME = "FromPartial";
 
     private final Expression function;
 
@@ -53,24 +47,9 @@ public class FromPartial extends AggregateFunction implements ToAggregator {
         this.function = function;
     }
 
-    private FromPartial(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class)
-        );
-    }
-
-    /*@Override
-    protected void deprecatedWriteParams(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(function);
-    }*/
-
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        return NAME;
     }
 
     public Expression function() {
@@ -90,6 +69,11 @@ public class FromPartial extends AggregateFunction implements ToAggregator {
     @Override
     public AttributeSet references() {
         return field().references(); // exclude the function and its argument
+    }
+
+    @Override
+    public List<Attribute> aggregateInputReferences(java.util.function.Supplier<List<Attribute>> inputAttributes) {
+        return new ArrayList<>(field().references()); // exclude the function and its argument
     }
 
     @Override

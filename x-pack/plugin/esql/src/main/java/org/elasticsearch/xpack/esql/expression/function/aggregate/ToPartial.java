@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
@@ -25,10 +23,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -58,11 +54,7 @@ import java.util.stream.IntStream;
  * @see FromPartialGroupingAggregatorFunction
  */
 public class ToPartial extends AggregateFunction implements ToAggregator {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "ToPartial",
-        ToPartial::new
-    );
+    private static final String NAME = "ToPartial";
 
     private final Expression function;
 
@@ -75,24 +67,9 @@ public class ToPartial extends AggregateFunction implements ToAggregator {
         this.function = function;
     }
 
-    private ToPartial(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class).get(0)
-        );
-    }
-
-    /*@Override
-    protected void deprecatedWriteParams(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(function);
-    }*/
-
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        return NAME;
     }
 
     public Expression function() {

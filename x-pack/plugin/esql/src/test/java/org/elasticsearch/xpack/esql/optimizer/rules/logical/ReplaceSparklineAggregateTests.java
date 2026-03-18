@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
@@ -81,7 +80,6 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
         Aggregate secondPhase = as(sparkline.child(), Aggregate.class);
         Aggregate firstPhase = as(secondPhase.child(), Aggregate.class);
         validateAggregates(secondPhase, firstPhase, sparklineAggregateNames, List.of("c"), List.of());
-        // TODO: Add topartial and frompartial checks
     }
 
     public void testSparklineWithNonSparklineAggAndGrouping() {
@@ -149,8 +147,15 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
         );
     }
 
+    public void testBucketCountExceedsLimit() {
+        var e = expectThrows(IllegalArgumentException.class, () -> plan("""
+            from test | stats s = sparkline(count(*), hire_date, 101, "2024-01-01", "2024-12-31")
+            """));
+        assertThat(e.getMessage(), containsString("The buckets argument of SPARKLINE must not exceed"));
+    }
+
     public void testMultipleSparklinesDifferentBucketCount() {
-        var e = expectThrows(ParsingException.class, () -> plan("""
+        var e = expectThrows(IllegalArgumentException.class, () -> plan("""
             from test
             | stats s1 = sparkline(min(salary), hire_date, 10, "2024-01-01", "2024-12-31"),
                     s2 = sparkline(max(salary), hire_date, 5, "2024-01-01", "2024-12-31")
@@ -159,7 +164,7 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
     }
 
     public void testMultipleSparklinesDifferentFrom() {
-        var e = expectThrows(ParsingException.class, () -> plan("""
+        var e = expectThrows(IllegalArgumentException.class, () -> plan("""
             from test
             | stats s1 = sparkline(min(salary), hire_date, 10, "2024-01-01", "2024-12-31"),
                     s2 = sparkline(max(salary), hire_date, 10, "2024-06-01", "2024-12-31")
@@ -167,8 +172,15 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
         assertThat(e.getMessage(), containsString("All SPARKLINE functions in a single STATS command must share the same"));
     }
 
+    public void testSparklineInInlineStats() {
+        var e = expectThrows(IllegalArgumentException.class, () -> plan("""
+            from test | inline stats s = sparkline(count(*), hire_date, 10, "2024-01-01", "2024-12-31")
+            """));
+        assertThat(e.getMessage(), containsString("SPARKLINE is not supported in INLINE STATS"));
+    }
+
     public void testMultipleSparklinesDifferentTo() {
-        var e = expectThrows(ParsingException.class, () -> plan("""
+        var e = expectThrows(IllegalArgumentException.class, () -> plan("""
             from test
             | stats s1 = sparkline(min(salary), hire_date, 10, "2024-01-01", "2024-12-31"),
                     s2 = sparkline(max(salary), hire_date, 10, "2024-01-01", "2024-06-30")
@@ -223,7 +235,6 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
                 assertThat(agg, instanceOf(ReferenceAttribute.class));
             } else if (groupings.contains(agg.name())) {
                 assertThat(agg, instanceOf(FieldAttribute.class));
-                // TODO: Handle cases where this is a grouping function instead of a direct field reference
             } else {
                 // Non-sparkline aggregates should be ToPartial in the first phase
                 assertThat(agg, instanceOf(Alias.class));

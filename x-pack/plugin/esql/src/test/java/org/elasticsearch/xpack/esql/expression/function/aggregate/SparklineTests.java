@@ -8,12 +8,18 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
+import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.Matchers;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -22,233 +28,103 @@ public class SparklineTests extends AbstractAggregationTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
-    // TODO: Commenting out these tests to avoid compile errors. These will be fixed but we are discussing how to do this in the PR.
-
-    /*@ParametersFactory
+    @ParametersFactory
     public static Iterable<Object[]> parameters() {
         var suppliers = new ArrayList<TestCaseSupplier>();
 
-        suppliers.add(
-            new TestCaseSupplier(
-                "field type error",
-                List.of(DataType.KEYWORD, DataType.DATETIME, DataType.INTEGER, DataType.KEYWORD, DataType.KEYWORD),
-                () -> TestCaseSupplier.TestCase.typeError(
-                    List.of(
-                        TestCaseSupplier.TypedData.multiRow(List.of(new BytesRef("a"), new BytesRef("b")), DataType.KEYWORD, "field"),
-                        TestCaseSupplier.TypedData.multiRow(List.of(1000L, 2000L), DataType.DATETIME, "key"),
-                        new TestCaseSupplier.TypedData(10, DataType.INTEGER, "buckets").forceLiteral(),
-                        new TestCaseSupplier.TypedData(new BytesRef("2024-01-01"), DataType.KEYWORD, "from").forceLiteral(),
-                        new TestCaseSupplier.TypedData(new BytesRef("2024-12-31"), DataType.KEYWORD, "to").forceLiteral()
-                    ),
-                    "first argument of [source] must be [long or integer], found value [field] type [keyword]"
-                )
-            )
+        List<TestCaseSupplier.TypedDataSupplier> fieldSuppliers = List.of(
+            MultiRowTestCaseSupplier.intCases(1, 100, 0, 1_000_000, true).get(0),
+            MultiRowTestCaseSupplier.longCases(1, 100, 0L, 1_000_000_000L, true).get(0),
+            MultiRowTestCaseSupplier.doubleCases(1, 100, 0, 1_000_000, true).get(0)
         );
 
-        suppliers.add(
-            new TestCaseSupplier(
-                "key type error",
-                List.of(DataType.LONG, DataType.INTEGER, DataType.INTEGER, DataType.KEYWORD, DataType.KEYWORD),
-                () -> TestCaseSupplier.TestCase.typeError(
-                    List.of(
-                        TestCaseSupplier.TypedData.multiRow(List.of(1L, 2L, 3L), DataType.LONG, "field"),
-                        TestCaseSupplier.TypedData.multiRow(List.of(1, 2, 3), DataType.INTEGER, "key"),
-                        new TestCaseSupplier.TypedData(10, DataType.INTEGER, "buckets").forceLiteral(),
-                        new TestCaseSupplier.TypedData(new BytesRef("2024-01-01"), DataType.KEYWORD, "from").forceLiteral(),
-                        new TestCaseSupplier.TypedData(new BytesRef("2024-12-31"), DataType.KEYWORD, "to").forceLiteral()
-                    ),
-                    "second argument of [source] must be [datetime], found value [key] type [integer]"
-                )
-            )
-        );
+        var keyTypes = List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE, DataType.DATETIME, DataType.DATE_NANOS);
+        var fromToTypes = List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE, DataType.DATETIME, DataType.KEYWORD, DataType.TEXT);
 
-        suppliers.add(
-            new TestCaseSupplier(
-                "buckets type error",
-                List.of(DataType.LONG, DataType.DATETIME, DataType.KEYWORD, DataType.KEYWORD, DataType.KEYWORD),
-                () -> TestCaseSupplier.TestCase.typeError(
-                    List.of(
-                        TestCaseSupplier.TypedData.multiRow(List.of(1L, 2L, 3L), DataType.LONG, "field"),
-                        TestCaseSupplier.TypedData.multiRow(List.of(1000L, 2000L, 3000L), DataType.DATETIME, "key"),
-                        new TestCaseSupplier.TypedData(new BytesRef("bad"), DataType.KEYWORD, "buckets").forceLiteral(),
-                        new TestCaseSupplier.TypedData(new BytesRef("2024-01-01"), DataType.KEYWORD, "from").forceLiteral(),
-                        new TestCaseSupplier.TypedData(new BytesRef("2024-12-31"), DataType.KEYWORD, "to").forceLiteral()
-                    ),
-                    "third argument of [source] must be [integer], found value [buckets] type [keyword]"
+        int maximumTypes = Math.max(fieldSuppliers.size(), Math.max(keyTypes.size(), fromToTypes.size()));
+        for (int i = 0; i < maximumTypes; i++) {
+            suppliers.add(
+                makeSupplier(
+                    fieldSuppliers.get(i % fieldSuppliers.size()),
+                    keyTypes.get(i % keyTypes.size()),
+                    fromToTypes.get(i % fromToTypes.size()),
+                    fromToTypes.get(i % fromToTypes.size())
                 )
-            )
-        );
-
-        suppliers.add(
-            new TestCaseSupplier(
-                "from type error",
-                List.of(DataType.LONG, DataType.DATETIME, DataType.INTEGER, DataType.INTEGER, DataType.KEYWORD),
-                () -> TestCaseSupplier.TestCase.typeError(
-                    List.of(
-                        TestCaseSupplier.TypedData.multiRow(List.of(1L, 2L, 3L), DataType.LONG, "field"),
-                        TestCaseSupplier.TypedData.multiRow(List.of(1000L, 2000L, 3000L), DataType.DATETIME, "key"),
-                        new TestCaseSupplier.TypedData(10, DataType.INTEGER, "buckets").forceLiteral(),
-                        new TestCaseSupplier.TypedData(42, DataType.INTEGER, "from").forceLiteral(),
-                        new TestCaseSupplier.TypedData(new BytesRef("2024-12-31"), DataType.KEYWORD, "to").forceLiteral()
-                    ),
-                    "fourth argument of [source] must be [string or datetime], found value [from] type [integer]"
-                )
-            )
-        );
-
-        suppliers.add(
-            new TestCaseSupplier(
-                "to type error",
-                List.of(DataType.LONG, DataType.DATETIME, DataType.INTEGER, DataType.KEYWORD, DataType.INTEGER),
-                () -> TestCaseSupplier.TestCase.typeError(
-                    List.of(
-                        TestCaseSupplier.TypedData.multiRow(List.of(1L, 2L, 3L), DataType.LONG, "field"),
-                        TestCaseSupplier.TypedData.multiRow(List.of(1000L, 2000L, 3000L), DataType.DATETIME, "key"),
-                        new TestCaseSupplier.TypedData(10, DataType.INTEGER, "buckets").forceLiteral(),
-                        new TestCaseSupplier.TypedData(new BytesRef("2024-01-01"), DataType.KEYWORD, "from").forceLiteral(),
-                        new TestCaseSupplier.TypedData(42, DataType.INTEGER, "to").forceLiteral()
-                    ),
-                    "fifth argument of [source] must be [string or datetime], found value [to] type [integer]"
-                )
-            )
-        );
-
-        suppliers.add(
-            new TestCaseSupplier(
-                "integer field with keyword range",
-                List.of(DataType.INTEGER, DataType.DATETIME, DataType.INTEGER, DataType.KEYWORD, DataType.KEYWORD),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        TestCaseSupplier.TypedData.multiRow(List.of(1, 2, 3), DataType.INTEGER, "field"),
-                        TestCaseSupplier.TypedData.multiRow(List.of(1000L, 2000L, 3000L), DataType.DATETIME, "key"),
-                        new TestCaseSupplier.TypedData(10, DataType.INTEGER, "buckets").forceLiteral(),
-                        new TestCaseSupplier.TypedData(new BytesRef("2024-01-01"), DataType.KEYWORD, "from").forceLiteral(),
-                        new TestCaseSupplier.TypedData(new BytesRef("2024-12-31"), DataType.KEYWORD, "to").forceLiteral()
-                    ),
-                    "Sparkline",
-                    DataType.INTEGER,
-                    anything()
-                )
-            )
-        );
-
-        suppliers.add(
-            new TestCaseSupplier(
-                "long field with text range",
-                List.of(DataType.LONG, DataType.DATETIME, DataType.INTEGER, DataType.TEXT, DataType.TEXT),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        TestCaseSupplier.TypedData.multiRow(List.of(1L, 2L, 3L), DataType.LONG, "field"),
-                        TestCaseSupplier.TypedData.multiRow(List.of(1000L, 2000L, 3000L), DataType.DATETIME, "key"),
-                        new TestCaseSupplier.TypedData(10, DataType.INTEGER, "buckets").forceLiteral(),
-                        new TestCaseSupplier.TypedData(new BytesRef("2024-01-01"), DataType.TEXT, "from").forceLiteral(),
-                        new TestCaseSupplier.TypedData(new BytesRef("2024-12-31"), DataType.TEXT, "to").forceLiteral()
-                    ),
-                    "Sparkline",
-                    DataType.LONG,
-                    anything()
-                )
-            )
-        );
-
-        suppliers.add(
-            new TestCaseSupplier(
-                "integer field with date range",
-                List.of(DataType.INTEGER, DataType.DATETIME, DataType.INTEGER, DataType.DATETIME, DataType.DATETIME),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        TestCaseSupplier.TypedData.multiRow(List.of(1, 2, 3), DataType.INTEGER, "field"),
-                        TestCaseSupplier.TypedData.multiRow(List.of(1000L, 2000L, 3000L), DataType.DATETIME, "key"),
-                        new TestCaseSupplier.TypedData(10, DataType.INTEGER, "buckets").forceLiteral(),
-                        new TestCaseSupplier.TypedData(1704067200000L, DataType.DATETIME, "from").forceLiteral(),
-                        new TestCaseSupplier.TypedData(1735689600000L, DataType.DATETIME, "to").forceLiteral()
-                    ),
-                    "Sparkline",
-                    DataType.INTEGER,
-                    anything()
-                )
-            )
-        );
-
-        suppliers.add(
-            new TestCaseSupplier(
-                "double field with date range",
-                List.of(DataType.DOUBLE, DataType.DATETIME, DataType.INTEGER, DataType.DATETIME, DataType.DATETIME),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        TestCaseSupplier.TypedData.multiRow(List.of(1.0, 2.0, 3.0), DataType.DOUBLE, "field"),
-                        TestCaseSupplier.TypedData.multiRow(List.of(1000L, 2000L, 3000L), DataType.DATETIME, "key"),
-                        new TestCaseSupplier.TypedData(10, DataType.INTEGER, "buckets").forceLiteral(),
-                        new TestCaseSupplier.TypedData(1704067200000L, DataType.DATETIME, "from").forceLiteral(),
-                        new TestCaseSupplier.TypedData(1735689600000L, DataType.DATETIME, "to").forceLiteral()
-                    ),
-                    "Sparkline",
-                    DataType.DOUBLE,
-                    anything()
-                )
-            )
-        );
-
-        suppliers.add(
-            new TestCaseSupplier(
-                "float field with date range",
-                List.of(DataType.FLOAT, DataType.DATETIME, DataType.INTEGER, DataType.DATETIME, DataType.DATETIME),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        TestCaseSupplier.TypedData.multiRow(List.of(1.0f, 2.0f, 3.0f), DataType.FLOAT, "field"),
-                        TestCaseSupplier.TypedData.multiRow(List.of(1000L, 2000L, 3000L), DataType.DATETIME, "key"),
-                        new TestCaseSupplier.TypedData(10, DataType.INTEGER, "buckets").forceLiteral(),
-                        new TestCaseSupplier.TypedData(1704067200000L, DataType.DATETIME, "from").forceLiteral(),
-                        new TestCaseSupplier.TypedData(1735689600000L, DataType.DATETIME, "to").forceLiteral()
-                    ),
-                    "Sparkline",
-                    DataType.FLOAT,
-                    anything()
-                )
-            )
-        );
+            );
+        }
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
-    }*/
+    }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Sparkline(source, args.get(0), args.get(1), args.get(2), args.get(3), args.get(4));
     }
 
-    /*@Override
+    @Override
     public void testAggregate() {
-        assumeTrue("Sparkline does not implement ToAggregator", testCase.getExpectedTypeError() != null);
-        super.testAggregate();
+        assumeTrue("Sparkline does not implement ToAggregator", false);
     }
 
     @Override
     public void testAggregateToString() {
-        assumeTrue("Sparkline does not implement ToAggregator", testCase.getExpectedTypeError() != null);
-        super.testAggregateToString();
-    }
-
-    @Override
-    public void testGroupingAggregate() {
-        assumeTrue("Sparkline does not implement ToAggregator", testCase.getExpectedTypeError() != null);
-        super.testGroupingAggregate();
-    }
-
-    @Override
-    public void testGroupingAggregateToString() {
-        assumeTrue("Sparkline does not implement ToAggregator", testCase.getExpectedTypeError() != null);
-        super.testGroupingAggregateToString();
+        assumeTrue("Sparkline does not implement ToAggregator", false);
     }
 
     @Override
     public void testAggregateIntermediate() {
-        assumeTrue("Sparkline does not implement ToAggregator", testCase.getExpectedTypeError() != null);
-        super.testAggregateIntermediate();
+        assumeTrue("Sparkline does not implement ToAggregator", false);
     }
 
     @Override
-    public void testFold() {
-        assumeTrue("Sparkline does not implement ToAggregator", testCase.getExpectedTypeError() != null);
-        super.testFold();
-    }*/
+    public void testGroupingAggregate() {
+        assumeTrue("Sparkline does not implement ToAggregator", false);
+    }
+
+    @Override
+    public void testGroupingAggregateToString() {
+        assumeTrue("Sparkline does not implement ToAggregator", false);
+    }
+
+    private static Object randomValueForType(DataType type) {
+        return switch (type) {
+            case INTEGER -> randomIntBetween(1, 1_000_000);
+            case LONG -> randomLongBetween(1, 1_000_000_000L);
+            case DOUBLE -> (double) randomLongBetween(1, 1_000_000);
+            case DATETIME -> randomLongBetween(0, 2_000_000_000_000L);
+            case DATE_NANOS -> randomLongBetween(0, 2_000_000_000_000_000_000L);
+            case KEYWORD, TEXT -> new BytesRef("2024-01-01T00:00:00.000Z");
+            default -> throw new IllegalArgumentException("Unsupported type: " + type);
+        };
+    }
+
+    private static TestCaseSupplier makeSupplier(
+        TestCaseSupplier.TypedDataSupplier fieldSupplier,
+        DataType keyType,
+        DataType fromType,
+        DataType toType
+    ) {
+        return new TestCaseSupplier(
+            fieldSupplier.name() + " with " + keyType + " key, " + fromType + " from, " + toType + " to",
+            List.of(fieldSupplier.type(), keyType, DataType.INTEGER, fromType, toType),
+            () -> {
+                TestCaseSupplier.TypedData fieldData = fieldSupplier.get();
+                TestCaseSupplier.TypedData keyData = new TestCaseSupplier.TypedData(randomValueForType(keyType), keyType, "key");
+                TestCaseSupplier.TypedData bucketsData = new TestCaseSupplier.TypedData(
+                    randomIntBetween(1, 100),
+                    DataType.INTEGER,
+                    "buckets"
+                );
+                TestCaseSupplier.TypedData fromData = new TestCaseSupplier.TypedData(randomValueForType(fromType), fromType, "from");
+                TestCaseSupplier.TypedData toData = new TestCaseSupplier.TypedData(randomValueForType(toType), toType, "to");
+
+                return new TestCaseSupplier.TestCase(
+                    List.of(fieldData, keyData, bucketsData, fromData, toData),
+                    "Sparkline" + fieldSupplier.name(),
+                    fieldSupplier.type(),
+                    Matchers.anything()
+                );
+            }
+        );
+    }
 }

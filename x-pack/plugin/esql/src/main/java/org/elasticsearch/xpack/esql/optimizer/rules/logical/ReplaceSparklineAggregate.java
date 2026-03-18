@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
-import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sparkline;
@@ -28,20 +27,53 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
+import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
+/**
+ * Replaces a {@code SPARKLINE} aggregate into a three-phase execution pipeline that
+ * collects per-bucket values, sorts them chronologically, and fills in zero values for
+ * any empty time buckets.
+ *
+ * <p>Given the following query:
+ * <pre>
+ *     FROM logs
+ *     | STATS s = SPARKLINE(MIN(errorCount), @timestamp, 10, "2024-01-01", "2024-02-01"), count = COUNT(*) BY host
+ * </pre>
+ *
+ * The rule produces the following logical plan:
+ * <pre>
+ *     -- Phase 1: group by time bucket and collect the values
+ *     STATS s = MIN(errorCount),
+ *           $$count = TO_PARTIAL(COUNT(*))
+ *     BY host, $$timestamp = BUCKET(@timestamp, 10, "2024-01-01", "2024-02-01")
+ *
+ *     -- Phase 2: gather sorted (key, value) arrays per outer group
+ *     STATS s          = TOP(s, 100, "asc", $$timestamp),
+ *           $$timestamp = TOP($$timestamp, 100, "asc"),
+ *           count         = FROM_PARTIAL($$count, COUNT(*))
+ *     BY host
+ *
+ *     -- Phase 3: fill gaps with zeros for buckets that have no data
+ *     SparklineGenerateEmptyBuckets(phase2, rounding, minDate, maxDate, ...)
+ * </pre>
+ *
+ * Note: All {@code SPARKLINE} calls within a single {@code STATS} command must share the
+ * same {@code timestamp}, {@code buckets}, {@code from}, and {@code to} arguments.
+ * At most 100 buckets are supported.
+ */
 public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptimizerRule<Aggregate, LogicalOptimizerContext> {
+
+    private static final Integer SPARKLINE_BUCKET_LIMIT = 100;
 
     public ReplaceSparklineAggregate() {
         super(OptimizerRules.TransformDirection.UP);
@@ -52,6 +84,11 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
         ExtractedAggregates extracted = extractSparklineAggregates(plan);
         if (extracted.sparklineAggregates().isEmpty()) {
             return plan;
+        }
+
+        // SPARKLINE currently can't be used with INLINE STATS but this should be removed in the future when the functionality is added.
+        if (plan.child() instanceof StubRelation) {
+            throw new IllegalArgumentException("SPARKLINE is not supported in INLINE STATS commands");
         }
 
         Source source = plan.source();
@@ -112,12 +149,17 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
                     );
                     if (dateBucket == null) {
                         dateBucket = currentBucket;
+                        Object bucketsValue = Foldables.valueOf(FoldContext.small(), s.buckets());
+                        if (bucketsValue instanceof Integer bucketCount && bucketCount > SPARKLINE_BUCKET_LIMIT) {
+                            throw new IllegalArgumentException(
+                                "The buckets argument of SPARKLINE must not exceed " + SPARKLINE_BUCKET_LIMIT
+                            );
+                        }
                     } else {
                         if (dateBucket.equals(currentBucket) == false) {
-                            throw new ParsingException(
-                                alias.source(),
+                            throw new IllegalArgumentException(
                                 "All SPARKLINE functions in a single STATS command must share the same "
-                                    + "timestamp, bucket_count, from, and to values"
+                                    + "timestamp, buckets, from, and to values"
                             );
                         }
                     }
@@ -160,7 +202,7 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
         Alias dateBucketAlias = new Alias(source, "$$timestamp", dateBucket);
         firstPhaseGroupings.add(dateBucketAlias);
 
-        Stats firstPhaseStats = stats(source, firstPhaseGroupings, firstPhaseAggregates);
+        ParserUtils.Stats firstPhaseStats = ParserUtils.buildStats(source, firstPhaseGroupings, firstPhaseAggregates);
         Aggregate aggregate = new Aggregate(plan.source(), plan.child(), firstPhaseStats.groupings(), firstPhaseStats.aggregates());
         return new FirstPhaseAggregateData(
             aggregate,
@@ -182,8 +224,7 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
         List<NamedExpression> secondPhaseAggregates = new ArrayList<>();
 
         Attribute dateBucketAttribute = firstPhase.dateBucketAttribute();
-        // TODO: Decide on this limit value or if it's even needed
-        Literal limit = new Literal(source, 50, DataType.INTEGER);
+        Literal limit = new Literal(source, SPARKLINE_BUCKET_LIMIT, DataType.INTEGER);
         Literal order = new Literal(source, new BytesRef("asc"), DataType.KEYWORD);
         List<Alias> topValuesAliases = new ArrayList<>();
         for (int i = 0; i < firstPhase.sparklineValueAliases().size(); i++) {
@@ -219,7 +260,7 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
         }
 
         List<Attribute> secondPhaseGroupingAttributes = plan.groupings().stream().map(Expressions::attribute).toList();
-        Stats secondPhaseStats = stats(
+        ParserUtils.Stats secondPhaseStats = ParserUtils.buildStats(
             Source.EMPTY,
             new ArrayList<>(secondPhaseGroupingAttributes),
             new ArrayList<>(secondPhaseAggregates)
@@ -283,44 +324,9 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
         return outputAttributes;
     }
 
-    // This foldToLong is mostly copied from Bucket. We likely want to:
-    // 1. Remove any logic we don't need here and keep a simpler version for sparklines
-    // 2. Move some of this logic to shared code
     private long foldToLong(FoldContext ctx, Expression e) {
         Object value = Foldables.valueOf(ctx, e);
         return DataType.isDateTime(e.dataType()) ? ((Number) value).longValue() : dateTimeToLong(((BytesRef) value).utf8ToString());
     }
 
-    // This Stats record and building function are mostly copied from LogicalPlanBuilder as it's private there. We likely want to:
-    // 1. Remove any logic we don't need here and keep a simpler version for sparklines
-    // 2. Move some of this logic to shared code
-    public record Stats(List<Expression> groupings, List<? extends NamedExpression> aggregates) {}
-
-    public static Stats stats(Source source, List<Expression> groupings, List<NamedExpression> aggregates) {
-        if (aggregates.isEmpty() && groupings.isEmpty()) {
-            throw new ParsingException(source, "At least one aggregation or grouping expression required in [{}]", source.text());
-        }
-        // grouping keys are automatically added as aggregations however the user is not allowed to specify them
-        if (groupings.isEmpty() == false && aggregates.isEmpty() == false) {
-            var groupNames = new LinkedHashSet<>(Expressions.names(groupings));
-            var groupRefNames = new LinkedHashSet<>(Expressions.names(Expressions.references(groupings)));
-
-            for (Expression aggregate : aggregates) {
-                Expression e = Alias.unwrap(aggregate);
-                if (e.resolved() == false && e instanceof UnresolvedFunction == false) {
-                    String name = e.sourceText();
-                    if (groupNames.contains(name)) {
-                        fail(e, "grouping key [{}] already specified in the STATS BY clause", name);
-                    } else if (groupRefNames.contains(name)) {
-                        fail(e, "Cannot specify grouping expression [{}] as an aggregate", name);
-                    }
-                }
-            }
-        }
-        // since groupings are aliased, add refs to it in the aggregates
-        for (Expression group : groupings) {
-            aggregates.add(Expressions.attribute(group));
-        }
-        return new Stats(new ArrayList<>(groupings), aggregates);
-    }
 }

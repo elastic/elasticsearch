@@ -30,6 +30,28 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
     // by the centroid itself. In many cases, it indicates a degenerated distribution, e.g the cluster is composed of the
     // many equal vectors.
     private static final float SOAR_MIN_DISTANCE = 1e-16f;
+    private static final String PREFIX_SCORING_ENABLED_PROPERTY = "es.kmeans.prefix_scoring.enabled";
+    private static final String PREFIX_MIN_DIMENSIONS_PROPERTY = "es.kmeans.prefix_min_dimensions";
+    private static final String PREFIX_LENGTH_RATIO_PROPERTY = "es.kmeans.prefix_length_ratio";
+    private static final String PREFIX_TOPK_ONLY_SIZE_PROPERTY = "es.kmeans.prefix_topk_only_size";
+    private static final int DEFAULT_PREFIX_MIN_DIMENSIONS = 128;
+    private static final float DEFAULT_PREFIX_LENGTH_RATIO = 0.5f;
+    private static final int DEFAULT_PREFIX_TOPK_ONLY_SIZE = 4;
+    private static final int PREFIX_MIN_DIMENSIONS = Integer.getInteger(PREFIX_MIN_DIMENSIONS_PROPERTY, DEFAULT_PREFIX_MIN_DIMENSIONS);
+    private static final float PREFIX_LENGTH_RATIO = validatedPrefixLengthRatio();
+    private static volatile boolean prefixScoringEnabled = Boolean.getBoolean(PREFIX_SCORING_ENABLED_PROPERTY);
+    private static final int PREFIX_TOPK_ONLY_SIZE = Integer.getInteger(PREFIX_TOPK_ONLY_SIZE_PROPERTY, DEFAULT_PREFIX_TOPK_ONLY_SIZE);
+    private static final int PREFIX_TOPK_MAX = PREFIX_TOPK_ONLY_SIZE;
+
+    /**
+     * Enables/disables prefix-based shortlist scoring for clustering assignment.
+     * Returns the previous value.
+     */
+    public static boolean setPrefixScoringEnabled(boolean enabled) {
+        boolean previous = prefixScoringEnabled;
+        prefixScoringEnabled = enabled;
+        return previous;
+    }
 
     @Override
     public abstract ClusteringFloatVectorValues copy() throws IOException;
@@ -57,12 +79,13 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         int[] results
     ) throws IOException {
         final float[] distances = new float[4];
+        final PrefixScratch prefixScratch = dimension() >= (PREFIX_MIN_DIMENSIONS * 2) ? prefixScratch(centroids.length) : null;
         boolean changed = false;
         for (int i = startOrd; i < endOrd; i++) {
             float[] vector = vectorValue(i);
             final int translatedOrd = ordTranslator.apply(i);
             final int assignment = results[translatedOrd];
-            final int bestCentroid = computeBestCentroid(vector, centroids, distances);
+            final int bestCentroid = computeBestCentroid(vector, centroids, distances, prefixScratch);
             if (bestCentroid != assignment) {
                 if (assignment != -1) {
                     centroidChanged.set(assignment);
@@ -101,13 +124,21 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         int[] results
     ) throws IOException {
         final float[] distances = new float[4];
+        final PrefixScratch prefixScratch = dimension() >= (PREFIX_MIN_DIMENSIONS * 2) ? prefixScratch(centroids.length) : null;
         boolean changed = false;
         for (int i = startOrd; i < endOrd; i++) {
             float[] vector = vectorValue(i);
             final int translatedOrd = ordTranslator.apply(i);
             final int assignment = results[translatedOrd];
             assert assignment != -1 : "vector is not assigned to any cluster: ord=" + translatedOrd;
-            final int bestCentroid = computeBestCentroidFromNeighbours(vector, centroids, assignment, neighborhoods[assignment], distances);
+            final int bestCentroid = computeBestCentroidFromNeighbours(
+                vector,
+                centroids,
+                assignment,
+                neighborhoods[assignment],
+                distances,
+                prefixScratch
+            );
             if (bestCentroid != assignment) {
                 centroidChanged.set(assignment);
                 centroidChanged.set(bestCentroid);
@@ -253,7 +284,10 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
      * @param distances scratch array of length 4 used for bulk distance results
      * @return the index into {@code centroids} of the nearest centroid
      */
-    private static int computeBestCentroid(float[] vector, float[][] centroids, float[] distances) {
+    private static int computeBestCentroid(float[] vector, float[][] centroids, float[] distances, PrefixScratch prefixScratch) {
+        if (prefixScratch != null) {
+            return computeBestCentroidPrefix(vector, centroids, distances, prefixScratch);
+        }
         final int limit = centroids.length - 3;
         int bestCentroidOffset = 0;
         float minDsq = Float.MAX_VALUE;
@@ -296,8 +330,12 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         float[][] centroids,
         int centroidIdx,
         NeighborHood neighborhood,
-        float[] distances
+        float[] distances,
+        PrefixScratch prefixScratch
     ) {
+        if (prefixScoringEnabled && prefixScratch != null) {
+            return computeBestCentroidFromNeighboursPrefix(vector, centroids, distances, centroidIdx, neighborhood, prefixScratch);
+        }
         final int limit = neighborhood.neighbors().length - 3;
         int bestCentroidOffset = centroidIdx;
         assert centroidIdx >= 0 && centroidIdx < centroids.length;
@@ -341,6 +379,220 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
             }
         }
         return bestCentroidOffset;
+    }
+
+    private static int computeBestCentroidFromNeighboursPrefix(
+        float[] vector,
+        float[][] centroids,
+        float[] distances,
+        int centroidIdx,
+        NeighborHood neighborhood,
+        PrefixScratch scratch
+    ) {
+        final int dims = vector.length;
+        final int prefixLength = prefixLength(dims);
+        final int suffixLength = dims - prefixLength;
+        final float[] topPrefixDistances = scratch.topPrefixDistances;
+        final int[] topPrefixIds = scratch.topPrefixIds;
+        int bestCentroidOffset = centroidIdx;
+        assert centroidIdx >= 0 && centroidIdx < centroids.length;
+        float bestDistance = ESVectorUtil.squareDistance(vector, centroids[centroidIdx]);
+        if (bestDistance < neighborhood.maxIntraDistance()) {
+            return bestCentroidOffset;
+        }
+
+        final int[] neighbors = neighborhood.neighbors();
+        resetTopK(topPrefixDistances, topPrefixIds);
+        int limit = neighbors.length - 3;
+        int i = 0;
+        for (; i < limit; i += 4) {
+            ESVectorUtil.squareDistanceBulk(
+                vector,
+                0,
+                prefixLength,
+                centroids[neighbors[i]],
+                centroids[neighbors[i + 1]],
+                centroids[neighbors[i + 2]],
+                centroids[neighbors[i + 3]],
+                distances
+            );
+            updateTopK(topPrefixDistances, topPrefixIds, distances[0], neighbors[i]);
+            updateTopK(topPrefixDistances, topPrefixIds, distances[1], neighbors[i + 1]);
+            updateTopK(topPrefixDistances, topPrefixIds, distances[2], neighbors[i + 2]);
+            updateTopK(topPrefixDistances, topPrefixIds, distances[3], neighbors[i + 3]);
+        }
+        for (; i < neighbors.length; i++) {
+            int offset = neighbors[i];
+            assert offset >= 0 && offset < centroids.length : "Invalid neighbor offset: " + offset;
+            float prefixDistance = ESVectorUtil.squareDistance(vector, centroids[offset], 0, prefixLength);
+            updateTopK(topPrefixDistances, topPrefixIds, prefixDistance, offset);
+        }
+
+        final int topLimit = Math.min(PREFIX_TOPK_ONLY_SIZE, neighbors.length);
+        int j = 0;
+        for (; j + 3 < topLimit; j += 4) {
+            ESVectorUtil.squareDistanceBulk(
+                vector,
+                prefixLength,
+                suffixLength,
+                centroids[topPrefixIds[j]],
+                centroids[topPrefixIds[j + 1]],
+                centroids[topPrefixIds[j + 2]],
+                centroids[topPrefixIds[j + 3]],
+                distances
+            );
+            for (int k = 0; k < 4; k++) {
+                int centroidOrd = topPrefixIds[j + k];
+                float fullDistance = topPrefixDistances[j + k] + distances[k];
+                if (fullDistance < bestDistance) {
+                    bestDistance = fullDistance;
+                    bestCentroidOffset = centroidOrd;
+                }
+            }
+        }
+        for (; j < topLimit; j++) {
+            int centroidOrd = topPrefixIds[j];
+            if (centroidOrd == -1) {
+                continue;
+            }
+            float suffixDistance = ESVectorUtil.squareDistance(vector, centroids[centroidOrd], prefixLength, suffixLength);
+            float fullDistance = topPrefixDistances[j] + suffixDistance;
+            if (fullDistance < bestDistance) {
+                bestDistance = fullDistance;
+                bestCentroidOffset = centroidOrd;
+            }
+        }
+        return bestCentroidOffset;
+    }
+
+    private static int computeBestCentroidPrefix(float[] vector, float[][] centroids, float[] distances, PrefixScratch scratch) {
+        return computeBestCentroidPrefixTopK(vector, centroids, distances, scratch);
+    }
+
+    private static int computeBestCentroidPrefixTopK(float[] vector, float[][] centroids, float[] distances, PrefixScratch scratch) {
+        final int dims = vector.length;
+        final int prefixLength = prefixLength(dims);
+        final int suffixLength = dims - prefixLength;
+        final float[] topPrefixDistances = scratch.topPrefixDistances;
+        final int[] topPrefixIds = scratch.topPrefixIds;
+        resetTopK(topPrefixDistances, topPrefixIds);
+
+        int bulkLimit = centroids.length - 3;
+        int i = 0;
+        for (; i < bulkLimit; i += 4) {
+            ESVectorUtil.squareDistanceBulk(
+                vector,
+                0,
+                prefixLength,
+                centroids[i],
+                centroids[i + 1],
+                centroids[i + 2],
+                centroids[i + 3],
+                distances
+            );
+            updateTopK(topPrefixDistances, topPrefixIds, distances[0], i);
+            updateTopK(topPrefixDistances, topPrefixIds, distances[1], i + 1);
+            updateTopK(topPrefixDistances, topPrefixIds, distances[2], i + 2);
+            updateTopK(topPrefixDistances, topPrefixIds, distances[3], i + 3);
+        }
+        for (; i < centroids.length; i++) {
+            float prefixDistance = ESVectorUtil.squareDistance(vector, centroids[i], 0, prefixLength);
+            updateTopK(topPrefixDistances, topPrefixIds, prefixDistance, i);
+        }
+
+        int bestCentroid = -1;
+        float bestDistance = Float.MAX_VALUE;
+        int topLimit = Math.min(PREFIX_TOPK_ONLY_SIZE, centroids.length);
+        int j = 0;
+        for (; j + 3 < topLimit; j += 4) {
+            ESVectorUtil.squareDistanceBulk(
+                vector,
+                prefixLength,
+                suffixLength,
+                centroids[topPrefixIds[j]],
+                centroids[topPrefixIds[j + 1]],
+                centroids[topPrefixIds[j + 2]],
+                centroids[topPrefixIds[j + 3]],
+                distances
+            );
+            for (int k = 0; k < 4; k++) {
+                int centroidOrd = topPrefixIds[j + k];
+                float fullDistance = topPrefixDistances[j + k] + distances[k];
+                if (fullDistance < bestDistance) {
+                    bestDistance = fullDistance;
+                    bestCentroid = centroidOrd;
+                }
+            }
+        }
+        for (; j < topLimit; j++) {
+            int centroidOrd = topPrefixIds[j];
+            if (centroidOrd == -1) {
+                continue;
+            }
+            float suffixDistance = ESVectorUtil.squareDistance(vector, centroids[centroidOrd], prefixLength, suffixLength);
+            float fullDistance = topPrefixDistances[j] + suffixDistance;
+            if (fullDistance < bestDistance) {
+                bestDistance = fullDistance;
+                bestCentroid = centroidOrd;
+            }
+        }
+        return bestCentroid == -1 ? 0 : bestCentroid;
+    }
+
+    private static float validatedPrefixLengthRatio() {
+        String value = System.getProperty(PREFIX_LENGTH_RATIO_PROPERTY);
+        if (value == null) {
+            return DEFAULT_PREFIX_LENGTH_RATIO;
+        }
+        float parsed = Float.parseFloat(value);
+        if (Float.isFinite(parsed) == false || parsed <= 0f || parsed >= 1f) {
+            throw new IllegalArgumentException(
+                "Invalid " + PREFIX_LENGTH_RATIO_PROPERTY + " [" + value + "], expected a finite float in the range (0, 1)"
+            );
+        }
+        return parsed;
+    }
+
+    private static int prefixLength(int dims) {
+        int computed = Math.round(dims * PREFIX_LENGTH_RATIO);
+        return Math.max(1, Math.min(dims - 1, computed));
+    }
+
+    private static void resetTopK(float[] distances, int[] ids) {
+        Arrays.fill(distances, Float.POSITIVE_INFINITY);
+        Arrays.fill(ids, -1);
+    }
+
+    private static void updateTopK(float[] distances, int[] ids, float distance, int id) {
+        int last = distances.length - 1;
+        if (distance >= distances[last]) {
+            return;
+        }
+        int i = last;
+        while (i > 0 && distance < distances[i - 1]) {
+            distances[i] = distances[i - 1];
+            ids[i] = ids[i - 1];
+            i--;
+        }
+        distances[i] = distance;
+        ids[i] = id;
+    }
+
+    private static PrefixScratch prefixScratch(int candidateCount) {
+        if (prefixScoringEnabled == false || candidateCount < PREFIX_TOPK_MAX) {
+            return null;
+        }
+        return new PrefixScratch();
+    }
+
+    private static final class PrefixScratch {
+        final float[] topPrefixDistances;
+        final int[] topPrefixIds;
+
+        PrefixScratch() {
+            this.topPrefixDistances = new float[PREFIX_TOPK_MAX];
+            this.topPrefixIds = new int[PREFIX_TOPK_MAX];
+        }
     }
 
     private static int computeSoarAssignment(

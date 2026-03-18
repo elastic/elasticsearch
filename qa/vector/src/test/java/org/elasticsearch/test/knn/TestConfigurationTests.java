@@ -24,6 +24,7 @@ public class TestConfigurationTests extends ESTestCase {
               "doc_vectors": ["/path/to/docs"],
               "query_vectors": "/path/to/queries",
               "dimensions": 128,
+              "prefix_scoring_enabled": true,
               "num_candidates": [10, 20],
               "k": [5, 10],
               "visit_percentage": [0.5],
@@ -40,6 +41,7 @@ public class TestConfigurationTests extends ESTestCase {
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
             TestConfiguration config = TestConfiguration.fromXContent(parser);
             assertEquals(128, config.dimensions());
+            assertTrue(config.prefixScoringEnabled());
             assertEquals(1, config.docVectors().size());
             assertTrue(config.docVectors().get(0).equals(PathUtils.get("/path/to/docs")));
             assertTrue(config.queryVectors().equals(PathUtils.get("/path/to/queries")));

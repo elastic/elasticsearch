@@ -1524,3 +1524,38 @@ max_cost:double | time_bucket:datetime     | cluster:keyword
 10.875          | 2024-05-10T00:15:00.000Z | qa
 9.5             | 2024-05-10T00:15:00.000Z | staging
 ;
+
+windowSmallerThanBucket
+required_capability: ts_command_v0
+required_capability: time_series_window_smaller_than_bucket
+TS k8s
+| STATS max = max(max_over_time(network.cost, 1m)), max2 = max(max_over_time(network.cost, 4m)) by cluster, pod, b = bucket(@timestamp,5minute)
+| SORT b, cluster, pod
+| WHERE max is not null
+;
+
+max:double | max2:double | cluster:keyword | pod:keyword | b:datetime
+5.625      | 8.375       | prod            | one         | 2024-05-10T00:00:00.000Z
+11.0       | 11.0        | qa              | one         | 2024-05-10T00:00:00.000Z
+10.375     | 12.375      | qa              | two         | 2024-05-10T00:00:00.000Z
+2.0        | 12.00       | prod            | one         | 2024-05-10T00:05:00.000Z
+11.375     | 11.375      | prod            | three       | 2024-05-10T00:05:00.000Z
+8.875      | 8.875       | prod            | two         | 2024-05-10T00:05:00.000Z
+8.875      | 12.375      | qa              | one         | 2024-05-10T00:05:00.000Z
+7.875      | 8.125       | qa              | three       | 2024-05-10T00:05:00.000Z
+11.875     | 12.0        | qa              | two         | 2024-05-10T00:05:00.000Z
+10.0       | 10.125      | staging         | one         | 2024-05-10T00:05:00.000Z
+9.75       | 9.75        | staging         | three       | 2024-05-10T00:05:00.000Z
+12.5       | 12.5        | staging         | two         | 2024-05-10T00:05:00.000Z
+9.375      | 9.375       | prod            | one         | 2024-05-10T00:10:00.000Z
+11.25      | 11.625      | prod            | three       | 2024-05-10T00:10:00.000Z
+0.125      | 5.75        | prod            | two         | 2024-05-10T00:10:00.000Z
+1.0        | 11.875      | qa              | one         | 2024-05-10T00:10:00.000Z
+3.5        | 11.375      | qa              | three       | 2024-05-10T00:10:00.000Z
+2.125      | 11.375      | staging         | three       | 2024-05-10T00:10:00.000Z
+2.625      | 6.125       | staging         | two         | 2024-05-10T00:10:00.000Z
+11.125     | 11.125      | prod            | one         | 2024-05-10T00:15:00.000Z
+12.25      | 12.375      | prod            | three       | 2024-05-10T00:15:00.000Z
+5.625      | 5.625       | prod            | two         | 2024-05-10T00:15:00.000Z
+8.625      | 10.125      | qa              | two         | 2024-05-10T00:15:00.000Z
+;

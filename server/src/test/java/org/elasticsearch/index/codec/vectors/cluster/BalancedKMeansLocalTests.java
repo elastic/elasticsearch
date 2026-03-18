@@ -9,30 +9,24 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
-import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class BalancedKMeansLocalTests extends ESTestCase {
 
     public void testIllegalClustersPerNeighborhood() {
-        KMeansLocal lloydKMeansLocal = new BalancedKMeansLocalSerial(randomInt(), randomInt());
+        KMeansLocal kMeansLocal = new BalancedKMeansLocalSerial(randomInt(), randomInt());
         KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(new float[0][], new int[0], i -> i);
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> lloydKMeansLocal.cluster(
+            () -> kMeansLocal.cluster(
                 KMeansFloatVectorValues.build(List.of(), null, randomInt(1024)),
                 kMeansIntermediate,
                 randomIntBetween(Integer.MIN_VALUE, 1),
@@ -42,50 +36,46 @@ public class BalancedKMeansLocalTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("clustersPerNeighborhood must be at least 2"));
     }
 
-    public void testKMeansNeighbors() throws IOException {
-        final int nClusters = 10;
-        final int nVectors = nClusters * 200;
-        final int dims = 200;
-        final int sampleSize = nVectors;
-        final int maxIterations = 50;
-        final int clustersPerNeighborhood = 10;
-        final float soarLambda = -1; // do not use SOAR
+    public void testBalancedKMeans() throws IOException {
+        // Test to compare LloydKMeansLocal and BalancedKMeansLocal.
+        // We do not use clustersPerNeighborhood because there is clever centroid initialization here.
 
-//        int nClusters = random().nextInt(1, 10);
-//        int nVectors = random().nextInt(nClusters * 100, nClusters * 200);
-//        int dims = random().nextInt(2, 20);
-//        int sampleSize = random().nextInt(100, nVectors + 1);
-//        int maxIterations = random().nextInt(0, 100);
-//        int clustersPerNeighborhood = random().nextInt(2, 512);
-//        float soarLambda = random().nextFloat(0.5f, 1.5f);
-        KMeansFloatVectorValues vectors = generateData(nVectors, dims, nClusters);
+        int nClusters = random().nextInt(2, 10); // Pick the number of clusters between 1 and 10 in increments of 10
+        int nVectors = nClusters * 100;
+        final int sampleSize = nClusters * 100;
+        int dims = random().nextInt(1, 20) * 100; // Pick the dimensions between 100 and 2000 in increments of 100
+        int maxIterations = random().nextInt(20, 50);
+        float soarLambda = -1;
 
-        float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters);
-        int[] assignments = new int[vectors.size()];
-        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments);
-        KMeansLocal lloydKMeansLocal = new LloydKMeansLocalSerial(sampleSize, maxIterations);
-        lloydKMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
+        KMeansFloatVectorValues vectors = generateData(nVectors, dims, nClusters, 0.5f);
 
-        int[] clusterSizes = new int[nClusters];
-        for (int i = 0; i < nVectors; i++) {
-            clusterSizes[kMeansIntermediate.assignments()[i]]++;
+        var methods = List.of(
+            new LloydKMeansLocalSerial(sampleSize, maxIterations), // reference method
+            new BalancedKMeansLocalSerial(sampleSize, maxIterations)
+        );
+
+        float[] inertias = new float[methods.size()];
+        float[] stdClusterSizes = new float[methods.size()];
+
+        for (int j = 0; j < methods.size(); j++) {
+            float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters);
+            int[] assignments = new int[vectors.size()];
+            KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments);
+            methods.get(j).cluster(vectors, kMeansIntermediate, nClusters, soarLambda);
+
+            inertias[j] = kMeansMeanInertia(vectors, kMeansIntermediate);
+            int[] clusterSizes = clusterSizes(kMeansIntermediate);
+
+            stdClusterSizes[j] = clusterSizesStandardDeviation(clusterSizes);
         }
-        System.out.println("clusterSizes: " + Arrays.toString(clusterSizes) + " inertia: " + kMeansMeanInertia(vectors, kMeansIntermediate));
 
-        float[][] centroids2 = KMeansLocal.pickInitialCentroids(vectors, nClusters);
-        int[] assignments2 = new int[vectors.size()];
-        KMeansIntermediate kMeansIntermediate2 = new KMeansIntermediate(centroids2, assignments2);
-        KMeansLocal balKMeansLocal = new BalancedKMeansLocalSerial(sampleSize, maxIterations);
-        balKMeansLocal.cluster(vectors, kMeansIntermediate2, clustersPerNeighborhood, soarLambda);
-
-        int[] clusterSizes2 = new int[nClusters];
-        for (int i = 0; i < nVectors; i++) {
-            clusterSizes2[kMeansIntermediate2.assignments()[i]]++;
-        }
-        System.out.println("clusterSizes: " + Arrays.toString(clusterSizes2) + " inertia: " + kMeansMeanInertia(vectors, kMeansIntermediate2));
-
-//        assertEquals(nClusters, centroids.length);
-//        assertNotNull(kMeansIntermediate.soarAssignments());
+        // We allow up to 1% increase in inertia:
+        assertTrue(inertias[0] * 1.05 > inertias[1]);
+        // We ask for a net improvement in the size distribution. In the vast majority of the runs,
+        // the decrease in the standard deviation of the cluster sizes is very significant.
+        // Once in a while, the stars align and the k-means result is pretty well-balanced. In those cases,
+        // balanced k-means does not do worse but cannot improve any further.
+        assertTrue(stdClusterSizes[0] >= stdClusterSizes[1]);
     }
 
     static float kMeansMeanInertia(KMeansFloatVectorValues vectors, KMeansIntermediate kMeansIntermediate) throws IOException {
@@ -102,6 +92,22 @@ public class BalancedKMeansLocalTests extends ESTestCase {
         return mse;
     }
 
+    static int[] clusterSizes(KMeansIntermediate kMeansIntermediate) {
+        int[] assignments = kMeansIntermediate.assignments();
+        float[][] centroids = kMeansIntermediate.centroids();
+
+        int[] clusterSizes = new int[centroids.length];
+        for (int i = 0; i < assignments.length; i++) {
+            clusterSizes[assignments[i]]++;
+        }
+        return clusterSizes;
+    }
+
+    static float clusterSizesStandardDeviation(int[] clusterSizes) {
+        double avgSize = Arrays.stream(clusterSizes).asDoubleStream().sum() / clusterSizes.length;
+        double varSize = Arrays.stream(clusterSizes).asDoubleStream().map(e -> Math.pow(e - avgSize, 2)).sum() / clusterSizes.length;
+        return (float) Math.sqrt(varSize);
+    }
 
     public void testKMeansNeighborsAllZero() throws IOException {
         int nClusters = 10;
@@ -117,8 +123,8 @@ public class BalancedKMeansLocalTests extends ESTestCase {
         int sampleSize = vectors.size();
         KMeansFloatVectorValues fvv = KMeansFloatVectorValues.build(vectors, null, 5);
 
-        float[][] centroids = LloydKMeansLocal.pickInitialCentroids(fvv, nClusters);
-        LloydKMeansLocal.cluster(fvv, centroids, sampleSize, maxIterations);
+        float[][] centroids = KMeansLocal.pickInitialCentroids(fvv, nClusters);
+        BalancedKMeansLocal.cluster(fvv, centroids, sampleSize, maxIterations);
 
         int[] assignments = new int[vectors.size()];
         int[] assignmentOrdinals = new int[vectors.size()];
@@ -137,8 +143,8 @@ public class BalancedKMeansLocalTests extends ESTestCase {
         }
 
         KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, i -> assignmentOrdinals[i]);
-        LloydKMeansLocal lloydKMeansLocal = new LloydKMeansLocalSerial(sampleSize, maxIterations);
-        lloydKMeansLocal.cluster(fvv, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
+        KMeansLocal kMeansLocal = new BalancedKMeansLocalSerial(sampleSize, maxIterations);
+        kMeansLocal.cluster(fvv, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
 
         assertEquals(nClusters, centroids.length);
         assertNotNull(kMeansIntermediate.soarAssignments());
@@ -151,13 +157,50 @@ public class BalancedKMeansLocalTests extends ESTestCase {
         }
     }
 
-    private static KMeansFloatVectorValues generateData(int nSamples, int nDims, int nClusters) {
+    public void testKMeansNeighbors() throws IOException {
+        int nClusters = random().nextInt(1, 10);
+        int nVectors = random().nextInt(nClusters * 100, nClusters * 200);
+        int dims = random().nextInt(2, 20);
+        int sampleSize = random().nextInt(100, nVectors + 1);
+        int maxIterations = random().nextInt(0, 100);
+        int clustersPerNeighborhood = random().nextInt(2, 512);
+        float soarLambda = random().nextFloat(0.5f, 1.5f);
+        KMeansFloatVectorValues vectors = generateData(nVectors, dims, nClusters, 0.5f);
+
+        float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters);
+        LloydKMeansLocal.cluster(vectors, centroids, sampleSize, maxIterations);
+
+        int[] assignments = new int[vectors.size()];
+        int[] assignmentOrdinals = new int[vectors.size()];
+        for (int i = 0; i < vectors.size(); i++) {
+            float minDist = Float.MAX_VALUE;
+            int ord = -1;
+            for (int j = 0; j < centroids.length; j++) {
+                float dist = VectorUtil.squareDistance(vectors.vectorValue(i), centroids[j]);
+                if (dist < minDist) {
+                    minDist = dist;
+                    ord = j;
+                }
+            }
+            assignments[i] = ord;
+            assignmentOrdinals[i] = i;
+        }
+
+        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, i -> assignmentOrdinals[i]);
+        KMeansLocal kMeansLocal = new BalancedKMeansLocalSerial(sampleSize, maxIterations);
+        kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
+
+        assertEquals(nClusters, centroids.length);
+        assertNotNull(kMeansIntermediate.soarAssignments());
+    }
+
+    private static KMeansFloatVectorValues generateData(int nSamples, int nDims, int nClusters, float standardDeviationPreCluster) {
         List<float[]> vectors = new ArrayList<>(nSamples);
         float[][] centroids = new float[nClusters][nDims];
         // Generate random centroids
         for (int i = 0; i < nClusters; i++) {
             for (int j = 0; j < nDims; j++) {
-                centroids[i][j] = random().nextFloat() * 100;
+                centroids[i][j] = random().nextFloat();
             }
         }
         // Generate data points around centroids
@@ -165,112 +208,11 @@ public class BalancedKMeansLocalTests extends ESTestCase {
             int cluster = random().nextInt(nClusters);
             float[] vector = new float[nDims];
             for (int j = 0; j < nDims; j++) {
-                vector[j] = centroids[cluster][j] + random().nextFloat() * 10 - 5;
+                vector[j] = centroids[cluster][j] + (float) random().nextGaussian() * standardDeviationPreCluster;
             }
             vectors.add(vector);
         }
+
         return KMeansFloatVectorValues.build(vectors, null, nDims);
-    }
-
-    public void testComputeNeighbours() throws IOException {
-        int numCentroids = randomIntBetween(1000, 2000);
-        int dims = randomIntBetween(10, 200);
-        float[][] vectors = new float[numCentroids][dims];
-        for (int i = 0; i < numCentroids; i++) {
-            for (int j = 0; j < dims; j++) {
-                vectors[i][j] = randomFloat();
-            }
-        }
-        int clustersPerNeighbour = randomIntBetween(64, 128);
-        NeighborHood[] neighborHoodsGraph = NeighborHood.computeNeighborhoodsGraph(vectors, clustersPerNeighbour);
-        NeighborHood[] neighborHoodsBruteForce = NeighborHood.computeNeighborhoodsBruteForce(vectors, clustersPerNeighbour);
-        assertEquals(neighborHoodsGraph.length, neighborHoodsBruteForce.length);
-        for (int i = 0; i < neighborHoodsGraph.length; i++) {
-            assertEquals(neighborHoodsBruteForce[i].neighbors().length, neighborHoodsGraph[i].neighbors().length);
-            int matched = compareNN(i, neighborHoodsBruteForce[i].neighbors(), neighborHoodsGraph[i].neighbors());
-            double recall = (double) matched / neighborHoodsGraph[i].neighbors().length;
-            assertThat(recall, greaterThanOrEqualTo(0.5));
-            if (recall == 1.0) {
-                // we cannot assert on array equality as there can be small differences due to numerical errors
-                assertEquals(neighborHoodsBruteForce[i].maxIntraDistance(), neighborHoodsGraph[i].maxIntraDistance(), 1e-5f);
-            }
-        }
-        int numThreads = randomIntBetween(2, 8);
-        try (ExecutorService executorService = Executors.newFixedThreadPool(numThreads)) {
-            TaskExecutor taskExecutor = new TaskExecutor(executorService);
-            NeighborHood[] neighborHoodsGraphConcurrent = NeighborHood.computeNeighborhoodsGraph(
-                taskExecutor,
-                numThreads,
-                vectors,
-                clustersPerNeighbour
-            );
-            assertEquals(neighborHoodsGraph.length, neighborHoodsGraphConcurrent.length);
-            for (int i = 0; i < neighborHoodsGraph.length; i++) {
-                assertArrayEquals(neighborHoodsGraph[i].neighbors(), neighborHoodsGraphConcurrent[i].neighbors());
-                assertEquals(neighborHoodsGraph[i].maxIntraDistance(), neighborHoodsGraphConcurrent[i].maxIntraDistance(), 0f);
-            }
-        }
-    }
-
-    private static int compareNN(int currentId, int[] expected, int[] results) {
-        int matched = 0;
-        Set<Integer> expectedSet = new HashSet<>();
-        Set<Integer> alreadySeen = new HashSet<>();
-        for (int i : expected) {
-            assertNotEquals(currentId, i);
-            assertTrue(expectedSet.add(i));
-        }
-        for (int i : results) {
-            assertNotEquals(currentId, i);
-            assertTrue(alreadySeen.add(i));
-            if (expectedSet.contains(i)) {
-                ++matched;
-            }
-        }
-        return matched;
-    }
-
-    public void testComputeNeighboursThreadSafety() throws IOException {
-        int numCentroids = randomIntBetween(500, 1500);
-        int dims = randomIntBetween(10, 50);
-        float[][] vectors = new float[numCentroids][dims];
-        for (int i = 0; i < numCentroids; i++) {
-            for (int j = 0; j < dims; j++) {
-                vectors[i][j] = randomFloat();
-            }
-        }
-        int clustersPerNeighbour = randomIntBetween(32, 64);
-
-        // sequential version
-        NeighborHood[] neighborHoodsGraph = NeighborHood.computeNeighborhoodsGraph(vectors, clustersPerNeighbour);
-
-        // multiple concurrent executions for consistency
-        for (int iter = 0; iter < 50; iter++) {
-            int numThreads = randomIntBetween(2, 8);
-            try (ExecutorService executorService = Executors.newFixedThreadPool(numThreads)) {
-                TaskExecutor taskExecutor = new TaskExecutor(executorService);
-                NeighborHood[] neighborHoodsGraphConcurrent = NeighborHood.computeNeighborhoodsGraph(
-                    taskExecutor,
-                    numThreads,
-                    vectors,
-                    clustersPerNeighbour
-                );
-
-                assertEquals(neighborHoodsGraph.length, neighborHoodsGraphConcurrent.length);
-                for (int i = 0; i < neighborHoodsGraph.length; i++) {
-                    assertArrayEquals(
-                        "Iteration " + iter + ", thread count " + numThreads + ": Different neighbors at index " + i,
-                        neighborHoodsGraph[i].neighbors(),
-                        neighborHoodsGraphConcurrent[i].neighbors()
-                    );
-                    assertEquals(
-                        "Iteration " + iter + ", thread count " + numThreads + ": Different maxIntraDistance at index " + i,
-                        neighborHoodsGraph[i].maxIntraDistance(),
-                        neighborHoodsGraphConcurrent[i].maxIntraDistance(),
-                        1e-5f
-                    );
-                }
-            }
-        }
     }
 }

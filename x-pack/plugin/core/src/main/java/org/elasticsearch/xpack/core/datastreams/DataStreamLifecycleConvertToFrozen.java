@@ -303,18 +303,14 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
                 logger.warn("DLM failed to acknowledge deletion of index [{}]", cloneIndex);
                 throw new ElasticsearchException(Strings.format("Failed to acknowledge delete of index [%s]", cloneIndex));
             }
+        } catch (IndexNotFoundException e) {
+                logger.debug("Clone index [{}] was not found during DLM delete attempt, it may have already been deleted", cloneIndex);
         } catch (Exception e) {
             logger.warn(Strings.format("DLM failed to delete index [%s]", cloneIndex), e);
-            if (e instanceof IndexNotFoundException) {
-                logger.debug("Clone index [{}] was not found during DLM delete attempt, it may have already been deleted", cloneIndex);
-                return;
-            }
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
             throw new ElasticsearchException("DLM unable to delete clone index [{}]", e, cloneIndex);
-        }
-    }
 
     /**
      * Validates the response from the add index block request. If the response indicates that the block was successfully added,

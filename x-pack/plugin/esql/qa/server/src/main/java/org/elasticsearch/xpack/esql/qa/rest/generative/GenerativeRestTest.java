@@ -80,6 +80,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Can't parse boolean value \\[.*\\], expected \\[true\\] or \\[false\\]",
         // full-text function trying to parse text as date field and failing
         "failed to parse date field \\[.*\\] with format",
+        // full-text function trying to parse a non-IP string
+        "is not an IP string literal",
 
         // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,

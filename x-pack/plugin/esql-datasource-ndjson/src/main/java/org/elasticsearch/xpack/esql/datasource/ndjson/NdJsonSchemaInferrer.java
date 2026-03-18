@@ -14,11 +14,10 @@ import com.fasterxml.jackson.core.JsonToken;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -166,16 +165,7 @@ public class NdJsonSchemaInferrer {
     }
 
     public static Attribute attribute(String name, DataType type, boolean nullable) {
-        return new FieldAttribute(
-            Source.EMPTY,
-            null,
-            null,
-            name,
-            new EsField(name, type, Map.of(), false, null),
-            nullable ? Nullability.TRUE : Nullability.UNKNOWN,
-            null,
-            false
-        );
+        return new ReferenceAttribute(Source.EMPTY, null, name, type, nullable ? Nullability.TRUE : Nullability.UNKNOWN, null, false);
     }
 
     /**

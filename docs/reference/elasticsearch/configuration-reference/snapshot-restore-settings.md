@@ -11,6 +11,14 @@ applies_to:
 
 The following cluster settings configure [snapshot and restore](docs-content://deploy-manage/tools/snapshot-and-restore.md).
 
+:::{tip}
+This page covers **cluster-level** snapshot and restore settings. For client connection and per-repository settings specific to each repository type, refer to:
+
+- [S3 repository settings](/reference/elasticsearch/configuration-reference/s3-repository-settings.md)
+- [Azure repository settings](/reference/elasticsearch/configuration-reference/azure-repository-settings.md)
+- [GCS repository settings](/reference/elasticsearch/configuration-reference/gcs-repository-settings.md)
+:::
+
 $$$snapshot-max-concurrent-ops$$$
 
 `snapshot.max_concurrent_operations`

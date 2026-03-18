@@ -44,7 +44,8 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
                     (String) config.get("access_key"),
                     (String) config.get("secret_key"),
                     (String) config.get("endpoint"),
-                    (String) config.get("region")
+                    (String) config.get("region"),
+                    (String) config.get("auth")
                 );
                 return new S3StorageProvider(s3Config);
             }

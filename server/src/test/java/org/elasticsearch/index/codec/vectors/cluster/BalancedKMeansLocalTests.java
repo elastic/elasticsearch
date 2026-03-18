@@ -70,7 +70,7 @@ public class BalancedKMeansLocalTests extends ESTestCase {
         for (int i = 0; i < nVectors; i++) {
             clusterSizes[kMeansIntermediate.assignments()[i]]++;
         }
-        System.out.println("clusterSizes: " + Arrays.toString(clusterSizes));
+        System.out.println("clusterSizes: " + Arrays.toString(clusterSizes) + " inertia: " + kMeansMeanInertia(vectors, kMeansIntermediate));
 
         float[][] centroids2 = KMeansLocal.pickInitialCentroids(vectors, nClusters);
         int[] assignments2 = new int[vectors.size()];
@@ -82,11 +82,26 @@ public class BalancedKMeansLocalTests extends ESTestCase {
         for (int i = 0; i < nVectors; i++) {
             clusterSizes2[kMeansIntermediate2.assignments()[i]]++;
         }
-        System.out.println("clusterSizes: " + Arrays.toString(clusterSizes2));
+        System.out.println("clusterSizes: " + Arrays.toString(clusterSizes2) + " inertia: " + kMeansMeanInertia(vectors, kMeansIntermediate2));
 
 //        assertEquals(nClusters, centroids.length);
 //        assertNotNull(kMeansIntermediate.soarAssignments());
     }
+
+    static float kMeansMeanInertia(KMeansFloatVectorValues vectors, KMeansIntermediate kMeansIntermediate) throws IOException {
+        int[] assignments = kMeansIntermediate.assignments();
+        float[][] centroids = kMeansIntermediate.centroids();
+
+        float mse = 0;
+        for (int i = 0; i < vectors.size(); i++) {
+            float[] vec = vectors.vectorValue(i);
+            float[] cent = centroids[assignments[i]];
+            float dist = VectorUtil.squareDistance(vec, cent);
+            mse += dist / vectors.size();
+        }
+        return mse;
+    }
+
 
     public void testKMeansNeighborsAllZero() throws IOException {
         int nClusters = 10;

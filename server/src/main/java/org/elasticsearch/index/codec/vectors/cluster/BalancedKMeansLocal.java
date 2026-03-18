@@ -44,13 +44,15 @@ abstract class BalancedKMeansLocal extends KMeansLocal {
     /** Number of workers to use for parallelism **/
     protected abstract int numWorkers();
 
-    /** compute the distance from every vector to everyt centroid **/
-    protected abstract void computeDistances(
+    /** compute the distance from every vector to every centroid **/
+    private void computeDistances(
         ClusteringFloatVectorValues vectors,
         IntToIntFunction ordTranslator,
         float[][] centroids,
         float[][] distances
-    ) throws IOException;
+    ) throws IOException {
+        vectors.computeSquaredDistances(0, vectors.size(), centroids, ordTranslator, distances);
+    }
 
     /** update the centroids using stochastic gradient descent **/
     protected void updateCentroids(
@@ -114,43 +116,8 @@ abstract class BalancedKMeansLocal extends KMeansLocal {
         vectors.assignSpilled(startOrd, endOrd, centroids, neighborhoods, soarLambda, assignments, spilledAssignments);
     }
 
-    /**
-     * cluster using a mini-batch optimal transport kmeans algorithm that also considers prior clustered neighborhoods when adjusting centroids
-     * this also is used to generate the neighborhood aware additional (SOAR) assignments
-     *
-     * @param vectors the vectors to cluster
-     * @param kMeansIntermediate the output object to populate which minimally includes centroids,
-     *                     the prior assignments of the given vectors; care should be taken in
-     *                     passing in a valid output object with a centroids array that is the size of centroids expected
-     *                     and assignments that are the same size as the vectors.  The SOAR assignments are overwritten by this operation.
-     * @param clustersPerNeighborhood number of nearby neighboring centroids to be used to update the centroid positions.
-     * @param soarLambda   lambda used for SOAR assignments
-     *
-     * @throws IOException is thrown if vectors is inaccessible or if the clustersPerNeighborhood is less than 2
-     */
     @Override
-    protected void doCluster(
-        ClusteringFloatVectorValues vectors,
-        KMeansIntermediate kMeansIntermediate,
-        int clustersPerNeighborhood,
-        float soarLambda
-    ) throws IOException {
-        float[][] centroids = kMeansIntermediate.centroids();
-        boolean neighborAware = clustersPerNeighborhood != -1 && centroids.length > 1;
-        NeighborHood[] neighborhoods = null;
-        // if there are very few centroids, don't bother with neighborhoods or neighbor aware clustering
-        if (neighborAware && centroids.length > clustersPerNeighborhood) {
-            neighborhoods = computeNeighborhoods(centroids, clustersPerNeighborhood);
-        }
-        cluster(vectors, kMeansIntermediate, neighborhoods);
-        if (neighborAware && soarLambda >= 0) {
-            assert kMeansIntermediate.soarAssignments().length == 0;
-            kMeansIntermediate.setSoarAssignments(new int[vectors.size()]);
-            assignSpilled(vectors, kMeansIntermediate, neighborhoods, soarLambda);
-        }
-    }
-
-    private void cluster(ClusteringFloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, NeighborHood[] neighborhoods)
+    protected void innerCluster(ClusteringFloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, NeighborHood[] neighborhoods)
         throws IOException {
         float[][] centroids = kMeansIntermediate.centroids();
         int k = centroids.length;
@@ -166,22 +133,28 @@ abstract class BalancedKMeansLocal extends KMeansLocal {
         float[][] distances = new float[miniBatchSize][k]; // distances from sampledVectors to centroids
         float[][] weights = new float[miniBatchSize][k]; // soft-assignments of sampledVectors to centroids
 
-        float[] cumulative_cluster_weights = new float[k];
-        Arrays.fill(cumulative_cluster_weights, 1);
+        float[] cumulative_cluster_weights = new float[k]; // maintains soft cluster counts for each cluster.
+                                                           // Used to compute the learning rate in the SGD update of the centroids
+        Arrays.fill(cumulative_cluster_weights, 1); //  start with one to avoid 1 / epsilon numerical issues.
 
         float eta = this.gamma;
 
-        OnlineQuantileEstimator medianEstimator = null;
+        OnlineQuantileEstimator medianEstimator = null; // We cannot initialize the estimator now because we need to know its range.
+
+        ClusteringFloatVectorValuesSlice sampledVectors = new ClusteringFloatVectorValuesSlice(vectors, miniBatchSize);
 
         for (int i = 0; i < maxIterations; i++) {
             for (int batch = 0; batch < sampleSize; batch += miniBatchSize) {
-                // This simple version performs sampling with replacement for simplicity. Alternatively, we could sample without replacement.
-                ClusteringFloatVectorValues sampledVectors = ClusteringFloatVectorValuesSlice.createRandomSlice(vectors, miniBatchSize, batch);
+                // This simple version performs sampling with replacement (that is, two batches can share vectors) for simplicity.
+                // To be more precise, we could sample without replacement but the current approach seems good enough.
+                sampledVectors.updateRandomSlice(batch);
                 IntToIntFunction ordTranslator = sampledVectors::ordToDoc;
 
                 computeDistances(sampledVectors, ordTranslator, centroids, distances);
 
                 if (medianEstimator == null) {
+                    // Getting the range of the median estimator from the first batch.
+                    // Since the estimator snaps the values to the provided range, this is a safe operation.
                     float maxDistance = Float.NEGATIVE_INFINITY;
                     for (float[] dist: distances) {
                         for (float d : dist) {
@@ -197,8 +170,10 @@ abstract class BalancedKMeansLocal extends KMeansLocal {
 
                 float current_median = medianEstimator.getEstimate();
                 float eps = Math.max(eta, etaMin) * current_median;
+                // Perform Shinkhorn iterations in log domain to obtain a balanced assignment.
                 SinkhornIterations.compute(distances, sinkhornIterations, eps, weights);
 
+                // Update the centroids using SGD.
                 updateCentroids(sampledVectors, ordTranslator, cumulative_cluster_weights, weights, centroids);
             }
             eta *= alpha;

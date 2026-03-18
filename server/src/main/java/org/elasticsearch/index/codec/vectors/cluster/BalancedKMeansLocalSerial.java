@@ -28,16 +28,6 @@ class BalancedKMeansLocalSerial extends BalancedKMeansLocal {
     protected int numWorkers() { return 1; }
 
     @Override
-    protected void computeDistances(
-        ClusteringFloatVectorValues vectors,
-        IntToIntFunction ordTranslator,
-        float[][] centroids,
-        float[][] distances
-    ) throws IOException {
-        vectors.computeSquaredDistances(0, vectors.size(), centroids, ordTranslator, distances);
-    }
-
-    @Override
     protected void assign(
         ClusteringFloatVectorValues vectors,
         IntToIntFunction ordTranslator,

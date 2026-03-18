@@ -152,6 +152,41 @@ abstract class KMeansLocal {
         doCluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
     }
 
-    protected abstract void doCluster(ClusteringFloatVectorValues vectors, KMeansIntermediate kMeansIntermediate,
-                                    int clustersPerNeighborhood, float soarLambda) throws IOException;
+    /**
+     * cluster using a Lloyd kmeans algorithm that also considers prior clustered neighborhoods when adjusting centroids
+     * this also is used to generate the neighborhood aware additional (SOAR) assignments
+     *
+     * @param vectors the vectors to cluster
+     * @param kMeansIntermediate the output object to populate which minimally includes centroids,
+     *                     the prior assignments of the given vectors; care should be taken in
+     *                     passing in a valid output object with a centroids array that is the size of centroids expected
+     *                     and assignments that are the same size as the vectors.  The SOAR assignments are overwritten by this operation.
+     * @param clustersPerNeighborhood number of nearby neighboring centroids to be used to update the centroid positions.
+     * @param soarLambda   lambda used for SOAR assignments
+     *
+     * @throws IOException is thrown if vectors is inaccessible or if the clustersPerNeighborhood is less than 2
+     */
+    protected void doCluster(
+        ClusteringFloatVectorValues vectors,
+        KMeansIntermediate kMeansIntermediate,
+        int clustersPerNeighborhood,
+        float soarLambda
+    ) throws IOException {
+        float[][] centroids = kMeansIntermediate.centroids();
+        boolean neighborAware = clustersPerNeighborhood != -1 && centroids.length > 1;
+        NeighborHood[] neighborhoods = null;
+        // if there are very few centroids, don't bother with neighborhoods or neighbor aware clustering
+        if (neighborAware && centroids.length > clustersPerNeighborhood) {
+            neighborhoods = computeNeighborhoods(centroids, clustersPerNeighborhood);
+        }
+        innerCluster(vectors, kMeansIntermediate, neighborhoods);
+        if (neighborAware && soarLambda >= 0) {
+            assert kMeansIntermediate.soarAssignments().length == 0;
+            kMeansIntermediate.setSoarAssignments(new int[vectors.size()]);
+            assignSpilled(vectors, kMeansIntermediate, neighborhoods, soarLambda);
+        }
+    }
+
+    protected abstract void innerCluster(ClusteringFloatVectorValues vectors, KMeansIntermediate kMeansIntermediate,
+                                         NeighborHood[] clustersPerNeighborhood) throws IOException;
 }

@@ -687,11 +687,15 @@ public class IndexRoutingTests extends ESTestCase {
     public void testRoutingPathBwcAfterTsidBasedRouting() throws IOException {
         boolean useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean();
         TimeSeriesRoutingFixture fixture = indexRoutingForTimeSeriesDimensions(
-            IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94),
+            IndexVersionUtils.randomVersionBetween(
+                IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)
+            ),
             8,
             "dim.*,other.*,top",
             useSyntheticId
         );
+        assertFalse(TsidBuilder.useSingleBytePrefixLayout(fixture.routing.creationVersion));
         /*
          * These are the expected shards after tsid based routing. If these values change
          * time series will be routed to unexpected shards. You may modify
@@ -700,31 +704,39 @@ public class IndexRoutingTests extends ESTestCase {
          * versions of Elasticsearch must continue to route based on the
          * version on the index.
          */
-        if (TsidBuilder.useSingleBytePrefixLayout(fixture.routing.creationVersion)) {
-            assertIndexShard(fixture, Map.of("dim", Map.of("a", "a")), 5);
-            assertIndexShard(fixture, Map.of("dim", Map.of("a", "b")), 3);
-            assertIndexShard(fixture, Map.of("dim", Map.of("c", "d")), 7);
-            assertIndexShard(fixture, Map.of("other", Map.of("a", "a")), 1);
-            assertIndexShard(fixture, Map.of("top", "a"), 6);
-            assertIndexShard(fixture, Map.of("dim", Map.of("c", "d"), "top", "b"), 0);
-            assertIndexShard(fixture, Map.of("dim.a", "a"), 5);
-            assertIndexShard(fixture, Map.of("dim.a", 1), 2);
-            assertIndexShard(fixture, Map.of("dim.a", "1"), 0);
-            assertIndexShard(fixture, Map.of("dim.a", true), 3);
-            assertIndexShard(fixture, Map.of("dim.a", "true"), 1);
-        } else {
-            assertIndexShard(fixture, Map.of("dim", Map.of("a", "a")), 7);
-            assertIndexShard(fixture, Map.of("dim", Map.of("a", "b")), 5);
-            assertIndexShard(fixture, Map.of("dim", Map.of("c", "d")), 5);
-            assertIndexShard(fixture, Map.of("other", Map.of("a", "a")), 0);
-            assertIndexShard(fixture, Map.of("top", "a"), 7);
-            assertIndexShard(fixture, Map.of("dim", Map.of("c", "d"), "top", "b"), 2);
-            assertIndexShard(fixture, Map.of("dim.a", "a"), 7);
-            assertIndexShard(fixture, Map.of("dim.a", 1), 0);
-            assertIndexShard(fixture, Map.of("dim.a", "1"), 5);
-            assertIndexShard(fixture, Map.of("dim.a", true), 5);
-            assertIndexShard(fixture, Map.of("dim.a", "true"), 6);
-        }
+        assertIndexShard(fixture, Map.of("dim", Map.of("a", "a")), 7);
+        assertIndexShard(fixture, Map.of("dim", Map.of("a", "b")), 5);
+        assertIndexShard(fixture, Map.of("dim", Map.of("c", "d")), 5);
+        assertIndexShard(fixture, Map.of("other", Map.of("a", "a")), 0);
+        assertIndexShard(fixture, Map.of("top", "a"), 7);
+        assertIndexShard(fixture, Map.of("dim", Map.of("c", "d"), "top", "b"), 2);
+        assertIndexShard(fixture, Map.of("dim.a", "a"), 7);
+        assertIndexShard(fixture, Map.of("dim.a", 1), 0);
+        assertIndexShard(fixture, Map.of("dim.a", "1"), 5);
+        assertIndexShard(fixture, Map.of("dim.a", true), 5);
+        assertIndexShard(fixture, Map.of("dim.a", "true"), 6);
+    }
+
+    public void testRoutingPathWithSingleBytePrefixTsid() throws IOException {
+        boolean useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean();
+        TimeSeriesRoutingFixture fixture = indexRoutingForTimeSeriesDimensions(
+            IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG),
+            8,
+            "dim.*,other.*,top",
+            useSyntheticId
+        );
+        assumeTrue("require single-byte-prefix tsid", TsidBuilder.useSingleBytePrefixLayout(fixture.routing.creationVersion));
+        assertIndexShard(fixture, Map.of("dim", Map.of("a", "a")), 5);
+        assertIndexShard(fixture, Map.of("dim", Map.of("a", "b")), 3);
+        assertIndexShard(fixture, Map.of("dim", Map.of("c", "d")), 7);
+        assertIndexShard(fixture, Map.of("other", Map.of("a", "a")), 1);
+        assertIndexShard(fixture, Map.of("top", "a"), 6);
+        assertIndexShard(fixture, Map.of("dim", Map.of("c", "d"), "top", "b"), 0);
+        assertIndexShard(fixture, Map.of("dim.a", "a"), 5);
+        assertIndexShard(fixture, Map.of("dim.a", 1), 2);
+        assertIndexShard(fixture, Map.of("dim.a", "1"), 0);
+        assertIndexShard(fixture, Map.of("dim.a", true), 3);
+        assertIndexShard(fixture, Map.of("dim.a", "true"), 1);
     }
 
     public void testRoutingPathReadWithInvalidString() {

@@ -321,7 +321,6 @@ public class EsqlFunctionRegistry {
 
     @SuppressWarnings("this-escape")
     public EsqlFunctionRegistry() {
-        // TODO build this one time in plugin construction and pass it in
         register(functions());
         buildDataTypesForStringLiteralConversion(functions());
         nameSurrogates();

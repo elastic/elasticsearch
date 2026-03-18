@@ -1606,7 +1606,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | keep id
             """;
 
-        var analyzedPlan = unionIndexAnalyzer.analyze(parser.parseQuery(query));
+        var analyzedPlan = unionIndexAnalyzer().query(query);
 
         // run through this rule only because this is the one which enables the project pruning in this case and it's
         // how PruneColumns does its thing in case of Project prunning
@@ -1657,7 +1657,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | keep id
             """;
 
-        var analyzedPlan = unionIndexAnalyzer.analyze(parser.parseQuery(query));
+        var analyzedPlan = unionIndexAnalyzer().query(query);
 
         // run through this rule only because this is the one which enables the project pruning in this case and it's
         // how PruneColumns does its thing in case of Project prunning
@@ -1716,7 +1716,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | keep id
             """;
 
-        var analyzedPlan = unionIndexAnalyzer.analyze(parser.parseQuery(query));
+        var analyzedPlan = unionIndexAnalyzer().query(query);
 
         // run through this rule only because this is the one which enables the project pruning in this case and it's
         // how PruneColumns does its thing in case of Project prunning

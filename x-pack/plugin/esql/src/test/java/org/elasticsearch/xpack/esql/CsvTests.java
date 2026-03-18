@@ -91,7 +91,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -104,7 +103,6 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.TestLocalPhysicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -178,6 +176,8 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.VIEW_CONFIGS;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.getResourceStream;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
@@ -229,14 +229,12 @@ import static org.mockito.Mockito.mock;
  *         index emits documents a fairly random order. Multi-shard and multi-node tests doubly so.</li>
  * </ul>
  */
-// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class CsvTests extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
 
-    private static final EsqlFunctionRegistry FUNCTION_REGISTRY = new EsqlFunctionRegistry();
-    private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(FUNCTION_REGISTRY, false);
-    private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(FUNCTION_REGISTRY, true);
+    private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, false);
+    private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, true);
 
     private static final Pattern TEMPLATE_PATTERN = Pattern.compile("\\{\\{(\\w+)}}");
 
@@ -331,6 +329,10 @@ public class CsvTests extends ESTestCase {
             assumeFalseLogging(
                 "enrich can't load fields in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.ENRICH_LOAD.capabilityName())
+            );
+            assumeFalseLogging(
+                "can't load flattened field values in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.LOAD_FLATTENED_FIELD.capabilityName())
             );
             assumeFalseLogging(
                 "can't use rereank in csv tests",
@@ -664,7 +666,7 @@ public class CsvTests extends ESTestCase {
         var analyzer = new Analyzer(
             new AnalyzerContext(
                 configuration,
-                FUNCTION_REGISTRY,
+                TEST_FUNCTION_REGISTRY,
                 null,
                 indexResolution,
                 Map.of(),
@@ -713,11 +715,11 @@ public class CsvTests extends ESTestCase {
     }
 
     private LogicalPlan parseView(String query, String viewName) {
-        return EsqlParser.INSTANCE.parseView(
+        return TEST_PARSER.parseView(
             query,
             new QueryParams(),
             new SettingsValidationContext(false, false),
-            new PlanTelemetry(FUNCTION_REGISTRY),
+            new PlanTelemetry(TEST_FUNCTION_REGISTRY),
             new InferenceSettings(Settings.EMPTY),
             viewName
         ).plan();
@@ -787,10 +789,10 @@ public class CsvTests extends ESTestCase {
     }
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
-        String query = substituteTemplates(testCase.query, csvFileTemplateResolver());
+        String templatedQuery = substituteTemplates(testCase.query, csvFileTemplateResolver());
         EsqlExecutionInfo esqlExecutionInfo = createEsqlExecutionInfo(randomBoolean());
         esqlExecutionInfo.queryProfile().planning().start();
-        EsqlStatement statement = EsqlParser.INSTANCE.createStatement(query);
+        EsqlStatement statement = TEST_PARSER.createStatement(templatedQuery);
         LogicalPlan plan = resolveViews(statement.plan());
         this.configuration = EsqlTestUtils.configuration(
             new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build()),
@@ -800,6 +802,7 @@ public class CsvTests extends ESTestCase {
         var testDatasets = testDatasets(plan);
         // Specifically use the newest transport version; the csv tests correspond to a single node cluster on the current version.
         TransportVersion minimumVersion = TransportVersion.current();
+        var unmappedResolution = statement.setting(UNMAPPED_FIELDS);
 
         boolean hasExternalSources = plan.anyMatch(UnresolvedExternalRelation.class::isInstance);
         ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
@@ -836,7 +839,7 @@ public class CsvTests extends ESTestCase {
 
         LogicalPlan analyzed = analyzedPlan(
             plan,
-            statement.setting(UNMAPPED_FIELDS),
+            unmappedResolution,
             configuration,
             testDatasets,
             minimumVersion,
@@ -852,12 +855,13 @@ public class CsvTests extends ESTestCase {
             null,
             null,
             null,
+            TEST_PARSER,
             new PreAnalyzer(),
-            FUNCTION_REGISTRY,
+            TEST_FUNCTION_REGISTRY,
             mapper,
             TEST_VERIFIER,
             null,
-            new PlanTelemetry(FUNCTION_REGISTRY),
+            new PlanTelemetry(TEST_FUNCTION_REGISTRY),
             null,
             null,
             PlannerSettings.DEFAULTS,
@@ -880,9 +884,7 @@ public class CsvTests extends ESTestCase {
                 optimizedPlan,
                 configuration,
                 foldCtx,
-                configuration.approximationSettings() != null
-                    ? new Approximation(optimizedPlan, configuration.approximationSettings())
-                    : null,
+                Approximation.create(optimizedPlan, configuration.approximationSettings()),
                 minimumVersion,
                 planTimeProfile,
                 listener.delegateFailureAndWrap(

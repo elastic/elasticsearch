@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -67,21 +68,16 @@ public class PlannerSettings {
     );
 
     /**
-     * The threshold number of grouping keys for a partial aggregation to start emitting intermediate results early.
-     * While emitting partial results can reduce memory pressure and allow for incremental downstream processing,
-     * it might emit the same keys multiple times, incurring serialization and network overhead. This setting,
-     * in conjunction with {@link #PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD}, helps mitigate these costs by
-     * only triggering early emission when a significant number of keys have been collected and most are unique,
-     * thus lowering the probability of re-emitting the same keys.
-     * <p>
-     * NOTE that the defaults are chosen somewhat arbitrarily but are partially based on other systems.
-     * Other systems sometimes default to a lower threshold (e.g., 10,000) without a uniqueness threshold.
-     * We may lower these defaults after benchmarking more use cases.
+     * Circuit breaker space reserved for each script {@link BlockLoader.Reader}. The default
+     * is pretty poor estimate for the overhead of the script, but it'll do for now. We're
+     * estimating 100kb for loading ordinals from doc values and 2kb for loading numbers from
+     * doc values. This 300kb is sort of a shrug because we don't know what the script will do,
+     * and we don't know how many doc values it'll load. And, we're not sure much memory the
+     * script itself will actually use.
      */
-    public static final Setting<Integer> PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD = Setting.intSetting(
-        "esql.partial_agg_emit_keys_threshold",
-        100_000,
-        1,
+    public static final Setting<ByteSizeValue> BLOCK_LOADER_SIZE_SCRIPT = Setting.byteSizeSetting(
+        "esql.block_loader.size.script",
+        DEFAULT_SCRIPT_BYTE_SIZE,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -98,16 +94,21 @@ public class PlannerSettings {
     );
 
     /**
-     * Circuit breaker space reserved for each script {@link BlockLoader.Reader}. The default
-     * is pretty poor estimate for the overhead of the script, but it'll do for now. We're
-     * estimating 100kb for loading ordinals from doc values and 2kb for loading numbers from
-     * doc values. This 300kb is sort of a shrug because we don't know what the script will do,
-     * and we don't know how many doc values it'll load. And, we're not sure much memory the
-     * script itself will actually use.
+     * The threshold number of grouping keys for a partial aggregation to start emitting intermediate results early.
+     * While emitting partial results can reduce memory pressure and allow for incremental downstream processing,
+     * it might emit the same keys multiple times, incurring serialization and network overhead. This setting,
+     * in conjunction with {@link #PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD}, helps mitigate these costs by
+     * only triggering early emission when a significant number of keys have been collected and most are unique,
+     * thus lowering the probability of re-emitting the same keys.
+     * <p>
+     * NOTE that the defaults are chosen somewhat arbitrarily but are partially based on other systems.
+     * Other systems sometimes default to a lower threshold (e.g., 10,000) without a uniqueness threshold.
+     * We may lower these defaults after benchmarking more use cases.
      */
-    public static final Setting<ByteSizeValue> BLOCK_LOADER_SIZE_SCRIPT = Setting.byteSizeSetting(
-        "esql.block_loader.size.script",
-        DEFAULT_SCRIPT_BYTE_SIZE,
+    public static final Setting<Integer> PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD = Setting.intSetting(
+        "esql.partial_agg_emit_keys_threshold",
+        HashAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+        1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -120,7 +121,7 @@ public class PlannerSettings {
      */
     public static final Setting<Double> PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD = Setting.doubleSetting(
         "esql.partial_agg_emit_unique_threshold",
-        0.1,
+        HashAggregationOperator.DEFAULT_PARTIAL_EMIT_UNIQUENESS_THRESHOLD,
         0.0,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

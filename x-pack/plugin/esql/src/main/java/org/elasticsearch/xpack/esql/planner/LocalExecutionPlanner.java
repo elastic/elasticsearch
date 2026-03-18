@@ -899,16 +899,14 @@ public class LocalExecutionPlanner {
                 join.joinOnConditions(),
                 useStreamingOperator,
                 context.queryPragmas().exchangeBufferSize(),
-                configuration.profile()
+                configuration.profile(),
+                configuration
             ),
             layout
         );
     }
 
-    /**
-     * The transport version that introduced streaming lookup support.
-     */
-    private static final TransportVersion ESQL_STREAMING_LOOKUP_JOIN = TransportVersion.fromName("esql_streaming_lookup_join");
+    private static final TransportVersion ESQL_LOOKUP_PLANNING = TransportVersion.fromName("esql_lookup_planning");
 
     /**
      * Determines whether streaming lookup should be used based on the target node's transport version.
@@ -937,12 +935,12 @@ public class LocalExecutionPlanner {
                     DiscoveryNode node = clusterState.nodes().get(shardRouting.currentNodeId());
                     Transport.Connection connection = service.getTransportService().getConnection(node);
                     TransportVersion nodeVersion = connection.getTransportVersion();
-                    if (nodeVersion.supports(ESQL_STREAMING_LOOKUP_JOIN) == false) {
+                    if (nodeVersion.supports(ESQL_LOOKUP_PLANNING) == false) {
                         logger.debug(
                             "Using non-streaming lookup operator: node [{}] has transport version [{}] which does not support [{}]",
                             node.getId(),
                             nodeVersion,
-                            ESQL_STREAMING_LOOKUP_JOIN
+                            ESQL_LOOKUP_PLANNING
                         );
                         return false;
                     }
@@ -1257,12 +1255,22 @@ public class LocalExecutionPlanner {
             effectiveBufferSize = Math.min(10, (pushedLimit + pageSize - 1) / pageSize + 1);
         }
 
+        FileSet fileSet = externalSource.fileSet();
         int splitCount = externalSource.splits().size();
         ExternalSliceQueue sliceQueue = null;
         int instanceCount = 1;
 
-        if (splitCount > 1) {
+        /*
+         * Data nodes don't have a resolved FileSet (it isn't serialized), so they must rely on explicit splits.
+         * If we received a single coalesced split, we still need to route execution through the slice queue so
+         * the operator can expand it into its leaf FileSplits. Otherwise we'd fall back to opening the original
+         * (potentially globbed) source path as a single object.
+         */
+        boolean useSliceQueue = splitCount > 0 && (splitCount > 1 || fileSet == null || fileSet.isResolved() == false);
+        if (useSliceQueue) {
             sliceQueue = new ExternalSliceQueue(externalSource.splits());
+        }
+        if (splitCount > 1) {
             int maxParallelism = context.queryPragmas().taskConcurrency();
             if (pushedLimit != FormatReader.NO_LIMIT && pushedLimit <= pageSize) {
                 instanceCount = 1;
@@ -1273,8 +1281,6 @@ public class LocalExecutionPlanner {
                 instanceCount = Math.min(splitCount, maxParallelism);
             }
         }
-
-        FileSet fileSet = externalSource.fileSet();
         Set<String> partitionColumnNames = Set.of();
         if (fileSet != null) {
             PartitionMetadata pm = fileSet.partitionMetadata();

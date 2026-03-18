@@ -462,13 +462,13 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             from test
             | EVAL embedding = EMBEDDING(first_name, "embedding-inference-id")
             """));
-        assertThat(err, is("2:20: First argument for EMBEDDING must be a constant string"));
+        assertThat(err, is("2:20: first argument for [EMBEDDING(first_name, \"embedding-inference-id\")] must be a constant string"));
 
         err = error(testAnalyzer.query("""
             from test
             | EVAL embedding = EMBEDDING("my text", first_name)
             """));
-        assertThat(err, is("2:20: Second argument for EMBEDDING must be a constant string"));
+        assertThat(err, is("2:20: second argument for [EMBEDDING(\"my text\", first_name)] must be a constant string"));
     }
 
     public void testEmbeddingFunctionInvalidQuery() {

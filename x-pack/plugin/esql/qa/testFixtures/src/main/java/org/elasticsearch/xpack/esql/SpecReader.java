@@ -39,6 +39,12 @@ public final class SpecReader {
         String fileName = EsqlTestUtils.pathAndName(source.getFile()).v2();
         String groupName = fileName.substring(0, fileName.lastIndexOf('.'));
 
+        /**
+         * Keeps the lowercased names of the found tests.
+         * <p>
+         *     Used to detect duplicated test names.
+         * </p>
+         */
         Map<String, Integer> testNames = new LinkedHashMap<>();
         List<Object[]> testCases = new ArrayList<>();
 
@@ -52,9 +58,9 @@ public final class SpecReader {
                 if (shouldSkipLine(line) == false) {
                     // parse test name
                     if (testName == null) {
-                        // Normalize test name by stripping any inline instructions (after '#')
-                        String normalizedName = line.split("#", 2)[0];
-                        if (testNames.containsKey(normalizedName)) {
+                        String normalizedName = line.split("#", 2)[0].trim();
+                        String lowerCasedName = normalizedName.toLowerCase();
+                        if (testNames.containsKey(lowerCasedName)) {
                             throw new IllegalStateException(
                                 "Duplicate test name '"
                                     + normalizedName
@@ -68,7 +74,7 @@ public final class SpecReader {
                             );
                         } else {
                             testName = line;
-                            testNames.put(normalizedName, Integer.valueOf(lineNumber));
+                            testNames.put(lowerCasedName, Integer.valueOf(lineNumber));
                         }
                     } else {
                         Object result = parser.parse(line);

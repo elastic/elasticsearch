@@ -1748,7 +1748,7 @@ vals: l| x:i
 17     | 3
 ;
 
-nestedAggsOverGroupingWithAlias#[skip:-8.13.99,reason:supported in 8.14]
+nestedAggsOverGroupingWithAliasMultipleAggs#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
 | STATS e = length(f) + 1, count(*) by f = first_name
 | SORT f

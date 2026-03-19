@@ -12,7 +12,6 @@ import fixture.s3.S3HttpHandler;
 
 import com.sun.net.httpserver.HttpHandler;
 
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
@@ -22,7 +21,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.JarURLConnection;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,14 +32,12 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiPredicate;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-import java.util.stream.Collectors;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
 
@@ -65,122 +61,17 @@ public final class S3FixtureUtils {
     /** Default warehouse path within the bucket */
     public static final String WAREHOUSE = "warehouse";
 
-    /** Resource path for test fixtures */
-    private static final String FIXTURES_RESOURCE_PATH = "/iceberg-fixtures";
-
+    // TODO: drop this S3 fixture logging
+    // TODO: ... along with unsupportedOperations,
+    // TODO: ...along with AbstractExternalSourceSpecTestCase#checkForUnsupportedOperations & co. -- we're not testing a S3 implementation
     /** Thread-safe list of S3 request logs */
     private static final CopyOnWriteArrayList<S3RequestLog> requestLogs = new CopyOnWriteArrayList<>();
-
-    /** Set of known/expected S3 request types */
-    private static final Set<String> KNOWN_REQUEST_TYPES = Set.of(
-        "GET_OBJECT",
-        "HEAD_OBJECT",
-        "PUT_OBJECT",
-        "DELETE_OBJECT",
-        "LIST_OBJECTS",
-        "LIST_OBJECTS_V2",
-        "INITIATE_MULTIPART",
-        "UPLOAD_PART",
-        "COMPLETE_MULTIPART",
-        "ABORT_MULTIPART",
-        "LIST_MULTIPART_UPLOADS",
-        "MULTI_OBJECT_DELETE"
-    );
 
     /** Set of unsupported operations encountered during test execution */
     private static final Set<String> unsupportedOperations = ConcurrentHashMap.newKeySet();
 
     private S3FixtureUtils() {
         // Utility class - no instantiation
-    }
-
-    /**
-     * Iterate over all fixture entries in the iceberg-fixtures resource directory,
-     * supporting both filesystem and JAR-packaged resources. Compressed files are skipped.
-     */
-    public static void forEachFixtureEntry(Class<?> anchor, CheckedBiConsumer<String, byte[], IOException> consumer) throws Exception {
-        URL resourceUrl = anchor.getResource(FIXTURES_RESOURCE_PATH);
-        if (resourceUrl == null) {
-            throw new IllegalStateException("Fixtures resource path not found: " + FIXTURES_RESOURCE_PATH);
-        }
-
-        Set<String> compressedExts = Set.of(".gz", ".zst", ".zstd", ".bz2", ".bz");
-
-        if (resourceUrl.getProtocol().equals("file")) {
-            Path fixturesPath = Paths.get(resourceUrl.toURI());
-            if (Files.exists(fixturesPath) == false) {
-                throw new IllegalStateException("Fixtures path does not exist: " + fixturesPath);
-            }
-            Files.walkFileTree(fixturesPath, new SimpleFileVisitor<>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    String name = file.getFileName().toString();
-                    if (compressedExts.stream().anyMatch(name::endsWith)) {
-                        return FileVisitResult.CONTINUE;
-                    }
-                    String relativePath = fixturesPath.relativize(file).toString();
-                    byte[] content = Files.readAllBytes(file);
-                    consumer.accept(relativePath, content);
-                    return FileVisitResult.CONTINUE;
-                }
-            });
-        } else if (resourceUrl.getProtocol().equals("jar")) {
-            JarURLConnection jarConnection = (JarURLConnection) resourceUrl.openConnection();
-            String entryPrefix = jarConnection.getEntryName();
-            if (entryPrefix.endsWith("/") == false) {
-                entryPrefix = entryPrefix + "/";
-            }
-            try (JarFile jarFile = jarConnection.getJarFile()) {
-                Enumeration<JarEntry> entries = jarFile.entries();
-                while (entries.hasMoreElements()) {
-                    JarEntry entry = entries.nextElement();
-                    String entryName = entry.getName();
-                    if (entry.isDirectory() || entryName.startsWith(entryPrefix) == false) {
-                        continue;
-                    }
-                    String relativePath = entryName.substring(entryPrefix.length());
-                    if (relativePath.isEmpty()) {
-                        continue;
-                    }
-                    String fileName = relativePath.contains("/") ? relativePath.substring(relativePath.lastIndexOf('/') + 1) : relativePath;
-                    if (compressedExts.stream().anyMatch(fileName::endsWith)) {
-                        continue;
-                    }
-                    try (InputStream is = jarFile.getInputStream(entry)) {
-                        byte[] content = is.readAllBytes();
-                        consumer.accept(relativePath, content);
-                    }
-                }
-            }
-        } else {
-            throw new IllegalStateException("Unsupported resource protocol: " + resourceUrl);
-        }
-    }
-
-    /**
-     * Resolve the local filesystem path to the iceberg-fixtures directory, or null if
-     * fixtures are packaged inside a JAR.
-     */
-    public static Path resolveLocalFixturesPath(Class<?> anchor) {
-        URL resourceUrl = anchor.getResource(FIXTURES_RESOURCE_PATH);
-        if (resourceUrl != null && "file".equals(resourceUrl.getProtocol())) {
-            try {
-                Path path = Paths.get(resourceUrl.toURI());
-                if (Files.exists(path)) {
-                    return path;
-                }
-            } catch (Exception e) {
-                logger.warn("Failed to resolve local fixtures path", e);
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Get the warehouse path for S3 URLs.
-     */
-    public static String getWarehousePath() {
-        return WAREHOUSE;
     }
 
     /**
@@ -191,61 +82,6 @@ public final class S3FixtureUtils {
     }
 
     /**
-     * Clear all recorded S3 request logs.
-     */
-    public static void clearRequestLogs() {
-        requestLogs.clear();
-        unsupportedOperations.clear();
-    }
-
-    /**
-     * Print a summary of S3 requests to the logger.
-     */
-    public static void printRequestSummary() {
-        List<S3RequestLog> logs = getRequestLogs();
-        if (logs.isEmpty()) {
-            logger.info("No S3 requests recorded");
-            return;
-        }
-
-        Map<String, Long> byType = logs.stream().collect(Collectors.groupingBy(S3RequestLog::getRequestType, Collectors.counting()));
-
-        logger.info("S3 Request Summary ({} total requests):", logs.size());
-        byType.entrySet()
-            .stream()
-            .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-            .forEach(entry -> logger.info("  {}: {}", entry.getKey(), entry.getValue()));
-    }
-
-    /**
-     * Get the count of requests of a specific type.
-     */
-    public static int getRequestCount(String requestType) {
-        return (int) requestLogs.stream().filter(log -> requestType.equals(log.getRequestType())).count();
-    }
-
-    /**
-     * Get all requests of a specific type.
-     */
-    public static List<S3RequestLog> getRequestsByType(String requestType) {
-        return requestLogs.stream().filter(log -> requestType.equals(log.getRequestType())).collect(Collectors.toList());
-    }
-
-    /**
-     * Check if any unknown/unsupported request types were encountered.
-     */
-    public static boolean hasUnknownRequests() {
-        return requestLogs.stream().anyMatch(log -> KNOWN_REQUEST_TYPES.contains(log.getRequestType()) == false);
-    }
-
-    /**
-     * Get all unknown/unsupported requests.
-     */
-    public static List<S3RequestLog> getUnknownRequests() {
-        return requestLogs.stream().filter(log -> KNOWN_REQUEST_TYPES.contains(log.getRequestType()) == false).collect(Collectors.toList());
-    }
-
-    /**
      * Build an error message for unsupported S3 operations, or null if none.
      */
     public static String buildUnsupportedOperationsError() {
@@ -253,13 +89,6 @@ public final class S3FixtureUtils {
             return null;
         }
         return "Unsupported S3 operations encountered: " + String.join(", ", unsupportedOperations);
-    }
-
-    /**
-     * Add a blob to the S3 fixture.
-     */
-    public static void addBlobToFixture(S3HttpHandler handler, String key, String content) {
-        addBlobToFixture(handler, key, content.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
@@ -429,10 +258,6 @@ public final class S3FixtureUtils {
             return path;
         }
 
-        public long getContentLength() {
-            return contentLength;
-        }
-
         public long getTimestamp() {
             return timestamp;
         }
@@ -452,7 +277,6 @@ public final class S3FixtureUtils {
 
         private static final Logger fixtureLogger = LogManager.getLogger(DataSourcesS3HttpFixture.class);
 
-        private final int fixedPort;
         private S3HttpHandler handler;
         private FaultInjectingS3HttpHandler faultHandler;
 
@@ -460,15 +284,7 @@ public final class S3FixtureUtils {
          * Create a fixture with a random available port.
          */
         public DataSourcesS3HttpFixture() {
-            this(-1);
-        }
-
-        /**
-         * Create a fixture with a specific port.
-         */
-        public DataSourcesS3HttpFixture(int port) {
             super(true, () -> S3ConsistencyModel.STRONG_MPUS);
-            this.fixedPort = port;
         }
 
         @Override
@@ -487,6 +303,37 @@ public final class S3FixtureUtils {
         }
 
         /**
+         * Inject S3 endpoint and credentials into the query.
+         *
+         * @param query the ESQL query containing an EXTERNAL command
+         * @return the query with S3 parameters injected
+         */
+        public String injectParams(String query) {
+            String trimmed = query.trim();
+            int pipeIndex = FixtureUtils.findFirstPipeAfterExternal(trimmed);
+
+            String externalPart;
+            String restOfQuery;
+
+            if (pipeIndex == -1) {
+                externalPart = trimmed;
+                restOfQuery = "";
+            } else {
+                externalPart = trimmed.substring(0, pipeIndex).trim();
+                restOfQuery = " " + trimmed.substring(pipeIndex);
+            }
+
+            StringBuilder params = new StringBuilder();
+            params.append(" WITH { ");
+            params.append("\"endpoint\": \"").append(getAddress()).append("\", ");
+            params.append("\"access_key\": \"").append(ACCESS_KEY).append("\", ");
+            params.append("\"secret_key\": \"").append(SECRET_KEY).append("\"");
+            params.append(" }");
+
+            return externalPart + params + restOfQuery;
+        }
+
+        /**
          * Get the fault-injecting handler wrapper for controlling fault injection during tests.
          */
         public FaultInjectingS3HttpHandler getFaultHandler() {
@@ -499,9 +346,9 @@ public final class S3FixtureUtils {
          */
         public void loadFixturesFromResources() {
             try {
-                URL resourceUrl = getClass().getResource(FIXTURES_RESOURCE_PATH);
+                URL resourceUrl = getClass().getResource(FixtureUtils.FIXTURES_RESOURCE_PATH);
                 if (resourceUrl == null) {
-                    throw new IllegalStateException("Fixtures resource path not found: " + FIXTURES_RESOURCE_PATH);
+                    throw new IllegalStateException("Fixtures resource path not found: " + FixtureUtils.FIXTURES_RESOURCE_PATH);
                 }
 
                 if (resourceUrl.getProtocol().equals("file")) {
@@ -539,7 +386,7 @@ public final class S3FixtureUtils {
                         continue;
                     }
                     String fileName = relativePath.contains("/") ? relativePath.substring(relativePath.lastIndexOf('/') + 1) : relativePath;
-                    if (COMPRESSED_EXTENSIONS.stream().anyMatch(fileName::endsWith)) {
+                    if (FixtureUtils.COMPRESSED_EXTENSIONS.stream().anyMatch(fileName::endsWith)) {
                         continue;
                     }
                     String key = WAREHOUSE + "/" + relativePath;
@@ -550,11 +397,8 @@ public final class S3FixtureUtils {
                     }
                 }
             }
-            fixtureLogger.info("Loaded {} fixture files from JAR {}", loadedFiles.size(), jarUrl);
+            fixtureLogger.info("Loaded {} fixture files from JAR {}: {}", loadedFiles.size(), jarUrl, String.join(", ", loadedFiles));
         }
-
-        /** Compressed extensions generated on the fly; skip loading from disk */
-        private static final Set<String> COMPRESSED_EXTENSIONS = Set.of(".gz", ".zst", ".zstd", ".bz2", ".bz");
 
         private void loadFixturesFromPath(Path fixturesPath) throws IOException {
             if (Files.exists(fixturesPath) == false) {
@@ -568,7 +412,7 @@ public final class S3FixtureUtils {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                     String name = file.getFileName().toString();
-                    if (COMPRESSED_EXTENSIONS.stream().anyMatch(name::endsWith)) {
+                    if (FixtureUtils.COMPRESSED_EXTENSIONS.stream().anyMatch(name::endsWith)) {
                         return FileVisitResult.CONTINUE;
                     }
                     String relativePath = fixturesPath.relativize(file).toString();
@@ -585,13 +429,6 @@ public final class S3FixtureUtils {
             fixtureLogger.info("Loaded {} fixture files from {}", loadedFiles.size(), fixturesPath);
         }
 
-        /**
-         * Load a single fixture file from an input stream.
-         */
-        public void loadFixture(String key, InputStream inputStream) throws IOException {
-            byte[] content = inputStream.readAllBytes();
-            addBlobToFixture(handler, key, content);
-        }
     }
 
     /**
@@ -618,6 +455,7 @@ public final class S3FixtureUtils {
             String query = exchange.getRequestURI().getQuery();
 
             String requestType = classifyRequest(method, path, query);
+
             logRequest(requestType, path, 0);
 
             try {

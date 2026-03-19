@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
@@ -235,9 +236,9 @@ public class DesiredBalanceComputer {
                         && routingAllocation.deciders()
                             .canAllocate(shardRouting, targetNode, routingAllocation)
                             .type() != Decision.Type.NO) {
-                        final var shardToRelocate = routingNodes.relocateShard(shardRouting, targetNodeId, 0L, "computation", changes).v2();
-                        clusterInfoSimulator.simulateShardStarted(shardToRelocate);
-                        routingNodes.startShard(shardToRelocate, changes, 0L);
+                        final var targetShard = routingNodes.relocateShard(shardRouting, targetNodeId, 0L, "computation", changes).v2();
+                        clusterInfoSimulator.simulateShardStarted(targetShard);
+                        routingNodes.startShard(targetShard, changes, 0L);
                         continue relocateToDesiredLocation;
                     }
                 }
@@ -578,6 +579,8 @@ public class DesiredBalanceComputer {
         // For started shards, attempt to find its source node. If found, it is a relocation, otherwise it is a new shard.
         // The same shard on the same source node cannot be relocated twice to different nodes. So we exclude it once used.
         final Map<ShardId, Set<String>> alreadySeenSourceNodes = new HashMap<>();
+        final Map<String, Map<Index, Integer>> mapOfNodeIdsToCountOfNewShardsPerIndex = new HashMap<>();
+        final Map<String, Set<Index>> mapOfNodeIdsToIndicesWithRemovedShards = new HashMap<>();
         for (var startedShard : startedShards) {
             // The source node is found by checking whether the ClusterInfo has a node hosting a shard with the same ShardId
             // and has compatible node role. If multiple nodes are found, simply pick the first one.
@@ -600,9 +603,39 @@ public class DesiredBalanceComputer {
                 .orElse(null);
 
             if (sourceNodeId != null) {
+                mapOfNodeIdsToIndicesWithRemovedShards.computeIfAbsent(sourceNodeId, ignored -> new HashSet<>()).add(startedShard.index());
                 alreadySeenSourceNodes.computeIfAbsent(startedShard.shardId(), k -> new HashSet<>()).add(sourceNodeId);
             }
+
+            var nodeToIndexCountMap = mapOfNodeIdsToCountOfNewShardsPerIndex.computeIfAbsent(
+                startedShard.currentNodeId(),
+                ignored -> new HashMap<>()
+            );
+            nodeToIndexCountMap.put(startedShard.index(), nodeToIndexCountMap.getOrDefault(startedShard.index(), 0) + 1);
+
             clusterInfoSimulator.simulateAlreadyStartedShard(startedShard, sourceNodeId);
+        }
+
+        for (var nodeToIndexCountMap : mapOfNodeIdsToCountOfNewShardsPerIndex.entrySet()) {
+            for (var indexToCount : nodeToIndexCountMap.getValue().entrySet()) {
+                // Check if the number of shards for an index moved to the particular node, since the ClusterInfo was created, is equal to
+                // the total number of shards for that index on that node, in which case the index is new to the node and any index stats
+                // should be added to the node.
+                if (indexToCount.getValue() == routingNodes.node(nodeToIndexCountMap.getKey())
+                    .numberOfStartedShardsForIndex(indexToCount.getKey())) {
+                    clusterInfoSimulator.simulateAddIndexToNode(nodeToIndexCountMap.getKey(), indexToCount.getKey());
+                }
+            }
+        }
+
+        for (var nodeIdToIndicesWithRemovedShards : mapOfNodeIdsToIndicesWithRemovedShards.entrySet()) {
+            // For each index on a node, we need to check whether node no longer holds any shards for that index. If the node no longer
+            // holds the index, then the index stats should be removed from the node.
+            for (var index : nodeIdToIndicesWithRemovedShards.getValue()) {
+                if (routingNodes.node(nodeIdToIndicesWithRemovedShards.getKey()).numberOfStartedShardsForIndex(index) == 0) {
+                    clusterInfoSimulator.simulateRemoveIndexFromNode(nodeIdToIndicesWithRemovedShards.getKey(), index);
+                }
+            }
         }
     }
 

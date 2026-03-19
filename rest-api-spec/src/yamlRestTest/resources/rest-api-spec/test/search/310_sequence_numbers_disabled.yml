@@ -85,13 +85,13 @@ setup:
   - match: { items.1.index._primary_term: 0 }
 
 ---
-"requesting seq_no_primary_term is rejected":
+"seq_no_primary_term returns sentinel values":
   - do:
-      catch: bad_request
       search:
         index: test
         body:
           seq_no_primary_term: true
-  - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "Cannot request seq_no_primary_term on index [test] because [index.disable_sequence_numbers] is [true]" }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._seq_no: -2 }
+  - match: { hits.hits.0._primary_term: 0 }
 

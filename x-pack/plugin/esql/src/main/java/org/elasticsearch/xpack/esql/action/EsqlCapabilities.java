@@ -450,6 +450,16 @@ public class EsqlCapabilities {
         SPATIAL_CENTROID_NO_RECORDS,
 
         /**
+         * Support for ST_CENTROID_AGG aggregation on geo_shape and cartesian_shape fields.
+         */
+        ST_CENTROID_AGG_SHAPES,
+
+        /**
+         * Support for ST_CENTROID_AGG aggregation on shapes from doc-values.
+         */
+        ST_CENTROID_AGG_SHAPES_DOC_VALUES,
+
+        /**
          * Support ST_ENVELOPE function (and related ST_XMIN, etc.).
          */
         ST_ENVELOPE,
@@ -841,6 +851,11 @@ public class EsqlCapabilities {
          * _source field mapping directives: https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-source-field.html
          */
         SOURCE_FIELD_MAPPING,
+
+        /**
+         * Support for field aliases in mappings. Used by tests, since this was feature wasn't always supported by CsvTests.
+         */
+        FIELD_ALIAS_SUPPORT,
 
         /**
          * Allow filter per individual aggregation.
@@ -1874,6 +1889,11 @@ public class EsqlCapabilities {
         TIME_SERIES_WINDOW_V1,
 
         /**
+         * Supporting grouping window in time-series where the window is smaller than the time bucket
+         */
+        TIME_SERIES_WINDOW_SMALLER_THAN_BUCKET,
+
+        /**
          * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356
          */
         LIKE_PARAMETER_SUPPORT,
@@ -2002,11 +2022,6 @@ public class EsqlCapabilities {
         FIX_INLINE_STATS_INCORRECT_PRUNNING(INLINE_STATS.enabled),
 
         /**
-         * Support for ST_CENTROID_AGG aggregation on geo_shape and cartesian_shape fields.
-         */
-        ST_CENTROID_AGG_SHAPES,
-
-        /**
          * {@link ReplaceStatsFilteredOrNullAggWithEval} replaced a stats
          * with false filter with null with {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Present} or
          * {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Absent}
@@ -2105,7 +2120,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation.
          */
-        APPROXIMATION_V2(Build.current().isSnapshot()),
+        APPROXIMATION_V4(Build.current().isSnapshot()),
 
         /**
          * Create a ScoreOperator only when shard contexts are available
@@ -2295,7 +2310,32 @@ public class EsqlCapabilities {
          * Fix for the STATS BY ALL with LIMIT 0.
          * https://github.com/elastic/elasticsearch/issues/144024
          */
-        FIX_LIMIT_ZERO_IN_STATS_BY_ALL
+        FIX_LIMIT_ZERO_IN_STATS_BY_ALL,
+
+        /**
+         * Fix field caps incorrectly synthesizing object parents under subobjects:false (passthrough) mappers,
+         * causing false type conflicts in ES|QL when querying across indices.
+         * https://github.com/elastic/elasticsearch/issues/144179
+         */
+        FIX_PASSTHROUGH_FIELD_CAPS_OBJECT_PARENT,
+
+        /**
+         * LIMIT n BY expr1, expr2 support for retaining at most n docs per group.
+         * Enables the feature without a preceding SORT.
+         *
+         */
+        ESQL_LIMIT_BY(Build.current().isSnapshot()),
+
+        /**
+         * Fix window validation in time-series aggregations when TBUCKET uses a numeric target bucket count.
+         */
+        FIX_TBUCKET_TARGET_COUNT_WINDOW_VALIDATION,
+
+        /**
+         * Support the null column type for the CHANGE_POINT command
+         * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
+         */
+        CHANGE_POINT_SUPPORT_NULL_COLUMN,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -40,6 +40,13 @@ public class Similarities {
         Operation.BULK_OFFSETS
     );
 
+    static final MethodHandle DOT_PRODUCT_I4 = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, DataType.INT4, Operation.SINGLE);
+    static final MethodHandle DOT_PRODUCT_I4_BULK = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, DataType.INT4, Operation.BULK);
+    static final MethodHandle DOT_PRODUCT_I4_BULK_WITH_OFFSETS = DISTANCE_FUNCS.getHandle(
+        Function.DOT_PRODUCT,
+        DataType.INT4,
+        Operation.BULK_OFFSETS
+    );
     static final MethodHandle COSINE_I8 = DISTANCE_FUNCS.getHandle(Function.COSINE, DataType.INT8, Operation.SINGLE);
     static final MethodHandle COSINE_I8_BULK = DISTANCE_FUNCS.getHandle(Function.COSINE, DataType.INT8, Operation.BULK);
     static final MethodHandle COSINE_I8_BULK_WITH_OFFSETS = DISTANCE_FUNCS.getHandle(
@@ -128,7 +135,7 @@ public class Similarities {
         }
     }
 
-    static void dotProductI7uBulkWithOffsets(
+    public static void dotProductI7uBulkWithOffsets(
         MemorySegment a,
         MemorySegment b,
         int length,
@@ -171,6 +178,38 @@ public class Similarities {
     ) {
         try {
             SQUARE_DISTANCE_I7U_BULK_WITH_OFFSETS.invokeExact(a, b, length, pitch, offsets, count, scores);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    static int dotProductI4(MemorySegment unpacked, MemorySegment packed, int packedLen) {
+        try {
+            return (int) DOT_PRODUCT_I4.invokeExact(unpacked, packed, packedLen);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    static void dotProductI4Bulk(MemorySegment a, MemorySegment b, int packedLen, int count, MemorySegment scores) {
+        try {
+            DOT_PRODUCT_I4_BULK.invokeExact(a, b, packedLen, count, scores);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    static void dotProductI4BulkWithOffsets(
+        MemorySegment a,
+        MemorySegment b,
+        int packedLen,
+        int pitch,
+        MemorySegment offsets,
+        int count,
+        MemorySegment scores
+    ) {
+        try {
+            DOT_PRODUCT_I4_BULK_WITH_OFFSETS.invokeExact(a, b, packedLen, pitch, offsets, count, scores);
         } catch (Throwable e) {
             throw rethrow(e);
         }
@@ -320,7 +359,7 @@ public class Similarities {
         }
     }
 
-    static void dotProductD2Q4BulkWithOffsets(
+    public static void dotProductD2Q4BulkWithOffsets(
         MemorySegment a,
         MemorySegment query,
         int length,
@@ -352,7 +391,7 @@ public class Similarities {
         }
     }
 
-    static void dotProductD4Q4BulkWithOffsets(
+    public static void dotProductD4Q4BulkWithOffsets(
         MemorySegment a,
         MemorySegment query,
         int length,

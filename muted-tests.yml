@@ -363,6 +363,37 @@ tests:
 - class: org.elasticsearch.xpack.downsample.DownsampleRateIT
   method: testTimeSeriesQuerying_RandomDocuments
   issue: https://github.com/elastic/elasticsearch/issues/144532
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: "test {yaml=/20_ignored_source/fetch stored fields by name}"
+  issue: https://github.com/elastic/elasticsearch/issues/144540
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: "test {yaml=/20_ignored_source/fetch fields by name}"
+  issue: https://github.com/elastic/elasticsearch/issues/144540
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: "test {yaml=/20_ignored_source/fields and stored fields combination}"
+  issue: https://github.com/elastic/elasticsearch/issues/144540
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: "test {yaml=/20_ignored_source/fields with ignored source in stored fields}"
+  issue: https://github.com/elastic/elasticsearch/issues/144540
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: "test {yaml=/20_ignored_source/fields with ignored source in fields}"
+  issue: https://github.com/elastic/elasticsearch/issues/144540
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: "test {yaml=/20_ignored_source/ignored source via fields and wildcard stored fields}"
+  issue: https://github.com/elastic/elasticsearch/issues/144540
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: "test {yaml=/20_ignored_source/wildcard fields and ignored source via stored fields}"
+  issue: https://github.com/elastic/elasticsearch/issues/144540
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: "test {yaml=/20_ignored_source/ignored source array via fields}"
+  issue: https://github.com/elastic/elasticsearch/issues/144540
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: "test {yaml=/20_ignored_source/ignored source array via stored_fields}"
+  issue: https://github.com/elastic/elasticsearch/issues/144540
+- class: org.elasticsearch.xpack.esql.qa.multi_node.ExternalDistributedResilienceIT
+  issue: https://github.com/elastic/elasticsearch/issues/144541
+- class: org.elasticsearch.xpack.esql.qa.multi_node.ExternalDistributedStressIT
+  issue: https://github.com/elastic/elasticsearch/issues/144541
 
 # Examples:
 #

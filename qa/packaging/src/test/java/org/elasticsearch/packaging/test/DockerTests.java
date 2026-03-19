@@ -978,7 +978,7 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test130JavaHasCorrectOwnership() {
         final List<ProcessInfo> infos = ProcessInfo.getProcessInfo(sh, "java");
-        assertThat(infos, hasSize(2));
+        assertThat(infos, hasSize(1));
 
         for (ProcessInfo info : infos) {
             assertThat("Incorrect UID", info.uid(), equalTo(1000));
@@ -1005,6 +1005,20 @@ public class DockerTests extends PackagingTestCase {
 
         assertThat("Incorrect GID", info.gid(), equalTo(0));
         assertThat("Incorrect group", info.group(), equalTo("root"));
+    }
+
+    /**
+     * Check that the native server-launcher is used instead of the Java fallback. When the native
+     * launcher is executable, the bin/elasticsearch script execs it directly and the launcher forks
+     * a single JVM for the ES server. The Java fallback path would instead produce two java
+     * processes (the launcher JVM and the server JVM).
+     */
+    public void test132NativeServerLauncherIsUsed() {
+        final List<ProcessInfo> launcherProcesses = ProcessInfo.getProcessInfo(sh, "server-launcher");
+        assertThat("Expected native server-launcher process to be running", launcherProcesses, hasSize(1));
+
+        final List<ProcessInfo> javaProcesses = ProcessInfo.getProcessInfo(sh, "java");
+        assertThat("Expected exactly one java process, indicating the native server-launcher is in use", javaProcesses, hasSize(1));
     }
 
     /**

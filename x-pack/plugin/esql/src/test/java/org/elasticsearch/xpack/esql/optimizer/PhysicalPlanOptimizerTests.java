@@ -138,6 +138,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
@@ -1537,6 +1538,236 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.limit().fold(FoldContext.small()), is(10));
         // extra ints for doc id and emp_no_10
         assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES * 2));
+    }
+
+    /**
+     * {@code
+     * LimitExec[1000[INTEGER]]
+     * \_LimitByExec[10[INTEGER],[emp_no{f}#]]
+     *   \_ExchangeExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..],false]
+     *     \_ProjectExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..]]
+     *       \_FieldExtractExec[_meta_field{f}#, first_name{f}#, gender{f}#, ..]<[],[]>
+     *         \_LimitByExec[10[INTEGER],[emp_no{f}#]]
+     *           \_FieldExtractExec[emp_no{f}#]<[],[]>
+     *             \_EsQueryExec[test], indexMode[standard], limit[], sort[]
+     * }
+     */
+    public void testLimitByNotPushedToSource() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | limit 10 by emp_no
+            """));
+
+        var leaves = optimized.collectLeaves();
+        assertEquals(1, leaves.size());
+        var source = as(leaves.get(0), EsQueryExec.class);
+        assertThat(source.limit(), nullValue());
+    }
+
+    /**
+     * {@code
+     * LimitExec[1000[INTEGER]]
+     * \_LimitByExec[5[INTEGER],[first_name{f}#, last_name{f}#]]
+     *   \_ExchangeExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..],false]
+     *     \_ProjectExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..]]
+     *       \_FieldExtractExec[_meta_field{f}#, emp_no{f}#, gender{f}#, ..]<[],[]>
+     *         \_LimitByExec[5[INTEGER],[first_name{f}#, last_name{f}#]]
+     *           \_FieldExtractExec[first_name{f}#, last_name{f}#]<[],[]>
+     *             \_EsQueryExec[test], indexMode[standard], limit[], sort[]
+     * }
+     */
+    public void testLimitByMultipleKeys() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | limit 5 by first_name, last_name
+            """));
+
+        var defaultLimit = as(optimized, LimitExec.class);
+
+        var limitBy = as(defaultLimit.child(), LimitByExec.class);
+        assertThat(limitBy.limitPerGroup().fold(FoldContext.small()), is(5));
+        assertThat(limitBy.groupings(), hasSize(2));
+        assertThat(names(limitBy.groupings()), contains("first_name", "last_name"));
+
+        var exchange = asRemoteExchange(limitBy.child());
+
+        var sources = exchange.collectLeaves().stream().filter(EsQueryExec.class::isInstance).toList();
+        assertThat(sources, hasSize(1));
+        assertThat(((EsQueryExec) sources.get(0)).limit(), is(nullValue()));
+    }
+
+    /**
+     * {@code
+     * ProjectExec[[avg_salary{r}#, first_name{f}#]]
+     * \_EvalExec[[$$SUM$avg_salary$0{r$}# / $$COUNT$avg_salary$1{r$}# AS avg_salary#]]
+     *   \_LimitExec[1000[INTEGER]]
+     *     \_LimitByExec[5[INTEGER],[first_name{f}#]]
+     *       \_AggregateExec[[first_name{f}#],[SUM(..) AS $$SUM$avg_salary$0#, COUNT(..) AS $$COUNT$avg_salary$1#, first_name{f}#],FINAL,..]
+     *         \_ExchangeExec[[first_name{f}#, ..],true]
+     *           \_AggregateExec[[first_name{f}#],[SUM(..) AS $$SUM$avg_salary$0#, COUNT(..) AS
+     *                            $$COUNT$avg_salary$1#, first_name{f}#],INITIAL,..]
+     *             \_FieldExtractExec[first_name{f}#, salary{f}#]<[],[]>
+     *               \_EsQueryExec[test], indexMode[standard], limit[], sort[]
+     * }
+     */
+    public void testLimitByAfterStats() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | stats avg_salary = avg(salary) by first_name
+            | limit 5 by first_name
+            """));
+
+        // AVG is decomposed into SUM/COUNT with a ProjectExec + EvalExec on top
+        var project = as(optimized, ProjectExec.class);
+        var eval = as(project.child(), EvalExec.class);
+
+        var defaultLimit = as(eval.child(), LimitExec.class);
+
+        var limitBy = as(defaultLimit.child(), LimitByExec.class);
+        assertThat(limitBy.limitPerGroup().fold(FoldContext.small()), is(5));
+        assertThat(limitBy.groupings(), hasSize(1));
+        assertThat(names(limitBy.groupings()), contains("first_name"));
+
+        var aggregate = as(limitBy.child(), AggregateExec.class);
+        assertThat(aggregate.groupings(), hasSize(1));
+    }
+
+    /**
+     * {@code
+     * EvalExec[[salary{f}#12 + 1[INTEGER] AS x#5]]
+     * \_LimitExec[1000[INTEGER],2276]
+     *   \_LimitByExec[10[INTEGER],[first_name{f}#8],2276]
+     *     \_ExchangeExec[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16,
+     *                    languages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12],false]
+     *       \_ProjectExec[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16,
+     *                     languages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12]]
+     *         \_FieldExtractExec[_meta_field{f}#13, emp_no{f}#7, gender{f}#9, hire_d..]<[],[]>
+     *           \_LimitByExec[10[INTEGER],[first_name{f}#8],70]
+     *             \_FieldExtractExec[first_name{f}#8]<[],[]>
+     *               \_EsQueryExec[test], indexMode[standard], [_doc{f}#18], limit[], sort[] estimatedRowSize[2284]
+     *                 queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]
+     * }
+     */
+    public void testLimitByAfterEval() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | eval x = salary + 1
+            | limit 10 by first_name
+            """));
+
+        // Eval is pushed above the limits by the logical optimizer
+        var eval = as(optimized, EvalExec.class);
+
+        var defaultLimit = as(eval.child(), LimitExec.class);
+
+        var limitBy = as(defaultLimit.child(), LimitByExec.class);
+        assertThat(limitBy.limitPerGroup().fold(FoldContext.small()), is(10));
+        assertThat(limitBy.groupings(), hasSize(1));
+        assertThat(names(limitBy.groupings()), contains("first_name"));
+
+        var exchange = asRemoteExchange(limitBy.child());
+
+        var sources = exchange.collectLeaves().stream().filter(EsQueryExec.class::isInstance).toList();
+        assertThat(sources, hasSize(1));
+        assertThat(((EsQueryExec) sources.get(0)).limit(), is(nullValue()));
+    }
+
+    /**
+     * {@code
+     * LimitExec[1000[INTEGER]]
+     * \_LimitByExec[10[INTEGER],[emp_no{f}#]]
+     *   \_ExchangeExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..],false]
+     *     \_ProjectExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..]]
+     *       \_FieldExtractExec[_meta_field{f}#, first_name{f}#, gender{f}#, ..]<[],[]>
+     *         \_LimitByExec[10[INTEGER],[emp_no{f}#]]
+     *           \_FieldExtractExec[emp_no{f}#]<[],[]>
+     *             \_EsQueryExec[test], indexMode[standard], query[{"range":{"emp_no":{"gt":0,..}}}], limit[], sort[]
+     * }
+     */
+    public void testLimitByWithFilter() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | where emp_no > 0
+            | limit 10 by emp_no
+            """));
+
+        var leaves = optimized.collectLeaves();
+        assertEquals(1, leaves.size());
+        var source = as(leaves.get(0), EsQueryExec.class);
+        assertThat(source.limit(), nullValue());
+        var rq = as(sv(source.query(), "emp_no"), RangeQueryBuilder.class);
+        assertThat(rq.fieldName(), equalTo("emp_no"));
+        assertThat(rq.from(), equalTo(0));
+        assertThat(rq.includeLower(), equalTo(false));
+        assertThat(rq.to(), nullValue());
+    }
+
+    /**
+     * {@code
+     * ProjectExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..]]
+     * \_LimitExec[1000[INTEGER]]
+     *   \_LimitByExec[10[INTEGER],[emp_no * 2{r}#]]
+     *     \_ExchangeExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, .., emp_no * 2{r}#],false]
+     *       \_ProjectExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, .., emp_no * 2{r}#]]
+     *         \_FieldExtractExec[_meta_field{f}#, first_name{f}#, gender{f}#, ..]<[],[]>
+     *           \_LimitByExec[10[INTEGER],[emp_no * 2{r}#]]
+     *             \_EvalExec[[emp_no{f}# * 2[INTEGER] AS emp_no * 2#]]
+     *               \_FieldExtractExec[emp_no{f}#]<[],[]>
+     *                 \_EsQueryExec[test], indexMode[standard], query[{"range":{"emp_no":{"gt":0,..}}}], limit[], sort[]
+     * }
+     */
+    public void testLimitByExpressionWithEval() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | where emp_no > 0
+            | limit 10 by emp_no * 2
+            """));
+
+        // ReplaceLimitByExpressionWithEval wraps the plan in a Project to hide the synthetic eval attribute
+        var topProject = as(optimized, ProjectExec.class);
+
+        var defaultLimit = as(topProject.child(), LimitExec.class);
+
+        var limitBy = as(defaultLimit.child(), LimitByExec.class);
+        assertThat(limitBy.limitPerGroup().fold(FoldContext.small()), is(10));
+        assertThat(limitBy.groupings(), hasSize(1));
+        var groupKey = as(limitBy.groupings().get(0), ReferenceAttribute.class);
+        // TODO Check the groupKey is contained in the exchange
+        var exchange = asRemoteExchange(limitBy.child());
+
+        // An EvalExec for the "emp_no * 2" expression must be present inside the exchange
+        assertThat(exchange.anyMatch(EvalExec.class::isInstance), is(true));
+
+        var sources = exchange.collectLeaves().stream().filter(EsQueryExec.class::isInstance).toList();
+        assertThat(sources, hasSize(1));
+        var source = (EsQueryExec) sources.get(0);
+        assertThat(source.limit(), is(nullValue()));
+        var rq = as(sv(source.query(), "emp_no"), RangeQueryBuilder.class);
+        assertThat(rq.fieldName(), equalTo("emp_no"));
+    }
+
+    /**
+     * {@code
+     * LimitExec[1000[INTEGER]]
+     * \_LocalSourceExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..],EMPTY]
+     * }
+     */
+    public void testLimitByZero() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        var plan = optimizedPlan(physicalPlan("""
+            FROM test
+            | LIMIT 0 BY emp_no
+            """));
+
+        var limitExec = as(plan, LimitExec.class);
+        assertThat(((Literal) limitExec.limit()).value(), equalTo(1000));
+        as(limitExec.child(), LocalSourceExec.class);
     }
 
     /**
@@ -4620,6 +4851,280 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             assertAggregation(agg, "extent", "hasDocValues:" + hasDocValues, SpatialExtent.class, CARTESIAN_SHAPE, fieldExtractPreference);
             var exec = agg.child() instanceof FieldExtractExec ? agg : as(agg.child(), UnaryExec.class);
             // For cartesian_shape, the bounds extraction is done in the FieldExtractExec, so it does need to know about this
+            assertChildIsExtractedAs(exec, fieldExtractPreference, CARTESIAN_SHAPE);
+        }
+    }
+
+    /**
+     * Test that ST_CENTROID_AGG on geo_shape uses centroid extraction from doc-values when available.
+     * This is similar to bounds extraction for ST_EXTENT_AGG but extracts centroid data instead.
+     */
+    public void testSpatialTypesAndStatsCentroidOfGeoShapeUsesCentroidExtraction() {
+        var query = "FROM airports_city_boundaries | STATS centroid = ST_CENTROID_AGG(city_boundary)";
+        for (boolean useDocValues : new Boolean[] { true, false }) {
+            var testData = useDocValues ? airportsCityBoundaries : airportsCityBoundariesNoDocValues;
+            var plan = physicalPlan(query.replace("airports_city_boundaries", testData.index.name()), testData);
+
+            var limit = as(plan, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            // Before optimization the aggregation does not use centroid extraction
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_SHAPE, FieldExtractPreference.NONE);
+
+            var exchange = as(agg.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var partialAgg = as(fragment.fragment(), Aggregate.class);
+            as(partialAgg.child(), EsRelation.class);
+
+            var optimized = optimizedPlan(plan, testData.stats);
+            limit = as(optimized, LimitExec.class);
+            agg = as(limit.child(), AggregateExec.class);
+            // Above the exchange (in coordinator) the aggregation is not using doc-values
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_SHAPE, FieldExtractPreference.NONE);
+            exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            // below the exchange (in data node) the aggregation uses centroid extraction if doc-values are available
+            var fieldExtractPreference = useDocValues ? FieldExtractPreference.EXTRACT_SPATIAL_CENTROID : FieldExtractPreference.NONE;
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_SHAPE, fieldExtractPreference);
+            assertChildIsExtractedAs(agg, fieldExtractPreference, GEO_SHAPE);
+        }
+    }
+
+    /**
+     * This test verifies that the aggregation does not use spatial centroid extraction when the shape appears in an eval or filter.
+     */
+    public void testSpatialTypesAndStatsCentroidOfShapesNegativeCases() {
+        for (String query : new String[] { """
+            FROM airports_city_boundaries
+            | EVAL prefix = SUBSTRING(TO_STRING(city_boundary), 5)
+            | STATS centroid = ST_CENTROID_AGG(city_boundary) BY prefix""", """
+            FROM airports_city_boundaries
+            | WHERE STARTS_WITH(TO_STRING(city_boundary), "MULTIPOLYGON")
+            | STATS centroid = ST_CENTROID_AGG(city_boundary)""" }) {
+            var testData = airportsCityBoundaries;
+            var plan = physicalPlan(query, testData);
+
+            var limit = as(plan, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_SHAPE, FieldExtractPreference.NONE);
+
+            var optimized = optimizedPlan(plan, testData.stats);
+            limit = as(optimized, LimitExec.class);
+            agg = as(limit.child(), AggregateExec.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_SHAPE, FieldExtractPreference.NONE);
+            var exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            // Because the shape was used in EVAL/WHERE we cannot use doc-values centroid extraction optimization
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_SHAPE, FieldExtractPreference.NONE);
+            var exec = agg.child() instanceof FieldExtractExec ? agg : as(agg.child(), UnaryExec.class);
+            assertChildIsExtractedAs(exec, FieldExtractPreference.NONE, GEO_SHAPE);
+        }
+    }
+
+    /**
+     * Test cartesian_shape centroid extraction occurs when the shape has doc-values and not otherwise.
+     */
+    public void testSpatialTypesAndStatsCentroidOfCartesianShapesWithAndWithoutDocValues() {
+        for (boolean hasDocValues : new boolean[] { true, false }) {
+            var query = "FROM cartesian_multipolygons | STATS centroid = ST_CENTROID_AGG(shape)";
+            var testData = cartesianMultipolygons;
+            var fieldExtractPreference = FieldExtractPreference.EXTRACT_SPATIAL_CENTROID;
+            if (hasDocValues == false) {
+                query = "FROM cartesian_multipolygons_no_doc_values | STATS centroid = ST_CENTROID_AGG(shape)";
+                testData = cartesianMultipolygonsNoDocValues;
+                fieldExtractPreference = FieldExtractPreference.NONE;
+            }
+            var plan = physicalPlan(query, testData);
+
+            var limit = as(plan, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, CARTESIAN_SHAPE, FieldExtractPreference.NONE);
+
+            var optimized = optimizedPlan(plan, testData.stats);
+            limit = as(optimized, LimitExec.class);
+            agg = as(limit.child(), AggregateExec.class);
+            assertAggregation(agg, "centroid", SpatialCentroid.class, CARTESIAN_SHAPE, FieldExtractPreference.NONE);
+            var exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            // We extract centroid from doc-values into a special double[] which the aggregation needs to know about.
+            assertAggregation(
+                agg,
+                "centroid",
+                "hasDocValues:" + hasDocValues,
+                SpatialCentroid.class,
+                CARTESIAN_SHAPE,
+                fieldExtractPreference
+            );
+            var exec = agg.child() instanceof FieldExtractExec ? agg : as(agg.child(), UnaryExec.class);
+            // For cartesian_shape, the centroid extraction is done in the FieldExtractExec
+            assertChildIsExtractedAs(exec, fieldExtractPreference, CARTESIAN_SHAPE);
+        }
+    }
+
+    /**
+     * Test combined ST_CENTROID_AGG and ST_EXTENT_AGG on the same geo_shape field.
+     * When both aggregations are used on the same shape field with doc-values,
+     * both should use EXTRACT_SPATIAL_BOUNDS_AND_CENTROID preference.
+     */
+    public void testSpatialTypesAndStatsBoundsAndCentroidOnSameGeoShape() {
+        var query =
+            "FROM airports_city_boundaries | STATS centroid = ST_CENTROID_AGG(city_boundary), extent = ST_EXTENT_AGG(city_boundary)";
+        for (boolean useDocValues : new Boolean[] { true, false }) {
+            var testData = useDocValues ? airportsCityBoundaries : airportsCityBoundariesNoDocValues;
+            var plan = physicalPlan(query.replace("airports_city_boundaries", testData.index.name()), testData);
+
+            var limit = as(plan, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            // Before optimization the aggregations do not use doc-values extraction
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_SHAPE, FieldExtractPreference.NONE);
+            assertAggregation(agg, "extent", SpatialExtent.class, GEO_SHAPE, FieldExtractPreference.NONE);
+
+            var exchange = as(agg.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var partialAgg = as(fragment.fragment(), Aggregate.class);
+            as(partialAgg.child(), EsRelation.class);
+
+            var optimized = optimizedPlan(plan, testData.stats);
+            limit = as(optimized, LimitExec.class);
+            agg = as(limit.child(), AggregateExec.class);
+            // Above the exchange (in coordinator) the aggregation is not using doc-values
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_SHAPE, FieldExtractPreference.NONE);
+            assertAggregation(agg, "extent", SpatialExtent.class, GEO_SHAPE, FieldExtractPreference.NONE);
+            exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            // Below the exchange (in data node) both aggregations use combined bounds+centroid extraction if doc-values are available
+            var fieldExtractPreference = useDocValues
+                ? FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS_AND_CENTROID
+                : FieldExtractPreference.NONE;
+            assertAggregation(agg, "centroid", "hasDocValues:" + useDocValues, SpatialCentroid.class, GEO_SHAPE, fieldExtractPreference);
+            assertAggregation(agg, "extent", "hasDocValues:" + useDocValues, SpatialExtent.class, GEO_SHAPE, fieldExtractPreference);
+            assertChildIsExtractedAs(agg, fieldExtractPreference, GEO_SHAPE);
+        }
+    }
+
+    /**
+     * Test combined ST_CENTROID_AGG and ST_EXTENT_AGG on different geo_shape and geo_point fields.
+     * When each aggregation on different fields with different extractions,
+     * the geo_point field should use DOC_VALUES preference and
+     * the geo_shape field should use either EXTRACT_SPATIAL_BOUNDS or EXTRACT_SPATIAL_CENTROID preference.
+     */
+    public void testSpatialTypesAndStatsBoundsAndCentroidOnGeoPointAndGeoShape() {
+        for (String query : new String[] {
+            "FROM airports_city_boundaries | STATS centroid = ST_CENTROID_AGG(city_location), extent = ST_EXTENT_AGG(city_boundary)",
+            "FROM airports_city_boundaries | STATS centroid = ST_CENTROID_AGG(city_boundary), extent = ST_EXTENT_AGG(city_location)" }) {
+            boolean centroidOnShapes = query.contains("ST_CENTROID_AGG(city_boundary)");
+            boolean extentOnShapes = query.contains("ST_EXTENT_AGG(city_boundary)");
+            DataType centroidType = centroidOnShapes ? GEO_SHAPE : GEO_POINT;
+            DataType extentType = extentOnShapes ? GEO_SHAPE : GEO_POINT;
+            for (boolean useDocValues : new Boolean[] { true, false }) {
+                var centroidExtractPreference = useDocValues
+                    ? (centroidOnShapes ? FieldExtractPreference.EXTRACT_SPATIAL_CENTROID : FieldExtractPreference.DOC_VALUES)
+                    : FieldExtractPreference.NONE;
+                var extentExtractPreference = useDocValues
+                    ? (extentOnShapes ? FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS : FieldExtractPreference.DOC_VALUES)
+                    : FieldExtractPreference.NONE;
+                var testData = useDocValues ? airportsCityBoundaries : airportsCityBoundariesNoDocValues;
+                var plan = physicalPlan(query.replace("airports_city_boundaries", testData.index.name()), testData);
+
+                var limit = as(plan, LimitExec.class);
+                var agg = as(limit.child(), AggregateExec.class);
+                // Before optimization the aggregations do not use doc-values extraction
+                assertAggregation(agg, "centroid", SpatialCentroid.class, centroidType, FieldExtractPreference.NONE);
+                assertAggregation(agg, "extent", SpatialExtent.class, extentType, FieldExtractPreference.NONE);
+
+                var exchange = as(agg.child(), ExchangeExec.class);
+                var fragment = as(exchange.child(), FragmentExec.class);
+                var partialAgg = as(fragment.fragment(), Aggregate.class);
+                as(partialAgg.child(), EsRelation.class);
+
+                var optimized = optimizedPlan(plan, testData.stats);
+                limit = as(optimized, LimitExec.class);
+                agg = as(limit.child(), AggregateExec.class);
+                // Above the exchange (in coordinator) the aggregation is not using doc-values
+                assertAggregation(agg, "centroid", SpatialCentroid.class, centroidType, FieldExtractPreference.NONE);
+                assertAggregation(agg, "extent", SpatialExtent.class, extentType, FieldExtractPreference.NONE);
+                exchange = as(agg.child(), ExchangeExec.class);
+                agg = as(exchange.child(), AggregateExec.class);
+                // Below the exchange (in data node) both aggregations use combined bounds+centroid extraction if doc-values are available
+                assertAggregation(
+                    agg,
+                    "centroid",
+                    "hasDocValues:" + useDocValues,
+                    SpatialCentroid.class,
+                    centroidType,
+                    centroidExtractPreference
+                );
+                assertAggregation(agg, "extent", "hasDocValues:" + useDocValues, SpatialExtent.class, extentType, extentExtractPreference);
+                var fieldExtractExec = as(agg.child(), FieldExtractExec.class);
+                // Check that field extraction of points is from doc-values, and shapes from bounds or centroid depending on test function
+                if (useDocValues) {
+                    assertThat(
+                        fieldExtractExec.docValuesAttributes().stream().map(Node::sourceText).toList(),
+                        equalTo(List.of("city_location"))
+                    );
+                    if (extentOnShapes) {
+                        assertThat(
+                            fieldExtractExec.boundsAttributes().stream().map(Node::sourceText).toList(),
+                            equalTo(List.of("city_boundary"))
+                        );
+                    }
+                    if (centroidOnShapes) {
+                        assertThat(
+                            fieldExtractExec.centroidAttributes().stream().map(Node::sourceText).toList(),
+                            equalTo(List.of("city_boundary"))
+                        );
+                    }
+                } else {
+                    assertThat(fieldExtractExec.docValuesAttributes(), equalTo(Set.of()));
+                    assertThat(fieldExtractExec.boundsAttributes(), equalTo(Set.of()));
+                    assertThat(fieldExtractExec.centroidAttributes(), equalTo(Set.of()));
+                }
+            }
+        }
+    }
+
+    /**
+     * Test combined ST_CENTROID_AGG and ST_EXTENT_AGG on the same cartesian_shape field.
+     * When both aggregations are used on the same shape field with doc-values,
+     * both should use EXTRACT_SPATIAL_BOUNDS_AND_CENTROID preference.
+     */
+    public void testSpatialTypesAndStatsBoundsAndCentroidOnSameCartesianShape() {
+        for (boolean hasDocValues : new boolean[] { true, false }) {
+            var query = "FROM cartesian_multipolygons | STATS centroid = ST_CENTROID_AGG(shape), extent = ST_EXTENT_AGG(shape)";
+            var testData = cartesianMultipolygons;
+            var fieldExtractPreference = FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS_AND_CENTROID;
+            if (hasDocValues == false) {
+                query =
+                    "FROM cartesian_multipolygons_no_doc_values | STATS centroid = ST_CENTROID_AGG(shape), extent = ST_EXTENT_AGG(shape)";
+                testData = cartesianMultipolygonsNoDocValues;
+                fieldExtractPreference = FieldExtractPreference.NONE;
+            }
+            var plan = physicalPlan(query, testData);
+
+            var limit = as(plan, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            // Before optimization the aggregations do not use doc-values extraction
+            assertAggregation(agg, "centroid", SpatialCentroid.class, CARTESIAN_SHAPE, FieldExtractPreference.NONE);
+            assertAggregation(agg, "extent", SpatialExtent.class, CARTESIAN_SHAPE, FieldExtractPreference.NONE);
+
+            var optimized = optimizedPlan(plan, testData.stats);
+            limit = as(optimized, LimitExec.class);
+            agg = as(limit.child(), AggregateExec.class);
+            // Above the exchange (in coordinator) the aggregation is not using doc-values
+            assertAggregation(agg, "centroid", SpatialCentroid.class, CARTESIAN_SHAPE, FieldExtractPreference.NONE);
+            assertAggregation(agg, "extent", SpatialExtent.class, CARTESIAN_SHAPE, FieldExtractPreference.NONE);
+            var exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            // Below the exchange (in data node) both aggregations use combined bounds+centroid extraction if doc-values are available
+            assertAggregation(
+                agg,
+                "centroid",
+                "hasDocValues:" + hasDocValues,
+                SpatialCentroid.class,
+                CARTESIAN_SHAPE,
+                fieldExtractPreference
+            );
+            assertAggregation(agg, "extent", "hasDocValues:" + hasDocValues, SpatialExtent.class, CARTESIAN_SHAPE, fieldExtractPreference);
+            var exec = agg.child() instanceof FieldExtractExec ? agg : as(agg.child(), UnaryExec.class);
             assertChildIsExtractedAs(exec, fieldExtractPreference, CARTESIAN_SHAPE);
         }
     }
@@ -9203,14 +9708,27 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             case NONE -> {
                 assertThat("Extracting without doc-values", extract.docValuesAttributes(), is(empty()));
                 assertThat("Extracting without doc-values", extract.boundsAttributes(), is(empty()));
+                assertThat("Extracting without doc-values", extract.centroidAttributes(), is(empty()));
             }
             case DOC_VALUES -> {
                 assertThat("Extracting from doc-values", extract.docValuesAttributes(), is(not(empty())));
                 assertThat("Extracting from doc-values", extract.boundsAttributes(), is(empty()));
+                assertThat("Extracting from doc-values", extract.centroidAttributes(), is(empty()));
             }
             case EXTRACT_SPATIAL_BOUNDS -> {
                 assertThat("Extracting spatial bounds from doc-values", extract.docValuesAttributes(), is(empty()));
                 assertThat("Extracting spatial bounds from doc-values", extract.boundsAttributes(), is(not(empty())));
+                assertThat("Extracting spatial bounds from doc-values", extract.centroidAttributes(), is(empty()));
+            }
+            case EXTRACT_SPATIAL_CENTROID -> {
+                assertThat("Extracting spatial centroid from doc-values", extract.docValuesAttributes(), is(empty()));
+                assertThat("Extracting spatial centroid from doc-values", extract.boundsAttributes(), is(empty()));
+                assertThat("Extracting spatial centroid from doc-values", extract.centroidAttributes(), is(not(empty())));
+            }
+            case EXTRACT_SPATIAL_BOUNDS_AND_CENTROID -> {
+                assertThat("Extracting spatial bounds and centroid from doc-values", extract.docValuesAttributes(), is(empty()));
+                assertThat("Extracting spatial bounds and centroid from doc-values", extract.boundsAttributes(), is(not(empty())));
+                assertThat("Extracting spatial bounds and centroid from doc-values", extract.centroidAttributes(), is(not(empty())));
             }
         }
         assertTrue(

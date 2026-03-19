@@ -539,9 +539,8 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     /**
      * Verify that referencing a sub-field of a flattened field (e.g. "foo.bar" when "foo" is flattened) is rejected
      */
-    public void testFlattenedSubFieldRejection() {
-        Map<String, EsField> mapping = Map.of("field", new UnsupportedEsField("field", List.of("flattened")));
-        EsIndex index = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Set.of());
+    public void testFlattenedSubFieldRejectionWithSimpleCases() {
+        EsIndex index = createIndex1();
         unmappedLoadAndFlattenedSubfieldHelper("FROM test | KEEP field.a", index, "field.a", "field");
         unmappedLoadAndFlattenedSubfieldHelper("FROM test | STATS x = SAMPLE(field.a, 1)", index, "field.a", "field");
         unmappedLoadAndFlattenedSubfieldHelper("FROM test | EVAL x = TO_STRING(field.a)", index, "field.a", "field");
@@ -559,6 +558,45 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             setUnmappedLoad("FROM test | KEEP field | WHERE field.a.b == \"x\" | KEEP field.a"),
             index,
             "Unknown column [field.a.b], did you mean [field]?"
+        );
+    }
+
+    /**
+     * Verify that referencing a sub-field of a flattened field is rejected in a FORK
+     */
+    public void testFlattenedSubFieldRejectionWithFork() {
+        EsIndex index = createIndex1();
+        verificationFailure(
+            setUnmappedLoad("""
+                FROM test
+                | eval aaa = field.aaa
+                | FORK (eval x = resource.attributes.host.name) (eval y = attributes.xxx) (eval z = field.bbb)
+                """),
+            index,
+            "Found 5 problems",
+            "FORK is not supported with unmapped_fields=\"load\"",
+            "Loading subfield [field.bbb] when parent [field] is of flattened field type is not supported with unmapped_fields=\"load\"",
+            // this error appears 3 times thanks to the FORK branching out
+            "Loading subfield [field.aaa] when parent [field] is of flattened field type is not supported with unmapped_fields=\"load\""
+        );
+    }
+
+    /**
+     * Verify that referencing a sub-field of a flattened field is rejected in a LOOKUP JOIN
+     */
+    public void testFlattenedSubFieldRejectionWithLookupJoin() {
+        EsIndex index = createIndex1();
+        verificationFailure(
+            setUnmappedLoad("""
+                FROM test
+                | EVAL language_code = 1
+                | LOOKUP JOIN languages_lookup ON language_code
+                | EVAL x = field.languages
+                """),
+            index,
+            "LOOKUP JOIN is not supported with unmapped_fields=\"load\"",
+            "Loading subfield [field.languages] when parent [field] is of flattened field type is not supported with "
+                + "unmapped_fields=\"load\""
         );
     }
 
@@ -664,6 +702,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
         var e = expectThrows(VerificationException.class, () -> analyzer.analyze(st.plan()));
         assertThat(e.getMessage(), containsString(expectedFailure));
+    }
+
+    private static EsIndex createIndex1() {
+        Map<String, EsField> mapping = Map.of("field", new UnsupportedEsField("field", List.of("flattened")));
+        return new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Set.of());
     }
 
     @Override

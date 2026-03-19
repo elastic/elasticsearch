@@ -10,12 +10,18 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
+import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchProblems;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.EmptyFileVisitor;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.FileVisitDetails;
+import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.problems.ProblemId;
+import org.gradle.api.problems.ProblemReporter;
+import org.gradle.api.problems.Problems;
+import org.gradle.api.problems.Severity;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
@@ -32,8 +38,11 @@ import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkQueue;
 import org.gradle.workers.WorkerExecutor;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -66,8 +75,14 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
     @Input
     public abstract ListProperty<String> getBaseClasses();
 
+    @Internal
+    public abstract RegularFileProperty getViolationsFile();
+
     @Inject
     public abstract WorkerExecutor getWorkerExecutor();
+
+    @Inject
+    public abstract Problems getProblems();
 
     public void baseClass(String qualifiedClassname) {
         getBaseClasses().add(qualifiedClassname);
@@ -85,7 +100,44 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
             parameters.getClassDirectories().setFrom(getTestClassesDirs());
             parameters.getBaseClassesNames().set(getBaseClasses().get());
             parameters.getSuffixes().set(getSuffixes().get());
+            parameters.getViolationsFile().set(getViolationsFile());
         });
+        // Worker reports violations by writing to violations file AND throwing.
+        // Gradle handles the worker failure. We report structured problems via a doLast
+        // that only runs if the worker wrote violations (even on failure, the file persists).
+    }
+
+    /**
+     * Called after the task action completes (including on failure) to report structured problems
+     * from the violations file written by the work action.
+     */
+    void reportViolationsAsProblems() {
+        java.io.File violationsOutput = getViolationsFile().getAsFile().get();
+        if (violationsOutput.exists()) {
+            try {
+                List<String> violations = Files.readAllLines(violationsOutput.toPath());
+                if (violations.isEmpty() == false) {
+                    ProblemReporter reporter = getProblems().getReporter();
+                    for (String violation : violations) {
+                        String[] parts = violation.split("\\|", 2);
+                        String type = parts[0];
+                        String detail = parts.length > 1 ? parts[1] : violation;
+                        reporter.report(
+                            ProblemId.create(type, "Testing convention violation", ElasticsearchProblems.TESTING_CONVENTIONS),
+                            spec -> spec.contextualLabel(detail)
+                                .severity(Severity.ERROR)
+                                .solution(
+                                    type.equals("missing-base-class")
+                                        ? "Make the test class extend a supported base class"
+                                        : "Rename the test class to use the correct suffix"
+                                )
+                        );
+                    }
+                }
+            } catch (IOException ioException) {
+                throw new UncheckedIOException(ioException);
+            }
+        }
     }
 
     abstract static class TestingConventionsCheckWorkAction implements WorkAction<Parameters> {
@@ -132,6 +184,11 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
                 .filter(TestingConventionsCheckWorkAction::seemsLikeATest)
                 .toList();
             if (mismatchingBaseClasses.isEmpty() == false) {
+                writeViolations(
+                    mismatchingBaseClasses.stream()
+                        .map(c -> "missing-base-class|" + c.getName())
+                        .collect(Collectors.toList())
+                );
                 throw new GradleException(
                     "Following test classes do not extend any supported base class:\n\t"
                         + mismatchingBaseClasses.stream().map(c -> c.getName()).collect(Collectors.joining("\n\t"))
@@ -140,17 +197,31 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
         }
 
         private void assertMatchesSuffix(List<String> suffixes, List<Class> matchingBaseClass) {
-            // ensure base class matching do match suffix
             var matchingBaseClassNotMatchingSuffix = matchingBaseClass.stream()
                 .filter(c -> suffixes.stream().allMatch(s -> c.getName().endsWith(s) == false))
                 .toList();
             if (matchingBaseClassNotMatchingSuffix.isEmpty() == false) {
+                writeViolations(
+                    matchingBaseClassNotMatchingSuffix.stream()
+                        .map(c -> "invalid-suffix|" + c.getName())
+                        .collect(Collectors.toList())
+                );
                 throw new GradleException(
                     "Following test classes do not match naming convention to use suffix "
                         + suffixes.stream().map(s -> "'" + s + "'").collect(Collectors.joining(" or "))
                         + ":\n\t"
                         + matchingBaseClassNotMatchingSuffix.stream().map(c -> c.getName()).collect(Collectors.joining("\n\t"))
                 );
+            }
+        }
+
+        private void writeViolations(List<String> violations) {
+            java.io.File outputFile = getParameters().getViolationsFile().getAsFile().get();
+            outputFile.getParentFile().mkdirs();
+            try {
+                Files.write(outputFile.toPath(), violations);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
         }
 
@@ -252,5 +323,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
         ListProperty<String> getSuffixes();
 
         ListProperty<String> getBaseClassesNames();
+
+        RegularFileProperty getViolationsFile();
     }
 }

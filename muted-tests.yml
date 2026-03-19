@@ -354,6 +354,9 @@ tests:
 - class: org.elasticsearch.indices.IndicesRequestCacheIT
   method: testCanCache
   issue: https://github.com/elastic/elasticsearch/issues/144526
+- class: org.elasticsearch.index.mapper.BlockSourceReaderTests
+  method: testEmptyArray
+  issue: https://github.com/elastic/elasticsearch/issues/144527
 
 # Examples:
 #

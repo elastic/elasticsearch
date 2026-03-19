@@ -63,17 +63,19 @@ public class LocalPrimarySnapshotShardContextFactory implements SnapshotShardCon
         );
         try {
             final var shardStateId = getShardStateId(indexShard, snapshotIndexCommit.indexCommit()); // not aborted so indexCommit() ok
-            return doAsyncCreate(
-                shardId,
-                snapshot,
-                indexId,
-                snapshotStatus,
-                repositoryMetaVersion,
-                snapshotStartTime,
-                listener,
-                indexShard,
-                snapshotIndexCommit,
-                shardStateId
+            return SubscribableListener.newSucceeded(
+                new LocalPrimarySnapshotShardContext(
+                    indexShard.store(),
+                    indexShard.mapperService(),
+                    snapshot.getSnapshotId(),
+                    indexId,
+                    snapshotIndexCommit,
+                    shardStateId,
+                    snapshotStatus,
+                    repositoryMetaVersion,
+                    snapshotStartTime,
+                    listener
+                )
             );
         } catch (Exception e) {
             closeSnapshotIndexCommit(snapshotIndexCommit, shardId, snapshot);
@@ -81,31 +83,4 @@ public class LocalPrimarySnapshotShardContextFactory implements SnapshotShardCon
         }
     }
 
-    protected SubscribableListener<SnapshotShardContext> doAsyncCreate(
-        ShardId shardId,
-        Snapshot snapshot,
-        IndexId indexId,
-        IndexShardSnapshotStatus snapshotStatus,
-        IndexVersion repositoryMetaVersion,
-        long snapshotStartTime,
-        ActionListener<ShardSnapshotResult> listener,
-        IndexShard indexShard,
-        SnapshotIndexCommit snapshotIndexCommit,
-        String shardStateId
-    ) {
-        return SubscribableListener.newSucceeded(
-            new LocalPrimarySnapshotShardContext(
-                indexShard.store(),
-                indexShard.mapperService(),
-                snapshot.getSnapshotId(),
-                indexId,
-                snapshotIndexCommit,
-                shardStateId,
-                snapshotStatus,
-                repositoryMetaVersion,
-                snapshotStartTime,
-                listener
-            )
-        );
-    }
 }

@@ -117,13 +117,24 @@ public class PlannerUtils {
     public static Tuple<PhysicalPlan, PhysicalPlan> breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan plan, Configuration config) {
         var dataNodePlan = new Holder<PhysicalPlan>();
 
-        // split the given plan when encountering the exchange
-        PhysicalPlan coordinatorPlan = plan.transformUp(ExchangeExec.class, e -> {
-            // remember the datanode subplan and wire it to a sink
-            var subplan = e.child();
-            dataNodePlan.set(new ExchangeSinkExec(e.source(), e.output(), e.inBetweenAggs(), subplan));
-
-            return new ExchangeSourceExec(e.source(), e.output(), e.inBetweenAggs());
+        /*
+         * Split the plan at the first ExchangeExec we encounter from the root (pre-order), turning that ExchangeExec into an
+         * ExchangeSourceExec for the coordinator, and returning the corresponding ExchangeSinkExec for the data node plan.
+         *
+         * It is important to NOT transform ExchangeExec nodes below that split point: those are handled by later planning stages
+         * (e.g., node-level reduction on the data node) and are not wired up by this method.
+         */
+        PhysicalPlan coordinatorPlan = plan.transformDownSkipBranch((p, skipBranch) -> {
+            if (p instanceof ExchangeExec e) {
+                if (dataNodePlan.get() != null) {
+                    // Multiple exchange points are not supported by this split helper.
+                    throw new EsqlIllegalArgumentException("expected a single ExchangeExec when splitting coordinator and data node plans");
+                }
+                dataNodePlan.set(new ExchangeSinkExec(e.source(), e.output(), e.inBetweenAggs(), e.child()));
+                skipBranch.set(true);
+                return new ExchangeSourceExec(e.source(), e.output(), e.inBetweenAggs());
+            }
+            return p;
         });
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
     }

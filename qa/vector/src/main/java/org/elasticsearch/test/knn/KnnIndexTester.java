@@ -208,6 +208,7 @@ public class KnnIndexTester {
                 }
             }
         }
+
         return INDEX_DIR + "/" + args.docVectors().getFirst().getFileName() + "-" + String.join("-", suffix) + ".index";
     }
 
@@ -422,6 +423,7 @@ public class KnnIndexTester {
                 Path indexPath = PathUtils.get(indexPathName);
                 MergePolicy mergePolicy = getMergePolicy(testConfiguration);
                 DirectoryTypeConfig dirConfig = getDirectoryTypeConfig(testConfiguration.directoryType());
+
                 runTestConfiguration(
                     testConfiguration,
                     indexPath,

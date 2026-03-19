@@ -598,7 +598,6 @@ record TestConfiguration(
             return this;
         }
 
-
         /*
          * Each dataset has a descriptor file, expected to be at gs://<bucket>/<dataset>/<dataset>.json, with contents of:
            {

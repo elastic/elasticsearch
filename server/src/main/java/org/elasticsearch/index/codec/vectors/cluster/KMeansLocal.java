@@ -212,9 +212,7 @@ abstract class KMeansLocal {
             centroidChangedSlices[i] = new FixedBitSet(centroids.length);
         }
         int[] centroidCounts = new int[centroids.length];
-        int lloydCallsInCluster = 0;
         for (int i = 0; i < maxIterations; i++) {
-            lloydCallsInCluster++;
             // This is potentially sampled, so we need to translate ordinals
             if (stepLloyd(sampledVectors, ordTranslator, centroids, centroidChangedSlices, assignments, neighborhoods)) {
                 sampledVectors.updateCentroids(centroids, ordTranslator, centroidChangedSlices, centroidCounts, assignments);

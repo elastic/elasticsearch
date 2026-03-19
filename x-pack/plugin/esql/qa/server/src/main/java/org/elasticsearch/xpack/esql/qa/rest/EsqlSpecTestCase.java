@@ -43,6 +43,7 @@ import org.junit.Rule;
 
 import java.io.IOException;
 import java.net.URL;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -56,8 +57,12 @@ import static org.elasticsearch.xpack.esql.CsvAssert.assertDataWithValueConverte
 import static org.elasticsearch.xpack.esql.CsvAssert.assertMetadata;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeFalseLogging;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeTrueLogging;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.csvFileTemplateResolver;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.substituteTemplates;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoints;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoints;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteViews;
@@ -181,7 +186,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 supportsSourceFieldMapping(),
                 supportsSemanticTextInference(),
                 timeSeriesOnly(),
-                this::clusterHasCapability
+                this::clusterHasCapability,
+                indicesToLoad()
             );
             return null;
         });
@@ -260,25 +266,31 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return "views".equals(groupName);
     }
 
+    /**
+     * Indices to load during setup. Override to control which indices are loaded.
+     *
+     * @return null to load all indices (default); empty list to load nothing; non-empty list to load only those indices
+     */
+    protected List<String> indicesToLoad() {
+        return null;
+    }
+
     protected void shouldSkipTest(String testName) throws IOException {
-        assumeTrue("test clusters were broken", testClustersOk);
+        assumeTrueLogging("test clusters were broken", testClustersOk);
         if (requiresSemanticTextInference()) {
-            assumeTrue("Inference test service needs to be supported", supportsSemanticTextInference());
+            assumeTrueLogging("Inference test service needs to be supported", supportsSemanticTextInference());
         }
         if (requiresInferenceEndpointOnLocalCluster()) {
-            assumeTrue("Inference test service needs to be supported", supportsInferenceTestServiceOnLocalCluster());
+            assumeTrueLogging("Inference test service needs to be supported", supportsInferenceTestServiceOnLocalCluster());
         }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
-        assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
+        assumeTrueLogging("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
         if (supportsSourceFieldMapping() == false) {
-            assumeFalse("source mapping tests are muted", testCase.requiredCapabilities.contains(SOURCE_FIELD_MAPPING.capabilityName()));
+            assumeFalseLogging(
+                "source mapping tests are muted",
+                testCase.requiredCapabilities.contains(SOURCE_FIELD_MAPPING.capabilityName())
+            );
         }
-        // EXTERNAL command tests require dedicated infrastructure (S3 fixture, datasource plugins, template replacement)
-        // that is only available in AbstractExternalSourceSpecTestCase subclasses, not in generic EsqlSpecIT suites.
-        assumeFalse(
-            "EXTERNAL command tests require dedicated external source test infrastructure",
-            testCase.query.trim().toUpperCase(Locale.ROOT).startsWith("EXTERNAL")
-        );
     }
 
     protected static void checkCapabilities(
@@ -304,8 +316,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
         for (String feature : requiredCapabilities) {
             var esqlFeature = "esql." + feature;
-            assumeTrue("Requested capability " + feature + " is an ESQL cluster feature", features.contains(esqlFeature));
-            assumeTrue("Test " + testName + " requires " + feature, testFeatureService.clusterHasFeature(esqlFeature));
+            assumeTrueLogging("Requested capability " + feature + " is an ESQL cluster feature", features.contains(esqlFeature));
+            assumeTrueLogging("Test " + testName + " requires " + feature, testFeatureService.clusterHasFeature(esqlFeature));
         }
     }
 
@@ -367,11 +379,24 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return hasCapabilities(client(), List.of(capability.capabilityName()));
     }
 
+    /**
+     * Override in subclasses that support EXTERNAL; return the path used for path.repo.
+     */
+    protected Path getCsvDataPath() {
+        return null;
+    }
+
     protected void doTest() throws Throwable {
         doTest(testCase.query);
     }
 
     protected final void doTest(String query) throws Throwable {
+        if (query.trim().toUpperCase(Locale.ROOT).startsWith("EXTERNAL") && query.contains("{{")) {
+            Path path = getCsvDataPath();
+            if (path != null) {
+                query = substituteTemplates(query, csvFileTemplateResolver(path));
+            }
+        }
         query = maybeRandomizeQuery(query);
 
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));

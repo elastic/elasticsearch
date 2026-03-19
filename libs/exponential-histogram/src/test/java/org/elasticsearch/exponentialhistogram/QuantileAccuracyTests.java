@@ -296,7 +296,6 @@ public class QuantileAccuracyTests extends ExponentialHistogramTestCase {
             }
             double exactValue = values[lowerRank] * (1 - upperFactor) + values[upperRank] * upperFactor;
 
-
             // Skip comparison if exact value is close to zero to avoid false-positives due to numerical imprecision
             if (Math.abs(exactValue) < 1e-100) {
                 continue;

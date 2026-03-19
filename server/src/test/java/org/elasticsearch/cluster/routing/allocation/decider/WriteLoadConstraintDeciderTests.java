@@ -690,7 +690,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(
             new String[] { indexName },
             numberOfShards,
-            4
+            randomIntBetween(0, 2)
         );
 
         var node = clusterState.nodes().iterator().next();
@@ -701,12 +701,18 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
         ShardId highShard = new ShardId(index, 0);
         ShardId lowShard = new ShardId(index, 1);
-        ShardId junkShard = new ShardId(index, 2);
+        // a shard that is not on the node, to test correct exclusion and calculation
+        ShardId allocatedElsewhereShard = new ShardId(index, 2);
 
         var usageStats = Map.of(node.getId(), hotspotStats);
         var hotspotIds = Set.of(node.getId());
 
-        var writeLoadsRemain = Map.of(highShard, 0.95, lowShard, 0.05, junkShard, 20.0);
+        double scalar = randomDoubleBetween(0.1, 20.0, true);
+        var writeLoadsRemain = Map.of(
+            highShard, 0.95 * scalar,
+            lowShard, 0.05 * scalar,
+            allocatedElsewhereShard, randomDoubleBetween(20.0, 40.0, true)
+        );
 
         ClusterInfo clusterInfo = ClusterInfo.builder()
             .nodeUsageStatsForThreadPools(usageStats)
@@ -729,13 +735,27 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
         RoutingNode routingNode = RoutingNodesHelper.routingNode(node.getId(), node, highShardRouting, lowShardRouting);
 
-        // both high and low shards stay
-        assertEquals(Decision.Type.YES, writeLoadDecider.canRemain(indexMetadata, highShardRouting, routingNode, routingAllocation).type());
+        // both high and low shards decide YES to canRemain, as the proportion
+        // of load is above 90% on one shard
+        assertEquals(
+            Decision.Type.YES,
+            writeLoadDecider.canRemain(
+                indexMetadata,
+                highShardRouting,
+                routingNode,
+                routingAllocation
+            ).type()
+        );
 
         assertEquals(Decision.Type.YES, writeLoadDecider.canRemain(indexMetadata, lowShardRouting, routingNode, routingAllocation).type());
 
         // retry test, with proportions under the threshold
-        var writeLoadsMigrate = Map.of(highShard, 0.85, lowShard, 0.15, junkShard, 20.0);
+        scalar = randomDoubleBetween(0.1, 20.0, true);
+        var writeLoadsMigrate = Map.of(
+            highShard, 0.85 * scalar,
+            lowShard, 0.15 * scalar,
+            allocatedElsewhereShard, randomDoubleBetween(20.0, 40.0, true)
+        );
 
         clusterInfo = ClusterInfo.builder()
             .nodeUsageStatsForThreadPools(usageStats)
@@ -752,7 +772,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             System.nanoTime()
         );
 
-        // both shards leave
+        // both high and low shards decide NOT_PREFERRED to canRemain, as the proportion
+        // of load is under 90% on any one shard
         assertEquals(
             Decision.Type.NOT_PREFERRED,
             writeLoadDecider.canRemain(indexMetadata, highShardRouting, routingNode, routingAllocation).type()

@@ -60,6 +60,10 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
+configurations.all {
+  resolutionStrategy.force "io.airlift:aircompressor:${versions.aircompressor}"
+}
+
 tasks.named("javadoc").configure {
   // ORC/Hadoop dependency tree causes javadoc issues (unnamed vs named module conflicts)
   enabled = false

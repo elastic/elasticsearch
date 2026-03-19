@@ -155,8 +155,8 @@ toc:
                   - file: esql/functions-operators/aggregation-functions/values.md
                   - file: esql/functions-operators/aggregation-functions/variance.md
                   - file: esql/functions-operators/aggregation-functions/weighted_avg.md
-                  - hidden: esql/functions-operators/aggregation-functions/first.md
-                  - hidden: esql/functions-operators/aggregation-functions/last.md
+                  - file: esql/functions-operators/aggregation-functions/first.md
+                  - file: esql/functions-operators/aggregation-functions/last.md
               - file: esql/functions-operators/time-series-aggregation-functions.md
                 children:
                   - file: esql/functions-operators/time-series-aggregation-functions/absent_over_time.md

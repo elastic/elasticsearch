@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.ibmwatsonx.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
@@ -40,7 +41,7 @@ public class IbmWatsonxRerankRequest implements IbmWatsonxRequest {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         URI uri;
 
         try {
@@ -68,7 +69,7 @@ public class IbmWatsonxRerankRequest implements IbmWatsonxRequest {
 
         decorateWithAuth(httpPost);
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     public void decorateWithAuth(HttpPost httpPost) {

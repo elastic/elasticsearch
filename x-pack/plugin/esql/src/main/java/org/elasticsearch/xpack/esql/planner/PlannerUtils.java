@@ -80,6 +80,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS;
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_CENTROID;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
@@ -116,13 +117,24 @@ public class PlannerUtils {
     public static Tuple<PhysicalPlan, PhysicalPlan> breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan plan, Configuration config) {
         var dataNodePlan = new Holder<PhysicalPlan>();
 
-        // split the given plan when encountering the exchange
-        PhysicalPlan coordinatorPlan = plan.transformUp(ExchangeExec.class, e -> {
-            // remember the datanode subplan and wire it to a sink
-            var subplan = e.child();
-            dataNodePlan.set(new ExchangeSinkExec(e.source(), e.output(), e.inBetweenAggs(), subplan));
-
-            return new ExchangeSourceExec(e.source(), e.output(), e.inBetweenAggs());
+        /*
+         * Split the plan at the first ExchangeExec we encounter from the root (pre-order), turning that ExchangeExec into an
+         * ExchangeSourceExec for the coordinator, and returning the corresponding ExchangeSinkExec for the data node plan.
+         *
+         * It is important to NOT transform ExchangeExec nodes below that split point: those are handled by later planning stages
+         * (e.g., node-level reduction on the data node) and are not wired up by this method.
+         */
+        PhysicalPlan coordinatorPlan = plan.transformDownSkipBranch((p, skipBranch) -> {
+            if (p instanceof ExchangeExec e) {
+                if (dataNodePlan.get() != null) {
+                    // Multiple exchange points are not supported by this split helper.
+                    throw new EsqlIllegalArgumentException("expected a single ExchangeExec when splitting coordinator and data node plans");
+                }
+                dataNodePlan.set(new ExchangeSinkExec(e.source(), e.output(), e.inBetweenAggs(), e.child()));
+                skipBranch.set(true);
+                return new ExchangeSourceExec(e.source(), e.output(), e.inBetweenAggs());
+            }
+            return p;
         });
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
     }
@@ -483,7 +495,11 @@ public class PlannerUtils {
             case DOC_DATA_TYPE -> ElementType.DOC;
             case TSID_DATA_TYPE -> ElementType.BYTES_REF;
             case GEO_POINT, CARTESIAN_POINT -> fieldExtractPreference == DOC_VALUES ? ElementType.LONG : ElementType.BYTES_REF;
-            case GEO_SHAPE, CARTESIAN_SHAPE -> fieldExtractPreference == EXTRACT_SPATIAL_BOUNDS ? ElementType.INT : ElementType.BYTES_REF;
+            case GEO_SHAPE, CARTESIAN_SHAPE -> switch (fieldExtractPreference) {
+                case EXTRACT_SPATIAL_BOUNDS -> ElementType.INT;
+                case EXTRACT_SPATIAL_CENTROID, EXTRACT_SPATIAL_BOUNDS_AND_CENTROID -> ElementType.DOUBLE;
+                default -> ElementType.BYTES_REF;
+            };
             case AGGREGATE_METRIC_DOUBLE -> ElementType.AGGREGATE_METRIC_DOUBLE;
             case EXPONENTIAL_HISTOGRAM -> ElementType.EXPONENTIAL_HISTOGRAM;
             case TDIGEST -> ElementType.TDIGEST;

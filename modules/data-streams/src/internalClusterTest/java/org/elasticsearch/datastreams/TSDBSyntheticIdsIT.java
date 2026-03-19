@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutComposabl
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -44,6 +45,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdStoredFieldsReader;
@@ -74,9 +77,11 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -1290,6 +1295,73 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         }
 
         assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
+    }
+
+    /**
+     * This test verifies that index with synthetic id cannot be created
+     * if index version is too low. Imagine a mixed cluster where node A has
+     * support for synthetic id (post 9.4) but node B has not (pre 9.4).
+     * If node A is master we don't want it to allow creation of index with
+     * synthetic id until node B has been upgraded.
+     */
+    public void testIndexCreationIsBlockByIndexVersion() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        String indexName = randomIndexName();
+        // IndexVersion is too low for synthetic id to be allowed
+        IndexVersion tooLowIndexVersion = IndexVersionUtils.randomPreviousCompatibleWriteVersion(
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94
+        );
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.DEFAULT_CODEC)
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            // In reality, we cannot set SETTING_INDEX_VERSION_CREATED explicitly (it has Property.PrivateIndex).
+            // But we are lucky because the setting validation for SYNTHETIC_ID happens before SETTING_INDEX_VERSION_CREATED.
+            // This is a hack but testing this in a real mixed cluster is hard because we don't have control
+            // over which node is master.
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), tooLowIndexVersion)
+            .build();
+        final var mapping = """
+            {
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "hostname": {
+                        "type": "keyword",
+                        "time_series_dimension": true
+                    },
+                    "metric": {
+                        "properties": {
+                            "field": {
+                                "type": "keyword"
+                            },
+                            "value": {
+                                "type": "integer",
+                                "time_series_metric": "counter"
+                            }
+                        }
+                    }
+                }
+            }
+            """;
+        IllegalArgumentException e = assertThrows(
+            IllegalArgumentException.class,
+            () -> indicesAdmin().prepareCreate(indexName).setSettings(settings).setMapping(mapping).get()
+        );
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is only permitted for indexVersion [%d] or later. Current indexVersion: [%d].",
+                    IndexSettings.SYNTHETIC_ID.getKey(),
+                    IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94.id(),
+                    tooLowIndexVersion.id()
+                )
+            )
+        );
     }
 
     private static long documentCount(String dataStreamName) {

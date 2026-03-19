@@ -241,7 +241,7 @@ a:double
 1.0
 ;
 
-rowStatsProjectGroupByLong
+rowStatsProjectGroupByKeyword
 row a = "hello world", b = 2 | stats count(b) by a | keep a;
 
 a:keyword

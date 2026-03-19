@@ -47,7 +47,6 @@ import static org.hamcrest.Matchers.hasSize;
 public class ShardChangesObserverTests extends ESAllocationTestCase {
 
     public void testLogShardStarting() {
-
         var indexName = randomIdentifier();
         var indexMetadata = IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
 
@@ -76,7 +75,6 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
     }
 
     public void testLogShardMovement() {
-
         var allocationId = randomUUID();
         var indexName = randomIdentifier();
         var indexMetadata = IndexMetadata.builder(indexName)
@@ -161,9 +159,6 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         final var observer = new ShardChangesObserver(meterRegistry, nowMillis::get);
 
         final var reason = randomFrom(UnassignedInfo.Reason.values());
-        // delayed=true is only valid for NODE_LEFT and NODE_RESTARTING
-        final boolean delayed = (reason == UnassignedInfo.Reason.NODE_LEFT || reason == UnassignedInfo.Reason.NODE_RESTARTING)
-            && randomBoolean();
         // ALLOCATION_FAILED needs failedAllocations > 0; NODE_RESTARTING needs a lastAllocatedNodeId
         final int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? randomIntBetween(1, 5) : 0;
         final String lastAllocatedNodeId = reason == UnassignedInfo.Reason.NODE_RESTARTING ? randomIdentifier() : null;
@@ -174,8 +169,8 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
             failedAllocations,
             System.nanoTime(),
             unassignedAtMillis,
-            delayed,
-            delayed ? UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION : UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            false,
+            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
             Collections.emptySet(),
             lastAllocatedNodeId
         );
@@ -218,7 +213,6 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         assertThat(initializedMetricValue.getLong(), equalTo(Math.max(0, initializedTimeMillis - unassignedAtMillis)));
         assertThat(initializedMetricValue.attributes().get("es_shard_primary"), equalTo(primary));
         assertThat(initializedMetricValue.attributes().get("es_shard_reason"), equalTo(reason.name()));
-        assertThat(initializedMetricValue.attributes().get("es_shard_delayed"), equalTo(delayed));
 
         final List<Measurement> startedMetrics = recorder.getMeasurements(
             InstrumentType.LONG_HISTOGRAM,
@@ -229,6 +223,5 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         assertThat(startedMetricValue.getLong(), equalTo(Math.max(0, startedTimeMillis - unassignedAtMillis)));
         assertThat(startedMetricValue.attributes().get("es_shard_primary"), equalTo(primary));
         assertThat(startedMetricValue.attributes().get("es_shard_reason"), equalTo(reason.name()));
-        assertThat(startedMetricValue.attributes().get("es_shard_delayed"), equalTo(delayed));
     }
 }

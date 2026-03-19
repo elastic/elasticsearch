@@ -24,34 +24,18 @@ import java.util.stream.Collectors;
 
 /// Observes shard state transitions during allocation rounds, logging them and emitting APM timing metrics.
 class ShardChangesObserver implements RoutingChangesObserver {
+    private static final Logger logger = LogManager.getLogger(ShardChangesObserver.class);
 
     public static final String UNASSIGNED_TO_INITIALIZING_METRIC = "es.allocator.shards.unassigned_to_initializing.duration.histogram";
     public static final String UNASSIGNED_TO_STARTED_METRIC = "es.allocator.shards.unassigned_to_started.duration.histogram";
 
-    private static final Map<Boolean, Map<UnassignedInfo.Reason, Map<String, Object>>> PRIMARY_ATTRIBUTES = Map.of(
-        false,
-        buildAttributesByReason(true, false),
-        true,
-        buildAttributesByReason(true, true)
-    );
-    private static final Map<Boolean, Map<UnassignedInfo.Reason, Map<String, Object>>> REPLICA_ATTRIBUTES = Map.of(
-        false,
-        buildAttributesByReason(false, false),
-        true,
-        buildAttributesByReason(false, true)
-    );
+    private static final Map<UnassignedInfo.Reason, Map<String, Object>> PRIMARY_ATTRIBUTES = buildAttributesByReason(true);
+    private static final Map<UnassignedInfo.Reason, Map<String, Object>> REPLICA_ATTRIBUTES = buildAttributesByReason(false);
 
-    private static Map<UnassignedInfo.Reason, Map<String, Object>> buildAttributesByReason(boolean primary, boolean delayed) {
+    private static Map<UnassignedInfo.Reason, Map<String, Object>> buildAttributesByReason(boolean primary) {
         return Arrays.stream(UnassignedInfo.Reason.values())
-            .collect(
-                Collectors.toUnmodifiableMap(
-                    r -> r,
-                    r -> Map.of("es_shard_primary", primary, "es_shard_reason", r.name(), "es_shard_delayed", delayed)
-                )
-            );
+            .collect(Collectors.toUnmodifiableMap(r -> r, r -> Map.of("es_shard_primary", primary, "es_shard_reason", r.name())));
     }
-
-    private static final Logger logger = LogManager.getLogger(ShardChangesObserver.class);
 
     private final LongHistogram unassignedToInitializingDuration;
     private final LongHistogram unassignedToStartedDuration;
@@ -132,6 +116,6 @@ class ShardChangesObserver implements RoutingChangesObserver {
     }
 
     private static Map<String, Object> attributes(UnassignedInfo info, ShardRouting shard) {
-        return (shard.primary() ? PRIMARY_ATTRIBUTES : REPLICA_ATTRIBUTES).get(info.delayed()).get(info.reason());
+        return (shard.primary() ? PRIMARY_ATTRIBUTES : REPLICA_ATTRIBUTES).get(info.reason());
     }
 }

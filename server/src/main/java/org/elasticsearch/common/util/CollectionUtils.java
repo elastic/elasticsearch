@@ -97,19 +97,6 @@ public class CollectionUtils {
     }
 
     /**
-     * Returns the sum of the integer values in the given map.
-     *
-     * @param map the map whose values to sum; may be null or empty
-     * @return the sum of the values, or 0 if the map is null or empty
-     */
-    public static int sumIntValues(Map<?, Integer> map) {
-        if (map == null || map.isEmpty()) {
-            return 0;
-        }
-        return map.values().stream().mapToInt(Integer::intValue).sum();
-    }
-
-    /**
      * Deeply inspects a Map, Iterable, or Object array looking for references back to itself.
      * @throws IllegalArgumentException if a self-reference is found
      * @param value The object to evaluate looking for self references

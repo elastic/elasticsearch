@@ -1597,7 +1597,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return new FallbackSyntheticSourceBlockLoader(
                     reader,
                     fieldName,
-                    IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+                    IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings())
                 ) {
                     @Override
                     public Builder builder(BlockFactory factory, int expectedCount) {
@@ -1915,7 +1915,7 @@ public class NumberFieldMapper extends FieldMapper {
             return new FallbackSyntheticSourceBlockLoader(
                 reader,
                 fieldName,
-                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings())
             ) {
                 @Override
                 public Builder builder(BlockFactory factory, int expectedCount) {
@@ -1945,7 +1945,7 @@ public class NumberFieldMapper extends FieldMapper {
             return new FallbackSyntheticSourceBlockLoader(
                 reader,
                 fieldName,
-                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings())
             ) {
                 @Override
                 public Builder builder(BlockFactory factory, int expectedCount) {

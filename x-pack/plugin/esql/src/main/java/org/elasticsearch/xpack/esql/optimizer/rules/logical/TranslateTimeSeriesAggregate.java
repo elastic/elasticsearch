@@ -434,7 +434,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                 Expression window = af.window();
                 if (window.foldable() && window.fold(FoldContext.small()) instanceof Duration d) {
                     final long windowInMills = d.toMillis();
-                    if (windowInMills >= bucketInMillis && windowInMills % bucketInMillis == 0) {
+                    if (windowInMills < bucketInMillis || windowInMills % bucketInMillis == 0) {
                         continue;
                     }
                 }
@@ -444,9 +444,9 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                         + "] for aggregate function ["
                         + af.sourceText()
                         + "]; "
-                        + "the window must be larger than the time bucket ["
+                        + "the window must be an exact multiple of the time bucket ["
                         + Objects.requireNonNull(agg.timeBucket()).sourceText()
-                        + "] and an exact multiple of it"
+                        + "]"
                 );
             }
         }

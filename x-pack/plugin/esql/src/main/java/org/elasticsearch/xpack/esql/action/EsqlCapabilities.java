@@ -1968,6 +1968,11 @@ public class EsqlCapabilities {
         PROMQL_IMPLICIT_RANGE_SELECTOR,
 
         /**
+         * Support for PromQL {@code without} grouping.
+         */
+        PROMQL_WITHOUT_GROUPING(false),
+
+        /**
          * Support for {@code TIME_SERIES_WITHOUT_GROUPING} capability for the
          * grouping function that excludes specific dimensions from time-series grouping.
          */
@@ -2221,6 +2226,11 @@ public class EsqlCapabilities {
         EXTERNAL_COMMAND(Build.current().isSnapshot()),
 
         /**
+         * Support for the EXTERNAL command (datasource access).
+         */
+        EXTERNAL_CSV_IP_SUPPORT(Build.current().isSnapshot()),
+
+        /**
          * https://github.com/elastic/elasticsearch/issues/142219
          */
         INLINE_STATS_WITH_CONSTANTS(INLINE_STATS.enabled),
@@ -2336,6 +2346,12 @@ public class EsqlCapabilities {
          * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
          */
         CHANGE_POINT_SUPPORT_NULL_COLUMN,
+
+        /**
+         * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}
+         * See https://github.com/elastic/elasticsearch/issues/143494
+         */
+        REJECT_LOADING_FLATTENED_SUBFIELDS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

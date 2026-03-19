@@ -252,15 +252,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
-- class: org.elasticsearch.snapshots.ConcurrentSnapshotsIT
-  method: testBackToBackQueuedDeletes
-  issue: https://github.com/elastic/elasticsearch/issues/143387
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
   issue: https://github.com/elastic/elasticsearch/issues/143407
-- class: org.elasticsearch.index.store.StoreDirectoryMetricsIT
-  method: testDirectoryMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/143419
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/143551
@@ -327,9 +321,6 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
   method: testGetReindexFollowsRelocation
   issue: https://github.com/elastic/elasticsearch/issues/144364
-- class: org.elasticsearch.xpack.logsdb.FlattenedRollingUpgradeIT
-  method: testIndexing
-  issue: https://github.com/elastic/elasticsearch/issues/144372
 - class: org.elasticsearch.entitlement.qa.EntitlementsAllowedIT
   method: "testAction {actionName=createLDAPCertStore}"
   issue: https://github.com/elastic/elasticsearch/issues/144377
@@ -351,6 +342,27 @@ tests:
 - class: org.elasticsearch.integration.SecurityFeatureResetTests
   method: testFeatureResetManageRole
   issue: https://github.com/elastic/elasticsearch/issues/144486
+- class: org.elasticsearch.indices.IndicesRequestCacheIT
+  method: testCanCache
+  issue: https://github.com/elastic/elasticsearch/issues/144526
+- class: org.elasticsearch.xpack.downsample.DownsampleRateIT
+  method: testTimeSeriesQuerying_RandomDocuments
+  issue: https://github.com/elastic/elasticsearch/issues/144532
+- class: org.elasticsearch.http.netty4.Netty4IncrementalRequestHandlingIT
+  method: testBulkIndexingRequestSplitting
+  issue: https://github.com/elastic/elasticsearch/issues/144579
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:spatial.convertCartesianFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/144580
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/144585
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/144587
+- class: org.elasticsearch.action.search.TransportSearchIT
+  method: testCircuitBreakerReduceFail
+  issue: https://github.com/elastic/elasticsearch/issues/144598
 
 # Examples:
 #

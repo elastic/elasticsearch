@@ -251,18 +251,18 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             }
         } else if (nodeIsHotspotting
             && writeLoadShardConcentrationIsHigh(writeLoadMaxShardConcentration.get(), writeLoadShardConcentrationThreshold)) {
-            double shardConcentration = writeLoadMaxShardConcentration.get();
-            return allocation.decision(
-                Decision.YES,
-                NAME,
-                """
-                    Node [%s] is hot-spotting, but has a single shard write load concentration of [%.2f] that exceeds the \
-                    concentration threshold of [%.2f]. Nothing to do.""",
-                node.getShortNodeDescription(),
-                shardConcentration,
-                writeLoadShardConcentrationThreshold
-            );
-        }
+                double shardConcentration = writeLoadMaxShardConcentration.get();
+                return allocation.decision(
+                    Decision.YES,
+                    NAME,
+                    """
+                        Node [%s] is hot-spotting, but has a single shard write load concentration of [%.2f] that exceeds the \
+                        concentration threshold of [%.2f]. Nothing to do.""",
+                    node.getShortNodeDescription(),
+                    shardConcentration,
+                    writeLoadShardConcentrationThreshold
+                );
+            }
 
         return allocation.decision(
             Decision.YES,

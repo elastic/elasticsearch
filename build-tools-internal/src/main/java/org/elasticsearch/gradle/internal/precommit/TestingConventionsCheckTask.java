@@ -102,16 +102,21 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
             parameters.getSuffixes().set(getSuffixes().get());
             parameters.getViolationsFile().set(getViolationsFile());
         });
-        // Worker reports violations by writing to violations file AND throwing.
-        // Gradle handles the worker failure. We report structured problems via a doLast
-        // that only runs if the worker wrote violations (even on failure, the file persists).
+        try {
+            workQueue.await();
+        } catch (org.gradle.workers.WorkerExecutionException e) {
+            // Worker wrote violations to file before throwing. Report them as structured problems,
+            // then re-throw the original cause to preserve the error message format.
+            reportViolationsAsProblems();
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            }
+            throw e;
+        }
     }
 
-    /**
-     * Called after the task action completes (including on failure) to report structured problems
-     * from the violations file written by the work action.
-     */
-    void reportViolationsAsProblems() {
+    private void reportViolationsAsProblems() {
         java.io.File violationsOutput = getViolationsFile().getAsFile().get();
         if (violationsOutput.exists()) {
             try {

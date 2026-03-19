@@ -112,7 +112,6 @@ public class TestingConventionsPrecommitPlugin extends PrecommitPlugin {
                                 .getBuildDirectory()
                                 .file("precommit/testingConventions/" + taskName + "-violations.txt")
                         );
-                    task.doLast("reportProblems", t -> ((TestingConventionsCheckTask) t).reportViolationsAsProblems());
                 });
             register.configure(config);
         });

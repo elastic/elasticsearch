@@ -36,17 +36,12 @@ public final class SampleBytesRefGroupingAggregatorFunction implements GroupingA
 
   private final int limit;
 
-  public SampleBytesRefGroupingAggregatorFunction(List<Integer> channels,
-      SampleBytesRefAggregator.GroupingState state, DriverContext driverContext, int limit) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
+  SampleBytesRefGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      int limit) {
     this.limit = limit;
-  }
-
-  public static SampleBytesRefGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, int limit) {
-    return new SampleBytesRefGroupingAggregatorFunction(channels, SampleBytesRefAggregator.initGrouping(driverContext.bigArrays(), limit), driverContext, limit);
+    this.channels = channels;
+    this.state = SampleBytesRefAggregator.initGrouping(driverContext.bigArrays(), limit);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

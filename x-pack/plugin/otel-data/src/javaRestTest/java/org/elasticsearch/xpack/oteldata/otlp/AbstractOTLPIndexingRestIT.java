@@ -11,7 +11,10 @@ import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.sdk.common.InstrumentationScopeInfo;
 import io.opentelemetry.sdk.resources.Resource;
 
+import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.entity.ContentType;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -26,6 +29,7 @@ import org.junit.ClassRule;
 import java.io.IOException;
 
 import static io.opentelemetry.api.common.AttributeKey.stringKey;
+import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
 
@@ -55,6 +59,9 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
         return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
+    /** The OTLP endpoint path for this signal type, e.g. {@code "/_otlp/v1/metrics"}. */
+    protected abstract String otlpEndpointPath();
+
     @Before
     @Override
     public void setUp() throws Exception {
@@ -66,6 +73,20 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
+    }
+
+    /**
+     * A request body exceeding the default {@code http.max_protobuf_content_length} (8MiB) must be rejected with 413.
+     * Uses the main {@link #cluster} where the coordinating limit is not tight, so the upfront reservation
+     * of 8MiB succeeds and the body size check is what triggers the rejection.
+     */
+    public void testOversizedRequestReturns413() throws Exception {
+        // 9MiB exceeds the default 8MiB http.max_protobuf_content_length
+        byte[] oversizedBody = new byte[9 * 1024 * 1024];
+        Request request = new Request("POST", otlpEndpointPath());
+        request.setEntity(new ByteArrayEntity(oversizedBody, ContentType.create("application/x-protobuf")));
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(413));
     }
 
     protected static String createApiKey(String indexPattern) throws IOException {

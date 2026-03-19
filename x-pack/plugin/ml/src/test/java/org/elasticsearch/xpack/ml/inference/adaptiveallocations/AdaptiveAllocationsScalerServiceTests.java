@@ -159,7 +159,8 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
                             inferenceCount,
                             inferenceCount,
                             latency,
-                            0
+                            0,
+                            0L
                         )
                     ),
                     Priority.NORMAL

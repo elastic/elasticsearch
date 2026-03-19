@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
+import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
@@ -44,12 +45,17 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * Container plan for embedded PromQL queries.
  * Gets eliminated by the analyzer once the query is validated.
  */
-public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnalysisVerificationAware, TimestampAware {
+public class PromqlCommand extends UnaryPlan
+    implements
+        TelemetryAware,
+        PostAnalysisVerificationAware,
+        TimestampAware,
+        TimestampBoundsAware.OfLogicalPlan {
 
     /**
      * The name of the column containing the step value (aka time bucket) in range queries.
      */
-    private static final String STEP_COLUMN_NAME = "step";
+    public static final String STEP_COLUMN_NAME = "step";
 
     private final LogicalPlan promqlPlan;
     private final Literal start;
@@ -162,6 +168,34 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         );
     }
 
+    /**
+     * Bounds are only needed when {@code buckets} is specified without an explicit time range.
+     * When {@code step} alone is set, the query can proceed without start/end because the step
+     * directly defines the bucket size; {@link #postAnalysisVerification} validates that case.
+     */
+    @Override
+    public boolean needsTimestampBounds() {
+        return buckets.value() != null && hasTimeRange() == false;
+    }
+
+    @Override
+    public PromqlCommand withTimestampBounds(Literal start, Literal end) {
+        return new PromqlCommand(
+            source(),
+            child(),
+            promqlPlan(),
+            start,
+            end,
+            step(),
+            buckets(),
+            scrapeInterval(),
+            valueColumnName(),
+            valueId(),
+            stepId(),
+            timestamp()
+        );
+    }
+
     @Override
     public boolean expressionsResolved() {
         return promqlPlan.resolved() && timestamp.resolved();
@@ -210,6 +244,10 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
      */
     public Literal scrapeInterval() {
         return scrapeInterval;
+    }
+
+    public boolean hasTimeRange() {
+        return start.value() != null && end.value() != null;
     }
 
     public boolean isInstantQuery() {

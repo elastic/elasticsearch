@@ -1,0 +1,6 @@
+area: Machine Learning
+issues:
+ - 107831
+pr: 143077
+summary: "Fixed stats API to use correct allocation count for `required_native_memory_bytes` calculation"
+type: bug

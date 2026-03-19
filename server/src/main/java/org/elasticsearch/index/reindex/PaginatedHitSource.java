@@ -125,6 +125,7 @@ public abstract class PaginatedHitSource {
         });
     }
 
+    /** Clean up all resources. */
     public final void close(Runnable onCompletion) {
         String scrollId = this.scrollId.get();
         if (Strings.hasLength(scrollId)) {
@@ -132,6 +133,10 @@ public abstract class PaginatedHitSource {
         } else {
             cleanup(onCompletion);
         }
+    }
+
+    public final void cleanupWithoutClosingPagination(final Runnable onCompletion) {
+        cleanup(onCompletion);
     }
 
     // following is the SPI to be implemented.

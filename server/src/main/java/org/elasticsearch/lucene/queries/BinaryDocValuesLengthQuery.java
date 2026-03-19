@@ -14,8 +14,9 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreScorerSupplier;
 import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -60,24 +61,12 @@ final class BinaryDocValuesLengthQuery extends Query {
                 final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
                 DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
                 assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
-                final TwoPhaseIterator iterator;
+                final DocIdSetIterator iterator;
                 if (countsSkipper.maxValue() == 1 && values instanceof BlockLoader.OptionalLengthReader direct) {
-                    NumericDocValues lengthReader = direct.toLengthValues();
-                    assert lengthReader != null;
-                    iterator = new TwoPhaseIterator(lengthReader) {
-                        @Override
-                        public boolean matches() throws IOException {
-                            return lengthReader.longValue() == length;
-                        }
-
-                        @Override
-                        public float matchCost() {
-                            return matchCost;
-                        }
-                    };
+                    iterator = direct.lengthIterator(length);
                 } else {
                     Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;
-                    iterator = new TwoPhaseIterator(counts) {
+                    iterator = TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(counts) {
                         final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
 
                         @Override
@@ -90,10 +79,10 @@ final class BinaryDocValuesLengthQuery extends Query {
                         public float matchCost() {
                             return matchCost;
                         }
-                    };
+                    });
                 }
 
-                return new DefaultScorerSupplier(new ConstantScoreScorer(score(), scoreMode, iterator));
+                return ConstantScoreScorerSupplier.fromIterator(iterator, score(), scoreMode, context.reader().maxDoc());
             }
 
             @Override

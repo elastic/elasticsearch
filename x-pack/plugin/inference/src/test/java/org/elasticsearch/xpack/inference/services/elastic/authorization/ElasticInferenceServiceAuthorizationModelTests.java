@@ -59,7 +59,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             TEST_END_OF_LIFE_DATE_PARSED
         ),
         new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
-        new EndpointMetadata.Display((String) null)
+        EndpointMetadata.Display.EMPTY_INSTANCE
     );
 
     public void testIsAuthorized_ReturnsFalse_WithEmptyMap() {
@@ -840,7 +840,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(properties, statusHeuristic, TEST_RELEASE_DATE_PARSED, TEST_END_OF_LIFE_DATE_PARSED),
                 new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display((String) null)
+                EndpointMetadata.Display.EMPTY_INSTANCE
             )
         );
 
@@ -887,18 +887,18 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal(fingerprint, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display((String) null)
+                EndpointMetadata.Display.EMPTY_INSTANCE
             )
         );
 
         assertThat(auth.getEndpoints(Set.of(id)).get(0), is(expectedEndpoint));
     }
 
-    public void testCreatesEndpointMetadataWithDisplayName() {
+    public void testCreatesEndpointMetadataWithDisplay() {
         var id = "id1";
         var name = "model1";
         var url = "base_url";
-        var displayName = "my-connector";
+        var display = new EndpointMetadata.Display("my-connector", "my-creator");
         var status = STATUS_GA;
 
         var response = new ElasticInferenceServiceAuthorizationResponseEntity(
@@ -912,7 +912,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_RELEASE_DATE,
                     TEST_END_OF_LIFE_DATE,
                     null,
-                    displayName,
+                    display,
                     null
                 )
             )
@@ -934,7 +934,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display(displayName)
+                new EndpointMetadata.Display("my-connector", "my-creator")
             )
         );
 
@@ -976,7 +976,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of(), statusHeuristic, TEST_RELEASE_DATE_PARSED, TEST_END_OF_LIFE_DATE_PARSED),
                 new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display((String) null)
+                EndpointMetadata.Display.EMPTY_INSTANCE
             )
         );
 
@@ -1018,7 +1018,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(List.of(), statusHeuristic, TEST_RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display((String) null)
+                EndpointMetadata.Display.EMPTY_INSTANCE
             )
         );
 
@@ -1026,15 +1026,15 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
     }
 
     public void testFiltersEndpointsWithInvalidReleaseDate() {
-        var id1 = "id1";
-        var invalidId = "invalid_id";
-        var invalidId2 = "invalid_id2";
+        var validDateId = "valid_date_id";
+        var blankDateId = "blank_date_id";
+        var invalidDateId = "invalid_date_id";
         var status = STATUS_GA;
 
         var response = new ElasticInferenceServiceAuthorizationResponseEntity(
             List.of(
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
-                    id1,
+                    validDateId,
                     "name1",
                     createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
                     status,
@@ -1046,7 +1046,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
-                    invalidId,
+                    invalidDateId,
                     "name2",
                     createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
                     status,
@@ -1058,13 +1058,13 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
-                    invalidId2,
+                    blankDateId,
                     "name3",
                     createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
                     status,
                     null,
-                    TEST_RELEASE_DATE,
-                    "",
+                    "  ",
+                    null,
                     null,
                     null,
                     null
@@ -1073,19 +1073,20 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         );
 
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, "url");
-        assertThat(auth.getEndpointIds(), is(Set.of(id1)));
+        assertThat(auth.getEndpointIds(), is(Set.of(validDateId, blankDateId)));
         assertTrue(auth.isAuthorized());
     }
 
     public void testFiltersEndpointsWithInvalidEndOfLifeDate() {
-        var id1 = "id1";
-        var invalidId = "invalid_id";
+        var validDateId = "valid_date_id";
+        var invalidDateId = "invalid_date_id";
+        var blankDateId = "blank_date_id";
         var status = STATUS_GA;
 
         var response = new ElasticInferenceServiceAuthorizationResponseEntity(
             List.of(
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
-                    id1,
+                    validDateId,
                     "name1",
                     createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
                     status,
@@ -1097,13 +1098,25 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     null
                 ),
                 new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
-                    invalidId,
+                    invalidDateId,
                     "name2",
                     createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
                     status,
                     null,
-                    "",
+                    TEST_RELEASE_DATE,
                     "invalid-date-format",
+                    null,
+                    null,
+                    null
+                ),
+                new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint(
+                    blankDateId,
+                    "name2",
+                    createTaskTypeObject(EIS_CHAT_PATH, TaskType.CHAT_COMPLETION.toString()),
+                    status,
+                    null,
+                    TEST_RELEASE_DATE,
+                    " ",
                     null,
                     null,
                     null
@@ -1112,7 +1125,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         );
 
         var auth = ElasticInferenceServiceAuthorizationModel.of(response, "url");
-        assertThat(auth.getEndpointIds(), is(Set.of(id1)));
+        assertThat(auth.getEndpointIds(), is(Set.of(validDateId, blankDateId)));
         assertTrue(auth.isAuthorized());
     }
 
@@ -1157,7 +1170,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display((String) null)
+                EndpointMetadata.Display.EMPTY_INSTANCE
             )
         );
 
@@ -1219,7 +1232,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display((String) null)
+                EndpointMetadata.Display.EMPTY_INSTANCE
             )
         );
 
@@ -1266,7 +1279,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display((String) null)
+                EndpointMetadata.Display.EMPTY_INSTANCE
             )
         );
 
@@ -1310,7 +1323,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     TEST_END_OF_LIFE_DATE_PARSED
                 ),
                 new EndpointMetadata.Internal(null, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display((String) null)
+                EndpointMetadata.Display.EMPTY_INSTANCE
             )
         );
         assertThat(auth.getEndpoints(Set.of(id1, id2, "nonexistent")).get(0), is(expectedEndpoint));
@@ -1398,7 +1411,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(properties, StatusHeuristic.fromString(status), TEST_RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(fingerprint, ENDPOINT_SCHEMA_VERSION),
-                new EndpointMetadata.Display((String) null)
+                EndpointMetadata.Display.EMPTY_INSTANCE
             )
         );
 

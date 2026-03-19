@@ -36,6 +36,13 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.completion.ContentObject.ContentObjectImage;
+import org.elasticsearch.inference.completion.ContentObject.ContentObjectImage.ContentObjectImageUrl;
+import org.elasticsearch.inference.completion.ContentObjects;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Reasoning;
+import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -86,9 +93,10 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
+import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.inference.InferenceString.DataFormat.BASE64;
-import static org.elasticsearch.inference.InferenceString.DataType.IMAGE;
+import static org.elasticsearch.inference.DataFormat.BASE64;
+import static org.elasticsearch.inference.DataType.IMAGE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
@@ -322,43 +330,20 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
     public void testParseStoredConfig_CreatesASparseEmbeddingModel() throws IOException {
         try (var service = createServiceWithMockSender()) {
-            {
-                var mockedPersistedConfig = getBaseSparseEmbeddingConfig();
+            var mockedPersistedConfig = getBaseSparseEmbeddingConfig();
 
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
-                        new UnparsedModel(
-                            INFERENCE_ENTITY_ID,
-                            TaskType.SPARSE_EMBEDDING,
-                            ElasticInferenceService.NAME,
-                            mockedPersistedConfig.config(),
-                            mockedPersistedConfig.secrets()
-                        )
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getBaseSparseEmbeddingConfig();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
+            assertSparseEmbeddingModelFromPersistedConfig(
+                service.parsePersistedConfig(
+                    new UnparsedModel(
                         INFERENCE_ENTITY_ID,
                         TaskType.SPARSE_EMBEDDING,
+                        ElasticInferenceService.NAME,
                         mockedPersistedConfig.config(),
                         mockedPersistedConfig.secrets()
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getBaseSparseEmbeddingConfig();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, mockedPersistedConfig.config()),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
+                    )
+                ),
+                ElserModels.ELSER_V2_MODEL
+            );
         }
     }
 
@@ -401,7 +386,9 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 chunkingSettingsMap,
                 Map.of()
             );
-            var model = service.parsePersistedConfigWithSecrets("id", taskType, config.config(), config.secrets());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel("id", taskType, ElasticInferenceService.NAME, config.config(), config.secrets())
+            );
 
             assertThat(model, instanceOf(ElasticInferenceServiceDenseEmbeddingsModel.class));
             assertThat(model.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
@@ -417,45 +404,22 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
+    public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createServiceWithMockSender()) {
-            {
-                var mockedPersistedConfig = getExtraKeyInConfig();
+            var mockedPersistedConfig = getExtraKeyInConfig();
 
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
-                        new UnparsedModel(
-                            INFERENCE_ENTITY_ID,
-                            TaskType.SPARSE_EMBEDDING,
-                            ElasticInferenceService.NAME,
-                            mockedPersistedConfig.config(),
-                            mockedPersistedConfig.secrets()
-                        )
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInConfig();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
+            assertSparseEmbeddingModelFromPersistedConfig(
+                service.parsePersistedConfig(
+                    new UnparsedModel(
                         INFERENCE_ENTITY_ID,
                         TaskType.SPARSE_EMBEDDING,
+                        ElasticInferenceService.NAME,
                         mockedPersistedConfig.config(),
                         mockedPersistedConfig.secrets()
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInConfig();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, mockedPersistedConfig.config()),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
+                    )
+                ),
+                ElserModels.ELSER_V2_MODEL
+            );
         }
     }
 
@@ -471,43 +435,20 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
     public void testParseStoredConfig_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (var service = createServiceWithMockSender()) {
-            {
-                var mockedPersistedConfig = getExtraKeyInServiceSettings();
+            var mockedPersistedConfig = getExtraKeyInServiceSettings();
 
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
-                        new UnparsedModel(
-                            INFERENCE_ENTITY_ID,
-                            TaskType.SPARSE_EMBEDDING,
-                            ElasticInferenceService.NAME,
-                            mockedPersistedConfig.config(),
-                            mockedPersistedConfig.secrets()
-                        )
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInServiceSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
+            assertSparseEmbeddingModelFromPersistedConfig(
+                service.parsePersistedConfig(
+                    new UnparsedModel(
                         INFERENCE_ENTITY_ID,
                         TaskType.SPARSE_EMBEDDING,
+                        ElasticInferenceService.NAME,
                         mockedPersistedConfig.config(),
                         mockedPersistedConfig.secrets()
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInServiceSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, mockedPersistedConfig.config()),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
+                    )
+                ),
+                ElserModels.ELSER_V2_MODEL
+            );
         }
     }
 
@@ -519,43 +460,20 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
     public void testParseStoredConfig_DoesNotThrowWhenRateLimitFieldExistsInServiceSettings() throws IOException {
         try (var service = createServiceWithMockSender()) {
-            {
-                var mockedPersistedConfig = getRateLimitInServiceSettings();
+            var mockedPersistedConfig = getRateLimitInServiceSettings();
 
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
-                        new UnparsedModel(
-                            INFERENCE_ENTITY_ID,
-                            TaskType.SPARSE_EMBEDDING,
-                            ElasticInferenceService.NAME,
-                            mockedPersistedConfig.config(),
-                            mockedPersistedConfig.secrets()
-                        )
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getRateLimitInServiceSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
+            assertSparseEmbeddingModelFromPersistedConfig(
+                service.parsePersistedConfig(
+                    new UnparsedModel(
                         INFERENCE_ENTITY_ID,
                         TaskType.SPARSE_EMBEDDING,
+                        ElasticInferenceService.NAME,
                         mockedPersistedConfig.config(),
                         mockedPersistedConfig.secrets()
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getRateLimitInServiceSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, mockedPersistedConfig.config()),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
+                    )
+                ),
+                ElserModels.ELSER_V2_MODEL
+            );
         }
     }
 
@@ -573,43 +491,20 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
     public void testParseStoredConfig_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         try (var service = createServiceWithMockSender()) {
-            {
-                var mockedPersistedConfig = getExtraKeyInTaskSettings();
+            var mockedPersistedConfig = getExtraKeyInTaskSettings();
 
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
-                        new UnparsedModel(
-                            INFERENCE_ENTITY_ID,
-                            TaskType.SPARSE_EMBEDDING,
-                            ElasticInferenceService.NAME,
-                            mockedPersistedConfig.config(),
-                            mockedPersistedConfig.secrets()
-                        )
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInTaskSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
+            assertSparseEmbeddingModelFromPersistedConfig(
+                service.parsePersistedConfig(
+                    new UnparsedModel(
                         INFERENCE_ENTITY_ID,
                         TaskType.SPARSE_EMBEDDING,
+                        ElasticInferenceService.NAME,
                         mockedPersistedConfig.config(),
                         mockedPersistedConfig.secrets()
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInTaskSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, mockedPersistedConfig.config()),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
+                    )
+                ),
+                ElserModels.ELSER_V2_MODEL
+            );
         }
     }
 
@@ -620,43 +515,20 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
     public void testParseStoredConfig_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
         try (var service = createServiceWithMockSender()) {
-            {
-                var mockedPersistedConfig = getExtraKeyInSecretsSettings();
+            var mockedPersistedConfig = getExtraKeyInSecretsSettings();
 
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
-                        new UnparsedModel(
-                            INFERENCE_ENTITY_ID,
-                            TaskType.SPARSE_EMBEDDING,
-                            ElasticInferenceService.NAME,
-                            mockedPersistedConfig.config(),
-                            mockedPersistedConfig.secrets()
-                        )
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInSecretsSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
+            assertSparseEmbeddingModelFromPersistedConfig(
+                service.parsePersistedConfig(
+                    new UnparsedModel(
                         INFERENCE_ENTITY_ID,
                         TaskType.SPARSE_EMBEDDING,
+                        ElasticInferenceService.NAME,
                         mockedPersistedConfig.config(),
                         mockedPersistedConfig.secrets()
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInSecretsSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, mockedPersistedConfig.config()),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
+                    )
+                ),
+                ElserModels.ELSER_V2_MODEL
+            );
         }
     }
 
@@ -1059,9 +931,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
             );
 
-            var request = UnifiedCompletionRequest.of(
-                List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("Hello"), "user", null, null))
-            );
+            var request = UnifiedCompletionRequest.of(List.of(new Message(new ContentString("Hello"), "user", null, null)));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
@@ -1076,6 +946,339 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
             // Check that the product use case header was set correctly
             assertThat(httpRequest.getHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is(productUseCase));
+        }
+    }
+
+    public void testUnifiedCompletionInfer_SupportsMultimodalInputs() throws IOException {
+        var elasticInferenceServiceURL = getUrl(webServer);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (
+            var service = createService(senderFactory, elasticInferenceServiceURL);
+            var ignored = threadPool.getThreadContext().stashContext()
+        ) {
+            // Mock a successful streaming response
+            String responseJson = """
+                data: {"id":"1","object":"completion","created":1677858242,"model":"my-model-id",
+                "choices":[{"finish_reason":null,"index":0,"delta":{"role":"assistant","content":"Hello"}}]}
+
+                data: {"id":"2","object":"completion","created":1677858242,"model":"my-model-id",
+                "choices":[{"finish_reason":"stop","index":0,"delta":{"content":" world!"}}]}
+
+                data: [DONE]
+
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            // Create completion model
+            var model = new ElasticInferenceServiceCompletionModel(
+                INFERENCE_ENTITY_ID,
+                TaskType.CHAT_COMPLETION,
+                new ElasticInferenceServiceCompletionServiceSettings("my-model-id"),
+                ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
+            );
+
+            var request = UnifiedCompletionRequest.of(
+                List.of(
+                    new Message(
+                        new ContentObjects(List.of(new ContentObjectImage(new ContentObjectImageUrl("image data", null)))),
+                        "user",
+                        null,
+                        null
+                    )
+                )
+            );
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            service.unifiedCompletionInfer(model, request, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            // We don't need to check the actual response as we're only testing header propagation
+            listener.actionGet(TEST_REQUEST_TIMEOUT);
+
+            // Verify the request was sent
+            assertThat(webServer.requests(), hasSize(1));
+            var requestBody = webServer.requests().getFirst().getBody();
+
+            // Check that the image content was included in the request
+            String expectedJson = stripWhitespace("""
+                {
+                    "messages":[
+                        {
+                            "content":[
+                                {"image_url":{"url":"image data"},"type":"image_url"}
+                            ],
+                            "role":"user"
+                        }
+                    ],
+                    "model":"my-model-id",
+                    "n":1,
+                    "stream":true,
+                    "stream_options":{"include_usage":true}
+                }
+                """);
+            assertThat(requestBody, is(expectedJson));
+        }
+    }
+
+    public void testUnifiedCompletionInfer_SupportsReasoning() throws Exception {
+        var elasticInferenceServiceURL = getUrl(webServer);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (
+            var service = createService(senderFactory, elasticInferenceServiceURL);
+            var ignored = threadPool.getThreadContext().stashContext()
+        ) {
+            // Mock a successful streaming response with reasoning
+            String mockedResponseJson = Strings.format("""
+                data: %s
+
+                data: %s
+
+                data: [DONE]
+
+                """, XContentHelper.stripWhitespace("""
+                {
+                    "id": "1",
+                    "object": "completion",
+                    "created": 1677858242,
+                    "model": "some model id",
+                    "choices": [{
+                            "finish_reason": null,
+                            "index": 0,
+                            "delta": {
+                                "role": "assistant",
+                                "content": "Hello",
+                                "reasoning": "some_reasoning",
+                                "reasoning_details": [{
+                                        "type": "reasoning.encrypted",
+                                        "format": "some_encrypted_reasoning_detail_format",
+                                        "id": "some_id_0",
+                                        "index": 0,
+                                        "data": "some_encrypted_data"
+                                    }, {
+                                        "type": "reasoning.summary",
+                                        "format": "some_summary_reasoning_detail_format",
+                                        "id": "some_id_1",
+                                        "index": 1,
+                                        "summary": "some_summary"
+                                    }, {
+                                        "type": "reasoning.text",
+                                        "format": "some_text_reasoning_detail_format",
+                                        "id": "some_id_2",
+                                        "index": 2,
+                                        "text": "some_text",
+                                        "signature": "some_signature"
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+                """), XContentHelper.stripWhitespace("""
+                {
+                    "id": "2",
+                    "object": "completion",
+                    "created": 1677858242,
+                    "model": "some model id",
+                    "choices": [{
+                            "finish_reason": "stop",
+                            "index": 0,
+                            "delta": {
+                                "content": " world!"
+                            }
+                        }
+                    ],
+                    "usage": {
+                        "completion_tokens": 15,
+                        "prompt_tokens": 5,
+                        "total_tokens": 30,
+                        "prompt_tokens_details": {
+                            "cached_tokens": 0
+                        },
+                        "completion_tokens_details": {
+                            "reasoning_tokens": 10
+                        }
+                    }
+                }
+                """));
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(mockedResponseJson));
+
+            // Create completion model
+            var model = new ElasticInferenceServiceCompletionModel(
+                INFERENCE_ENTITY_ID,
+                TaskType.CHAT_COMPLETION,
+                new ElasticInferenceServiceCompletionServiceSettings(MODEL_ID_VALUE),
+                ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
+            );
+
+            var request = new UnifiedCompletionRequest(
+                List.of(
+                    new Message(
+                        new ContentString("Say `Hello world!`"),
+                        "user",
+                        null,
+                        null,
+                        "some_reasoning",
+                        List.of(
+                            new ReasoningDetail.EncryptedReasoningDetail(
+                                "some_encrypted_reasoning_detail_format",
+                                "some_id_0",
+                                0L,
+                                "some_encrypted_data"
+                            ),
+                            new ReasoningDetail.SummaryReasoningDetail(
+                                "some_summary_reasoning_detail_format",
+                                "some_id_1",
+                                1L,
+                                "some_summary"
+                            ),
+                            new ReasoningDetail.TextReasoningDetail(
+                                "some_text_reasoning_detail_format",
+                                "some_id_2",
+                                2L,
+                                "some_text",
+                                "some_signature"
+                            )
+                        )
+                    )
+                ),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new Reasoning(Reasoning.ReasoningEffort.MEDIUM, Reasoning.ReasoningSummary.DETAILED, false, false)
+            );
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            service.unifiedCompletionInfer(model, request, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            // Receiving results for validation
+            InferenceServiceResults inferenceServiceResults = listener.actionGet(TEST_REQUEST_TIMEOUT);
+
+            // Verify the request was sent
+            assertThat(webServer.requests(), hasSize(1));
+            var requestBody = webServer.requests().getFirst().getBody();
+
+            // Check that reasoning was included in request
+            String expectedRequestJson = stripWhitespace("""
+                {
+                    "messages": [{
+                            "content": "Say `Hello world!`",
+                            "role": "user",
+                            "reasoning": "some_reasoning",
+                            "reasoning_details": [{
+                                    "type": "reasoning.encrypted",
+                                    "format": "some_encrypted_reasoning_detail_format",
+                                    "id": "some_id_0",
+                                    "index": 0,
+                                    "data": "some_encrypted_data"
+                                }, {
+                                    "type": "reasoning.summary",
+                                    "format": "some_summary_reasoning_detail_format",
+                                    "id": "some_id_1",
+                                    "index": 1,
+                                    "summary": "some_summary"
+                                }, {
+                                    "type": "reasoning.text",
+                                    "format": "some_text_reasoning_detail_format",
+                                    "id": "some_id_2",
+                                    "index": 2,
+                                    "text": "some_text",
+                                    "signature": "some_signature"
+                                }
+                            ]
+                        }
+                    ],
+                    "model": "some model id",
+                    "reasoning": {
+                        "effort": "medium",
+                        "summary": "detailed",
+                        "exclude": false,
+                        "enabled": false
+                    },
+                    "n": 1,
+                    "stream": true,
+                    "stream_options": {
+                        "include_usage": true
+                    }
+                }
+
+                """);
+            assertThat(requestBody, is(expectedRequestJson));
+            // Check that reasoning details were mapped correctly
+            InferenceEventsAssertion.assertThat(inferenceServiceResults)
+                .hasFinishedStream()
+                .hasNoErrors()
+                .hasEvent(XContentHelper.stripWhitespace("""
+                    {
+                        "id": "1",
+                        "choices": [{
+                                "delta": {
+                                    "content": "Hello",
+                                    "role": "assistant",
+                                    "reasoning": "some_reasoning",
+                                    "reasoning_details": [{
+                                            "type": "reasoning.encrypted",
+                                            "format": "some_encrypted_reasoning_detail_format",
+                                            "id": "some_id_0",
+                                            "index": 0,
+                                            "data": "some_encrypted_data"
+                                        }, {
+                                            "type": "reasoning.summary",
+                                            "format": "some_summary_reasoning_detail_format",
+                                            "id": "some_id_1",
+                                            "index": 1,
+                                            "summary": "some_summary"
+                                        }, {
+                                            "type": "reasoning.text",
+                                            "format": "some_text_reasoning_detail_format",
+                                            "id": "some_id_2",
+                                            "index": 2,
+                                            "text": "some_text",
+                                            "signature": "some_signature"
+                                        }
+                                    ]
+                                },
+                                "index": 0
+                            }
+                        ],
+                        "model": "some model id",
+                        "object": "completion"
+                    }
+                    """))
+                .hasEvent(XContentHelper.stripWhitespace("""
+                    {
+                        "id": "2",
+                        "choices": [{
+                                "delta": {
+                                    "content": " world!"
+                                },
+                                "finish_reason": "stop",
+                                "index": 0
+                            }
+                        ],
+                        "model": "some model id",
+                        "object": "completion",
+                        "usage": {
+                            "completion_tokens": 15,
+                            "prompt_tokens": 5,
+                            "total_tokens": 30,
+                            "prompt_tokens_details": {
+                                "cached_tokens": 0
+                            },
+                            "completion_tokens_details": {
+                                "reasoning_tokens": 10
+                            }
+                        }
+                    }
+                    """));
         }
     }
 
@@ -1707,9 +1910,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );

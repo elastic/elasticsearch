@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Data source plugin providing Google Cloud Storage support for ESQL.
@@ -27,6 +28,11 @@ import java.util.Objects;
  * </pre>
  */
 public class GcsDataSourcePlugin extends Plugin implements DataSourcePlugin {
+
+    @Override
+    public Set<String> supportedSchemes() {
+        return Set.of("gs");
+    }
 
     @Override
     public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
@@ -45,7 +51,8 @@ public class GcsDataSourcePlugin extends Plugin implements DataSourcePlugin {
                     Objects.toString(config.get("credentials"), null),
                     Objects.toString(config.get("project_id"), null),
                     Objects.toString(config.get("endpoint"), null),
-                    Objects.toString(config.get("token_uri"), null)
+                    Objects.toString(config.get("token_uri"), null),
+                    Objects.toString(config.get("auth"), null)
                 );
                 return new GcsStorageProvider(gcsConfig);
             }

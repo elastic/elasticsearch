@@ -475,6 +475,15 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
             .setRequestsPerSecond(requestsPerSecond / totalSlices)
             // Sub requests don't have workers
             .setSlices(1);
+        // Copy resume info for the slice from leader to the slice request
+        if (this.getResumeInfo().isPresent()) {
+            ResumeInfo resumeInfo = this.getResumeInfo().get();
+            int sliceId = request.getSearchRequest().source().slice().getId();
+            if (resumeInfo.isSliceCompleted(sliceId) == false) {
+                request.setResumeInfo(new ResumeInfo(resumeInfo.relocationOrigin(), resumeInfo.getSlice(sliceId).get().resumeInfo(), null));
+            }
+        }
+
         if (maxDocs != MAX_DOCS_ALL_MATCHES) {
             // maxDocs is split between workers. This means the maxDocs might round
             // down!
@@ -487,8 +496,17 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new BulkByScrollTask(id, type, action, getDescription(), parentTaskId, headers, eligibleForRelocationOnShutdown);
+    public Task createTask(TaskId id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new BulkByScrollTask(
+            id,
+            type,
+            action,
+            getDescription(),
+            parentTaskId,
+            headers,
+            eligibleForRelocationOnShutdown,
+            resumeInfo == null ? null : resumeInfo.relocationOrigin()
+        );
     }
 
     @Override

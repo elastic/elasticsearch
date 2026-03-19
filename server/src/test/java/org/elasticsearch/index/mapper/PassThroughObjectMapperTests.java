@@ -186,28 +186,27 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
 
     public void testMergingWithPassThrough() {
         boolean isSourceSynthetic = randomBoolean();
-        var passThroughMapper = new RootObjectMapper.Builder("_doc").add(new PassThroughObjectMapper.Builder("metrics").setPriority(10))
-            .build(MapperBuilderContext.root(isSourceSynthetic, true));
-        var objectMapper = new RootObjectMapper.Builder("_doc").add(
+        var passThroughBuilder = new RootObjectMapper.Builder("_doc").add(new PassThroughObjectMapper.Builder("metrics").setPriority(10));
+        var objectBuilder = new RootObjectMapper.Builder("_doc").add(
             new ObjectMapper.Builder("metrics").add(new KeywordFieldMapper.Builder("cpu_usage", defaultIndexSettings()))
-        ).build(MapperBuilderContext.root(isSourceSynthetic, true));
-
-        RootObjectMapper merged = passThroughMapper.merge(
-            objectMapper,
-            MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE)
         );
+
+        MapperMergeContext mergeContext = MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE);
+        RootObjectMapper merged = (RootObjectMapper) passThroughBuilder.mergeWith(objectBuilder, mergeContext)
+            .build(mergeContext.getMapperBuilderContext());
         assertThat(merged.getMapper("metrics"), instanceOf(PassThroughObjectMapper.class));
 
-        var objectMapperWithSubObjectTrue = new RootObjectMapper.Builder("_doc").add(
+        var passThroughBuilder2 = new RootObjectMapper.Builder("_doc").add(new PassThroughObjectMapper.Builder("metrics").setPriority(10));
+        var objectWithSubObjectTrue = new RootObjectMapper.Builder("_doc").add(
             new ObjectMapper.Builder("metrics", Explicit.of(ObjectMapper.Subobjects.ENABLED)).add(
                 new KeywordFieldMapper.Builder("cpu_usage", defaultIndexSettings())
             )
-        ).build(MapperBuilderContext.root(isSourceSynthetic, true));
+        );
 
         IllegalArgumentException error = expectThrows(
             IllegalArgumentException.class,
-            () -> passThroughMapper.merge(
-                objectMapperWithSubObjectTrue,
+            () -> passThroughBuilder2.mergeWith(
+                objectWithSubObjectTrue,
                 MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE)
             )
         );
@@ -216,15 +215,17 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
             equalTo("can't merge a passthrough mapping [metrics] with an object mapping that is either root or has subobjects enabled")
         );
 
-        var rootObjectMapper = new RootObjectMapper.Builder("metrics").add(
+        var passThroughBuilder3 = new PassThroughObjectMapper.Builder("metrics").setPriority(10);
+        var rootObjectBuilder = new RootObjectMapper.Builder("metrics").add(
             new KeywordFieldMapper.Builder("cpu_usage", defaultIndexSettings())
-        ).build(MapperBuilderContext.root(isSourceSynthetic, true));
+        );
 
         error = expectThrows(
             IllegalArgumentException.class,
-            () -> new PassThroughObjectMapper.Builder("metrics").setPriority(10)
-                .build(MapperBuilderContext.root(isSourceSynthetic, true))
-                .merge(rootObjectMapper, MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE))
+            () -> passThroughBuilder3.mergeWith(
+                rootObjectBuilder,
+                MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE)
+            )
         );
         assertThat(
             error.getMessage(),

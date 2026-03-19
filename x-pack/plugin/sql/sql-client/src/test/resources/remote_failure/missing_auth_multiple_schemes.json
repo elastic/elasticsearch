@@ -1,0 +1,23 @@
+{
+  "error" : {
+    "root_cause" : [
+      {
+        "type" : "security_exception",
+        "reason" : "unable to authenticate with provided credentials and anonymous access is not allowed for this request",
+        "additional_unsuccessful_credentials" : "API key: Illegal base64 character 5f",
+        "header" : {
+          "WWW-Authenticate" : ["Basic realm=\"security\", charset=\"UTF-8\"", "ApiKey"]
+        },
+        "stack_trace" : "ElasticsearchSecurityException[unable to authenticate]\n\tat org.elasticsearch.xpack.security.authc.AuthenticationService.authenticate(AuthenticationService.java:99)"
+      }
+    ],
+    "type" : "security_exception",
+    "reason" : "unable to authenticate with provided credentials and anonymous access is not allowed for this request",
+    "additional_unsuccessful_credentials" : "API key: Illegal base64 character 5f",
+    "header" : {
+      "WWW-Authenticate" : ["Basic realm=\"security\", charset=\"UTF-8\"", "ApiKey"]
+    },
+    "stack_trace" : "ElasticsearchSecurityException[unable to authenticate]\n\tat org.elasticsearch.xpack.security.authc.AuthenticationService.authenticate(AuthenticationService.java:99)"
+  },
+  "status" : 401
+}

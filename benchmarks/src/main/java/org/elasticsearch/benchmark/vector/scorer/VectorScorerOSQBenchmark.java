@@ -16,12 +16,13 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
-import org.elasticsearch.common.logging.LogConfigurator;
+import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
+import org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -42,6 +43,11 @@ import java.nio.file.Path;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createOSQIndexData;
+import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createOSQQueryData;
+import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.randomVector;
+import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.writeBulkOSQVectorData;
+
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Benchmark)
@@ -54,7 +60,7 @@ import java.util.concurrent.TimeUnit;
 public class VectorScorerOSQBenchmark {
 
     static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        Utils.configureBenchmarkLogging();
     }
 
     public enum DirectoryType {
@@ -71,10 +77,8 @@ public class VectorScorerOSQBenchmark {
     @Param({ "384", "768", "1024" })
     public int dims;
 
-    @Param({ "1", "2", "4" })
-    public int bits;
-
-    int bulkSize = ESNextOSQVectorsScorer.BULK_SIZE;
+    @Param({ "1", "2", "4", "7" })
+    public byte bits;
 
     @Param
     public VectorImplementation implementation;
@@ -85,14 +89,11 @@ public class VectorScorerOSQBenchmark {
     @Param
     public VectorSimilarityFunction similarityFunction;
 
-    public int numVectors = ESNextOSQVectorsScorer.BULK_SIZE * 10;
-    int numQueries = 10;
+    static final int BULK_SIZE = ESNextOSQVectorsScorer.BULK_SIZE;
+    static final int NUM_VECTORS = ESNextOSQVectorsScorer.BULK_SIZE * 10;
+    static final int NUM_QUERIES = 10;
 
-    int length;
-
-    byte[][] binaryVectors;
-    byte[][] binaryQueries;
-    OptimizedScalarQuantizer.QuantizationResult result;
+    VectorScorerTestUtils.OSQVectorData[] binaryQueries;
     float centroidDp;
 
     byte[] scratch;
@@ -103,64 +104,141 @@ public class VectorScorerOSQBenchmark {
     IndexInput input;
 
     float[] scratchScores;
-    float[] corrections;
+    int[] denseOffsets;
+    int denseOffsetsCount;
+    int[] sparseOffsets;
+    int sparseOffsetsCount;
+    static final int[] SINGLE_OFFSET = new int[] { 0 };
+
+    record VectorData(
+        VectorScorerTestUtils.OSQVectorData[] indexVectors,
+        VectorScorerTestUtils.OSQVectorData[] queries,
+        int binaryIndexLength,
+        float centroidDp,
+        int[] denseOffsets,
+        int denseOffsetsCount,
+        int[] sparseOffsets,
+        int sparseOffsetsCount
+    ) {}
+
+    static VectorData generateRandomVectorData(Random random, int dims, byte bits, VectorSimilarityFunction similarityFunction) {
+        int binaryIndexLength = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(bits).getDocPackedLength(dims);
+
+        final float[] centroid = new float[dims];
+        randomVector(random, centroid, similarityFunction);
+
+        var quantizer = new org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer(similarityFunction);
+
+        VectorScorerTestUtils.OSQVectorData[] indexVectors = new VectorScorerTestUtils.OSQVectorData[VectorScorerOSQBenchmark.NUM_VECTORS];
+        for (int i = 0; i < VectorScorerOSQBenchmark.NUM_VECTORS; i++) {
+            var vector = new float[dims];
+            randomVector(random, vector, similarityFunction);
+            indexVectors[i] = createOSQIndexData(vector, centroid, quantizer, dims, bits, binaryIndexLength);
+        }
+
+        int binaryQueryLength = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(bits).getQueryPackedLength(dims);
+        byte queryBits = bits == 7 ? (byte) 7 : (byte) 4;
+        VectorScorerTestUtils.OSQVectorData[] queryVectors = new VectorScorerTestUtils.OSQVectorData[VectorScorerOSQBenchmark.NUM_VECTORS];
+        var query = new float[dims];
+        for (int i = 0; i < VectorScorerOSQBenchmark.NUM_VECTORS; i++) {
+            randomVector(random, query, similarityFunction);
+            queryVectors[i] = createOSQQueryData(query, centroid, quantizer, dims, queryBits, binaryQueryLength);
+        }
+
+        var denseOffsetsCount = BULK_SIZE - 3;
+        var denseOffsets = VectorScorerTestUtils.generateFilteredOffsets(random, BULK_SIZE, 3);
+
+        var sparseOffsetsCount = 3;
+        var sparseOffsets = VectorScorerTestUtils.generateFilteredOffsets(random, BULK_SIZE, BULK_SIZE - 3);
+
+        return new VectorData(
+            indexVectors,
+            queryVectors,
+            binaryIndexLength,
+            VectorUtil.dotProduct(centroid, centroid),
+            denseOffsets,
+            denseOffsetsCount,
+            sparseOffsets,
+            sparseOffsetsCount
+        );
+    }
+
+    private float scoreFilteredIndividually(int[] offsets, int offsetsCount) throws IOException {
+        float maxScore = Float.NEGATIVE_INFINITY;
+        int offsetIndex = 0;
+        for (int j = 0; j < BULK_SIZE; j++) {
+            if (offsetIndex < offsetsCount && offsets[offsetIndex] == j) {
+                offsetIndex++;
+                float qcDist = scorer.quantizeScore(binaryQueries[j].quantizedVector());
+                scratchScores[j] = qcDist;
+            } else {
+                scratchScores[j] = 0;
+                input.skipBytes(scratch.length);
+            }
+        }
+
+        float[] lowerIntervals = new float[BULK_SIZE];
+        float[] upperIntervals = new float[BULK_SIZE];
+        int[] sums = new int[BULK_SIZE];
+        float[] additional = new float[BULK_SIZE];
+
+        input.readFloats(lowerIntervals, 0, BULK_SIZE);
+        input.readFloats(upperIntervals, 0, BULK_SIZE);
+        input.readInts(sums, 0, BULK_SIZE);
+        input.readFloats(additional, 0, BULK_SIZE);
+
+        offsetIndex = 0;
+        for (int b = 0; b < BULK_SIZE; b++) {
+            if (offsetIndex < offsetsCount && offsets[offsetIndex] == b) {
+                offsetIndex++;
+                float score = scorer.applyCorrectionsIndividually(
+                    binaryQueries[b].lowerInterval(),
+                    binaryQueries[b].upperInterval(),
+                    binaryQueries[b].quantizedComponentSum(),
+                    binaryQueries[b].additionalCorrection(),
+                    similarityFunction,
+                    centroidDp,
+                    lowerIntervals[b],
+                    upperIntervals[b],
+                    sums[b],
+                    additional[b],
+                    scratchScores[b]
+                );
+                scratchScores[b] = score;
+                if (score > maxScore) {
+                    maxScore = score;
+                }
+            } else {
+                scratchScores[b] = 0;
+            }
+        }
+        return maxScore;
+    }
 
     @Setup
     public void setup() throws IOException {
-        setup(new Random(123));
+        setup(generateRandomVectorData(new Random(123), dims, bits, similarityFunction));
     }
 
-    void setup(Random random) throws IOException {
-        this.length = switch (bits) {
-            case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getDocPackedLength(dims);
-            case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dims);
-            case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC.getDocPackedLength(dims);
-            default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
-        };
-
-        binaryVectors = new byte[numVectors][length];
-        for (byte[] binaryVector : binaryVectors) {
-            random.nextBytes(binaryVector);
-        }
-
-        directory = switch (directoryType) {
+    void setup(VectorData data) throws IOException {
+        this.directory = switch (directoryType) {
             case MMAP -> new MMapDirectory(createTempDirectory("vectorDataMmap"));
             case NIO -> new NIOFSDirectory(createTempDirectory("vectorDataNFIOS"));
             case SNAP -> SearchableSnapshotDirectoryFactory.newDirectory(createTempDirectory("vectorDataSNAP"));
         };
 
         try (IndexOutput output = directory.createOutput("vectors", IOContext.DEFAULT)) {
-            byte[] correctionBytes = new byte[16 * bulkSize];
-            for (int i = 0; i < numVectors; i += bulkSize) {
-                for (int j = 0; j < bulkSize; j++) {
-                    output.writeBytes(binaryVectors[i + j], 0, binaryVectors[i + j].length);
-                }
-                random.nextBytes(correctionBytes);
-                output.writeBytes(correctionBytes, 0, correctionBytes.length);
+            for (int i = 0; i < NUM_VECTORS; i += BULK_SIZE) {
+                writeBulkOSQVectorData(BULK_SIZE, output, data.indexVectors, i);
             }
             CodecUtil.writeFooter(output);
         }
-        input = directory.openInput("vectors", IOContext.DEFAULT);
-        int binaryQueryLength = switch (bits) {
-            case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getQueryPackedLength(dims);
-            case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getQueryPackedLength(dims);
-            case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC.getQueryPackedLength(dims);
-            default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
-        };
+        this.input = directory.openInput("vectors", IOContext.DEFAULT);
 
-        binaryQueries = new byte[numVectors][binaryQueryLength];
-        for (byte[] binaryQuery : binaryQueries) {
-            random.nextBytes(binaryQuery);
-        }
-        result = new OptimizedScalarQuantizer.QuantizationResult(
-            random.nextFloat(),
-            random.nextFloat(),
-            random.nextFloat(),
-            Short.toUnsignedInt((short) random.nextInt())
-        );
-        centroidDp = random.nextFloat();
+        this.binaryQueries = data.queries;
+        this.centroidDp = data.centroidDp;
 
-        scratch = new byte[length];
+        this.scratch = new byte[data.binaryIndexLength];
         final int docBits;
         final int queryBits = switch (bits) {
             case 1 -> {
@@ -175,15 +253,22 @@ public class VectorScorerOSQBenchmark {
                 docBits = 4;
                 yield 4;
             }
+            case 7 -> {
+                docBits = 7;
+                yield 7;
+            }
             default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
         };
-        scorer = switch (implementation) {
-            case SCALAR -> new ESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, length);
+        this.scorer = switch (implementation) {
+            case SCALAR -> new ESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, data.binaryIndexLength);
             case VECTORIZED -> ESVectorizationProvider.getInstance()
-                .newESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, length, bulkSize);
+                .newESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, data.binaryIndexLength, BULK_SIZE);
         };
-        scratchScores = new float[bulkSize];
-        corrections = new float[3];
+        this.scratchScores = new float[BULK_SIZE];
+        this.denseOffsets = data.denseOffsets();
+        this.denseOffsetsCount = data.denseOffsetsCount();
+        this.sparseOffsets = data.sparseOffsets();
+        this.sparseOffsetsCount = data.sparseOffsetsCount();
     }
 
     Path createTempDirectory(String name) throws IOException {
@@ -198,27 +283,38 @@ public class VectorScorerOSQBenchmark {
 
     @Benchmark
     public float[] score() throws IOException {
-        float[] results = new float[numQueries * numVectors];
-        for (int j = 0; j < numQueries; j++) {
+        float[] results = new float[NUM_QUERIES * NUM_VECTORS];
+
+        float[] lowerIntervals = new float[BULK_SIZE];
+        float[] upperIntervals = new float[BULK_SIZE];
+        int[] sums = new int[BULK_SIZE];
+        float[] additional = new float[BULK_SIZE];
+
+        for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
-            for (int i = 0; i < numVectors; i++) {
-                float qDist = scorer.quantizeScore(binaryQueries[j]);
-                input.readFloats(corrections, 0, corrections.length);
-                int addition = Short.toUnsignedInt(input.readShort());
-                float score = scorer.score(
-                    result.lowerInterval(),
-                    result.upperInterval(),
-                    result.quantizedComponentSum(),
-                    result.additionalCorrection(),
-                    similarityFunction,
-                    centroidDp,
-                    corrections[0],
-                    corrections[1],
-                    addition,
-                    corrections[2],
-                    qDist
-                );
-                results[j * numVectors + i] = score;
+            for (int i = 0; i < NUM_VECTORS; i += BULK_SIZE) {
+                scorer.quantizeScoreBulk(binaryQueries[j].quantizedVector(), BULK_SIZE, scratchScores);
+                input.readFloats(lowerIntervals, 0, BULK_SIZE);
+                input.readFloats(upperIntervals, 0, BULK_SIZE);
+                input.readInts(sums, 0, BULK_SIZE);
+                input.readFloats(additional, 0, BULK_SIZE);
+
+                for (int b = 0; b < BULK_SIZE; b++) {
+                    float score = scorer.applyCorrectionsIndividually(
+                        binaryQueries[j].lowerInterval(),
+                        binaryQueries[j].upperInterval(),
+                        binaryQueries[j].quantizedComponentSum(),
+                        binaryQueries[j].additionalCorrection(),
+                        similarityFunction,
+                        centroidDp,
+                        lowerIntervals[b],
+                        upperIntervals[b],
+                        sums[b],
+                        additional[b],
+                        scratchScores[b]
+                    );
+                    results[j * NUM_VECTORS + i + b] = score;
+                }
             }
         }
         return results;
@@ -226,21 +322,135 @@ public class VectorScorerOSQBenchmark {
 
     @Benchmark
     public float[] bulkScore() throws IOException {
-        float[] results = new float[numQueries * numVectors];
-        for (int j = 0; j < numQueries; j++) {
+        float[] results = new float[NUM_QUERIES * NUM_VECTORS];
+        for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
-            for (int i = 0; i < numVectors; i += scratchScores.length) {
+            for (int i = 0; i < NUM_VECTORS; i += scratchScores.length) {
                 scorer.scoreBulk(
-                    binaryQueries[j],
-                    result.lowerInterval(),
-                    result.upperInterval(),
-                    result.quantizedComponentSum(),
-                    result.additionalCorrection(),
+                    binaryQueries[j].quantizedVector(),
+                    binaryQueries[j].lowerInterval(),
+                    binaryQueries[j].upperInterval(),
+                    binaryQueries[j].quantizedComponentSum(),
+                    binaryQueries[j].additionalCorrection(),
                     similarityFunction,
                     centroidDp,
                     scratchScores
                 );
-                System.arraycopy(scratchScores, 0, results, j * numVectors + i, scratchScores.length);
+                System.arraycopy(scratchScores, 0, results, j * NUM_VECTORS + i, scratchScores.length);
+            }
+        }
+        return results;
+    }
+
+    @Benchmark
+    public float[] filteredScoreBulkOne() throws IOException {
+        float[] results = new float[NUM_QUERIES * NUM_VECTORS];
+        for (int j = 0; j < NUM_QUERIES; j++) {
+            input.seek(0);
+            for (int i = 0; i < NUM_VECTORS; i += scratchScores.length) {
+                scorer.scoreBulkOffsets(
+                    binaryQueries[j].quantizedVector(),
+                    binaryQueries[j].lowerInterval(),
+                    binaryQueries[j].upperInterval(),
+                    binaryQueries[j].quantizedComponentSum(),
+                    binaryQueries[j].additionalCorrection(),
+                    similarityFunction,
+                    centroidDp,
+                    SINGLE_OFFSET,
+                    1,
+                    scratchScores,
+                    BULK_SIZE
+                );
+                System.arraycopy(scratchScores, 0, results, j * NUM_VECTORS + i, scratchScores.length);
+            }
+        }
+        return results;
+    }
+
+    @Benchmark
+    public float[] filteredScoreIndividuallyOne() throws IOException {
+        float[] results = new float[NUM_QUERIES * NUM_VECTORS];
+        for (int j = 0; j < NUM_QUERIES; j++) {
+            input.seek(0);
+            for (int i = 0; i < NUM_VECTORS; i += scratchScores.length) {
+                scoreFilteredIndividually(SINGLE_OFFSET, 1);
+                System.arraycopy(scratchScores, 0, results, j * NUM_VECTORS + i, scratchScores.length);
+            }
+        }
+        return results;
+    }
+
+    @Benchmark
+    public float[] filteredScoreBulkDense() throws IOException {
+        float[] results = new float[NUM_QUERIES * NUM_VECTORS];
+        for (int j = 0; j < NUM_QUERIES; j++) {
+            input.seek(0);
+            for (int i = 0; i < NUM_VECTORS; i += scratchScores.length) {
+                scorer.scoreBulkOffsets(
+                    binaryQueries[j].quantizedVector(),
+                    binaryQueries[j].lowerInterval(),
+                    binaryQueries[j].upperInterval(),
+                    binaryQueries[j].quantizedComponentSum(),
+                    binaryQueries[j].additionalCorrection(),
+                    similarityFunction,
+                    centroidDp,
+                    denseOffsets,
+                    denseOffsetsCount,
+                    scratchScores,
+                    BULK_SIZE
+                );
+                System.arraycopy(scratchScores, 0, results, j * NUM_VECTORS + i, scratchScores.length);
+            }
+        }
+        return results;
+    }
+
+    @Benchmark
+    public float[] filteredScoreIndividuallyDense() throws IOException {
+        float[] results = new float[NUM_QUERIES * NUM_VECTORS];
+        for (int j = 0; j < NUM_QUERIES; j++) {
+            input.seek(0);
+            for (int i = 0; i < NUM_VECTORS; i += scratchScores.length) {
+                scoreFilteredIndividually(denseOffsets, denseOffsetsCount);
+                System.arraycopy(scratchScores, 0, results, j * NUM_VECTORS + i, scratchScores.length);
+            }
+        }
+        return results;
+    }
+
+    @Benchmark
+    public float[] filteredScoreBulkSparse() throws IOException {
+        float[] results = new float[NUM_QUERIES * NUM_VECTORS];
+        for (int j = 0; j < NUM_QUERIES; j++) {
+            input.seek(0);
+            for (int i = 0; i < NUM_VECTORS; i += scratchScores.length) {
+                scorer.scoreBulkOffsets(
+                    binaryQueries[j].quantizedVector(),
+                    binaryQueries[j].lowerInterval(),
+                    binaryQueries[j].upperInterval(),
+                    binaryQueries[j].quantizedComponentSum(),
+                    binaryQueries[j].additionalCorrection(),
+                    similarityFunction,
+                    centroidDp,
+                    sparseOffsets,
+                    sparseOffsetsCount,
+                    scratchScores,
+                    BULK_SIZE
+                );
+                System.arraycopy(scratchScores, 0, results, j * NUM_VECTORS + i, scratchScores.length);
+            }
+        }
+        return results;
+    }
+
+    @Benchmark
+    public float[] filteredScoreIndividuallySparse() throws IOException {
+        float[] results = new float[NUM_QUERIES * NUM_VECTORS];
+        for (int j = 0; j < NUM_QUERIES; j++) {
+            input.seek(0);
+            for (int i = 0; i < NUM_VECTORS; i += BULK_SIZE) {
+                scoreFilteredIndividually(sparseOffsets, sparseOffsetsCount);
+                System.arraycopy(scratchScores, 0, results, j * NUM_VECTORS + i, scratchScores.length);
             }
         }
         return results;

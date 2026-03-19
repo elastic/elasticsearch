@@ -108,6 +108,16 @@ public class EsRelation extends LeafPlan {
         return indexMode;
     }
 
+    /**
+     * Returns true when this relation targets an index that appears inside a view definition.
+     * Derived from the {@link Source#viewName()} which is set during view resolution parsing.
+     * Used to prevent the request-level QueryDSL filter from being pushed down to these indexes,
+     * since the filter should logically apply to the view output, not to the underlying source indexes.
+     */
+    public boolean fromView() {
+        return source().viewName() != null;
+    }
+
     public Map<String, List<String>> originalIndices() {
         return originalIndices;
     }

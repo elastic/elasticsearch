@@ -318,6 +318,9 @@ public class PlannerUtils {
 
     public static PhysicalPlan integrateEsFilterIntoFragment(PhysicalPlan plan, @Nullable QueryBuilder esFilter) {
         return esFilter == null ? plan : plan.transformUp(FragmentExec.class, f -> {
+            if (fragmentContainsOnlyViewRelations(f)) {
+                return f;
+            }
             var fragmentFilter = f.esFilter();
             // TODO: have an ESFilter and push down to EsQueryExec / EsSource
             // This is an ugly hack to push the filter parameter to Lucene
@@ -326,6 +329,19 @@ public class PlannerUtils {
             LOGGER.debug("Fold filter {} to EsQueryExec", filter);
             return f.withFilter(filter);
         });
+    }
+
+    /**
+     * Returns true when every {@link EsRelation} leaf in the fragment originates from within a view
+     * definition. In that case the request-level QueryDSL filter must not be applied, because it
+     * should logically target the view output columns rather than the underlying source indexes.
+     * The view-origin is detected via {@link EsRelation#fromView()}, which checks whether the
+     * {@link org.elasticsearch.xpack.esql.core.tree.Source} was tagged with a view name during
+     * view resolution parsing.
+     */
+    private static boolean fragmentContainsOnlyViewRelations(FragmentExec f) {
+        var relations = f.fragment().collect(EsRelation.class::isInstance);
+        return relations.isEmpty() == false && relations.stream().allMatch(p -> ((EsRelation) p).fromView());
     }
 
     public static PhysicalPlan localPlan(

@@ -22,7 +22,7 @@ import java.io.IOException;
  * This class is generated. Edit {@code X-Block.java.st} instead.
  */
 public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock, ConstantNullBlock,
-    OrdinalBytesRefBlock {
+    OrdinalBytesRefBlock, org.elasticsearch.compute.data.arrow.BytesRefArrowBufBlock {
     BytesRef NULL_VALUE = new BytesRef();
 
     /**
@@ -67,7 +67,7 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
     OrdinalBytesRefBlock asOrdinals();
 
     @Override
-    BytesRefBlock filter(int... positions);
+    BytesRefBlock filter(boolean mayContainDuplicates, int... positions);
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},

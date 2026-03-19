@@ -422,6 +422,15 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
     ) {
         for (Index index : backingIndices) {
             IndexMetadata indexMetadata = metadata.index(index);
+            if (indexMetadata == null) {
+                // This should never happen that the index metadata is null,
+                // but protect against it defensively to prevent an NPE below regardless
+                String message = "backing index [" + index.getName() + "] has null metadata in data stream [" + dataStream.getName() + "]";
+                LOGGER.warn(message);
+                assert false : message;
+                backingIndicesSettingsValues.put(index, new IndexProperties(true, null, ManagedBy.UNMANAGED, null));
+                continue;
+            }
             Boolean preferIlm = PREFER_ILM_SETTING.get(indexMetadata.getSettings());
             assert preferIlm != null : "must use the default prefer ilm setting value, if nothing else";
             ManagedBy managedBy;

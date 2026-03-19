@@ -97,6 +97,21 @@ public class MapperBuilderContext {
         return dynamic == null ? this.dynamic : dynamic;
     }
 
+    MapperBuilderContext withDynamic(ObjectMapper.Dynamic dynamic) {
+        if (this.dynamic == dynamic) {
+            return this;
+        }
+        return new MapperBuilderContext(
+            path,
+            isSourceSynthetic,
+            isDataStream,
+            parentObjectContainsDimensions,
+            dynamic,
+            mergeReason,
+            inNestedContext
+        );
+    }
+
     /**
      * Builds the full name of the field, taking into account parent objects
      */

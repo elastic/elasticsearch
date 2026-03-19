@@ -28,11 +28,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.core.esql.EsqlFeatureFlags;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.HashMap;
@@ -43,6 +43,7 @@ public class ViewService {
     private static final Logger logger = LogManager.getLogger(ViewService.class);
     private static final InferenceSettings EMPTY_INFERENCE_SETTINGS = new InferenceSettings(Settings.EMPTY);
 
+    private final EsqlParser parser;
     private final PlanTelemetry telemetry;
     protected final ClusterService clusterService;
     private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
@@ -68,14 +69,15 @@ public class ViewService {
     private volatile int maxViewsCount;
     private volatile int maxViewLength;
 
-    public ViewService(ClusterService clusterService) {
+    public ViewService(ClusterService clusterService, EsqlFunctionRegistry functionRegistry, EsqlParser parser) {
         this.clusterService = clusterService;
+        this.parser = parser;
         this.taskQueue = clusterService.createTaskQueue(
             "update-esql-view-metadata",
             Priority.NORMAL,
             new SequentialAckingBatchedTaskExecutor<>()
         );
-        this.telemetry = new PlanTelemetry(new EsqlFunctionRegistry());
+        this.telemetry = new PlanTelemetry(functionRegistry);
         clusterService.getClusterSettings().initializeAndWatch(MAX_VIEWS_COUNT_SETTING, v -> this.maxViewsCount = v);
         clusterService.getClusterSettings().initializeAndWatch(MAX_VIEW_LENGTH_SETTING, v -> this.maxViewLength = v);
     }
@@ -140,6 +142,7 @@ public class ViewService {
      * Removes a view from the cluster state.
      */
     public void deleteView(ProjectId projectId, DeleteViewAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+        // TODO this should support wildcard deletion if action.destructive_requires_name = false
         if (viewsFeatureEnabled() == false) {
             listener.onFailure(new IllegalArgumentException("ESQL views are not enabled"));
             return;
@@ -201,7 +204,7 @@ public class ViewService {
                 );
             });
         // Parse the query to ensure it's valid, this will throw appropriate exceptions if not
-        EsqlParser.INSTANCE.parseQuery(view.query(), new QueryParams(), telemetry, EMPTY_INFERENCE_SETTINGS);
+        parser.parseQuery(view.query(), new QueryParams(), telemetry, EMPTY_INFERENCE_SETTINGS);
     }
 
     /**
@@ -223,6 +226,6 @@ public class ViewService {
     }
 
     protected boolean viewsFeatureEnabled() {
-        return EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled();
+        return EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG.isEnabled();
     }
 }

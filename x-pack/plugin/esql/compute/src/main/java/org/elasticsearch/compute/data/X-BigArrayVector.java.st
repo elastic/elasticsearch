@@ -164,7 +164,7 @@ $endif$
     }
 
     @Override
-    public $Type$Vector filter(int... positions) {
+    public $Type$Vector filter(boolean mayContainDuplicates, int... positions) {
         var blockFactory = blockFactory();
     $if(boolean)$
         final BitArray filtered = new BitArray(positions.length, blockFactory.bigArrays());

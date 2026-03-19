@@ -13,8 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.CIDRUtils;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -126,7 +125,7 @@ public class CIDRMatch extends EsqlScalarFunction implements TranslationAware.Si
         return new CIDRMatchEvaluator.Factory(
             source(),
             ipEvaluatorSupplier,
-            matches.stream().map(toEvaluator::apply).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new)
+            matches.stream().map(toEvaluator::apply).toArray(ExpressionEvaluator.Factory[]::new)
         );
     }
 

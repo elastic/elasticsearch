@@ -14,7 +14,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.ConstantFieldType;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
@@ -433,14 +432,13 @@ public class ValuesSourceConfig {
      */
     public boolean alignsWithSearchIndex() {
         var ft = fieldType();
-        boolean hasDocValuesSkipper = ft instanceof DateFieldMapper.DateFieldType dft && dft.hasDocValuesSkipper();
         // Text fields have doc values that don't align with the search index because the indexed form is tokenized (ex. "foo", "bar")
         // while doc values store the raw string (ex. "foo bar")
         boolean isTextField = ft instanceof TextFieldMapper.TextFieldType;
         return script() == null
             && missing() == null
             && ft != null
-            && (ft instanceof ConstantFieldType || ft.indexType().supportsSortShortcuts() || hasDocValuesSkipper)
+            && (ft instanceof ConstantFieldType || ft.indexType().supportsSortShortcuts())
             && isTextField == false;
     }
 

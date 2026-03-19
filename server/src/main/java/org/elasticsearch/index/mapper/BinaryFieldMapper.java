@@ -70,6 +70,11 @@ public class BinaryFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public BinaryFieldMapper build(MapperBuilderContext context) {
             return new BinaryFieldMapper(
                 leafName(),

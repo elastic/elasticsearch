@@ -20,7 +20,7 @@ esplugin {
 
 restResources {
   restApi {
-    include '_common', 'streams', 'bulk', 'index', 'ingest', 'indices', 'delete_by_query', 'search'
+    include '_common', 'streams', 'bulk', 'index', 'ingest', 'indices', 'delete_by_query', 'search', 'capabilities'
   }
 }
 
@@ -41,3 +41,8 @@ dependencies {
   clusterModules project(':modules:ingest-common')
   clusterModules project(':modules:reindex')
 }
+
+tasks.named("yamlRestCompatTestTransform").configure ({ task ->
+  // Expected deprecation warning to compat yaml tests:
+  task.addAllowedWarningRegex("The 'logs' stream is deprecated. Use individual stream names such as 'logs.otel' and 'logs.ecs' instead")
+})

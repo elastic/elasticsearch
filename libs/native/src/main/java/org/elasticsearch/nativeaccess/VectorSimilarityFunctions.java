@@ -22,6 +22,10 @@ public interface VectorSimilarityFunctions {
 
     enum Function {
         /**
+         * Cosine distance (byte vectors only)
+         */
+        COSINE,
+        /**
          * Dot product distance
          */
         DOT_PRODUCT,
@@ -35,20 +39,28 @@ public interface VectorSimilarityFunctions {
         /**
          * Unsigned int7. Single vector score returns results as an int.
          */
-        INT7(Byte.BYTES),
+        INT7U(Byte.SIZE),
+        /**
+         * 4-bit packed nibble. Two values per byte; single vector score returns results as an int.
+         */
+        INT4(4),
+        /**
+         * 1-byte int. Single vector score returns results as an int.
+         */
+        INT8(Byte.SIZE),
         /**
          * 4-byte float. Single vector score returns results as a float.
          */
-        FLOAT32(Float.BYTES);
+        FLOAT32(Float.SIZE);
 
-        private final int bytes;
+        private final int bits;
 
-        DataType(int bytes) {
-            this.bytes = bytes;
+        DataType(int bits) {
+            this.bits = bits;
         }
 
-        public int bytes() {
-            return bytes;
+        public int bits() {
+            return bits;
         }
     }
 
@@ -59,11 +71,15 @@ public interface VectorSimilarityFunctions {
         /**
          * 1-bit data, 4-bit queries
          */
-        I1I4((byte) 1),
+        D1Q4((byte) 1),
         /**
          * 2-bit data, 4-bit queries
          */
-        I2I4((byte) 2);
+        D2Q4((byte) 2),
+        /**
+         * 4-bit data, 4-bit queries
+         */
+        D4Q4((byte) 4);
 
         private final byte dataBits;
 
@@ -126,4 +142,10 @@ public interface VectorSimilarityFunctions {
     MethodHandle getHandle(Function function, DataType dataType, Operation operation);
 
     MethodHandle getHandle(Function function, BBQType bbqType, Operation operation);
+
+    MethodHandle applyCorrectionsEuclideanBulk();
+
+    MethodHandle applyCorrectionsMaxInnerProductBulk();
+
+    MethodHandle applyCorrectionsDotProductBulk();
 }

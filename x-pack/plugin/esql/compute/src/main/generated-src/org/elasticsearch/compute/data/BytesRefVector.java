@@ -22,7 +22,7 @@ import java.io.IOException;
  * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
 public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, BytesRefArrayVector, ConstantNullVector,
-    OrdinalBytesRefVector {
+    OrdinalBytesRefVector, org.elasticsearch.compute.data.arrow.BytesRefArrowBufVector {
     BytesRef getBytesRef(int position, BytesRef dest);
 
     @Override
@@ -35,7 +35,7 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
     OrdinalBytesRefVector asOrdinals();
 
     @Override
-    BytesRefVector filter(int... positions);
+    BytesRefVector filter(boolean mayContainDuplicates, int... positions);
 
     @Override
     BytesRefBlock keepMask(BooleanVector mask);

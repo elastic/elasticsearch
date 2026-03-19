@@ -25,9 +25,10 @@ import java.io.IOException;
  */
 $if(BytesRef)$
 public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock, ConstantNullBlock,
-    OrdinalBytesRefBlock {
+    OrdinalBytesRefBlock, org.elasticsearch.compute.data.arrow.BytesRefArrowBufBlock {
 $else$
-public sealed interface $Type$Block extends Block permits $Type$ArrayBlock, $Type$VectorBlock, ConstantNullBlock, $Type$BigArrayBlock {
+public sealed interface $Type$Block extends Block permits $Type$ArrayBlock, $Type$VectorBlock, ConstantNullBlock, $Type$BigArrayBlock,
+    org.elasticsearch.compute.data.arrow.$Type$ArrowBufBlock {
 $endif$
 
 $if(BytesRef)$
@@ -138,7 +139,7 @@ $elseif(boolean)$
 
 $endif$
     @Override
-    $Type$Block filter(int... positions);
+    $Type$Block filter(boolean mayContainDuplicates, int... positions);
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},

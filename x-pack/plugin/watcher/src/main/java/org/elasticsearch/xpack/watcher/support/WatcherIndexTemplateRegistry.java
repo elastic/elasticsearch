@@ -32,7 +32,22 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
 
     public static final String WATCHER_TEMPLATE_VERSION_VARIABLE = "xpack.watcher.template.version";
 
+    public static final IndexTemplateConfig WATCH_HISTORY_NO_ILM = new IndexTemplateConfig(
+        WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM,
+        "/watch-history-no-ilm.json",
+        WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION,
+        WATCHER_TEMPLATE_VERSION_VARIABLE
+    );
+
+    public static final IndexTemplateConfig WATCH_HISTORY_CONFIG = new IndexTemplateConfig(
+        WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME,
+        "/watch-history.json",
+        WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION,
+        WATCHER_TEMPLATE_VERSION_VARIABLE
+    );
+
     private final boolean ilmManagementEnabled;
+    private final Map<String, ComposableIndexTemplate> composableTemplates;
 
     public WatcherIndexTemplateRegistry(
         Settings nodeSettings,
@@ -43,29 +58,14 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
     ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
         ilmManagementEnabled = Watcher.USE_ILM_INDEX_MANAGEMENT.get(nodeSettings);
+        composableTemplates = ilmManagementEnabled
+            ? parseComposableTemplates(WATCH_HISTORY_CONFIG)
+            : parseComposableTemplates(WATCH_HISTORY_NO_ILM);
     }
-
-    private static final Map<String, ComposableIndexTemplate> TEMPLATES_WATCH_HISTORY = parseComposableTemplates(
-        new IndexTemplateConfig(
-            WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME,
-            "/watch-history.json",
-            WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION,
-            WATCHER_TEMPLATE_VERSION_VARIABLE
-        )
-    );
-
-    private static final Map<String, ComposableIndexTemplate> TEMPLATES_WATCH_HISTORY_NO_ILM = parseComposableTemplates(
-        new IndexTemplateConfig(
-            WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM,
-            "/watch-history-no-ilm.json",
-            WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION,
-            WATCHER_TEMPLATE_VERSION_VARIABLE
-        )
-    );
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        return ilmManagementEnabled ? TEMPLATES_WATCH_HISTORY : TEMPLATES_WATCH_HISTORY_NO_ILM;
+        return composableTemplates;
     }
 
     private static final LifecyclePolicyConfig LIFECYCLE_POLICIES = new LifecyclePolicyConfig(

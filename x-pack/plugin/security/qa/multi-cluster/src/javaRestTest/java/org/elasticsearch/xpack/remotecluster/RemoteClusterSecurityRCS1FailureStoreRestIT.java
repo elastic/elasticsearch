@@ -74,7 +74,7 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
           "indices": [
             {
               "names": ["test*"],
-              "privileges": ["read", "read_cross_cluster"]
+              "privileges": ["read"]
             }
           ]
         }""", FAILURE_STORE_ACCESS, """
@@ -82,7 +82,7 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
           "indices": [
             {
               "names": ["test*", "non-existing-index"],
-              "privileges": ["read", "read_cross_cluster", "read_failure_store"]
+              "privileges": ["read", "read_failure_store"]
             }
           ]
         }""", MANAGE_FAILURE_STORE_ACCESS, """
@@ -90,7 +90,7 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
           "indices": [
             {
               "names": ["test*", "non-existing-index"],
-              "privileges": ["manage_failure_store", "read_cross_cluster", "read_failure_store"]
+              "privileges": ["manage_failure_store", "read", "read_failure_store"]
             }
           ]
         }""", ALL_ACCESS, """
@@ -114,7 +114,7 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
           "indices": [
             {
               "names": [".ds-test*"],
-              "privileges": ["read", "read_cross_cluster"]
+              "privileges": ["read"]
             }
           ]
         }""", BACKING_FAILURE_STORE_INDEX_ACCESS, """
@@ -122,7 +122,7 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
           "indices": [
             {
               "names": [".fs-test*"],
-              "privileges": ["read", "read_cross_cluster"]
+              "privileges": ["read"]
             }
           ]
         }""");
@@ -142,7 +142,7 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
             },
             {
               "names": ["test*"],
-              "privileges": ["read", "read_cross_cluster"]
+              "privileges": ["read"]
             }
           ]
         }""", FAILURE_STORE_ACCESS, """
@@ -155,7 +155,7 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
             },
             {
               "names": ["test*", "non-existing-index"],
-              "privileges": ["read", "read_cross_cluster", "read_failure_store"]
+              "privileges": ["read", "read_failure_store"]
             }
           ]
         }""", MANAGE_FAILURE_STORE_ACCESS, """
@@ -168,7 +168,7 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
             },
             {
               "names": ["test*", "non-existing-index"],
-              "privileges": ["manage_failure_store", "read_cross_cluster", "read_failure_store"]
+              "privileges": ["manage_failure_store", "read", "read_failure_store"]
             }
           ]
         }""", ALL_ACCESS, """
@@ -195,7 +195,7 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
           "indices": [
             {
               "names": [".ds-test*"],
-              "privileges": ["read", "read_cross_cluster"]
+              "privileges": ["read"]
             }
           ]
         }""", BACKING_FAILURE_STORE_INDEX_ACCESS, """
@@ -204,7 +204,7 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
           "indices": [
             {
               "names": [".fs-test*"],
-              "privileges": ["read", "read_cross_cluster"]
+              "privileges": ["read"]
             }
           ]
         }""");

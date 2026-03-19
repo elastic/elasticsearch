@@ -681,8 +681,43 @@ public final class IndexSettings {
         Property.Final
     );
 
+    /**
+    * The {@link IndexMode "mode"} of the index.
+    */
+    public static final Setting<IndexMode> MODE = Setting.enumSetting(
+        IndexMode.class,
+        "index.mode",
+        IndexMode.STANDARD,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(IndexMode value) {}
+
+            @Override
+            public void validate(IndexMode value, Map<Setting<?>, Object> settings) {
+                value.validateWithOtherSettings(settings);
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return IndexMode.VALIDATE_WITH_SETTINGS.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
+    );
+
     public static final boolean TSDB_SYNTHETIC_ID_FEATURE_FLAG = new FeatureFlag("tsdb_synthetic_id").isEnabled();
-    public static final Setting<Boolean> SYNTHETIC_ID = Setting.boolSetting("index.mapping.synthetic_id", false, new Setting.Validator<>() {
+    public static final Setting<Boolean> SYNTHETIC_ID = Setting.boolSetting("index.mapping.synthetic_id", settings -> {
+        IndexVersion indexVersion = SETTING_INDEX_VERSION_CREATED.get(settings);
+        IndexMode indexMode = MODE.get(settings);
+        String codec = INDEX_CODEC_SETTING.get(settings);
+        boolean onByDefault = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT);
+        return TSDB_SYNTHETIC_ID_FEATURE_FLAG
+            && IndexMode.TIME_SERIES.equals(indexMode)
+            && CodecService.DEFAULT_CODEC.equalsIgnoreCase(codec)
+            && onByDefault ? Boolean.TRUE.toString() : Boolean.FALSE.toString();
+    }, new Setting.Validator<>() {
         @Override
         public void validate(Boolean enabled) {
             if (enabled) {
@@ -717,7 +752,7 @@ public final class IndexSettings {
                 }
 
                 var codecName = (String) settings.get(INDEX_CODEC_SETTING);
-                if (codecName.equals(CodecService.DEFAULT_CODEC) == false) {
+                if (codecName.equalsIgnoreCase(CodecService.DEFAULT_CODEC) == false) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,
@@ -729,59 +764,42 @@ public final class IndexSettings {
                         )
                     );
                 }
+
+                var indexVersion = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
+                if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94) == false
+                    && indexVersion.equals(IndexVersions.ZERO) == false) {
+                    // We validate settings in different places before a real indexVersion has been assigned or
+                    // is missing for other reasons. In those cases IndexVersion.ZERO is used as fallback value,
+                    // and we don't want to fail those validations. At index creation time we _will_ validate with
+                    // the creation version.
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion: [%s].",
+                            SYNTHETIC_ID.getKey(),
+                            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+                            indexVersion
+                        )
+                    );
+                }
             }
         }
 
         @Override
         public Iterator<Setting<?>> settings() {
-            List<Setting<?>> list = List.of(MODE, INDEX_CODEC_SETTING);
+            List<Setting<?>> list = List.of(MODE, INDEX_CODEC_SETTING, SETTING_INDEX_VERSION_CREATED);
             return list.iterator();
         }
     }, Property.IndexScope, Property.Final);
 
-    /**
-     * The {@link IndexMode "mode"} of the index.
-     */
-    public static final Setting<IndexMode> MODE = Setting.enumSetting(
-        IndexMode.class,
-        "index.mode",
-        IndexMode.STANDARD,
-        new Setting.Validator<>() {
-            @Override
-            public void validate(IndexMode value) {}
-
-            @Override
-            public void validate(IndexMode value, Map<Setting<?>, Object> settings) {
-                value.validateWithOtherSettings(settings);
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                return IndexMode.VALIDATE_WITH_SETTINGS.iterator();
-            }
-        },
-        Property.IndexScope,
-        Property.Final,
-        Property.ServerlessPublic
-    );
-
-    private static final boolean DOC_VALUES_SKIPPER = new FeatureFlag("doc_values_skipper").isEnabled();
     public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting("index.mapping.use_doc_values_skipper", s -> {
         IndexVersion iv = SETTING_INDEX_VERSION_CREATED.get(s);
         if (MODE.get(s) == IndexMode.TIME_SERIES) {
-            if (DOC_VALUES_SKIPPER && iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)) {
-                return "true";
-            }
             if (iv.onOrAfter(IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB)) {
                 return "true";
             }
             return "false";
         } else {
-            if (DOC_VALUES_SKIPPER
-                && iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)
-                && iv.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB)) {
-                return "true";
-            }
             return "false";
         }
     }, Property.IndexScope, Property.Final);
@@ -879,6 +897,14 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final FeatureFlag ALLOW_LARGE_BINARY_BLOCK_SIZE = new FeatureFlag("allow_large_binary_block_size");
+    public static final Setting<Boolean> USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE = Setting.boolSetting(
+        "index.use_time_series_doc_values_format_large_binary_block_size",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
      * TODO: Remove in 9.0
@@ -922,6 +948,19 @@ public final class IndexSettings {
      * occupy at most 4 bytes.
      */
 
+    /**
+     * Controls whether flattened fields store root-level doc values when the field has {@code index: false}.
+     * When a flattened field has indexing enabled (the default), root doc values are always stored regardless
+     * of this setting. When indexing is disabled, root doc values are omitted by default to save storage;
+     * set this to {@code true} to force storing them (e.g. if you rely on term aggregations over root values).
+     */
+    public static final Setting<Boolean> STORE_FLATTENED_ROOT_DOC_VALUES = Setting.boolSetting(
+        "index.mapping.flattened.store_root_doc_values",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting(
         "index.mapping.ignore_above",
         settings -> String.valueOf(getIgnoreAboveDefaultValue(settings)),
@@ -946,7 +985,8 @@ public final class IndexSettings {
         settings -> {
             final IndexMode indexMode = IndexSettings.MODE.get(settings);
             if ((indexMode == IndexMode.LOGSDB || indexMode == IndexMode.TIME_SERIES)
-                && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.SEQ_NO_WITHOUT_POINTS)) {
+                && (IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.SEQ_NO_WITHOUT_POINTS)
+                    || IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).equals(IndexVersions.ZERO))) {
                 return SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.toString();
             } else {
                 return SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES.toString();
@@ -966,12 +1006,87 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
+    public static final Setting<Boolean> DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING = Setting.boolSetting(
+        "index.dense_vector.experimental_features",
+        Build.current().isSnapshot(),
+        Property.IndexScope,
+        Property.Final
+    );
+
     public static final Setting<Boolean> INTRA_MERGE_PARALLELISM_ENABLED_SETTING = Setting.boolSetting(
         "index.merge.intra_merge_parallelism_enabled",
         // default to true with snapshot for now, false otherwise.
         Build.current().isSnapshot(),
         Property.IndexScope,
         Property.Dynamic
+    );
+
+    public static final boolean DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG = new FeatureFlag("disable_sequence_numbers").isEnabled();
+    public static final Setting<Boolean> DISABLE_SEQUENCE_NUMBERS = Setting.boolSetting(
+        "index.disable_sequence_numbers",
+        false,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean enabled) {
+                if (enabled && DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG == false) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "The setting [%s] is only permitted when the feature flag is enabled.",
+                            DISABLE_SEQUENCE_NUMBERS.getKey()
+                        )
+                    );
+                }
+            }
+
+            @Override
+            public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
+                if (enabled) {
+                    var indexVersion = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
+                    if (indexVersion.equals(IndexVersions.ZERO)) {
+                        // Settings are validated in different places before a real indexVersion has been assigned or is missing for other
+                        // reasons (eg. composable index templates). In those cases IndexVersion.ZERO is used as fallback value, and we
+                        // don't want to fail those validations so we return early here because the next two validation checks require
+                        // the IndexMetadata.SETTING_INDEX_VERSION_CREATED to be set. At index creation time we _will_ validate with the
+                        // creation version.
+                        return;
+                    }
+                    if (indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS) == false) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion: [%s].",
+                                DISABLE_SEQUENCE_NUMBERS.getKey(),
+                                IndexVersions.DISABLE_SEQUENCE_NUMBERS,
+                                indexVersion
+                            )
+                        );
+                    }
+                    // Sequence numbers cannot be trimmed for points, so we enforce doc values only usage
+                    var seqNoIndexOptions = (SeqNoFieldMapper.SeqNoIndexOptions) settings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
+                    if (seqNoIndexOptions != SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "The setting [%s] is only permitted when [%s] is set to [%s]. Current value: [%s].",
+                                DISABLE_SEQUENCE_NUMBERS.getKey(),
+                                SEQ_NO_INDEX_OPTIONS_SETTING.getKey(),
+                                SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY,
+                                seqNoIndexOptions
+                            )
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                List<Setting<?>> list = List.of(SETTING_INDEX_VERSION_CREATED, SEQ_NO_INDEX_OPTIONS_SETTING);
+                return list.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final
     );
 
     private final Index index;
@@ -1067,8 +1182,10 @@ public final class IndexSettings {
     private final boolean useDocValuesSkipperForHostname;
     private final boolean useTimeSeriesSyntheticId;
     private final boolean useTimeSeriesDocValuesFormat;
-    private final boolean useTimeSeriesDocValuesFormatLargeBlockSize;
+    private final boolean useTimeSeriesDocValuesFormatLargeNumericBlockSize;
+    private final boolean useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
     private final boolean useEs812PostingsFormat;
+    private final boolean disableSequenceNumbers;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -1184,6 +1301,14 @@ public final class IndexSettings {
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         mode = scopedSettings.get(MODE);
+        if (scopedSettings.get(DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING)
+            && DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.exists(indexMetadata.getSettings())) {
+            logger.warn(
+                "The setting [{}] is enabled; backwards compatibility is not guaranteed for index [{}]",
+                DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(),
+                index.getName()
+            );
+        }
         this.timestampBounds = mode.getTimestampBound(indexMetadata);
         if (timestampBounds != null) {
             scopedSettings.addSettingsUpdateConsumer(IndexSettings.TIME_SERIES_END_TIME, endTime -> {
@@ -1265,29 +1390,22 @@ public final class IndexSettings {
             : version.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && version.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
-        useTimeSeriesDocValuesFormatLargeBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
+        useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
+        useTimeSeriesDocValuesFormatLargeBinaryBlockSize = ALLOW_LARGE_BINARY_BLOCK_SIZE.isEnabled()
+            && scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
-        final var useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(SYNTHETIC_ID);
-        if (indexMetadata.useTimeSeriesSyntheticId() != useSyntheticId) {
+        useTimeSeriesSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(SYNTHETIC_ID);
+        if (indexMetadata.useTimeSeriesSyntheticId() != useTimeSeriesSyntheticId) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
                     "The setting [%s] is set to [%s] but index metadata has a different value [%s].",
                     SYNTHETIC_ID.getKey(),
-                    useSyntheticId,
+                    useTimeSeriesSyntheticId,
                     indexMetadata.useTimeSeriesSyntheticId()
                 )
             );
-        }
-        if (useSyntheticId) {
-            assert TSDB_SYNTHETIC_ID_FEATURE_FLAG;
-            assert indexMetadata.useTimeSeriesSyntheticId();
-            assert indexMetadata.getIndexMode() == IndexMode.TIME_SERIES : indexMetadata.getIndexMode();
-            assert indexMetadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);
-            useTimeSeriesSyntheticId = true;
-        } else {
-            useTimeSeriesSyntheticId = false;
         }
         if (recoverySourceSyntheticEnabled) {
             if (DiscoveryNode.isStateless(settings)) {
@@ -1310,6 +1428,7 @@ public final class IndexSettings {
                 );
             }
         }
+        disableSequenceNumbers = DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && DISABLE_SEQUENCE_NUMBERS.get(settings);
 
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
@@ -2006,7 +2125,7 @@ public final class IndexSettings {
 
     public IgnoredSourceFieldMapper.IgnoredSourceFormat getIgnoredSourceFormat() {
         if (getIndexMappingSourceMode() == SourceFieldMapper.Mode.SYNTHETIC) {
-            return IgnoredSourceFieldMapper.ignoredSourceFormat(getIndexVersionCreated());
+            return IgnoredSourceFieldMapper.ignoredSourceFormat(this);
         } else {
             return IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
         }
@@ -2054,8 +2173,18 @@ public final class IndexSettings {
     /**
      * @return Whether the time series doc value format with large numeric block size should be used.
      */
-    public boolean isUseTimeSeriesDocValuesFormatLargeBlockSize() {
-        return useTimeSeriesDocValuesFormatLargeBlockSize;
+    public boolean isUseTimeSeriesDocValuesFormatLargeNumericBlockSize() {
+        return useTimeSeriesDocValuesFormatLargeNumericBlockSize;
+    }
+
+    /**
+     * Checks if the time series DocValues format is configured to use a large binary block size.
+     *
+     * @return {@code true} if the time series DocValues format is using a large binary block size;
+     *         {@code false} otherwise.
+     */
+    public boolean isUseTimeSeriesDocValuesFormatLargeBinaryBlockSize() {
+        return useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
     }
 
     /**
@@ -2114,5 +2243,9 @@ public final class IndexSettings {
 
     private void setIntraMergeParallelismEnabled(boolean enabled) {
         this.intraMergeParallelismEnabled = enabled;
+    }
+
+    public boolean sequenceNumbersDisabled() {
+        return disableSequenceNumbers;
     }
 }

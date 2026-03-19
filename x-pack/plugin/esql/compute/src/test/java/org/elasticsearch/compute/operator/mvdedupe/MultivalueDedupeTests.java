@@ -583,9 +583,8 @@ public class MultivalueDedupeTests extends ESTestCase {
 
     private BlockFactory blockFactory() {
         MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        breakers.add(breaker);
-        return new BlockFactory(breaker, bigArrays);
+        breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
+        return BlockFactory.builder(bigArrays).build();
     }
 
     @After

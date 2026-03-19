@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -17,15 +18,23 @@ import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBytesRef;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.core.ReleasableIterator;
+import java.util.BitSet;
+// end generated imports
 
 /**
  * Maps a {@link BytesRefBlock} column to group ids.
@@ -203,25 +212,17 @@ final class BytesRefBlockHash extends BlockHash {
     }
 
     @Override
-    public BytesRefBlock[] getKeys() {
-        /*
-         * Create an un-owned copy of the data so we can close our BytesRefHash
-         * without and still read from the block.
-         */
+    public BytesRefBlock[] getKeys(IntVector selected) {
         // TODO replace with takeBytesRefsOwnership ?!
         final BytesRef spare = new BytesRef();
-        if (seenNull) {
-            try (var builder = blockFactory.newBytesRefBlockBuilder(Math.toIntExact(hash.size() + 1))) {
-                builder.appendNull();
-                for (long i = 0; i < hash.size(); i++) {
-                    builder.appendBytesRef(hash.get(i, spare));
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int groupId = selected.getInt(i);
+                if (groupId == 0) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBytesRef(hash.get(groupId - 1, spare));
                 }
-                return new BytesRefBlock[] { builder.build() };
-            }
-        }
-        try (var builder = blockFactory.newBytesRefBlockBuilder(Math.toIntExact(hash.size()))) {
-            for (long i = 0; i < hash.size(); i++) {
-                builder.appendBytesRef(hash.get(i, spare));
             }
             return new BytesRefBlock[] { builder.build() };
         }

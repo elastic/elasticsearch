@@ -20,7 +20,8 @@ import java.io.IOException;
  * Block that stores double values.
  * This class is generated. Edit {@code X-Block.java.st} instead.
  */
-public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, DoubleVectorBlock, ConstantNullBlock, DoubleBigArrayBlock {
+public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, DoubleVectorBlock, ConstantNullBlock, DoubleBigArrayBlock,
+    org.elasticsearch.compute.data.arrow.DoubleArrowBufBlock {
 
     /**
      * Retrieves the double value stored at the given value index.
@@ -84,7 +85,7 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
     DoubleVector asVector();
 
     @Override
-    DoubleBlock filter(int... positions);
+    DoubleBlock filter(boolean mayContainDuplicates, int... positions);
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},

@@ -83,7 +83,9 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
@@ -173,6 +175,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexingStatsSettings indexingStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
+    private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
 
     @SuppressWarnings("this-escape")
     public IndexService(
@@ -211,7 +214,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         MapperMetrics mapperMetrics,
         IndexingStatsSettings indexingStatsSettings,
         SearchStatsSettings searchStatsSettings,
-        MergeMetrics mergeMetrics
+        MergeMetrics mergeMetrics,
+        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder
     ) {
         super(indexSettings);
         assert indexCreationContext != IndexCreationContext.RELOAD_ANALYZERS
@@ -305,6 +309,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.indexingStatsSettings = indexingStatsSettings;
         this.searchStatsSettings = searchStatsSettings;
         this.mergeMetrics = mergeMetrics;
+        this.metricHolder = metricHolder;
         updateFsyncTaskIfNecessary();
     }
 
@@ -567,7 +572,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 directory,
                 lock,
                 new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)),
-                this.indexSettings.getIndexSortConfig().hasIndexSort()
+                this.indexSettings.getIndexSortConfig().hasIndexSort(),
+                metricHolder
             );
             eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(
@@ -878,7 +884,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public void updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) {
         if (mapperService != null) {
-            mapperService.updateMapping(currentIndexMetadata, newIndexMetadata);
+            // Mapper service re-parses the mapping here, potentially adding deprecation warning response headers, but we're in the process
+            // of applying the cluster state and have no way to send these warnings back to the client so we just drop them. We will have
+            // generated, and sent back, the same headers while handling the request that created this mapping in the first place.
+            try (var ignored = threadPool.getThreadContext().newStoredContext()) {
+                mapperService.updateMapping(currentIndexMetadata, newIndexMetadata);
+            }
         }
     }
 

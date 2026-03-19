@@ -17,6 +17,7 @@ public class AggregateWritables {
         return List.of(
             Avg.ENTRY,
             Count.ENTRY,
+            CountApproximate.ENTRY,
             CountDistinct.ENTRY,
             First.ENTRY,
             Max.ENTRY,
@@ -31,6 +32,7 @@ public class AggregateWritables {
             Delta.ENTRY,
             Deriv.ENTRY,
             Sample.ENTRY,
+            Scalar.ENTRY,
             SpatialCentroid.ENTRY,
             SpatialExtent.ENTRY,
             StdDev.ENTRY,

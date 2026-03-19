@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 143095
+summary: Enable doc-partitioning for more queries
+type: enhancement

@@ -450,6 +450,14 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
             .collect(Collectors.toMap(MockGcsBlobStore.BlobVersion::path, MockGcsBlobStore.BlobVersion::contents));
     }
 
+    /**
+     * Directly insert a blob into the mock store. Useful for pre-loading test fixtures
+     * without going through the HTTP API.
+     */
+    public void putBlob(String path, BytesReference contents) {
+        mockGcsBlobStore.updateBlob(path, null, contents);
+    }
+
     private static String httpServerUrl(final HttpExchange exchange) {
         return "http://" + exchange.getRequestHeaders().get("HOST").get(0);
     }

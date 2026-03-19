@@ -486,6 +486,11 @@ class ClientTransformIndexer extends TransformIndexer {
         closePointInTime(super::onStop);
     }
 
+    @Override
+    protected void onAbort() {
+        closePointInTime(super::onAbort);
+    }
+
     // visible for testing
     void closePointInTime(Runnable runAfter) {
         // we shouldn't need to do this, because a transform is only ever running on one thread anyway, but now that we're waiting for
@@ -550,8 +555,11 @@ class ClientTransformIndexer extends TransformIndexer {
 
         // no pit, create a new one
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(searchRequest.indices()).keepAlive(PIT_KEEP_ALIVE);
-        // use index filter for better performance
-        pitRequest.indexFilter(transformConfig.getSource().getQueryConfig().getQuery());
+        // Only use index filter when there are no runtime mappings, because OpenPointInTimeRequest
+        // does not support runtime_mappings and the query may reference runtime fields
+        if (transformConfig.getSource().getRuntimeMappings().isEmpty()) {
+            pitRequest.indexFilter(transformConfig.getSource().getQueryConfig().getQuery());
+        }
 
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),

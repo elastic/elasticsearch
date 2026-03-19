@@ -453,7 +453,12 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
                     .map(t -> round.apply((Number) t.v2()))
                     .sorted()
                     .collect(Collectors.toCollection(ArrayList::new));
-                values.stream().filter(v -> false == v.v2() instanceof Number).map(Tuple::v2).forEach(outList::add);
+                List<Object> malformed = values.stream()
+                    .filter(v -> false == v.v2() instanceof Number)
+                    .map(Tuple::v2)
+                    .sorted(SyntheticSourceMalformedValueSorter.comparator())
+                    .toList();
+                malformed.forEach(outList::add);
                 var out = outList.size() == 1 ? outList.get(0) : outList;
 
                 return new SyntheticSourceExample(in, out, this::mapping);
@@ -505,6 +510,47 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         return List.of(
             new SortShortcutSupport(this::minimalMapping, this::writeField, true),
             new SortShortcutSupport(IndexVersion.fromId(5000099), this::minimalMapping, this::writeField, false)
+        );
+    }
+
+    protected FieldMapper.DocValuesParameter.Values getDocValuesParameters(MapperService mapperService) {
+        NumberFieldMapper mapper = (NumberFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        return mapper.docValuesParameters();
+    }
+
+    public void testMultiValueSorted() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", "sorted").endObject();
+        }));
+        assertThat(
+            getDocValuesParameters(mapperService),
+            equalTo(
+                new FieldMapper.DocValuesParameter.Values(
+                    true,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED
+                )
+            )
+        );
+    }
+
+    public void testMultiValueDefaultIsSorted() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        assertThat(getDocValuesParameters(mapperService).multiValue(), equalTo(FieldMapper.DocValuesParameter.Values.MultiValue.SORTED));
+    }
+
+    public void testMultiValueSortedSetNotAllowed() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        var e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", "sorted_set").endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString("Unknown value [sorted_set] for field [multi_value] - accepted values are [no, sorted, arrays]")
         );
     }
 }

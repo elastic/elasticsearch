@@ -10,13 +10,13 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
 
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 /**
  * A request to cancel tasks
@@ -90,36 +90,25 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
             .append(getTargetTaskId())
             .append("], targetParentTaskId[")
             .append(getTargetParentTaskId())
-            .append("], nodes")
-            .append(truncatedArray(getNodes()))
-            .append(", actions")
-            .append(truncatedArray(getActions()));
+            .append("], nodes[");
+        appendBoundedArray(sb, getNodes());
+        sb.append(']');
+        sb.append(", actions[");
+        appendBoundedArray(sb, getActions());
+        sb.append(']');
 
         return sb.toString();
     }
 
-    private static String truncatedArray(String[] values) {
-        if (values == null) {
-            return "[]";
+    private static void appendBoundedArray(StringBuilder sb, String[] values) {
+        if (values == null || values.length == 0) {
+            return;
         }
 
-        int length = values.length;
-        if (length <= MAX_DESCRIPTION_ITEMS) {
-            return Arrays.toString(values);
+        var collector = new Strings.BoundedDelimitedStringCollector(sb, ", ", 1024);
+        for (String v : values) {
+            collector.appendItem(v);
         }
-
-        StringBuilder sb = new StringBuilder();
-        sb.append('[');
-
-        for (int i = 0; i < MAX_DESCRIPTION_ITEMS; i++) {
-            if (i > 0) {
-                sb.append(", ");
-            }
-            sb.append(values[i]);
-        }
-
-        sb.append(", ... (").append(length - MAX_DESCRIPTION_ITEMS).append(" more)]");
-
-        return sb.toString();
+        collector.finish();
     }
 }

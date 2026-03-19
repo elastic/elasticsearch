@@ -9,31 +9,20 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
 
 public class NdJsonSchemaInferrerTests extends ESTestCase {
 
     private Attribute field(String name, DataType type, boolean nullable) {
-        return new FieldAttribute(
-            Source.EMPTY,
-            null,
-            null,
-            name,
-            new EsField(name, type, Map.of(), false, null),
-            nullable ? Nullability.TRUE : Nullability.UNKNOWN,
-            null,
-            false
-        );
+        return new ReferenceAttribute(Source.EMPTY, null, name, type, nullable ? Nullability.TRUE : Nullability.UNKNOWN, null, false);
     }
 
     private Attribute field(String name, DataType type) {

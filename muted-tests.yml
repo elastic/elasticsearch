@@ -363,6 +363,9 @@ tests:
 - class: org.elasticsearch.index.mapper.BlockSourceReaderTests
   method: testSingle
   issue: https://github.com/elastic/elasticsearch/issues/144530
+- class: org.elasticsearch.index.mapper.BlockSourceReaderTests
+  method: testMissing
+  issue: https://github.com/elastic/elasticsearch/issues/144531
 
 # Examples:
 #

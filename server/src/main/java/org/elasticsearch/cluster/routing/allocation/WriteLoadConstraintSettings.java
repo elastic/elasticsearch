@@ -128,12 +128,12 @@ public class WriteLoadConstraintSettings {
     /**
      * The threshold over which we consider a single shard as carrying enough of the load, that trying to correct a
      * hotspot by relocating shards is not taken. This is phrased as a ratio. The production values should always
-     * be in [0.0, 1.0]
+     * be in [0.75, 1.0]. 0.0 turns this off
      */
-    public static final Setting<Double> WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_CONCENTRATION_THRESHOLD_SETTING = Setting.doubleSetting(
+    public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_CONCENTRATION_THRESHOLD_SETTING = new Setting<>(
         SETTING_PREFIX + "hotspot_utilization_concentration_threshold",
-        0.9,
-        0.0,
+        "0%",
+        RatioValue::parseRatioValue,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -183,7 +183,7 @@ public class WriteLoadConstraintSettings {
             hotspotUtilizationThresholdString = value.formatNoTrailingZerosPercent();
         });
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_CONCENTRATION_THRESHOLD_SETTING, value -> {
-            hotspotUtilizationConcentrationThreshold = value;
+            hotspotUtilizationConcentrationThreshold = value.getAsRatio();
         });
     }
 

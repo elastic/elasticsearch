@@ -686,7 +686,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                     WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
                     WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
                 )
-                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_CONCENTRATION_THRESHOLD_SETTING.getKey(), 0.9)
+                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_CONCENTRATION_THRESHOLD_SETTING.getKey(), "90%")
                 .build()
         );
 
@@ -758,6 +758,27 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         moveDecision = writeLoadDecider.canRemain(indexMetadata, lowShardRouting, routingNode, routingAllocation);
         assertEquals(Decision.Type.YES, moveDecision.type());
         assertThat(moveDecision.getExplanation(), matchesPattern(explanationRegex));
+
+        // retry test, but turn off setting with a 0 value
+        var writeLoadDeciderConcentrationDisabled = createWriteLoadConstraintDecider(
+            Settings.builder()
+                .put(
+                    WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                    WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+                )
+                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_CONCENTRATION_THRESHOLD_SETTING.getKey(), "0%")
+                .build()
+        );
+
+        assertEquals(
+            Decision.Type.NOT_PREFERRED,
+            writeLoadDeciderConcentrationDisabled.canRemain(indexMetadata, highShardRouting, routingNode, routingAllocation).type()
+        );
+
+        assertEquals(
+            Decision.Type.NOT_PREFERRED,
+            writeLoadDeciderConcentrationDisabled.canRemain(indexMetadata, lowShardRouting, routingNode, routingAllocation).type()
+        );
 
         // retry test, with proportions under the threshold
         scalar = randomDoubleBetween(0.1, 20.0, true);

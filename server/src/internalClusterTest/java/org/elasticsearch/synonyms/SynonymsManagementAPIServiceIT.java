@@ -11,6 +11,7 @@ package org.elasticsearch.synonyms;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
@@ -117,21 +118,62 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         putLatch.await(5, TimeUnit.SECONDS);
 
         CountDownLatch getLatch = new CountDownLatch(1);
-        assertBusy(() -> {
-            scrollService.getSynonymSetRules(synonymSetId, new ActionListener<>() {
-                @Override
-                public void onResponse(PagedResult<SynonymRule> synonymRulePagedResult) {
-                    assertEquals(rulesNumber, synonymRulePagedResult.totalResults());
-                    assertEquals(rulesNumber, synonymRulePagedResult.pageResults().length);
-                    getLatch.countDown();
-                }
+        scrollService.getSynonymSetRules(synonymSetId, new ActionListener<>() {
+            @Override
+            public void onResponse(PagedResult<SynonymRule> synonymRulePagedResult) {
+                assertEquals(rulesNumber, synonymRulePagedResult.totalResults());
+                assertEquals(rulesNumber, synonymRulePagedResult.pageResults().length);
+                getLatch.countDown();
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    fail(e);
-                }
-            });
-        }, 5, TimeUnit.SECONDS);
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+        });
+
+        getLatch.await(10, TimeUnit.SECONDS);
+    }
+
+    public void testScrollCapEnforcedWhenRulesExceedLimit() throws Exception {
+        // This tests the case where there is no write limit or someone
+        // has bypassed the write limit.
+        int scrollBatchSize = randomIntBetween(2, 5);
+        int maxRules = scrollBatchSize * randomIntBetween(2, 4);
+        int rulesNumber = maxRules + randomIntBetween(1, scrollBatchSize);
+        SynonymsManagementAPIService scrollService = new SynonymsManagementAPIService(client(), maxRules, scrollBatchSize);
+
+        String synonymSetId = randomIdentifier();
+        // Use bulkUpdateSynonymsSet to bypass the write-time limit check so we can store more than maxRules
+        CountDownLatch putLatch = new CountDownLatch(1);
+        scrollService.bulkUpdateSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber, rulesNumber), new ActionListener<>() {
+            @Override
+            public void onResponse(BulkResponse bulkResponse) {
+                assertFalse(bulkResponse.hasFailures());
+                putLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+        });
+        putLatch.await(5, TimeUnit.SECONDS);
+
+        CountDownLatch getLatch = new CountDownLatch(1);
+        scrollService.getSynonymSetRules(synonymSetId, new ActionListener<>() {
+            @Override
+            public void onResponse(PagedResult<SynonymRule> result) {
+                assertEquals(rulesNumber, result.totalResults());  // true total from index
+                assertEquals(maxRules, result.pageResults().length);  // capped at limit
+                getLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+        });
 
         getLatch.await(10, TimeUnit.SECONDS);
     }

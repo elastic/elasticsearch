@@ -290,6 +290,13 @@ public class SynonymsManagementAPIService {
                     }));
                     return;
                 }
+                if (totalHits > maxSynonymsSets) {
+                    logger.warn(
+                        "The number of synonym rules in the synonym set [{}] exceeds the maximum allowed."
+                            + " Inconsistent synonyms results may occur",
+                        synonymSetId
+                    );
+                }
                 scrollAllRules(initialResponse.getScrollId(), scrollTimeout, totalHits, new ArrayList<>(), initialResponse, l);
             }));
     }
@@ -304,8 +311,20 @@ public class SynonymsManagementAPIService {
         SearchResponse searchResponse,
         ActionListener<PagedResult<SynonymRule>> listener
     ) {
-        for (SearchHit hit : searchResponse.getHits().getHits()) {
-            accumulated.add(sourceMapToSynonymRule(hit.getSourceAsMap()));
+        try {
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                accumulated.add(sourceMapToSynonymRule(hit.getSourceAsMap()));
+                if (accumulated.size() >= maxSynonymsSets) {
+                    // Cap reached: return what we have and release the scroll context
+                    clearScrollSilently(scrollId);
+                    listener.onResponse(new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0])));
+                    return;
+                }
+            }
+        } catch (Exception e) {
+            clearScrollSilently(scrollId);
+            listener.onFailure(e);
+            return;
         }
 
         if (searchResponse.getHits().getHits().length == 0) {

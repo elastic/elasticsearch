@@ -223,7 +223,10 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
     }
 
     public void testRemoteWriteWithInvalidCustomNamespaceReturns400() throws Exception {
-        String body = sendAndAssertBadRequest(simpleWriteRequest("invalid_namespace_metric"), "/_prometheus/metrics/myapp/foo:bar/api/v1/write");
+        String body = sendAndAssertBadRequest(
+            simpleWriteRequest("invalid_namespace_metric"),
+            "/_prometheus/metrics/myapp/foo:bar/api/v1/write"
+        );
         assertThat(body, containsString("data stream namespace 'foo:bar' contains disallowed characters, must conform to regex ["));
     }
 

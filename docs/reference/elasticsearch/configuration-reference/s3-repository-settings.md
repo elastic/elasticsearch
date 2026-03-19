@@ -20,7 +20,18 @@ For step-by-step setup instructions, refer to [S3 repository](docs-content://dep
 
 ## Client settings [repository-s3-client-settings]
 
-The S3 client used to connect to S3 has a number of available settings. The settings have the form `s3.client.CLIENT_NAME.SETTING_NAME`. By default, `s3` repositories use a client named `default`, but this can be modified using the [repository setting](#repository-s3-repository-settings) `client`.
+The S3 client used to connect to S3 has a number of available settings. The settings have the form `s3.client.CLIENT_NAME.SETTING_NAME`. By default, `s3` repositories use a client named `default`, but this can be modified using the [repository setting](#repository-s3-repository-settings) `client`. For example, to use an S3 client named `my-alternate-client`, register the repository as follows:
+
+```console
+PUT _snapshot/my_s3_repository
+{
+  "type": "s3",
+  "settings": {
+    "bucket": "my-bucket",
+    "client": "my-alternate-client"
+  }
+}
+```
 
 Most client settings can be added to the [`elasticsearch.yml`](docs-content://deploy-manage/stack-settings.md) configuration file with the exception of the secure settings, which you add to the {{es}} keystore. For more information about creating and updating the {{es}} keystore, refer to [Secure settings](docs-content://deploy-manage/security/secure-settings.md).
 

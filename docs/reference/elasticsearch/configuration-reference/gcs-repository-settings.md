@@ -22,6 +22,19 @@ For step-by-step setup instructions, refer to [Google Cloud Storage repository](
 
 The client used to connect to Google Cloud Storage has a number of available settings. Client setting names are of the form `gcs.client.CLIENT_NAME.SETTING_NAME` and are specified inside [`elasticsearch.yml`](docs-content://deploy-manage/stack-settings.md). The default client name looked up by a `gcs` repository is called `default`, but can be customized with the repository setting `client`.
 
+For example:
+
+```console
+PUT _snapshot/my_gcs_repository
+{
+  "type": "gcs",
+  "settings": {
+    "bucket": "my_bucket",
+    "client": "my_alternate_client"
+  }
+}
+```
+
 Some settings are sensitive and must be stored in the [{{es}} keystore](docs-content://deploy-manage/security/secure-settings.md). This is the case for the service account file:
 
 ```sh

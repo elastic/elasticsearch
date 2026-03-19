@@ -68,12 +68,7 @@ public class IndexResolver {
     public static final IndicesOptions DEFAULT_OPTIONS = IndicesOptions.builder()
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
         .wildcardOptions(
-            IndicesOptions.WildcardOptions.builder()
-                .matchOpen(true)
-                .matchClosed(false)
-                .includeHidden(false)
-                .allowEmptyExpressions(true)
-                .resolveAliases(true)
+            IndicesOptions.WildcardOptions.builder().matchOpen(true).matchClosed(false).includeHidden(false).allowEmptyExpressions(true)
         )
         .gatekeeperOptions(
             IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).allowClosedIndices(true).allowAliasToMultipleIndices(true)

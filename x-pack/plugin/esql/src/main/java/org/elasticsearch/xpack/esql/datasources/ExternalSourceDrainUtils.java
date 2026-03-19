@@ -19,17 +19,21 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
  */
 public final class ExternalSourceDrainUtils {
 
-    private static final TimeValue DRAIN_TIMEOUT = TimeValue.timeValueMinutes(5);
+    static final TimeValue DEFAULT_DRAIN_TIMEOUT = TimeValue.timeValueMinutes(5);
 
     private ExternalSourceDrainUtils() {}
 
     public static void drainPages(CloseableIterator<Page> pages, AsyncExternalSourceBuffer buffer) {
+        drainPages(pages, buffer, DEFAULT_DRAIN_TIMEOUT);
+    }
+
+    public static void drainPages(CloseableIterator<Page> pages, AsyncExternalSourceBuffer buffer, TimeValue timeout) {
         while (pages.hasNext() && buffer.noMoreInputs() == false) {
             var spaceListener = buffer.waitForSpace();
             if (spaceListener.isDone() == false) {
                 PlainActionFuture<Void> future = new PlainActionFuture<>();
                 spaceListener.addListener(future);
-                future.actionGet(DRAIN_TIMEOUT);
+                future.actionGet(timeout);
             }
             if (buffer.noMoreInputs()) {
                 break;
@@ -41,10 +45,19 @@ public final class ExternalSourceDrainUtils {
     }
 
     public static int drainPagesWithBudget(CloseableIterator<Page> pages, AsyncExternalSourceBuffer buffer) {
-        return drainPagesWithBudget(pages, buffer, FormatReader.NO_LIMIT);
+        return drainPagesWithBudget(pages, buffer, FormatReader.NO_LIMIT, DEFAULT_DRAIN_TIMEOUT);
     }
 
     public static int drainPagesWithBudget(CloseableIterator<Page> pages, AsyncExternalSourceBuffer buffer, int rowLimit) {
+        return drainPagesWithBudget(pages, buffer, rowLimit, DEFAULT_DRAIN_TIMEOUT);
+    }
+
+    public static int drainPagesWithBudget(
+        CloseableIterator<Page> pages,
+        AsyncExternalSourceBuffer buffer,
+        int rowLimit,
+        TimeValue timeout
+    ) {
         int totalRows = 0;
         while (pages.hasNext() && buffer.noMoreInputs() == false) {
             if (rowLimit != FormatReader.NO_LIMIT && totalRows >= rowLimit) {
@@ -54,7 +67,7 @@ public final class ExternalSourceDrainUtils {
             if (spaceListener.isDone() == false) {
                 PlainActionFuture<Void> future = new PlainActionFuture<>();
                 spaceListener.addListener(future);
-                future.actionGet(DRAIN_TIMEOUT);
+                future.actionGet(timeout);
             }
             if (buffer.noMoreInputs()) {
                 break;

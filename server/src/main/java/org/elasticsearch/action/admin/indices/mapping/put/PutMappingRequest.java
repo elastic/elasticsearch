@@ -68,12 +68,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     private IndicesOptions indicesOptions = IndicesOptions.builder()
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
         .wildcardOptions(
-            IndicesOptions.WildcardOptions.builder()
-                .matchOpen(true)
-                .matchClosed(true)
-                .includeHidden(false)
-                .allowEmptyExpressions(false)
-                .resolveAliases(true)
+            IndicesOptions.WildcardOptions.builder().matchOpen(true).matchClosed(true).includeHidden(false).allowEmptyExpressions(false)
         )
         .gatekeeperOptions(
             IndicesOptions.GatekeeperOptions.builder()

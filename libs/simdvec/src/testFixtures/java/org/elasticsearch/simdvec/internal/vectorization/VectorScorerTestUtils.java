@@ -9,18 +9,35 @@
 
 package org.elasticsearch.simdvec.internal.vectorization;
 
+import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorsFormat;
+import org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.VectorScorer;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Random;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class VectorScorerTestUtils {
+
+    public static int[] generateFilteredOffsets(Random random, int numVectors, int filteredVectors) {
+        var allOffsets = IntStream.range(0, numVectors).boxed().collect(Collectors.toList());
+        for (int i = 0; i < filteredVectors; i++) {
+            int allOffsetsLength = allOffsets.size();
+            allOffsets.remove(random.nextInt(0, allOffsetsLength));
+        }
+        return allOffsets.stream().mapToInt(i -> i).toArray();
+    }
 
     public record VectorData(
         byte[] vector,
@@ -208,6 +225,158 @@ public class VectorScorerTestUtils {
         }
         if (vectorSimilarityFunction != VectorSimilarityFunction.EUCLIDEAN) {
             VectorUtil.l2normalize(vector);
+        }
+    }
+
+    public static void randomInt4Bytes(Random random, byte[] bytes) {
+        for (int i = 0, len = bytes.length; i < len;) {
+            bytes[i++] = (byte) random.nextInt(0, 16);
+        }
+    }
+
+    public static void writePackedVectorWithCorrection(
+        IndexOutput out,
+        byte[] packed,
+        org.apache.lucene.util.quantization.OptimizedScalarQuantizer.QuantizationResult correction
+    ) throws IOException {
+        out.writeBytes(packed, 0, packed.length);
+        out.writeInt(Float.floatToIntBits(correction.lowerInterval()));
+        out.writeInt(Float.floatToIntBits(correction.upperInterval()));
+        out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
+        out.writeInt(correction.quantizedComponentSum());
+    }
+
+    /**
+     * Creates a disk-backed {@link QuantizedByteVectorValues} for int4 (PACKED_NIBBLE) vectors.
+     * The data must have been written via {@link #writePackedVectorWithCorrection}.
+     */
+    public static QuantizedByteVectorValues createDenseInt4VectorValues(
+        int dims,
+        int size,
+        float[] centroid,
+        float centroidDp,
+        IndexInput in,
+        VectorSimilarityFunction sim
+    ) throws IOException {
+        var slice = in.slice("values", 0, in.length());
+        return new DenseOffHeapInt4VectorValues(dims, size, sim, slice, centroid, centroidDp);
+    }
+
+    @SuppressForbidden(reason = "require usage of OptimizedScalarQuantizer")
+    private static org.apache.lucene.util.quantization.OptimizedScalarQuantizer luceneScalarQuantizer(VectorSimilarityFunction sim) {
+        return new org.apache.lucene.util.quantization.OptimizedScalarQuantizer(sim);
+    }
+
+    private static class DenseOffHeapInt4VectorValues extends QuantizedByteVectorValues {
+        final int dimension;
+        final int size;
+        final VectorSimilarityFunction similarityFunction;
+
+        final IndexInput slice;
+        final byte[] vectorValue;
+        final ByteBuffer byteBuffer;
+        final int byteSize;
+        private int lastOrd = -1;
+        final float[] correctiveValues;
+        int quantizedComponentSum;
+        final float[] centroid;
+        final float centroidDp;
+
+        DenseOffHeapInt4VectorValues(
+            int dimension,
+            int size,
+            VectorSimilarityFunction similarityFunction,
+            IndexInput slice,
+            float[] centroid,
+            float centroidDp
+        ) {
+            this.dimension = dimension;
+            this.size = size;
+            this.similarityFunction = similarityFunction;
+            this.slice = slice;
+            this.centroid = centroid;
+            this.centroidDp = centroidDp;
+            this.correctiveValues = new float[3];
+            this.byteSize = dimension / 2 + (Float.BYTES * 3) + Integer.BYTES;
+            this.byteBuffer = ByteBuffer.allocate(dimension / 2);
+            this.vectorValue = byteBuffer.array();
+        }
+
+        @Override
+        public IndexInput getSlice() {
+            return slice;
+        }
+
+        @Override
+        public org.apache.lucene.util.quantization.OptimizedScalarQuantizer.QuantizationResult getCorrectiveTerms(int vectorOrd)
+            throws IOException {
+            if (lastOrd != vectorOrd) {
+                slice.seek((long) vectorOrd * byteSize);
+                slice.readBytes(byteBuffer.array(), byteBuffer.arrayOffset(), vectorValue.length);
+                slice.readFloats(correctiveValues, 0, 3);
+                quantizedComponentSum = slice.readInt();
+                lastOrd = vectorOrd;
+            }
+            return new org.apache.lucene.util.quantization.OptimizedScalarQuantizer.QuantizationResult(
+                correctiveValues[0],
+                correctiveValues[1],
+                correctiveValues[2],
+                quantizedComponentSum
+            );
+        }
+
+        @Override
+        public org.apache.lucene.util.quantization.OptimizedScalarQuantizer getQuantizer() {
+            return luceneScalarQuantizer(similarityFunction);
+        }
+
+        @Override
+        public Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding getScalarEncoding() {
+            return Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.PACKED_NIBBLE;
+        }
+
+        @Override
+        public float[] getCentroid() {
+            return centroid;
+        }
+
+        @Override
+        public float getCentroidDP() {
+            return centroidDp;
+        }
+
+        @Override
+        public VectorScorer scorer(float[] query) {
+            assert false;
+            return null;
+        }
+
+        @Override
+        public byte[] vectorValue(int ord) throws IOException {
+            if (lastOrd == ord) {
+                return vectorValue;
+            }
+            slice.seek((long) ord * byteSize);
+            slice.readBytes(byteBuffer.array(), byteBuffer.arrayOffset(), vectorValue.length);
+            slice.readFloats(correctiveValues, 0, 3);
+            quantizedComponentSum = slice.readInt();
+            lastOrd = ord;
+            return vectorValue;
+        }
+
+        @Override
+        public int dimension() {
+            return dimension;
+        }
+
+        @Override
+        public int size() {
+            return size;
+        }
+
+        @Override
+        public QuantizedByteVectorValues copy() throws IOException {
+            return new DenseOffHeapInt4VectorValues(dimension, size, similarityFunction, slice.clone(), centroid, centroidDp);
         }
     }
 }

@@ -2337,6 +2337,11 @@ public class EsqlCapabilities {
          */
         CHANGE_POINT_SUPPORT_NULL_COLUMN,
 
+        /**
+         * MMR fixes for constant folding
+         */
+        MMR_FOLDABLE_QUERY_VECTOR_FIX,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

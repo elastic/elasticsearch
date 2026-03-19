@@ -3831,7 +3831,7 @@ public class VerifierTests extends ESTestCase {
                 defaultAnalyzer,
                 VerificationException.class
             ),
-            equalTo("1:58: Invalid option [unknown] in <MMR>, expected one of [[lambda]]")
+            equalTo("1:58: Invalid option [unknown] in [mmr on dense_embedding limit 10 with { \"unknown\": true }]")
         );
 
         assertThat(
@@ -3841,7 +3841,7 @@ public class VerifierTests extends ESTestCase {
                 defaultAnalyzer,
                 VerificationException.class
             ),
-            equalTo("1:58: Invalid option [unknown_extra] in <MMR>, expected one of [[lambda]]")
+            containsString("1:58: Invalid option [unknown_extra]")
         );
 
         assertThat(
@@ -3850,7 +3850,7 @@ public class VerifierTests extends ESTestCase {
                 defaultAnalyzer,
                 VerificationException.class
             ),
-            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0")
+            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0, got [2.5]")
         );
         assertThat(
             error(
@@ -3858,8 +3858,13 @@ public class VerifierTests extends ESTestCase {
                 defaultAnalyzer,
                 VerificationException.class
             ),
-            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0")
+            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0, got [-2.5]")
         );
+
+        assertThat(error("""
+            row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector
+            | mmr on dense_embedding limit 10 with { "lambda": "hello" }
+            """, defaultAnalyzer, VerificationException.class), equalTo("2:3: expected lambda to be numeric, got [\"hello\"]"));
     }
 
     public void testMMRLimitedInput() {

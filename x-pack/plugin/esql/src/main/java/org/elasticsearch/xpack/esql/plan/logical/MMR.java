@@ -174,7 +174,7 @@ public class MMR extends UnaryPlan
                     failures.add(fail(this, "MMR lambda value must be a number between 0.0 and 1.0, got [" + value.sourceText() + "]"));
                 }
             } else {
-                failures.add(new Failure(this, "unknown option [" + key + "] in [" + this.sourceText() + "]"));
+                failures.add(new Failure(this, "Invalid option [" + key + "] in [" + this.sourceText() + "]"));
             }
         });
     }

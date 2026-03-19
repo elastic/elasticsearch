@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.esql.qa.multi_node;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 
 import java.nio.file.Path;
-import org.elasticsearch.test.cluster.util.resource.Resource;
 
 public class Clusters {
     public static ElasticsearchCluster testCluster(LocalClusterConfigProvider configProvider) {

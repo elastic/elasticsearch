@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.REINITIALIZED;
@@ -78,6 +79,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
     // max heap size per node ID
     final Map<String, ByteSizeValue> maxHeapSizePerNode;
     final Set<String> nodeIdsWriteLoadHotspotting;
+    // largest shard's write load proportion on a node, computed as an online cache
+    final Map<String, Double> nodeMaxShardWriteLoadProportionCache;
     private final Map<ShardId, Set<String>> shardToNodeIds;
 
     protected ClusterInfo() {
@@ -158,6 +161,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         this.shardWriteLoads = Map.copyOf(shardWriteLoads);
         this.maxHeapSizePerNode = Map.copyOf(maxHeapSizePerNode);
         this.nodeIdsWriteLoadHotspotting = Set.copyOf(nodeIdsWriteLoadHotspotting);
+        this.nodeMaxShardWriteLoadProportionCache = new HashMap<>(nodeIdsWriteLoadHotspotting.size());
         this.shardToNodeIds = shardToNodeIds;
     }
 
@@ -198,6 +202,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         } else {
             this.estimatedShardHeapUsages = Map.of();
         }
+        this.nodeMaxShardWriteLoadProportionCache = new HashMap<>(this.nodeIdsWriteLoadHotspotting.size());
         this.shardToNodeIds = computeShardToNodeIds(dataPath);
     }
 
@@ -441,6 +446,10 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
 
     public boolean nodeIsWriteLoadHotspotting(String nodeId) {
         return nodeIdsWriteLoadHotspotting.contains(nodeId);
+    }
+
+    public double nodeMaxShardWriteLoadProportion(String nodeId, Supplier<Double> computeIfMissing) {
+        return nodeMaxShardWriteLoadProportionCache.computeIfAbsent(nodeId, key -> computeIfMissing.get());
     }
 
     /**

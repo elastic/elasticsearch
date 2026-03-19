@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardMovementWriteLoadSimulator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.common.FrequencyCappedAction;
@@ -24,7 +25,13 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Decides whether shards can be allocated to cluster nodes, or can remain on cluster nodes, based on the target node's current write thread
@@ -62,6 +69,28 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         var nodeWriteThreadPoolStats = nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
         return nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis() >= hotspotQueueLatencyThreshold.millis()
             && nodeWriteThreadPoolStats.averageThreadPoolUtilization() >= hotspotUtilizationThreshold;
+    }
+
+    public static double maxShardHotspottingProportion(
+        List<ShardId> assignedShardIds,
+        Map<ShardId, Double> shardWriteLoads
+    ) {
+        double totalWriteLoad = 0.0;
+        double maxSingleShardWriteLoad = 0.0;
+        for (ShardId shardId : assignedShardIds) {
+            double shardWriteLoad = shardWriteLoads.getOrDefault(shardId, 0.0);
+            totalWriteLoad += shardWriteLoad;
+            if (shardWriteLoad > maxSingleShardWriteLoad) {
+                maxSingleShardWriteLoad = shardWriteLoad;
+            }
+        }
+
+        if (totalWriteLoad > 0.0) {
+            return Math.min(maxSingleShardWriteLoad / totalWriteLoad, 1.0);
+        } else {
+            // no shards or some issue -- return 0.0
+            return 0.0;
+        }
     }
 
     @Override
@@ -172,7 +201,25 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             nodeWriteThreadPoolUtilizationThreshold
         );
 
-        if (nodeIsHotspotting) {
+        // hotspotting proportion is computed only for hotspotting nodes, and cached within cluster info with
+        // nodeMaxShardWriteLoadProportion so it is only computed once
+        final Supplier<Boolean> nodeIsHotspottingOnSingleShard = () -> {
+            double maxShardWriteLoadProportion = allocation.clusterInfo().nodeMaxShardWriteLoadProportion(
+                node.nodeId(),
+                // compute cache entry if absent
+                () -> {
+                    List<ShardId> shardIds = node.shardsWithState(ShardRoutingState.STARTED)
+                        .map(startedShardRouting -> startedShardRouting.shardId())
+                        .collect(Collectors.toList());
+
+                    return maxShardHotspottingProportion(
+                        shardIds,
+                        allocation.clusterInfo().getShardWriteLoads());
+                });
+            return maxShardWriteLoadProportion >= writeLoadConstraintSettings.getHotspotUtilizationConcentrationThreshold();
+        };
+
+        if (nodeIsHotspotting && nodeIsHotspottingOnSingleShard.get() == false) {
             if (logger.isDebugEnabled() || allocation.debugDecision()) {
                 final Double shardWriteLoad = getShardWriteLoad(allocation, shardRouting);
                 final String explain = Strings.format(

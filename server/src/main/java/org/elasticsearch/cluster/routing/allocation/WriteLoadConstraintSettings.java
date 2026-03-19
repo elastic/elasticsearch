@@ -126,6 +126,19 @@ public class WriteLoadConstraintSettings {
     );
 
     /**
+     * The threshold over which we consider a single shard as carrying enough of the load, that trying to correct a
+     * hotspot by relocating shards is not taken. This is phrased as a ratio. The production values should always
+     * be in [0.0, 1.0]
+     */
+    public static final Setting<Double> WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_CONCENTRATION_THRESHOLD_SETTING = Setting.doubleSetting(
+        SETTING_PREFIX + "hotspot_utilization_concentration_threshold",
+        0.9,
+        0.0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * The minimum amount of time between successive calls to reroute to address write load hot-spots
      */
     public static final Setting<TimeValue> WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING = Setting.timeSetting(
@@ -151,6 +164,7 @@ public class WriteLoadConstraintSettings {
     private volatile TimeValue queueLatencyThreshold;
     private volatile double hotspotUtilizationThreshold;
     private volatile String hotspotUtilizationThresholdString;
+    private volatile double hotspotUtilizationConcentrationThreshold;
 
     public WriteLoadConstraintSettings(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, status -> this.writeLoadDeciderStatus = status);
@@ -167,6 +181,9 @@ public class WriteLoadConstraintSettings {
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING, value -> {
             hotspotUtilizationThreshold = value.getAsRatio();
             hotspotUtilizationThresholdString = value.formatNoTrailingZerosPercent();
+        });
+        clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_CONCENTRATION_THRESHOLD_SETTING, value -> {
+            hotspotUtilizationConcentrationThreshold = value;
         });
     }
 
@@ -196,6 +213,14 @@ public class WriteLoadConstraintSettings {
 
     public String getHotspotUtilizationThresholdString() {
         return this.hotspotUtilizationThresholdString;
+    }
+
+    /**
+     * @return The utilization concentration threshold as a ratio in [0, 1] for use in checking whether a hotspot
+     * is too concentrated on a single shard for correction with shard movement
+     */
+    public double getHotspotUtilizationConcentrationThreshold() {
+        return this.hotspotUtilizationConcentrationThreshold;
     }
 
     /**

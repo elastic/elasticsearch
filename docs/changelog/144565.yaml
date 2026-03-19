@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
-pr: 144479
+pr: 144565
 summary: Fix NullPointerException in ESQL field extraction when source attribute is null
 type: bug

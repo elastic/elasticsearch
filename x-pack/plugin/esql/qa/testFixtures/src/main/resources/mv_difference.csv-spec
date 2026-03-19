@@ -52,7 +52,7 @@ valuesA:keyword      | valuesB:keyword | result:keyword
 [a,a,b,c,c,d]        | [b, c]          | [a,a,d]          
 ;
 
-mvDifference_dedup1
+mvDifference_dedup2
 required_capability: fn_mv_difference
 ROW valuesA = [1,2,2,3,4,5,6,6,6], valuesB = [2,3]
 | EVAL result = mv_difference(valuesA, valuesB)

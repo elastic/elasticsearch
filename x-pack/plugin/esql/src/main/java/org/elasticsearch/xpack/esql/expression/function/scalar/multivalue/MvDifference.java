@@ -15,28 +15,27 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram;
@@ -45,9 +44,12 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
  * Adds a function that takes two multivalued expressions that return a result where the values of the first multivalued expression are
  * returned except for values that exist as a value in the second expression.
  *
+ * The multivalued expressions are interpreted as sets, but the order of the first parameter is maintained.
+ * Duplicates, however, are removed.
+ *
  * a = ["a","b","c"] b = ["b"] MV_DIFFERENCE(a,b) => ["a","c"]
  */
-public class MvDifference extends BinaryScalarFunction implements EvaluatorMapper {
+public class MvDifference extends MvSetOperationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MvDifference",
@@ -103,7 +105,7 @@ public class MvDifference extends BinaryScalarFunction implements EvaluatorMappe
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression. If null, the function returns null."
+            description = "Expression that can be null, a single value, or multiple values. If null, the function returns null."
         ) Expression field1,
         @Param(
             name = "field2",
@@ -126,62 +128,40 @@ public class MvDifference extends BinaryScalarFunction implements EvaluatorMappe
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression. If null, the function returns field1."
+            description = "Expression that can be null, a single value, or multiple values. If null, the function returns field1."
         ) Expression field2
     ) {
         super(source, field1, field2);
     }
 
     private MvDifference(StreamInput in) throws IOException {
-        super(in);
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
     @Evaluator(extraName = "Boolean")
     static void process(BooleanBlock.Builder builder, @Position int position, BooleanBlock field1, BooleanBlock field2) {
-        var field1ValueCount = field1.getValueCount(position);
-        var field1FirstValueIndex = field1.getFirstValueIndex(position);
-        if (field1.isNull(position)) {
-            builder.appendNull();
-            return;
-        }
-        boolean empty = true;
-        for (int index = field1FirstValueIndex; index < field1FirstValueIndex + field1ValueCount; index++) {
-            var value = field1.getBoolean(index);
-            if (field2.hasValue(position, value)) continue;
-            if (empty) builder.beginPositionEntry();
-            builder.appendBoolean(value);
-            empty = false;
-        }
-        if (empty) {
-            builder.appendNull();
-        } else {
-            builder.endPositionEntry();
-        }
+        processListOperation(
+            builder,
+            position,
+            field1,
+            field2,
+            (p, b) -> ((BooleanBlock) b).getBoolean(p),
+            builder::appendBoolean,
+            List::removeAll
+        );
     }
 
     @Evaluator(extraName = "BytesRef")
     static void process(BytesRefBlock.Builder builder, @Position int position, BytesRefBlock field1, BytesRefBlock field2) {
-        var field1ValueCount = field1.getValueCount(position);
-        var field1FirstValueIndex = field1.getFirstValueIndex(position);
-        var field2Scratch = new BytesRef();
-        var value = new BytesRef();
-        if (field1.isNull(position)) {
-            builder.appendNull();
-            return;
-        }
-        boolean empty = true;
-        for (int index = field1FirstValueIndex; index < field1FirstValueIndex + field1ValueCount; index++) {
-            value = field1.getBytesRef(index, value);
-            if (field2.hasValue(position, value, field2Scratch)) continue;
-            if (empty) builder.beginPositionEntry();
-            builder.appendBytesRef(value);
-            empty = false;
-        }
-        if (empty) {
-            builder.appendNull();
-        } else {
-            builder.endPositionEntry();
-        }
+        processListOperation(
+            builder,
+            position,
+            field1,
+            field2,
+            (p, b) -> ((BytesRefBlock) b).getBytesRef(p, new BytesRef()),
+            builder::appendBytesRef,
+            List::removeAll
+        );
     }
 
     @Evaluator(extraName = "Int")
@@ -209,48 +189,20 @@ public class MvDifference extends BinaryScalarFunction implements EvaluatorMappe
 
     @Evaluator(extraName = "Long")
     static void process(LongBlock.Builder builder, @Position int position, LongBlock field1, LongBlock field2) {
-        var field1ValueCount = field1.getValueCount(position);
-        var field1FirstValueIndex = field1.getFirstValueIndex(position);
-        if (field1.isNull(position)) {
-            builder.appendNull();
-            return;
-        }
-        boolean empty = true;
-        for (int index = field1FirstValueIndex; index < field1FirstValueIndex + field1ValueCount; index++) {
-            var value = field1.getLong(index);
-            if (field2.hasValue(position, value)) continue;
-            if (empty) builder.beginPositionEntry();
-            builder.appendLong(value);
-            empty = false;
-        }
-        if (empty) {
-            builder.appendNull();
-        } else {
-            builder.endPositionEntry();
-        }
+        processListOperation(builder, position, field1, field2, (p, b) -> ((LongBlock) b).getLong(p), builder::appendLong, List::removeAll);
     }
 
     @Evaluator(extraName = "Double")
     static void process(DoubleBlock.Builder builder, @Position int position, DoubleBlock field1, DoubleBlock field2) {
-        var field1ValueCount = field1.getValueCount(position);
-        var field1FirstValueIndex = field1.getFirstValueIndex(position);
-        if (field1.isNull(position)) {
-            builder.appendNull();
-            return;
-        }
-        boolean empty = true;
-        for (int index = field1FirstValueIndex; index < field1FirstValueIndex + field1ValueCount; index++) {
-            var value = field1.getDouble(index);
-            if (field2.hasValue(position, value)) continue;
-            if (empty) builder.beginPositionEntry();
-            builder.appendDouble(value);
-            empty = false;
-        }
-        if (empty) {
-            builder.appendNull();
-        } else {
-            builder.endPositionEntry();
-        }
+        processListOperation(
+            builder,
+            position,
+            field1,
+            field2,
+            (p, b) -> ((DoubleBlock) b).getDouble(p),
+            builder::appendDouble,
+            List::removeAll
+        );
     }
 
     @Override
@@ -269,30 +221,14 @@ public class MvDifference extends BinaryScalarFunction implements EvaluatorMappe
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
-        var field1Type = PlannerUtils.toElementType(left().dataType());
-        var field2Type = PlannerUtils.toElementType(right().dataType());
-
-        if (field2Type == ElementType.NULL) {
-            // throw new AssertionError("function should be optimized away");
-        }
-
-        if (field1Type != ElementType.NULL && field2Type != ElementType.NULL && field1Type != field2Type) {
-            throw new EsqlIllegalArgumentException(
-                "Incompatible data types for MvDifference, field1 type({}) value({}) and field2 type({}) value({}) don't match.",
-                field1Type,
-                left(),
-                field2Type,
-                right()
-            );
-        }
-        return switch (field1Type) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        return switch (PlannerUtils.toElementType(dataType())) {
             case BOOLEAN -> new MvDifferenceBooleanEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case BYTES_REF -> new MvDifferenceBytesRefEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case INT -> new MvDifferenceIntEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case LONG -> new MvDifferenceLongEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             case DOUBLE -> new MvDifferenceDoubleEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
-            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
+            case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }
@@ -312,14 +248,6 @@ public class MvDifference extends BinaryScalarFunction implements EvaluatorMappe
             resolveType();
         }
         return dataType;
-    }
-
-    @Override
-    public Object fold(FoldContext ctx) {
-        if (Expressions.isGuaranteedNull(right())) {
-            return left().fold(ctx);
-        }
-        return EvaluatorMapper.super.fold(source(), ctx);
     }
 
     @Override

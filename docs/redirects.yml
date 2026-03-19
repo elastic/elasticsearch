@@ -302,6 +302,8 @@ redirects:
         anchors: {'esql-mv_first'}
       - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_intersection.md'
         anchors: {'esql-mv_intersection'}
+      - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_difference.md'
+        anchors: {'esql-mv_difference'}
       - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_intersects.md'
         anchors: {'esql-mv_intersects'}
       - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_last.md'

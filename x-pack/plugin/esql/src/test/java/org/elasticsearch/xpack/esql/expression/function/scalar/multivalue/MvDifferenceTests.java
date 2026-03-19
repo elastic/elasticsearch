@@ -20,11 +20,15 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -37,11 +41,11 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TypedData.MULTI_ROW_NULL;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TypedData.NULL;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSliceTests.randomGrid;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MvDifferenceTests extends AbstractScalarFunctionTestCase {
+
     public MvDifferenceTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -69,22 +73,40 @@ public class MvDifferenceTests extends AbstractScalarFunctionTestCase {
         return new MvDifference(source, args.get(0), args.get(1));
     }
 
-    private static <T> Matcher<?> matchResult(List<T> result) {
+    private static <T> Matcher<?> matchResult(Set<T> result) {
         if (result == null || result.isEmpty()) {
             return equalTo(null);
         }
+        return new TestSetMatcher<>(result);
+    }
 
-        if (result.size() > 1) {
-            return equalTo(result);
+    public static class TestSetMatcher<T> extends BaseMatcher<Set<T>> {
+        private final Set<T> expected;
+
+        public TestSetMatcher(Set<T> expected) {
+            this.expected = expected;
         }
-        // except both single value and multivalue with single entry.
-        return anyOf(equalTo(result), equalTo(result.stream().findFirst().get()));
+
+        @Override
+        public boolean matches(Object actual) {
+            if (actual instanceof Collection<?> elements) {
+                // noinspection SuspiciousMethodCalls
+                return equalTo(elements.size()).matches(elements.size()) && elements.containsAll(expected);
+            } else {
+                return expected.equals(Set.of(actual));
+            }
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendText(expected.toString());
+        }
     }
 
     private static Matcher<?> matchResult(TestCaseSupplier.TypedData typedData) {
         var data = typedData.data();
-        if (data instanceof List<?>) {
-            return matchResult((List<?>) data);
+        if (data instanceof Collection<?> elements) {
+            return matchResult(new HashSet<>(elements));
         }
         return equalTo(typedData.asLiteral().value());
     }
@@ -93,8 +115,8 @@ public class MvDifferenceTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier(List.of(DataType.BOOLEAN, DataType.BOOLEAN), () -> {
             List<Boolean> field1 = randomList(1, 10, () -> randomBoolean());
             List<Boolean> field2 = randomList(1, 10, () -> randomBoolean());
-            var result = new ArrayList<>(field1);
-            result.removeAll(field2);
+            var result = new LinkedHashSet<>(field1);
+            result.removeAll(new HashSet<>(field2));
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(field1, DataType.BOOLEAN, "field1"),
@@ -111,8 +133,8 @@ public class MvDifferenceTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier(List.of(DataType.INTEGER, DataType.INTEGER), () -> {
             List<Integer> field1 = randomList(1, 10, () -> randomIntBetween(1, 10));
             List<Integer> field2 = randomList(1, 10, () -> randomIntBetween(1, 10));
-            var result = new ArrayList<>(field1);
-            result.removeAll(field2);
+            var result = new LinkedHashSet<>(field1);
+            result.removeAll(new HashSet<>(field2));
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(field1, DataType.INTEGER, "field1"),
@@ -136,9 +158,9 @@ public class MvDifferenceTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier(List.of(DataType.UNSIGNED_LONG, DataType.UNSIGNED_LONG), () -> {
             List<Long> field1 = randomList(1, 10, ESTestCase::randomLong);
             List<Long> field2 = randomList(1, 10, ESTestCase::randomLong);
-            var result = new ArrayList<>(field1);
-            result.removeAll(field2);
-            var unsignedResult = result.stream().map(NumericUtils::unsignedLongAsBigInteger).toList();
+            var result = new LinkedHashSet<>(field1);
+            result.removeAll(new HashSet<>(field2));
+            var unsignedResult = result.stream().map(NumericUtils::unsignedLongAsBigInteger).collect(Collectors.toSet());
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(field1, DataType.UNSIGNED_LONG, "field1"),
@@ -155,8 +177,8 @@ public class MvDifferenceTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier(List.of(dataType, dataType), () -> {
             List<Long> field1 = randomList(1, 10, longSupplier);
             List<Long> field2 = randomList(1, 10, longSupplier);
-            var result = new ArrayList<>(field1);
-            result.removeAll(field2);
+            var result = new LinkedHashSet<>(field1);
+            result.removeAll(new HashSet<>(field2));
 
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -174,8 +196,8 @@ public class MvDifferenceTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier(List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
             List<Double> field1 = randomList(1, 10, () -> randomDouble());
             List<Double> field2 = randomList(1, 10, () -> randomDouble());
-            var result = new ArrayList<>(field1);
-            result.removeAll(field2);
+            var result = new LinkedHashSet<>(field1);
+            result.removeAll(new HashSet<>(field2));
 
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -195,8 +217,8 @@ public class MvDifferenceTests extends AbstractScalarFunctionTestCase {
                 suppliers.add(new TestCaseSupplier(List.of(lhs, rhs), () -> {
                     List<Object> field1 = randomList(1, 10, () -> randomLiteral(lhs).value());
                     List<Object> field2 = randomList(1, 10, () -> randomLiteral(rhs).value());
-                    var result = new ArrayList<>(field1);
-                    result.removeAll(field2);
+                    var result = new LinkedHashSet<>(field1);
+                    result.removeAll(new HashSet<>(field2));
 
                     return new TestCaseSupplier.TestCase(
                         List.of(
@@ -213,8 +235,8 @@ public class MvDifferenceTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier(List.of(DataType.IP, DataType.IP), () -> {
             List<Object> field1 = randomList(1, 10, () -> randomLiteral(DataType.IP).value());
             List<Object> field2 = randomList(1, 10, () -> randomLiteral(DataType.IP).value());
-            var result = new ArrayList<>(field1);
-            result.removeAll(field2);
+            var result = new LinkedHashSet<>(field1);
+            result.removeAll(new HashSet<>(field2));
 
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -230,8 +252,8 @@ public class MvDifferenceTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier(List.of(DataType.VERSION, DataType.VERSION), () -> {
             List<Object> field1 = randomList(1, 10, () -> randomLiteral(DataType.VERSION).value());
             List<Object> field2 = randomList(1, 10, () -> randomLiteral(DataType.VERSION).value());
-            var result = new ArrayList<>(field1);
-            result.removeAll(field2);
+            var result = new LinkedHashSet<>(field1);
+            result.removeAll(new HashSet<>(field2));
 
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -247,8 +269,8 @@ public class MvDifferenceTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier(List.of(DataType.GEO_POINT, DataType.GEO_POINT), () -> {
             List<Object> field1 = randomList(1, 10, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomPoint())));
             List<Object> field2 = randomList(1, 10, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomPoint())));
-            var result = new ArrayList<>(field1);
-            result.removeAll(field2);
+            var result = new LinkedHashSet<>(field1);
+            result.removeAll(new HashSet<>(field2));
 
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -264,8 +286,8 @@ public class MvDifferenceTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier(List.of(DataType.CARTESIAN_POINT, DataType.CARTESIAN_POINT), () -> {
             List<Object> field1 = randomList(1, 10, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomPoint())));
             List<Object> field2 = randomList(1, 10, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomPoint())));
-            var result = new ArrayList<>(field1);
-            result.removeAll(field2);
+            var result = new LinkedHashSet<>(field1);
+            result.removeAll(new HashSet<>(field2));
 
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -281,8 +303,8 @@ public class MvDifferenceTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier(List.of(DataType.GEO_SHAPE, DataType.GEO_SHAPE), () -> {
             var field1 = randomList(1, 3, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean(), 500))));
             var field2 = randomList(1, 3, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomGeometry(randomBoolean(), 500))));
-            var result = new ArrayList<>(field1);
-            result.removeAll(field2);
+            var result = new LinkedHashSet<>(field1);
+            result.removeAll(new HashSet<>(field2));
 
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -298,8 +320,8 @@ public class MvDifferenceTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier(List.of(DataType.CARTESIAN_SHAPE, DataType.CARTESIAN_SHAPE), () -> {
             var field1 = randomList(1, 3, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomGeometry(randomBoolean(), 500))));
             var field2 = randomList(1, 3, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomGeometry(randomBoolean(), 500))));
-            var result = new ArrayList<>(field1);
-            result.removeAll(field2);
+            var result = new LinkedHashSet<>(field1);
+            result.removeAll(new HashSet<>(field2));
 
             return new TestCaseSupplier.TestCase(
                 List.of(
@@ -392,17 +414,17 @@ public class MvDifferenceTests extends AbstractScalarFunctionTestCase {
             case 0:
                 return nullValue();
             default:
-                if (originalTestCase.getData().get(0).type() == DataType.UNSIGNED_LONG) {
-                    return matchResult(unsignedLongAsBigInteger(originalTestCase.getData().get(0)));
+                if (originalTestCase.getData().getFirst().type() == DataType.UNSIGNED_LONG) {
+                    return matchResult(unsignedLongAsBigInteger(originalTestCase.getData().getFirst()));
                 }
-                return matchResult(originalTestCase.getData().get(0));
+                return matchResult(originalTestCase.getData().getFirst());
         }
     }
 
-    private static List<?> unsignedLongAsBigInteger(TestCaseSupplier.TypedData typedData) {
+    private static Set<?> unsignedLongAsBigInteger(TestCaseSupplier.TypedData typedData) {
         var data = typedData.data();
         if (data instanceof List<?>) {
-            return ((List<?>) data).stream().map(entry -> NumericUtils.unsignedLongAsBigInteger((long) entry)).toList();
+            return ((List<?>) data).stream().map(entry -> NumericUtils.unsignedLongAsBigInteger((long) entry)).collect(Collectors.toSet());
         }
         throw new RuntimeException("unexpected type, class=" + data.getClass() + " value=" + data);
     }

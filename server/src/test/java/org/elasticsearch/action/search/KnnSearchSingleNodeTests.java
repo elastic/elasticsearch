@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -28,8 +29,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-
-import org.apache.lucene.search.join.ScoreMode;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -503,21 +502,22 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
             ScoreMode.Max
         ).innerHit(new InnerHitBuilder("nested").setSize(3));
 
-        assertResponse(
-            client().prepareSearch("index").setQuery(nestedQuery).setSize(10),
-            response -> {
-                assertHitCount(response, 2);
-                for (SearchHit hit : response.getHits()) {
-                    Map<String, SearchHits> innerHits = hit.getInnerHits();
-                    assertThat(innerHits, notNullValue());
-                    SearchHits nestedHits = innerHits.get("nested");
-                    assertThat(nestedHits, notNullValue());
-                    assertThat(nestedHits.getHits().length, greaterThan(0));
-                    float innerScore = nestedHits.getAt(0).getScore();
-                    assertThat("Root score should match top inner hit score (#138496, #138011)", (double) hit.getScore(), closeTo(innerScore, 1e-5));
-                }
+        assertResponse(client().prepareSearch("index").setQuery(nestedQuery).setSize(10), response -> {
+            assertHitCount(response, 2);
+            for (SearchHit hit : response.getHits()) {
+                Map<String, SearchHits> innerHits = hit.getInnerHits();
+                assertThat(innerHits, notNullValue());
+                SearchHits nestedHits = innerHits.get("nested");
+                assertThat(nestedHits, notNullValue());
+                assertThat(nestedHits.getHits().length, greaterThan(0));
+                float innerScore = nestedHits.getAt(0).getScore();
+                assertThat(
+                    "Root score should match top inner hit score (#138496, #138011)",
+                    (double) hit.getScore(),
+                    closeTo(innerScore, 1e-5)
+                );
             }
-        );
+        });
     }
 
     /**
@@ -556,21 +556,22 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
             .must(QueryBuilders.matchQuery("nested.text", "foo"));
         var nestedQuery = QueryBuilders.nestedQuery("nested", boolQuery, ScoreMode.Max).innerHit(new InnerHitBuilder("nested").setSize(3));
 
-        assertResponse(
-            client().prepareSearch("index").setQuery(nestedQuery).setSize(10),
-            response -> {
-                assertHitCount(response, 2);
-                for (SearchHit hit : response.getHits()) {
-                    Map<String, SearchHits> innerHits = hit.getInnerHits();
-                    assertThat(innerHits, notNullValue());
-                    SearchHits nestedHits = innerHits.get("nested");
-                    assertThat(nestedHits, notNullValue());
-                    assertThat(nestedHits.getHits().length, greaterThan(0));
-                    float innerScore = nestedHits.getAt(0).getScore();
-                    assertThat("Root score should match top inner hit score with bool(KNN+match) (#138011)", (double) hit.getScore(), closeTo(innerScore, 1e-5));
-                }
+        assertResponse(client().prepareSearch("index").setQuery(nestedQuery).setSize(10), response -> {
+            assertHitCount(response, 2);
+            for (SearchHit hit : response.getHits()) {
+                Map<String, SearchHits> innerHits = hit.getInnerHits();
+                assertThat(innerHits, notNullValue());
+                SearchHits nestedHits = innerHits.get("nested");
+                assertThat(nestedHits, notNullValue());
+                assertThat(nestedHits.getHits().length, greaterThan(0));
+                float innerScore = nestedHits.getAt(0).getScore();
+                assertThat(
+                    "Root score should match top inner hit score with bool(KNN+match) (#138011)",
+                    (double) hit.getScore(),
+                    closeTo(innerScore, 1e-5)
+                );
             }
-        );
+        });
     }
 
     private float[] randomVector() {

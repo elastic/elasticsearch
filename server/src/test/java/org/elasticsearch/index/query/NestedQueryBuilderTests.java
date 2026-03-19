@@ -520,17 +520,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
 
     public void testNestedKnnWithScoreModeMaxAndBoolKnnPlusMatchBuildsSuccessfully() throws IOException {
         BoolQueryBuilder bool = QueryBuilders.boolQuery()
-            .must(
-                new KnnVectorQueryBuilder(
-                    "nested1." + VECTOR_FIELD,
-                    new float[] { 1.0f, 2.0f, 3.0f },
-                    1,
-                    10,
-                    null,
-                    null,
-                    null
-                )
-            )
+            .must(new KnnVectorQueryBuilder("nested1." + VECTOR_FIELD, new float[] { 1.0f, 2.0f, 3.0f }, 1, 10, null, null, null))
             .must(QueryBuilders.matchQuery(TEXT_FIELD_NAME, "foo"));
         NestedQueryBuilder nested = new NestedQueryBuilder("nested1", bool, ScoreMode.Max);
         SearchExecutionContext context = createSearchExecutionContext();

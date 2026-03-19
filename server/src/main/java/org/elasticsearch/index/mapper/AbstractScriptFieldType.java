@@ -247,11 +247,7 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
             && blContext.lookup().onlyMappedAsRuntimeField(name())) {
             var reader = readerSupplier.get();
 
-            return new FallbackSyntheticSourceBlockLoader(
-                reader,
-                name(),
-                IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings.getIndexVersionCreated())
-            ) {
+            return new FallbackSyntheticSourceBlockLoader(reader, name(), IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)) {
                 @Override
                 public Builder builder(BlockFactory factory, int expectedCount) {
                     return builderSupplier.apply(factory, expectedCount);

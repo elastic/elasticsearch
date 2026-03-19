@@ -440,16 +440,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
                     throw new MapperParsingException("No handler for type [" + type + "] declared on property [" + propertyName + "]");
                 }
                 Mapper.Builder fieldBuilder = typeParser.parse(propertyName, propNode, parserContext);
-                if (fieldBuilder instanceof FieldMapper.Builder == false) {
-                    throw new MapperParsingException(
-                        "Type ["
-                            + type
-                            + "] is not supported as a mapped sub-field of flattened field ["
-                            + flattenedName
-                            + "]. Supported types: "
-                            + ALLOWED_SUB_FIELD_TYPES
-                    );
-                }
+                assert fieldBuilder instanceof FieldMapper.Builder
+                    : "allowed sub-field type [" + type + "] produced a non-FieldMapper builder";
                 builder.propertyBuilders.put(propertyName, (FieldMapper.Builder) fieldBuilder);
                 propNode.remove("type");
                 MappingParser.checkNoRemainingFields(propertyName, propNode);

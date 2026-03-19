@@ -107,4 +107,30 @@ public class CombineLimitTopNTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(resultLimitBy.limitPerGroup(), equalTo(L(5)));
         as(resultLimitBy.child(), Project.class);
     }
+
+    public void testLowerLimitIsChosenForCombiningTopNByAndLimitBy() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
+        var attr = getFieldAttribute("a");
+        var groupings = List.<Expression>of(attr);
+        var order = List.of(new Order(EMPTY, attr, Order.OrderDirection.ASC, null));
+        var topNBy = new TopNBy(EMPTY, emptySource(), order, L(10), groupings);
+        var limitBy = new LimitBy(EMPTY, L(5), topNBy, groupings);
+        var result = new CombineLimitTopN().rule(limitBy);
+        var resultTopNBy = as(result, TopNBy.class);
+        assertThat(resultTopNBy.limitPerGroup(), equalTo(L(5)));
+        assertThat(resultTopNBy.groupings(), equalTo(groupings));
+    }
+
+    public void testLowerLimitIsChosenForCombiningTopNByAndLimitBy2() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
+        var attr = getFieldAttribute("a");
+        var groupings = List.<Expression>of(attr);
+        var order = List.of(new Order(EMPTY, attr, Order.OrderDirection.ASC, null));
+        var topNBy = new TopNBy(EMPTY, emptySource(), order, L(5), groupings);
+        var limitBy = new LimitBy(EMPTY, L(10), topNBy, groupings);
+        var result = new CombineLimitTopN().rule(limitBy);
+        var resultTopNBy = as(result, TopNBy.class);
+        assertThat(resultTopNBy.limitPerGroup(), equalTo(L(5)));
+        assertThat(resultTopNBy.groupings(), equalTo(groupings));
+    }
 }

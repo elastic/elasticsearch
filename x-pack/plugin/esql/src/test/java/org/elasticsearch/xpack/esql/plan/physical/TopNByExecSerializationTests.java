@@ -24,7 +24,7 @@ public class TopNByExecSerializationTests extends AbstractPhysicalPlanSerializat
         List<Order> order = randomList(1, 10, OrderSerializationTests::randomOrder);
         Expression limit = new Literal(randomSource(), randomNonNegativeInt(), DataType.INTEGER);
         Integer estimatedRowSize = randomEstimatedRowSize();
-        List<Expression> groupings = randomFieldAttributes(0, 5, false).stream().map(a -> (Expression) a).toList();
+        List<Expression> groupings = randomFieldAttributes(1, 5, false).stream().map(a -> (Expression) a).toList();
         return new TopNByExec(source, child, order, limit, groupings, estimatedRowSize);
     }
 

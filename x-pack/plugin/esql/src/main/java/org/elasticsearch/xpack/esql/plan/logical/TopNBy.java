@@ -26,7 +26,7 @@ public class TopNBy extends UnaryPlan implements PipelineBreaker {
 
     private final List<Order> order;
     private final Expression limitPerGroup;
-    private List<Expression> groupings;
+    private final List<Expression> groupings;
 
     public TopNBy(Source source, LogicalPlan child, List<Order> order, Expression limitPerGroup, List<Expression> groupings) {
         super(source, child);

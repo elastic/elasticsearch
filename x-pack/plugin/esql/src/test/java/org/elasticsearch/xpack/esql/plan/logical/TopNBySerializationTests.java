@@ -22,7 +22,7 @@ public class TopNBySerializationTests extends AbstractLogicalPlanSerializationTe
         LogicalPlan child = randomChild(depth);
         List<Order> order = randomOrders();
         Expression limit = AbstractExpressionSerializationTests.randomChild();
-        List<Expression> groupings = randomFieldAttributes(0, 5, false).stream().map(a -> (Expression) a).toList();
+        List<Expression> groupings = randomFieldAttributes(1, 5, false).stream().map(a -> (Expression) a).toList();
         return new TopNBy(source, child, order, limit, groupings);
     }
 

@@ -144,25 +144,22 @@ public record EmbeddingRequest(List<InferenceStringGroup> inputs, InputType inpu
 
     private static List<InferenceStringGroup> parseInput(XContentParser parser) throws IOException {
         var token = parser.currentToken();
-        if (token == XContentParser.Token.VALUE_STRING) {
-            // Single input of String
-            return singletonList(new InferenceStringGroup(parser.text()));
-        } else if (token == XContentParser.Token.START_OBJECT) {
-            // Single input of content object
-            return singletonList(InferenceStringGroup.parse(parser));
+        if (token == XContentParser.Token.VALUE_STRING || token == XContentParser.Token.START_OBJECT) {
+            // Single input of String or content object
+            return singletonList(parseStringOrContentObject(parser));
         } else if (token == XContentParser.Token.START_ARRAY) {
             // Array of String or content objects
-            return XContentParserUtils.parseList(parser, p -> parseStringOrContentObject(parser, p));
+            return XContentParserUtils.parseList(parser, EmbeddingRequest::parseStringOrContentObject);
         }
         throw new XContentParseException("Unsupported token [" + token + "]");
     }
 
-    private static InferenceStringGroup parseStringOrContentObject(XContentParser parser, XContentParser p) throws IOException {
+    private static InferenceStringGroup parseStringOrContentObject(XContentParser parser) throws IOException {
         var currentToken = parser.currentToken();
         if (currentToken == XContentParser.Token.VALUE_STRING) {
-            return new InferenceStringGroup(p.text());
+            return new InferenceStringGroup(parser.text());
         } else if (currentToken == XContentParser.Token.START_OBJECT) {
-            return InferenceStringGroup.parse(p);
+            return InferenceStringGroup.parse(parser);
         } else {
             throw new XContentParseException("Unsupported token [" + currentToken + "]");
         }

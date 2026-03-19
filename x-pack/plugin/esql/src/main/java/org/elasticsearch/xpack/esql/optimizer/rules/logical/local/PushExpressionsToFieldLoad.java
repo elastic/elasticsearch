@@ -246,7 +246,7 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<LogicalPlan, L
             FunctionEsField functionEsField = new FunctionEsField(fuse.field().field(), e.dataType(), fuse.config());
             var name = rawTemporaryName(fuse.field().name(), fuse.config().function().toString(), String.valueOf(fuse.config().hashCode()));
             var newFunctionAttr = new FieldAttribute(
-                fuse.field().source(),
+                e.source(),
                 fuse.field().parentName(),
                 fuse.field().qualifier(),
                 name,

@@ -152,6 +152,49 @@ public class ColumnBlockConversionsTests extends ESTestCase {
         }
     }
 
+    public void testIntColumnRepeatingNull() {
+        long[] values = { 0L };
+        boolean[] isNull = { true };
+        Block block = ColumnBlockConversions.intColumnFromLongs(blockFactory, values, 3, false, true, isNull);
+        try {
+            assertEquals(3, block.getPositionCount());
+            for (int i = 0; i < 3; i++) {
+                assertTrue(block.isNull(i));
+            }
+        } finally {
+            block.close();
+        }
+    }
+
+    public void testIntColumnCopiesArray() {
+        long[] values = { 10L, 20L, 30L };
+        Block block = ColumnBlockConversions.intColumnFromLongs(blockFactory, values, 3, true, false, null);
+        try {
+            values[0] = 999L;
+            IntBlock ib = (IntBlock) block;
+            assertEquals(10, ib.getInt(0));
+        } finally {
+            block.close();
+        }
+    }
+
+    public void testIntColumnLargerArrayThanRowCount() {
+        long[] values = new long[100];
+        for (int i = 0; i < 100; i++) {
+            values[i] = i;
+        }
+        Block block = ColumnBlockConversions.intColumnFromLongs(blockFactory, values, 10, true, false, null);
+        try {
+            assertEquals(10, block.getPositionCount());
+            IntBlock ib = (IntBlock) block;
+            for (int i = 0; i < 10; i++) {
+                assertEquals(i, ib.getInt(i));
+            }
+        } finally {
+            block.close();
+        }
+    }
+
     // --- doubleColumn ---
 
     public void testDoubleColumnNoNulls() {
@@ -255,6 +298,51 @@ public class ColumnBlockConversionsTests extends ESTestCase {
         }
     }
 
+    public void testBooleanColumnRepeatingNull() {
+        long[] values = { 0L };
+        boolean[] isNull = { true };
+        Block block = ColumnBlockConversions.booleanColumnFromLongs(blockFactory, values, 3, false, true, isNull);
+        try {
+            assertEquals(3, block.getPositionCount());
+            for (int i = 0; i < 3; i++) {
+                assertTrue(block.isNull(i));
+            }
+        } finally {
+            block.close();
+        }
+    }
+
+    public void testBooleanColumnCopiesArray() {
+        long[] values = { 1L, 0L, 1L };
+        Block block = ColumnBlockConversions.booleanColumnFromLongs(blockFactory, values, 3, true, false, null);
+        try {
+            values[0] = 0L;
+            BooleanBlock bb = (BooleanBlock) block;
+            assertTrue(bb.getBoolean(0));
+        } finally {
+            block.close();
+        }
+    }
+
+    public void testBooleanColumnLargerArrayThanRowCount() {
+        long[] values = new long[50];
+        for (int i = 0; i < 50; i++) {
+            values[i] = i % 2;
+        }
+        Block block = ColumnBlockConversions.booleanColumnFromLongs(blockFactory, values, 5, true, false, null);
+        try {
+            assertEquals(5, block.getPositionCount());
+            BooleanBlock bb = (BooleanBlock) block;
+            assertFalse(bb.getBoolean(0));
+            assertTrue(bb.getBoolean(1));
+            assertFalse(bb.getBoolean(2));
+            assertTrue(bb.getBoolean(3));
+            assertFalse(bb.getBoolean(4));
+        } finally {
+            block.close();
+        }
+    }
+
     // --- doubleColumnFromLongs ---
 
     public void testDoubleColumnFromLongsNoNulls() {
@@ -293,6 +381,49 @@ public class ColumnBlockConversionsTests extends ESTestCase {
             DoubleBlock db = (DoubleBlock) block;
             for (int i = 0; i < 3; i++) {
                 assertEquals(42.0, db.getDouble(db.getFirstValueIndex(i)), 0.0);
+            }
+        } finally {
+            block.close();
+        }
+    }
+
+    public void testDoubleColumnFromLongsRepeatingNull() {
+        long[] values = { 0L };
+        boolean[] isNull = { true };
+        Block block = ColumnBlockConversions.doubleColumnFromLongs(blockFactory, values, 3, false, true, isNull);
+        try {
+            assertEquals(3, block.getPositionCount());
+            for (int i = 0; i < 3; i++) {
+                assertTrue(block.isNull(i));
+            }
+        } finally {
+            block.close();
+        }
+    }
+
+    public void testDoubleColumnFromLongsCopiesArray() {
+        long[] values = { 10L, 20L, 30L };
+        Block block = ColumnBlockConversions.doubleColumnFromLongs(blockFactory, values, 3, true, false, null);
+        try {
+            values[0] = 999L;
+            DoubleBlock db = (DoubleBlock) block;
+            assertEquals(10.0, db.getDouble(0), 0.0);
+        } finally {
+            block.close();
+        }
+    }
+
+    public void testDoubleColumnFromLongsLargerArrayThanRowCount() {
+        long[] values = new long[100];
+        for (int i = 0; i < 100; i++) {
+            values[i] = i * 10;
+        }
+        Block block = ColumnBlockConversions.doubleColumnFromLongs(blockFactory, values, 5, true, false, null);
+        try {
+            assertEquals(5, block.getPositionCount());
+            DoubleBlock db = (DoubleBlock) block;
+            for (int i = 0; i < 5; i++) {
+                assertEquals((double) (i * 10), db.getDouble(i), 0.0);
             }
         } finally {
             block.close();

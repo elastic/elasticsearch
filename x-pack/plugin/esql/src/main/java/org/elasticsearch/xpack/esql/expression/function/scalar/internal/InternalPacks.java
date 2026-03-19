@@ -82,7 +82,7 @@ final class InternalPacks {
 
     static BytesRefBlock unpackBytesValues(DriverContext driverContext, BytesRefBlock encoded) {
         int positionCount = encoded.getPositionCount();
-        try (var builder = driverContext.blockFactory().newBytesRefBlockBuilder(estimateForBytesBuilder(positionCount));) {
+        try (var builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
             BytesRef inScratch = new BytesRef();
             BytesRef outScratch = new BytesRef();
             for (int p = 0; p < positionCount; p++) {

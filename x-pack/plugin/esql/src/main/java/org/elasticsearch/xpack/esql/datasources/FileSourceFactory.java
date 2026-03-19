@@ -112,7 +112,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
     @Override
     public SplitProvider splitProvider() {
-        return new FileSplitProvider(FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE, codecRegistry, storageRegistry, settings);
+        return new FileSplitProvider(FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE, codecRegistry, storageRegistry, formatRegistry, settings);
     }
 
     @Override
@@ -128,7 +128,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 storage = storageRegistry.provider(path);
             }
 
-            FormatReader format = resolveFormatReader(path.objectName(), config).withConfig(config);
+            FormatReader format = resolveFormatReader(path.objectName(), config).withConfig(config)
+                .withPushedFilter(context.pushedFilter())
+                .withSchema(context.attributes());
             ErrorPolicy errorPolicy = resolveErrorPolicy(config, format);
 
             Map<String, Object> partitionValues = Map.of();
@@ -149,7 +151,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 context.partitionColumnNames(),
                 partitionValues,
                 context.sliceQueue(),
-                errorPolicy
+                errorPolicy,
+                context.parsingParallelism(),
+                null
             );
         };
     }

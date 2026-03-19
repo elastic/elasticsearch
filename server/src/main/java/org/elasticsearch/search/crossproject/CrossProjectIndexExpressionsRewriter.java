@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
@@ -132,13 +133,7 @@ public class CrossProjectIndexExpressionsRewriter {
         Set<String> allProjectAliases,
         @Nullable String projectRouting
     ) {
-        String[] splitResource = RemoteClusterAware.splitIndexName(resource);
-        assert splitResource.length == 2
-            : "Expected two strings (project and indexExpression) for a qualified resource ["
-                + resource
-                + "], but found ["
-                + splitResource.length
-                + "]";
+        String[] splitResource = CrossProjectIndexResolutionValidator.splitQualifiedResource(resource);
         String requestedProjectAlias = splitResource[0];
         assert requestedProjectAlias != null : "Expected a project alias for a qualified resource but was null";
         boolean isExclusion = false;
@@ -149,6 +144,9 @@ public class CrossProjectIndexExpressionsRewriter {
         }
 
         final String indexExpression = splitResource[1];
+        if (RemoteClusterAware.isRemoteIndexName(indexExpression)) {
+            throw new InvalidIndexNameException(resource, "index expression cannot contain project qualifiers (no cross-project chaining)");
+        }
         if (isExclusion && isExclusionExpression(indexExpression)) {
             throw new IllegalArgumentException("Cannot apply exclusion for both the project and the index expression [" + resource + "]");
         }

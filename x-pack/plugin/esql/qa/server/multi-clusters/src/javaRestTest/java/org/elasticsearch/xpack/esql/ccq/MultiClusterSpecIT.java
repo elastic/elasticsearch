@@ -131,26 +131,26 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     // TODO: think how to handle this better
     public static final Set<String> NO_REMOTE_LOOKUP_JOIN_TESTS = Set.of(
         // Lookup join after STATS is not supported in CCS yet
-        "StatsAndLookupIPAndMessageFromIndex",
-        "JoinMaskingRegex",
-        "StatsAndLookupIPFromIndex",
-        "StatsAndLookupMessageFromIndex",
-        "MvJoinKeyOnTheLookupIndexAfterStats",
-        "MvJoinKeyOnFromAfterStats",
+        "statsAndLookupIPAndMessageFromIndex",
+        "joinMaskingRegex",
+        "statsAndLookupIPFromIndex",
+        "statsAndLookupMessageFromIndex",
+        "mvJoinKeyOnTheLookupIndexAfterStats",
+        "mvJoinKeyOnFromAfterStats",
         // Lookup join after SORT is not supported in CCS yet
-        "NullifiedJoinKeyToPurgeTheJoin",
-        "SortBeforeAndAfterJoin",
-        "SortEvalBeforeLookup",
-        "SortBeforeAndAfterMultipleJoinAndMvExpand",
-        "LookupJoinAfterTopNAndRemoteEnrich",
-        "LookupJoinOnTwoFieldsAfterTop",
-        "LookupJoinOnTwoFieldsMultipleTimes",
+        "nullifiedJoinKeyToPurgeTheJoin",
+        "sortBeforeAndAfterJoin",
+        "sortEvalBeforeLookup",
+        "sortBeforeAndAfterMultipleJoinAndMvExpand",
+        "lookupJoinAfterTopNAndRemoteEnrich",
+        "lookupJoinOnTwoFieldsAfterTop",
+        "lookupJoinOnTwoFieldsMultipleTimes",
         // Lookup join after LIMIT is not supported in CCS yet
-        "LookupJoinAfterLimitAndRemoteEnrich",
-        "LookupJoinExpressionAfterLimitAndRemoteEnrich",
-        "LookupJoinWithSemanticFilterDeduplicationComplex",
+        "lookupJoinAfterLimitAndRemoteEnrich",
+        "lookupJoinExpressionAfterLimitAndRemoteEnrich",
+        "lookupJoinWithSemanticFilterDeduplicationComplex",
         // Lookup join after FORK is not support in CCS yet
-        "ForkBeforeLookupJoin"
+        "forkBeforeLookupJoin"
     );
 
     @Override
@@ -435,7 +435,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     protected boolean supportsViews() {
         // MultiCluster CCS does not yet support VIEWS, due to rewriting FROM name to FROM *:name
         // In particular, we do not want to load views definitions, because that messes with `FROM *` queries
-        // See, for example, "lookup-join/EnrichLookupStatsBug"
+        // See, for example, "lookup-join/enrichLookupStatsBug"
         return false;
     }
 

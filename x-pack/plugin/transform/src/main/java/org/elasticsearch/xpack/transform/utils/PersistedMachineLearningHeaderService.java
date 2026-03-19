@@ -20,7 +20,6 @@ import java.util.Map;
 
 public class PersistedMachineLearningHeaderService {
     private static final String SERVERLESS_AUTHENTICATING_TOKEN_HEADER = "_security_serverless_authenticating_token";
-    private static final String CLIENT_AUTHENTICATION_HEADER = "X-Client-Authentication";
 
     private final ThreadPool threadPool;
     private final SecurityContext securityContext;
@@ -48,10 +47,6 @@ public class PersistedMachineLearningHeaderService {
                 if (authenticatingToken != null) {
                     HashMap<String, String> mutableHeaders = new HashMap<>(persistedHeaders);
                     mutableHeaders.put(SERVERLESS_AUTHENTICATING_TOKEN_HEADER, authenticatingToken);
-                    String clientAuthentication = threadPool.getThreadContext().getHeader(CLIENT_AUTHENTICATION_HEADER);
-                    if (clientAuthentication != null) {
-                        mutableHeaders.put(CLIENT_AUTHENTICATION_HEADER, clientAuthentication);
-                    }
                     persistedHeaders = Map.copyOf(mutableHeaders);
                 }
             }

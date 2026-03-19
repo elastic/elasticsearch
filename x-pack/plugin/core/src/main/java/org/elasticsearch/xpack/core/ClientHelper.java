@@ -63,8 +63,7 @@ public final class ClientHelper {
         AuthenticationServiceField.RUN_AS_USER_HEADER,
         AuthenticationField.AUTHENTICATION_KEY,
         SecondaryAuthentication.THREAD_CTX_KEY,
-        "_security_serverless_authenticating_token",
-        "X-Client-Authentication"
+        "_security_serverless_authenticating_token"
     );
 
     /**

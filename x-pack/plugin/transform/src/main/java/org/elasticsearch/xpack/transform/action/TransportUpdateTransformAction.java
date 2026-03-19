@@ -50,15 +50,16 @@ import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.AuthorizationStatePersistenceUtils;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
-import org.elasticsearch.xpack.transform.utils.PersistedMachineLearningHeaderService;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
+import org.elasticsearch.xpack.transform.utils.PersistedMachineLearningHeaderService;
 
 import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
+
 public class TransportUpdateTransformAction extends TransportTasksAction<TransformTask, Request, Response, Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportUpdateTransformAction.class);

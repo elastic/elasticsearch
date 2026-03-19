@@ -48,11 +48,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
-import org.elasticsearch.xpack.esql.datasources.FileSet;
-import org.elasticsearch.xpack.esql.datasources.StorageEntry;
-import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -96,18 +92,17 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
-import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
@@ -154,7 +149,6 @@ import static org.elasticsearch.web.UriParts.SCHEME;
 import static org.elasticsearch.web.UriParts.USERNAME;
 import static org.elasticsearch.web.UriParts.USER_INFO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
@@ -1396,6 +1390,16 @@ public class AnalyzerTests extends ESTestCase {
             var limit = as(plan, Limit.class);
             assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
         }
+    }
+
+    public void testImplicitDefaultLimitAfterLimitBy() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        var plan = analyze("from test | limit 1 by emp_no");
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(as(defaultLimit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        var limitBy = as(defaultLimit.child(), LimitBy.class);
+        assertThat(Expressions.names(limitBy.groupings()), contains("emp_no"));
     }
 
     private static final String[] COMPARISONS = new String[] { "==", "!=", "<", "<=", ">", ">=" };
@@ -5231,7 +5235,7 @@ public class AnalyzerTests extends ESTestCase {
         );
 
         var esIndex = new EsIndex(
-            "k8s*",
+            "k8s,k8s-downsampled",
             mapping,
             Map.of("k8s", IndexMode.TIME_SERIES, "k8s-downsampled", IndexMode.TIME_SERIES),
             Map.of(),
@@ -5249,12 +5253,12 @@ public class AnalyzerTests extends ESTestCase {
             TEST_VERIFIER
         );
         var stddevPlan = analyze("""
-            from k8s* | stats std_dev = std_dev(metric_field)
+            from k8s,k8s-downsampled | stats std_dev = std_dev(metric_field)
             """, analyzer);
         assertProjection(stddevPlan, "std_dev");
 
         var plan = analyze("""
-            from k8s* | stats max = max(metric_field),
+            from k8s,k8s-downsampled | stats max = max(metric_field),
             avg = avg(metric_field),
             sum = sum(metric_field),
             min = min(metric_field),
@@ -5263,7 +5267,7 @@ public class AnalyzerTests extends ESTestCase {
         assertProjection(plan, "max", "avg", "sum", "min", "count");
 
         var plan2 = analyze("""
-            TS k8s* | stats s1 = sum(sum_over_time(metric_field)),
+            TS k8s,k8s-downsampled | stats s1 = sum(sum_over_time(metric_field)),
             s2 = sum(avg_over_time(metric_field)),
             min = min(max_over_time(metric_field)),
             count = count(count_over_time(metric_field)),
@@ -6594,122 +6598,5 @@ public class AnalyzerTests extends ESTestCase {
 
     static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps, boolean hasTimeSeriesAggregation) {
         return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, hasTimeSeriesAggregation);
-    }
-
-    // ===== ResolveExternalRelations + FileSet tests =====
-
-    public void testResolveExternalRelationPassesFileSet() {
-        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
-        var entries = List.of(
-            new StorageEntry(StoragePath.of("s3://bucket/data/f1.parquet"), 100, Instant.EPOCH),
-            new StorageEntry(StoragePath.of("s3://bucket/data/f2.parquet"), 200, Instant.EPOCH)
-        );
-        var fileSet = new FileSet(entries, "s3://bucket/data/*.parquet");
-
-        List<Attribute> schema = List.of(
-            new FieldAttribute(EMPTY, "id", new EsField("id", LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE)),
-            new FieldAttribute(EMPTY, "name", new EsField("name", KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
-        );
-
-        var metadata = new ExternalSourceMetadata() {
-            @Override
-            public String location() {
-                return "s3://bucket/data/*.parquet";
-            }
-
-            @Override
-            public List<Attribute> schema() {
-                return schema;
-            }
-
-            @Override
-            public String sourceType() {
-                return "parquet";
-            }
-        };
-
-        var resolvedSource = new ExternalSourceResolution.ResolvedSource(metadata, fileSet);
-        var externalResolution = new ExternalSourceResolution(Map.of("s3://bucket/data/*.parquet", resolvedSource));
-
-        var context = new AnalyzerContext(
-            EsqlTestUtils.TEST_CFG,
-            TEST_FUNCTION_REGISTRY,
-            null,
-            Map.of(),
-            Map.of(),
-            defaultEnrichResolution(),
-            defaultInferenceResolution(),
-            externalResolution,
-            TransportVersion.current(),
-            QuerySettings.UNMAPPED_FIELDS.defaultValue()
-        );
-        var testAnalyzer = new Analyzer(context, TEST_VERIFIER);
-
-        var plan = TEST_PARSER.parseQuery("EXTERNAL \"s3://bucket/data/*.parquet\" | STATS count = COUNT(*)");
-        var analyzed = testAnalyzer.analyze(plan);
-
-        var externalRelations = new ArrayList<ExternalRelation>();
-        analyzed.forEachDown(ExternalRelation.class, externalRelations::add);
-
-        assertThat("Should have one ExternalRelation", externalRelations, hasSize(1));
-        var externalRelation = externalRelations.get(0);
-
-        assertSame(fileSet, externalRelation.fileSet());
-        assertTrue(externalRelation.fileSet().isResolved());
-        assertEquals(2, externalRelation.fileSet().size());
-        assertEquals("s3://bucket/data/*.parquet", externalRelation.fileSet().originalPattern());
-    }
-
-    public void testResolveExternalRelationUnresolvedFileSet() {
-        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
-        List<Attribute> schema = List.of(
-            new FieldAttribute(EMPTY, "id", new EsField("id", LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
-        );
-
-        var metadata = new ExternalSourceMetadata() {
-            @Override
-            public String location() {
-                return "s3://bucket/data/single.parquet";
-            }
-
-            @Override
-            public List<Attribute> schema() {
-                return schema;
-            }
-
-            @Override
-            public String sourceType() {
-                return "parquet";
-            }
-        };
-
-        var resolvedSource = new ExternalSourceResolution.ResolvedSource(metadata, FileSet.UNRESOLVED);
-        var externalResolution = new ExternalSourceResolution(Map.of("s3://bucket/data/single.parquet", resolvedSource));
-
-        var context = new AnalyzerContext(
-            EsqlTestUtils.TEST_CFG,
-            TEST_FUNCTION_REGISTRY,
-            null,
-            Map.of(),
-            Map.of(),
-            defaultEnrichResolution(),
-            defaultInferenceResolution(),
-            externalResolution,
-            TransportVersion.current(),
-            QuerySettings.UNMAPPED_FIELDS.defaultValue()
-        );
-        var testAnalyzer = new Analyzer(context, TEST_VERIFIER);
-
-        var plan = TEST_PARSER.parseQuery("EXTERNAL \"s3://bucket/data/single.parquet\" | STATS count = COUNT(*)");
-        var analyzed = testAnalyzer.analyze(plan);
-
-        var externalRelations = new ArrayList<ExternalRelation>();
-        analyzed.forEachDown(ExternalRelation.class, externalRelations::add);
-
-        assertThat("Should have one ExternalRelation", externalRelations, hasSize(1));
-        var externalRelation = externalRelations.get(0);
-
-        assertTrue(externalRelation.fileSet().isUnresolved());
-        assertSame(FileSet.UNRESOLVED, externalRelation.fileSet());
     }
 }

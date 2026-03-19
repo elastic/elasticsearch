@@ -2468,10 +2468,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     assert state == State.RELOCATING;
                     maxGenerationToUpload = Long.MAX_VALUE;
                     state = State.RUNNING;
-                    final var deferred = deferredStaleBlobDeletions.getAndSet(null);
-                    assert deferred != null : "deferred stale blob deletions should have been initialized";
-                    deferred.forEach(BlobReference::clearResources);
                 }
+                // If the index is concurrently deleted, the state will be CLOSED. We always want to reprocess the deferred deletions.
+                final var deferred = deferredStaleBlobDeletions.getAndSet(null);
+                assert deferred != null : "deferred stale blob deletions should have been initialized";
+                deferred.forEach(BlobReference::clearResources);
             }
         }
 

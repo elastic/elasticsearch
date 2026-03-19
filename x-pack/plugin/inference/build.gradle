@@ -163,7 +163,7 @@ dependencies {
 }
 
 tasks.withType(AbstractDependenciesTask).configureEach {
-  mapping from: /azure-.*/, to: 'azure-inference'
+  mapping from: /azure-.*/, to: 'azure'
   mapping from: /google-auth-.*/, to: 'google-auth'
   mapping from: /google-http-.*/, to: 'google-http'
   mapping from: /msal4j.*/, to: 'msal4j'

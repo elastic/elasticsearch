@@ -679,14 +679,6 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
     public static class PrimaryContextHandoffRequest extends AbstractTransportRequest {
 
-        private static final TransportVersion PRIMARY_CONTEXT_HANDOFF_BLOBS_FROM_SOURCE = TransportVersion.fromName(
-            "primary_context_handoff_blobs_from_source"
-        );
-
-        private static final TransportVersion FILTERED_PRIMARY_CONTEXT_HANDOFF_BLOBS_FROM_SOURCE = TransportVersion.fromName(
-            "filtered_primary_context_handoff_blobs_from_source"
-        );
-
         private final long recoveryId;
         private final ShardId shardId;
         private final ReplicationTracker.PrimaryContext primaryContext;
@@ -721,20 +713,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             primaryContext = new ReplicationTracker.PrimaryContext(in);
             retentionLeases = new RetentionLeases(in);
             searchNodesPerCommit = in.readMap(PrimaryTermAndGeneration::new, in0 -> in0.readCollectionAsSet(StreamInput::readString));
-            if (in.getTransportVersion().supports(FILTERED_PRIMARY_CONTEXT_HANDOFF_BLOBS_FROM_SOURCE)) {
-                latestBccBlob = in.readOptionalWriteable(BlobFileWithLength::new);
-                otherBlobFiles = in.readCollectionAsSet(BlobFile::new);
-            } else if (in.getTransportVersion().supports(PRIMARY_CONTEXT_HANDOFF_BLOBS_FROM_SOURCE)) {
-                // There was a bug in this version where the passed blobs contained commits created after relocation had started and that
-                // were never uploaded. We ignore those here. This is okay as we have a null check in handlePrimaryContextHandoff.
-                in.readOptionalWriteable(BlobFileWithLength::new);
-                in.readCollectionAsSet(BlobFile::new);
-                latestBccBlob = null;
-                otherBlobFiles = Set.of();
-            } else {
-                latestBccBlob = null;
-                otherBlobFiles = Set.of();
-            }
+            latestBccBlob = in.readOptionalWriteable(BlobFileWithLength::new);
+            otherBlobFiles = in.readCollectionAsSet(BlobFile::new);
         }
 
         @Override
@@ -749,11 +729,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 (out0, v) -> v.writeTo(out0),
                 (out0, v) -> out0.writeCollection(v, StreamOutput::writeString)
             );
-            if (out.getTransportVersion().supports(PRIMARY_CONTEXT_HANDOFF_BLOBS_FROM_SOURCE)
-                || out.getTransportVersion().supports(FILTERED_PRIMARY_CONTEXT_HANDOFF_BLOBS_FROM_SOURCE)) {
-                out.writeOptionalWriteable(latestBccBlob);
-                out.writeCollection(otherBlobFiles);
-            }
+            out.writeOptionalWriteable(latestBccBlob);
+            out.writeCollection(otherBlobFiles);
         }
 
         public long recoveryId() {

@@ -219,15 +219,20 @@ FROM employees
 | LOOKUP JOIN languages_lookup ON language_code
 | DROP foo, country, country.keyword
 | SORT emp_no
-| LIMIT 5
+| LIMIT 10
 ;
 
 languages:integer | emp_no:integer | language_code:integer | language_name:keyword
 2                 | 10001          | 2                     | French
 2                 | 10001          | 2                     | French
 2                 | 10001          | 2                     | French
+2                 | 10001          | 2                     | French
 5                 | 10002          | 5                     | null
 4                 | 10003          | 4                     | German
+5                 | 10004          | 5                     | null
+1                 | 10005          | 1                     | English
+1                 | 10005          | 1                     | English
+1                 | 10005          | 1                     | English
 ;
 
 projectsWithShadowingAfterPushdown
@@ -267,6 +272,7 @@ emp_no:integer | language_code:integer | language_name:keyword | country:keyword
     10091      | 1                     | English               | United States of America
     10091      | 1                     | English               | null
     10092      | 2                     | German                | [Austria, Germany]
+    10092      | 2                     | German                | [Belgium, Germany]
     10092      | 2                     | German                | Switzerland
     10092      | 2                     | German                | null
     10093      | 3                     | null                  | null
@@ -296,6 +302,7 @@ emp_no:integer | language_code:integer | language_name:keyword | country:keyword
 10001          | 1                     | null                  | United Kingdom
 10001          | 1                     | English               | United States of America
 10002          | 2                     | German                | [Austria, Germany]
+10002          | 2                     | German                | [Belgium, Germany]
 10002          | 2                     | German                | Switzerland
 10002          | 2                     | German                | null
 10003          | 3                     | null                  | null
@@ -326,6 +333,7 @@ emp_no:integer | language_code:integer
 10002          | 2
 10002          | 2
 10002          | 2
+10002          | 2
 10003          | 3
 10004          | 4
 10005          | 5
@@ -343,6 +351,7 @@ ROW language_code = 2
 ignoreOrder:true
 language_code:integer | country:text       | language_name:keyword
 2                     | [Austria, Germany] | German
+2                     | [Belgium, Germany] | German
 2                     | Switzerland        | German
 2                     | null               | German
 ;
@@ -455,6 +464,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 10001          | 1                     | English
 10001          | 1                     | English
 10001          | 1                     | null
+10002          | 2                     | German
 10002          | 2                     | German
 10002          | 2                     | German
 10002          | 2                     | German
@@ -591,6 +601,146 @@ language_code:integer | language_name:keyword | country:text
 7                     | null                  | null
 8                     | null                  | null
 ;
+
+
+#### 137269
+
+mvKeywordFieldJoinWarningsFromLeftSide
+required_capability: join_lookup_v12
+required_capability: async_operator_warnings_fix
+
+ROW language_name = ["English", "Spanish"]
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_name
+| KEEP language_name, country.keyword
+| LIMIT 5
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON language_name] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+language_name:keyword | country.keyword:keyword
+[English, Spanish]    | null
+;
+
+mvKeywordFieldJoinWarningsFromLeftSideWhenNotKept
+required_capability: join_lookup_v12
+required_capability: async_operator_warnings_fix
+
+ROW language_name = ["English", "Spanish"]
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_name
+| KEEP language_code
+| LIMIT 5
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON language_name] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+language_code:integer
+null
+;
+
+mvKeywordExpressionJoinWarningsFromLeftSide
+required_capability: join_lookup_v12
+required_capability: async_operator_warnings_fix
+
+ROW name = ["English", "Spanish"]
+| LOOKUP JOIN languages_lookup_non_unique_key ON name == language_name
+| KEEP name, country.keyword, language_name
+| LIMIT 5
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON name == language_name] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+name:keyword          | country.keyword:keyword | language_name:keyword
+[English, Spanish]    | null                    | null
+;
+
+mvKeywordExpressionJoinWarningsFromLeftSideWhenNotKept
+required_capability: join_lookup_v12
+required_capability: async_operator_warnings_fix
+
+ROW name = ["English", "Spanish"]
+| LOOKUP JOIN languages_lookup_non_unique_key ON name == language_name
+| KEEP language_code
+| LIMIT 5
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON name == language_name] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+language_code:integer
+null
+;
+
+mvKeywordFieldJoinWarningsFromRightSide
+required_capability: join_lookup_v12
+required_capability: async_operator_warnings_fix
+
+ROW country.keyword = "Germany"
+| LOOKUP JOIN languages_lookup_non_unique_key ON country.keyword
+| KEEP country.keyword, language_code, language_name
+| LIMIT 5
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON country.keyword] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+country.keyword:keyword | language_code:integer | language_name:keyword
+Germany                 | null                  | null                 
+;
+
+mvKeywordFieldJoinWarningsFromRightSideWhenNotKept
+required_capability: join_lookup_v12
+required_capability: async_operator_warnings_fix
+
+ROW country.keyword = "Germany"
+| LOOKUP JOIN languages_lookup_non_unique_key ON country.keyword
+| KEEP language_code
+| LIMIT 5
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON country.keyword] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+language_code:integer
+null
+;
+
+mvKeywordExpressionJoinWarningsFromRightSide
+required_capability: join_lookup_v12
+required_capability: async_operator_warnings_fix
+
+ROW name = "Germany"
+| LOOKUP JOIN languages_lookup_non_unique_key ON name == country.keyword
+| KEEP name, country.keyword, language_name
+| LIMIT 5
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON name == country.keyword] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+name:keyword          | country.keyword:keyword | language_name:keyword
+Germany               | null                    | null
+;
+
+mvKeywordExpressionJoinWarningsFromRightSideWhenNotKept
+required_capability: join_lookup_v12
+required_capability: async_operator_warnings_fix
+
+ROW name = "Germany"
+| LOOKUP JOIN languages_lookup_non_unique_key ON name == country.keyword
+| KEEP language_code
+| LIMIT 5
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON name == country.keyword] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+language_code:integer
+null
+;
+
 
 ###############################################
 # Filtering tests with languages_lookup index
@@ -1744,6 +1894,7 @@ from languages,languages_lookup,languages_lookup_non_unique_key,languages_nested
 
 ignoreOrder:true
 language.name:text
+null
 null
 null
 null

@@ -68,7 +68,44 @@ public class NodeBalanceStatsTests extends AbstractWireSerializingTestCase<Clust
         assertEquals(instance.nodeId(), deserialized.nodeId());
         assertEquals(instance.roles(), deserialized.roles());
         assertEquals(instance.undesiredShardAllocations(), deserialized.undesiredShardAllocations());
-        assertEquals(instance.nodeWeight(), deserialized.nodeWeight());
+        // null and 0.0 are not serialized (default); after round-trip they become 0.0
+        if (instance.nodeWeight() == null || instance.nodeWeight() == 0.0) {
+            assertEquals(0.0, deserialized.nodeWeight(), 0.0001);
+        } else {
+            assertEquals(instance.nodeWeight(), deserialized.nodeWeight());
+        }
+    }
+
+    public void testRoundTripOmitsDefaultNodeWeightZero() throws IOException {
+        final var version = TransportVersionUtils.randomVersionSupporting(NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS);
+        ClusterBalanceStats.NodeBalanceStats withZero = new ClusterBalanceStats.NodeBalanceStats(
+            "node-1",
+            List.of("data"),
+            1,
+            0,
+            0.0,
+            0L,
+            0L,
+            0.0
+        );
+        ClusterBalanceStats.NodeBalanceStats deserializedZero = copyInstance(withZero, version);
+        assertEquals(0.0, deserializedZero.nodeWeight(), 0.0001);
+    }
+
+    public void testRoundTripNullNodeWeightBecomesZero() throws IOException {
+        final var version = TransportVersionUtils.randomVersionSupporting(NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS);
+        ClusterBalanceStats.NodeBalanceStats withNull = new ClusterBalanceStats.NodeBalanceStats(
+            "node-1",
+            List.of("data"),
+            1,
+            0,
+            0.0,
+            0L,
+            0L,
+            null
+        );
+        ClusterBalanceStats.NodeBalanceStats deserializedNull = copyInstance(withNull, version);
+        assertEquals(0.0, deserializedNull.nodeWeight(), 0.0001);
     }
 
     public void testToXContentWithoutHumanReadableNames() throws IOException {

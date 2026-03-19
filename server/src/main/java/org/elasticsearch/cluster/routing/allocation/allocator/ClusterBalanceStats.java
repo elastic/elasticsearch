@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.ToDoubleFunction;
 
@@ -267,16 +268,65 @@ public record ClusterBalanceStats(
             return assignment != null && assignment.nodeIds().contains(shardRouting.currentNodeId());
         }
 
+        /** Treat null and 0.0 as equivalent for nodeWeight (default value is omitted on the wire and read back as 0.0). */
+        private static boolean nodeWeightEquals(Double a, Double b) {
+            if (Objects.equals(a, b)) return true;
+            return (a == null || a == 0.0) && (b == null || b == 0.0);
+        }
+
+        private static int nodeWeightHashCode(Double nodeWeight) {
+            return (nodeWeight != null && nodeWeight != 0.0) ? nodeWeight.hashCode() : 0;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            NodeBalanceStats that = (NodeBalanceStats) o;
+            return shards == that.shards
+                && undesiredShardAllocations == that.undesiredShardAllocations
+                && Double.doubleToLongBits(forecastWriteLoad) == Double.doubleToLongBits(that.forecastWriteLoad)
+                && forecastShardSize == that.forecastShardSize
+                && actualShardSize == that.actualShardSize
+                && Objects.equals(nodeId, that.nodeId)
+                && Objects.equals(roles, that.roles)
+                && nodeWeightEquals(nodeWeight, that.nodeWeight);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(
+                nodeId,
+                roles,
+                shards,
+                undesiredShardAllocations,
+                forecastWriteLoad,
+                forecastShardSize,
+                actualShardSize,
+                nodeWeightHashCode(nodeWeight)
+            );
+        }
+
         public static NodeBalanceStats readFrom(StreamInput in) throws IOException {
+            String nodeId = in.readString();
+            List<String> roles = in.readStringCollectionAsList();
+            int shards = in.readInt();
+            int undesiredShardAllocations = in.readVInt();
+            double forecastWriteLoad = in.readDouble();
+            long forecastShardSize = in.readLong();
+            long actualShardSize = in.readLong();
+            boolean supportsNodeWeights = in.getTransportVersion().supports(NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS);
+            Double nodeWeightRead = supportsNodeWeights ? in.readOptionalDouble() : null;
+            Double nodeWeight = supportsNodeWeights ? (nodeWeightRead != null ? nodeWeightRead : 0.0) : null;
             return new NodeBalanceStats(
-                in.readString(),
-                in.readStringCollectionAsList(),
-                in.readInt(),
-                in.readVInt(),
-                in.readDouble(),
-                in.readLong(),
-                in.readLong(),
-                in.getTransportVersion().supports(NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS) ? in.readOptionalDouble() : null
+                nodeId,
+                roles,
+                shards,
+                undesiredShardAllocations,
+                forecastWriteLoad,
+                forecastShardSize,
+                actualShardSize,
+                nodeWeight
             );
         }
 
@@ -290,7 +340,7 @@ public record ClusterBalanceStats(
             out.writeLong(forecastShardSize);
             out.writeLong(actualShardSize);
             if (out.getTransportVersion().supports(NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS)) {
-                out.writeOptionalDouble(nodeWeight);
+                out.writeOptionalDouble(nodeWeight != null && nodeWeight != 0.0 ? nodeWeight : null);
             }
         }
 

@@ -1,0 +1,141 @@
+---
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          capabilities: [views_skip_request_filter]
+        - method: GET
+          path: /_query/view
+          capabilities: [view_index_abstraction]
+      test_runner_features: capabilities
+      reason: "Request-level QueryDSL filter must not be pushed down into view source indexes"
+
+  - do:
+      indices.create:
+        index: direct_idx
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              value:
+                type: integer
+
+  - do:
+      indices.create:
+        index: view_idx
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              value:
+                type: integer
+
+  - do:
+      bulk:
+        index: "direct_idx"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-01-01T00:00:00Z", "value": 1 }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-01T00:00:00Z", "value": 2 }
+          - { "index": { } }
+          - { "@timestamp": "2024-03-01T00:00:00Z", "value": 3 }
+
+  - do:
+      bulk:
+        index: "view_idx"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-01-01T00:00:00Z", "value": 10 }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-01T00:00:00Z", "value": 20 }
+          - { "index": { } }
+          - { "@timestamp": "2024-03-01T00:00:00Z", "value": 30 }
+
+  - do:
+      esql.put_view:
+        name: my_view
+        body:
+          query: 'FROM view_idx'
+
+---
+"filter applies to direct index":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM direct_idx | SORT value | KEEP value | LIMIT 10'
+          filter:
+            range:
+              "@timestamp":
+                gte: "2024-02-01T00:00:00Z"
+
+  - match: { columns.0.name: "value" }
+  - length: { values: 2 }
+  - match: { values.0: [2] }
+  - match: { values.1: [3] }
+
+---
+"filter does not apply to view":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM my_view | SORT value | KEEP value | LIMIT 10'
+          filter:
+            range:
+              "@timestamp":
+                gte: "2024-02-01T00:00:00Z"
+
+  - match: { columns.0.name: "value" }
+  - length: { values: 3 }
+  - match: { values.0: [10] }
+  - match: { values.1: [20] }
+  - match: { values.2: [30] }
+
+---
+"filter applies to direct index but not to view":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM direct_idx, my_view | SORT value | KEEP value | LIMIT 10'
+          filter:
+            range:
+              "@timestamp":
+                gte: "2024-02-01T00:00:00Z"
+
+  - match: { columns.0.name: "value" }
+  - length: { values: 5 }
+  - match: { values.0: [2] }
+  - match: { values.1: [3] }
+  - match: { values.2: [10] }
+  - match: { values.3: [20] }
+  - match: { values.4: [30] }
+
+---
+"same index direct and via view - filter applies only to direct access":
+  - do:
+      esql.put_view:
+        name: direct_view
+        body:
+          query: 'FROM direct_idx'
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM direct_idx, direct_view | SORT value | KEEP value | LIMIT 10'
+          filter:
+            range:
+              "@timestamp":
+                gte: "2024-02-01T00:00:00Z"
+
+  - match: { columns.0.name: "value" }
+  - length: { values: 5 }
+  - match: { values.0: [1] }
+  - match: { values.1: [2] }
+  - match: { values.2: [2] }
+  - match: { values.3: [3] }
+  - match: { values.4: [3] }

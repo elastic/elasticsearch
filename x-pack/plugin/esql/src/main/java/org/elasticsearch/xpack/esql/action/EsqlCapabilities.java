@@ -1206,6 +1206,10 @@ public class EsqlCapabilities {
          */
         VIEWS_CRUD_AS_INDEX_ACTIONS(VIEWS_WITH_NO_BRANCHING.isEnabled()),
         /**
+         * Request-level QueryDSL filter is not pushed down to source indexes inside view definitions.
+         */
+        VIEWS_SKIP_REQUEST_FILTER(VIEWS_WITH_NO_BRANCHING.isEnabled()),
+        /**
          * Views with branching (requires subqueries/FORK).
          */
         VIEWS_WITH_BRANCHING(VIEWS_WITH_NO_BRANCHING.isEnabled() && SUBQUERY_IN_FROM_COMMAND.isEnabled()),

@@ -386,7 +386,7 @@ public class ViewResolver {
         List<UnresolvedRelation> unresolvedRelations = new ArrayList<>();
         List<LogicalPlan> otherPlans = new ArrayList<>();
         for (ViewPlan lp : subqueries) {
-            if (lp.plan instanceof UnresolvedRelation urp && urp.indexMode() == IndexMode.STANDARD) {
+            if (lp.name == null && lp.plan instanceof UnresolvedRelation urp && urp.indexMode() == IndexMode.STANDARD) {
                 unresolvedRelations.add(urp);
             } else {
                 otherPlans.add(new Subquery(ur.source(), lp.plan, lp.name));

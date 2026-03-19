@@ -1968,6 +1968,11 @@ public class EsqlCapabilities {
         PROMQL_IMPLICIT_RANGE_SELECTOR,
 
         /**
+         * Support for PromQL {@code without} grouping.
+         */
+        PROMQL_WITHOUT_GROUPING(false),
+
+        /**
          * Support for {@code TIME_SERIES_WITHOUT_GROUPING} capability for the
          * grouping function that excludes specific dimensions from time-series grouping.
          */

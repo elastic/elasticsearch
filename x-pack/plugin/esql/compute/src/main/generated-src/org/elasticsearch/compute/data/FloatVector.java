@@ -20,7 +20,8 @@ import java.io.IOException;
  * Vector that stores float values.
  * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
-public sealed interface FloatVector extends Vector permits ConstantFloatVector, FloatArrayVector, FloatBigArrayVector, ConstantNullVector {
+public sealed interface FloatVector extends Vector permits ConstantFloatVector, FloatArrayVector, FloatBigArrayVector, ConstantNullVector,
+    org.elasticsearch.compute.data.arrow.FloatArrowBufVector {
 
     float getFloat(int position);
 

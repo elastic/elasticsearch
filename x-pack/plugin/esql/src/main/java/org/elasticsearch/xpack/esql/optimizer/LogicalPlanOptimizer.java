@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneInlineJoinOnEmptyRightSide;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanSimplification;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.CanonicalizeExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineBinaryComparisons;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineDisjunctions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineEvals;
@@ -114,7 +113,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
     private static final List<RuleExecutor.Batch<LogicalPlan>> RULES = List.of(
         substitutions(),
-        canonicalizeExpressions(),
         operators(),
         new Batch<>("Skip Compute", new SkipQueryOnLimitZero()),
         cleanup(),
@@ -186,10 +184,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
             new SubstituteApproximationPlan()
         );
-    }
-
-    protected static Batch<LogicalPlan> canonicalizeExpressions() {
-        return new Batch<>("Canonicalize Expressions", Limiter.ONCE, new CanonicalizeExpressions());
     }
 
     protected static Batch<LogicalPlan> operators() {

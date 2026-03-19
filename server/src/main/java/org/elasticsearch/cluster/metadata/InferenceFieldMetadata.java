@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -38,14 +39,38 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
     private static final String SEARCH_INFERENCE_ID_FIELD = "search_inference_id";
     private static final String SOURCE_FIELDS_FIELD = "source_fields";
     static final String CHUNKING_SETTINGS_FIELD = "chunking_settings";
+    private static final String EMBEDDING_TYPE_FIELD = "embedding_type";
 
     private static final TransportVersion SEMANTIC_TEXT_CHUNKING_CONFIG = TransportVersion.fromName("semantic_text_chunking_config");
+    public static final TransportVersion INFERENCE_FIELD_EMBEDDING_TYPE = TransportVersion.fromName(
+        "inference_field_embedding_type"
+    );
+
+    /**
+     * Embedding type that determines which inference path the coordinator uses for calculating embeddings
+     */
+    public enum EmbeddingType implements Writeable {
+        /** Default — uses the chunkedInfer() path (covers TaskType.TEXT_EMBEDDING and SPARSE_EMBEDDING) */
+        TEXT_EMBEDDING,
+        /** Multimodal path — uses embeddingInfer() (covers TaskType.EMBEDDING) */
+        EMBEDDING;
+
+        public static EmbeddingType fromStream(StreamInput in) throws IOException {
+            return in.readEnum(EmbeddingType.class);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeEnum(this);
+        }
+    }
 
     private final String name;
     private final String inferenceId;
     private final String searchInferenceId;
     private final String[] sourceFields;
     private final Map<String, Object> chunkingSettings;
+    private final EmbeddingType embeddingType;
 
     public InferenceFieldMetadata(String name, String inferenceId, String[] sourceFields, Map<String, Object> chunkingSettings) {
         this(name, inferenceId, inferenceId, sourceFields, chunkingSettings);
@@ -58,11 +83,23 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         String[] sourceFields,
         Map<String, Object> chunkingSettings
     ) {
+        this(name, inferenceId, searchInferenceId, sourceFields, chunkingSettings, EmbeddingType.TEXT_EMBEDDING);
+    }
+
+    public InferenceFieldMetadata(
+        String name,
+        String inferenceId,
+        String searchInferenceId,
+        String[] sourceFields,
+        Map<String, Object> chunkingSettings,
+        EmbeddingType embeddingType
+    ) {
         this.name = Objects.requireNonNull(name);
         this.inferenceId = Objects.requireNonNull(inferenceId);
         this.searchInferenceId = Objects.requireNonNull(searchInferenceId);
         this.sourceFields = Objects.requireNonNull(sourceFields);
         this.chunkingSettings = chunkingSettings != null ? Map.copyOf(chunkingSettings) : null;
+        this.embeddingType = Objects.requireNonNull(embeddingType);
     }
 
     public InferenceFieldMetadata(StreamInput input) throws IOException {
@@ -75,6 +112,11 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         } else {
             this.chunkingSettings = null;
         }
+        if (input.getTransportVersion().supports(INFERENCE_FIELD_EMBEDDING_TYPE)) {
+            this.embeddingType = input.readEnum(EmbeddingType.class);
+        } else {
+            this.embeddingType = EmbeddingType.TEXT_EMBEDDING;
+        }
     }
 
     @Override
@@ -85,6 +127,9 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         out.writeStringArray(sourceFields);
         if (out.getTransportVersion().supports(SEMANTIC_TEXT_CHUNKING_CONFIG)) {
             out.writeGenericMap(chunkingSettings);
+        }
+        if (out.getTransportVersion().supports(INFERENCE_FIELD_EMBEDDING_TYPE)) {
+            out.writeEnum(embeddingType);
         }
     }
 
@@ -97,12 +142,13 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
             && Objects.equals(inferenceId, that.inferenceId)
             && Objects.equals(searchInferenceId, that.searchInferenceId)
             && Arrays.equals(sourceFields, that.sourceFields)
-            && Objects.equals(chunkingSettings, that.chunkingSettings);
+            && Objects.equals(chunkingSettings, that.chunkingSettings)
+            && embeddingType == that.embeddingType;
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(name, inferenceId, searchInferenceId, chunkingSettings);
+        int result = Objects.hash(name, inferenceId, searchInferenceId, chunkingSettings, embeddingType);
         result = 31 * result + Arrays.hashCode(sourceFields);
         return result;
     }
@@ -132,6 +178,10 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         return chunkingSettings;
     }
 
+    public EmbeddingType getEmbeddingType() {
+        return embeddingType;
+    }
+
     public static Diff<InferenceFieldMetadata> readDiffFrom(StreamInput in) throws IOException {
         return SimpleDiffable.readDiffFrom(InferenceFieldMetadata::new, in);
     }
@@ -149,6 +199,7 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
             builder.mapContents(chunkingSettings);
             builder.endObject();
         }
+        builder.field(EMBEDDING_TYPE_FIELD, embeddingType.name());
         return builder.endObject();
     }
 
@@ -162,6 +213,7 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         String inferenceId = null;
         String searchInferenceId = null;
         Map<String, Object> chunkingSettings = null;
+        EmbeddingType embeddingType = EmbeddingType.TEXT_EMBEDDING;
         List<String> inputFields = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -171,6 +223,8 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
                     inferenceId = parser.text();
                 } else if (SEARCH_INFERENCE_ID_FIELD.equals(currentFieldName)) {
                     searchInferenceId = parser.text();
+                } else if (EMBEDDING_TYPE_FIELD.equals(currentFieldName)) {
+                    embeddingType = EmbeddingType.valueOf(parser.text());
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (SOURCE_FIELDS_FIELD.equals(currentFieldName)) {
@@ -193,7 +247,8 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
             inferenceId,
             searchInferenceId == null ? inferenceId : searchInferenceId,
             inputFields.toArray(String[]::new),
-            chunkingSettings
+            chunkingSettings,
+            embeddingType
         );
     }
 }

@@ -17,30 +17,18 @@
 
 package org.elasticsearch.xpack.stateless;
 
-import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.node.NodeRoleSettings;
-import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexRequest;
 import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
 
-import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
@@ -49,24 +37,26 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests that resharding operations are resilient in presence of failures.
  */
-public class StatelessReshardDisruptionIT extends AbstractStatelessPluginIntegTestCase {
+public class StatelessReshardDisruptionIT extends StatelessReshardDisruptionBaseIT {
     public void testReshardWithDisruption() throws InterruptedException, ExecutionException {
         var masterNode = startMasterOnlyNode();
 
-        int nodes = 2;
-        startIndexNodes(nodes);
-        startSearchNodes(nodes);
+        int shards = randomIntBetween(1, 5);
 
-        int clusterSize = nodes * 2 + 1;
+        int indexNodes = randomIntBetween(1, shards * 2);
+        startIndexNodes(indexNodes);
+        int searchNodes = randomIntBetween(1, shards * 2);
+        startSearchNodes(searchNodes);
+
+        int clusterSize = indexNodes + searchNodes + 1;
         ensureStableCluster(clusterSize);
 
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        // TODO test initial number of shards other than 1
-        createIndex(indexName, indexSettings(1, 1).build());
+        final String indexName = randomIndexName();
+        createIndex(indexName, indexSettings(shards, 1).build());
         ensureGreen(indexName);
         Index index = resolveIndex(indexName);
 
-        checkNumberOfShardsSetting(indexName, 1);
+        checkNumberOfShardsSetting(indexName, shards);
 
         var multiple = 2;
 
@@ -83,7 +73,7 @@ public class StatelessReshardDisruptionIT extends AbstractStatelessPluginIntegTe
                 do {
                     Failure randomFailure = randomFrom(Failure.values());
                     try {
-                        induceFailure(randomFailure, index, clusterSize, multiple);
+                        induceFailure(randomFailure, index, null);
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
@@ -95,14 +85,14 @@ public class StatelessReshardDisruptionIT extends AbstractStatelessPluginIntegTe
             try {
                 logger.info("--> resharding an index [{}] under disruption", indexName);
                 client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(TEST_REQUEST_TIMEOUT);
-                waitForReshardCompletion(indexName);
+                waitForReshardCompletion(index);
                 logger.info("--> done resharding an index [{}]", indexName);
             } finally {
                 stop.set(true);
                 disruptionFuture.get();
             }
 
-            checkNumberOfShardsSetting(indexName, multiple);
+            checkNumberOfShardsSetting(indexName, shards * multiple);
 
             ensureGreen(indexName);
 
@@ -130,78 +120,6 @@ public class StatelessReshardDisruptionIT extends AbstractStatelessPluginIntegTe
         return super.nodeSettings().put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO);
     }
 
-    // Inspired by StatelessTranslogIT.
-    private void induceFailure(Failure failure, Index index, int clusterSize, int shardCount) throws Exception {
-        switch (failure) {
-            case RESTART -> {
-                String nodeToRestart = indexingNode();
-                logger.info("--> restarting node [{}]", nodeToRestart);
-                internalCluster().restartNode(nodeToRestart);
-                ensureStableCluster(clusterSize);
-            }
-            case REPLACE_FAILED_NODE -> {
-                String nodeToReplace = indexingNode();
-                logger.info("--> replacing node [{}]", nodeToReplace);
-                internalCluster().stopNode(nodeToReplace);
-                startIndexNode();
-                ensureStableCluster(clusterSize);
-            }
-            case LOCAL_FAIL_SHARD -> {
-                try {
-                    IndexShard indexShard = findIndexShard(index, randomIntBetween(0, shardCount));
-                    var listener = ClusterServiceUtils.addTemporaryStateListener(
-                        cs -> cs.routingTable().index(index.getName()).shard(indexShard.shardId().id()).primaryShard().unassigned()
-                    );
-                    logger.info("--> failing shard {}", indexShard.shardId());
-                    indexShard.failShard("broken", new Exception("boom local"));
-                    // ensureGreen may succeed before the cluster state reflects the failed shard
-                    safeAwait(listener);
-                    ensureGreen(index.getName());
-                } catch (AssertionError | AlreadyClosedException e) {
-                    // Unlucky, shard does not exist yet or is already closed.
-                }
-            }
-            case RELOCATE_SHARD -> {
-                ensureGreen(index.getName());
-                var shardId = randomIntBetween(0, shardCount);
-                var clusterState = clusterService().state();
-                var shardRoutingTable = clusterState.routingTable().index(index.getName()).shard(shardId);
-                if (shardRoutingTable == null) {
-                    // target shard doesn't exist yet, relocate source instead
-                    assert shardId != 0;
-                    shardId = 0;
-                    shardRoutingTable = clusterState.routingTable().index(index.getName()).shard(shardId);
-                }
-                boolean relocatePrimary = randomBoolean();
-                // We run with one replica so there will only one unpromotable shard to relocate here.
-                String fromNode = relocatePrimary
-                    ? clusterState.getNodes().get(shardRoutingTable.primaryShard().currentNodeId()).getName()
-                    : clusterState.getNodes().get(shardRoutingTable.assignedUnpromotableShards().get(0).currentNodeId()).getName();
-                List<String> eligibleNodes = getRelocationEligibleNode(clusterState, fromNode, relocatePrimary);
-
-                if (eligibleNodes.isEmpty() == false) {
-                    var toNode = randomFrom(eligibleNodes);
-                    logger.info("--> relocating shard {} from {} to {}", shardId, fromNode, toNode);
-                    ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(index.getName(), shardId, fromNode, toNode));
-                }
-            }
-        }
-    }
-
-    private static String indexingNode() {
-        return Stream.generate(() -> internalCluster().getNodeNameThat(settings -> {
-            List<DiscoveryNodeRole> discoveryNodeRoles = NodeRoleSettings.NODE_ROLES_SETTING.get(settings);
-            return discoveryNodeRoles.contains(DiscoveryNodeRole.INDEX_ROLE);
-        })).findFirst().get();
-    }
-
-    private enum Failure {
-        RESTART,
-        REPLACE_FAILED_NODE,
-        LOCAL_FAIL_SHARD,
-        RELOCATE_SHARD,
-    }
-
     private static void checkNumberOfShardsSetting(String indexName, int expected_shards) {
         assertThat(
             IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
@@ -217,18 +135,7 @@ public class StatelessReshardDisruptionIT extends AbstractStatelessPluginIntegTe
         );
     }
 
-    private void waitForReshardCompletion(String indexName) {
-        awaitClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() == null);
-    }
-
-    private List<String> getRelocationEligibleNode(ClusterState clusterState, String fromNode, boolean primary) {
-        DiscoveryNodeRole requiredRole = primary ? DiscoveryNodeRole.INDEX_ROLE : DiscoveryNodeRole.SEARCH_ROLE;
-
-        return clusterState.nodes()
-            .getAllNodes()
-            .stream()
-            .filter(node -> node.getName().equals(fromNode) == false && node.hasRole(requiredRole.roleName()))
-            .map(DiscoveryNode::getName)
-            .toList();
+    private void waitForReshardCompletion(Index index) {
+        awaitClusterState((state) -> state.metadata().findIndex(index).get().getReshardingMetadata() == null);
     }
 }

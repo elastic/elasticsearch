@@ -85,7 +85,7 @@ public class Values extends AggregateFunction implements ToAggregator {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "8.14.0"),
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0"), },
         description = """
-            Returns unique values as a multivalued field. The order of the returned values isn’t guaranteed.
+            Returns unique (deduplicated) values as a multivalued field. The order of the returned values isn’t guaranteed.
             If you need the values returned in order use
             [`MV_SORT`](/reference/query-languages/esql/functions-operators/mv-functions/mv_sort.md).""",
         appendix = """

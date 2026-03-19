@@ -133,6 +133,7 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -230,6 +231,7 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassificatio
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotNull;
@@ -816,6 +818,20 @@ public final class EsqlTestUtils {
             assertEquals(limit.local(), local);
         }
         return limit;
+    }
+
+    /**
+     * Assert that an {@link Eval}'s fields are literal-valued aliases with the given names and values (in order).
+     */
+    public static Eval assertEvalFields(Eval eval, String[] names, Object[] values) {
+        var fields = eval.fields();
+        Assert.assertEquals(names.length, fields.size());
+        Assert.assertEquals(names.length, values.length);
+        for (int i = 0; i < names.length; i++) {
+            assertThat(fields.get(i).name(), equalTo(names[i]));
+            assertThat(as(fields.get(i).child(), Literal.class).value(), equalTo(values[i]));
+        }
+        return eval;
     }
 
     public static Map<String, EsField> loadMapping(String name) {

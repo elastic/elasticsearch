@@ -268,7 +268,7 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    // Test ported from csv-spec:lookup-join.FloatJoinScaledFloat
+    // Test ported from csv-spec:lookup-join.floatJoinScaledFloat
     // Tests LOOKUP JOIN with mixed numeric fields, specifically float to scaled_float conversion
     public void testFloatJoinScaledFloat() throws IOException {
         // Required indices and enrich policies for this test

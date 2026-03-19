@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -46,10 +47,12 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.core.analytics.mapper.TDigestParser;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
+import org.junit.AssumptionViolatedException;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
 
@@ -76,6 +79,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 import static org.elasticsearch.xpack.esql.SpecReader.shouldSkipLine;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToUnsignedLong;
@@ -85,6 +89,9 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToAggregateMetricDoubleLiteral;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.in;
+import static org.junit.Assume.assumeFalse;
 
 public final class CsvTestUtils {
     private static final int MAX_WIDTH = 80;
@@ -123,6 +130,49 @@ public final class CsvTestUtils {
             return false;
         }
         return true;
+    }
+
+    public static void checkTestCapabilities(
+        EsqlCapabilities allCapabilities,
+        EsqlCapabilities enabledCapabilities,
+        List<String> requiredCapabilities,
+        Logger logger
+    ) {
+        if (Build.current().isSnapshot()) {
+            assertThat(
+                "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",
+                requiredCapabilities,
+                everyItem(in(allCapabilities.capabilities()))
+            );
+            assumeTrueLogging(
+                "Capability not supported in this build",
+                enabledCapabilities.capabilities().containsAll(requiredCapabilities),
+                logger
+            );
+        } else {
+            for (EsqlCapabilities.Cap c : EsqlCapabilities.Cap.values()) {
+                if (false == c.isEnabled()) {
+                    assumeFalseLogging(
+                        c.capabilityName() + " is not supported in non-snapshot releases",
+                        requiredCapabilities.contains(c.capabilityName()),
+                        logger
+                    );
+                }
+            }
+        }
+    }
+
+    public static void assumeTrueLogging(String message, boolean condition, Logger logger) {
+        assumeFalseLogging(message, condition == false, logger);
+    }
+
+    public static void assumeFalseLogging(String message, boolean condition, Logger logger) {
+        try {
+            assumeFalse(message, condition);
+        } catch (AssumptionViolatedException ave) {
+            logger.info("skipping test: " + ave.getMessage());
+            throw ave;
+        }
     }
 
     private static final Pattern INSTRUCTION_PATTERN = Pattern.compile("\\[(.*?)]");

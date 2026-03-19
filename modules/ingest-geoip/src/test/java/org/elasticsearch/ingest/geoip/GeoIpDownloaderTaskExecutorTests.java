@@ -9,16 +9,12 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -30,7 +26,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.persistent.PersistentTasksExecutorTestUtils;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -40,11 +37,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -55,36 +49,29 @@ import java.util.function.Consumer;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
-
-    private static final String LOCAL_NODE_ID = "local";
-    private static final PersistentTasksCustomMetadata.Assignment LOCAL_ASSIGNMENT = new PersistentTasksCustomMetadata.Assignment(
-        LOCAL_NODE_ID,
-        ""
-    );
 
     private PersistentTasksService persistentTasksService;
     private ThreadPool threadPool;
     private NoOpClient client;
 
-    @Before
-    public void setup() {
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
         persistentTasksService = mock(PersistentTasksService.class);
         threadPool = new TestThreadPool(getTestName());
         client = new NoOpClient(threadPool, TestProjectResolvers.singleProjectOnly(Metadata.DEFAULT_PROJECT_ID));
     }
 
-    @After
-    public void cleanup() throws Exception {
+    @Override
+    public void tearDown() throws Exception {
         terminate(threadPool);
+        super.tearDown();
     }
 
     public void testHasAtLeastOneGeoipProcessorWhenDownloadDatabaseOnPipelineCreationIsFalse() throws IOException {
@@ -243,6 +230,60 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
             var ingestMetadata = new IngestMetadata(configs);
             ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build();
             assertTrue(GeoIpDownloaderTaskExecutor.hasAtLeastOneGeoipProcessor(projectMetadata));
+        }
+    }
+
+    public void testMasterTaskReconciliation() {
+        PersistentTasksExecutorTestUtils.assertToggeableMasterTaskReconciliation(
+            GEOIP_DOWNLOADER,
+            new GeoIpTaskParams(),
+            GeoIpDownloaderTaskExecutor.ENABLED_SETTING,
+            Set.of(GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING, GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING),
+            cs -> stateWithLocallyAssignedProjectTask(cs, Metadata.DEFAULT_PROJECT_ID, GEOIP_DOWNLOADER, new GeoIpTaskParams()),
+            persistentTasksService,
+            threadPool,
+            PersistentTasksExecutor.Scope.PROJECT,
+            Metadata.DEFAULT_PROJECT_ID,
+            (cs, ns, csettings) -> createExecutor(cs)
+        );
+    }
+
+    public void testNonMasterNeverStartsOrStopsTask() {
+        PersistentTasksExecutorTestUtils.assertNonMasterIgnoresToggeableTask(
+            GeoIpDownloaderTaskExecutor.ENABLED_SETTING,
+            Set.of(GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING, GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING),
+            cs -> PersistentTasksExecutorTestUtils.stateWithLocallyAssignedProjectTask(cs, Metadata.DEFAULT_PROJECT_ID, GEOIP_DOWNLOADER, new GeoIpTaskParams()),
+            persistentTasksService,
+            threadPool,
+            (cs, ns, csettings) -> createExecutor(cs)
+        );
+    }
+
+    public void testDoesNotAbortTaskOnShutdown() {
+        final var clusterSettings = clusterSettingsWithGeoIp(Settings.EMPTY);
+        final var state = PersistentTasksExecutorTestUtils.buildInitialState(randomBoolean());
+
+        try (ClusterService clusterService = createClusterServiceWithSettings(Settings.EMPTY, clusterSettings)) {
+            setState(clusterService, state);
+            final var executor = createExecutor(clusterService);
+            final GeoIpDownloader task = mock(GeoIpDownloader.class);
+            executor.nodeOperation(task, new GeoIpTaskParams(), GeoIpTaskState.EMPTY);
+
+            final SingleNodeShutdownMetadata.Type shutdownType = randomFrom(
+                SingleNodeShutdownMetadata.Type.REMOVE,
+                SingleNodeShutdownMetadata.Type.RESTART,
+                SIGTERM
+            );
+            final ClusterState shutdownState = PersistentTasksExecutorTestUtils.stateWithNodeShuttingDown(
+                stateWithLocallyAssignedProjectTask(state, Metadata.DEFAULT_PROJECT_ID, GEOIP_DOWNLOADER, new GeoIpTaskParams()),
+                shutdownType
+            );
+            GeoIpDownloaderTaskExecutorTests.<Void>safeAwait(
+                listener -> clusterService.getClusterApplierService()
+                    .onNewClusterState("node shutdown applied", () -> shutdownState, listener)
+            );
+            verify(task, never()).markAsLocallyAborted(anyString());
+            verify(task, never()).markAsCompleted();
         }
     }
 
@@ -429,106 +470,10 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
             .build();
     }
 
-    public void testMasterTaskReconciliation() {
-        final boolean localEnabled = randomBoolean();
-        final var nodeSettings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), localEnabled).build();
-        final var clusterSettings = clusterSettingsWithGeoIp(nodeSettings);
-        final var initialState = clusterState(true);
-
-        try (ClusterService clusterService = createClusterServiceWithSettings(nodeSettings, clusterSettings)) {
-            setState(clusterService, initialState);
-            createExecutor(clusterService);
-
-            int expectedStartRequests = 0;
-            int expectedRemoveRequests = 0;
-
-            final int cycles = randomIntBetween(5, 10);
-            for (int i = 0; i < cycles; i++) {
-                final boolean taskExists = randomBoolean();
-                boolean enabled = localEnabled;
-
-                final var baseState = taskExists ? stateWithGeoIpTask(initialState) : initialState;
-                if (randomBoolean()) {
-                    enabled = randomBoolean();
-                    setState(clusterService, stateWithEnabledSetting(baseState, enabled));
-                } else {
-                    setState(clusterService, baseState);
-                }
-                if (enabled && taskExists == false) {
-                    expectedStartRequests++;
-                }
-                if (enabled == false && taskExists) {
-                    expectedRemoveRequests++;
-                }
-            }
-            verify(persistentTasksService, times(expectedStartRequests)).sendProjectStartRequest(
-                eq(Metadata.DEFAULT_PROJECT_ID),
-                eq(GEOIP_DOWNLOADER),
-                eq(GEOIP_DOWNLOADER),
-                eq(new GeoIpTaskParams()),
-                eq(MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT),
-                any()
-            );
-            verify(persistentTasksService, times(expectedRemoveRequests)).sendProjectRemoveRequest(
-                eq(Metadata.DEFAULT_PROJECT_ID),
-                eq(GEOIP_DOWNLOADER),
-                eq(MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT),
-                any()
-            );
-        }
-    }
-
-    public void testNonMasterNeverStartsOrStopsTask() {
-        final var nodeSettings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), randomBoolean()).build();
-        final var clusterSettings = clusterSettingsWithGeoIp(nodeSettings);
-        final var initialState = clusterState(false);
-        try (ClusterService clusterService = createClusterServiceWithSettings(nodeSettings, clusterSettings)) {
-            setState(clusterService, initialState);
-            createExecutor(clusterService);
-
-            var state = initialState;
-            if (randomBoolean()) {
-                state = stateWithEnabledSetting(state, randomBoolean());
-            }
-            if (randomBoolean()) {
-                state = stateWithGeoIpTask(state);
-            }
-            setState(clusterService, state);
-
-            verify(persistentTasksService, never()).sendProjectStartRequest(any(), any(), any(), any(), any(), any());
-            verify(persistentTasksService, never()).sendProjectRemoveRequest(any(), any(), any(), any());
-        }
-    }
-
-    public void testDoesNotAbortTaskOnShutdown() {
-        final var clusterSettings = clusterSettingsWithGeoIp(Settings.EMPTY);
-        final var state = clusterState(randomBoolean());
-
-        try (ClusterService clusterService = createClusterServiceWithSettings(Settings.EMPTY, clusterSettings)) {
-            setState(clusterService, state);
-            final var executor = createExecutor(clusterService);
-            final GeoIpDownloader task = mock(GeoIpDownloader.class);
-            executor.nodeOperation(task, new GeoIpTaskParams(), GeoIpTaskState.EMPTY);
-
-            final SingleNodeShutdownMetadata.Type shutdownType = randomFrom(
-                SingleNodeShutdownMetadata.Type.REMOVE,
-                SingleNodeShutdownMetadata.Type.RESTART,
-                SIGTERM
-            );
-            final ClusterState shutdownState = stateWithNodeShuttingDown(stateWithGeoIpTask(state), shutdownType);
-            GeoIpDownloaderTaskExecutorTests.<Void>safeAwait(
-                listener -> clusterService.getClusterApplierService()
-                    .onNewClusterState("node shutdown applied", () -> shutdownState, listener)
-            );
-            verify(task, never()).markAsLocallyAborted(anyString());
-            verify(task, never()).markAsCompleted();
-        }
-    }
-
     private ClusterService createClusterServiceWithSettings(Settings nodeSettings, ClusterSettings clusterSettings) {
         return ClusterServiceUtils.createClusterService(
             threadPool,
-            DiscoveryNodeUtils.create(LOCAL_NODE_ID, LOCAL_NODE_ID),
+            DiscoveryNodeUtils.create(PersistentTasksExecutorTestUtils.LOCAL_NODE_ID, PersistentTasksExecutorTestUtils.LOCAL_NODE_ID),
             nodeSettings,
             clusterSettings
         );
@@ -546,51 +491,5 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
         var executor = new GeoIpDownloaderTaskExecutor(client, mock(HttpClient.class), clusterService, threadPool, persistentTasksService);
         executor.init();
         return executor;
-    }
-
-    private static ClusterState clusterState(boolean localNodeIsMaster) {
-        final var nodes = DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(LOCAL_NODE_ID)).localNodeId(LOCAL_NODE_ID);
-        if (localNodeIsMaster) {
-            nodes.masterNodeId(LOCAL_NODE_ID);
-        } else {
-            nodes.add(DiscoveryNodeUtils.create("another-node"));
-            nodes.masterNodeId("another-node");
-        }
-        return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(Metadata.builder()).build();
-    }
-
-    private static ClusterState stateWithGeoIpTask(ClusterState clusterState) {
-        ProjectMetadata existingProject = clusterState.metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
-        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.builder()
-            .addTask(GEOIP_DOWNLOADER, GEOIP_DOWNLOADER, new GeoIpTaskParams(), LOCAL_ASSIGNMENT)
-            .build();
-        ProjectMetadata newProject = ProjectMetadata.builder(existingProject).putCustom(PersistentTasksCustomMetadata.TYPE, tasks).build();
-        return ClusterState.builder(clusterState).metadata(Metadata.builder(clusterState.metadata()).put(newProject)).build();
-    }
-
-    private static ClusterState stateWithEnabledSetting(ClusterState clusterState, boolean enabled) {
-        final var persistentSettings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), enabled).build();
-        return ClusterState.builder(clusterState)
-            .metadata(Metadata.builder(clusterState.metadata()).persistentSettings(persistentSettings))
-            .build();
-    }
-
-    private static ClusterState stateWithNodeShuttingDown(ClusterState clusterState, SingleNodeShutdownMetadata.Type type) {
-        final var nodesShutdownMetadata = new NodesShutdownMetadata(
-            Collections.singletonMap(
-                LOCAL_NODE_ID,
-                SingleNodeShutdownMetadata.builder()
-                    .setNodeId(LOCAL_NODE_ID)
-                    .setNodeEphemeralId(LOCAL_NODE_ID)
-                    .setReason("test related shutdown")
-                    .setType(type)
-                    .setStartedAtMillis(randomNonNegativeLong())
-                    .setGracePeriod(type == SIGTERM ? randomTimeValue() : null)
-                    .build()
-            )
-        );
-        return ClusterState.builder(clusterState)
-            .metadata(Metadata.builder(clusterState.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata).build())
-            .build();
     }
 }

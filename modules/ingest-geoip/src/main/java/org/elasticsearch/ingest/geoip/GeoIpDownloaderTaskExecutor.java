@@ -95,7 +95,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         Setting.Property.NodeScope
     );
 
-    private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);
+    private static final Logger logger = LogManager.getLogger(GeoIpDownloaderTaskExecutor.class);
 
     private final Client client;
     private final HttpClient httpClient;
@@ -109,7 +109,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     private volatile TimeValue pollInterval;
     private volatile boolean eagerDownload;
 
-    private final ConcurrentHashMap<ProjectId, Boolean> atLeastOneGeoipProcessorByProject = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<ProjectId, Boolean> atLeastOneGeoIpProcessorByProject = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<ProjectId, GeoIpDownloader> tasks = new ConcurrentHashMap<>();
     private final ProjectResolver projectResolver;
 
@@ -180,9 +180,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
         GeoIpTaskState geoIpTaskState = (state == null) ? GeoIpTaskState.EMPTY : (GeoIpTaskState) state;
         downloader.setState(geoIpTaskState);
         tasks.put(projectResolver.getProjectId(), downloader);
-        if (enabled) {
-            downloader.restartPeriodicRun();
-        }
+        downloader.restartPeriodicRun();
     }
 
     @Override
@@ -209,13 +207,15 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             headers,
             () -> pollInterval,
             () -> eagerDownload,
-            () -> atLeastOneGeoipProcessorByProject.getOrDefault(projectId, false),
+            () -> atLeastOneGeoIpProcessorByProject.getOrDefault(projectId, false),
             projectId
         );
     }
 
-    /// Reconciles the geoip downloader task lifecycle and tracks geoip processor presence on every cluster state update.
-    /// Only the master node manages the task lifecycle (start/stop). All nodes track geoip processor presence.
+    /// Tracks geoip processor presence and reconciles the task lifecycle (on master) on every cluster state update.
+    ///
+    /// Note: master-node task reconciliation (start/stop) is handled here for GeoIP, while the generic
+    /// enabled/disabled reconciliation is not delegated to a base class (unlike the consolidated approach).
     @FixForMultiProject(description = "Make sure removed project tasks are cancelled: https://elasticco.atlassian.net/browse/ES-12054")
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
@@ -224,9 +224,14 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             return;
         }
 
-        for (var projectMetadata : event.state().metadata().projects().values()) {
+        if (event.metadataChanged() == false) {
+            return;
+        }
+
+        final var projects = event.state().metadata().projects();
+        for (var projectMetadata : projects.values()) {
             ProjectId projectId = projectMetadata.id();
-            atLeastOneGeoipProcessorByProject.computeIfAbsent(projectId, k -> hasAtLeastOneGeoipProcessor(projectMetadata));
+            atLeastOneGeoIpProcessorByProject.computeIfAbsent(projectId, k -> hasAtLeastOneGeoipProcessor(projectMetadata));
 
             if (event.localNodeMaster()) {
                 reconcileTask(projectId, projectMetadata);
@@ -244,11 +249,11 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             }
 
             if (hasIngestPipelineChanges || hasIndicesChanges) {
-                boolean atLeastOneGeoipProcessor = atLeastOneGeoipProcessorByProject.getOrDefault(projectId, false);
+                boolean atLeastOneGeoipProcessor = atLeastOneGeoIpProcessorByProject.getOrDefault(projectId, false);
                 boolean newAtLeastOneGeoipProcessor = hasAtLeastOneGeoipProcessor(projectMetadata);
                 // update if necessary
                 if (newAtLeastOneGeoipProcessor != atLeastOneGeoipProcessor) {
-                    atLeastOneGeoipProcessorByProject.put(projectId, newAtLeastOneGeoipProcessor);
+                    atLeastOneGeoIpProcessorByProject.put(projectId, newAtLeastOneGeoipProcessor);
                 }
                 if (newAtLeastOneGeoipProcessor && atLeastOneGeoipProcessor == false) {
                     logger.trace("Scheduling runDownloader for project [{}] because a geoip processor has been added", projectId);
@@ -259,6 +264,13 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
                 }
             }
         }
+
+        // Cleanup entries for projects that no longer exist or no longer have an active task
+        atLeastOneGeoIpProcessorByProject.keySet().removeIf(p -> projects.containsKey(p) == false);
+        tasks.keySet().removeIf(
+            p -> projects.containsKey(p) == false
+                || PersistentTasksCustomMetadata.getTaskWithId(projects.get(p), getProjectTaskId(p)) == null
+        );
     }
 
     static boolean hasAtLeastOneGeoipProcessor(ProjectMetadata projectMetadata) {
@@ -592,6 +604,10 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
 
     public GeoIpDownloader getTask(ProjectId projectId) {
         return tasks.get(projectId);
+    }
+
+    private String getProjectTaskId(ProjectId projectId) {
+        return getTaskId(projectId, projectResolver.supportsMultipleProjects());
     }
 
     public static String getTaskId(ProjectId projectId, boolean supportsMultipleProjects) {

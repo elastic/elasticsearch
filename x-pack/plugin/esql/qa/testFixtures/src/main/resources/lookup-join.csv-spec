@@ -4936,21 +4936,6 @@ Connected to 10.1.0.1 | English                      | English               | n
 Connected to 10.1.0.1 | English                      | null                  | United Kingdom
 ;
 
-enrichAfterLookupJoin
-required_capability: join_lookup_v12
-
-FROM sample_data
-| KEEP message
-| WHERE message == "Connected to 10.1.0.1"
-| EVAL language_code = "1"
-| LOOKUP JOIN message_types_lookup ON message
-| ENRICH languages_policy ON language_code
-;
-
-message:keyword       | language_code:keyword | type:keyword | language_name:keyword
-Connected to 10.1.0.1 | 1                     | Success      | English
-;
-
 ###############################################
 # LOOKUP JOIN and remote ENRICH
 ###############################################

@@ -97,7 +97,7 @@ public class PrometheusQueryRangeResponseListenerTests extends ESTestCase {
     public void testConvertRangeQueryWithTimeseriesColumnAttributesNamespace() throws IOException {
         // _timeseries JSON with an "attributes" namespace containing a nested object.
         // All non-"labels" namespaces are flattened recursively with dot-separated paths, so
-        // {"attributes":{"resource":{"service.name":"my-service"}}} → metric key "attributes.resource.service.name".
+        // {"attributes":{"resource":{"service.name":"my-service"}}} -> metric key "attributes.resource.service.name".
         List<TestColumnInfo> columns = List.of(
             new TestColumnInfo("value", "double"),
             new TestColumnInfo("_timeseries", "keyword"),

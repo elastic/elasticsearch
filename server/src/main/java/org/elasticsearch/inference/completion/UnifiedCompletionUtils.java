@@ -92,6 +92,10 @@ public final class UnifiedCompletionUtils {
         "inference_api_chat_completion_reasoning_added"
     );
 
+    public static final TransportVersion CHAT_COMPLETION_REASONING_MAX_TOKENS_REMOVED = TransportVersion.fromName(
+        "inference_api_chat_completion_reasoning_max_tokens_removed"
+    );
+
     public static <T> T extractRequiredFieldOfType(Map<String, Object> sourceMap, String key, Class<T> type, String containingObject) {
         return extractFieldOfType(sourceMap, key, type, true, containingObject);
     }

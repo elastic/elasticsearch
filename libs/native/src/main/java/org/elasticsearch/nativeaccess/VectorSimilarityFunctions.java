@@ -39,7 +39,7 @@ public interface VectorSimilarityFunctions {
         /**
          * Unsigned int7. Single vector score returns results as an int.
          */
-        INT7U(Byte.BYTES * 8),
+        INT7U(Byte.SIZE),
         /**
          * 4-bit packed nibble. Two values per byte; single vector score returns results as an int.
          */
@@ -47,11 +47,11 @@ public interface VectorSimilarityFunctions {
         /**
          * 1-byte int. Single vector score returns results as an int.
          */
-        INT8(Byte.BYTES * 8),
+        INT8(Byte.SIZE),
         /**
          * 4-byte float. Single vector score returns results as a float.
          */
-        FLOAT32(Float.BYTES * 8);
+        FLOAT32(Float.SIZE);
 
         private final int bits;
 

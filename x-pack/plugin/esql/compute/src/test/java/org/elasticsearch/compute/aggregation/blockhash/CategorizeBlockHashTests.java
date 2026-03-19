@@ -312,7 +312,9 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     fail("hashes should not close AddInput");
                 }
             });
-            intermediatePage1 = new Page(rawHash1.getKeys()[0]);
+            try (IntVector nonEmpty = rawHash1.nonEmpty()) {
+                intermediatePage1 = new Page(rawHash1.getKeys(nonEmpty)[0]);
+            }
 
             rawHash2.add(page2, new GroupingAggregatorFunction.AddInput() {
                 private void addBlock(int positionOffset, IntBlock groupIds) {
@@ -344,7 +346,9 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     fail("hashes should not close AddInput");
                 }
             });
-            intermediatePage2 = new Page(rawHash2.getKeys()[0]);
+            try (IntVector nonEmpty = rawHash2.nonEmpty()) {
+                intermediatePage2 = new Page(rawHash2.getKeys(nonEmpty)[0]);
+            }
         } finally {
             page1.releaseBlocks();
             page2.releaseBlocks();
@@ -642,8 +646,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
     private void assertHashState(CategorizeBlockHash hash, boolean withNull, String... expectedKeys) {
         // Check the keys
         Block[] blocks = null;
-        try {
-            blocks = hash.getKeys();
+        try (IntVector nonEmpty = hash.nonEmpty()) {
+            blocks = hash.getKeys(nonEmpty);
             assertThat(blocks, arrayWithSize(1));
 
             var keysBlock = (BytesRefBlock) blocks[0];

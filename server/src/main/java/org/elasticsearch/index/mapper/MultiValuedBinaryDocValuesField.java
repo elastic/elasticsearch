@@ -19,6 +19,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -34,11 +35,17 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
     private static final int VINT_MAX_BYTES = 5;
 
     protected final Collection<BytesRef> values;
+    protected final boolean sorted;
     protected int docValuesByteCount = 0;
 
     MultiValuedBinaryDocValuesField(String name, boolean keepDuplicates) {
+        this(name, keepDuplicates, true);
+    }
+
+    MultiValuedBinaryDocValuesField(String name, boolean keepDuplicates, boolean sorted) {
         super(name);
         this.values = keepDuplicates ? new ArrayList<>() : new TreeSet<>();
+        this.sorted = sorted;
     }
 
     public void add(BytesRef value) {
@@ -53,8 +60,7 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
     }
 
     protected void writeLenAndValues(BytesStreamOutput out) throws IOException {
-        // sort the ArrayList variant of the collection prior to serializing it into a binary array
-        if (values instanceof ArrayList<BytesRef> list) {
+        if (sorted && values instanceof ArrayList<BytesRef> list) {
             list.sort(Comparator.naturalOrder());
         }
 
@@ -73,6 +79,10 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
             super(name, keepDuplicates);
         }
 
+        public IntegratedCount(String name, boolean keepDuplicates, boolean sorted) {
+            super(name, keepDuplicates, sorted);
+        }
+
         /**
          * Encodes the collection of binary doc values as a single contiguous binary array, wrapped in {@link BytesRef}. This array takes
          * the form of [doc value count][length of value 1][value 1][length of value 2][value 2]...
@@ -89,6 +99,25 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
                 return out.bytes().toBytesRef();
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to get binary value", e);
+            }
+        }
+
+        /**
+         * Encodes a list of {@link BytesRef} values into the integrated-count format: {@code [count][len1][val1][len2][val2]...}.
+         * <p>
+         * Note, this is basically the static version of binaryValue(). The benefit of having this static code is that we can skip the
+         * overhead of creating a whole new Lucene field and adding values to it.
+         */
+        public static BytesRef encode(List<BytesRef> values) {
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.writeVInt(values.size());
+                for (BytesRef val : values) {
+                    out.writeVInt(val.length);
+                    out.writeBytes(val.bytes, val.offset, val.length);
+                }
+                return out.bytes().toBytesRef();
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to encode integrated count binary value", e);
             }
         }
     }

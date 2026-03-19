@@ -172,7 +172,7 @@ tests:
   method: testDatafeedWithCcsRemoteUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/140612
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:spatial.ConvertFromStringParseError}
+  method: test {csv-spec:spatial.convertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/139213
 - class: org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointServiceNodeTests
   method: testGetCheckpointStats
@@ -184,25 +184,22 @@ tests:
   method: testFailedSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/141279
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:boolean.ConvertFromIntAndLong}
+  method: test {csv-spec:boolean.convertFromIntAndLong}
   issue: https://github.com/elastic/elasticsearch/issues/141375
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {drop.WhereWithEvalGeneratedValue_DropHeight}
+  method: test {csv-spec:keep.whereWithEvalGeneratedValue}
   issue: https://github.com/elastic/elasticsearch/issues/141375
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:keep.WhereWithEvalGeneratedValue}
+  method: test {csv-spec:topN.sortingOnNumbersFromStrings}
   issue: https://github.com/elastic/elasticsearch/issues/141375
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:topN.SortingOnNumbersFromStrings}
+  method: test {csv-spec:drop.whereWithEvalGeneratedValue_DropHeight}
   issue: https://github.com/elastic/elasticsearch/issues/141375
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:drop.WhereWithEvalGeneratedValue_DropHeight}
+  method: test {csv-spec:rename.renameIntertwinedWithSort}
   issue: https://github.com/elastic/elasticsearch/issues/141375
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:rename.RenameIntertwinedWithSort}
-  issue: https://github.com/elastic/elasticsearch/issues/141375
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:ints.ConvertStringToBaseIndexGroup7}
+  method: test {csv-spec:ints.convertStringToBaseIndexGroup7}
   issue: https://github.com/elastic/elasticsearch/issues/141375
 - class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testSourceThrottling
@@ -229,7 +226,7 @@ tests:
   method: testIndexPoints
   issue: https://github.com/elastic/elasticsearch/issues/142439
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:match-function.TestMatchWithReplace}
+  method: test {csv-spec:match-function.testMatchWithReplace}
   issue: https://github.com/elastic/elasticsearch/issues/142501
 - class: org.elasticsearch.search.query.VectorIT
   method: testFilteredQueryStrategy
@@ -255,9 +252,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
-- class: org.elasticsearch.snapshots.ConcurrentSnapshotsIT
-  method: testBackToBackQueuedDeletes
-  issue: https://github.com/elastic/elasticsearch/issues/143387
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
   issue: https://github.com/elastic/elasticsearch/issues/143407
@@ -354,6 +348,24 @@ tests:
 - class: org.elasticsearch.integration.SecurityFeatureResetTests
   method: testFeatureResetManageRole
   issue: https://github.com/elastic/elasticsearch/issues/144486
+- class: org.elasticsearch.indices.IndicesRequestCacheIT
+  method: testCanCache
+  issue: https://github.com/elastic/elasticsearch/issues/144526
+- class: org.elasticsearch.index.mapper.BlockSourceReaderTests
+  method: testEmptyArray
+  issue: https://github.com/elastic/elasticsearch/issues/144527
+- class: org.elasticsearch.index.mapper.BlockSourceReaderTests
+  method: testArray
+  issue: https://github.com/elastic/elasticsearch/issues/144528
+- class: org.elasticsearch.index.mapper.BlockSourceReaderTests
+  method: testSingle
+  issue: https://github.com/elastic/elasticsearch/issues/144530
+- class: org.elasticsearch.index.mapper.BlockSourceReaderTests
+  method: testMissing
+  issue: https://github.com/elastic/elasticsearch/issues/144531
+- class: org.elasticsearch.xpack.downsample.DownsampleRateIT
+  method: testTimeSeriesQuerying_RandomDocuments
+  issue: https://github.com/elastic/elasticsearch/issues/144532
 
 # Examples:
 #

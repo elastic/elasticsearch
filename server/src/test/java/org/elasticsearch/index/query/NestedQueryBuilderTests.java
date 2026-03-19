@@ -470,10 +470,6 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         assertEquals("[joining] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", e.getMessage());
     }
 
-    /**
-     * When the nested inner query is a bool with both a KNN clause and another scoring clause,
-     * we consider more children per parent so root score matches inner_hits. This tests the detector.
-     */
     public void testHasNestedKnnWithOtherScoringClauses() {
         KnnVectorQueryBuilder knn = new KnnVectorQueryBuilder(
             "nested1." + VECTOR_FIELD,
@@ -495,11 +491,6 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         assertTrue(NestedQueryBuilder.hasNestedKnnWithOtherScoringClauses(QueryBuilders.boolQuery().should(knn).should(match)));
     }
 
-    /**
-     * Building a nested query with bool(KNN + other scoring) rewrites the inner query so KNN
-     * uses max nested candidates; no context mutation. Asserts build succeeds and returns
-     * ESToParentBlockJoinQuery.
-     */
     public void testNestedKnnMultiClauseScoringRewriteBuildsSuccessfully() throws IOException {
         BoolQueryBuilder bool = QueryBuilders.boolQuery()
             .must(

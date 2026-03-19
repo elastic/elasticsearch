@@ -224,18 +224,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         RescoreVectorBuilder rescoreVectorBuilder,
         Float vectorSimilarity
     ) {
-        this(
-            fieldName,
-            queryVector,
-            null,
-            null,
-            k,
-            numCands,
-            visitPercentage,
-            rescoreVectorBuilder,
-            vectorSimilarity,
-            false
-        );
+        this(fieldName, queryVector, null, null, k, numCands, visitPercentage, rescoreVectorBuilder, vectorSimilarity, false);
     }
 
     private KnnVectorQueryBuilder(

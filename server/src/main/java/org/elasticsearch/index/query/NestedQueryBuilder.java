@@ -271,9 +271,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        QueryBuilder innerToBuild = hasNestedKnnWithOtherScoringClauses(query)
-            ? rewriteInnerForNestedKnnMultiClause(query)
-            : query;
+        QueryBuilder innerToBuild = hasNestedKnnWithOtherScoringClauses(query) ? rewriteInnerForNestedKnnMultiClause(query) : query;
         return toQuery(innerToBuild::toQuery, path, scoreMode, ignoreUnmapped, context);
     }
 
@@ -294,14 +292,10 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             rewritten.minimumShouldMatch(bool.minimumShouldMatch());
         }
         for (QueryBuilder clause : bool.must()) {
-            rewritten.must(clause instanceof KnnVectorQueryBuilder knn
-                ? knn.copyWithUseMaxNestedKnnCandidatesInNested(true)
-                : clause);
+            rewritten.must(clause instanceof KnnVectorQueryBuilder knn ? knn.copyWithUseMaxNestedKnnCandidatesInNested(true) : clause);
         }
         for (QueryBuilder clause : bool.should()) {
-            rewritten.should(clause instanceof KnnVectorQueryBuilder knn
-                ? knn.copyWithUseMaxNestedKnnCandidatesInNested(true)
-                : clause);
+            rewritten.should(clause instanceof KnnVectorQueryBuilder knn ? knn.copyWithUseMaxNestedKnnCandidatesInNested(true) : clause);
         }
         for (QueryBuilder clause : bool.filter()) {
             rewritten.filter(clause);

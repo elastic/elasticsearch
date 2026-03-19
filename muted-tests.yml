@@ -321,9 +321,6 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexGetRelocationIT
   method: testGetReindexFollowsRelocation
   issue: https://github.com/elastic/elasticsearch/issues/144364
-- class: org.elasticsearch.xpack.logsdb.FlattenedRollingUpgradeIT
-  method: testIndexing
-  issue: https://github.com/elastic/elasticsearch/issues/144372
 - class: org.elasticsearch.entitlement.qa.EntitlementsAllowedIT
   method: "testAction {actionName=createLDAPCertStore}"
   issue: https://github.com/elastic/elasticsearch/issues/144377

@@ -304,7 +304,27 @@ public class ExternalSourceResolver {
         return config;
     }
 
+    /**
+     * Validates that datasource plugins export ReferenceAttribute only.
+     * Called when receiving schema from any plugin (FormatReader, TableCatalog, Connector).
+     */
+    private static void validateSchemaUsesOnlyReferenceAttributes(List<Attribute> schema) {
+        for (Attribute attr : schema) {
+            if (attr instanceof ReferenceAttribute == false) {
+                throw new IllegalArgumentException(
+                    "Datasource schema must contain only ReferenceAttribute, but found "
+                        + attr.getClass().getSimpleName()
+                        + " for column ["
+                        + attr.name()
+                        + "]"
+                );
+            }
+        }
+    }
+
     private ExternalSourceMetadata wrapAsExternalSourceMetadata(SourceMetadata metadata, Map<String, Object> queryConfig) {
+        validateSchemaUsesOnlyReferenceAttributes(metadata.schema());
+
         if (metadata instanceof ExternalSourceMetadata extMetadata) {
             if (extMetadata.config() != null && extMetadata.config().isEmpty() == false) {
                 return extMetadata;
@@ -331,7 +351,7 @@ public class ExternalSourceResolver {
             }
 
             @Override
-            public java.util.List<org.elasticsearch.xpack.esql.core.expression.Attribute> schema() {
+            public java.util.List<Attribute> schema() {
                 return metadata.schema();
             }
 

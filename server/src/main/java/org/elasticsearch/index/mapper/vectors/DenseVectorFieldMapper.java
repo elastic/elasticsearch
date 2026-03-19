@@ -2067,9 +2067,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.field("type", type);
             builder.field("m", m);
             builder.field("ef_construction", efConstruction);
-            if (confidenceInterval != null) {
-                builder.field("confidence_interval", confidenceInterval);
-            }
+            // Pre-Lucene-10.4 code always serialized confidence_interval for int4 types,
+            // defaulting to 0.0 (dynamic quantiles). Preserve this for BWC with older nodes
+            // that expect the field to always be present in the mapping source.
+            builder.field("confidence_interval", confidenceInterval != null ? confidenceInterval : 0.0f);
             if (onDiskRescore) {
                 builder.field("on_disk_rescore", true);
             }
@@ -2161,9 +2162,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
             }
-            if (confidenceInterval != null) {
-                builder.field("confidence_interval", confidenceInterval);
-            }
+            // Pre-Lucene-10.4 code always serialized confidence_interval for int4 types,
+            // defaulting to 0.0 (dynamic quantiles). Preserve this for BWC with older nodes
+            // that expect the field to always be present in the mapping source.
+            builder.field("confidence_interval", confidenceInterval != null ? confidenceInterval : 0.0f);
             builder.endObject();
             return builder;
         }

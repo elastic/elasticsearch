@@ -2033,6 +2033,53 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         assertWarnings();
     }
 
+    /**
+     * BWC test: before Lucene 10.4, int4_hnsw and int4_flat always serialized confidence_interval
+     * (defaulting to 0.0 for dynamic quantiles). New nodes must preserve this behavior so that
+     * old nodes in a mixed cluster can parse the mapping source without triggering the DocumentMapper
+     * round-trip assertion (see https://github.com/elastic/elasticsearch/issues/143980).
+     */
+    public void testInt4IndexOptionsAlwaysSerializeConfidenceInterval() throws IOException {
+        for (String indexType : List.of("int4_hnsw", "int4_flat")) {
+            // When confidence_interval is not specified, it should default to 0.0 in the serialized mapping
+            DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", 8);
+                b.field("index", true);
+                b.field("similarity", "dot_product");
+                b.startObject("index_options");
+                b.field("type", indexType);
+                b.endObject();
+            }));
+            String mappingSource = mapper.mappingSource().string();
+            assertTrue(
+                "int4 index type [" + indexType + "] must always serialize confidence_interval for BWC, got: " + mappingSource,
+                mappingSource.contains("\"confidence_interval\":0.0")
+            );
+
+            // When confidence_interval is explicitly set, it should be preserved
+            DocumentMapper mapperWithCI = createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", 8);
+                b.field("index", true);
+                b.field("similarity", "dot_product");
+                b.startObject("index_options");
+                b.field("type", indexType);
+                b.field("confidence_interval", 0.9f);
+                b.endObject();
+            }));
+            String mappingSourceWithCI = mapperWithCI.mappingSource().string();
+            assertTrue(
+                "int4 index type [" + indexType + "] must serialize explicit confidence_interval, got: " + mappingSourceWithCI,
+                mappingSourceWithCI.contains("\"confidence_interval\":0.9")
+            );
+            assertWarnings(
+                "Parameter [confidence_interval] in [index_options] for dense_vector field "
+                    + "[field] is deprecated and will be removed in a future version"
+            );
+        }
+    }
+
     public void testKnnQuantizedFlatVectorsFormat() throws IOException {
         for (String quantizedFlatFormat : new String[] { "int8_flat", "int4_flat" }) {
             MapperService mapperService = createMapperService(

@@ -1,5 +1,5 @@
 pr: 143824
-summary: Remove the unsafe global ES|QL expression canonicalization pass from logical optimization.
+summary: Scope ES|QL aggregate canonicalization to deduplication paths during optimization.
 area: ES|QL
 type: bug
 issues:

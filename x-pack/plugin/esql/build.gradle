@@ -86,6 +86,7 @@ dependencies {
   testImplementation('net.nextencia:rrdiagram:0.9.4')
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
 
+  internalClusterTestImplementation project(":modules:user-agent")
   internalClusterTestImplementation project(":modules:mapper-extras")
   internalClusterTestImplementation project(":plugins:mapper-size")
   internalClusterTestImplementation project(xpackModule('inference:qa:test-service-plugin'))

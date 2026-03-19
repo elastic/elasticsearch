@@ -43,6 +43,7 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.useragent.UserAgentPlugin;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -191,6 +192,7 @@ public class CsvIT extends ESTestCase {
                 MapperExtrasPlugin.class,
                 SpatialPlugin.class,
                 UnsignedLongMapperPlugin.class,
+                UserAgentPlugin.class,
                 VersionFieldPlugin.class,
                 Wildcard.class
             ),

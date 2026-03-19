@@ -16,15 +16,14 @@ import java.util.Base64;
  * of a paginated ES|QL query result. The {@code pageIndex} maps directly to
  * the page document suffix {@code _p{pageIndex}} in the cursor system index.
  */
-public record EsqlCursor(String cursorId, int pageIndex, int pageSize) {
+public record EsqlCursor(String cursorId, int pageIndex) {
 
     public String encode() {
         byte[] idBytes = cursorId.getBytes(StandardCharsets.UTF_8);
-        ByteBuffer buf = ByteBuffer.allocate(4 + idBytes.length + 4 + 4);
+        ByteBuffer buf = ByteBuffer.allocate(4 + idBytes.length + 4);
         buf.putInt(idBytes.length);
         buf.put(idBytes);
         buf.putInt(pageIndex);
-        buf.putInt(pageSize);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(buf.array());
     }
 
@@ -36,7 +35,6 @@ public record EsqlCursor(String cursorId, int pageIndex, int pageSize) {
         buf.get(idBytes);
         String cursorId = new String(idBytes, StandardCharsets.UTF_8);
         int pageIndex = buf.getInt();
-        int pageSize = buf.getInt();
-        return new EsqlCursor(cursorId, pageIndex, pageSize);
+        return new EsqlCursor(cursorId, pageIndex);
     }
 }

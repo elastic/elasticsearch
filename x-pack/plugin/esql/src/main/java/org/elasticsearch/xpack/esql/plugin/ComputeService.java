@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -31,6 +32,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -49,6 +51,7 @@ import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -61,6 +64,7 @@ import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
@@ -76,6 +80,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.StorePageExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -316,6 +321,21 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
     ) {
+        execute(sessionId, rootTask, flags, physicalPlan, configuration, foldContext, execInfo, planTimeProfile, null, listener);
+    }
+
+    public void execute(
+        String sessionId,
+        CancellableTask rootTask,
+        EsqlFlags flags,
+        PhysicalPlan physicalPlan,
+        Configuration configuration,
+        FoldContext foldContext,
+        EsqlExecutionInfo execInfo,
+        PlanTimeProfile planTimeProfile,
+        @Nullable PaginationStoreProvider paginationStoreProvider,
+        ActionListener<Result> listener
+    ) {
         assert ThreadPool.assertCurrentThreadPool(
             ESQL_WORKER_THREAD_POOL_NAME,
             ThreadPool.Names.SYSTEM_READ,
@@ -347,18 +367,36 @@ public class ComputeService {
                 listener,
                 null,
                 initialClusterStatuses,
-                planTimeProfile
+                planTimeProfile,
+                paginationStoreProvider
             );
             return;
         }
 
         final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
-        PhysicalPlan mainPlan = new OutputExec(subplansAndMainPlan.v2(), collectedPages::add);
-
         listener = listener.delegateResponse((l, e) -> {
             collectedPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
             l.onFailure(e);
         });
+
+        final PhysicalPlan mainPlan;
+        final CancellableTask computeTask;
+        PaginationSetup pagination = setupPagination(
+            sessionId,
+            paginationStoreProvider,
+            subplansAndMainPlan.v2(),
+            configuration,
+            execInfo,
+            listener
+        );
+        if (pagination != null) {
+            mainPlan = pagination.coordinatorPlan();
+            computeTask = pagination.computeTask();
+            listener = pagination.listener();
+        } else {
+            mainPlan = new OutputExec(subplansAndMainPlan.v2(), collectedPages::add);
+            computeTask = rootTask;
+        }
 
         var mainSessionId = newChildSession(sessionId);
         QueryPragmas queryPragmas = configuration.pragmas();
@@ -383,7 +421,7 @@ public class ComputeService {
                 null
             );
 
-            Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
+            Runnable cancelQueryOnFailure = cancelQueryOnFailure(computeTask);
 
             try (
                 ComputeListener localListener = new ComputeListener(
@@ -396,7 +434,7 @@ public class ComputeService {
                 )
             ) {
                 runCompute(
-                    rootTask,
+                    computeTask,
                     computeContext,
                     mainPlan,
                     plannerSettings.get(),
@@ -415,7 +453,7 @@ public class ComputeService {
 
                     executePlan(
                         childSessionId,
-                        rootTask,
+                        computeTask,
                         flags,
                         subplan,
                         configuration,
@@ -454,6 +492,38 @@ public class ComputeService {
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
         PlanTimeProfile planTimeProfile
     ) {
+        executePlan(
+            sessionId,
+            rootTask,
+            flags,
+            physicalPlan,
+            configuration,
+            foldContext,
+            execInfo,
+            profileQualifier,
+            listener,
+            exchangeSinkSupplier,
+            initialClusterStatuses,
+            planTimeProfile,
+            null
+        );
+    }
+
+    private void executePlan(
+        String sessionId,
+        CancellableTask rootTask,
+        EsqlFlags flags,
+        PhysicalPlan physicalPlan,
+        Configuration configuration,
+        FoldContext foldContext,
+        EsqlExecutionInfo execInfo,
+        String profileQualifier,
+        ActionListener<Result> listener,
+        Supplier<ExchangeSink> exchangeSinkSupplier,
+        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
+        PlanTimeProfile planTimeProfile,
+        @Nullable PaginationStoreProvider paginationStoreProvider
+    ) {
         final PhysicalPlan splitPlan = discoverSplits(physicalPlan);
         final ExternalDistributionResult distributionResult = applyExternalDistributionStrategy(splitPlan, configuration);
         final PhysicalPlan resolvedPlan = distributionResult.plan();
@@ -468,8 +538,26 @@ public class ComputeService {
         });
         PhysicalPlan coordinatorPlan = coordinatorAndDataNodePlan.v1();
 
+        final CancellableTask computeTask;
         if (exchangeSinkSupplier == null) {
-            coordinatorPlan = new OutputExec(coordinatorAndDataNodePlan.v1(), collectedPages::add);
+            PaginationSetup pagination = setupPagination(
+                sessionId,
+                paginationStoreProvider,
+                coordinatorAndDataNodePlan.v1(),
+                configuration,
+                execInfo,
+                listener
+            );
+            if (pagination != null) {
+                coordinatorPlan = pagination.coordinatorPlan();
+                computeTask = pagination.computeTask();
+                listener = pagination.listener();
+            } else {
+                coordinatorPlan = new OutputExec(coordinatorAndDataNodePlan.v1(), collectedPages::add);
+                computeTask = rootTask;
+            }
+        } else {
+            computeTask = rootTask;
         }
 
         PhysicalPlan dataNodePlan = coordinatorAndDataNodePlan.v2();
@@ -479,7 +567,7 @@ public class ComputeService {
             return;
         }
         Map<String, OriginalIndices> clusterToConcreteIndices = getIndices(resolvedPlan, EsRelation::concreteIndices);
-        Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
+        Runnable cancelQueryOnFailure = cancelQueryOnFailure(computeTask);
         boolean hasConcreteIndices = false;
         for (OriginalIndices v : clusterToConcreteIndices.values()) {
             if (v.indices().length > 0) {
@@ -517,7 +605,7 @@ public class ComputeService {
                 )
             ) {
                 runCompute(
-                    rootTask,
+                    computeTask,
                     computeContext,
                     coordinatorPlan,
                     plannerSettings.get(),
@@ -532,7 +620,7 @@ public class ComputeService {
         if (distributionResult.isDistributed() && hasConcreteIndices == false) {
             executeExternalDistribution(
                 sessionId,
-                rootTask,
+                computeTask,
                 flags,
                 configuration,
                 foldContext,
@@ -613,7 +701,7 @@ public class ComputeService {
                     )
                 ) {
                     runCompute(
-                        rootTask,
+                        computeTask,
                         new ComputeContext(
                             sessionId,
                             profileDescription(profileQualifier, "final"),
@@ -637,7 +725,7 @@ public class ComputeService {
                         dataNodeComputeHandler.startComputeOnDataNodes(
                             sessionId,
                             LOCAL_CLUSTER,
-                            rootTask,
+                            computeTask,
                             flags,
                             configuration,
                             dataNodePlan,
@@ -694,7 +782,7 @@ public class ComputeService {
                     }
                     clusterComputeHandler.startComputeOnRemoteCluster(
                         sessionId,
-                        rootTask,
+                        computeTask,
                         configuration,
                         dataNodePlan,
                         exchangeSource,
@@ -968,9 +1056,114 @@ public class ComputeService {
             );
         } catch (Exception e) {
             Releasables.close(context.searchContexts().iterable());
-            LOGGER.debug("Error in ComputeService.runCompute for : " + context.description());
+            LOGGER.debug("Error in ComputeService.runCompute for [{}]", context.description());
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * Holds the results of setting up pagination context: the coordinator plan wrapped in a
+     * {@link StorePageExec}, the background task for cancellation, and the listener wrapped
+     * for early first-page response.
+     */
+    private record PaginationSetup(PhysicalPlan coordinatorPlan, CancellableTask computeTask, ActionListener<Result> listener) {}
+
+    /**
+     * Configures pagination for a query: sets columns on the provider, wraps the coordinator plan
+     * in a {@link StorePageExec}, creates a background task, and wraps the listener for early
+     * first-page response. Returns {@code null} if pagination is not requested.
+     */
+    private PaginationSetup setupPagination(
+        String sessionId,
+        @Nullable PaginationStoreProvider paginationStoreProvider,
+        PhysicalPlan coordinatorPlan,
+        Configuration configuration,
+        EsqlExecutionInfo execInfo,
+        ActionListener<Result> listener
+    ) {
+        if (paginationStoreProvider == null) {
+            return null;
+        }
+        setColumnsOnProvider(paginationStoreProvider, coordinatorPlan);
+        PhysicalPlan storePlan = new StorePageExec(coordinatorPlan, paginationStoreProvider);
+        PaginationBackgroundTask backgroundTask = createPaginationBackgroundTask(
+            paginationStoreProvider.paginationContext().cursorId(),
+            sessionId
+        );
+        String nodeId = transportService.getLocalNode().getId();
+        paginationStoreProvider.setBackgroundTaskId(new TaskId(nodeId, backgroundTask.getId()));
+        ActionListener<Result> wrappedListener = wrapListenerForEarlyPageResponse(
+            listener,
+            paginationStoreProvider,
+            backgroundTask,
+            configuration,
+            execInfo,
+            coordinatorPlan.output()
+        );
+        return new PaginationSetup(storePlan, backgroundTask, wrappedListener);
+    }
+
+    /**
+     * Wraps the result listener so that the response is sent as soon as the first page is captured
+     * by the {@link StorePageOperator}, rather than waiting for the Driver to finish storing all pages.
+     * The Driver completion is handled in the background for error handling and cleanup.
+     *
+     * @param backgroundTask the dedicated pagination task registered for this compute; it will be
+     *                       unregistered from the {@link TaskManager} when the background compute completes.
+     */
+    private ActionListener<Result> wrapListenerForEarlyPageResponse(
+        ActionListener<Result> listener,
+        PaginationStoreProvider provider,
+        PaginationBackgroundTask backgroundTask,
+        Configuration configuration,
+        EsqlExecutionInfo execInfo,
+        List<Attribute> outputAttributes
+    ) {
+        AtomicBoolean responded = new AtomicBoolean(false);
+
+        provider.firstPageListener().addListener(ActionListener.wrap(firstPage -> {
+            if (responded.compareAndSet(false, true)) {
+                execInfo.markEndQuery();
+                List<Page> pages = firstPage != null ? firstPage : List.of();
+                listener.onResponse(new Result(outputAttributes, pages, configuration, DriverCompletionInfo.EMPTY, execInfo));
+            }
+        }, e -> {
+            if (responded.compareAndSet(false, true)) {
+                execInfo.markEndQuery();
+                listener.onFailure(e);
+            }
+        }));
+
+        return ActionListener.wrap(result -> {
+            transportService.getTaskManager().unregister(backgroundTask);
+            backgroundTask.markComplete();
+            if (responded.compareAndSet(false, true)) {
+                listener.onResponse(result);
+            }
+        }, e -> {
+            transportService.getTaskManager().unregister(backgroundTask);
+            backgroundTask.markComplete();
+            String cursorId = provider.paginationContext().cursorId();
+            LOGGER.warn("background page storage failed for cursor [{}]", cursorId, e);
+            provider.cursorIndexService().updateMetadataFailed(cursorId, ActionListener.wrap(v -> {}, metaError -> {
+                LOGGER.warn("failed to mark cursor [{}] as failed; it will remain in-progress until TTL expiry", cursorId, metaError);
+            }));
+            if (responded.compareAndSet(false, true)) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    private static void setColumnsOnProvider(PaginationStoreProvider provider, PhysicalPlan plan) {
+        List<ColumnInfoImpl> columns = plan.output().stream().map(attr -> {
+            List<String> originalTypes = null;
+            if (attr instanceof UnsupportedAttribute ua) {
+                originalTypes = new ArrayList<>(ua.originalTypes());
+                Collections.sort(originalTypes);
+            }
+            return new ColumnInfoImpl(attr.name(), attr.dataType().outputType(), originalTypes);
+        }).toList();
+        provider.setColumns(columns);
     }
 
     ActionListener<Void> addCompletionInfo(
@@ -1103,6 +1296,22 @@ public class ComputeService {
         });
     }
 
+    /**
+     * Registers a standalone background task for pagination compute that is independent of the HTTP
+     * transport task lifecycle. This task stays registered until the background compute finishes,
+     * allowing it to be stopped via {@link ExchangeService#finishSessionEarly} using its session ID.
+     */
+    PaginationBackgroundTask createPaginationBackgroundTask(String cursorId, String sessionId) {
+        final TaskManager taskManager = transportService.getTaskManager();
+        try (var ignored = transportService.getThreadPool().getThreadContext().newTraceContext()) {
+            return (PaginationBackgroundTask) taskManager.register(
+                "transport",
+                "esql_pagination_background",
+                new PaginationBackgroundTaskRequest(cursorId, sessionId)
+            );
+        }
+    }
+
     CancellableTask createGroupTask(Task parentTask, Supplier<String> description) throws TaskCancelledException {
         final TaskManager taskManager = transportService.getTaskManager();
         try (var ignored = transportService.getThreadPool().getThreadContext().newTraceContext()) {
@@ -1116,6 +1325,64 @@ public class ComputeService {
 
     public EsqlFlags createFlags() {
         return new EsqlFlags(clusterService.getClusterSettings());
+    }
+
+    /**
+     * Background task for pagination compute. Holds the exchange {@code sessionId} so that
+     * {@link TransportEsqlDeleteCursorAction} can gracefully stop the compute via
+     * {@link ExchangeService#finishSessionEarly} instead of task cancellation.
+     */
+    static class PaginationBackgroundTask extends CancellableTask {
+        private final String sessionId;
+        private final SubscribableListener<Void> completionListener = new SubscribableListener<>();
+
+        PaginationBackgroundTask(
+            long id,
+            String type,
+            String action,
+            TaskId parentTaskId,
+            Map<String, String> headers,
+            String cursorId,
+            String sessionId
+        ) {
+            super(id, type, action, "pagination background [" + cursorId + "]", parentTaskId, headers);
+            this.sessionId = sessionId;
+        }
+
+        public String sessionId() {
+            return sessionId;
+        }
+
+        /**
+         * Adds a listener that is notified when the background compute finishes (success or failure).
+         */
+        public void addCompletionListener(ActionListener<Void> listener) {
+            completionListener.addListener(listener);
+        }
+
+        void markComplete() {
+            completionListener.onResponse(null);
+        }
+    }
+
+    private static class PaginationBackgroundTaskRequest extends AbstractTransportRequest {
+        private final String cursorId;
+        private final String sessionId;
+
+        PaginationBackgroundTaskRequest(String cursorId, String sessionId) {
+            this.cursorId = cursorId;
+            this.sessionId = sessionId;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new PaginationBackgroundTask(id, type, action, parentTaskId, headers, cursorId, sessionId);
+        }
+
+        @Override
+        public String getDescription() {
+            return "pagination background [" + cursorId + "]";
+        }
     }
 
     private static class ComputeGroupTaskRequest extends AbstractTransportRequest {

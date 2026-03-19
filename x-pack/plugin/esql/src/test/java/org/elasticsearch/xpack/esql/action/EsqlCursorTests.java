@@ -14,20 +14,18 @@ public class EsqlCursorTests extends ESTestCase {
     public void testRoundTrip() {
         String id = randomAlphaOfLength(22);
         int pageIndex = randomIntBetween(0, 100_000);
-        int pageSize = randomIntBetween(1, 10_000);
 
-        EsqlCursor original = new EsqlCursor(id, pageIndex, pageSize);
+        EsqlCursor original = new EsqlCursor(id, pageIndex);
         String encoded = original.encode();
         EsqlCursor decoded = EsqlCursor.decode(encoded);
 
         assertEquals(id, decoded.cursorId());
         assertEquals(pageIndex, decoded.pageIndex());
-        assertEquals(pageSize, decoded.pageSize());
     }
 
     public void testDifferentCursorsProduceDifferentTokens() {
-        EsqlCursor c1 = new EsqlCursor("abc", 0, 10);
-        EsqlCursor c2 = new EsqlCursor("abc", 10, 10);
+        EsqlCursor c1 = new EsqlCursor("abc", 0);
+        EsqlCursor c2 = new EsqlCursor("abc", 10);
         assertNotEquals(c1.encode(), c2.encode());
     }
 

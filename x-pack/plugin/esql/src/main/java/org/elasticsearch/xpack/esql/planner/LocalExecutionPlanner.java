@@ -156,6 +156,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
+import org.elasticsearch.xpack.esql.plan.physical.StorePageExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
@@ -163,6 +164,7 @@ import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.plugin.StorePageOperator;
 import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
@@ -354,7 +356,9 @@ public class LocalExecutionPlanner {
             return planLookupJoin(join, context);
         }
         // output
-        else if (node instanceof OutputExec outputExec) {
+        else if (node instanceof StorePageExec storePageExec) {
+            return planStorePage(storePageExec, context);
+        } else if (node instanceof OutputExec outputExec) {
             return planOutput(outputExec, context);
         } else if (node instanceof ExchangeSinkExec exchangeSink) {
             return planExchangeSink(exchangeSink, context);
@@ -488,6 +492,16 @@ public class LocalExecutionPlanner {
                 alignPageToAttributes(output, source.layout),
                 outputExec.getPageConsumer()
             ),
+            source.layout
+        );
+    }
+
+    private PhysicalOperation planStorePage(StorePageExec storePageExec, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(storePageExec.child(), context);
+        var output = storePageExec.output();
+
+        return source.withSink(
+            new StorePageOperator.StorePageOperatorFactory(storePageExec.storeProvider(), alignPageToAttributes(output, source.layout)),
             source.layout
         );
     }

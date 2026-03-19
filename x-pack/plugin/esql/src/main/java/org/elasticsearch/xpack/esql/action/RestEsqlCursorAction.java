@@ -8,17 +8,19 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
@@ -28,6 +30,17 @@ import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMI
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestEsqlCursorAction extends BaseRestHandler {
+
+    private static final ObjectParser<CursorRequestBody, Void> PARSER = new ObjectParser<>("esql/cursor", false, CursorRequestBody::new);
+    static {
+        PARSER.declareString(CursorRequestBody::setCursor, new ParseField("cursor"));
+        PARSER.declareField(
+            CursorRequestBody::setKeepAlive,
+            (p, c) -> TimeValue.parseTimeValue(p.text(), "keep_alive"),
+            new ParseField("keep_alive"),
+            ObjectParser.ValueType.VALUE
+        );
+    }
 
     @Override
     public List<Route> routes() {
@@ -48,28 +61,37 @@ public class RestEsqlCursorAction extends BaseRestHandler {
     }
 
     private RestChannelConsumer prepareNextPageRequest(RestRequest request, NodeClient client) throws IOException {
-        String cursorToken;
-        TimeValue keepAlive = null;
+        CursorRequestBody body;
         try (XContentParser parser = request.contentParser()) {
-            Map<String, Object> body = parser.map();
-            cursorToken = (String) body.get("cursor");
-            Object keepAliveValue = body.get("keep_alive");
-            if (keepAliveValue != null) {
-                keepAlive = TimeValue.parseTimeValue(keepAliveValue.toString(), "keep_alive");
-            }
+            body = PARSER.parse(parser, null);
         }
-        EsqlCursorRequest cursorRequest = new EsqlCursorRequest(cursorToken, keepAlive);
+        EsqlCursorRequest cursorRequest = new EsqlCursorRequest(body.cursor, body.keepAlive);
         return channel -> client.execute(EsqlCursorAction.INSTANCE, cursorRequest, new EsqlResponseListener(channel, request));
     }
 
     private RestChannelConsumer prepareDeleteRequest(RestRequest request, NodeClient client) {
         String cursorToken = request.param("cursor");
-        EsqlDeleteCursorRequest deleteRequest = new EsqlDeleteCursorRequest(cursorToken);
+        boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", false);
+        EsqlDeleteCursorRequest deleteRequest = new EsqlDeleteCursorRequest(cursorToken, waitForCompletion);
         return channel -> client.execute(EsqlDeleteCursorAction.INSTANCE, deleteRequest, new RestToXContentListener<>(channel));
     }
 
     @Override
     protected Set<String> responseParams() {
         return Set.of(URL_PARAM_DELIMITER, DROP_NULL_COLUMNS_OPTION);
+    }
+
+    private static class CursorRequestBody {
+        private String cursor;
+        @Nullable
+        private TimeValue keepAlive;
+
+        void setCursor(String cursor) {
+            this.cursor = cursor;
+        }
+
+        void setKeepAlive(TimeValue keepAlive) {
+            this.keepAlive = keepAlive;
+        }
     }
 }

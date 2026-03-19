@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -304,6 +305,21 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
         // sync query uses CancellableTask which does not have EsqlExecutionInfo, so create one
         EsqlExecutionInfo executionInfo = getOrCreateExecutionInfo(task, request);
+        final PaginationStoreProvider paginationStoreProvider;
+        if (request.pageSize() != null) {
+            long expirationMillis = threadPool.absoluteTimeInMillis() + EsqlCursorIndexService.DEFAULT_CURSOR_KEEP_ALIVE.getMillis();
+            ZoneId zoneId = request.timeZone() != null ? request.timeZone() : ZoneOffset.UTC;
+            PaginationContext paginationContext = new PaginationContext(
+                UUIDs.randomBase64UUID(),
+                request.pageSize(),
+                expirationMillis,
+                zoneId,
+                request.columnar()
+            );
+            paginationStoreProvider = new PaginationStoreProvider(cursorIndexService, paginationContext);
+        } else {
+            paginationStoreProvider = null;
+        }
         PlanRunner planRunner = (plan, configuration, foldCtx, planTimeProfile, resultListener) -> computeService.execute(
             sessionId,
             (CancellableTask) task,
@@ -313,6 +329,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             foldCtx,
             executionInfo,
             planTimeProfile,
+            paginationStoreProvider,
             resultListener
         );
         final var loggingListener = this.activityLogger.wrap(listener, new EsqlLogContextBuilder(task, request));
@@ -335,21 +352,29 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             ActionListener.wrap(result -> {
                 recordCCSTelemetry(task, executionInfo, request, null);
                 planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
-                toResponse(task, request, request.profile(), result, loggingListener.delegateFailureAndWrap((delegate, response) -> {
-                    assert response.isAsync() == request.async() : "The response must be async if the request was async";
+                toResponse(
+                    task,
+                    request,
+                    request.profile(),
+                    result,
+                    paginationStoreProvider,
+                    loggingListener.delegateFailureAndWrap((delegate, response) -> {
+                        assert response.isAsync() == request.async() : "The response must be async if the request was async";
 
-                    if (response.isAsync()) {
-                        if (response.asyncExecutionId().isPresent()) {
-                            String asyncExecutionId = response.asyncExecutionId().get();
-                            threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, asyncExecutionId);
+                        if (response.isAsync()) {
+                            if (response.asyncExecutionId().isPresent()) {
+                                String asyncExecutionId = response.asyncExecutionId().get();
+                                threadPool.getThreadContext()
+                                    .addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, asyncExecutionId);
+                            }
+                            boolean isRunning = response.isRunning();
+                            threadPool.getThreadContext()
+                                .addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, isRunning ? "?1" : "?0");
                         }
-                        boolean isRunning = response.isRunning();
-                        threadPool.getThreadContext()
-                            .addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, isRunning ? "?1" : "?0");
-                    }
 
-                    delegate.onResponse(response);
-                }));
+                        delegate.onResponse(response);
+                    })
+                );
             }, ex -> {
                 recordCCSTelemetry(task, executionInfo, request, ex);
                 loggingListener.onFailure(ex);
@@ -446,6 +471,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         EsqlQueryRequest request,
         boolean profileEnabled,
         Versioned<Result> result,
+        @Nullable PaginationStoreProvider paginationStoreProvider,
         ActionListener<EsqlQueryResponse> listener
     ) {
         var innerResult = result.inner();
@@ -468,37 +494,15 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             : null;
 
         List<Page> allPages = innerResult.pages();
-        Integer pageSize = request.pageSize();
 
-        if (pageSize != null) {
-            int totalRows = allPages.stream().mapToInt(Page::getPositionCount).sum();
-            if (totalRows > pageSize) {
-                long expirationMillis = System.currentTimeMillis() + EsqlCursorIndexService.DEFAULT_CURSOR_KEEP_ALIVE.getMillis();
-
-                List<List<Page>> outputPages = chunkOutputPages(allPages, pageSize);
-
-                cursorIndexService.storeMetadata(
-                    columns,
-                    totalRows,
-                    outputPages.size(),
-                    expirationMillis,
-                    result.inner().configuration().zoneId(),
-                    request.columnar(),
-                    listener.delegateFailureAndWrap((delegate, cursorId) -> {
-                        String cursor = new EsqlCursor(cursorId, 1, pageSize).encode();
-                        delegate.onResponse(
-                            buildResponse(task, request, columns, outputPages.get(0), profile, innerResult, result, cursor)
-                        );
-                        cursorIndexService.storeRemainingPages(cursorId, outputPages, 0, expirationMillis);
-                        allPages.forEach(Page::releaseBlocks);
-                        for (int i = 0; i < outputPages.size(); i++) {
-                            outputPages.get(i).forEach(Page::releaseBlocks);
-                        }
-                    })
-                );
-                return;
-            }
+        if (paginationStoreProvider != null && paginationStoreProvider.firstPage() != null) {
+            paginationStoreProvider.consumeFirstPage();
+            PaginationContext ctx = paginationStoreProvider.paginationContext();
+            String cursor = new EsqlCursor(ctx.cursorId(), 1).encode();
+            listener.onResponse(buildResponse(task, request, columns, allPages, profile, innerResult, result, cursor));
+            return;
         }
+
         listener.onResponse(buildResponse(task, request, columns, allPages, profile, innerResult, result, null));
     }
 
@@ -547,58 +551,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             innerResult.executionInfo(),
             cursor
         );
-    }
-
-    /**
-     * Splits the raw engine pages into fixed-size output pages of {@code pageSize} rows each.
-     * Each element of the returned list is the list of Page objects for one output page.
-     */
-    static List<List<Page>> chunkOutputPages(List<Page> allPages, int pageSize) {
-        int totalRows = allPages.stream().mapToInt(Page::getPositionCount).sum();
-        int totalOutputPages = (totalRows + pageSize - 1) / pageSize;
-        List<List<Page>> result = new ArrayList<>(totalOutputPages);
-        for (int i = 0; i < totalOutputPages; i++) {
-            result.add(slicePages(allPages, i * pageSize, pageSize));
-        }
-        return result;
-    }
-
-    /**
-     * Extracts a window of rows [fromRow, fromRow + maxRows) from the given pages,
-     * returning new Page objects that share the underlying block data via shallow copies.
-     */
-    static List<Page> slicePages(List<Page> pages, int fromRow, int maxRows) {
-        List<Page> result = new ArrayList<>();
-        int remaining = maxRows;
-        int skipped = 0;
-
-        for (Page page : pages) {
-            int pageRows = page.getPositionCount();
-            if (skipped + pageRows <= fromRow) {
-                skipped += pageRows;
-                continue;
-            }
-
-            int startInPage = Math.max(0, fromRow - skipped);
-            int endInPage = Math.min(pageRows, startInPage + remaining);
-            int take = endInPage - startInPage;
-
-            if (take > 0) {
-                {
-                    int[] positions = new int[take];
-                    for (int i = 0; i < take; i++) {
-                        positions[i] = startInPage + i;
-                    }
-                    result.add(page.shallowCopy().filter(false, positions));
-                }
-                remaining -= take;
-                if (remaining <= 0) {
-                    break;
-                }
-            }
-            skipped += pageRows;
-        }
-        return result;
     }
 
     /**

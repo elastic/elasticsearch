@@ -52,6 +52,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.eql.EqlAsyncActionNames;
 import org.elasticsearch.xpack.core.esql.EsqlAsyncActionNames;
+import org.elasticsearch.xpack.core.esql.EsqlCursorActionNames;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncStatusAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
@@ -1151,7 +1152,8 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     private static boolean isEsqlCursorRelatedAction(String action) {
-        return action.equals("indices:data/read/esql/cursor") || action.equals("indices:data/read/esql/cursor/delete");
+        return action.equals(EsqlCursorActionNames.ESQL_CURSOR_ACTION_NAME)
+            || action.equals(EsqlCursorActionNames.ESQL_DELETE_CURSOR_ACTION_NAME);
     }
 
     static final class AuthorizedIndices implements AuthorizationEngine.AuthorizedIndices {

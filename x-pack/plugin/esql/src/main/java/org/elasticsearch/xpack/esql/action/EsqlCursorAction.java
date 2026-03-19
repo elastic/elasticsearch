@@ -8,11 +8,12 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.xpack.core.esql.EsqlCursorActionNames;
 
 public class EsqlCursorAction extends ActionType<EsqlQueryResponse> {
 
     public static final EsqlCursorAction INSTANCE = new EsqlCursorAction();
-    public static final String NAME = "indices:data/read/esql/cursor";
+    public static final String NAME = EsqlCursorActionNames.ESQL_CURSOR_ACTION_NAME;
 
     private EsqlCursorAction() {
         super(NAME);

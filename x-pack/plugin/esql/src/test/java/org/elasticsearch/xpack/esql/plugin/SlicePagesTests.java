@@ -18,7 +18,7 @@ public class SlicePagesTests extends ESTestCase {
 
     public void testSliceFromSinglePage() {
         Page page = buildPage(0, 10);
-        List<Page> result = TransportEsqlQueryAction.slicePages(List.of(page), 2, 3);
+        List<Page> result = PageUtils.slicePages(List.of(page), 2, 3);
         assertEquals(1, result.size());
         assertPageValues(result.get(0), 2, 3, 4);
         releaseAll(result);
@@ -29,7 +29,7 @@ public class SlicePagesTests extends ESTestCase {
         Page p1 = buildPage(0, 3);
         Page p2 = buildPage(3, 3);
         Page p3 = buildPage(6, 4);
-        List<Page> result = TransportEsqlQueryAction.slicePages(List.of(p1, p2, p3), 2, 5);
+        List<Page> result = PageUtils.slicePages(List.of(p1, p2, p3), 2, 5);
         int totalRows = result.stream().mapToInt(Page::getPositionCount).sum();
         assertEquals(5, totalRows);
         releaseAll(result);
@@ -40,7 +40,7 @@ public class SlicePagesTests extends ESTestCase {
 
     public void testSliceEntirePage() {
         Page page = buildPage(0, 5);
-        List<Page> result = TransportEsqlQueryAction.slicePages(List.of(page), 0, 5);
+        List<Page> result = PageUtils.slicePages(List.of(page), 0, 5);
         assertEquals(1, result.size());
         assertEquals(5, result.get(0).getPositionCount());
         releaseAll(result);
@@ -49,7 +49,7 @@ public class SlicePagesTests extends ESTestCase {
 
     public void testSliceBeyondEnd() {
         Page page = buildPage(0, 3);
-        List<Page> result = TransportEsqlQueryAction.slicePages(List.of(page), 1, 100);
+        List<Page> result = PageUtils.slicePages(List.of(page), 1, 100);
         int totalRows = result.stream().mapToInt(Page::getPositionCount).sum();
         assertEquals(2, totalRows);
         releaseAll(result);
@@ -57,7 +57,7 @@ public class SlicePagesTests extends ESTestCase {
     }
 
     public void testSliceEmptyInput() {
-        List<Page> result = TransportEsqlQueryAction.slicePages(List.of(), 0, 10);
+        List<Page> result = PageUtils.slicePages(List.of(), 0, 10);
         assertTrue(result.isEmpty());
     }
 

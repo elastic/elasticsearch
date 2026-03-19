@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.xpack.core.esql.EsqlCursorActionNames;
 
 public class EsqlDeleteCursorAction extends ActionType<AcknowledgedResponse> {
 
     public static final EsqlDeleteCursorAction INSTANCE = new EsqlDeleteCursorAction();
-    public static final String NAME = "indices:data/read/esql/cursor/delete";
+    public static final String NAME = EsqlCursorActionNames.ESQL_DELETE_CURSOR_ACTION_NAME;
 
     private EsqlDeleteCursorAction() {
         super(NAME);

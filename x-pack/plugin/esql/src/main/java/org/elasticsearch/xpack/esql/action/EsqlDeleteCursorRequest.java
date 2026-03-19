@@ -19,24 +19,36 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class EsqlDeleteCursorRequest extends ActionRequest {
 
     private final String cursor;
+    private final boolean waitForCompletion;
 
     public EsqlDeleteCursorRequest(String cursor) {
+        this(cursor, false);
+    }
+
+    public EsqlDeleteCursorRequest(String cursor, boolean waitForCompletion) {
         this.cursor = cursor;
+        this.waitForCompletion = waitForCompletion;
     }
 
     public EsqlDeleteCursorRequest(StreamInput in) throws IOException {
         super(in);
         this.cursor = in.readString();
+        this.waitForCompletion = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(cursor);
+        out.writeBoolean(waitForCompletion);
     }
 
     public String cursor() {
         return cursor;
+    }
+
+    public boolean waitForCompletion() {
+        return waitForCompletion;
     }
 
     @Override

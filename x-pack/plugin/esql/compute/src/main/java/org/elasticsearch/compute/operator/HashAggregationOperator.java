@@ -382,9 +382,9 @@ public class HashAggregationOperator implements Operator {
         try {
             selected = blockHash.nonEmpty();
             if (selected.getPositionCount() <= maxPageSize) {
-                output = ReleasableIterator.single(addAggResults(blockHash.getKeys(), selected, aggBlockCounts));
+                output = ReleasableIterator.single(addAggResults(selected, aggBlockCounts));
             } else {
-                output = new MultiPageResult(blockHash.getKeys(), selected, aggBlockCounts);
+                output = new MultiPageResult(selected, aggBlockCounts);
                 selected = null; // Selected has moved into the output
             }
         } finally {
@@ -681,14 +681,12 @@ public class HashAggregationOperator implements Operator {
      * </p>
      */
     class MultiPageResult implements ReleasableIterator<Page> {
-        private final Block[] keys;
         private final IntVector selected;
         private final int[] aggBlockCounts;
 
         private int rowOffset = 0;
 
-        MultiPageResult(Block[] keys, IntVector selected, int[] aggBlockCounts) {
-            this.keys = keys;
+        MultiPageResult(IntVector selected, int[] aggBlockCounts) {
             this.selected = selected;
             this.aggBlockCounts = aggBlockCounts;
         }
@@ -711,7 +709,7 @@ public class HashAggregationOperator implements Operator {
                     selectedInThisPage = selectedInThisPageBuilder.build().asVector();
                 }
 
-                Page output = addAggResults(sliceKeys(pageSize, endOffset), selectedInThisPage, aggBlockCounts);
+                Page output = addAggResults(selectedInThisPage, aggBlockCounts);
                 rowOffset = endOffset;
                 return output;
             } finally {
@@ -720,35 +718,17 @@ public class HashAggregationOperator implements Operator {
             }
         }
 
-        private Block[] sliceKeys(int pageSize, int endOffset) {
-            Block[] keysInThisPage = new Block[keys.length];
-            try {
-                for (int i = 0; i < keys.length; i++) {
-                    try (Block.Builder builder = keys[i].elementType().newBlockBuilder(pageSize, driverContext.blockFactory())) {
-                        builder.copyFrom(keys[i], rowOffset, endOffset);
-                        keysInThisPage[i] = builder.build();
-                    }
-                }
-                Block[] result = keysInThisPage;
-                keysInThisPage = null;
-                return result;
-            } finally {
-                if (keysInThisPage != null) {
-                    Releasables.close(keysInThisPage);
-                }
-            }
-        }
-
         @Override
         public void close() {
-            Releasables.close(selected, Releasables.wrap(keys));
+            Releasables.close(selected);
         }
     }
 
-    private Page addAggResults(Block[] keys, IntVector selected, int[] aggBlockCounts) {
+    private Page addAggResults(IntVector selected, int[] aggBlockCounts) {
+        Block[] keys = blockHash.getKeys(selected);
         Block[] blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
+        System.arraycopy(keys, 0, blocks, 0, keys.length);
         try {
-            System.arraycopy(keys, 0, blocks, 0, keys.length);
             int blockOffset = keys.length;
             try (GroupingAggregatorEvaluationContext evaluationContext = evaluationContext(blockHash, keys)) {
                 for (int i = 0; i < aggregators.size(); i++) {

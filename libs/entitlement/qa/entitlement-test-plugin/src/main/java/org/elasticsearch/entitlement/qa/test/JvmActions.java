@@ -28,26 +28,24 @@ import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAcce
 @SuppressWarnings({ "unused" /* called via reflection */ })
 class JvmActions {
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void setSystemProperty() {
-        System.setProperty("es.entitlements.checkSetSystemProperty", "true");
-        try {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static String setSystemProperty() {
+        String previous = System.setProperty("es.entitlements.checkSetSystemProperty", "true");
+        if (System.getProperty("es.entitlements.checkSetSystemProperty") != null) {
             System.clearProperty("es.entitlements.checkSetSystemProperty");
-        } catch (RuntimeException e) {
-            // ignore for this test case
         }
-
+        return previous;
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void clearSystemProperty() {
+    @EntitlementTest(expectedAccess = PLUGINS, isExpectedDefaultNull = true)
+    static String clearSystemProperty() {
         EntitledPlugin.selfTest(); // TODO: find a better home
-        System.clearProperty("es.entitlements.checkClearSystemProperty");
+        return System.clearProperty("es.entitlements.checkClearSystemProperty");
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
     static void setSystemProperties() {
-        System.setProperties(System.getProperties()); // no side effect in case if allowed (but shouldn't)
+        System.setProperties(System.getProperties());
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED, isExpectedNoOp = true)

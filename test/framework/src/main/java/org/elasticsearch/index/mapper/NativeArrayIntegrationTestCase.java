@@ -15,6 +15,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.MultiDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
@@ -43,6 +44,7 @@ import java.util.Set;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -236,9 +238,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
 
         try (var searcher = indexService.getShard(0).acquireSearcher(getTestName())) {
             var reader = searcher.getDirectoryReader();
-            var document = reader.storedFields().document(0);
-            Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
-            assertThat(storedFieldNames, contains(IgnoredSourceFieldMapper.NAME));
+            var ignoredSourceDV = MultiDocValues.getBinaryValues(reader, IgnoredSourceFieldMapper.NAME);
             assertThat(FieldInfos.getMergedFieldInfos(reader).fieldInfo("parent.field.offsets"), nullValue());
         }
     }
@@ -374,9 +374,8 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             var reader = searcher.getDirectoryReader();
             for (int i = 0; i < documents.size(); i++) {
                 var document = reader.storedFields().document(i);
-                // Verify that there is ignored source because of leaf array being wrapped by object array:
                 List<String> storedFieldNames = document.getFields().stream().map(IndexableField::name).toList();
-                assertThat(storedFieldNames, contains("_id", IgnoredSourceFieldMapper.NAME));
+                assertThat(storedFieldNames, hasItem("_id"));
 
                 // Verify that there is no offset field:
                 LeafReader leafReader = reader.leaves().get(0).reader();

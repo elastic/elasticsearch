@@ -181,7 +181,7 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
         // Initially: no scroll id, no search_after -> false
         assertFalse(paginatedHitSource.hasMoreBatches());
 
-        // Empty scroll id -> falseLength)
+        // Empty scroll id -> false
         paginatedHitSource.setScrollId("");
         assertFalse(paginatedHitSource.hasMoreBatches());
 

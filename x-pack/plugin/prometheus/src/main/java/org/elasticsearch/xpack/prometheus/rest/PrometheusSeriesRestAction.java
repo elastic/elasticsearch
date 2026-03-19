@@ -79,7 +79,7 @@ public class PrometheusSeriesRestAction extends BaseRestHandler {
         // Optional limit; default to DEFAULT_LIMIT to avoid unbounded ESQL scans
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
 
-        LogicalPlan plan = PrometheusSeriesPlanBuilder.buildPlan("metrics-*-*", matchSelectors, start, end, limit);
+        LogicalPlan plan = PrometheusSeriesPlanBuilder.buildPlan("*", matchSelectors, start, end, limit);
         EsqlStatement statement = new EsqlStatement(plan, List.of());
         EsqlQueryRequest esqlRequest = EsqlQueryRequest.syncEsqlQueryRequestWithPlan(statement);
 

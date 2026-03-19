@@ -201,17 +201,18 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         // hotspotting proportion is computed only for hotspotting nodes, and cached within cluster info with
         // nodeMaxShardWriteLoadProportion so it is only computed once
         final double writeLoadShardConcentrationThreshold = writeLoadConstraintSettings.getHotspotUtilizationConcentrationThreshold();
-        final Supplier<Double> writeLoadMaxShardConcentration = () -> allocation.clusterInfo().nodeMaxShardWriteLoadProportion(
-            node.nodeId(),
-            // compute cache entry if absent
-            () -> {
-                List<ShardId> shardIds = node.shardsWithState(ShardRoutingState.STARTED)
-                    .map(startedShardRouting -> startedShardRouting.shardId())
-                    .collect(Collectors.toList());
+        final Supplier<Double> writeLoadMaxShardConcentration = () -> allocation.clusterInfo()
+            .nodeMaxShardWriteLoadProportion(
+                node.nodeId(),
+                // compute cache entry if absent
+                () -> {
+                    List<ShardId> shardIds = node.shardsWithState(ShardRoutingState.STARTED)
+                        .map(startedShardRouting -> startedShardRouting.shardId())
+                        .collect(Collectors.toList());
 
-                return maxSingleShardWriteLoadConcentration(shardIds, allocation.clusterInfo().getShardWriteLoads());
-            }
-        );
+                    return maxSingleShardWriteLoadConcentration(shardIds, allocation.clusterInfo().getShardWriteLoads());
+                }
+            );
 
         if (nodeIsHotspotting && writeLoadMaxShardConcentration.get() < writeLoadShardConcentrationThreshold) {
             if (logger.isDebugEnabled() || allocation.debugDecision()) {
@@ -241,8 +242,8 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 Decision.YES,
                 NAME,
                 """
-                Node [%s] is hot-spotting, but has a single shard write load concentration of [%.2f] that exceeds the concentration \
-                threshold of [%.2f]. Nothing to do.""",
+                    Node [%s] is hot-spotting, but has a single shard write load concentration of [%.2f] that exceeds the concentration \
+                    threshold of [%.2f]. Nothing to do.""",
                 node.getShortNodeDescription(),
                 shardConcentration,
                 writeLoadShardConcentrationThreshold

@@ -613,7 +613,10 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         assertThat(WriteLoadConstraintDecider.maxSingleShardWriteLoadConcentration(List.of(testShardId), Map.of()), equalTo(0.0));
 
         // shard is in map with zero load
-        assertThat(WriteLoadConstraintDecider.maxSingleShardWriteLoadConcentration(List.of(testShardId), Map.of(testShardId, 0.0)), equalTo(0.0));
+        assertThat(
+            WriteLoadConstraintDecider.maxSingleShardWriteLoadConcentration(List.of(testShardId), Map.of(testShardId, 0.0)),
+            equalTo(0.0)
+        );
 
         // shard with 0 load
         assertThat(
@@ -651,7 +654,10 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
 
         // not in map
-        assertThat(WriteLoadConstraintDecider.maxSingleShardWriteLoadConcentration(List.of(testShardId1, testShardId2), Map.of()), equalTo(0.0));
+        assertThat(
+            WriteLoadConstraintDecider.maxSingleShardWriteLoadConcentration(List.of(testShardId1, testShardId2), Map.of()),
+            equalTo(0.0)
+        );
 
         // one in map
         assertThat(
@@ -741,32 +747,17 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
         // both high and low shards decide YES to canRemain, as the proportion
         // of load is above 90% on one shard
-        Decision moveDecision = writeLoadDecider.canRemain(
-            indexMetadata,
-            highShardRouting,
-            routingNode,
-            routingAllocation
-        );
-        assertEquals(
-            Decision.Type.YES,
-            moveDecision.type()
-        );
+        Decision moveDecision = writeLoadDecider.canRemain(indexMetadata, highShardRouting, routingNode, routingAllocation);
+        assertEquals(Decision.Type.YES, moveDecision.type());
         String explanationRegex = Strings.format("""
             Node \\[%s\\] is hot-spotting, but has a single shard write load concentration of \\[0.95\\] that exceeds the \
-            concentration threshold of \\[0.90\\]. Nothing to do.""",
-            node.getShortNodeDescription());
+            concentration threshold of \\[0.90\\]. Nothing to do.""", node.getShortNodeDescription());
 
-        assertThat(
-            moveDecision.getExplanation(),
-            matchesPattern(explanationRegex)
-        );
+        assertThat(moveDecision.getExplanation(), matchesPattern(explanationRegex));
 
         moveDecision = writeLoadDecider.canRemain(indexMetadata, lowShardRouting, routingNode, routingAllocation);
         assertEquals(Decision.Type.YES, moveDecision.type());
-        assertThat(
-            moveDecision.getExplanation(),
-            matchesPattern(explanationRegex)
-        );
+        assertThat(moveDecision.getExplanation(), matchesPattern(explanationRegex));
 
         // retry test, with proportions under the threshold
         scalar = randomDoubleBetween(0.1, 20.0, true);

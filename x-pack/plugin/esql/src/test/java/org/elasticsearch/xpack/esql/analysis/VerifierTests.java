@@ -3798,7 +3798,7 @@ public class VerifierTests extends ESTestCase {
                 defaultAnalyzer,
                 VerificationException.class
             ),
-            equalTo("1:58: MMR limit must be a positive integer")
+            equalTo("1:58: MMR limit must be a positive integer, got [-5]")
         );
     }
 

@@ -610,29 +610,16 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
 
         // inexplicably not in map means 0.0
-        assertThat(
-            WriteLoadConstraintDecider.maxShardHotspottingProportion(
-                List.of(testShardId),
-                Map.of()
-            ),
-            equalTo(0.0)
-        );
+        assertThat(WriteLoadConstraintDecider.maxShardHotspottingProportion(List.of(testShardId), Map.of()), equalTo(0.0));
 
         // shard is in map with zero load
-        assertThat(
-            WriteLoadConstraintDecider.maxShardHotspottingProportion(
-                List.of(testShardId),
-                Map.of(testShardId, 0.0)
-            ),
-            equalTo(0.0)
-        );
+        assertThat(WriteLoadConstraintDecider.maxShardHotspottingProportion(List.of(testShardId), Map.of(testShardId, 0.0)), equalTo(0.0));
 
         // shard with 0 load
         assertThat(
             WriteLoadConstraintDecider.maxShardHotspottingProportion(
                 List.of(testShardId),
-                Map.of(testShardId, 0.0,
-                       new ShardId(randomIndexName(), randomUUID(), 0), randomDoubleBetween(0.0001, 20.0, true))
+                Map.of(testShardId, 0.0, new ShardId(randomIndexName(), randomUUID(), 0), randomDoubleBetween(0.0001, 20.0, true))
             ),
             equalTo(0.0)
         );
@@ -664,20 +651,11 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
 
         // not in map
-        assertThat(
-            WriteLoadConstraintDecider.maxShardHotspottingProportion(
-                List.of(testShardId1, testShardId2),
-                Map.of()
-            ),
-            equalTo(0.0)
-        );
+        assertThat(WriteLoadConstraintDecider.maxShardHotspottingProportion(List.of(testShardId1, testShardId2), Map.of()), equalTo(0.0));
 
         // one in map
         assertThat(
-            WriteLoadConstraintDecider.maxShardHotspottingProportion(
-                List.of(testShardId1, testShardId2),
-                Map.of(testShardId1, 0.0)
-            ),
+            WriteLoadConstraintDecider.maxShardHotspottingProportion(List.of(testShardId1, testShardId2), Map.of(testShardId1, 0.0)),
             equalTo(0.0)
         );
 
@@ -702,10 +680,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                     WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
                     WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
                 )
-                .put(
-                    WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_CONCENTRATION_THRESHOLD_SETTING.getKey(),
-                    0.9
-                )
+                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_CONCENTRATION_THRESHOLD_SETTING.getKey(), 0.9)
                 .build()
         );
 
@@ -722,27 +697,16 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         var indexMetadata = clusterState.metadata().getProject().index(indexName);
         var index = indexMetadata.getIndex();
 
-        var hotspotStats = createNodeUsageStatsForThreadPools(
-            node,
-            8,
-            0.99f,
-            15_000
-        );
+        var hotspotStats = createNodeUsageStatsForThreadPools(node, 8, 0.99f, 15_000);
 
         ShardId highShard = new ShardId(index, 0);
         ShardId lowShard = new ShardId(index, 1);
         ShardId junkShard = new ShardId(index, 2);
 
-        var usageStats = Map.of(
-            node.getId(), hotspotStats
-        );
+        var usageStats = Map.of(node.getId(), hotspotStats);
         var hotspotIds = Set.of(node.getId());
 
-        var writeLoadsRemain = Map.of(
-            highShard, 0.95,
-            lowShard, 0.05,
-            junkShard, 20.0
-        );
+        var writeLoadsRemain = Map.of(highShard, 0.95, lowShard, 0.05, junkShard, 20.0);
 
         ClusterInfo clusterInfo = ClusterInfo.builder()
             .nodeUsageStatsForThreadPools(usageStats)
@@ -759,56 +723,19 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             System.nanoTime()
         );
 
-        ShardRouting highShardRouting = TestShardRouting.newShardRouting(
-            highShard,
-            node.getId(),
-            null,
-            true,
-            ShardRoutingState.STARTED
-        );
+        ShardRouting highShardRouting = TestShardRouting.newShardRouting(highShard, node.getId(), null, true, ShardRoutingState.STARTED);
 
-        ShardRouting lowShardRouting = TestShardRouting.newShardRouting(
-            lowShard,
-            node.getId(),
-            null,
-            true,
-            ShardRoutingState.STARTED
-        );
+        ShardRouting lowShardRouting = TestShardRouting.newShardRouting(lowShard, node.getId(), null, true, ShardRoutingState.STARTED);
 
-        RoutingNode routingNode = RoutingNodesHelper.routingNode(
-            node.getId(),
-            node,
-            highShardRouting,
-            lowShardRouting
-        );
+        RoutingNode routingNode = RoutingNodesHelper.routingNode(node.getId(), node, highShardRouting, lowShardRouting);
 
         // both high and low shards stay
-        assertEquals(
-            Decision.Type.YES,
-            writeLoadDecider.canRemain(
-                indexMetadata,
-                highShardRouting,
-                routingNode,
-                routingAllocation
-            ).type()
-        );
+        assertEquals(Decision.Type.YES, writeLoadDecider.canRemain(indexMetadata, highShardRouting, routingNode, routingAllocation).type());
 
-        assertEquals(
-            Decision.Type.YES,
-            writeLoadDecider.canRemain(
-                indexMetadata,
-                lowShardRouting,
-                routingNode,
-                routingAllocation
-            ).type()
-        );
+        assertEquals(Decision.Type.YES, writeLoadDecider.canRemain(indexMetadata, lowShardRouting, routingNode, routingAllocation).type());
 
         // retry test, with proportions under the threshold
-        var writeLoadsMigrate = Map.of(
-            highShard, 0.85,
-            lowShard, 0.15,
-            junkShard, 20.0
-        );
+        var writeLoadsMigrate = Map.of(highShard, 0.85, lowShard, 0.15, junkShard, 20.0);
 
         clusterInfo = ClusterInfo.builder()
             .nodeUsageStatsForThreadPools(usageStats)
@@ -828,22 +755,12 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         // both shards leave
         assertEquals(
             Decision.Type.NOT_PREFERRED,
-            writeLoadDecider.canRemain(
-                indexMetadata,
-                highShardRouting,
-                routingNode,
-                routingAllocation
-            ).type()
+            writeLoadDecider.canRemain(indexMetadata, highShardRouting, routingNode, routingAllocation).type()
         );
 
         assertEquals(
             Decision.Type.NOT_PREFERRED,
-            writeLoadDecider.canRemain(
-                indexMetadata,
-                lowShardRouting,
-                routingNode,
-                routingAllocation
-            ).type()
+            writeLoadDecider.canRemain(indexMetadata, lowShardRouting, routingNode, routingAllocation).type()
         );
     }
 

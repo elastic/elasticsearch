@@ -268,10 +268,8 @@ public record ClusterBalanceStats(
             return assignment != null && assignment.nodeIds().contains(shardRouting.currentNodeId());
         }
 
-        /** Treat null and 0.0 as equivalent for nodeWeight (default value is omitted on the wire and read back as 0.0). */
         private static boolean nodeWeightEquals(Double a, Double b) {
-            if (Objects.equals(a, b)) return true;
-            return (a == null || a == 0.0) && (b == null || b == 0.0);
+            return Objects.equals(a, b) || ((a == null || a == 0.0) && (b == null || b == 0.0));
         }
 
         private static int nodeWeightHashCode(Double nodeWeight) {

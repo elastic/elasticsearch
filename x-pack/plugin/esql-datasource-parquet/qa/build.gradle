@@ -50,8 +50,46 @@ dependencies {
   clusterPlugins project(xpackModule('esql-datasource-azure'))
 }
 
-// The parquet fixtures (employees.parquet and parquet-basic.csv-spec) are included
-// directly in this module's javaRestTest/resources directory
+// Generate Parquet fixtures at build time from CSV.
+// Uses shared ParquetFixtureGenerator from esql:qa:server.
+def serverProject = project(xpackModule('esql:qa:server'))
+def parquetFixtureOutputDir = file("${buildDir}/parquet-fixtures/iceberg-fixtures")
+def parquetFixtureDir = file("${parquetFixtureOutputDir}/standalone")
+def esqlCsvIcebergFixtures = project(xpackModule('esql-datasource-csv')).file('qa/src/javaRestTest/resources/iceberg-fixtures')
+
+tasks.register('syncIcebergFixtures', Sync) {
+  from esqlCsvIcebergFixtures
+  into parquetFixtureOutputDir
+}
+
+def csvToParquetFixtures = ['employees', 'web_logs']
+
+def generateParquetTasks = []
+csvToParquetFixtures.each { baseName ->
+  def taskName = "generateParquet_${baseName}"
+  def csvFile = project(xpackModule('esql:qa:testFixtures')).file("src/main/resources/data/${baseName}.csv")
+  def parquetFile = file("${parquetFixtureDir}/${baseName}.parquet")
+  tasks.register(taskName, JavaExec) {
+    dependsOn serverProject.tasks.named('compileParquetFixtureGeneratorJava'), syncIcebergFixtures
+    dependsOn project(xpackModule('esql:qa:testFixtures')).tasks.named('processResources')
+    classpath = serverProject.configurations.parquetFixtureGenerator + serverProject.sourceSets.parquetFixtureGenerator.output
+    mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
+    args = [csvFile.absolutePath, parquetFile.absolutePath]
+    inputs.file(csvFile)
+    outputs.file(parquetFile)
+    systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  }
+  generateParquetTasks.add(tasks.named(taskName))
+}
+
+tasks.register('generateParquetFixtures') {
+  dependsOn generateParquetTasks
+}
+
+sourceSets.javaRestTest.resources.srcDir file("${buildDir}/parquet-fixtures")
+tasks.named('processJavaRestTestResources').configure {
+  dependsOn generateParquetFixtures
+}
 
 // S3GlobDiscoveryIT extends ESTestCase (not ESRestTestCase) since it tests S3StorageProvider
 // directly against the S3HttpFixture without needing an Elasticsearch cluster.
@@ -65,6 +103,7 @@ tasks.named("forbiddenPatterns").configure {
 }
 
 tasks.named('javaRestTest') {
+  dependsOn generateParquetFixtures
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild

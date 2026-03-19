@@ -600,7 +600,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             var limitByGroupKey = ctx.limitByGroupKey();
             if (limitByGroupKey != null) {
-                groupings = new ArrayList<>(visitGrouping(limitByGroupKey.grouping));
+                var booleanExpressions = limitByGroupKey.booleanExpression();
+                groupings = new ArrayList<>(booleanExpressions.size());
+                for (var boolExpr : booleanExpressions) {
+                    groupings.add(expression(boolExpr));
+                }
                 return input -> new LimitBy(source, new Literal(source, i, DataType.INTEGER), input, groupings);
             }
 

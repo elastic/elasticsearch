@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
@@ -52,6 +53,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -76,6 +78,8 @@ import java.util.OptionalLong;
 public class ParquetFormatReader implements RangeAwareFormatReader {
 
     private final BlockFactory blockFactory;
+
+    static final long DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES = 32L * 1024 * 1024;
 
     public ParquetFormatReader(BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
@@ -193,47 +197,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     }
 
     @Override
-    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
-        // Adapt StorageObject to Parquet InputFile
-        InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
+    public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+        List<String> projectedColumns = context.projectedColumns();
+        int batchSize = context.batchSize();
+        int rowLimit = context.rowLimit();
 
-        // Build ParquetReadOptions for data reading
-        ParquetReadOptions options = ParquetReadOptions.builder().build();
-
-        // Open the Parquet file reader
-        ParquetFileReader reader = ParquetFileReader.open(parquetInputFile, options);
-
-        // Get the schema
-        FileMetaData fileMetaData = reader.getFileMetaData();
-        MessageType parquetSchema = fileMetaData.getSchema();
-        List<Attribute> attributes = convertParquetSchemaToAttributes(parquetSchema);
-
-        // Filter attributes based on projection
-        List<Attribute> projectedAttributes;
-        if (projectedColumns == null || projectedColumns.isEmpty()) {
-            projectedAttributes = attributes;
-        } else {
-            projectedAttributes = new ArrayList<>();
-            Map<String, Attribute> attributeMap = new HashMap<>();
-            for (Attribute attr : attributes) {
-                attributeMap.put(attr.name(), attr);
-            }
-            for (String columnName : projectedColumns) {
-                Attribute attr = attributeMap.get(columnName);
-                attr = attr == null ? new ReferenceAttribute(Source.EMPTY, columnName, DataType.NULL) : attr;
-                projectedAttributes.add(attr);
-            }
-        }
-
-        MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
-        String createdBy = fileMetaData.getCreatedBy();
-
-        return new ParquetColumnIterator(reader, projectedSchema, projectedAttributes, batchSize, blockFactory, NO_LIMIT, createdBy);
-    }
-
-    @Override
-    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, int rowLimit)
-        throws IOException {
         InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
         ParquetReadOptions options = ParquetReadOptions.builder().build();
         ParquetFileReader reader = ParquetFileReader.open(parquetInputFile, options);
@@ -291,8 +259,52 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             for (BlockMetaData block : rowGroups) {
                 ranges.add(new long[] { block.getStartingPos(), block.getTotalByteSize() });
             }
-            return ranges;
+            List<long[]> coalesced = coalesceRowGroupRanges(ranges, DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES);
+            // If the whole file fits into a single macro-split target, keep row-group split granularity
+            // (i.e. return the original ranges) to preserve parallelism.
+            return coalesced.size() < 2 ? ranges : coalesced;
         }
+    }
+
+    static List<long[]> coalesceRowGroupRanges(List<long[]> rowGroupRanges, long targetBytes) {
+        if (rowGroupRanges == null || rowGroupRanges.size() <= 1) {
+            return List.of();
+        }
+        if (targetBytes <= 0) {
+            return List.copyOf(rowGroupRanges);
+        }
+
+        List<long[]> sorted = new ArrayList<>(rowGroupRanges);
+        sorted.sort(Comparator.comparingLong(a -> a[0]));
+
+        List<long[]> out = new ArrayList<>();
+        long groupStart = -1;
+        long groupEnd = -1;
+
+        for (long[] range : sorted) {
+            long start = range[0];
+            long length = range[1];
+            long end = start + length;
+
+            if (groupStart < 0) {
+                groupStart = start;
+                groupEnd = end;
+            } else {
+                groupEnd = Math.max(groupEnd, end);
+            }
+
+            if (groupEnd - groupStart >= targetBytes) {
+                out.add(new long[] { groupStart, groupEnd - groupStart });
+                groupStart = -1;
+                groupEnd = -1;
+            }
+        }
+
+        if (groupStart >= 0) {
+            out.add(new long[] { groupStart, groupEnd - groupStart });
+        }
+
+        return out;
     }
 
     /**
@@ -316,7 +328,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
         FileMetaData fileMetaData = reader.getFileMetaData();
         MessageType parquetSchema = fileMetaData.getSchema();
-        List<Attribute> attributes = convertParquetSchemaToAttributes(parquetSchema);
+        // The framework passes planning-time resolved attributes for this query (AsyncExternalSourceOperatorFactory).
+        // Reuse them to avoid redundant schema conversion work per split. We still read Parquet metadata to drive row groups.
+        final List<Attribute> attributes = resolvedAttributes != null && resolvedAttributes.isEmpty() == false
+            ? resolvedAttributes
+            : convertParquetSchemaToAttributes(parquetSchema);
 
         List<Attribute> projectedAttributes;
         if (projectedColumns == null || projectedColumns.isEmpty()) {

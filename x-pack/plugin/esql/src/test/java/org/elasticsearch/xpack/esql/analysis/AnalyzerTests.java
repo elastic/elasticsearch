@@ -108,6 +108,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
@@ -1396,6 +1397,16 @@ public class AnalyzerTests extends ESTestCase {
             var limit = as(plan, Limit.class);
             assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
         }
+    }
+
+    public void testImplicitDefaultLimitAfterLimitBy() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        var plan = analyze("from test | limit 1 by emp_no");
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(as(defaultLimit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        var limitBy = as(defaultLimit.child(), LimitBy.class);
+        assertThat(Expressions.names(limitBy.groupings()), contains("emp_no"));
     }
 
     private static final String[] COMPARISONS = new String[] { "==", "!=", "<", "<=", ">", ">=" };

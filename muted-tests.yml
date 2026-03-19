@@ -351,6 +351,9 @@ tests:
 - class: org.elasticsearch.integration.SecurityFeatureResetTests
   method: testFeatureResetManageRole
   issue: https://github.com/elastic/elasticsearch/issues/144486
+- class: org.elasticsearch.indices.IndicesRequestCacheIT
+  method: testCanCache
+  issue: https://github.com/elastic/elasticsearch/issues/144526
 
 # Examples:
 #

@@ -20,7 +20,8 @@ import java.io.IOException;
  * Block that stores boolean values.
  * This class is generated. Edit {@code X-Block.java.st} instead.
  */
-public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, BooleanVectorBlock, ConstantNullBlock, BooleanBigArrayBlock {
+public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, BooleanVectorBlock, ConstantNullBlock, BooleanBigArrayBlock,
+    org.elasticsearch.compute.data.arrow.BooleanArrowBufBlock {
 
     /**
      * Retrieves the boolean value stored at the given value index.
@@ -62,7 +63,7 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
     ToMask toMask();
 
     @Override
-    BooleanBlock filter(int... positions);
+    BooleanBlock filter(boolean mayContainDuplicates, int... positions);
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},

@@ -11,31 +11,26 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
 import java.util.function.BiFunction;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for performing arithmetic operations on two dense_vector arguments.
+ * {@link ExpressionEvaluator} implementation for performing arithmetic operations on two dense_vector arguments.
  *
  */
-class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
+class DenseVectorsEvaluator implements ExpressionEvaluator {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DenseVectorsEvaluator.class);
-    private static final String ADD_DENSE_VECTOR_EVALUATOR = "AddDenseVectorsEvaluator";
-    private static final String SUB_DENSE_VECTOR_EVALUATOR = "SubDenseVectorsEvaluator";
-    private static final String MUL_DENSE_VECTOR_EVALUATOR = "MulDenseVectorsEvaluator";
-    private static final String DIV_DENSE_VECTOR_EVALUATOR = "DivDenseVectorsEvaluator";
 
     private final BiFunction<Float, Float, Float> op;
     private final String name;
     private final Source source;
-    private final EvalOperator.ExpressionEvaluator lhs;
-    private final EvalOperator.ExpressionEvaluator rhs;
+    private final ExpressionEvaluator lhs;
+    private final ExpressionEvaluator rhs;
     private final DriverContext driverContext;
     private Warnings warnings;
 
@@ -43,8 +38,8 @@ class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
         BiFunction<Float, Float, Float> op,
         String name,
         Source source,
-        EvalOperator.ExpressionEvaluator lhs,
-        EvalOperator.ExpressionEvaluator rhs,
+        ExpressionEvaluator lhs,
+        ExpressionEvaluator rhs,
         DriverContext driverContext
     ) {
         this.op = op;
@@ -83,7 +78,6 @@ class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
                     if (buffer.length < lhsValueCount) {
                         buffer = new float[lhsValueCount];
                     }
-                    boolean success = true;
                     try {
                         for (int i = 0; i < lhsValueCount; i++) {
                             float l = lhsBlock.getFloat(lhsStart + i);
@@ -98,7 +92,6 @@ class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
                     } catch (ArithmeticException e) {
                         warnings().registerException(e);
                         resultBlock.appendNull();
-                        success = false;
                     }
                 }
                 return resultBlock.build();
@@ -113,7 +106,7 @@ class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
 
     @Override
     public String toString() {
-        return name + "[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+        return "DenseVectorsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + ", opName=" + name + "]";
     }
 
     @Override
@@ -128,139 +121,35 @@ class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
         return warnings;
     }
 
-    private static float processAdd(float lhs, float rhs) {
-        return NumericUtils.asFiniteNumber(lhs + rhs);
-    }
-
-    private static float processSub(float lhs, float rhs) {
-        return NumericUtils.asFiniteNumber(lhs - rhs);
-    }
-
-    private static float processMul(float lhs, float rhs) {
-        return NumericUtils.asFiniteNumber(lhs * rhs);
-    }
-
-    private static float processDiv(float lhs, float rhs) {
-        float result = lhs / rhs;
-        if (Double.isNaN(result) || Double.isInfinite(result)) {
-            throw new ArithmeticException("/ by zero");
-        }
-        return result;
-    }
-
-    static final class AddFactory implements Factory {
+    static final class Factory implements ExpressionEvaluator.Factory {
         private final Source source;
-        private final Factory lhs;
-        private final Factory rhs;
+        private final ExpressionEvaluator.Factory lhs;
+        private final ExpressionEvaluator.Factory rhs;
+        private final BiFunction<Float, Float, Float> op;
+        private final String opName;
 
-        AddFactory(Source source, Factory lhs, Factory rhs) {
+        Factory(
+            Source source,
+            ExpressionEvaluator.Factory lhs,
+            ExpressionEvaluator.Factory rhs,
+            BiFunction<Float, Float, Float> op,
+            String opName
+        ) {
             this.source = source;
             this.lhs = lhs;
             this.rhs = rhs;
+            this.op = op;
+            this.opName = opName;
         }
 
         @Override
         public DenseVectorsEvaluator get(DriverContext context) {
-            return new DenseVectorsEvaluator(
-                DenseVectorsEvaluator::processAdd,
-                ADD_DENSE_VECTOR_EVALUATOR,
-                source,
-                lhs.get(context),
-                rhs.get(context),
-                context
-            );
+            return new DenseVectorsEvaluator(op, opName, source, lhs.get(context), rhs.get(context), context);
         }
 
         @Override
         public String toString() {
-            return ADD_DENSE_VECTOR_EVALUATOR + "[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
-        }
-    }
-
-    static class SubFactory implements Factory {
-        private final Source source;
-        private final Factory lhs;
-        private final Factory rhs;
-
-        SubFactory(Source source, Factory lhs, Factory rhs) {
-            this.source = source;
-            this.lhs = lhs;
-            this.rhs = rhs;
-        }
-
-        @Override
-        public DenseVectorsEvaluator get(DriverContext context) {
-            return new DenseVectorsEvaluator(
-                DenseVectorsEvaluator::processSub,
-                SUB_DENSE_VECTOR_EVALUATOR,
-                source,
-                lhs.get(context),
-                rhs.get(context),
-                context
-            );
-        }
-
-        @Override
-        public String toString() {
-            return SUB_DENSE_VECTOR_EVALUATOR + "[lhs=" + lhs + ", rhs=" + rhs + "]";
-        }
-    }
-
-    static class MulFactory implements Factory {
-        private final Source source;
-        private final Factory lhs;
-        private final Factory rhs;
-
-        MulFactory(Source source, Factory lhs, Factory rhs) {
-            this.source = source;
-            this.lhs = lhs;
-            this.rhs = rhs;
-        }
-
-        @Override
-        public DenseVectorsEvaluator get(DriverContext context) {
-            return new DenseVectorsEvaluator(
-                DenseVectorsEvaluator::processMul,
-                MUL_DENSE_VECTOR_EVALUATOR,
-                source,
-                lhs.get(context),
-                rhs.get(context),
-                context
-            );
-        }
-
-        @Override
-        public String toString() {
-            return MUL_DENSE_VECTOR_EVALUATOR + "[lhs=" + lhs + ", rhs=" + rhs + "]";
-        }
-    }
-
-    static class DivFactory implements Factory {
-        private final Source source;
-        private final Factory lhs;
-        private final Factory rhs;
-
-        DivFactory(Source source, Factory lhs, Factory rhs) {
-            this.source = source;
-            this.lhs = lhs;
-            this.rhs = rhs;
-        }
-
-        @Override
-        public DenseVectorsEvaluator get(DriverContext context) {
-            return new DenseVectorsEvaluator(
-                DenseVectorsEvaluator::processDiv,
-                DIV_DENSE_VECTOR_EVALUATOR,
-                source,
-                lhs.get(context),
-                rhs.get(context),
-                context
-            );
-        }
-
-        @Override
-        public String toString() {
-            return DIV_DENSE_VECTOR_EVALUATOR + "[lhs=" + lhs + ", rhs=" + rhs + "]";
+            return "DenseVectorsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + ", opName=" + opName + "]";
         }
     }
 }

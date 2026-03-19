@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.inference.services.jinaai.request;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
@@ -16,6 +18,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InputTypeTests;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModelTests;
@@ -57,7 +60,7 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
             )
         );
 
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -113,7 +116,7 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
             )
         );
 
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -168,7 +171,7 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
             )
         );
 
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -208,7 +211,7 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
             )
         );
 
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -235,9 +238,9 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
         for (String input : inputs) {
             InferenceString inferenceString;
             if (isTextInput) {
-                inferenceString = new InferenceString(InferenceString.DataType.TEXT, InferenceString.DataFormat.TEXT, input);
+                inferenceString = new InferenceString(DataType.TEXT, DataFormat.TEXT, input);
             } else {
-                inferenceString = new InferenceString(InferenceString.DataType.IMAGE, InferenceString.DataFormat.BASE64, input);
+                inferenceString = new InferenceString(DataType.IMAGE, DataFormat.BASE64, input);
             }
             isTextInput = isTextInput == false;
             var inferenceStringGroup = new InferenceStringGroup(inferenceString);

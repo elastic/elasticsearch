@@ -21,14 +21,14 @@ import java.io.IOException;
  * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
 public sealed interface DoubleVector extends Vector permits ConstantDoubleVector, DoubleArrayVector, DoubleBigArrayVector,
-    ConstantNullVector {
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.DoubleArrowBufVector {
     double getDouble(int position);
 
     @Override
     DoubleBlock asBlock();
 
     @Override
-    DoubleVector filter(int... positions);
+    DoubleVector filter(boolean mayContainDuplicates, int... positions);
 
     @Override
     DoubleBlock keepMask(BooleanVector mask);

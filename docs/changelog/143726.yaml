@@ -1,0 +1,6 @@
+area: Mapping
+issues:
+ - 143464
+pr: 143726
+summary: "Apply the source filter on metadata field mappers when loading from synthetic source"
+type: bug

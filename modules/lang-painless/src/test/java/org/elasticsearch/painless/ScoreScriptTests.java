@@ -32,7 +32,7 @@ public class ScoreScriptTests extends ESSingleNodeTestCase {
      * Test that needTermStats() is reported correctly depending on whether _termStats is used
      */
     public void testNeedsTermStats() {
-        IndexService index = createIndex("test", Settings.EMPTY, "type", "d", "type=double");
+        IndexService index = createIndex("test", Settings.EMPTY, "d", "type=double");
 
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
         List<Whitelist> whitelists = new ArrayList<>(PAINLESS_BASE_WHITELIST);

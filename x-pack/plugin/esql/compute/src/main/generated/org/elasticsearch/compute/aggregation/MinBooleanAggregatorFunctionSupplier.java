@@ -31,13 +31,13 @@ public final class MinBooleanAggregatorFunctionSupplier implements AggregatorFun
   @Override
   public MinBooleanAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return MinBooleanAggregatorFunction.create(driverContext, channels);
+    return new MinBooleanAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public MinBooleanGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return MinBooleanGroupingAggregatorFunction.create(channels, driverContext);
+    return new MinBooleanGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

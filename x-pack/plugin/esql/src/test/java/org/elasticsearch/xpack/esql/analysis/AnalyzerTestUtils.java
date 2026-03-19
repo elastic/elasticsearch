@@ -14,16 +14,18 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -48,6 +50,8 @@ import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.RANGE_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
@@ -57,36 +61,91 @@ public final class AnalyzerTestUtils {
 
     private AnalyzerTestUtils() {}
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer defaultAnalyzer() {
         return analyzer(analyzerDefaultMapping());
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer expandedDefaultAnalyzer() {
         return analyzer(expandedDefaultIndexResolution());
     }
 
-    /** Simplest analyzer with a single index, which must be valid */
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer analyzer(IndexResolution indexResolution) {
         return analyzer(indexResolution, TEST_VERIFIER);
     }
 
-    /** Simple analyzer with multiple indexes, which may also be invalid */
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
+    public static Analyzer analyzer(IndexResolution indexResolution, TimestampBounds timestampBounds) {
+        return analyzer(
+            indexResolutions(indexResolution),
+            defaultLookupResolution(),
+            defaultEnrichResolution(),
+            TEST_VERIFIER,
+            TEST_CFG,
+            UNMAPPED_FIELDS.defaultValue(),
+            timestampBounds
+        );
+    }
+
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer analyzer(Map<IndexPattern, IndexResolution> indexResolutions) {
         return analyzer(indexResolutions, defaultLookupResolution(), defaultEnrichResolution(), TEST_VERIFIER, TEST_CFG);
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer analyzer(IndexResolution indexResolution, Map<String, IndexResolution> lookupResolution) {
         return analyzer(indexResolution, lookupResolution, TEST_VERIFIER);
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer analyzer(IndexResolution indexResolution, Verifier verifier) {
         return analyzer(indexResolution, defaultLookupResolution(), verifier);
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer analyzer(IndexResolution indexResolution, Map<String, IndexResolution> lookupResolution, Verifier verifier) {
         return analyzer(indexResolution, lookupResolution, defaultEnrichResolution(), verifier);
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer analyzer(
         IndexResolution indexResolution,
         Map<String, IndexResolution> lookupResolution,
@@ -96,6 +155,11 @@ public final class AnalyzerTestUtils {
         return analyzer(indexResolutions(indexResolution), lookupResolution, enrichResolution, verifier, TEST_CFG);
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer analyzer(
         Map<IndexPattern, IndexResolution> indexResolutions,
         Map<String, IndexResolution> lookupResolution,
@@ -106,6 +170,11 @@ public final class AnalyzerTestUtils {
         return analyzer(indexResolutions, lookupResolution, enrichResolution, verifier, config, UNMAPPED_FIELDS.defaultValue());
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer analyzer(
         Map<IndexPattern, IndexResolution> indexResolutions,
         Map<String, IndexResolution> lookupResolution,
@@ -114,15 +183,33 @@ public final class AnalyzerTestUtils {
         Configuration config,
         UnmappedResolution unmappedResolution
     ) {
+        return analyzer(indexResolutions, lookupResolution, enrichResolution, verifier, config, unmappedResolution, null);
+    }
+
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
+    public static Analyzer analyzer(
+        Map<IndexPattern, IndexResolution> indexResolutions,
+        Map<String, IndexResolution> lookupResolution,
+        EnrichResolution enrichResolution,
+        Verifier verifier,
+        Configuration config,
+        UnmappedResolution unmappedResolution,
+        @Nullable TimestampBounds timestampBounds
+    ) {
         return new Analyzer(
             testAnalyzerContext(
                 config,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 mergeIndexResolutions(indexResolutions, defaultSubqueryResolution()),
                 lookupResolution,
                 enrichResolution,
                 defaultInferenceResolution(),
-                unmappedResolution
+                unmappedResolution,
+                timestampBounds
             ),
             verifier
         );
@@ -172,12 +259,24 @@ public final class AnalyzerTestUtils {
     }
 
     public static LogicalPlan analyzeStatement(String query) {
-        var statement = EsqlParser.INSTANCE.createStatement(query);
+        return analyzeStatement(query, true);
+    }
+
+    public static LogicalPlan analyzeStatement(String query, boolean checkPlan) {
+        var statement = TEST_PARSER.createStatement(query);
         var relations = statement.plan().collectFirstChildren(UnresolvedRelation.class::isInstance);
         var indexName = relations.isEmpty() ? null : ((UnresolvedRelation) relations.getFirst()).indexPattern().indexPattern();
         var indexResolutions = indexResolutions(indexName);
         var analyzer = analyzer(indexResolutions, TEST_VERIFIER, configuration(query), statement);
-        return analyzer.analyze(statement.plan());
+        var analyzed = analyzer.analyze(statement.plan());
+        if (checkPlan) {
+            var failures = new Failures();
+            PlanConsistencyChecker.checkPlan(analyzed, failures);
+            if (failures.hasFailures()) {
+                throw new VerificationException(failures);
+            }
+        }
+        return analyzed;
     }
 
     public static LogicalPlan analyze(String query, String mapping) {
@@ -192,7 +291,7 @@ public final class AnalyzerTestUtils {
     }
 
     public static LogicalPlan analyze(String query, Analyzer analyzer) {
-        var plan = EsqlParser.INSTANCE.parseQuery(query);
+        var plan = TEST_PARSER.parseQuery(query);
         // System.out.println(plan);
         var analyzed = analyzer.analyze(plan);
         // System.out.println(analyzed);
@@ -239,7 +338,7 @@ public final class AnalyzerTestUtils {
     }
 
     public static LogicalPlan analyze(String query, String index, String mapping, QueryParams params) {
-        var plan = EsqlParser.INSTANCE.parseQuery(query, params);
+        var plan = TEST_PARSER.parseQuery(query, params);
         var indexResolutions = Map.of(new IndexPattern(Source.EMPTY, index), loadMapping(mapping, index));
         var analyzer = analyzer(indexResolutions, TEST_VERIFIER, configuration(query));
         return analyzer.analyze(plan);

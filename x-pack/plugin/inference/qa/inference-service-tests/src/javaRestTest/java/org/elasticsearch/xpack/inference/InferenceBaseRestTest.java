@@ -391,7 +391,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    static List<Map<String, Object>> getAllModels() throws IOException {
+    public static List<Map<String, Object>> getAllModels() throws IOException {
         return (List<Map<String, Object>>) getInternalAsMap("_inference/_all").get("endpoints");
     }
 

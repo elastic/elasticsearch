@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -39,26 +40,29 @@ import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
-import org.elasticsearch.tdigest.parsing.TDigestParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
+import org.elasticsearch.xpack.core.analytics.mapper.TDigestParser;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
-import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
+import org.junit.AssumptionViolatedException;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.StringReader;
 import java.math.BigDecimal;
-import java.net.URL;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -75,6 +79,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 import static org.elasticsearch.xpack.esql.SpecReader.shouldSkipLine;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToUnsignedLong;
@@ -84,6 +89,9 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToAggregateMetricDoubleLiteral;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.in;
+import static org.junit.Assume.assumeFalse;
 
 public final class CsvTestUtils {
     private static final int MAX_WIDTH = 80;
@@ -124,6 +132,49 @@ public final class CsvTestUtils {
         return true;
     }
 
+    public static void checkTestCapabilities(
+        EsqlCapabilities allCapabilities,
+        EsqlCapabilities enabledCapabilities,
+        List<String> requiredCapabilities,
+        Logger logger
+    ) {
+        if (Build.current().isSnapshot()) {
+            assertThat(
+                "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",
+                requiredCapabilities,
+                everyItem(in(allCapabilities.capabilities()))
+            );
+            assumeTrueLogging(
+                "Capability not supported in this build",
+                enabledCapabilities.capabilities().containsAll(requiredCapabilities),
+                logger
+            );
+        } else {
+            for (EsqlCapabilities.Cap c : EsqlCapabilities.Cap.values()) {
+                if (false == c.isEnabled()) {
+                    assumeFalseLogging(
+                        c.capabilityName() + " is not supported in non-snapshot releases",
+                        requiredCapabilities.contains(c.capabilityName()),
+                        logger
+                    );
+                }
+            }
+        }
+    }
+
+    public static void assumeTrueLogging(String message, boolean condition, Logger logger) {
+        assumeFalseLogging(message, condition == false, logger);
+    }
+
+    public static void assumeFalseLogging(String message, boolean condition, Logger logger) {
+        try {
+            assumeFalse(message, condition);
+        } catch (AssumptionViolatedException ave) {
+            logger.info("skipping test: " + ave.getMessage());
+            throw ave;
+        }
+    }
+
     private static final Pattern INSTRUCTION_PATTERN = Pattern.compile("\\[(.*?)]");
 
     public static Map<String, String> parseInstructions(String instructions) {
@@ -160,7 +211,7 @@ public final class CsvTestUtils {
         return null;
     }
 
-    public static Tuple<Page, List<String>> loadPageFromCsv(URL source, Map<String, String> typeMapping) throws Exception {
+    public static Tuple<Page, List<String>> loadPageFromCsv(InputStream source, Map<String, String> typeMapping) throws Exception {
 
         record CsvColumn(String name, Type type, BuilderWrapper builderWrapper) implements Releasable {
             void append(String stringValue) {
@@ -208,7 +259,7 @@ public final class CsvTestUtils {
 
         CsvColumn[] columns = null;
 
-        var blockFactory = BlockFactory.getInstance(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
         try (BufferedReader reader = reader(source)) {
             String line;
             int lineNumber = 1;
@@ -503,6 +554,7 @@ public final class CsvTestUtils {
             BytesRef.class
         ),
         IP_RANGE(InetAddresses::parseCidr, BytesRef.class),
+        JSON(s -> s == null ? null : new BytesRef(s), BytesRef.class),
         DATE_RANGE(s -> EsqlDataTypeConverter.parseDateRange(s, ZoneOffset.UTC), LongRangeBlockBuilder.LongRange.class),
         VERSION(v -> new org.elasticsearch.xpack.versionfield.Version(v).toBytesRef(), BytesRef.class),
         NULL(s -> s, Void.class),
@@ -518,6 +570,7 @@ public final class CsvTestUtils {
             Instant parsed = DateFormatters.from(ISO_DATE_WITH_NANOS.parse(x)).toInstant();
             return DateUtils.toLong(parsed);
         }, (l, r) -> l instanceof Long maybeIP ? maybeIP.compareTo((Long) r) : l.toString().compareTo(r.toString()), Long.class),
+
         BOOLEAN(Booleans::parseBoolean, Boolean.class),
         GEO_POINT(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
         CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class),
@@ -528,6 +581,7 @@ public final class CsvTestUtils {
         GEOHEX(x -> x == null ? null : H3.stringToH3(x), Long.class),
         AGGREGATE_METRIC_DOUBLE(
             x -> x == null ? null : stringToAggregateMetricDoubleLiteral(x),
+            CsvTestUtils::compareAggregateMetricDouble,
             AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class
         ),
         DENSE_VECTOR(Float::parseFloat, Float.class, false),
@@ -618,6 +672,10 @@ public final class CsvTestUtils {
             if (actualType == Type.UNSUPPORTED) {
                 return UNSUPPORTED;
             }
+            // Dense vectors use ElementType.FLOAT but should map to Type.DENSE_VECTOR
+            if (actualType == Type.DENSE_VECTOR) {
+                return DENSE_VECTOR;
+            }
             return switch (elementType) {
                 case INT -> INTEGER;
                 case LONG -> LONG;
@@ -678,15 +736,15 @@ public final class CsvTestUtils {
     }
 
     record ActualResults(
-        Configuration configuration,
+        ZoneId zoneId,
         List<String> columnNames,
         List<Type> columnTypes,
         List<DataType> dataTypes,
         List<Page> pages,
         Map<String, List<String>> responseHeaders
     ) {
-        Iterator<Iterator<Object>> values() {
-            return ResponseValueUtils.pagesToValues(dataTypes(), pages, configuration.zoneId());
+        List<List<Object>> values() {
+            return EsqlTestUtils.getValuesList(ResponseValueUtils.pagesToValues(dataTypes(), pages, zoneId));
         }
     }
 
@@ -778,7 +836,15 @@ public final class CsvTestUtils {
                 DocumentParsingException::new,
                 XContentParserUtils::parsingException
             );
-            return new TDigestHolder(parsed.centroids(), parsed.counts(), parsed.min(), parsed.max(), parsed.sum(), parsed.count());
+            TDigestHolder tdigest = new TDigestHolder();
+            tdigest.reset(
+                EncodedTDigest.encodeCentroids(parsed.centroids(), parsed.counts()),
+                parsed.min(),
+                parsed.max(),
+                parsed.sum(),
+                parsed.count()
+            );
+            return tdigest;
         } catch (IOException e) {
             throw new IllegalArgumentException(e);
         }
@@ -866,5 +932,15 @@ public final class CsvTestUtils {
         } catch (IOException e) {
             throw new IllegalArgumentException(e);
         }
+    }
+
+    static int compareAggregateMetricDouble(Object lhs, Object rhs) {
+        return toAggregateMetricDouble(lhs).compareTo(toAggregateMetricDouble(rhs));
+    }
+
+    static AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral toAggregateMetricDouble(Object v) {
+        return v instanceof AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral amd
+            ? amd
+            : stringToAggregateMetricDoubleLiteral(v.toString());
     }
 }

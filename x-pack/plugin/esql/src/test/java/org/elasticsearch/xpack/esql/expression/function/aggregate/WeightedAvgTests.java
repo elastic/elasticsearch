@@ -23,7 +23,9 @@ import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class WeightedAvgTests extends AbstractAggregationTestCase {
     public WeightedAvgTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -198,7 +200,7 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
                     List.of(fieldTypedData, weightTypedData),
                     "WeightedAvg[number=Attribute[channel=0],weight=Attribute[channel=1]]",
                     DataType.DOUBLE,
-                    equalTo(expected)
+                    expected == null ? nullValue() : closeTo(expected, Math.abs(expected * 1e-10))
                 ).withWarnings(warnings);
             }
         );

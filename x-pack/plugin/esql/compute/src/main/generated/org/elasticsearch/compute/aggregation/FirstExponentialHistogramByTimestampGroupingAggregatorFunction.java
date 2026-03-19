@@ -40,16 +40,11 @@ public final class FirstExponentialHistogramByTimestampGroupingAggregatorFunctio
 
   private final DriverContext driverContext;
 
-  public FirstExponentialHistogramByTimestampGroupingAggregatorFunction(List<Integer> channels,
-      ExponentialHistogramStates.WithLongGroupingState state, DriverContext driverContext) {
+  FirstExponentialHistogramByTimestampGroupingAggregatorFunction(List<Integer> channels,
+      DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = FirstExponentialHistogramByTimestampAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static FirstExponentialHistogramByTimestampGroupingAggregatorFunction create(
-      List<Integer> channels, DriverContext driverContext) {
-    return new FirstExponentialHistogramByTimestampGroupingAggregatorFunction(channels, FirstExponentialHistogramByTimestampAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

@@ -12,8 +12,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
-import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 import org.elasticsearch.core.TimeValue;
 import org.hamcrest.Matcher;
 
@@ -133,6 +133,24 @@ public class LimitOperatorTests extends OperatorTestCase {
                 assertFalse(op.needsInput());
                 assertTrue(op.isFinished());
             }
+        }
+    }
+
+    public void testTruncatePageWithZeroBlocks() {
+        try (var op = simple().get(driverContext())) {
+            assertTrue(op.needsInput());
+            Page p = new Page(200);
+            op.addInput(p);
+            assertFalse(op.needsInput());
+            Page result = op.getOutput();
+            try {
+                assertThat(result.getPositionCount(), equalTo(100));
+                assertThat(result.getBlockCount(), equalTo(0));
+            } finally {
+                result.releaseBlocks();
+            }
+            assertFalse(op.needsInput());
+            assertTrue(op.isFinished());
         }
     }
 

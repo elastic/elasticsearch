@@ -28,25 +28,29 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
 public class AlibabaCloudSearchEmbeddingsServiceSettings implements ServiceSettings {
     public static final String NAME = "alibabacloud_search_embeddings_service_settings";
 
     public static AlibabaCloudSearchEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
-        var commonServiceSettings = AlibabaCloudSearchServiceSettings.fromMap(map, context);
+        var validationException = new ValidationException();
 
-        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
-        Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
+        var commonServiceSettings = AlibabaCloudSearchServiceSettings.fromMap(map, context, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var maxInputTokens = extractOptionalPositiveInteger(
+            map,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
 
-        return new AlibabaCloudSearchEmbeddingsServiceSettings(commonServiceSettings, similarity, dims, maxInputTokens);
+        validationException.throwIfValidationErrorsExist();
+
+        return new AlibabaCloudSearchEmbeddingsServiceSettings(commonServiceSettings, similarity, dimensions, maxInputTokens);
     }
 
     private final AlibabaCloudSearchServiceSettings commonSettings;
@@ -67,10 +71,10 @@ public class AlibabaCloudSearchEmbeddingsServiceSettings implements ServiceSetti
     }
 
     public AlibabaCloudSearchEmbeddingsServiceSettings(StreamInput in) throws IOException {
-        commonSettings = new AlibabaCloudSearchServiceSettings(in);
-        similarity = in.readOptionalEnum(SimilarityMeasure.class);
-        dimensions = in.readOptionalVInt();
-        maxInputTokens = in.readOptionalVInt();
+        this.commonSettings = new AlibabaCloudSearchServiceSettings(in);
+        this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
+        this.dimensions = in.readOptionalVInt();
+        this.maxInputTokens = in.readOptionalVInt();
     }
 
     public AlibabaCloudSearchServiceSettings getCommonSettings() {
@@ -103,6 +107,28 @@ public class AlibabaCloudSearchEmbeddingsServiceSettings implements ServiceSetti
     @Override
     public String modelId() {
         return commonSettings.modelId();
+    }
+
+    @Override
+    public AlibabaCloudSearchEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+        var commonServiceSettings = commonSettings.updateServiceSettings(serviceSettings, validationException);
+
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new AlibabaCloudSearchEmbeddingsServiceSettings(
+            commonServiceSettings,
+            this.similarity,
+            this.dimensions,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens
+        );
     }
 
     @Override

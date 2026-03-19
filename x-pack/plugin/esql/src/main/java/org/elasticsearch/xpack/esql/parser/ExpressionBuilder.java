@@ -86,7 +86,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
@@ -96,6 +95,7 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.nameOrPosition;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.promqlNameOrPosition;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
@@ -759,9 +759,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             Expression value = expression(entry.value.constant() != null ? entry.value.constant() : entry.value.mapExpression());
             String entryText = entry.getText();
             if (value instanceof Literal l) {
-                if (l.dataType() == NULL) {
-                    throw new ParsingException(source(ctx), "Invalid named parameter [{}], NULL is not supported", entryText);
-                }
                 namedArgs.add(Literal.keyword(source(stringCtx), key));
                 namedArgs.add(l);
                 names.add(key);
@@ -1231,9 +1228,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (node == null) {
             return null;
         }
-        // The token could be a single parameter marker or double parameter markers
         Token token = node.getSymbol();
         String nameOrPosition = nameOrPosition(token);
+        if (nameOrPosition.isBlank()) {
+            nameOrPosition = promqlNameOrPosition(token);
+        }
         if (isInteger(nameOrPosition)) {
             int index = Integer.parseInt(nameOrPosition);
             if (params.get(index) == null) {
@@ -1318,7 +1317,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 )
             );
         }
-        return new UnresolvedAttribute(source(ctx), param.value().toString());
+        if (param.value() == null) {
+            context.params.addParsingError(new ParsingException(source(ctx), "Query parameter [{}] is null", ctx.getText()));
+        }
+        return new UnresolvedAttribute(source(ctx), String.valueOf(param.value()));
     }
 
     @Override

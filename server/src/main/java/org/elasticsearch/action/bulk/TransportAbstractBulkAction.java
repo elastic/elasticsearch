@@ -42,7 +42,6 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,6 +55,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.rest.RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS;
@@ -96,7 +96,6 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     protected final Executor systemCoordinationExecutor;
     private final ActionType<BulkResponse> bulkAction;
     protected final FeatureService featureService;
-    protected final SamplingService samplingService;
 
     public TransportAbstractBulkAction(
         ActionType<BulkResponse> action,
@@ -110,8 +109,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         SystemIndices systemIndices,
         ProjectResolver projectResolver,
         LongSupplier relativeTimeNanosProvider,
-        FeatureService featureService,
-        SamplingService samplingService
+        FeatureService featureService
     ) {
         super(action.name(), transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -127,7 +125,6 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         clusterService.addStateApplier(this.ingestForwarder);
         this.relativeTimeNanosProvider = relativeTimeNanosProvider;
         this.bulkAction = action;
-        this.samplingService = samplingService;
     }
 
     @Override
@@ -317,16 +314,6 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                 }
             });
             return true;
-        } else if (haveRunIngestService == false && samplingService != null && samplingService.atLeastOneSampleConfigured(project)) {
-            /*
-             * Else ample only if this request has not passed through IngestService::executeBulkRequest. Otherwise, some request within the
-             * bulk had pipelines and we sampled in IngestService already.
-             */
-            for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
-                if (actionRequest instanceof IndexRequest ir) {
-                    samplingService.maybeSample(project, ir);
-                }
-            }
         }
         return false;
     }
@@ -471,51 +458,58 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         BulkRequestModifier bulkRequestModifier,
         int i
     ) {
-        for (StreamType streamType : StreamType.getEnabledStreamTypesForProject(projectMetadata)) {
-            if (req instanceof IndexRequest ir && ir.isPipelineResolved() == false) {
-                IllegalArgumentException e = null;
-                if (streamType.matchesStreamPrefix(req.index())) {
-                    e = new IllegalArgumentException(
+        final Consumer<Exception> errHandler = e -> {
+            final Boolean failureStoreEnabled = resolveFailureStore(req.index(), projectMetadata, threadPool.absoluteTimeInMillis());
+
+            if (featureService.clusterHasFeature(clusterService.state(), DataStream.DATA_STREAM_FAILURE_STORE_FEATURE)) {
+                if (Boolean.TRUE.equals(failureStoreEnabled)) {
+                    bulkRequestModifier.markItemForFailureStore(i, req.index(), e);
+                } else if (Boolean.FALSE.equals(failureStoreEnabled)) {
+                    bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_ENABLED);
+                } else {
+                    bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
+                }
+            } else {
+                bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
+            }
+        };
+
+        if (req instanceof IndexRequest ir && ir.isPipelineResolved() == false) {
+            final StreamType parentStream = StreamType.enabledParentStreamOf(projectMetadata, req.index());
+            if (parentStream != null) {
+                errHandler.accept(
+                    new IllegalArgumentException(
                         "Direct writes to child streams are prohibited. Index directly into the ["
-                            + streamType.getStreamName()
+                            + parentStream.getStreamName()
                             + "] stream instead"
+                    )
+                );
+                return;
+            }
+            final StreamType streamTarget = StreamType.exactEnabledStreamMatch(projectMetadata, ir.index());
+            if (streamTarget != null) {
+                if (ir.getPipeline() != null) {
+                    errHandler.accept(
+                        new IllegalArgumentException(
+                            "Cannot provide a pipeline when writing to a stream "
+                                + "however the ["
+                                + ir.getPipeline()
+                                + "] pipeline was provided when writing to the ["
+                                + streamTarget.getStreamName()
+                                + "] stream"
+                        )
                     );
+                    return;
                 }
-                if (e == null && streamType.getStreamName().equals(ir.index()) && ir.getPipeline() != null) {
-                    e = new IllegalArgumentException(
-                        "Cannot provide a pipeline when writing to a stream "
-                            + "however the ["
-                            + ir.getPipeline()
-                            + "] pipeline was provided when writing to the ["
-                            + streamType.getStreamName()
-                            + "] stream"
+                if (streamsRestrictedParamsUsed(bulkRequest)) {
+                    errHandler.accept(
+                        new IllegalArgumentException(
+                            "When writing to a stream, only the following parameters are allowed: ["
+                                + String.join(", ", STREAMS_ALLOWED_PARAMS)
+                                + "] however the following were used: "
+                                + bulkRequest.requestParamsUsed()
+                        )
                     );
-                }
-                if (e == null && streamsRestrictedParamsUsed(bulkRequest) && req.index().equals(streamType.getStreamName())) {
-                    e = new IllegalArgumentException(
-                        "When writing to a stream, only the following parameters are allowed: ["
-                            + String.join(", ", STREAMS_ALLOWED_PARAMS)
-                            + "] however the following were used: "
-                            + bulkRequest.requestParamsUsed()
-                    );
-                }
-
-                if (e != null) {
-                    Boolean failureStoreEnabled = resolveFailureStore(req.index(), projectMetadata, threadPool.absoluteTimeInMillis());
-
-                    if (featureService.clusterHasFeature(clusterService.state(), DataStream.DATA_STREAM_FAILURE_STORE_FEATURE)) {
-                        if (Boolean.TRUE.equals(failureStoreEnabled)) {
-                            bulkRequestModifier.markItemForFailureStore(i, req.index(), e);
-                        } else if (Boolean.FALSE.equals(failureStoreEnabled)) {
-                            bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_ENABLED);
-                        } else {
-                            bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
-                        }
-                    } else {
-                        bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
-                    }
-
-                    break;
                 }
             }
         }

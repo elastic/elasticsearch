@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.azure;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.core.Nullable;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
@@ -53,18 +54,35 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
     private final Consumer<T> cleaner;
     private final AtomicReference<Subscription> subscription = new AtomicReference<>();
     private static final Logger logger = LogManager.getLogger(CancellableRateLimitedFluxIterator.class);
-    private volatile DoneState doneState = DoneState.STILL_READING;
+    private final AtomicReference<DoneState> doneState = new AtomicReference<>(DoneState.STILL_READING);
     private int emittedElements;
 
     /**
      * This is used to set 'done' and 'error' atomically
+     *
+     * @param done whether the iterator is done
+     * @param error the terminal error, if one occurred
+     * @param fromProducer whether the doneState was a result of a producer event
      */
-    private record DoneState(boolean done, Throwable error) {
-        static final DoneState STILL_READING = new DoneState(false, null);
-        static final DoneState FINISHED = new DoneState(true, null);
+    private record DoneState(boolean done, @Nullable Throwable error, boolean fromProducer) {
+
+        static final DoneState STILL_READING = new DoneState(false, null, false);
+        static final DoneState COMPLETE = new DoneState(true, null, true);
 
         public DoneState {
             assert done || error == null : "Must be done to specify an error";
+        }
+
+        public boolean isDoneWithError() {
+            return done && error != null;
+        }
+
+        public boolean isErrorFromProducer() {
+            return fromProducer && error != null;
+        }
+
+        public boolean isErrorFromConsumer() {
+            return fromProducer == false && error != null;
         }
     }
 
@@ -90,7 +108,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
         // and it's possible that the consumer thread is blocked
         // waiting until the producer emits an element.
         for (;;) {
-            final DoneState lastDoneState = this.doneState;
+            final DoneState lastDoneState = this.doneState.get();
             boolean isQueueEmpty = queue.isEmpty();
 
             if (lastDoneState.done()) {
@@ -109,7 +127,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
             // Provide visibility guarantees for the modified queue
             lock.lock();
             try {
-                while (doneState.done() == false && queue.isEmpty()) {
+                while (doneState.get().done() == false && queue.isEmpty()) {
                     condition.await();
                 }
             } catch (InterruptedException e) {
@@ -130,18 +148,19 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
 
         T nextElement = queue.poll();
 
-        if (doneState.done() && doneState.error() != null) {
+        final var currentDoneState = doneState.get();
+        if (currentDoneState.isDoneWithError()) {
             // We can't trust anything we read after doneState is done with an error or cancellation
             // as we may have begun clearing the queue
             if (nextElement != null) {
                 cleanElement(nextElement);
             }
-            throw new RuntimeException(doneState.error());
+            throw new RuntimeException(currentDoneState.error());
         } else if (nextElement == null) {
             final var illegalStateException = new IllegalStateException(
                 "Queue is empty: Expected one element to be available from the Reactive Streams source."
             );
-            doneState = new DoneState(true, illegalStateException);
+            updateDoneState(new DoneState(true, illegalStateException, false));
             cancelSubscription();
             signalConsumer();
             throw illegalStateException;
@@ -172,7 +191,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
         // It's possible that we receive more elements after cancelling the subscription
         // since it might have outstanding requests before the cancellation. In that case
         // we just clean the resources.
-        if (doneState.done()) {
+        if (doneState.get().done()) {
             cleanElement(element);
             return;
         }
@@ -188,7 +207,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
     }
 
     public void cancel() {
-        doneState = new DoneState(true, new CancellationException());
+        updateDoneState(new DoneState(true, new CancellationException(), false));
         cancelSubscription();
         clearQueue();
         // cancel should be called from the consumer
@@ -200,14 +219,14 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
 
     @Override
     public void onError(Throwable t) {
-        doneState = new DoneState(true, t);
+        updateDoneState(new DoneState(true, t, true));
         clearQueue();
         signalConsumer();
     }
 
     @Override
     public void onComplete() {
-        doneState = DoneState.FINISHED;
+        updateDoneState(DoneState.COMPLETE);
         signalConsumer();
     }
 
@@ -243,5 +262,28 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
     private void cancelSubscription() {
         Subscription previousSubscription = subscription.getAndSet(CANCELLED_SUBSCRIPTION);
         previousSubscription.cancel();
+    }
+
+    private void updateDoneState(DoneState newState) {
+        assert newState.done() : "We only ever update to done states";
+        this.doneState.updateAndGet(existing -> {
+            // If we're not already done, allow the update
+            if (existing.done() == false) {
+                return newState;
+            }
+
+            // Errors always overwrite non-errors
+            if (existing.error() == null && newState.error() != null) {
+                return newState;
+            }
+
+            // If the existing error is not from the producer, allow it to be overwritten by one from the producer
+            if (existing.isErrorFromConsumer() && newState.isErrorFromProducer()) {
+                return newState;
+            }
+
+            // Otherwise keep the existing state
+            return existing;
+        });
     }
 }

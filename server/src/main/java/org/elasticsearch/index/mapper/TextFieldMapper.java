@@ -81,6 +81,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomB
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.TextDocValuesField;
@@ -112,7 +113,8 @@ public final class TextFieldMapper extends FieldMapper {
 
     public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
         false,
-        DocValuesParameter.Values.Cardinality.HIGH
+        DocValuesParameter.Values.Cardinality.HIGH,
+        DocValuesParameter.Values.MultiValue.ARRAYS
     );
 
     public static class Defaults {
@@ -264,7 +266,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
 
-        final DocValuesParameter docValuesParameters = new DocValuesParameter(
+        final DocValuesParameter docValuesParameters = DocValuesParameter.arraysWithCardinality(
             DEFAULT_DOC_VALUES_PARAMS,
             m -> ((TextFieldMapper) m).docValuesParameters
         );
@@ -329,6 +331,7 @@ public final class TextFieldMapper extends FieldMapper {
 
             this.indexMode = indexMode;
             this.usesBinaryDocValuesForFallbackFields = usesBinaryDocValuesForFallbackFields;
+
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> ((TextFieldMapper) m).indexAnalyzer,
@@ -563,6 +566,11 @@ public final class TextFieldMapper extends FieldMapper {
                 analyzers.positionIncrementGap.get()
             );
             return new SubFieldInfo(parent.name() + FAST_PHRASE_SUFFIX, phraseFieldType, a);
+        }
+
+        @Override
+        public String contentType() {
+            return CONTENT_TYPE;
         }
 
         @Override
@@ -958,7 +966,9 @@ public final class TextFieldMapper extends FieldMapper {
             if (indexType().hasTerms()) {
                 return super.termQuery(value, context);
             }
+
             failIfNotIndexedNorDocValuesFallback(context);
+
             if (usesBinaryDocValues) {
                 return new SlowCustomBinaryDocValuesTermQuery(name(), indexedValueForSearch(value));
             } else {
@@ -971,15 +981,13 @@ public final class TextFieldMapper extends FieldMapper {
             if (indexType().hasTerms()) {
                 return super.termsQuery(values, context);
             }
+
             failIfNotIndexedNorDocValuesFallback(context);
+
+            List<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
             if (usesBinaryDocValues) {
-                BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
-                for (Object value : values) {
-                    bqBuilder.add(new SlowCustomBinaryDocValuesTermQuery(name(), indexedValueForSearch(value)), BooleanClause.Occur.SHOULD);
-                }
-                return new ConstantScoreQuery(bqBuilder.build());
+                return new SlowCustomBinaryDocValuesTermInSetQuery(name(), bytesRefs);
             } else {
-                Collection<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
                 return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
             }
         }
@@ -1276,7 +1284,7 @@ public final class TextFieldMapper extends FieldMapper {
                 if (usesBinaryDocValues()) {
                     return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name());
                 } else {
-                    return new BytesRefsFromOrdsBlockLoader(name());
+                    return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                 }
             }
 
@@ -1368,7 +1376,7 @@ public final class TextFieldMapper extends FieldMapper {
             return new FallbackSyntheticSourceBlockLoader(
                 reader,
                 name(),
-                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+                IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings())
             ) {
                 @Override
                 public Builder builder(BlockFactory factory, int expectedCount) {

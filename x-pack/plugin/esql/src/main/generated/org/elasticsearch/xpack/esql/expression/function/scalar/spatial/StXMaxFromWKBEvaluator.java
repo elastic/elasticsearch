@@ -13,22 +13,22 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StXMax}.
+ * {@link ExpressionEvaluator} implementation for {@link StXMax}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StXMaxFromWKBEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class StXMaxFromWKBEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StXMaxFromWKBEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator wkbBlock;
+  private final ExpressionEvaluator wkbBlock;
 
   private final SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder;
 
@@ -36,7 +36,7 @@ public final class StXMaxFromWKBEvaluator implements EvalOperator.ExpressionEval
 
   private Warnings warnings;
 
-  public StXMaxFromWKBEvaluator(Source source, EvalOperator.ExpressionEvaluator wkbBlock,
+  public StXMaxFromWKBEvaluator(Source source, ExpressionEvaluator wkbBlock,
       SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder, DriverContext driverContext) {
     this.source = source;
     this.wkbBlock = wkbBlock;
@@ -97,14 +97,14 @@ public final class StXMaxFromWKBEvaluator implements EvalOperator.ExpressionEval
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory wkbBlock;
+    private final ExpressionEvaluator.Factory wkbBlock;
 
     private final Function<DriverContext, SpatialEnvelopeResults<DoubleBlock.Builder>> resultsBuilder;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory wkbBlock,
+    public Factory(Source source, ExpressionEvaluator.Factory wkbBlock,
         Function<DriverContext, SpatialEnvelopeResults<DoubleBlock.Builder>> resultsBuilder) {
       this.source = source;
       this.wkbBlock = wkbBlock;

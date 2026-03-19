@@ -12,7 +12,6 @@ package org.elasticsearch.simdvec;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
 import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorScorer;
-import org.apache.lucene.codecs.lucene99.OffHeapQuantizedByteVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -24,6 +23,7 @@ import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.OffHeapQuantizedByteVectorValues;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -35,7 +35,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -108,7 +108,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
                         scorer.setScoringOrdinal(0);
                         assertThat(scorer.score(1), equalTo(expected));
 
-                        if (supportsHeapSegments()) {
+                        if (SUPPORTS_HEAP_SEGMENTS) {
                             var qScorer = factory.getInt7SQVectorScorer(sim.function(), values, query1).get();
                             assertThat(qScorer.score(1), equalTo(expected));
                         }
@@ -190,7 +190,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
         testRandomSupplier(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, BYTE_ARRAY_MIN_INT7_FUNC);
     }
 
-    void testRandomSupplier(long maxChunkSize, Function<Integer, byte[]> byteArraySupplier) throws IOException {
+    void testRandomSupplier(long maxChunkSize, IntFunction<byte[]> byteArraySupplier) throws IOException {
         var factory = AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testRandom"), maxChunkSize)) {
@@ -230,11 +230,11 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testRandomScorer() throws IOException {
-        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, Int7SQVectorScorerFactoryTests.FLOAT_ARRAY_RANDOM_FUNC);
+        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, FLOAT_ARRAY_RANDOM_FUNC);
     }
 
     public void testRandomScorerMax() throws IOException {
-        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, Int7SQVectorScorerFactoryTests.FLOAT_ARRAY_MAX_FUNC);
+        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, FLOAT_ARRAY_MAX_FUNC);
     }
 
     public void testRandomScorerChunkSizeSmall() throws IOException {
@@ -243,8 +243,8 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
         testRandomScorerImpl(maxChunkSize, FLOAT_ARRAY_RANDOM_FUNC);
     }
 
-    void testRandomScorerImpl(long maxChunkSize, Function<Integer, float[]> floatArraySupplier) throws IOException {
-        assumeTrue("scorer only supported on JDK 22+", Runtime.version().feature() >= 22);
+    void testRandomScorerImpl(long maxChunkSize, IntFunction<float[]> floatArraySupplier) throws IOException {
+        assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
         assumeTrue(notSupportedMsg(), supported());
         var factory = AbstractVectorTestCase.factory.get();
         var scalarQuantizer = new ScalarQuantizer(0.1f, 0.9f, (byte) 7);
@@ -259,7 +259,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
                 final byte[][] qVectors = new byte[size][];
                 final float[] corrections = new float[size];
 
-                float delta = 1e-6f * dims;
+                float delta = DELTA * dims;
 
                 String fileName = "testRandom-" + sim + "-" + dims + ".vex";
                 logger.info("Testing " + fileName);
@@ -293,8 +293,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
         testRandomSliceImpl(30, 64, 1, BYTE_ARRAY_RANDOM_INT7_FUNC);
     }
 
-    void testRandomSliceImpl(int dims, long maxChunkSize, int initialPadding, Function<Integer, byte[]> byteArraySupplier)
-        throws IOException {
+    void testRandomSliceImpl(int dims, long maxChunkSize, int initialPadding, IntFunction<byte[]> byteArraySupplier) throws IOException {
         var factory = AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testRandomSliceImpl"), maxChunkSize)) {
@@ -458,7 +457,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
                         var testScorer = supplier.scorer();
                         testScorer.setScoringOrdinal(idx0);
                         testScorer.bulkScore(nodes, scores, nodes.length);
-                        assertArrayEquals(expected, scores, 1e-6f);
+                        assertArrayEquals(expected, scores, DELTA);
                     }
                 }
             }
@@ -508,7 +507,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
                         var testScorer = supplier.scorer();
                         testScorer.setScoringOrdinal(idx0);
                         testScorer.bulkScore(nodes, scores, nodes.length);
-                        assertArrayEquals(expected, scores, 1e-6f);
+                        assertArrayEquals(expected, scores, DELTA);
                     }
                 }
             }
@@ -626,33 +625,19 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
         return ba;
     }
 
-    static Function<Integer, float[]> FLOAT_ARRAY_RANDOM_FUNC = size -> {
-        float[] fa = new float[size];
-        for (int i = 0; i < size; i++) {
-            fa[i] = randomFloat();
-        }
-        return fa;
-    };
-
-    static Function<Integer, float[]> FLOAT_ARRAY_MAX_FUNC = size -> {
-        float[] fa = new float[size];
-        Arrays.fill(fa, Float.MAX_VALUE);
-        return fa;
-    };
-
-    static Function<Integer, byte[]> BYTE_ARRAY_RANDOM_INT7_FUNC = size -> {
+    static IntFunction<byte[]> BYTE_ARRAY_RANDOM_INT7_FUNC = size -> {
         byte[] ba = new byte[size];
         randomBytesBetween(ba, MIN_INT7_VALUE, MAX_INT7_VALUE);
         return ba;
     };
 
-    static Function<Integer, byte[]> BYTE_ARRAY_MAX_INT7_FUNC = size -> {
+    static IntFunction<byte[]> BYTE_ARRAY_MAX_INT7_FUNC = size -> {
         byte[] ba = new byte[size];
         Arrays.fill(ba, MAX_INT7_VALUE);
         return ba;
     };
 
-    static Function<Integer, byte[]> BYTE_ARRAY_MIN_INT7_FUNC = size -> {
+    static IntFunction<byte[]> BYTE_ARRAY_MIN_INT7_FUNC = size -> {
         byte[] ba = new byte[size];
         Arrays.fill(ba, MIN_INT7_VALUE);
         return ba;

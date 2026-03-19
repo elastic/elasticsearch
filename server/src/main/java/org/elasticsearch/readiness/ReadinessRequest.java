@@ -28,7 +28,9 @@ public final class ReadinessRequest extends ActionRequest {
         super(in);
     }
 
-    public void writeTo(StreamOutput out) throws IOException {}
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+    }
 
     @Override
     public ActionRequestValidationException validate() {

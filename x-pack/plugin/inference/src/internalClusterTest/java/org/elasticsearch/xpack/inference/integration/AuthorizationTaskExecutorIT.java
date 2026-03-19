@@ -13,8 +13,11 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksReque
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.plugins.Plugin;
@@ -24,6 +27,8 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.inference.InferenceIndex;
+import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
@@ -31,6 +36,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationPoller;
 import org.elasticsearch.xpack.inference.services.elastic.authorization.AuthorizationTaskExecutor;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings;
+import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -51,8 +57,10 @@ import static org.elasticsearch.xpack.inference.services.elastic.response.Elasti
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.JINA_EMBED_V3_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.RAINBOW_SPRINKLES_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.RERANK_V1_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.createAuthorizedEndpoint;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -83,9 +91,13 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
     }
 
     @Before
-    public void createComponents() {
+    public void createComponents() throws Exception {
         modelRegistry = node().injector().getInstance(ModelRegistry.class);
         authorizationTaskExecutor = node().injector().getInstance(AuthorizationTaskExecutor.class);
+
+        // Wait for inference indices to be created
+        assertBusy(() -> getEisEndpoints());
+        ensureNoInitializingShards();
     }
 
     @After
@@ -95,12 +107,16 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
     static void removeEisPreconfiguredEndpoints(ModelRegistry modelRegistry) {
         // Delete all the eis preconfigured endpoints
+        deleteEndpoints(modelRegistry, EIS_PRECONFIGURED_ENDPOINT_IDS);
+    }
+
+    static void deleteEndpoints(ModelRegistry modelRegistry, Set<String> idsToDelete) {
         var listener = new PlainActionFuture<Boolean>();
-        modelRegistry.deleteModels(EIS_PRECONFIGURED_ENDPOINT_IDS, listener);
+        modelRegistry.deleteModels(idsToDelete, listener);
         try {
             listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
         } catch (Exception e) {
-            logger.atWarn().withThrowable(e).log("Failed to delete eis preconfigured endpoints");
+            logger.atWarn().withThrowable(e).log("Failed to delete eis endpoints: " + idsToDelete);
         }
     }
 
@@ -338,6 +354,9 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         restartPollingTaskAndWaitForAuthResponse();
         assertWebServerReceivedRequest();
 
+        // Wait for the text embedding endpoint to be created
+        assertBusy(() -> assertThat(getEisEndpoints(), hasSize(2)));
+
         var eisEndpoints = getEisEndpoints().stream().collect(Collectors.toMap(UnparsedModel::inferenceEntityId, Function.identity()));
         assertThat(eisEndpoints.size(), is(2));
 
@@ -351,6 +370,62 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         assertThat(textEmbeddingEndpoint.service(), is(ElasticInferenceService.NAME));
     }
 
+    public void testEndpointGetsUpdated_GivenFingerprintChanges_FromNull() throws Exception {
+        testEndpointGetsUpdated_GivenFingerprintChanged(null, randomAlphaOfLength(10));
+    }
+
+    public void testEndpointGetsUpdated_GivenFingerprintChanges_FromNonNull() throws Exception {
+        String originalFingerprint = randomAlphaOfLength(10);
+        testEndpointGetsUpdated_GivenFingerprintChanged(
+            originalFingerprint,
+            randomValueOtherThan(originalFingerprint, () -> randomAlphaOfLength(10))
+        );
+    }
+
+    private void testEndpointGetsUpdated_GivenFingerprintChanged(String originalFingerprint, String updatedFingerprint) throws Exception {
+        assertNoAuthorizedEisEndpoints();
+
+        resetWebServerQueues();
+        String endpointId = randomAlphaOfLength(10);
+        webServer.enqueue(
+            new MockResponse().setResponseCode(200).setBody(createJsonResponseForSemiRandomEndpoint(endpointId, originalFingerprint))
+        );
+        restartPollingTaskAndWaitForAuthResponse();
+        assertWebServerReceivedRequest();
+
+        assertBusy(() -> assertThat(getEisEndpoints(modelRegistry).size(), is(1)));
+
+        // As the poller has gotten the initial authorization response, the inference indices should be created.
+        // But we should also wait for all their shards to be initialized in order for the shutdown to succeed.
+        ensureGreen(InferenceIndex.INDEX_NAME, InferenceSecretsIndex.INDEX_NAME);
+
+        var eisEndpoints = getEisEndpoints(modelRegistry);
+        assertThat(eisEndpoints.size(), is(1));
+        var endpoint = eisEndpoints.get(0);
+        assertThat(endpoint.inferenceEntityId(), is(endpointId));
+        assertThat(endpoint.endpointMetadata().internal().fingerprint(), is(originalFingerprint));
+
+        resetWebServerQueues();
+        // Simulate the fingerprint has now been set
+        AuthorizedEndpoint updatedAuthEndpoint = createAuthorizedEndpoint(endpointId, endpoint.taskType(), () -> updatedFingerprint);
+        webServer.enqueue(
+            new MockResponse().setResponseCode(200).setBody(createJsonResponseForSemiRandomEndpoint(endpointId, updatedFingerprint))
+        );
+
+        restartPollingTaskAndWaitForAuthResponse();
+        assertWebServerReceivedRequest();
+
+        assertBusy(() -> {
+            var postUpdateEndpoints = getEisEndpoints(modelRegistry);
+            assertThat(postUpdateEndpoints.size(), is(1));
+            var updated = postUpdateEndpoints.get(0);
+            assertThat(updated.inferenceEntityId(), is(updatedAuthEndpoint.id()));
+            assertThat(updated.endpointMetadata().internal().fingerprint(), is(updatedFingerprint));
+        });
+
+        deleteEndpoints(modelRegistry, Set.of(endpointId));
+    }
+
     public void testRestartsTaskAfterAbort() throws Exception {
         // Ensure the task is created and we get an initial authorization response
         assertNoAuthorizedEisEndpoints();
@@ -360,5 +435,33 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         // Abort the task and ensure it is restarted
         restartPollingTaskAndWaitForAuthResponse();
         assertWebServerReceivedRequest();
+    }
+
+    private static String createJsonResponseForSemiRandomEndpoint(String endpointId, @Nullable String fingerprint) {
+        String jsonTemplate = """
+            {
+              "inference_endpoints": [
+                {
+                  "id": "%s",
+                  "model_name": "my random model",
+                  "task_types": {
+                    "eis": "chat",
+                    "elasticsearch": "chat_completion"
+                  },
+                  "status": "%s",
+                  "properties": %s,
+                  "release_date": "2024-05-01"
+                  %s
+                }
+              ]
+            }
+            """;
+        return Strings.format(
+            jsonTemplate,
+            endpointId,
+            randomFrom(StatusHeuristic.values()),
+            randomList(0, 5, () -> randomAlphaOfLength(10)).stream().map(p -> '"' + p + '"').toList(),
+            fingerprint == null ? "" : Strings.format(",\"fingerprint\": \"%s\"", fingerprint)
+        );
     }
 }

@@ -40,19 +40,13 @@ public final class TopDoubleFloatGroupingAggregatorFunction implements GroupingA
 
   private final boolean ascending;
 
-  public TopDoubleFloatGroupingAggregatorFunction(List<Integer> channels,
-      TopDoubleFloatAggregator.GroupingState state, DriverContext driverContext, int limit,
-      boolean ascending) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
+  TopDoubleFloatGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
+      int limit, boolean ascending) {
     this.limit = limit;
     this.ascending = ascending;
-  }
-
-  public static TopDoubleFloatGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext, int limit, boolean ascending) {
-    return new TopDoubleFloatGroupingAggregatorFunction(channels, TopDoubleFloatAggregator.initGrouping(driverContext.bigArrays(), limit, ascending), driverContext, limit, ascending);
+    this.channels = channels;
+    this.state = TopDoubleFloatAggregator.initGrouping(driverContext.bigArrays(), limit, ascending);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

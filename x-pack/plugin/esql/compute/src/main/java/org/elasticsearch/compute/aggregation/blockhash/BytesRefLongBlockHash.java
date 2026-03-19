@@ -146,23 +146,24 @@ public final class BytesRefLongBlockHash extends BlockHash {
     }
 
     @Override
-    public Block[] getKeys() {
+    public Block[] getKeys(IntVector selected) {
         BytesRefBlock k1 = null;
         LongVector k2 = null;
-        int positions = (int) finalHash.size();
+        int positions = selected.getPositionCount();
         if (OrdinalBytesRefBlock.isDense(positions, bytesHash.hash.size())) {
             try (var ordinals = blockFactory.newIntBlockBuilder(positions); var longs = blockFactory.newLongVectorBuilder(positions)) {
-                for (long p = 0; p < positions; p++) {
-                    long h1 = finalHash.getKey1(p);
+                for (int i = 0; i < positions; i++) {
+                    int groupId = selected.getInt(i);
+                    long h1 = finalHash.getKey1(groupId);
                     if (h1 == 0) {
                         ordinals.appendNull();
                     } else {
                         ordinals.appendInt(Math.toIntExact(h1 - 1));
                     }
-                    longs.appendLong(finalHash.getKey2(p));
+                    longs.appendLong(finalHash.getKey2(groupId));
                 }
-                // TODO: make takeOwnershipOf work?
-                BytesRefArray bytes = BytesRefArray.deepCopy(bytesHash.hash.getBytesRefs());
+                BytesRefArray bytes = bytesHash.hash.getBytesRefs();
+                bytes.incRef();
                 BytesRefVector dict = null;
 
                 try {
@@ -185,14 +186,15 @@ public final class BytesRefLongBlockHash extends BlockHash {
                 LongVector.Builder keys2 = blockFactory.newLongVectorBuilder(positions)
             ) {
                 BytesRef scratch = new BytesRef();
-                for (long i = 0; i < positions; i++) {
-                    long h1 = finalHash.getKey1(i);
+                for (int i = 0; i < positions; i++) {
+                    int groupId = selected.getInt(i);
+                    long h1 = finalHash.getKey1(groupId);
                     if (h1 == 0) {
                         keys1.appendNull();
                     } else {
                         keys1.appendBytesRef(bytesHash.hash.get(h1 - 1, scratch));
                     }
-                    keys2.appendLong(finalHash.getKey2(i));
+                    keys2.appendLong(finalHash.getKey2(groupId));
                 }
                 k1 = keys1.build();
                 k2 = keys2.build();

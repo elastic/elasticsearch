@@ -64,6 +64,21 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
         this.rawSortValues = rawSortValues;
     }
 
+    /**
+     * Build sort values from pre-formatted and raw arrays. Use this when the formatted values
+     * were produced with the correct per-field format (e.g. from a shard hit) and must not be
+     * re-formatted with a single format like RAW, which would fail for non-UTF-8 BytesRefs
+     * (e.g. version field).
+     */
+    public static SearchSortValues fromFormattedAndRaw(Object[] formattedSortValues, Object[] rawSortValues) {
+        Objects.requireNonNull(formattedSortValues);
+        Objects.requireNonNull(rawSortValues);
+        if (formattedSortValues.length != rawSortValues.length) {
+            throw new IllegalArgumentException("formattedSortValues and rawSortValues must have the same length");
+        }
+        return new SearchSortValues(formattedSortValues, rawSortValues);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeArray(Lucene::writeSortValue, this.formattedSortValues);

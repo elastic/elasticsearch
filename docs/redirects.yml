@@ -93,6 +93,457 @@ redirects:
       - to: 'reference/query-languages/esql/commands/where.md'
         anchors: {'esql-where'}
 
+  # ESQL function redirects - split from group pages to individual pages
+  'reference/query-languages/esql/functions-operators/aggregation-functions.md':
+    to: 'reference/query-languages/esql/functions-operators/aggregation-functions.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/query-languages/esql/functions-operators/aggregation-functions/absent.md'
+        anchors: {'esql-absent'}
+      - to: 'reference/query-languages/esql/functions-operators/aggregation-functions/avg.md'
+        anchors: {'esql-avg'}
+      - to: 'reference/query-languages/esql/functions-operators/aggregation-functions/count.md'
+        anchors: {'esql-count'}
+      - to: 'reference/query-languages/esql/functions-operators/aggregation-functions/count_distinct.md'
+        anchors: {'esql-count_distinct'}
+      - to: 'reference/query-languages/esql/functions-operators/aggregation-functions/max.md'
+        anchors: {'esql-max'}
+      - to: 'reference/query-languages/esql/functions-operators/aggregation-functions/median.md'
+        anchors: {'esql-median'}
+      - to: 'reference/query-languages/esql/functions-operators/aggregation-functions/median_absolute_deviation.md'
+        anchors: {'esql-median_absolute_deviation'}
+      - to: 'reference/query-languages/esql/functions-operators/aggregation-functions/min.md'
+        anchors: {'esql-min'}
+      - to: 'reference/query-languages/esql/functions-operators/aggregation-functions/percentile.md'
+        anchors: {'esql-percentile'}
+      - to: 'reference/query-languages/esql/functions-operators/aggregation-functions/present.md'
+        anchors: {'esql-present'}
+      - to: 'reference/query-languages/esql/functions-operators/aggregation-functions/sample.md'
+        anchors: {'esql-sample'}
+      - to: 'reference/query-languages/esql/functions-operators/aggregation-functions/st_centroid_agg.md'
+        anchors: {'esql-st_centroid_agg'}
+      - to: 'reference/query-languages/esql/functions-operators/aggregation-functions/st_extent_agg.md'
+        anchors: {'esql-st_extent_agg'}
+      - to: 'reference/query-languages/esql/functions-operators/aggregation-functions/std_dev.md'
+        anchors: {'esql-std_dev'}
+      - to: 'reference/query-languages/esql/functions-operators/aggregation-functions/sum.md'
+        anchors: {'esql-sum'}
+      - to: 'reference/query-languages/esql/functions-operators/aggregation-functions/top.md'
+        anchors: {'esql-top'}
+      - to: 'reference/query-languages/esql/functions-operators/aggregation-functions/values.md'
+        anchors: {'esql-values'}
+      - to: 'reference/query-languages/esql/functions-operators/aggregation-functions/variance.md'
+        anchors: {'esql-variance'}
+      - to: 'reference/query-languages/esql/functions-operators/aggregation-functions/weighted_avg.md'
+        anchors: {'esql-weighted_avg'}
+      - to: 'reference/query-languages/esql/functions-operators/aggregation-functions/first.md'
+        anchors: {'esql-first'}
+      - to: 'reference/query-languages/esql/functions-operators/aggregation-functions/last.md'
+        anchors: {'esql-last'}
+  'reference/query-languages/esql/functions-operators/conditional-functions-and-expressions.md':
+    to: 'reference/query-languages/esql/functions-operators/conditional-functions-and-expressions.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/query-languages/esql/functions-operators/conditional-functions-and-expressions/case.md'
+        anchors: {'esql-case'}
+      - to: 'reference/query-languages/esql/functions-operators/conditional-functions-and-expressions/coalesce.md'
+        anchors: {'esql-coalesce'}
+      - to: 'reference/query-languages/esql/functions-operators/conditional-functions-and-expressions/greatest.md'
+        anchors: {'esql-greatest'}
+      - to: 'reference/query-languages/esql/functions-operators/conditional-functions-and-expressions/least.md'
+        anchors: {'esql-least'}
+      - to: 'reference/query-languages/esql/functions-operators/conditional-functions-and-expressions/clamp.md'
+        anchors: {'esql-clamp'}
+      - to: 'reference/query-languages/esql/functions-operators/conditional-functions-and-expressions/clamp_min.md'
+        anchors: {'esql-clamp_min'}
+      - to: 'reference/query-languages/esql/functions-operators/conditional-functions-and-expressions/clamp_max.md'
+        anchors: {'esql-clamp_max'}
+  'reference/query-languages/esql/functions-operators/date-time-functions.md':
+    to: 'reference/query-languages/esql/functions-operators/date-time-functions.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/query-languages/esql/functions-operators/date-time-functions/date_diff.md'
+        anchors: {'esql-date_diff'}
+      - to: 'reference/query-languages/esql/functions-operators/date-time-functions/date_extract.md'
+        anchors: {'esql-date_extract'}
+      - to: 'reference/query-languages/esql/functions-operators/date-time-functions/date_format.md'
+        anchors: {'esql-date_format'}
+      - to: 'reference/query-languages/esql/functions-operators/date-time-functions/date_parse.md'
+        anchors: {'esql-date_parse'}
+      - to: 'reference/query-languages/esql/functions-operators/date-time-functions/date_trunc.md'
+        anchors: {'esql-date_trunc'}
+      - to: 'reference/query-languages/esql/functions-operators/date-time-functions/day_name.md'
+        anchors: {'esql-day_name'}
+      - to: 'reference/query-languages/esql/functions-operators/date-time-functions/month_name.md'
+        anchors: {'esql-month_name'}
+      - to: 'reference/query-languages/esql/functions-operators/date-time-functions/now.md'
+        anchors: {'esql-now'}
+      - to: 'reference/query-languages/esql/functions-operators/date-time-functions/trange.md'
+        anchors: {'esql-trange'}
+  'reference/query-languages/esql/functions-operators/dense-vector-functions.md':
+    to: 'reference/query-languages/esql/functions-operators/dense-vector-functions.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md'
+        anchors: {'esql-knn'}
+      - to: 'reference/query-languages/esql/functions-operators/dense-vector-functions/text_embedding.md'
+        anchors: {'esql-text_embedding'}
+      - to: 'reference/query-languages/esql/functions-operators/dense-vector-functions/v_cosine.md'
+        anchors: {'esql-v_cosine'}
+      - to: 'reference/query-languages/esql/functions-operators/dense-vector-functions/v_dot_product.md'
+        anchors: {'esql-v_dot_product'}
+      - to: 'reference/query-languages/esql/functions-operators/dense-vector-functions/v_hamming.md'
+        anchors: {'esql-v_hamming'}
+      - to: 'reference/query-languages/esql/functions-operators/dense-vector-functions/v_l1_norm.md'
+        anchors: {'esql-v_l1_norm'}
+      - to: 'reference/query-languages/esql/functions-operators/dense-vector-functions/v_l2_norm.md'
+        anchors: {'esql-v_l2_norm'}
+  'reference/query-languages/esql/functions-operators/grouping-functions.md':
+    to: 'reference/query-languages/esql/functions-operators/grouping-functions.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/query-languages/esql/functions-operators/grouping-functions/bucket.md'
+        anchors: {'esql-bucket'}
+      - to: 'reference/query-languages/esql/functions-operators/grouping-functions/tbucket.md'
+        anchors: {'esql-tbucket'}
+      - to: 'reference/query-languages/esql/functions-operators/grouping-functions/categorize.md'
+        anchors: {'esql-categorize'}
+  'reference/query-languages/esql/functions-operators/ip-functions.md':
+    to: 'reference/query-languages/esql/functions-operators/ip-functions.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/query-languages/esql/functions-operators/ip-functions/cidr_match.md'
+        anchors: {'esql-cidr_match'}
+      - to: 'reference/query-languages/esql/functions-operators/ip-functions/ip_prefix.md'
+        anchors: {'esql-ip_prefix'}
+  'reference/query-languages/esql/functions-operators/math-functions.md':
+    to: 'reference/query-languages/esql/functions-operators/math-functions.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/abs.md'
+        anchors: {'esql-abs'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/acos.md'
+        anchors: {'esql-acos'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/acosh.md'
+        anchors: {'esql-acosh'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/asin.md'
+        anchors: {'esql-asin'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/asinh.md'
+        anchors: {'esql-asinh'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/atan.md'
+        anchors: {'esql-atan'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/atan2.md'
+        anchors: {'esql-atan2'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/atanh.md'
+        anchors: {'esql-atanh'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/cbrt.md'
+        anchors: {'esql-cbrt'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/ceil.md'
+        anchors: {'esql-ceil'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/copy_sign.md'
+        anchors: {'esql-copy_sign'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/cos.md'
+        anchors: {'esql-cos'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/cosh.md'
+        anchors: {'esql-cosh'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/e.md'
+        anchors: {'esql-e'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/exp.md'
+        anchors: {'esql-exp'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/floor.md'
+        anchors: {'esql-floor'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/hypot.md'
+        anchors: {'esql-hypot'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/log.md'
+        anchors: {'esql-log'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/log10.md'
+        anchors: {'esql-log10'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/pi.md'
+        anchors: {'esql-pi'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/pow.md'
+        anchors: {'esql-pow'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/round.md'
+        anchors: {'esql-round'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/round_to.md'
+        anchors: {'esql-round_to'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/scalb.md'
+        anchors: {'esql-scalb'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/signum.md'
+        anchors: {'esql-signum'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/sin.md'
+        anchors: {'esql-sin'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/sinh.md'
+        anchors: {'esql-sinh'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/sqrt.md'
+        anchors: {'esql-sqrt'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/tan.md'
+        anchors: {'esql-tan'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/tanh.md'
+        anchors: {'esql-tanh'}
+      - to: 'reference/query-languages/esql/functions-operators/math-functions/tau.md'
+        anchors: {'esql-tau'}
+  'reference/query-languages/esql/functions-operators/mv-functions.md':
+    to: 'reference/query-languages/esql/functions-operators/mv-functions.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_append.md'
+        anchors: {'esql-mv_append'}
+      - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_avg.md'
+        anchors: {'esql-mv_avg'}
+      - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_concat.md'
+        anchors: {'esql-mv_concat'}
+      - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_contains.md'
+        anchors: {'esql-mv_contains'}
+      - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_count.md'
+        anchors: {'esql-mv_count'}
+      - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_dedupe.md'
+        anchors: {'esql-mv_dedupe'}
+      - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_first.md'
+        anchors: {'esql-mv_first'}
+      - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_intersection.md'
+        anchors: {'esql-mv_intersection'}
+      - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_intersects.md'
+        anchors: {'esql-mv_intersects'}
+      - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_last.md'
+        anchors: {'esql-mv_last'}
+      - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_max.md'
+        anchors: {'esql-mv_max'}
+      - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_median.md'
+        anchors: {'esql-mv_median'}
+      - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_median_absolute_deviation.md'
+        anchors: {'esql-mv_median_absolute_deviation'}
+      - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_min.md'
+        anchors: {'esql-mv_min'}
+      - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_percentile.md'
+        anchors: {'esql-mv_percentile'}
+      - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_pseries_weighted_sum.md'
+        anchors: {'esql-mv_pseries_weighted_sum'}
+      - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_slice.md'
+        anchors: {'esql-mv_slice'}
+      - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_sort.md'
+        anchors: {'esql-mv_sort'}
+      - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_sum.md'
+        anchors: {'esql-mv_sum'}
+      - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_union.md'
+        anchors: {'esql-mv_union'}
+      - to: 'reference/query-languages/esql/functions-operators/mv-functions/mv_zip.md'
+        anchors: {'esql-mv_zip'}
+  'reference/query-languages/esql/functions-operators/search-functions.md':
+    to: 'reference/query-languages/esql/functions-operators/search-functions.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/query-languages/esql/functions-operators/search-functions/decay.md'
+        anchors: {'esql-decay'}
+      - to: 'reference/query-languages/esql/functions-operators/search-functions/kql.md'
+        anchors: {'esql-kql'}
+      - to: 'reference/query-languages/esql/functions-operators/search-functions/match.md'
+        anchors: {'esql-match'}
+      - to: 'reference/query-languages/esql/functions-operators/search-functions/match_phrase.md'
+        anchors: {'esql-match_phrase'}
+      - to: 'reference/query-languages/esql/functions-operators/search-functions/qstr.md'
+        anchors: {'esql-qstr'}
+      - to: 'reference/query-languages/esql/functions-operators/search-functions/score.md'
+        anchors: {'esql-score'}
+      - to: 'reference/query-languages/esql/functions-operators/search-functions/top-snippets.md'
+        anchors: {'esql-top_snippets'}
+  'reference/query-languages/esql/functions-operators/spatial-functions.md':
+    to: 'reference/query-languages/esql/functions-operators/spatial-functions.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/query-languages/esql/functions-operators/spatial-functions/st_distance.md'
+        anchors: {'esql-st_distance'}
+      - to: 'reference/query-languages/esql/functions-operators/spatial-functions/st_intersects.md'
+        anchors: {'esql-st_intersects'}
+      - to: 'reference/query-languages/esql/functions-operators/spatial-functions/st_disjoint.md'
+        anchors: {'esql-st_disjoint'}
+      - to: 'reference/query-languages/esql/functions-operators/spatial-functions/st_contains.md'
+        anchors: {'esql-st_contains'}
+      - to: 'reference/query-languages/esql/functions-operators/spatial-functions/st_within.md'
+        anchors: {'esql-st_within'}
+      - to: 'reference/query-languages/esql/functions-operators/spatial-functions/st_x.md'
+        anchors: {'esql-st_x'}
+      - to: 'reference/query-languages/esql/functions-operators/spatial-functions/st_y.md'
+        anchors: {'esql-st_y'}
+      - to: 'reference/query-languages/esql/functions-operators/spatial-functions/st_npoints.md'
+        anchors: {'esql-st_npoints'}
+      - to: 'reference/query-languages/esql/functions-operators/spatial-functions/st_simplify.md'
+        anchors: {'esql-st_simplify'}
+      - to: 'reference/query-languages/esql/functions-operators/spatial-functions/st_envelope.md'
+        anchors: {'esql-st_envelope'}
+      - to: 'reference/query-languages/esql/functions-operators/spatial-functions/st_xmax.md'
+        anchors: {'esql-st_xmax'}
+      - to: 'reference/query-languages/esql/functions-operators/spatial-functions/st_xmin.md'
+        anchors: {'esql-st_xmin'}
+      - to: 'reference/query-languages/esql/functions-operators/spatial-functions/st_ymax.md'
+        anchors: {'esql-st_ymax'}
+      - to: 'reference/query-languages/esql/functions-operators/spatial-functions/st_ymin.md'
+        anchors: {'esql-st_ymin'}
+      - to: 'reference/query-languages/esql/functions-operators/spatial-functions/st_geotile.md'
+        anchors: {'esql-st_geotile'}
+      - to: 'reference/query-languages/esql/functions-operators/spatial-functions/st_geohex.md'
+        anchors: {'esql-st_geohex'}
+      - to: 'reference/query-languages/esql/functions-operators/spatial-functions/st_geohash.md'
+        anchors: {'esql-st_geohash'}
+  'reference/query-languages/esql/functions-operators/string-functions.md':
+    to: 'reference/query-languages/esql/functions-operators/string-functions.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/bit_length.md'
+        anchors: {'esql-bit_length'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/byte_length.md'
+        anchors: {'esql-byte_length'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/chunk.md'
+        anchors: {'esql-chunk'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/concat.md'
+        anchors: {'esql-concat'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/contains.md'
+        anchors: {'esql-contains'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/ends_with.md'
+        anchors: {'esql-ends_with'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/from_base64.md'
+        anchors: {'esql-from_base64'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/hash.md'
+        anchors: {'esql-hash'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/left.md'
+        anchors: {'esql-left'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/length.md'
+        anchors: {'esql-length'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/locate.md'
+        anchors: {'esql-locate'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/ltrim.md'
+        anchors: {'esql-ltrim'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/md5.md'
+        anchors: {'esql-md5'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/repeat.md'
+        anchors: {'esql-repeat'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/replace.md'
+        anchors: {'esql-replace'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/reverse.md'
+        anchors: {'esql-reverse'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/right.md'
+        anchors: {'esql-right'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/rtrim.md'
+        anchors: {'esql-rtrim'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/sha1.md'
+        anchors: {'esql-sha1'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/sha256.md'
+        anchors: {'esql-sha256'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/space.md'
+        anchors: {'esql-space'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/split.md'
+        anchors: {'esql-split'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/starts_with.md'
+        anchors: {'esql-starts_with'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/substring.md'
+        anchors: {'esql-substring'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/to_base64.md'
+        anchors: {'esql-to_base64'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/to_lower.md'
+        anchors: {'esql-to_lower'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/to_upper.md'
+        anchors: {'esql-to_upper'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/trim.md'
+        anchors: {'esql-trim'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/url_encode.md'
+        anchors: {'esql-url_encode'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/url_encode_component.md'
+        anchors: {'esql-url_encode_component'}
+      - to: 'reference/query-languages/esql/functions-operators/string-functions/url_decode.md'
+        anchors: {'esql-url_decode'}
+  'reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md':
+    to: 'reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/query-languages/esql/functions-operators/time-series-aggregation-functions/absent_over_time.md'
+        anchors: {'esql-absent_over_time'}
+      - to: 'reference/query-languages/esql/functions-operators/time-series-aggregation-functions/avg_over_time.md'
+        anchors: {'esql-avg_over_time'}
+      - to: 'reference/query-languages/esql/functions-operators/time-series-aggregation-functions/count_over_time.md'
+        anchors: {'esql-count_over_time'}
+      - to: 'reference/query-languages/esql/functions-operators/time-series-aggregation-functions/count_distinct_over_time.md'
+        anchors: {'esql-count_distinct_over_time'}
+      - to: 'reference/query-languages/esql/functions-operators/time-series-aggregation-functions/delta.md'
+        anchors: {'esql-delta'}
+      - to: 'reference/query-languages/esql/functions-operators/time-series-aggregation-functions/deriv.md'
+        anchors: {'esql-deriv'}
+      - to: 'reference/query-languages/esql/functions-operators/time-series-aggregation-functions/first_over_time.md'
+        anchors: {'esql-first_over_time'}
+      - to: 'reference/query-languages/esql/functions-operators/time-series-aggregation-functions/idelta.md'
+        anchors: {'esql-idelta'}
+      - to: 'reference/query-languages/esql/functions-operators/time-series-aggregation-functions/increase.md'
+        anchors: {'esql-increase'}
+      - to: 'reference/query-languages/esql/functions-operators/time-series-aggregation-functions/irate.md'
+        anchors: {'esql-irate'}
+      - to: 'reference/query-languages/esql/functions-operators/time-series-aggregation-functions/last_over_time.md'
+        anchors: {'esql-last_over_time'}
+      - to: 'reference/query-languages/esql/functions-operators/time-series-aggregation-functions/max_over_time.md'
+        anchors: {'esql-max_over_time'}
+      - to: 'reference/query-languages/esql/functions-operators/time-series-aggregation-functions/min_over_time.md'
+        anchors: {'esql-min_over_time'}
+      - to: 'reference/query-languages/esql/functions-operators/time-series-aggregation-functions/percentile_over_time.md'
+        anchors: {'esql-percentile_over_time'}
+      - to: 'reference/query-languages/esql/functions-operators/time-series-aggregation-functions/present_over_time.md'
+        anchors: {'esql-present_over_time'}
+      - to: 'reference/query-languages/esql/functions-operators/time-series-aggregation-functions/rate.md'
+        anchors: {'esql-rate'}
+      - to: 'reference/query-languages/esql/functions-operators/time-series-aggregation-functions/stddev_over_time.md'
+        anchors: {'esql-stddev_over_time'}
+      - to: 'reference/query-languages/esql/functions-operators/time-series-aggregation-functions/variance_over_time.md'
+        anchors: {'esql-variance_over_time'}
+      - to: 'reference/query-languages/esql/functions-operators/time-series-aggregation-functions/sum_over_time.md'
+        anchors: {'esql-sum_over_time'}
+  'reference/query-languages/esql/functions-operators/type-conversion-functions.md':
+    to: 'reference/query-languages/esql/functions-operators/type-conversion-functions.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/query-languages/esql/functions-operators/type-conversion-functions/to_aggregate_metric_double.md'
+        anchors: {'esql-to_aggregate_metric_double'}
+      - to: 'reference/query-languages/esql/functions-operators/type-conversion-functions/to_boolean.md'
+        anchors: {'esql-to_boolean'}
+      - to: 'reference/query-languages/esql/functions-operators/type-conversion-functions/to_cartesianpoint.md'
+        anchors: {'esql-to_cartesianpoint'}
+      - to: 'reference/query-languages/esql/functions-operators/type-conversion-functions/to_cartesianshape.md'
+        anchors: {'esql-to_cartesianshape'}
+      - to: 'reference/query-languages/esql/functions-operators/type-conversion-functions/to_dateperiod.md'
+        anchors: {'esql-to_dateperiod'}
+      - to: 'reference/query-languages/esql/functions-operators/type-conversion-functions/to_datetime.md'
+        anchors: {'esql-to_datetime'}
+      - to: 'reference/query-languages/esql/functions-operators/type-conversion-functions/to_date_nanos.md'
+        anchors: {'esql-to_date_nanos'}
+      - to: 'reference/query-languages/esql/functions-operators/type-conversion-functions/to_degrees.md'
+        anchors: {'esql-to_degrees'}
+      - to: 'reference/query-languages/esql/functions-operators/type-conversion-functions/to_dense_vector.md'
+        anchors: {'esql-to_dense_vector'}
+      - to: 'reference/query-languages/esql/functions-operators/type-conversion-functions/to_double.md'
+        anchors: {'esql-to_double'}
+      - to: 'reference/query-languages/esql/functions-operators/type-conversion-functions/to_geohash.md'
+        anchors: {'esql-to_geohash'}
+      - to: 'reference/query-languages/esql/functions-operators/type-conversion-functions/to_geohex.md'
+        anchors: {'esql-to_geohex'}
+      - to: 'reference/query-languages/esql/functions-operators/type-conversion-functions/to_geopoint.md'
+        anchors: {'esql-to_geopoint'}
+      - to: 'reference/query-languages/esql/functions-operators/type-conversion-functions/to_geoshape.md'
+        anchors: {'esql-to_geoshape'}
+      - to: 'reference/query-languages/esql/functions-operators/type-conversion-functions/to_geotile.md'
+        anchors: {'esql-to_geotile'}
+      - to: 'reference/query-languages/esql/functions-operators/type-conversion-functions/to_integer.md'
+        anchors: {'esql-to_integer'}
+      - to: 'reference/query-languages/esql/functions-operators/type-conversion-functions/to_ip.md'
+        anchors: {'esql-to_ip'}
+      - to: 'reference/query-languages/esql/functions-operators/type-conversion-functions/to_long.md'
+        anchors: {'esql-to_long'}
+      - to: 'reference/query-languages/esql/functions-operators/type-conversion-functions/to_radians.md'
+        anchors: {'esql-to_radians'}
+      - to: 'reference/query-languages/esql/functions-operators/type-conversion-functions/to_string.md'
+        anchors: {'esql-to_string'}
+      - to: 'reference/query-languages/esql/functions-operators/type-conversion-functions/to_timeduration.md'
+        anchors: {'esql-to_timeduration'}
+      - to: 'reference/query-languages/esql/functions-operators/type-conversion-functions/to_unsigned_long.md'
+        anchors: {'esql-to_unsigned_long'}
+      - to: 'reference/query-languages/esql/functions-operators/type-conversion-functions/to_version.md'
+        anchors: {'esql-to_version'}
+
+
   # https://github.com/elastic/elasticsearch/pull/133359
   'reference/elasticsearch/rest-apis/filter-search-results.md':
     to: 'reference/elasticsearch/rest-apis/filter-search-results.md'

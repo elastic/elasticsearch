@@ -196,7 +196,6 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
                     .startObject("stars_stats")
                     .field("type", "aggregate_metric_double")
                     .field("metrics", List.of("min", "max", "sum"))
-                    .field("default_metric", "max")
                     .endObject()
                     .startObject("location")
                     .field("type", "geo_point")

@@ -109,7 +109,9 @@ public class PlanTelemetryManager {
         metrics.commands().forEach((key, value) -> incCommand(key, value, success));
         metrics.functions().forEach((key, value) -> incFunction(key, value, success));
         metrics.settings().forEach((key, value) -> incSetting(key, value, success));
-        linkedProjectsHistogram.incrementBy(1, Map.of("es_linked_projects_count", metrics.linkedProjectsCount()));
+        if (metrics.linkedProjectsCount() != null) {
+            linkedProjectsHistogram.incrementBy(1, Map.of("es_linked_projects_count", metrics.linkedProjectsCount()));
+        }
     }
 
     private void incCommand(String name, int count, boolean success) {

@@ -38,11 +38,19 @@ import org.elasticsearch.cluster.routing.allocation.decider.NodeReplacementAlloc
 import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.persistent.PersistentTaskState;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.CancellableTask;
@@ -60,6 +68,7 @@ import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -746,6 +755,143 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         }
     }
 
+    public void testPersistentTasksStatusNodeNotInCluster() {
+        final var nodeSeen = randomBoolean();
+        final var autoReassignCount = randomIntBetween(0, 3);
+
+        final var testId = randomAlphaOfLength(8);
+        final List<PersistentTasksExecutor<?>> executors = new ArrayList<>();
+        final var tasksBuilder = ClusterPersistentTasksCustomMetadata.builder();
+
+        for (int i = 0; i < autoReassignCount; i++) {
+            final var taskName = "test-absent-auto-" + testId + "-" + i;
+            executors.add(new TestPersistentTasksExecutor(taskName, true));
+            tasksBuilder.addTask(
+                taskName + "-1",
+                taskName,
+                null,
+                new PersistentTasksCustomMetadata.Assignment(SHUTTING_DOWN_NODE_ID, "assigned")
+            );
+        }
+        // Populates the static PersistentTasksExecutorRegistry TASKS_WITH_REASSIGNMENT_ON_SHUTDOWN_DISABLED set.
+        new PersistentTasksExecutorRegistry(executors);
+
+        // SHUTTING_DOWN_NODE_ID is absent from discovery nodes.
+        final var baseState = createTestClusterState(
+            RoutingTable.EMPTY_ROUTING_TABLE,
+            List.of(),
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            true
+        );
+        final ClusterState state = ClusterState.builder(baseState)
+            .metadata(Metadata.builder(baseState.metadata()).putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
+            .build();
+
+        final var status = TransportGetShutdownStatusAction.persistentTasksStatus(state, SHUTTING_DOWN_NODE_ID, nodeSeen);
+
+        if (nodeSeen == false) {
+            assertThat(status.getStatus(), equalTo(SingleNodeShutdownMetadata.Status.NOT_STARTED));
+            assertThat(status.getPersistentTasksRemaining(), equalTo(0));
+            assertThat(status.getAutoReassignableTasksRemaining(), equalTo(0));
+        } else {
+            final var expectedStatus = autoReassignCount == 0
+                ? SingleNodeShutdownMetadata.Status.COMPLETE
+                : SingleNodeShutdownMetadata.Status.IN_PROGRESS;
+            assertThat(status.getStatus(), equalTo(expectedStatus));
+            assertThat(status.getPersistentTasksRemaining(), equalTo(autoReassignCount));
+            assertThat(status.getAutoReassignableTasksRemaining(), equalTo(autoReassignCount));
+        }
+    }
+
+    public void testPersistentTasksStatusCounts() {
+        final var autoReassignCount = randomIntBetween(0, 5);
+        final var nonAutoReassignCount = randomIntBetween(0, 5);
+
+        final var testId = randomAlphaOfLength(8);
+        final List<PersistentTasksExecutor<?>> executors = new ArrayList<>();
+        final var tasksBuilder = ClusterPersistentTasksCustomMetadata.builder();
+
+        for (int i = 0; i < autoReassignCount; i++) {
+            final var taskName = "test-auto-" + testId + "-" + i;
+            executors.add(new TestPersistentTasksExecutor(taskName, true));
+            tasksBuilder.addTask(
+                taskName + "-1",
+                taskName,
+                null,
+                new PersistentTasksCustomMetadata.Assignment(SHUTTING_DOWN_NODE_ID, "assigned")
+            );
+        }
+        for (int i = 0; i < nonAutoReassignCount; i++) {
+            final var taskName = "test-noop-" + testId + "-" + i;
+            executors.add(new TestPersistentTasksExecutor(taskName, false));
+            tasksBuilder.addTask(
+                taskName + "-1",
+                taskName,
+                null,
+                new PersistentTasksCustomMetadata.Assignment(SHUTTING_DOWN_NODE_ID, "assigned")
+            );
+        }
+        // Populates the static PersistentTasksExecutorRegistry TASKS_WITH_REASSIGNMENT_ON_SHUTDOWN_DISABLED set.
+        new PersistentTasksExecutorRegistry(executors);
+
+        final var baseState = createTestClusterState(RoutingTable.EMPTY_ROUTING_TABLE, List.of(), SingleNodeShutdownMetadata.Type.REMOVE);
+        final ClusterState state;
+        if (autoReassignCount + nonAutoReassignCount > 0) {
+            state = ClusterState.builder(baseState)
+                .metadata(Metadata.builder(baseState.metadata()).putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tasksBuilder.build()))
+                .build();
+        } else {
+            state = baseState;
+        }
+
+        final var status = TransportGetShutdownStatusAction.persistentTasksStatus(state, SHUTTING_DOWN_NODE_ID, true);
+
+        final var expectedStatus = autoReassignCount == 0
+            ? SingleNodeShutdownMetadata.Status.COMPLETE
+            : SingleNodeShutdownMetadata.Status.IN_PROGRESS;
+        assertThat(status.getStatus(), equalTo(expectedStatus));
+        assertThat(status.getPersistentTasksRemaining(), equalTo(autoReassignCount + nonAutoReassignCount));
+        assertThat(status.getAutoReassignableTasksRemaining(), equalTo(autoReassignCount));
+    }
+
+    public void testPersistentTasksStatusOnlyCountsShuttingDownNode() {
+        final var testId = randomAlphaOfLength(8);
+        final var autoTaskName = "task-auto-" + testId;
+        final var optOutTaskName = "task-opt-out-" + testId;
+
+        // Populates the static PersistentTasksExecutorRegistry TASKS_WITH_REASSIGNMENT_ON_SHUTDOWN_DISABLED set.
+        new PersistentTasksExecutorRegistry(
+            List.of(new TestPersistentTasksExecutor(autoTaskName, true), new TestPersistentTasksExecutor(optOutTaskName, false))
+        );
+
+        final var tasks = ClusterPersistentTasksCustomMetadata.builder()
+            .addTask(
+                autoTaskName + "-1",
+                autoTaskName,
+                null,
+                new PersistentTasksCustomMetadata.Assignment(SHUTTING_DOWN_NODE_ID, "assigned")
+            )
+            .addTask(
+                optOutTaskName + "-1",
+                optOutTaskName,
+                null,
+                new PersistentTasksCustomMetadata.Assignment(SHUTTING_DOWN_NODE_ID, "assigned")
+            )
+            .addTask(optOutTaskName + "-2", optOutTaskName, null, new PersistentTasksCustomMetadata.Assignment(LIVE_NODE_ID, "assigned"))
+            .build();
+
+        final var baseState = createTestClusterState(RoutingTable.EMPTY_ROUTING_TABLE, List.of(), SingleNodeShutdownMetadata.Type.REMOVE);
+        final var state = ClusterState.builder(baseState)
+            .metadata(Metadata.builder(baseState.metadata()).putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tasks))
+            .build();
+
+        final var status = TransportGetShutdownStatusAction.persistentTasksStatus(state, SHUTTING_DOWN_NODE_ID, true);
+
+        assertThat(status.getStatus(), equalTo(SingleNodeShutdownMetadata.Status.IN_PROGRESS));
+        assertThat(status.getPersistentTasksRemaining(), equalTo(2));
+        assertThat(status.getAutoReassignableTasksRemaining(), equalTo(1));
+    }
+
     private void checkStalledShardWithIlmState(
         LifecycleExecutionState executionState,
         OperationMode operationMode,
@@ -944,5 +1090,27 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             allocationService,
             allocationDeciders
         );
+    }
+
+    private static class TestPersistentTasksExecutor extends PersistentTasksExecutor<PersistentTaskParams> {
+        private final boolean autoReassignOnShutdown;
+
+        TestPersistentTasksExecutor(String taskName, boolean autoReassignOnShutdown) {
+            super(taskName, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            this.autoReassignOnShutdown = autoReassignOnShutdown;
+        }
+
+        @Override
+        protected void nodeOperation(AllocatedPersistentTask task, PersistentTaskParams params, PersistentTaskState state) {}
+
+        @Override
+        public PersistentTasksExecutor.Scope scope() {
+            return Scope.CLUSTER;
+        }
+
+        @Override
+        public boolean automaticReassignmentOnShutdown() {
+            return autoReassignOnShutdown;
+        }
     }
 }

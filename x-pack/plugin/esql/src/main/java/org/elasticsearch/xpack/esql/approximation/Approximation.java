@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.approximation;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -15,11 +16,11 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -274,7 +275,14 @@ public class Approximation {
     private int subPlanIterationCount;
     private final SetOnce<Long> sourceRowCount;
 
-    public Approximation(LogicalPlan logicalPlan, ApproximationSettings settings) {
+    /**
+     * Creates an Approximation object for a logical plan if it's an approximation plan, and returns null otherwise.
+     */
+    public static Approximation create(LogicalPlan logicalPlan, ApproximationSettings approximationSettings) {
+        return ApproximationPlan.is(logicalPlan) ? new Approximation(logicalPlan, approximationSettings) : null;
+    }
+
+    Approximation(LogicalPlan logicalPlan, ApproximationSettings settings) {
         this.logicalPlan = logicalPlan;
         this.settings = settings;
         this.queryProperties = verifyPlan(logicalPlan);
@@ -286,15 +294,26 @@ public class Approximation {
 
     /**
      * Verifies that a plan is suitable for approximation.
-     *
-     * @return the query properties relevant for approximation
-     * @throws VerificationException if the plan is not suitable for approximation
+     * @return the query properties relevant for approximation if it's suitable, or null otherwise
+     * Adds warning headers as a side effect when the plan is not suitable
      */
-    public static QueryProperties verifyPlan(LogicalPlan logicalPlan) throws VerificationException {
+    public static QueryProperties verifyPlan(LogicalPlan logicalPlan) {
+        try {
+            return verifyPlanOrThrow(logicalPlan);
+        } catch (VerificationException e) {
+            HeaderWarning.addWarning(e.getMessage());
+            return null;
+        }
+    }
+
+    static QueryProperties verifyPlanOrThrow(LogicalPlan logicalPlan) {
         // The plan must contain a STATS command.
         if (logicalPlan.anyMatch(plan -> plan instanceof Aggregate) == false) {
+            Location location = logicalPlan.collectLeaves().getFirst().source().source();
             throw new VerificationException(
-                List.of(Failure.fail(logicalPlan.collectLeaves().getFirst(), "query without [STATS] cannot be approximated"))
+                "line {}:{}: approximation not supported: query without [STATS] cannot be approximated",
+                location.getLineNumber(),
+                location.getColumnNumber()
             );
         }
         // Verify that all commands are supported.
@@ -303,7 +322,10 @@ public class Approximation {
                 || (plan instanceof EsRelation esRelation && SUPPORTED_INDEX_MODES.contains(esRelation.indexMode()) == false)) {
                 // TODO: ideally just return the command from the source
                 throw new VerificationException(
-                    List.of(Failure.fail(plan, "query with [" + plan.sourceText() + "] cannot be approximated"))
+                    "line {}:{}: approximation not supported: query with [{}] cannot be approximated",
+                    plan.source().source().getLineNumber(),
+                    plan.source().source().getColumnNumber(),
+                    plan.sourceText()
                 );
             }
         });
@@ -324,7 +346,10 @@ public class Approximation {
                             && SUPPORTED_MULTIVALUED_AGGS.contains(aggFn.getClass()) == false) {
                             // TODO: ideally just return aggregate function from the source
                             throw new VerificationException(
-                                List.of(Failure.fail(aggFn, "aggregation function [" + aggFn.sourceText() + "] cannot be approximated"))
+                                "line {}:{}: approximation not supported: aggregation function [{}] cannot be approximated",
+                                aggFn.source().source().getLineNumber(),
+                                aggFn.source().source().getColumnNumber(),
+                                aggFn.sourceText()
                             );
                         }
                     });
@@ -339,7 +364,11 @@ public class Approximation {
             } else {
                 // Multiple STATS commands are not supported.
                 if (plan instanceof Aggregate) {
-                    throw new VerificationException(List.of(Failure.fail(plan, "query with multiple [STATS] cannot be approximated")));
+                    throw new VerificationException(
+                        "line {}:{}: approximation not supported: query with multiple [STATS] cannot be approximated",
+                        plan.source().source().getLineNumber(),
+                        plan.source().source().getColumnNumber()
+                    );
                 }
             }
         });

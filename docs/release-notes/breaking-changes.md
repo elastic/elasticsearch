@@ -12,23 +12,25 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
-```{applies_to}
-stack: ga 9.2.7
-```
-## 9.2.7 [elasticsearch-9.2.7-breaking-changes]
-
-There are no breaking changes associated with this release.
-
+## 9.3.2 [elasticsearch-9.3.2-deprecations]
 ```{applies_to}
 stack: ga 9.3.2
 ```
-## 9.3.2 [elasticsearch-9.3.2-breaking-changes]
+There are no deprecations associated with this release.
 
-There are no breaking changes associated with this release.
+## 9.2.7 [elasticsearch-9.2.7-deprecations]
+```{applies_to}
+stack: ga 9.2.7
+```
+There are no deprecations associated with this release.
 
-## 9.2.6 [elasticsearch-9.2.6-breaking-changes]
+## 9.3.1 [elasticsearch-9.3.1-deprecations]
 
-There are no breaking changes associated with this release.
+There are no deprecations associated with this release.
+
+## 9.2.6 [elasticsearch-9.2.6-deprecations]
+
+There are no deprecations associated with this release.
 
 ## 9.3.1 [elasticsearch-9.3.1-breaking-changes]
 

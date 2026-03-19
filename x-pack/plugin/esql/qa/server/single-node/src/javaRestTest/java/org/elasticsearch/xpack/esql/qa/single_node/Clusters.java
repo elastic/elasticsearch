@@ -11,6 +11,9 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.xpack.esql.CsvTestUtils;
+
+import java.nio.file.Path;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
 public class Clusters {
@@ -20,10 +23,15 @@ public class Clusters {
     }
 
     public static ElasticsearchCluster testCluster(LocalClusterConfigProvider configProvider) {
+        return testCluster(CsvTestUtils.createCsvDataDirectory(), configProvider);
+    }
+
+    public static ElasticsearchCluster testCluster(Path csvDataPath, LocalClusterConfigProvider configProvider) {
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
+            .setting("path.repo", csvDataPath::toString)
             .shared(true)
             .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
             .apply(() -> configProvider)

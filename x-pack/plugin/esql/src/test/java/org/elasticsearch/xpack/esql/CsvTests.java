@@ -146,13 +146,10 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -161,23 +158,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeFalseLogging;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeTrueLogging;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.csvFileTemplateResolver;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.substituteTemplates;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.VIEW_CONFIGS;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.getResourceStream;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
@@ -235,8 +231,6 @@ public class CsvTests extends ESTestCase {
 
     private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, false);
     private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, true);
-
-    private static final Pattern TEMPLATE_PATTERN = Pattern.compile("\\{\\{(\\w+)}}");
 
     private final String fileName;
     private final String groupName;
@@ -428,24 +422,12 @@ public class CsvTests extends ESTestCase {
                     && Set.of("Exact count with where on single-valued data", "Exact total single-valued field count").contains(testName)
             );
 
-            checkTestCapabilities();
+            CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities);
 
             doTest();
         } catch (Throwable th) {
             throw reworkException(th);
         }
-    }
-
-    private void checkTestCapabilities() {
-        CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities, LOGGER);
-    }
-
-    private static void assumeTrueLogging(String message, boolean condition) {
-        CsvTestUtils.assumeTrueLogging(message, condition, LOGGER);
-    }
-
-    private static void assumeFalseLogging(String message, boolean condition) {
-        CsvTestUtils.assumeFalseLogging(message, condition, LOGGER);
     }
 
     @Override

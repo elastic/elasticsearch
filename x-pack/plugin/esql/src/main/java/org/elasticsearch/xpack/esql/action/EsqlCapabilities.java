@@ -2221,6 +2221,11 @@ public class EsqlCapabilities {
         EXTERNAL_COMMAND(Build.current().isSnapshot()),
 
         /**
+         * Support for the EXTERNAL command (datasource access).
+         */
+        EXTERNAL_CSV_IP_SUPPORT(Build.current().isSnapshot()),
+
+        /**
          * https://github.com/elastic/elasticsearch/issues/142219
          */
         INLINE_STATS_WITH_CONSTANTS(INLINE_STATS.enabled),

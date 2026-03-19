@@ -47,7 +47,7 @@ public class ExternalDistributedSpecIT extends AbstractExternalSourceSpecTestCas
 
     private static final List<String> DISTRIBUTION_MODES = List.of("coordinator_only", "round_robin", "adaptive");
 
-    private static ElasticsearchCluster clusterInstance = ExternalDistributedClusters.testCluster(() -> s3Fixture.getAddress());
+    private static final ElasticsearchCluster CLUSTER_INSTANCE = ExternalDistributedClusters.testCluster(() -> s3Fixture.getAddress());
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule((base, description) -> new org.junit.runners.model.Statement() {
@@ -56,9 +56,7 @@ public class ExternalDistributedSpecIT extends AbstractExternalSourceSpecTestCas
             assumeFalse("FIPS mode requires security enabled; this test uses plain HTTP S3 fixtures", inFipsJvm());
             base.evaluate();
         }
-    }).around(clusterInstance);
-
-    public static ElasticsearchCluster cluster = clusterInstance;
+    }).around(CLUSTER_INSTANCE);
 
     private final String distributionMode;
 
@@ -78,7 +76,7 @@ public class ExternalDistributedSpecIT extends AbstractExternalSourceSpecTestCas
 
     @Override
     protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+        return CLUSTER_INSTANCE.getHttpAddresses();
     }
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")

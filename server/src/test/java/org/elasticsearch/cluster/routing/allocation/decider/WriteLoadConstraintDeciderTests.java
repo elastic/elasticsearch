@@ -709,9 +709,12 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
         double scalar = randomDoubleBetween(0.1, 20.0, true);
         var writeLoadsRemain = Map.of(
-            highShard, 0.95 * scalar,
-            lowShard, 0.05 * scalar,
-            allocatedElsewhereShard, randomDoubleBetween(20.0, 40.0, true)
+            highShard,
+            0.95 * scalar,
+            lowShard,
+            0.05 * scalar,
+            allocatedElsewhereShard,
+            randomDoubleBetween(20.0, 40.0, true)
         );
 
         ClusterInfo clusterInfo = ClusterInfo.builder()
@@ -737,24 +740,19 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
         // both high and low shards decide YES to canRemain, as the proportion
         // of load is above 90% on one shard
-        assertEquals(
-            Decision.Type.YES,
-            writeLoadDecider.canRemain(
-                indexMetadata,
-                highShardRouting,
-                routingNode,
-                routingAllocation
-            ).type()
-        );
+        assertEquals(Decision.Type.YES, writeLoadDecider.canRemain(indexMetadata, highShardRouting, routingNode, routingAllocation).type());
 
         assertEquals(Decision.Type.YES, writeLoadDecider.canRemain(indexMetadata, lowShardRouting, routingNode, routingAllocation).type());
 
         // retry test, with proportions under the threshold
         scalar = randomDoubleBetween(0.1, 20.0, true);
         var writeLoadsMigrate = Map.of(
-            highShard, 0.85 * scalar,
-            lowShard, 0.15 * scalar,
-            allocatedElsewhereShard, randomDoubleBetween(20.0, 40.0, true)
+            highShard,
+            0.85 * scalar,
+            lowShard,
+            0.15 * scalar,
+            allocatedElsewhereShard,
+            randomDoubleBetween(20.0, 40.0, true)
         );
 
         clusterInfo = ClusterInfo.builder()

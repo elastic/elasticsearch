@@ -40,8 +40,10 @@ import org.elasticsearch.index.reindex.ClientPitPaginatedHitSource;
 import org.elasticsearch.index.reindex.ClientScrollablePaginatedHitSource;
 import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.index.reindex.PaginatedHitSource.SearchFailure;
+import org.elasticsearch.index.reindex.PitPaginatedHitSource;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
+import org.elasticsearch.index.reindex.ScrollablePaginatedHitSource;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.reindex.remote.RemotePitPaginatedHitSource;
 import org.elasticsearch.reindex.remote.RemoteScrollablePaginatedHitSource;
@@ -739,14 +741,18 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * Set the last returned scrollId. Exists entirely for testing.
      */
     void setScroll(String scroll) {
-        paginatedHitSource.setScrollId(scroll);
+        if (paginatedHitSource instanceof ScrollablePaginatedHitSource scrollable) {
+            scrollable.setScrollId(scroll);
+        }
     }
 
     /**
      * Set the search_after values for the next batch. Exists entirely for testing.
      */
     void setSearchAfterValues(Object[] searchAfterValues) {
-        paginatedHitSource.setSearchAfterValues(searchAfterValues);
+        if (paginatedHitSource instanceof PitPaginatedHitSource pit) {
+            pit.setSearchAfterValues(searchAfterValues);
+        }
     }
 
     /**

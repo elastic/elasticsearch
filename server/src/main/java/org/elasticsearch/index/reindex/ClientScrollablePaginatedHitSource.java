@@ -25,7 +25,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
-import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -46,7 +45,7 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
  * This implementation is a scrollable source of hits from a {@linkplain Client} instance. For a remote client instance,
  * please use {@code RemoteScrollablePaginatedHitSource}
  */
-public class ClientScrollablePaginatedHitSource extends PaginatedHitSource {
+public class ClientScrollablePaginatedHitSource extends ScrollablePaginatedHitSource {
     private final ParentTaskAssigningClient client;
     private final SearchRequest firstSearchRequest;
 
@@ -69,25 +68,22 @@ public class ClientScrollablePaginatedHitSource extends PaginatedHitSource {
     @Override
     protected void doFirstSearch(RejectAwareActionListener<Response> searchListener) {
         logger.debug(
-                "executing initial local scroll search against {}",
+            "executing initial local scroll search against {}",
             () -> isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices()
         );
         client.search(firstSearchRequest, wrapListener(searchListener));
     }
 
     @Override
-    protected void restoreState(WorkerResumeInfo resumeInfo) {
-        assert resumeInfo instanceof ScrollWorkerResumeInfo;
-        var scrollResumeInfo = (ScrollWorkerResumeInfo) resumeInfo;
-        setScrollId(scrollResumeInfo.scrollId());
+    protected void restoreScrollState(ScrollWorkerResumeInfo resumeInfo) {
+        setScrollId(resumeInfo.scrollId());
     }
 
     @Override
-    protected void doNextSearch(PaginationCursor cursor, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
-        assert cursor.isScroll() : "ClientScrollablePaginatedHitSource expects scroll cursor";
+    protected void doNextScrollSearch(String scrollId, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
         SearchScrollRequest request = new SearchScrollRequest();
         // Add the wait time into the scroll timeout so it won't timeout while we wait for throttling
-        request.scrollId(cursor.scrollId()).scroll(timeValueNanos(firstSearchRequest.scroll().nanos() + extraKeepAlive.nanos()));
+        request.scrollId(scrollId).scroll(timeValueNanos(firstSearchRequest.scroll().nanos() + extraKeepAlive.nanos()));
         client.searchScroll(request, wrapListener(searchListener));
     }
 
@@ -111,13 +107,13 @@ public class ClientScrollablePaginatedHitSource extends PaginatedHitSource {
 
     @Override
     protected void releaseSearchContext(Runnable onCompletion) {
-        String scrollId = getScrollId();
-        if (Strings.hasLength(scrollId) == false) {
+        String sid = getScrollId();
+        if (Strings.hasLength(sid) == false) {
             onCompletion.run();
             return;
         }
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-        clearScrollRequest.addScrollId(scrollId);
+        clearScrollRequest.addScrollId(sid);
         /*
          * Unwrap the client so we don't set our task as the parent. If we *did* set our ID then the clear scroll would be cancelled as
          * if this task is cancelled. But we want to clear the scroll regardless of whether or not the main request was cancelled.
@@ -131,7 +127,7 @@ public class ClientScrollablePaginatedHitSource extends PaginatedHitSource {
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> "Failed to clear scroll [" + scrollId + "]", e);
+                logger.warn(() -> "Failed to clear scroll [" + sid + "]", e);
                 onCompletion.run();
             }
         });

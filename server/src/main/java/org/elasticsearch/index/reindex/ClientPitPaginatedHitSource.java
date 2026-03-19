@@ -20,7 +20,6 @@ import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.ResumeInfo.PitWorkerResumeInfo;
-import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -44,7 +43,7 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
  * This implementation is a PIT-based source of hits from a {@linkplain org.elasticsearch.client.internal.Client} instance.
  * The PIT must already be opened and injected into the search request before this hit source is used.
  */
-public class ClientPitPaginatedHitSource extends PaginatedHitSource {
+public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
     private final ParentTaskAssigningClient client;
     private final SearchRequest firstSearchRequest;
     private final AtomicReference<PointInTimeBuilder> pitBuilder;
@@ -81,21 +80,18 @@ public class ClientPitPaginatedHitSource extends PaginatedHitSource {
     }
 
     @Override
-    protected void restoreState(WorkerResumeInfo resumeInfo) {
-        assert resumeInfo instanceof PitWorkerResumeInfo;
-        var pitResumeInfo = (PitWorkerResumeInfo) resumeInfo;
+    protected void restorePitState(PitWorkerResumeInfo resumeInfo) {
         pitBuilder.set(
-            new PointInTimeBuilder(pitResumeInfo.pitId()).setKeepAlive(firstSearchRequest.source().pointInTimeBuilder().getKeepAlive())
+            new PointInTimeBuilder(resumeInfo.pitId()).setKeepAlive(firstSearchRequest.source().pointInTimeBuilder().getKeepAlive())
         );
-        setSearchAfterValues(pitResumeInfo.searchAfterValues());
+        setSearchAfterValues(resumeInfo.searchAfterValues());
     }
 
     @Override
-    protected void doNextSearch(PaginationCursor cursor, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
-        assert cursor.isSearchAfter() : "ClientPitPaginatedHitSource expects search_after cursor";
+    protected void doNextPitSearch(Object[] searchAfter, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
         SearchSourceBuilder source = firstSearchRequest.source()
             .shallowCopy()
-            .searchAfter(cursor.searchAfter())
+            .searchAfter(searchAfter)
             .pointInTimeBuilder(extendPitKeepAlive(pitBuilder.get(), extraKeepAlive));
         SearchRequest nextRequest = new SearchRequest(firstSearchRequest).source(source);
         client.search(nextRequest, wrapListener(searchListener));
@@ -133,12 +129,6 @@ public class ClientPitPaginatedHitSource extends PaginatedHitSource {
                 }
             }
         };
-    }
-
-    @Override
-    protected void releaseSearchContext(Runnable onCompletion) {
-        // PIT is closed by Reindexer when the reindex completes
-        onCompletion.run();
     }
 
     @Override

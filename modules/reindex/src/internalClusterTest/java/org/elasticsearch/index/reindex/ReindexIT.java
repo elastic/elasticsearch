@@ -13,10 +13,8 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
-import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -60,9 +58,7 @@ public class ReindexIT extends ESIntegTestCase {
         assertHitCount(prepareSearch(sourceIndex).setSize(0), totalDocs);
 
         // Reindex slice 0 of 2 (no field - defaults to _id)
-        ReindexRequest slice0Request = new ReindexRequest().setSourceIndices(sourceIndex)
-            .setDestIndex(destIndex)
-            .setRefresh(true);
+        ReindexRequest slice0Request = new ReindexRequest().setSourceIndices(sourceIndex).setDestIndex(destIndex).setRefresh(true);
         slice0Request.getSearchRequest().source(new SearchSourceBuilder().slice(new SliceBuilder(0, 2)));
         BulkByScrollResponse slice0Response = client().execute(ReindexAction.INSTANCE, slice0Request).actionGet();
         assertTrue("slice 0 should index some docs", slice0Response.getCreated() > 0);
@@ -76,9 +72,7 @@ public class ReindexIT extends ESIntegTestCase {
         client().admin().indices().refresh(new RefreshRequest(sourceIndex)).actionGet();
 
         // Reindex slice 1 of 2
-        ReindexRequest slice1Request = new ReindexRequest().setSourceIndices(sourceIndex)
-            .setDestIndex(destIndex)
-            .setRefresh(true);
+        ReindexRequest slice1Request = new ReindexRequest().setSourceIndices(sourceIndex).setDestIndex(destIndex).setRefresh(true);
         slice1Request.getSearchRequest().source(new SearchSourceBuilder().slice(new SliceBuilder(1, 2)));
         BulkByScrollResponse slice1Response = client().execute(ReindexAction.INSTANCE, slice1Request).actionGet();
         assertTrue("slice 1 should index some docs", slice1Response.getCreated() > 0);

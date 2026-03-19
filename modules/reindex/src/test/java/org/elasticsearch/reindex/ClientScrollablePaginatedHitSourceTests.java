@@ -178,7 +178,7 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
             new SearchRequest().scroll(timeValueSeconds(10))
         );
 
-        // Initially: no scroll id, no search_after -> false
+        // Initially: no scroll id -> false
         assertFalse(paginatedHitSource.hasMoreBatches());
 
         // Empty scroll id -> false
@@ -188,14 +188,6 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
         // Non-empty scroll id -> true
         paginatedHitSource.setScrollId("scroll_id");
         assertTrue(paginatedHitSource.hasMoreBatches());
-
-        paginatedHitSource.setScrollId(null);
-        paginatedHitSource.setSearchAfterValues(new Object[] { 1L, "sort" });
-        assertTrue(paginatedHitSource.hasMoreBatches());
-
-        paginatedHitSource.setScrollId(null);
-        paginatedHitSource.setSearchAfterValues(null);
-        assertFalse(paginatedHitSource.hasMoreBatches());
     }
 
     private SearchResponse createSearchResponse() {

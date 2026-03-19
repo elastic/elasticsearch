@@ -168,6 +168,67 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
         }
     }
 
+    /** Verifies hasMoreBatches reflects search_after state. */
+    public void testHasMoreBatches() {
+        MockClient client = new MockClient(threadPool);
+        TaskId parentTask = new TaskId("id", randomInt());
+
+        ClientPitPaginatedHitSource paginatedHitSource = new ClientPitPaginatedHitSource(
+            logger,
+            BackoffPolicy.constantBackoff(TimeValue.ZERO, 0),
+            threadPool,
+            Assert::fail,
+            r -> fail(),
+            e -> fail(),
+            new ParentTaskAssigningClient(client, parentTask),
+            createPitSearchRequest()
+        );
+
+        // Initially: no search_after -> false
+        assertFalse(paginatedHitSource.hasMoreBatches());
+
+        // Non-null search_after -> true
+        paginatedHitSource.setSearchAfterValues(new Object[] { 1L, "sort" });
+        assertTrue(paginatedHitSource.hasMoreBatches());
+
+        paginatedHitSource.setSearchAfterValues(null);
+        assertFalse(paginatedHitSource.hasMoreBatches());
+    }
+
+    /** Verifies setSearchAfterValues is used when requestNextBatch is called. */
+    public void testSetSearchAfterValuesUsedForNextBatch() throws InterruptedException {
+        BlockingQueue<PaginatedHitSource.AsyncResponse> responses = new ArrayBlockingQueue<>(100);
+        MockClient client = new MockClient(threadPool);
+        TaskId parentTask = new TaskId("thenode", randomInt());
+        Object[] searchAfterValues = new Object[] { 100L, "sort-key" };
+
+        ClientPitPaginatedHitSource paginatedHitSource = new ClientPitPaginatedHitSource(
+            logger,
+            BackoffPolicy.constantBackoff(TimeValue.ZERO, 0),
+            threadPool,
+            Assert::fail,
+            responses::add,
+            e -> fail(),
+            new ParentTaskAssigningClient(client, parentTask),
+            createPitSearchRequest()
+        );
+
+        paginatedHitSource.setSearchAfterValues(searchAfterValues);
+        paginatedHitSource.requestNextBatch(TimeValue.ZERO);
+        client.validateRequest(TransportSearchAction.TYPE, (SearchRequest r) -> {
+            assertNotNull(r.source().searchAfter());
+            assertArrayEquals(searchAfterValues, r.source().searchAfter());
+        });
+        SearchResponse searchResponse = createPitSearchResponse();
+        try {
+            client.respond(TransportSearchAction.TYPE, searchResponse);
+            PaginatedHitSource.AsyncResponse asyncResponse = responses.poll(10, TimeUnit.SECONDS);
+            assertNotNull(asyncResponse);
+        } finally {
+            searchResponse.decRef();
+        }
+    }
+
     /** Verifies that constructor rejects SearchRequest without pointInTimeBuilder. */
     public void testConstructorRejectsMissingPointInTime() {
         MockClient client = new MockClient(threadPool);

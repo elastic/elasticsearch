@@ -42,7 +42,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.PaginatedHitSource;
-import org.elasticsearch.index.reindex.PaginationCursor;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ResumeInfo;
@@ -226,20 +225,16 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
     public void testParsePitNextOk() {
         AtomicBoolean called = new AtomicBoolean();
         Object[] searchAfter = new Object[] { 12345L, "sort-key" };
-        sourceWithMockedRemoteCall("pit_ok.json").doNextSearch(
-            PaginationCursor.forSearchAfter(searchAfter),
-            timeValueMillis(0),
-            wrapAsListener(r -> {
-                assertFalse(r.isTimedOut());
-                assertNull(r.getScrollId());
-                assertNotNull(r.getPitId());
-                assertEquals(4, r.getTotalHits());
-                assertThat(r.getFailures(), empty());
-                assertThat(r.getHits(), hasSize(1));
-                assertEquals("test", r.getHits().getFirst().getIndex());
-                called.set(true);
-            })
-        );
+        sourceWithMockedRemoteCall("pit_ok.json").doNextPitSearch(searchAfter, timeValueMillis(0), wrapAsListener(r -> {
+            assertFalse(r.isTimedOut());
+            assertNull(r.getScrollId());
+            assertNotNull(r.getPitId());
+            assertEquals(4, r.getTotalHits());
+            assertThat(r.getFailures(), empty());
+            assertThat(r.getHits(), hasSize(1));
+            assertEquals("test", r.getHits().getFirst().getIndex());
+            called.set(true);
+        }));
         assertTrue(called.get());
     }
 
@@ -386,6 +381,21 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
         assertTrue(cleanupCallbackCalled.get());
     }
 
+    /** Verifies hasMoreBatches reflects search_after state. */
+    public void testHasMoreBatches() {
+        RemotePitPaginatedHitSource paginatedHitSource = sourceWithMockedRemoteCall("pit_ok.json");
+
+        // Initially: no search_after -> false
+        assertFalse(paginatedHitSource.hasMoreBatches());
+
+        // Non-null search_after -> true
+        paginatedHitSource.setSearchAfterValues(new Object[] { 1L, "sort" });
+        assertTrue(paginatedHitSource.hasMoreBatches());
+
+        paginatedHitSource.setSearchAfterValues(null);
+        assertFalse(paginatedHitSource.hasMoreBatches());
+    }
+
     /** Verifies remoteVersion returns the configured version. */
     public void testRemoteVersion() {
         RemotePitPaginatedHitSource hitSource = sourceWithMockedRemoteCall("pit_ok.json");
@@ -433,8 +443,8 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
         sourceWithMockedRemoteCall("failure_with_status.json").doFirstSearch(wrapAsListener(checkResponse));
         assertTrue(called.get());
         called.set(false);
-        sourceWithMockedRemoteCall("failure_with_status.json").doNextSearch(
-            PaginationCursor.forSearchAfter(new Object[] { 12345L, "sort-key" }),
+        sourceWithMockedRemoteCall("failure_with_status.json").doNextPitSearch(
+            new Object[] { 12345L, "sort-key" },
             timeValueMillis(0),
             wrapAsListener(checkResponse)
         );
@@ -459,8 +469,8 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
         sourceWithMockedRemoteCall("request_failure.json").doFirstSearch(wrapAsListener(checkResponse));
         assertTrue(called.get());
         called.set(false);
-        sourceWithMockedRemoteCall("request_failure.json").doNextSearch(
-            PaginationCursor.forSearchAfter(new Object[] { 12345L, "sort-key" }),
+        sourceWithMockedRemoteCall("request_failure.json").doNextPitSearch(
+            new Object[] { 12345L, "sort-key" },
             timeValueMillis(0),
             wrapAsListener(checkResponse)
         );

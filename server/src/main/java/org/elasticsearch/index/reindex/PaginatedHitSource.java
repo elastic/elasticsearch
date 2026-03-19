@@ -35,7 +35,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static java.util.Objects.requireNonNull;
@@ -49,8 +48,6 @@ import static java.util.Objects.requireNonNull;
  * <a href="https://www.elastic.co/docs/reference/elasticsearch/rest-apis/paginate-search-results"> ES Search documentation</a>
  */
 public abstract class PaginatedHitSource {
-    private final AtomicReference<String> scrollId = new AtomicReference<>();
-    private final AtomicReference<Object[]> searchAfterValues = new AtomicReference<>();
 
     protected final Logger logger;
     protected final BackoffPolicy backoffPolicy;
@@ -104,26 +101,17 @@ public abstract class PaginatedHitSource {
     }
 
     private void requestNextBatch(TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
-        PaginationCursor cursor;
-        String sid = scrollId.get();
-        if (Strings.hasLength(sid)) {
-            cursor = PaginationCursor.forScroll(sid);
-        } else {
-            Object[] searchAfter = searchAfterValues.get();
-            if (searchAfter != null) {
-                cursor = PaginationCursor.forSearchAfter(searchAfter);
-            } else {
-                fail.accept(new IllegalStateException("No pagination cursor available for next batch"));
-                return;
-            }
+        PaginationCursor cursor = getCursorForNextBatch();
+        if (cursor == null) {
+            fail.accept(new IllegalStateException("No pagination cursor available for next batch"));
+            return;
         }
         doNextSearch(cursor, extraKeepAlive, searchListener);
     }
 
     private void onResponse(Response response) {
         logger.trace("search returned [{}] documents", response.getHits().size());
-        setScrollId(response.getScrollId());
-        setSearchAfterValues(response.getSearchAfterValues());
+        onBatchResponse(response);
         onResponse.accept(new AsyncResponse() {
             private AtomicBoolean alreadyDone = new AtomicBoolean();
 
@@ -148,6 +136,22 @@ public abstract class PaginatedHitSource {
     public final void cleanupWithoutClosingPagination(final Runnable onCompletion) {
         cleanup(onCompletion);
     }
+
+    /**
+     * Called after each batch response so the subclass can store the cursor for the next batch.
+     */
+    protected abstract void onBatchResponse(Response response);
+
+    /**
+     * Returns the cursor for the next batch, or null if no more batches.
+     */
+    @Nullable
+    protected abstract PaginationCursor getCursorForNextBatch();
+
+    /**
+     * Whether there are more batches to fetch.
+     */
+    public abstract boolean hasMoreBatches();
 
     // following is the SPI to be implemented.
     protected abstract void doFirstSearch(RejectAwareActionListener<Response> searchListener);
@@ -175,35 +179,6 @@ public abstract class PaginatedHitSource {
      *        successful or not
      */
     protected abstract void cleanup(Runnable onCompletion);
-
-    /**
-     * Set the scroll id from the last response. Used for scroll-based pagination.
-     */
-    public final void setScrollId(String scrollId) {
-        this.scrollId.set(scrollId);
-    }
-
-    /**
-     * Set the search_after values from the last response. Used for PIT-based pagination.
-     * Public for testing.
-     */
-    public final void setSearchAfterValues(Object[] searchAfterValues) {
-        this.searchAfterValues.set(searchAfterValues);
-    }
-
-    /**
-     * Returns the current scroll id, if any. Used by scroll implementations in releaseSearchContext.
-     */
-    protected final String getScrollId() {
-        return scrollId.get();
-    }
-
-    /**
-     * Whether there are more batches to fetch.
-     */
-    public boolean hasMoreBatches() {
-        return Strings.hasLength(scrollId.get()) || searchAfterValues.get() != null;
-    }
 
     public interface AsyncResponse {
         /**

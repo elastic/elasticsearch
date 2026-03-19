@@ -16,12 +16,10 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.PaginatedHitSource;
-import org.elasticsearch.index.reindex.PaginationCursor;
+import org.elasticsearch.index.reindex.PitPaginatedHitSource;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.PitWorkerResumeInfo;
-import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -41,7 +39,7 @@ import static org.elasticsearch.reindex.remote.RemoteResponseParsers.RESPONSE_PA
  * <p>
  * The PIT must already be opened and injected into the search request before this hit source is used.
  */
-public class RemotePitPaginatedHitSource extends PaginatedHitSource {
+public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
     private final RestClient client;
     private final RemoteInfo remote;
     private final SearchRequest searchRequest;
@@ -90,11 +88,9 @@ public class RemotePitPaginatedHitSource extends PaginatedHitSource {
     }
 
     @Override
-    protected void restoreState(WorkerResumeInfo resumeInfo) {
-        assert resumeInfo instanceof PitWorkerResumeInfo;
-        var pitResumeInfo = (PitWorkerResumeInfo) resumeInfo;
-        pitId.set(pitResumeInfo.pitId());
-        setSearchAfterValues(pitResumeInfo.searchAfterValues());
+    protected void restorePitState(PitWorkerResumeInfo resumeInfo) {
+        pitId.set(resumeInfo.pitId());
+        setSearchAfterValues(resumeInfo.searchAfterValues());
     }
 
     void onPitResponse(RejectAwareActionListener<Response> searchListener, Response response) {
@@ -105,23 +101,16 @@ public class RemotePitPaginatedHitSource extends PaginatedHitSource {
     }
 
     @Override
-    protected void doNextSearch(PaginationCursor cursor, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
-        assert cursor.isSearchAfter() : "RemotePitPaginatedHitSource expects search_after cursor";
+    protected void doNextPitSearch(Object[] searchAfter, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
         // TODO - https://github.com/elastic/elasticsearch-team/issues/2334
         TimeValue keepAlive = timeValueNanos(baseKeepAlive.nanos() + extraKeepAlive.nanos());
         execute(
-            RemoteRequestBuilders.pitSearch(searchRequest, remote.getQuery(), pitId.get(), keepAlive, cursor.searchAfter(), remoteVersion),
+            RemoteRequestBuilders.pitSearch(searchRequest, remote.getQuery(), pitId.get(), keepAlive, searchAfter, remoteVersion),
             RESPONSE_PARSER,
             RejectAwareActionListener.withResponseHandler(searchListener, r -> onPitResponse(searchListener, r)),
             threadPool,
             client
         );
-    }
-
-    @Override
-    protected void releaseSearchContext(Runnable onCompletion) {
-        // PIT is closed by Reindexer when the reindex completes
-        onCompletion.run();
     }
 
     @Override

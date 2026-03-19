@@ -155,9 +155,7 @@ public class Reindexer {
         // When manual slicing is used without a field, default to _id for consistent behavior with PIT
         SliceBuilder sliceBuilder = request.getSearchRequest().source().slice();
         if (sliceBuilder != null && sliceBuilder.getField() == null) {
-            request.getSearchRequest().source().slice(
-                new SliceBuilder(IdFieldMapper.NAME, sliceBuilder.getId(), sliceBuilder.getMax())
-            );
+            request.getSearchRequest().source().slice(new SliceBuilder(IdFieldMapper.NAME, sliceBuilder.getId(), sliceBuilder.getMax()));
         }
 
         final ActionListener<Void> initListener = listener.delegateFailure((l, v) -> {

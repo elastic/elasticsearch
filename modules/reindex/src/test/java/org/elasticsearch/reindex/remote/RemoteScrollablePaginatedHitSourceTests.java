@@ -146,7 +146,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
 
     public void testParseScrollOk() {
         AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall("scroll_ok.json").doNextSearch(
+        sourceWithMockedRemoteCall("scroll_ok.json").doNextSearchForTest(
             PaginationCursor.forScroll("scroll"),
             timeValueMillis(0),
             wrapAsListener(r -> {
@@ -170,7 +170,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
      */
     public void testParseScrollFullyLoaded() {
         AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall("scroll_fully_loaded.json").doNextSearch(
+        sourceWithMockedRemoteCall("scroll_fully_loaded.json").doNextSearchForTest(
             PaginationCursor.forScroll("scroll"),
             timeValueMillis(0),
             wrapAsListener(r -> {
@@ -188,7 +188,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
      */
     public void testParseScrollFullyLoadedFrom1_7() {
         AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall("scroll_fully_loaded_1_7.json").doNextSearch(
+        sourceWithMockedRemoteCall("scroll_fully_loaded_1_7.json").doNextSearchForTest(
             PaginationCursor.forScroll("scroll"),
             timeValueMillis(0),
             wrapAsListener(r -> {
@@ -251,7 +251,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
         sourceWithMockedRemoteCall("rejection.json").doFirstSearch(wrapAsListener(checkResponse));
         assertTrue(called.get());
         called.set(false);
-        sourceWithMockedRemoteCall("rejection.json").doNextSearch(
+        sourceWithMockedRemoteCall("rejection.json").doNextSearchForTest(
             PaginationCursor.forScroll("scroll"),
             timeValueMillis(0),
             wrapAsListener(checkResponse)
@@ -285,7 +285,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
         sourceWithMockedRemoteCall("failure_with_status.json").doFirstSearch(wrapAsListener(checkResponse));
         assertTrue(called.get());
         called.set(false);
-        sourceWithMockedRemoteCall("failure_with_status.json").doNextSearch(
+        sourceWithMockedRemoteCall("failure_with_status.json").doNextSearchForTest(
             PaginationCursor.forScroll("scroll"),
             timeValueMillis(0),
             wrapAsListener(checkResponse)
@@ -327,7 +327,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
         sourceWithMockedRemoteCall("request_failure.json").doFirstSearch(wrapAsListener(checkResponse));
         assertTrue(called.get());
         called.set(false);
-        sourceWithMockedRemoteCall("request_failure.json").doNextSearch(
+        sourceWithMockedRemoteCall("request_failure.json").doNextSearchForTest(
             PaginationCursor.forScroll("scroll"),
             timeValueMillis(0),
             wrapAsListener(checkResponse)
@@ -431,6 +431,21 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
         Throwable e = failureQueue.poll();
         assertNotNull("Expected a parse failure to be reported", e);
         assertEquals("Error parsing the response, remote is likely not an Elasticsearch instance", e.getMessage());
+    }
+
+    public void testHasMoreBatches() {
+        RemoteScrollablePaginatedHitSource paginatedHitSource = sourceWithMockedRemoteCall("start_ok.json");
+
+        // Initially: no scroll id -> false
+        assertFalse(paginatedHitSource.hasMoreBatches());
+
+        // Empty scroll id -> false
+        paginatedHitSource.setScrollId("");
+        assertFalse(paginatedHitSource.hasMoreBatches());
+
+        // Non-empty scroll id -> true
+        paginatedHitSource.setScrollId("scroll_id");
+        assertTrue(paginatedHitSource.hasMoreBatches());
     }
 
     public void testCleanupSuccessful() throws Exception {

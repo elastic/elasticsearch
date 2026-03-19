@@ -257,13 +257,13 @@ public class SystemMetrics extends AbstractLifecycleComponent {
         if (emitOTelMetrics) {
             registerLongGaugeUnlessNegative(
                 "jvm.file_descriptor.count",
-                "The number of opened file descriptors. As per the OTel Semantic Convention.",
+                "Number of open file descriptors as reported by the JVM.",
                 "{file_descriptor}",
                 ProcessProbe::getOpenFileDescriptorCount
             );
             registerLongGaugeUnlessNegative(
                 "jvm.file_descriptor.limit",
-                "The maximum number of opened file descriptors. As per the OTel Semantic Convention.",
+                "Measure of max open file descriptors as reported by the JVM.",
                 "{file_descriptor}",
                 ProcessProbe::getMaxFileDescriptorCount
             );

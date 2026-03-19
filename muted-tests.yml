@@ -360,6 +360,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/144587
+- class: org.elasticsearch.action.search.TransportSearchIT
+  method: testCircuitBreakerReduceFail
+  issue: https://github.com/elastic/elasticsearch/issues/144598
 
 # Examples:
 #

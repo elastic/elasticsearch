@@ -261,28 +261,16 @@ setup:
                     type: long
 
   - do:
-      index:
+      bulk:
         index: test
-        id: "1"
-        body:
-          labels:
-            host:
-              name: server-a
-            status_code: 200
-            region: us-east-1
         refresh: true
+        body:
+          - '{ "index": { "_id": "1" } }'
+          - '{ "labels": { "host": { "name": "server-a" }, "status_code": 200, "region": "us-east-1" } }'
+          - '{ "index": { "_id": "2" } }'
+          - '{ "labels": { "host": { "name": "server-b" }, "status_code": 503, "region": "eu-west-1" } }'
 
-  - do:
-      index:
-        index: test
-        id: "2"
-        body:
-          labels:
-            host:
-              name: server-b
-            status_code: 503
-            region: eu-west-1
-        refresh: true
+  - match: { errors: false }
 
   # Term query on mapped keyword property
   - do:
@@ -497,34 +485,18 @@ setup:
                     type: long
 
   - do:
-      index:
+      bulk:
         index: test
-        id: "1"
-        body:
-          labels:
-            priority: 3
-            name: low
         refresh: true
+        body:
+          - '{ "index": { "_id": "1" } }'
+          - '{ "labels": { "priority": 3, "name": "low" } }'
+          - '{ "index": { "_id": "2" } }'
+          - '{ "labels": { "priority": 1, "name": "high" } }'
+          - '{ "index": { "_id": "3" } }'
+          - '{ "labels": { "priority": 2, "name": "medium" } }'
 
-  - do:
-      index:
-        index: test
-        id: "2"
-        body:
-          labels:
-            priority: 1
-            name: high
-        refresh: true
-
-  - do:
-      index:
-        index: test
-        id: "3"
-        body:
-          labels:
-            priority: 2
-            name: medium
-        refresh: true
+  - match: { errors: false }
 
   - do:
       search:

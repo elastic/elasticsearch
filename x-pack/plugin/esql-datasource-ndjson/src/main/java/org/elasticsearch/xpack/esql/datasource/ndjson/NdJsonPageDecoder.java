@@ -242,7 +242,7 @@ public class NdJsonPageDecoder implements Closeable {
         }
 
         private void beginPositionEntry() {
-            // We may have DataType.NULL for unknown colums. And NullBlock.Builder throws on beginPositionEntry()
+            // We may have DataType.NULL for unknown columns. And NullBlock.Builder throws on beginPositionEntry()
             if (blockBuilder != null && dataType != DataType.NULL) {
                 blockBuilder.beginPositionEntry();
             }

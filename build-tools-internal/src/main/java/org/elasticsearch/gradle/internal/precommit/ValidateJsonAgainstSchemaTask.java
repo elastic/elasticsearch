@@ -17,7 +17,7 @@ import com.networknt.schema.SchemaValidatorsConfig;
 import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
 
-import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchProblems;
+import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.UncheckedIOException;
 import org.gradle.api.file.FileCollection;
@@ -167,7 +167,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
             errors.computeIfAbsent(file, k -> new LinkedHashSet<>())
                 .add(String.format("%s: %s", file.getAbsolutePath(), message.toString()));
             problemReporter.report(
-                ProblemId.create("schema-violation", fileType + " schema violation", ElasticsearchProblems.JSON_VALIDATION),
+                ProblemId.create("schema-violation", fileType + " schema violation", ElasticsearchBuildProblems.JSON_VALIDATION),
                 spec -> spec.contextualLabel(fileType + " validation error in " + file.getName() + ": " + message)
                     .severity(Severity.ERROR)
                     .fileLocation(file.getAbsolutePath())

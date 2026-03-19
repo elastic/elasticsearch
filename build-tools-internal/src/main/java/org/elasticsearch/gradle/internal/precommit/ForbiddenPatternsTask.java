@@ -8,7 +8,7 @@
  */
 package org.elasticsearch.gradle.internal.precommit;
 
-import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchProblems;
+import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
@@ -143,7 +143,7 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
                                     ProblemId.create(
                                         toKebabCase(ruleName),
                                         "Forbidden pattern: " + ruleName,
-                                        ElasticsearchProblems.FORBIDDEN_PATTERNS
+                                        ElasticsearchBuildProblems.FORBIDDEN_PATTERNS
                                     ),
                                     spec -> spec.contextualLabel(ruleName + " on line " + lineNumber + " of " + path)
                                         .severity(Severity.ERROR)

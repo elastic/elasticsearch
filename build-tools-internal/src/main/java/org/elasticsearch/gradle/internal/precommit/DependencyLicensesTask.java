@@ -9,7 +9,7 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.internal.AbstractDependenciesTask;
-import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchProblems;
+import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
 import org.elasticsearch.gradle.internal.precommit.LicenseAnalyzer.LicenseInfo;
 import org.gradle.api.GradleException;
 import org.gradle.api.artifacts.Configuration;
@@ -248,7 +248,7 @@ public abstract class DependencyLicensesTask extends AbstractDependenciesTask {
     private void reportProblem(String id, String displayName, String details, String solution) {
         collectedProblems.add(
             problemReporter.create(
-                ProblemId.create(id, displayName, ElasticsearchProblems.DEPENDENCY_LICENSES),
+                ProblemId.create(id, displayName, ElasticsearchBuildProblems.DEPENDENCY_LICENSES),
                 spec -> spec.contextualLabel(details)
                     .details(details)
                     .severity(Severity.ERROR)

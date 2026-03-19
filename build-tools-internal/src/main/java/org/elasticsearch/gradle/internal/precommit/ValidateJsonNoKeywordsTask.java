@@ -14,7 +14,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchProblems;
+import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
@@ -146,7 +146,7 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
                                 ProblemId.create(
                                     "keyword-conflict",
                                     "API name conflicts with reserved keyword",
-                                    ElasticsearchProblems.JSON_VALIDATION
+                                    ElasticsearchBuildProblems.JSON_VALIDATION
                                 ),
                                 spec -> spec.contextualLabel("'" + component + "' in " + file.getName() + " conflicts with reserved keywords")
                                     .details(detail)

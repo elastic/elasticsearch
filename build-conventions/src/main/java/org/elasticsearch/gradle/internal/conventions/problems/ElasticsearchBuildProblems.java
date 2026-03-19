@@ -16,9 +16,9 @@ import org.gradle.api.problems.ProblemGroup;
  * These groups are used with the Gradle Problems API to provide structured,
  * categorized error reporting that integrates with Build Scans and the Tooling API.
  */
-public final class ElasticsearchProblems {
+public final class ElasticsearchBuildProblems {
 
-    private ElasticsearchProblems() {}
+    private ElasticsearchBuildProblems() {}
 
     // Root group
     public static final ProblemGroup ROOT = ProblemGroup.create("elasticsearch-build", "Elasticsearch Build");

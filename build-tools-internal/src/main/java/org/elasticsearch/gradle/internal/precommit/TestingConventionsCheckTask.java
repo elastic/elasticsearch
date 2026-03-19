@@ -10,7 +10,7 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
-import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchProblems;
+import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.EmptyFileVisitor;
@@ -129,7 +129,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
                         String type = parts[0];
                         String detail = parts.length > 1 ? parts[1] : violation;
                         reporter.report(
-                            ProblemId.create(type, "Testing convention violation", ElasticsearchProblems.TESTING_CONVENTIONS),
+                            ProblemId.create(type, "Testing convention violation", ElasticsearchBuildProblems.TESTING_CONVENTIONS),
                             spec -> spec.contextualLabel(detail)
                                 .severity(Severity.ERROR)
                                 .solution(

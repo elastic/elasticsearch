@@ -21,7 +21,7 @@ import org.apache.rat.report.RatReport;
 import org.apache.rat.report.claim.ClaimStatistic;
 import org.apache.rat.report.xml.XmlReportFactory;
 import org.apache.rat.report.xml.writer.impl.base.XmlWriter;
-import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchProblems;
+import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
@@ -209,7 +209,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
             unapproved.forEach(file -> {
                 getLogger().error(file);
                 problemReporter.report(
-                    ProblemId.create("unapproved-license-header", "Unapproved license header", ElasticsearchProblems.LICENSE_HEADERS),
+                    ProblemId.create("unapproved-license-header", "Unapproved license header", ElasticsearchBuildProblems.LICENSE_HEADERS),
                     spec -> spec.contextualLabel("Unapproved license header in " + file)
                         .severity(Severity.ERROR)
                         .fileLocation(file)

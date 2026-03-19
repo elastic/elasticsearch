@@ -12,7 +12,7 @@ package org.elasticsearch.gradle.internal.conventions.precommit;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
-import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchProblems;
+import org.elasticsearch.gradle.internal.conventions.problems.ElasticsearchBuildProblems;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.model.ObjectFactory;
@@ -89,7 +89,7 @@ public class PomValidationTask extends PrecommitTask {
         String pomPath = pomFile.getAsFile().get().getAbsolutePath();
         collectedProblems.add(
             problemReporter.create(
-                ProblemId.create("invalid-" + element.replace(".", "-"), "Invalid POM element: " + element, ElasticsearchProblems.POM_VALIDATION),
+                ProblemId.create("invalid-" + element.replace(".", "-"), "Invalid POM element: " + element, ElasticsearchBuildProblems.POM_VALIDATION),
                 spec -> spec.contextualLabel(element + " " + message + " in " + pomPath)
                     .details("POM element '" + element + "' " + message)
                     .severity(Severity.ERROR)

@@ -138,7 +138,7 @@ public class ToTDigest extends AbstractConvertFunction {
         return scratch;
     }
 
-    @ConvertEvaluator(extraName = "FromExponentialHistogram", warnExceptions = { IllegalArgumentException.class })
+    @ConvertEvaluator(extraName = "FromExponentialHistogram")
     static TDigestHolder fromExponentialHistogram(
         ExponentialHistogram in,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingTDigestHolder scratch

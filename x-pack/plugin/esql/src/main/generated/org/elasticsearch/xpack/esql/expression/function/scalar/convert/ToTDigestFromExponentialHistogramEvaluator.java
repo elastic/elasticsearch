@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
-import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
@@ -63,17 +62,13 @@ public final class ToTDigestFromExponentialHistogramEvaluator extends AbstractCo
         boolean positionOpened = false;
         boolean valuesAppended = false;
         for (int i = start; i < end; i++) {
-          try {
-            TDigestHolder value = evalValue(block, i, scratchPad);
-            if (positionOpened == false && valueCount > 1) {
-              builder.beginPositionEntry();
-              positionOpened = true;
-            }
-            builder.appendTDigest(value);
-            valuesAppended = true;
-          } catch (IllegalArgumentException  e) {
-            registerException(e);
+          TDigestHolder value = evalValue(block, i, scratchPad);
+          if (positionOpened == false && valueCount > 1) {
+            builder.beginPositionEntry();
+            positionOpened = true;
           }
+          builder.appendTDigest(value);
+          valuesAppended = true;
         }
         if (valuesAppended == false) {
           builder.appendNull();

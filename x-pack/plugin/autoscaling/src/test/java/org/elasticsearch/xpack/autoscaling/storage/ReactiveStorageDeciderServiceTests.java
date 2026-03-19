@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -666,10 +667,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
     public boolean canRemainWithNoNodes(ClusterState clusterState, ShardRouting shardRouting, AllocationDecider... deciders) {
         AllocationDeciders allocationDeciders = new AllocationDeciders(Arrays.asList(deciders));
-        AllocationService allocationService = mock(AllocationService.class);
-        when(allocationService.createAllocationSimulation(any(ClusterState.class))).thenAnswer(
-            iom -> new AllocationSimulation(iom.getArgument(0), allocationDeciders, mock(ShardsAllocator.class))
-        );
+        AllocationService allocationService = mockAllocationService(allocationDeciders);
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
             allocationService,
@@ -775,10 +773,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         AllocationDecider... deciders
     ) {
         AllocationDeciders allocationDeciders = new AllocationDeciders(Arrays.asList(deciders));
-        AllocationService allocationService = mock(AllocationService.class);
-        when(allocationService.createAllocationSimulation(any(ClusterState.class))).thenAnswer(
-            iom -> new AllocationSimulation(iom.getArgument(0), allocationDeciders, mock(ShardsAllocator.class))
-        );
+        AllocationService allocationService = mockAllocationService(allocationDeciders);
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
             allocationService,
@@ -816,5 +811,29 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         assert newRoutingTable.validate(newMetadata); // validates the routing table is coherent with the cluster state metadata
 
         return ClusterState.builder(oldState).routingTable(newRoutingTable).metadata(newMetadata).build();
+    }
+
+    public static AllocationService mockAllocationService(AllocationDeciders allocationDeciders) {
+        AllocationService allocationService = mock(AllocationService.class);
+        when(allocationService.createAllocationSimulation(any(ClusterState.class))).thenAnswer(
+            iom -> new MockAllocationSimulation(iom.getArgument(0), allocationDeciders)
+        );
+        return allocationService;
+    }
+
+    private static class MockAllocationSimulation extends AllocationSimulation {
+
+        public MockAllocationSimulation(ClusterState clusterState, AllocationDeciders allocationDeciders) {
+            super(
+                TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(allocationDeciders).build(),
+                allocationDeciders,
+                mock(ShardsAllocator.class)
+            );
+        }
+
+        @Override
+        public ShardAllocationDecision explainShardAllocation(RoutingAllocation.DebugMode debugMode, ShardRouting shardRouting) {
+            throw new UnsupportedOperationException("This won't work because we dont have a ShardsAllocator");
+        }
     }
 }

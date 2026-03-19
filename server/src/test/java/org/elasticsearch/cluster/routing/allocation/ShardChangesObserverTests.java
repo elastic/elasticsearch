@@ -159,8 +159,9 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         final var observer = new ShardChangesObserver(meterRegistry, nowMillis::get);
 
         final var reason = randomFrom(UnassignedInfo.Reason.values());
-        // ALLOCATION_FAILED needs failedAllocations > 0; NODE_RESTARTING needs a lastAllocatedNodeId
+        // ALLOCATION_FAILED needs failedAllocations > 0
         final int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? randomIntBetween(1, 5) : 0;
+        // NODE_RESTARTING needs lastAllocatedNodeId
         final String lastAllocatedNodeId = reason == UnassignedInfo.Reason.NODE_RESTARTING ? randomIdentifier() : null;
         final var unassignedInfo = new UnassignedInfo(
             reason,

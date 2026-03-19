@@ -91,9 +91,9 @@ public class DlmFrozenTransitionServiceTests extends ESTestCase {
 
     @After
     public void tearDown() throws Exception {
-        super.tearDown();
         clusterService.close();
         terminate(threadPool);
+        super.tearDown();
     }
 
     private DlmFrozenTransitionService createService() {

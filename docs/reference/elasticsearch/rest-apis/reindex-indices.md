@@ -807,7 +807,7 @@ There are two ways to use reindex to move data between projects in {{cps-init}}:
 
 ### Reindex across linked projects [reindex-cps-linked]
 
-When not using `source.remote`, the Reindex API pulls documents from the origin project and its linked projects:
+When not using [`source.remote`](#reindex-cps-remote), the Reindex API pulls documents from the origin project and its linked projects:
 
 * Only the origin project and projects [linked](docs-content://explore-analyze/cross-project-search/cross-project-search-link-projects.md) to it can be targeted.
 * The `source.index` field resolves across the origin project and all linked projects.
@@ -833,7 +833,7 @@ POST _reindex
 
 When using `source.remote.host`, you can reindex from another {{serverless-short}} project or an {{ech}} deployment over HTTP.
 
-The `source.index` field on the remote side also resolves across the remote project and all of its linked projects.
+When targeting a {{serverless-short}} project, the `source.index` field on the remote side also resolves across the remote project and all of its linked projects.
 For {{cps}} to work on the remote side, you must authenticate with an [{{ecloud}} API key](docs-content://deploy-manage/api-keys/elastic-cloud-api-keys.md). An [{{es}} API key](docs-content://deploy-manage/api-keys/elasticsearch-api-keys.md) only provides access to the remote project itself, not its linked projects.
 
 The following request reindexes documents from the `logs` index on a remote project. The source targets the `logs` index on the remote project and any of its linked projects, but not the `logs` index on the origin project (the project you sent the reindex request to):

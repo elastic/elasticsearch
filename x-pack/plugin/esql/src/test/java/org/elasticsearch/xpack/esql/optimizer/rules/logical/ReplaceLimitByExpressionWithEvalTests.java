@@ -10,7 +10,10 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
@@ -19,11 +22,14 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.junit.BeforeClass;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
@@ -350,6 +356,199 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
         var alias = as(eval.fields().getFirst(), Alias.class);
         assertThat(alias.name(), startsWith("$$limit_by$1$"));
         as(alias.child(), Mul.class);
+        as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * SORT | LIMIT BY with a plain attribute should not introduce any synthetic EVAL.
+     * The plan should be the same as the existing testTopNWithGroupingsPlan.
+     */
+    public void testTopNByAttributeDoesNotIntroduceEval() {
+        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
+        var query = """
+            FROM employees
+            | SORT salary DESC
+            | LIMIT 5 BY languages
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var topNBy = as(defaultLimit.child(), TopNBy.class);
+        var limit = as(topNBy.limitPerGroup(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        assertThat(topNBy.order().size(), equalTo(1));
+
+        assertThat(topNBy.groupings(), everyItem(instanceOf(FieldAttribute.class)));
+        assertThat(topNBy.groupings().size(), equalTo(1));
+        var groupKey = as(topNBy.groupings().getFirst(), FieldAttribute.class);
+        assertThat(groupKey.synthetic(), equalTo(false));
+        assertThat(groupKey.name(), equalTo("languages"));
+
+        var order = as(topNBy.order().getFirst(), Order.class);
+        var orderAttr = as(order.child(), FieldAttribute.class);
+        assertThat(orderAttr.name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+
+        var esRelation = as(topNBy.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("employees"));
+    }
+
+    /**
+     * SORT | LIMIT BY with an expression should extract the expression into a synthetic EVAL.
+     * {@code FROM employees | SORT salary | LIMIT 2 BY languages * 2}
+     * becomes
+     * {@code Project | TopNBy[groupings=[$$limit_by_ref]] | Eval[$$limit_by = languages * 2] | EsRelation}
+     */
+    public void testTopNByExpressionIntroducesEval() {
+        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
+        var query = """
+            FROM employees
+            | SORT salary DESC
+            | LIMIT 5 BY languages * 2
+            """;
+
+        var plan = optimizedPlan(query);
+
+        // Project hides the synthetic eval attribute
+        var project = as(plan, Project.class);
+
+        var defaultLimit = as(project.child(), Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        // TopNBy has the synthetic attribute as grouping
+        var topNBy = as(defaultLimit.child(), TopNBy.class);
+        var limit = as(topNBy.limitPerGroup(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        assertThat(topNBy.order().size(), equalTo(1));
+
+        assertThat(topNBy.groupings().size(), equalTo(1));
+        var groupKey = as(topNBy.groupings().getFirst(), ReferenceAttribute.class);
+
+        var order = as(topNBy.order().getFirst(), Order.class);
+        var orderAttr = as(order.child(), FieldAttribute.class);
+        assertThat(orderAttr.name(), equalTo("salary"));
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+
+        // Eval computes the expression
+        var eval = as(topNBy.child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.toAttribute().id(), equalTo(groupKey.id()));
+        assertThat(alias.child(), instanceOf(Mul.class));
+
+        as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * SORT | LIMIT BY with a mix of attributes and expressions should only extract the expression.
+     * {@code FROM employees | SORT salary | LIMIT 2 BY languages, salary * 2}
+     */
+    public void testTopNByMixedAttrAndExpression() {
+        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
+        var query = """
+            FROM employees
+            | SORT salary DESC
+            | LIMIT 5 BY languages, salary * 2
+            """;
+
+        var plan = optimizedPlan(query);
+
+        var project = as(plan, Project.class);
+        var defaultLimit = as(project.child(), Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var topnNBy = as(defaultLimit.child(), TopNBy.class);
+        assertThat(topnNBy.groupings().size(), equalTo(2));
+
+        // First grouping is a plain attribute -- no extraction needed
+        var firstGroupKey = as(topnNBy.groupings().get(0), FieldAttribute.class);
+        assertThat(firstGroupKey.name(), equalTo("languages"));
+
+        // Second grouping is a synthetic reference attribute
+        var secondGroupKey = as(topnNBy.groupings().get(1), ReferenceAttribute.class);
+
+        // Eval only computes the expression for the second grouping
+        var eval = as(topnNBy.child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.toAttribute().id(), equalTo(secondGroupKey.id()));
+        assertThat(alias.child(), instanceOf(Mul.class));
+
+        as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * All groupings are foldable -- the LIMIT BY degenerates to a plain LIMIT (TopN with no groupings).
+     */
+    public void testTopNByFoldableExprs() {
+        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
+        var query = """
+            FROM employees
+            | SORT salary DESC
+            | LIMIT 5 BY 20 * 5, 10
+            """;
+
+        var plan = optimizedPlan(query);
+
+        // No Project wrapper needed -- no synthetic eval was created
+        var topN = as(plan, TopN.class);
+        var limit = as(topN.limit(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        as(topN.child(), EsRelation.class);
+    }
+
+    /**
+     * Mixed foldable and attribute groupings: the foldable one (42) is pruned, the attribute (languages) remains.
+     */
+    public void testTopNByMixedAttrAndFoldable() {
+        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
+        var query = """
+            FROM employees
+            | SORT salary DESC
+            | LIMIT 5 BY languages, 42
+            """;
+
+        var plan = optimizedPlan(query);
+
+        // No Project wrapper -- the remaining grouping is a plain attribute, no eval needed
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var topNBy = as(defaultLimit.child(), TopNBy.class);
+        assertThat(topNBy.groupings().size(), equalTo(1));
+        var groupKey = as(topNBy.groupings().getFirst(), FieldAttribute.class);
+        assertThat(groupKey.name(), equalTo("languages"));
+        var limit = as(topNBy.limitPerGroup(), Literal.class);
+        assertThat(limit.value(), equalTo(5));
+        as(topNBy.child(), EsRelation.class);
+    }
+
+    /**
+     * Mixed foldable and expression groupings: the foldable (42) is pruned, the expression (languages * 2) is extracted to eval.
+     */
+    public void testTopNByMixedExprsAttr() {
+        assumeTrue("SORT | LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_TOPN_BY.isEnabled());
+        var query = """
+            FROM employees
+            | SORT salary DESC
+            | LIMIT 5 BY languages * 2, 42
+            """;
+
+        var plan = optimizedPlan(query);
+
+        // Project hides the synthetic eval attribute
+        var project = as(plan, Project.class);
+        var defaultLimit = as(project.child(), Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        var topNBy = as(defaultLimit.child(), TopNBy.class);
+        assertThat(topNBy.groupings().size(), equalTo(1));
+        var groupKey = as(topNBy.groupings().getFirst(), ReferenceAttribute.class);
+
+        // Eval computes the expression
+        var eval = as(topNBy.child(), Eval.class);
+        assertThat(eval.fields().size(), equalTo(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.toAttribute().id(), equalTo(groupKey.id()));
+
         as(eval.child(), EsRelation.class);
     }
 }

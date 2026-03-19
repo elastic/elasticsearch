@@ -35,7 +35,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
-import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
@@ -209,8 +208,6 @@ public class KnnIndexTester {
                 }
             }
         }
-        suffix.add(args.prefixScoringEnabled() ? "prefix_on" : "prefix_off");
-
         return INDEX_DIR + "/" + args.docVectors().getFirst().getFileName() + "-" + String.join("-", suffix) + ".index";
     }
 
@@ -421,32 +418,24 @@ public class KnnIndexTester {
                 exec = null;
             }
             try {
-                boolean previousPrefixScoring = ClusteringFloatVectorValues.setPrefixScoringEnabled(
-                    testConfiguration.prefixScoringEnabled()
-                );
-                logger.info("Prefix scoring enabled: {}", testConfiguration.prefixScoringEnabled());
                 Codec codec = createCodec(testConfiguration, exec);
                 Path indexPath = PathUtils.get(indexPathName);
                 MergePolicy mergePolicy = getMergePolicy(testConfiguration);
                 DirectoryTypeConfig dirConfig = getDirectoryTypeConfig(testConfiguration.directoryType());
-                try {
-                    runTestConfiguration(
-                        testConfiguration,
-                        indexPath,
-                        codec,
-                        mergePolicy,
-                        dirConfig,
-                        indexResults,
-                        results,
-                        parsedArgs,
-                        indexPathName,
-                        indexType
-                    );
-                    formattedResults.queryResults.addAll(List.of(results));
-                    formattedResults.indexResults.add(indexResults);
-                } finally {
-                    ClusteringFloatVectorValues.setPrefixScoringEnabled(previousPrefixScoring);
-                }
+                runTestConfiguration(
+                    testConfiguration,
+                    indexPath,
+                    codec,
+                    mergePolicy,
+                    dirConfig,
+                    indexResults,
+                    results,
+                    parsedArgs,
+                    indexPathName,
+                    indexType
+                );
+                formattedResults.queryResults.addAll(List.of(results));
+                formattedResults.indexResults.add(indexResults);
             } finally {
                 if (exec != null) {
                     exec.shutdown();

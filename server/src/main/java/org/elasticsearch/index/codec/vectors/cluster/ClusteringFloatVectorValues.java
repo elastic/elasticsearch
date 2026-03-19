@@ -30,28 +30,9 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
     // by the centroid itself. In many cases, it indicates a degenerated distribution, e.g the cluster is composed of the
     // many equal vectors.
     private static final float SOAR_MIN_DISTANCE = 1e-16f;
-    private static final String PREFIX_SCORING_ENABLED_PROPERTY = "es.kmeans.prefix_scoring.enabled";
-    private static final String PREFIX_MIN_DIMENSIONS_PROPERTY = "es.kmeans.prefix_min_dimensions";
-    private static final String PREFIX_LENGTH_RATIO_PROPERTY = "es.kmeans.prefix_length_ratio";
-    private static final String PREFIX_TOPK_ONLY_SIZE_PROPERTY = "es.kmeans.prefix_topk_only_size";
-    private static final int DEFAULT_PREFIX_MIN_DIMENSIONS = 128;
-    private static final float DEFAULT_PREFIX_LENGTH_RATIO = 0.5f;
-    private static final int DEFAULT_PREFIX_TOPK_ONLY_SIZE = 4;
-    private static final int PREFIX_MIN_DIMENSIONS = Integer.getInteger(PREFIX_MIN_DIMENSIONS_PROPERTY, DEFAULT_PREFIX_MIN_DIMENSIONS);
-    private static final float PREFIX_LENGTH_RATIO = validatedPrefixLengthRatio();
-    private static volatile boolean prefixScoringEnabled = Boolean.getBoolean(PREFIX_SCORING_ENABLED_PROPERTY);
-    private static final int PREFIX_TOPK_ONLY_SIZE = Integer.getInteger(PREFIX_TOPK_ONLY_SIZE_PROPERTY, DEFAULT_PREFIX_TOPK_ONLY_SIZE);
-    private static final int PREFIX_TOPK_MAX = PREFIX_TOPK_ONLY_SIZE;
-
-    /**
-     * Enables/disables prefix-based shortlist scoring for clustering assignment.
-     * Returns the previous value.
-     */
-    public static boolean setPrefixScoringEnabled(boolean enabled) {
-        boolean previous = prefixScoringEnabled;
-        prefixScoringEnabled = enabled;
-        return previous;
-    }
+    private static final int PREFIX_MIN_DIMENSIONS = 128;
+    private static final float PREFIX_LENGTH_RATIO = 0.5f;
+    private static final int PREFIX_TOPK_SIZE = 5;
 
     @Override
     public abstract ClusteringFloatVectorValues copy() throws IOException;
@@ -333,7 +314,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         float[] distances,
         PrefixScratch prefixScratch
     ) {
-        if (prefixScoringEnabled && prefixScratch != null) {
+        if (prefixScratch != null) {
             return computeBestCentroidFromNeighboursPrefix(vector, centroids, distances, centroidIdx, neighborhood, prefixScratch);
         }
         final int limit = neighborhood.neighbors().length - 3;
@@ -428,7 +409,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
             updateTopK(topPrefixDistances, topPrefixIds, prefixDistance, offset);
         }
 
-        final int topLimit = Math.min(PREFIX_TOPK_ONLY_SIZE, neighbors.length);
+        final int topLimit = Math.min(PREFIX_TOPK_SIZE, neighbors.length);
         int j = 0;
         for (; j + 3 < topLimit; j += 4) {
             ESVectorUtil.squareDistanceBulk(
@@ -466,10 +447,6 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
     }
 
     private static int computeBestCentroidPrefix(float[] vector, float[][] centroids, float[] distances, PrefixScratch scratch) {
-        return computeBestCentroidPrefixTopK(vector, centroids, distances, scratch);
-    }
-
-    private static int computeBestCentroidPrefixTopK(float[] vector, float[][] centroids, float[] distances, PrefixScratch scratch) {
         final int dims = vector.length;
         final int prefixLength = prefixLength(dims);
         final int suffixLength = dims - prefixLength;
@@ -502,7 +479,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
 
         int bestCentroid = -1;
         float bestDistance = Float.MAX_VALUE;
-        int topLimit = Math.min(PREFIX_TOPK_ONLY_SIZE, centroids.length);
+        int topLimit = Math.min(PREFIX_TOPK_SIZE, centroids.length);
         int j = 0;
         for (; j + 3 < topLimit; j += 4) {
             ESVectorUtil.squareDistanceBulk(
@@ -539,20 +516,6 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         return bestCentroid == -1 ? 0 : bestCentroid;
     }
 
-    private static float validatedPrefixLengthRatio() {
-        String value = System.getProperty(PREFIX_LENGTH_RATIO_PROPERTY);
-        if (value == null) {
-            return DEFAULT_PREFIX_LENGTH_RATIO;
-        }
-        float parsed = Float.parseFloat(value);
-        if (Float.isFinite(parsed) == false || parsed <= 0f || parsed >= 1f) {
-            throw new IllegalArgumentException(
-                "Invalid " + PREFIX_LENGTH_RATIO_PROPERTY + " [" + value + "], expected a finite float in the range (0, 1)"
-            );
-        }
-        return parsed;
-    }
-
     private static int prefixLength(int dims) {
         int computed = Math.round(dims * PREFIX_LENGTH_RATIO);
         return Math.max(1, Math.min(dims - 1, computed));
@@ -579,7 +542,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
     }
 
     private static PrefixScratch prefixScratch(int candidateCount) {
-        if (prefixScoringEnabled == false || candidateCount < PREFIX_TOPK_MAX) {
+        if (candidateCount < PREFIX_TOPK_SIZE) {
             return null;
         }
         return new PrefixScratch();
@@ -590,8 +553,8 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         final int[] topPrefixIds;
 
         PrefixScratch() {
-            this.topPrefixDistances = new float[PREFIX_TOPK_MAX];
-            this.topPrefixIds = new int[PREFIX_TOPK_MAX];
+            this.topPrefixDistances = new float[PREFIX_TOPK_SIZE];
+            this.topPrefixIds = new int[PREFIX_TOPK_SIZE];
         }
     }
 

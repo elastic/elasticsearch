@@ -112,17 +112,20 @@ public class RoutingAllocation {
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime
     ) {
-        this(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false, ShardChangesObserver.NOOP);
+        this(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false, RoutingChangesObserver.NOOP);
     }
 
     /// Creates a new [RoutingAllocation]
     ///
     /// @param deciders [AllocationDeciders] to used to make decisions for routing allocations
-    /// @param routingNodes Routing nodes in the current cluster or `null` if using those in the given cluster state
+    /// @param routingNodes routing nodes in the current cluster or `null` if using those in the given cluster state
     /// @param clusterState cluster state before rerouting
+    /// @param clusterInfo information about node disk usage and shard disk usage
+    /// @param shardSizeInfo information about snapshot shard sizes
     /// @param currentNanoTime the nano time to use for all delay allocation calculation (typically `System#nanoTime()`)
     /// @param isSimulating `true` if "transient" deciders should be ignored because we are simulating the final allocation
     /// @param shardChangesObserver observer that records shard state transition timing metrics
+    ///
     public RoutingAllocation(
         AllocationDeciders deciders,
         @Nullable RoutingNodes routingNodes,
@@ -131,7 +134,7 @@ public class RoutingAllocation {
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime,
         boolean isSimulating,
-        ShardChangesObserver shardChangesObserver
+        RoutingChangesObserver shardChangesObserver
     ) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
@@ -467,7 +470,7 @@ public class RoutingAllocation {
             shardSizeInfo,
             currentNanoTime,
             true,
-            ShardChangesObserver.NOOP
+            RoutingChangesObserver.NOOP
         );
     }
 

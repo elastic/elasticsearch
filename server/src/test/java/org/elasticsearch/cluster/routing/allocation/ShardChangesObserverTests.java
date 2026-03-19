@@ -216,9 +216,9 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         assertThat(initializedMetrics, hasSize(1));
         final var initializedMetricValue = initializedMetrics.getFirst();
         assertThat(initializedMetricValue.getLong(), equalTo(Math.max(0, initializedTimeMillis - unassignedAtMillis)));
-        assertThat(initializedMetricValue.attributes().get("primary"), equalTo(primary));
-        assertThat(initializedMetricValue.attributes().get("reason"), equalTo(reason.name()));
-        assertThat(initializedMetricValue.attributes().get("delayed"), equalTo(delayed));
+        assertThat(initializedMetricValue.attributes().get("es_shard_primary"), equalTo(primary));
+        assertThat(initializedMetricValue.attributes().get("es_shard_reason"), equalTo(reason.name()));
+        assertThat(initializedMetricValue.attributes().get("es_shard_delayed"), equalTo(delayed));
 
         final List<Measurement> startedMetrics = recorder.getMeasurements(
             InstrumentType.LONG_HISTOGRAM,
@@ -227,8 +227,8 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         assertThat(startedMetrics, hasSize(1));
         final var startedMetricValue = startedMetrics.getFirst();
         assertThat(startedMetricValue.getLong(), equalTo(Math.max(0, startedTimeMillis - unassignedAtMillis)));
-        assertThat(startedMetricValue.attributes().get("primary"), equalTo(primary));
-        assertThat(startedMetricValue.attributes().get("reason"), equalTo(reason.name()));
-        assertThat(startedMetricValue.attributes().get("delayed"), equalTo(delayed));
+        assertThat(startedMetricValue.attributes().get("es_shard_primary"), equalTo(primary));
+        assertThat(startedMetricValue.attributes().get("es_shard_reason"), equalTo(reason.name()));
+        assertThat(startedMetricValue.attributes().get("es_shard_delayed"), equalTo(delayed));
     }
 }

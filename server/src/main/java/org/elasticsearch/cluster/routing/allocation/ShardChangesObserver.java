@@ -23,7 +23,7 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 /// Observes shard state transitions during allocation rounds, logging them and emitting APM timing metrics.
-public class ShardChangesObserver implements RoutingChangesObserver {
+class ShardChangesObserver implements RoutingChangesObserver {
 
     public static final String UNASSIGNED_TO_INITIALIZING_METRIC = "es.allocator.shards.unassigned_to_initializing.duration.histogram";
     public static final String UNASSIGNED_TO_STARTED_METRIC = "es.allocator.shards.unassigned_to_started.duration.histogram";
@@ -43,10 +43,13 @@ public class ShardChangesObserver implements RoutingChangesObserver {
 
     private static Map<UnassignedInfo.Reason, Map<String, Object>> buildAttributesByReason(boolean primary, boolean delayed) {
         return Arrays.stream(UnassignedInfo.Reason.values())
-            .collect(Collectors.toUnmodifiableMap(r -> r, r -> Map.of("primary", primary, "reason", r.name(), "delayed", delayed)));
+            .collect(
+                Collectors.toUnmodifiableMap(
+                    r -> r,
+                    r -> Map.of("es_shard_primary", primary, "es_shard_reason", r.name(), "es_shard_delayed", delayed)
+                )
+            );
     }
-
-    public static final ShardChangesObserver NOOP = new ShardChangesObserver(MeterRegistry.NOOP);
 
     private static final Logger logger = LogManager.getLogger(ShardChangesObserver.class);
 
@@ -54,7 +57,7 @@ public class ShardChangesObserver implements RoutingChangesObserver {
     private final LongHistogram unassignedToStartedDuration;
     private final LongSupplier currentTimeMillisSupplier;
 
-    public ShardChangesObserver(MeterRegistry meterRegistry) {
+    ShardChangesObserver(MeterRegistry meterRegistry) {
         this(meterRegistry, System::currentTimeMillis);
     }
 

@@ -116,7 +116,7 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
             null,
             System.nanoTime(),
             false, // Turn off isSimulating
-            ShardChangesObserver.NOOP
+            RoutingChangesObserver.NOOP
         );
 
         Settings settings = Settings.builder()
@@ -191,7 +191,7 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
             null,
             System.nanoTime(),
             true, // Turn on isSimulating
-            ShardChangesObserver.NOOP
+            RoutingChangesObserver.NOOP
         );
 
         Settings settings = Settings.builder()

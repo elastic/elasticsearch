@@ -23,7 +23,9 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -34,6 +36,9 @@ import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceField;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
@@ -218,4 +223,26 @@ public class SemanticTextChunkUtils {
         return queries;
     }
 
+    public static VectorData getTextEmbeddingVectorFromChunk(
+        SemanticTextField.Chunk chunk,
+        XContentType contentType,
+        DenseVectorFieldMapper.ElementType elementType
+    ) throws IOException {
+        XContentParser parser = XContentHelper.createParserNotCompressed(
+            XContentParserConfiguration.EMPTY,
+            chunk.rawEmbeddings(),
+            contentType
+        );
+
+        // forward to the start token
+        parser.nextToken();
+        VectorData parsedVector = VectorData.parseXContent(parser);
+        if (parsedVector.isFloat()
+            && (elementType == DenseVectorFieldMapper.ElementType.BIT || elementType == DenseVectorFieldMapper.ElementType.BYTE)) {
+            // the parsing created float elements, we need this to be bytes
+            parsedVector = new VectorData(parsedVector.asByteVector());
+        }
+
+        return parsedVector;
+    }
 }

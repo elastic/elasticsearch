@@ -167,3 +167,16 @@ FROM web_logs
 n:null | ua.name:keyword | ua.version:keyword | ua.os.name:keyword | ua.os.version:keyword | ua.os.full:keyword | ua.device.name:keyword
   null |            null |               null |               null |                  null |               null |                   null
 ;
+
+
+customRegexFile
+required_capability: user_agent_command
+
+ROW input = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.149 Safari/537.36"
+| USER_AGENT ua = input WITH { "regex_file": "custom-regexes.yml" }
+| KEEP ua.name, ua.version, ua.os.name
+;
+
+ua.name:keyword  | ua.version:keyword | ua.os.name:keyword
+Custom Chrome    | 33.0.1750.149      | Mac OS X
+;

@@ -27,7 +27,7 @@ USER_AGENT prefix = expression [WITH { option = value [, ...] }]
 **WITH options**
 
 `regex_file`
-:   The name of the parser configuration to use. Default: `_default_`, which uses the built-in regexes from [uap-core](https://github.com/ua-parser/uap-core). To use a custom regex file, place a `.yml` file in the `config/ingest-user-agent` directory on each node before starting Elasticsearch. The file must be present at node startup; changes or new files added while the node is running have no effect. Pass the base filename (without extension) as the value. Custom regex files are typically variants of the default, either a more recent uap-core release or a customized version.
+:   The name of the parser configuration to use. Default: `_default_`, which uses the built-in regexes from [uap-core](https://github.com/ua-parser/uap-core). To use a custom regex file, place a `.yml` file in the `config/ingest-user-agent` directory on each node before starting Elasticsearch. The file must be present at node startup; changes or new files added while the node is running have no effect. Pass the filename (including the `.yml` extension) as the value. Custom regex files are typically variants of the default, either a more recent uap-core release or a customized version.
 
 `extract_device_type`
 :   When `true`, extracts device type (e.g., Desktop, Phone, Tablet) on a best-effort basis and includes `prefix.device.type` in the output. Default: `false`.
@@ -41,7 +41,7 @@ To use a custom regex file instead of the built-in uap-core patterns:
 
 1. Place a `.yml` file in the `config/ingest-user-agent` directory on each node.
 2. Create the directory and file before starting Elasticsearch.
-3. Pass the base filename (without `.yml`) as the `regex_file` option.
+3. Pass the filename (including the `.yml` extension) as the `regex_file` option.
 
 Files must be present at node startup. Changes to existing files or new files added while the node is running have no effect until the node is restarted.
 
@@ -95,11 +95,11 @@ ROW ua_str = "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit
 | KEEP ua.*
 ```
 
-To use a custom regex file (e.g. `my-regexes.yml` in `config/ingest-user-agent`), pass the base filename without the extension:
+To use a custom regex file (e.g. `my-regexes.yml` in `config/ingest-user-agent`), pass the filename including the extension:
 
 ```esql
 FROM web_logs
-| USER_AGENT ua = user_agent WITH { "regex_file": "my-regexes" }
+| USER_AGENT ua = user_agent WITH { "regex_file": "my-regexes.yml" }
 | KEEP ua.name, ua.version
 ```
 

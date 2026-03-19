@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.multi_node;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 
 public class Clusters {
     public static ElasticsearchCluster testCluster(LocalClusterConfigProvider configProvider) {
@@ -18,6 +19,7 @@ public class Clusters {
             .nodes(2)
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
+            .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
             .apply(() -> configProvider)
             .build();
     }

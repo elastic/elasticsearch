@@ -55,6 +55,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.useragent.UserAgentPlugin;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -971,6 +972,13 @@ public class CsvTests extends ESTestCase {
         ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), executor);
         ExchangeSinkHandler exchangeSink = new ExchangeSinkHandler(blockFactory, between(1, 64), threadPool::relativeTimeInMillis);
 
+        UserAgentParserRegistry userAgentRegistry;
+        try {
+            userAgentRegistry = createUserAgentRegistry();
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to create UserAgentParserRegistry", e);
+        }
+
         LocalExecutionPlanner executionPlanner = new LocalExecutionPlanner(
             getTestName(),
             "",
@@ -984,10 +992,7 @@ public class CsvTests extends ESTestCase {
             mock(EnrichLookupService.class),
             mock(LookupFromIndexService.class),
             mock(InferenceService.class),
-            UserAgentPlugin.createRegistry(
-                TestEnvironment.newEnvironment(Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build()),
-                Settings.EMPTY
-            ),
+            userAgentRegistry,
             physicalOperationProviders,
             operatorFactoryRegistry
         );
@@ -1171,6 +1176,24 @@ public class CsvTests extends ESTestCase {
             return "file://" + uri.substring(5);
         }
         return uri;
+    }
+
+    /**
+     * Creates a {@link org.elasticsearch.useragent.api.UserAgentParserRegistry} with a config directory
+     * containing the custom-regexes.yml test resource, so csv-spec tests can exercise the {@code regex_file} option.
+     */
+    private static org.elasticsearch.useragent.api.UserAgentParserRegistry createUserAgentRegistry() throws IOException {
+        Path homeDir = createTempDir();
+        Path userAgentConfigDir = homeDir.resolve("config").resolve("user-agent");
+        Files.createDirectories(userAgentConfigDir);
+        try (InputStream is = CsvTests.class.getResourceAsStream("/custom-regexes.yml")) {
+            assert is != null : "custom-regexes.yml not found on classpath";
+            Files.copy(is, userAgentConfigDir.resolve("custom-regexes.yml"));
+        }
+        return UserAgentPlugin.createRegistry(
+            TestEnvironment.newEnvironment(Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), homeDir).build()),
+            Settings.EMPTY
+        );
     }
 
     public static String substituteTemplates(String query, Function<String, String> templateResolver) {

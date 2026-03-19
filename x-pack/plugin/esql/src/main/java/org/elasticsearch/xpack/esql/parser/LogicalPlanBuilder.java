@@ -570,6 +570,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             }
 
+            // The ingest processor supports an "original" property that includes the raw user-agent string in the output.
+            // In ES|QL this is unnecessary since the input expression is already available as a column. Silently ignore it
+            // for compatibility with ingest processor configurations.
             optionsMap.remove("original");
 
             if (optionsMap.isEmpty() == false) {

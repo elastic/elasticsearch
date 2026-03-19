@@ -84,7 +84,10 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -154,8 +157,11 @@ public class CsvIT extends ESTestCase {
         return SpecReader.readScriptSpec(urls, specParser());
     }
 
+    private static java.nio.file.Path nodeConfigDir;
+
     @BeforeClass
     public static void setupCluster() throws Exception {
+        nodeConfigDir = createCustomRegexConfigDir();
         long start = System.currentTimeMillis();
         logger.info("Creating test cluster");
         cluster = new InternalTestCluster(
@@ -177,7 +183,7 @@ public class CsvIT extends ESTestCase {
 
                 @Override
                 public java.nio.file.Path nodeConfigPath(int nodeOrdinal) {
-                    return null;
+                    return nodeConfigDir;
                 }
             },
             0,
@@ -530,6 +536,21 @@ public class CsvIT extends ESTestCase {
                 throw new RuntimeException("Resource loading failure", failure);
             }
         }
+    }
+
+    /**
+     * Creates a config directory containing the custom-regexes.yml test resource under user-agent/,
+     * so csv-spec tests can exercise the USER_AGENT command's {@code regex_file} option.
+     */
+    private static Path createCustomRegexConfigDir() throws IOException {
+        Path configDir = createTempDir();
+        Path userAgentDir = configDir.resolve("user-agent");
+        Files.createDirectories(userAgentDir);
+        try (InputStream is = CsvIT.class.getResourceAsStream("/custom-regexes.yml")) {
+            assert is != null : "custom-regexes.yml not found on classpath";
+            Files.copy(is, userAgentDir.resolve("custom-regexes.yml"));
+        }
+        return configDir;
     }
 
     private static class ResponseListener extends PlainActionFuture<EsqlQueryResponse> {

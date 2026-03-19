@@ -366,6 +366,9 @@ tests:
 - class: org.elasticsearch.index.mapper.BlockSourceReaderTests
   method: testMissing
   issue: https://github.com/elastic/elasticsearch/issues/144531
+- class: org.elasticsearch.xpack.downsample.DownsampleRateIT
+  method: testTimeSeriesQuerying_RandomDocuments
+  issue: https://github.com/elastic/elasticsearch/issues/144532
 
 # Examples:
 #

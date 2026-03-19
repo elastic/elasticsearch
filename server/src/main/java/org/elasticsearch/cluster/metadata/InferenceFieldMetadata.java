@@ -42,9 +42,7 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
     private static final String EMBEDDING_TYPE_FIELD = "embedding_type";
 
     private static final TransportVersion SEMANTIC_TEXT_CHUNKING_CONFIG = TransportVersion.fromName("semantic_text_chunking_config");
-    public static final TransportVersion INFERENCE_FIELD_EMBEDDING_TYPE = TransportVersion.fromName(
-        "inference_field_embedding_type"
-    );
+    public static final TransportVersion INFERENCE_FIELD_EMBEDDING_TYPE = TransportVersion.fromName("inference_field_embedding_type");
 
     /**
      * Embedding type that determines which inference path the coordinator uses for calculating embeddings

@@ -876,9 +876,7 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     public void testInferenceFieldMetadataBwcSerialization() throws IOException {
-        final TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(
-            InferenceFieldMetadata.INFERENCE_FIELD_EMBEDDING_TYPE
-        );
+        final TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(InferenceFieldMetadata.INFERENCE_FIELD_EMBEDDING_TYPE);
 
         // Build an IndexMetadata with both TEXT_EMBEDDING and EMBEDDING inference fields
         String textEmbeddingField = "text_field";
@@ -913,14 +911,15 @@ public class IndexMetadataTests extends ESTestCase {
         final IndexMetadata deserialized = roundTripWithVersion(metadata, oldVersion);
 
         assertThat(deserialized.getInferenceFields(), hasKey(textEmbeddingField));
-        assertThat(deserialized.getInferenceFields().get(textEmbeddingField).getEmbeddingType(), equalTo(InferenceFieldMetadata.EmbeddingType.TEXT_EMBEDDING));
+        assertThat(
+            deserialized.getInferenceFields().get(textEmbeddingField).getEmbeddingType(),
+            equalTo(InferenceFieldMetadata.EmbeddingType.TEXT_EMBEDDING)
+        );
         assertThat(deserialized.getInferenceFields().containsKey(embeddingField), is(false));
     }
 
     public void testInferenceFieldMetadataBwcDiffSerializationFiltersEmbeddingTypeOnOldNode() throws IOException {
-        final TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(
-            InferenceFieldMetadata.INFERENCE_FIELD_EMBEDDING_TYPE
-        );
+        final TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(InferenceFieldMetadata.INFERENCE_FIELD_EMBEDDING_TYPE);
 
         // before: only TEXT_EMBEDDING fields
         String textEmbeddingField = "text_field";
@@ -977,7 +976,10 @@ public class IndexMetadataTests extends ESTestCase {
         IndexMetadata applied = deserializedDiff.apply(before);
         // EMBEDDING field should be filtered out; TEXT_EMBEDDING field should survive
         assertThat(applied.getInferenceFields(), hasKey(textEmbeddingField));
-        assertThat(applied.getInferenceFields().get(textEmbeddingField).getEmbeddingType(), equalTo(InferenceFieldMetadata.EmbeddingType.TEXT_EMBEDDING));
+        assertThat(
+            applied.getInferenceFields().get(textEmbeddingField).getEmbeddingType(),
+            equalTo(InferenceFieldMetadata.EmbeddingType.TEXT_EMBEDDING)
+        );
         assertThat(applied.getInferenceFields().containsKey(embeddingField), is(false));
 
         // Verify that at current version both fields are present
@@ -994,7 +996,10 @@ public class IndexMetadataTests extends ESTestCase {
         IndexMetadata appliedCurrent = deserializedDiffCurrent.apply(before);
         assertThat(appliedCurrent.getInferenceFields(), hasKey(textEmbeddingField));
         assertThat(appliedCurrent.getInferenceFields(), hasKey(embeddingField));
-        assertThat(appliedCurrent.getInferenceFields().get(embeddingField).getEmbeddingType(), equalTo(InferenceFieldMetadata.EmbeddingType.EMBEDDING));
+        assertThat(
+            appliedCurrent.getInferenceFields().get(embeddingField).getEmbeddingType(),
+            equalTo(InferenceFieldMetadata.EmbeddingType.EMBEDDING)
+        );
     }
 
     private IndexMetadata roundTripWithVersion(IndexMetadata indexMetadata, TransportVersion version) throws IOException {

@@ -1733,7 +1733,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     : ImmutableOpenMap.<String, MappingMetadata>builder(1).fPut(MapperService.SINGLE_MAPPING_NAME, after.mapping).build(),
                 DiffableUtils.getStringKeySerializer()
             );
-            inferenceFields = new TaskTypeFilteredInferenceFieldsDiff(before.inferenceFields, after.inferenceFields);
+            inferenceFields = new InferenceFieldEmbeddingTypeFilterDiff(before.inferenceFields, after.inferenceFields);
             aliases = DiffableUtils.diff(before.aliases, after.aliases, DiffableUtils.getStringKeySerializer());
             customData = DiffableUtils.diff(before.customData, after.customData, DiffableUtils.getStringKeySerializer());
             inSyncAllocationIds = DiffableUtils.diff(
@@ -1769,14 +1769,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
          * that pre-date {@link InferenceFieldMetadata#INFERENCE_FIELD_EMBEDDING_TYPE}. Old coordinators do not know about
          * the EMBEDDING routing path and would incorrectly call chunkedInfer() for those fields.
          */
-        private static final class TaskTypeFilteredInferenceFieldsDiff
-            implements
-                Diff<ImmutableOpenMap<String, InferenceFieldMetadata>> {
+        private static final class InferenceFieldEmbeddingTypeFilterDiff implements Diff<ImmutableOpenMap<String, InferenceFieldMetadata>> {
 
             private final ImmutableOpenMap<String, InferenceFieldMetadata> before;
             private final ImmutableOpenMap<String, InferenceFieldMetadata> after;
 
-            TaskTypeFilteredInferenceFieldsDiff(
+            InferenceFieldEmbeddingTypeFilterDiff(
                 ImmutableOpenMap<String, InferenceFieldMetadata> before,
                 ImmutableOpenMap<String, InferenceFieldMetadata> after
             ) {
@@ -1789,11 +1787,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 if (out.getTransportVersion().supports(InferenceFieldMetadata.INFERENCE_FIELD_EMBEDDING_TYPE)) {
                     DiffableUtils.diff(before, after, DiffableUtils.getStringKeySerializer()).writeTo(out);
                 } else {
-                    DiffableUtils.diff(
-                        filterEmbeddingType(before),
-                        filterEmbeddingType(after),
-                        DiffableUtils.getStringKeySerializer()
-                    ).writeTo(out);
+                    DiffableUtils.diff(filterEmbeddingType(before), filterEmbeddingType(after), DiffableUtils.getStringKeySerializer())
+                        .writeTo(out);
                 }
             }
 

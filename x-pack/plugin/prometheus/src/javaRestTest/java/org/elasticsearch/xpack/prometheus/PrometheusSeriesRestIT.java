@@ -104,7 +104,7 @@ public class PrometheusSeriesRestIT extends ESRestTestCase {
     public void testGetResponseIsJsonWithSuccessEnvelope() throws Exception {
         writeMetric("test_gauge", Map.of());
 
-        Response response = querySeries("/_prometheus/generic.prometheus/default/api/v1/series", "test_gauge");
+        Response response = querySeries("/_prometheus/api/v1/series", "test_gauge");
 
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(response.getEntity().getContentType().getValue(), containsString("application/json"));
@@ -140,16 +140,6 @@ public class PrometheusSeriesRestIT extends ESRestTestCase {
         assertThat(data, hasSize(1));
         assertThat(data.getFirst().get("__name__"), equalTo("matched_metric"));
         assertThat(data.getFirst().get("job"), equalTo("target_job"));
-    }
-
-    public void testGetWithIndexRoute() throws Exception {
-        writeMetric("test_gauge", Map.of());
-
-        // Use the /{dataset}/{namespace}/api/v1/series route
-        Response response = querySeries("/_prometheus/generic.prometheus/default/api/v1/series", "test_gauge");
-
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        assertThat(entityAsMap(response).get("status"), equalTo("success"));
     }
 
     // -------------------------------------------------------------------------

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.prometheus.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
@@ -32,18 +31,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * REST handler for the Prometheus {@code GET /api/v1/series} endpoint.
  * Returns the list of time series matching one or more label selectors.
- *
- * <h2>Index targeting</h2>
- * <p>The optional {@code {dataset}} and {@code {namespace}} path parameters are combined with the
- * fixed type {@code metrics} to construct the index pattern {@code metrics-{dataset}-{namespace}}.
- * Both default to {@code *}, so the no-param route reads from {@code metrics-*-*}.
- *
- * <p>Unlike {@link PrometheusRemoteWriteRestAction}, {@code .prometheus} is <em>not</em> appended
- * to the dataset — callers supply the full dataset component (e.g. {@code generic.prometheus}) and
- * can target any metrics data stream, not only prometheus ones (e.g. {@code generic.otel}).
- *
- * <h2>Supported methods</h2>
- * <p>Only GET is supported. POST with {@code application/x-www-form-urlencoded} bodies is rejected
+ * Only GET is supported. POST with {@code application/x-www-form-urlencoded} bodies is rejected
  * at the HTTP layer as a CSRF safeguard before this handler is ever reached — see
  * {@code RestController#isContentTypeDisallowed}.
  */
@@ -57,7 +45,6 @@ public class PrometheusSeriesRestAction extends BaseRestHandler {
 
     private static final int DEFAULT_LIMIT = 10_000;
     private static final long DEFAULT_LOOKBACK_HOURS = 24;
-    private static final String INDEX_PREFIX = "metrics-";
 
     @Override
     public String getName() {
@@ -73,14 +60,7 @@ public class PrometheusSeriesRestAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        // PathTrie requires all routes sharing the same wildcard position to use the same name.
-        // PrometheusRemoteWriteRestAction already registers /_prometheus/{dataset}/{namespace}/api/v1/write,
-        // so we must reuse {dataset} and {namespace} here.
-        return List.of(
-            new Route(GET, "/_prometheus/api/v1/series"),
-            new Route(GET, "/_prometheus/{dataset}/api/v1/series"),
-            new Route(GET, "/_prometheus/{dataset}/{namespace}/api/v1/series")
-        );
+        return List.of(new Route(GET, "/_prometheus/api/v1/series"));
     }
 
     @Override
@@ -99,16 +79,7 @@ public class PrometheusSeriesRestAction extends BaseRestHandler {
         // Optional limit; default to DEFAULT_LIMIT to avoid unbounded ESQL scans
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
 
-        // Construct the index pattern from dataset and namespace (type is always "metrics").
-        // Unlike the write endpoint, ".prometheus" is NOT appended to the dataset — callers supply
-        // the full dataset component (e.g. "generic.prometheus") and can target any metrics data
-        // stream, not only prometheus ones. Both default to "*" so the no-param route reads from
-        // "metrics-*-*".
-        String dataset = request.param(DataStream.DATASET, "*");
-        String namespace = request.param(DataStream.NAMESPACE, "*");
-        String index = INDEX_PREFIX + dataset + "-" + namespace;
-
-        LogicalPlan plan = PrometheusSeriesPlanBuilder.buildPlan(index, matchSelectors, start, end, limit);
+        LogicalPlan plan = PrometheusSeriesPlanBuilder.buildPlan("metrics-*-*", matchSelectors, start, end, limit);
         EsqlStatement statement = new EsqlStatement(plan, List.of());
         EsqlQueryRequest esqlRequest = EsqlQueryRequest.syncEsqlQueryRequestWithPlan(statement);
 

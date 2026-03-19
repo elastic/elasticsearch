@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -48,6 +49,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.core.analytics.mapper.TDigestParser;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -86,6 +88,7 @@ import java.util.stream.Stream;
 import static org.apache.lucene.tests.util.LuceneTestCase.assumeFalse;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 import static org.elasticsearch.xpack.esql.SpecReader.shouldSkipLine;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToUnsignedLong;
@@ -95,6 +98,8 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToAggregateMetricDoubleLiteral;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.in;
 
 public final class CsvTestUtils {
     private static final Logger LOGGER = LogManager.getLogger(CsvTestUtils.class);
@@ -270,6 +275,33 @@ public final class CsvTestUtils {
             return false;
         }
         return true;
+    }
+
+    public static void checkTestCapabilities(
+        EsqlCapabilities allCapabilities,
+        EsqlCapabilities enabledCapabilities,
+        List<String> requiredCapabilities
+    ) {
+        if (Build.current().isSnapshot()) {
+            assertThat(
+                "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",
+                requiredCapabilities,
+                everyItem(in(allCapabilities.capabilities()))
+            );
+            assumeTrueLogging(
+                "Capability not supported in this build",
+                enabledCapabilities.capabilities().containsAll(requiredCapabilities)
+            );
+        } else {
+            for (EsqlCapabilities.Cap c : EsqlCapabilities.Cap.values()) {
+                if (false == c.isEnabled()) {
+                    assumeFalseLogging(
+                        c.capabilityName() + " is not supported in non-snapshot releases",
+                        requiredCapabilities.contains(c.capabilityName())
+                    );
+                }
+            }
+        }
     }
 
     public static void assumeTrueLogging(String message, boolean condition) {

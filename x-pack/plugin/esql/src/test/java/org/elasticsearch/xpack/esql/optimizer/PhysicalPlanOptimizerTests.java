@@ -138,6 +138,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
@@ -1537,6 +1538,236 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.limit().fold(FoldContext.small()), is(10));
         // extra ints for doc id and emp_no_10
         assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES * 2));
+    }
+
+    /**
+     * {@code
+     * LimitExec[1000[INTEGER]]
+     * \_LimitByExec[10[INTEGER],[emp_no{f}#]]
+     *   \_ExchangeExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..],false]
+     *     \_ProjectExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..]]
+     *       \_FieldExtractExec[_meta_field{f}#, first_name{f}#, gender{f}#, ..]<[],[]>
+     *         \_LimitByExec[10[INTEGER],[emp_no{f}#]]
+     *           \_FieldExtractExec[emp_no{f}#]<[],[]>
+     *             \_EsQueryExec[test], indexMode[standard], limit[], sort[]
+     * }
+     */
+    public void testLimitByNotPushedToSource() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | limit 10 by emp_no
+            """));
+
+        var leaves = optimized.collectLeaves();
+        assertEquals(1, leaves.size());
+        var source = as(leaves.get(0), EsQueryExec.class);
+        assertThat(source.limit(), nullValue());
+    }
+
+    /**
+     * {@code
+     * LimitExec[1000[INTEGER]]
+     * \_LimitByExec[5[INTEGER],[first_name{f}#, last_name{f}#]]
+     *   \_ExchangeExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..],false]
+     *     \_ProjectExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..]]
+     *       \_FieldExtractExec[_meta_field{f}#, emp_no{f}#, gender{f}#, ..]<[],[]>
+     *         \_LimitByExec[5[INTEGER],[first_name{f}#, last_name{f}#]]
+     *           \_FieldExtractExec[first_name{f}#, last_name{f}#]<[],[]>
+     *             \_EsQueryExec[test], indexMode[standard], limit[], sort[]
+     * }
+     */
+    public void testLimitByMultipleKeys() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | limit 5 by first_name, last_name
+            """));
+
+        var defaultLimit = as(optimized, LimitExec.class);
+
+        var limitBy = as(defaultLimit.child(), LimitByExec.class);
+        assertThat(limitBy.limitPerGroup().fold(FoldContext.small()), is(5));
+        assertThat(limitBy.groupings(), hasSize(2));
+        assertThat(names(limitBy.groupings()), contains("first_name", "last_name"));
+
+        var exchange = asRemoteExchange(limitBy.child());
+
+        var sources = exchange.collectLeaves().stream().filter(EsQueryExec.class::isInstance).toList();
+        assertThat(sources, hasSize(1));
+        assertThat(((EsQueryExec) sources.get(0)).limit(), is(nullValue()));
+    }
+
+    /**
+     * {@code
+     * ProjectExec[[avg_salary{r}#, first_name{f}#]]
+     * \_EvalExec[[$$SUM$avg_salary$0{r$}# / $$COUNT$avg_salary$1{r$}# AS avg_salary#]]
+     *   \_LimitExec[1000[INTEGER]]
+     *     \_LimitByExec[5[INTEGER],[first_name{f}#]]
+     *       \_AggregateExec[[first_name{f}#],[SUM(..) AS $$SUM$avg_salary$0#, COUNT(..) AS $$COUNT$avg_salary$1#, first_name{f}#],FINAL,..]
+     *         \_ExchangeExec[[first_name{f}#, ..],true]
+     *           \_AggregateExec[[first_name{f}#],[SUM(..) AS $$SUM$avg_salary$0#, COUNT(..) AS
+     *                            $$COUNT$avg_salary$1#, first_name{f}#],INITIAL,..]
+     *             \_FieldExtractExec[first_name{f}#, salary{f}#]<[],[]>
+     *               \_EsQueryExec[test], indexMode[standard], limit[], sort[]
+     * }
+     */
+    public void testLimitByAfterStats() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | stats avg_salary = avg(salary) by first_name
+            | limit 5 by first_name
+            """));
+
+        // AVG is decomposed into SUM/COUNT with a ProjectExec + EvalExec on top
+        var project = as(optimized, ProjectExec.class);
+        var eval = as(project.child(), EvalExec.class);
+
+        var defaultLimit = as(eval.child(), LimitExec.class);
+
+        var limitBy = as(defaultLimit.child(), LimitByExec.class);
+        assertThat(limitBy.limitPerGroup().fold(FoldContext.small()), is(5));
+        assertThat(limitBy.groupings(), hasSize(1));
+        assertThat(names(limitBy.groupings()), contains("first_name"));
+
+        var aggregate = as(limitBy.child(), AggregateExec.class);
+        assertThat(aggregate.groupings(), hasSize(1));
+    }
+
+    /**
+     * {@code
+     * EvalExec[[salary{f}#12 + 1[INTEGER] AS x#5]]
+     * \_LimitExec[1000[INTEGER],2276]
+     *   \_LimitByExec[10[INTEGER],[first_name{f}#8],2276]
+     *     \_ExchangeExec[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16,
+     *                    languages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12],false]
+     *       \_ProjectExec[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16,
+     *                     languages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12]]
+     *         \_FieldExtractExec[_meta_field{f}#13, emp_no{f}#7, gender{f}#9, hire_d..]<[],[]>
+     *           \_LimitByExec[10[INTEGER],[first_name{f}#8],70]
+     *             \_FieldExtractExec[first_name{f}#8]<[],[]>
+     *               \_EsQueryExec[test], indexMode[standard], [_doc{f}#18], limit[], sort[] estimatedRowSize[2284]
+     *                 queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]
+     * }
+     */
+    public void testLimitByAfterEval() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | eval x = salary + 1
+            | limit 10 by first_name
+            """));
+
+        // Eval is pushed above the limits by the logical optimizer
+        var eval = as(optimized, EvalExec.class);
+
+        var defaultLimit = as(eval.child(), LimitExec.class);
+
+        var limitBy = as(defaultLimit.child(), LimitByExec.class);
+        assertThat(limitBy.limitPerGroup().fold(FoldContext.small()), is(10));
+        assertThat(limitBy.groupings(), hasSize(1));
+        assertThat(names(limitBy.groupings()), contains("first_name"));
+
+        var exchange = asRemoteExchange(limitBy.child());
+
+        var sources = exchange.collectLeaves().stream().filter(EsQueryExec.class::isInstance).toList();
+        assertThat(sources, hasSize(1));
+        assertThat(((EsQueryExec) sources.get(0)).limit(), is(nullValue()));
+    }
+
+    /**
+     * {@code
+     * LimitExec[1000[INTEGER]]
+     * \_LimitByExec[10[INTEGER],[emp_no{f}#]]
+     *   \_ExchangeExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..],false]
+     *     \_ProjectExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..]]
+     *       \_FieldExtractExec[_meta_field{f}#, first_name{f}#, gender{f}#, ..]<[],[]>
+     *         \_LimitByExec[10[INTEGER],[emp_no{f}#]]
+     *           \_FieldExtractExec[emp_no{f}#]<[],[]>
+     *             \_EsQueryExec[test], indexMode[standard], query[{"range":{"emp_no":{"gt":0,..}}}], limit[], sort[]
+     * }
+     */
+    public void testLimitByWithFilter() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | where emp_no > 0
+            | limit 10 by emp_no
+            """));
+
+        var leaves = optimized.collectLeaves();
+        assertEquals(1, leaves.size());
+        var source = as(leaves.get(0), EsQueryExec.class);
+        assertThat(source.limit(), nullValue());
+        var rq = as(sv(source.query(), "emp_no"), RangeQueryBuilder.class);
+        assertThat(rq.fieldName(), equalTo("emp_no"));
+        assertThat(rq.from(), equalTo(0));
+        assertThat(rq.includeLower(), equalTo(false));
+        assertThat(rq.to(), nullValue());
+    }
+
+    /**
+     * {@code
+     * ProjectExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..]]
+     * \_LimitExec[1000[INTEGER]]
+     *   \_LimitByExec[10[INTEGER],[emp_no * 2{r}#]]
+     *     \_ExchangeExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, .., emp_no * 2{r}#],false]
+     *       \_ProjectExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, .., emp_no * 2{r}#]]
+     *         \_FieldExtractExec[_meta_field{f}#, first_name{f}#, gender{f}#, ..]<[],[]>
+     *           \_LimitByExec[10[INTEGER],[emp_no * 2{r}#]]
+     *             \_EvalExec[[emp_no{f}# * 2[INTEGER] AS emp_no * 2#]]
+     *               \_FieldExtractExec[emp_no{f}#]<[],[]>
+     *                 \_EsQueryExec[test], indexMode[standard], query[{"range":{"emp_no":{"gt":0,..}}}], limit[], sort[]
+     * }
+     */
+    public void testLimitByExpressionWithEval() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        var optimized = optimizedPlan(physicalPlan("""
+            from test
+            | where emp_no > 0
+            | limit 10 by emp_no * 2
+            """));
+
+        // ReplaceLimitByExpressionWithEval wraps the plan in a Project to hide the synthetic eval attribute
+        var topProject = as(optimized, ProjectExec.class);
+
+        var defaultLimit = as(topProject.child(), LimitExec.class);
+
+        var limitBy = as(defaultLimit.child(), LimitByExec.class);
+        assertThat(limitBy.limitPerGroup().fold(FoldContext.small()), is(10));
+        assertThat(limitBy.groupings(), hasSize(1));
+        var groupKey = as(limitBy.groupings().get(0), ReferenceAttribute.class);
+        // TODO Check the groupKey is contained in the exchange
+        var exchange = asRemoteExchange(limitBy.child());
+
+        // An EvalExec for the "emp_no * 2" expression must be present inside the exchange
+        assertThat(exchange.anyMatch(EvalExec.class::isInstance), is(true));
+
+        var sources = exchange.collectLeaves().stream().filter(EsQueryExec.class::isInstance).toList();
+        assertThat(sources, hasSize(1));
+        var source = (EsQueryExec) sources.get(0);
+        assertThat(source.limit(), is(nullValue()));
+        var rq = as(sv(source.query(), "emp_no"), RangeQueryBuilder.class);
+        assertThat(rq.fieldName(), equalTo("emp_no"));
+    }
+
+    /**
+     * {@code
+     * LimitExec[1000[INTEGER]]
+     * \_LocalSourceExec[[_meta_field{f}#, emp_no{f}#, first_name{f}#, ..],EMPTY]
+     * }
+     */
+    public void testLimitByZero() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        var plan = optimizedPlan(physicalPlan("""
+            FROM test
+            | LIMIT 0 BY emp_no
+            """));
+
+        var limitExec = as(plan, LimitExec.class);
+        assertThat(((Literal) limitExec.limit()).value(), equalTo(1000));
+        as(limitExec.child(), LocalSourceExec.class);
     }
 
     /**

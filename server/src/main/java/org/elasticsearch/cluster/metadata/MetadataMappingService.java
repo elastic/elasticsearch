@@ -186,6 +186,10 @@ public class MetadataMappingService {
                 final ProjectMetadata projectMetadata = currentState.metadata().projectFor(index);
                 final IndexMetadata indexMetadata = projectMetadata.index(index);
                 final MapperService mapperService = indexMapperServices.get(index);
+                CompressedXContent existingSource = mapperService.documentMapper() != null
+                    ? mapperService.documentMapper().mappingSource()
+                    : null;
+
                 boolean updatedPreMappingSettings = false;
 
                 // Allow index setting providers to update settings based on the mapping update request
@@ -227,9 +231,6 @@ public class MetadataMappingService {
                     mergedMapper = mapperService.merge(MapperService.SINGLE_MAPPING_NAME, request.source(), reason);
                 }
 
-                CompressedXContent existingSource = mapperService.documentMapper() != null
-                    ? mapperService.documentMapper().mappingSource()
-                    : null;
                 CompressedXContent updatedSource = mergedMapper.mappingSource();
                 // If the mapping source is the same after merging, then we have no real update, so we skip modifying this index.
                 if (updatedSource.equals(existingSource)) {

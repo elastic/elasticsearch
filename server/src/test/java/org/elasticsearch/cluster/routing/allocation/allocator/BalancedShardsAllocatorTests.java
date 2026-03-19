@@ -1144,7 +1144,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         final var allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
             .clusterInfo(ClusterInfo.builder().shardWriteLoads(shardWriteLoads).build())
             .shardSizeInfo(SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES.snapshotShardSizes())
-            .build();
+            .immutable();
 
         // Assign all shards to node
         final var allocatedRoutingNodes = allocation.routingNodes().mutableCopy();

@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -152,5 +153,24 @@ public abstract class AzureOpenAiServiceSettingsTests<T extends AzureOpenAiServi
         var updated = settings.updateServiceSettings(new HashMap<>(UPDATE_REQUEST_MAP_WITHOUT_OAUTH2));
 
         assertThat(updated, sameInstance(settings));
+    }
+
+    public void testUpdateServiceSettings_UpdateTenantId_ReplacesTenantId_EvenWithUnmodifiableMap() {
+        var oAuth2Settings = new AzureOpenAiOAuth2Settings(
+            new OAuth2Settings(OAuth2SettingsTests.CLIENT_ID_VALUE, OAuth2SettingsTests.SCOPES_VALUE),
+            TENANT_ID_VALUE
+        );
+        var newTenantId = "new-tenant";
+        var unmodifiableMapSettings = Map.<String, Object>of(AzureOpenAiOAuth2Settings.TENANT_ID_FIELD, newTenantId);
+
+        var settings = createSettingsWithOAuth2(oAuth2Settings);
+
+        var updated = settings.updateServiceSettings(unmodifiableMapSettings);
+
+        assertThat(updated, instanceOf(AzureOpenAiServiceSettings.class));
+        var updatedOAuth2Settings = ((AzureOpenAiServiceSettings) updated).oAuth2Settings();
+        assertThat(updatedOAuth2Settings.clientId(), is(OAuth2SettingsTests.CLIENT_ID_VALUE));
+        assertThat(updatedOAuth2Settings.scopes(), is(OAuth2SettingsTests.SCOPES_VALUE));
+        assertThat(updatedOAuth2Settings.tenantId(), is(newTenantId));
     }
 }

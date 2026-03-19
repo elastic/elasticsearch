@@ -105,13 +105,9 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
     // ---- LENGTH push tests ----
 
     public void testLengthInEval() {
-        // The SORT ensures the EVAL is below the exchange boundary (inside the
-        // data-node fragment) so the local physical optimizer can push it.
         var plan = plannerOptimizer.plan("""
             FROM test
             | EVAL l = LENGTH(last_name)
-            | SORT emp_no
-            | LIMIT 10
             | KEEP l
             """);
 
@@ -160,8 +156,6 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             | EVAL l2 = l1
             | EVAL l3 = l2
             | EVAL l = LENGTH(l3)
-            | SORT emp_no
-            | LIMIT 10
             | KEEP l
             """);
 
@@ -226,8 +220,6 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         var plan = allTypesPlannerOptimizer.plan(String.format(Locale.ROOT, """
             from test_all
             | eval s = %s
-            | sort s desc
-            | limit 1
             """, testCase.toQuery()));
 
         var evalExec = findFirst(plan, EvalExec.class, e -> e.fields().stream().anyMatch(f -> f.name().equals("s")));
@@ -328,7 +320,6 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             () -> SimilarityFunctionTestCase.random("dense_vector")
         );
 
-        // The SORT ensures all EVALs end up inside the data-node fragment.
         var plan = allTypesPlannerOptimizer.plan(
             String.format(
                 Locale.ROOT,
@@ -337,8 +328,6 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
                     | eval s1 = %s, s2 = %s * 2 / 3
                     | where %s + 5 + %s > 0
                     | eval r2 = %s + %s
-                    | sort s1 desc
-                    | limit 10
                     | keep s1, s2, r2
                     """,
                 testCase1.toQuery(),
@@ -435,11 +424,6 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
     // ---- Fork test ----
 
     public void testPushableFunctionsInFork() {
-        // In the physical plan, fork branch EVALs end up above the exchange
-        // boundary (coordinator side), so the local physical optimizer does
-        // not see them and cannot push. The data node fragment only contains
-        // the raw field extraction. This verifies the plan still builds
-        // correctly and the un-pushed expressions are preserved.
         var plan = allTypesPlannerOptimizer.plan("""
             from test_all
             | eval u = v_cosine(dense_vector, [4, 5, 6])
@@ -449,14 +433,26 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             | eval x = length(keyword)
             """);
 
-        // The LENGTH(keyword) eval above the fork stays as a raw Length function.
+        var mergeExec = findFirst(plan, MergeExec.class);
+        assertNotNull("Plan should contain a MergeExec for fork", mergeExec);
+
+        // LENGTH(text) in branch 1 and V_DOT_PRODUCT in branch 2 should be pushed
+        // (the Mapper absorbs their Evals into the data-node fragment).
+        var textPushed = findPushedFields(plan, "text", BlockLoaderFunctionConfig.Function.LENGTH);
+        assertThat("LENGTH(text) in fork branch should be pushed", textPushed, hasSize(greaterThanOrEqualTo(1)));
+
+        // V_COSINE(dense_vector, ...) from the shared eval (below the fork) should also be pushed.
+        var cosinePushed = findAllPushedFields(plan).stream()
+            .filter(fa -> fa.fieldName().string().equals("dense_vector") && fa.name().contains("V_COSINE"))
+            .toList();
+        assertThat("V_COSINE(dense_vector) below fork should be pushed", cosinePushed, hasSize(greaterThanOrEqualTo(1)));
+
+        // LENGTH(keyword) above the fork has multiple sources (from the MergeExec branches),
+        // so the Primaries check prevents it from being pushed.
         var topEval = findFirst(plan, EvalExec.class, e -> e.fields().stream().anyMatch(f -> {
             return f.name().equals("x") && f.child() instanceof Length;
         }));
         assertNotNull("LENGTH(keyword) above fork should remain as Length", topEval);
-
-        var mergeExec = findFirst(plan, MergeExec.class);
-        assertNotNull("Plan should contain a MergeExec for fork", mergeExec);
     }
 
     // ---- Subquery test ----
@@ -488,7 +484,6 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
     // ---- Lookup join test (Primaries check) ----
 
     public void testPushDownFunctionsLookupJoin() {
-        // The SORT ensures the evals below are in the data-node fragment.
         var plan = plannerOptimizer.plan("""
             from test
             | eval s = length(first_name)
@@ -497,8 +492,6 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             | lookup join languages_lookup ON language_code
             | eval t = length(last_name)
             | eval u = length(language_name)
-            | sort language_code
-            | limit 10
             """);
 
         // "s" (LENGTH(first_name)) is below the join — SHOULD be pushed

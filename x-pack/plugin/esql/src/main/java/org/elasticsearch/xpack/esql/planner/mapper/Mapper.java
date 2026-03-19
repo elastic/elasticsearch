@@ -11,11 +11,15 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -108,6 +112,18 @@ public class Mapper {
                 || (unary instanceof Limit limit && limit.local())
                 || (unary instanceof TopN topN && topN.local())) {
                 return new FragmentExec(unary);
+            }
+        }
+
+        // Evals containing pushable expressions (BlockLoaderExpression) benefit from
+        // running on the data node where the local physical optimizer can replace them
+        // with field-load operations. When a pipeline breaker (e.g. Limit) has already
+        // established an exchange boundary, absorb the Eval into the data-node fragment
+        // so it is visible to the local physical optimizer.
+        if (unary instanceof Eval eval && containsBlockLoaderExpression(eval)) {
+            PhysicalPlan absorbed = absorbIntoFragment(eval, mappedChild);
+            if (absorbed != null) {
+                return absorbed;
             }
         }
 
@@ -272,5 +288,43 @@ public class Mapper {
             child = new ExchangeExec(child.source(), child);
         }
         return child;
+    }
+
+    private static boolean containsBlockLoaderExpression(Eval eval) {
+        return eval.fields().stream().anyMatch(alias -> alias.anyMatch(e -> e instanceof BlockLoaderExpression));
+    }
+
+    /**
+     * Injects a logical {@link Eval} into the {@link FragmentExec} buried inside an already-mapped
+     * physical plan tree, so the eval runs on the data node rather than the coordinator.
+     * <p>
+     * Absorption is only safe when:
+     * <ol>
+     *   <li>There is exactly one {@link FragmentExec} in the tree (multiple fragments indicate
+     *       joins or unions where the eval cannot target a single source).</li>
+     *   <li>Every attribute the eval's expressions reference (that the eval itself does not
+     *       produce) is available in the fragment's output — i.e. the eval does not depend on
+     *       attributes computed by intervening coordinator-side nodes.</li>
+     * </ol>
+     *
+     * @return the rewritten physical tree with the eval absorbed, or {@code null} if absorption is not safe
+     */
+    private static PhysicalPlan absorbIntoFragment(Eval eval, PhysicalPlan mappedChild) {
+        Holder<FragmentExec> fragmentHolder = new Holder<>();
+        Holder<Integer> count = new Holder<>(0);
+        mappedChild.forEachDown(FragmentExec.class, f -> {
+            count.set(count.get() + 1);
+            fragmentHolder.set(f);
+        });
+        if (count.get() != 1) {
+            return null;
+        }
+
+        AttributeSet evalInputs = eval.references().subtract(AttributeSet.of(eval.generatedAttributes()));
+        if (fragmentHolder.get().fragment().outputSet().containsAll(evalInputs) == false) {
+            return null;
+        }
+
+        return mappedChild.transformUp(FragmentExec.class, fragment -> new FragmentExec(eval.replaceChild(fragment.fragment())));
     }
 }

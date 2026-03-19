@@ -78,6 +78,10 @@ public class BlockSourceReaderTests extends MapperServiceTestCase {
     }
 
     public void testMoreFields() throws IOException {
+        assumeTrue(
+            "requires ignored_source_as_doc_values feature flag enabled",
+            IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_DOC_VALUES_FF.isEnabled()
+        );
         withIndex(
             source -> source.field("field", "foo").field("other_field", "bar").field("other_field_2", 1L),
             (mapperService, ctx) -> loadBlock(mapperService, ctx, block -> assertThat(block.get(0), equalTo(new BytesRef("foo"))))

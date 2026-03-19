@@ -297,7 +297,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             );
         }
 
-        // Get all shard explanations -- create a function that lazily creates an allocationExplainFunction on demand
+        // Get all shard explanations -- create the AllocationSimulation lazily
         final LazyInitializable<AllocationSimulation, RuntimeException> allocationSimulator = new LazyInitializable<>(
             () -> allocationService.createAllocationSimulation(currentState)
         );

@@ -76,8 +76,13 @@ public class AllocationSimulation {
     }
 
     public ShardAllocationDecision explainShardAllocation(RoutingAllocation.DebugMode debugMode, ShardRouting shardRouting) {
-        assert shardRouting.unassigned() == false;
         assert debugMode == RoutingAllocation.DebugMode.ON || debugMode == RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS;
-        return shardsAllocator.explainShardAllocation(shardRouting, routingAllocation);
+        final var originalDebugMode = routingAllocation.getDebugMode();
+        routingAllocation.setDebugMode(debugMode);
+        try {
+            return shardsAllocator.explainShardAllocation(shardRouting, routingAllocation);
+        } finally {
+            routingAllocation.setDebugMode(originalDebugMode);
+        }
     }
 }

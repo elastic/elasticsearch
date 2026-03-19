@@ -140,6 +140,19 @@ null
 ;
 
 
+emptyStringInput
+required_capability: user_agent_command
+
+ROW input = ""
+| USER_AGENT ua = input
+| KEEP ua.*
+;
+
+ua.name:keyword | ua.version:keyword | ua.os.name:keyword | ua.os.version:keyword | ua.os.full:keyword | ua.device.name:keyword
+null            | null               | null               | null                  | null               | null
+;
+
+
 nullInputRow
 required_capability: user_agent_command
 required_capability: str_commands_accept_null

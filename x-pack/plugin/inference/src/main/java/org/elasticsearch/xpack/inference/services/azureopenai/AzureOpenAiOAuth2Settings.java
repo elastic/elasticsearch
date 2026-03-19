@@ -137,7 +137,7 @@ public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable 
     public AzureOpenAiOAuth2Settings updateServiceSettings(Map<String, Object> serviceSettings, ValidationException validationException) {
         var updated = fromMapForUpdate(serviceSettings, oauth2Settings, validationException);
 
-        var tenantIdToUpdate = updated.tenantId() != null ? updated.tenantId() : tenantId;
+        var tenantIdToUpdate = updated.tenantId() != null ? updated.tenantId() : this.tenantId;
 
         var hasFields = validateFields(updated.oauth2Settings(), tenantIdToUpdate, validationException);
 

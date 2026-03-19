@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.elasticsearch.xpack.inference.common.JsonUtils;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2SettingsTests;
 
@@ -32,7 +33,7 @@ import static org.hamcrest.Matchers.not;
 
 public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<AzureOpenAiOAuth2Settings> {
 
-    private static final String TENANT_ID = "tenant_id";
+    private static final String TENANT_ID_VALUE = "some_tenant_id";
 
     public static AzureOpenAiOAuth2Settings createRandom() {
         return new AzureOpenAiOAuth2Settings(OAuth2SettingsTests.createRandom(), randomAlphaOfLength(10));
@@ -53,16 +54,16 @@ public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerialization
 
     public void testFromMap_WithAllRequiredFields_CreatesSettings() {
         var map = new HashMap<String, Object>();
-        OAuth2SettingsTests.addOAuth2FieldsToMap(map, OAuth2SettingsTests.CLIENT_ID, OAuth2SettingsTests.SCOPES);
-        map.put(AzureOpenAiOAuth2Settings.TENANT_ID_FIELD, TENANT_ID);
+        OAuth2SettingsTests.addOAuth2FieldsToMap(map, OAuth2SettingsTests.CLIENT_ID_VALUE, OAuth2SettingsTests.SCOPES_VALUE);
+        map.put(AzureOpenAiOAuth2Settings.TENANT_ID_FIELD, TENANT_ID_VALUE);
 
         var validationException = new ValidationException();
         var settings = AzureOpenAiOAuth2Settings.fromMap(map, validationException);
 
         assertNotNull(settings);
-        assertThat(settings.clientId(), is(OAuth2SettingsTests.CLIENT_ID));
-        assertThat(settings.scopes(), is(OAuth2SettingsTests.SCOPES));
-        assertThat(settings.tenantId(), is(TENANT_ID));
+        assertThat(settings.clientId(), is(OAuth2SettingsTests.CLIENT_ID_VALUE));
+        assertThat(settings.scopes(), is(OAuth2SettingsTests.SCOPES_VALUE));
+        assertThat(settings.tenantId(), is(TENANT_ID_VALUE));
         assertThat(validationException.validationErrors(), is(empty()));
     }
 
@@ -78,7 +79,7 @@ public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerialization
 
     public void testFromMap_WithOnlyTenantId_AddsValidationErrorForClientIdAndScopes() {
         var map = new HashMap<String, Object>();
-        map.put(AzureOpenAiOAuth2Settings.TENANT_ID_FIELD, TENANT_ID);
+        map.put(AzureOpenAiOAuth2Settings.TENANT_ID_FIELD, TENANT_ID_VALUE);
         var validationException = new ValidationException();
 
         var settings = AzureOpenAiOAuth2Settings.fromMap(map, validationException);
@@ -94,7 +95,7 @@ public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerialization
 
     public void testFromMap_WithOnlyClientIdAndScopes_AddsValidationError() {
         var map = new HashMap<String, Object>();
-        OAuth2SettingsTests.addOAuth2FieldsToMap(map, OAuth2SettingsTests.CLIENT_ID, OAuth2SettingsTests.SCOPES);
+        OAuth2SettingsTests.addOAuth2FieldsToMap(map, OAuth2SettingsTests.CLIENT_ID_VALUE, OAuth2SettingsTests.SCOPES_VALUE);
         var validationException = new ValidationException();
 
         AzureOpenAiOAuth2Settings.fromMap(map, validationException);
@@ -108,8 +109,8 @@ public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerialization
 
     public void testToXContent_WritesAllValues() throws IOException {
         var settings = new AzureOpenAiOAuth2Settings(
-            new OAuth2Settings(OAuth2SettingsTests.CLIENT_ID, OAuth2SettingsTests.SCOPES),
-            TENANT_ID
+            new OAuth2Settings(OAuth2SettingsTests.CLIENT_ID_VALUE, OAuth2SettingsTests.SCOPES_VALUE),
+            TENANT_ID_VALUE
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -118,33 +119,33 @@ public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerialization
         builder.endObject();
         var xContentResult = Strings.toString(builder);
 
-        assertThat(XContentHelper.stripWhitespace(xContentResult), is(XContentHelper.stripWhitespace("""
+        assertThat(XContentHelper.stripWhitespace(xContentResult), is(XContentHelper.stripWhitespace(Strings.format("""
             {
-                "client_id":"client_id",
-                "scopes":["scope1", "scope2"],
-                "tenant_id":"tenant_id"
+                "client_id":"%s",
+                "scopes":%s,
+                "tenant_id":"%s"
             }
-            """)));
+            """, OAuth2SettingsTests.CLIENT_ID_VALUE, JsonUtils.toJson(OAuth2SettingsTests.SCOPES_VALUE, ""), TENANT_ID_VALUE))));
     }
 
     public void testUpdateServiceSettings_EmptyUpdateMap_KeepsOriginalValues() {
         var settings = new AzureOpenAiOAuth2Settings(
-            new OAuth2Settings(OAuth2SettingsTests.CLIENT_ID, OAuth2SettingsTests.SCOPES),
-            TENANT_ID
+            new OAuth2Settings(OAuth2SettingsTests.CLIENT_ID_VALUE, OAuth2SettingsTests.SCOPES_VALUE),
+            TENANT_ID_VALUE
         );
         var validationException = new ValidationException();
 
         var updated = settings.updateServiceSettings(new HashMap<>(), validationException);
 
-        assertThat(updated.clientId(), is(OAuth2SettingsTests.CLIENT_ID));
-        assertThat(updated.scopes(), is(OAuth2SettingsTests.SCOPES));
-        assertThat(updated.tenantId(), is(TENANT_ID));
+        assertThat(updated.clientId(), is(OAuth2SettingsTests.CLIENT_ID_VALUE));
+        assertThat(updated.scopes(), is(OAuth2SettingsTests.SCOPES_VALUE));
+        assertThat(updated.tenantId(), is(TENANT_ID_VALUE));
     }
 
     public void testUpdateServiceSettings_UpdateTenantId_ReplacesTenantId() {
         var settings = new AzureOpenAiOAuth2Settings(
-            new OAuth2Settings(OAuth2SettingsTests.CLIENT_ID, OAuth2SettingsTests.SCOPES),
-            TENANT_ID
+            new OAuth2Settings(OAuth2SettingsTests.CLIENT_ID_VALUE, OAuth2SettingsTests.SCOPES_VALUE),
+            TENANT_ID_VALUE
         );
         var newTenantId = "new-tenant";
         var validationException = new ValidationException();
@@ -154,15 +155,15 @@ public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerialization
             validationException
         );
 
-        assertThat(updated.clientId(), is(OAuth2SettingsTests.CLIENT_ID));
-        assertThat(updated.scopes(), is(OAuth2SettingsTests.SCOPES));
+        assertThat(updated.clientId(), is(OAuth2SettingsTests.CLIENT_ID_VALUE));
+        assertThat(updated.scopes(), is(OAuth2SettingsTests.SCOPES_VALUE));
         assertThat(updated.tenantId(), is(newTenantId));
     }
 
     public void testUpdateServiceSettings_UpdateClientIdAndScopes_ReplacesOAuthFields() {
         var settings = new AzureOpenAiOAuth2Settings(
-            new OAuth2Settings(OAuth2SettingsTests.CLIENT_ID, OAuth2SettingsTests.SCOPES),
-            TENANT_ID
+            new OAuth2Settings(OAuth2SettingsTests.CLIENT_ID_VALUE, OAuth2SettingsTests.SCOPES_VALUE),
+            TENANT_ID_VALUE
         );
         var newClientId = "new-client";
         var newScopes = List.of("new-scope1", "new-scope2");
@@ -175,7 +176,7 @@ public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerialization
 
         assertThat(updated.clientId(), is(newClientId));
         assertThat(updated.scopes(), is(newScopes));
-        assertThat(updated.tenantId(), is(TENANT_ID));
+        assertThat(updated.tenantId(), is(TENANT_ID_VALUE));
     }
 
     @Override

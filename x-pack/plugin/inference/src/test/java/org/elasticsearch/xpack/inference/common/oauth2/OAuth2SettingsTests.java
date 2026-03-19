@@ -23,14 +23,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.common.JsonUtils.toJson;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OAuth2Settings> {
 
-    public static final String CLIENT_ID = "client_id";
-    public static final List<String> SCOPES = List.of("scope1", "scope2");
+    public static final String CLIENT_ID_VALUE = "some_client_id";
+    public static final List<String> SCOPES_VALUE = List.of("scope1", "scope2");
 
     public static OAuth2Settings createRandom() {
         return new OAuth2Settings(randomAlphaOfLength(10), randomList(5, () -> randomAlphaOfLength(10)));
@@ -53,8 +54,8 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
 
     public void testFromMap_WithAllRequiredFields_CreatesSettings() {
         var map = new HashMap<String, Object>();
-        map.put(OAuth2Settings.CLIENT_ID_FIELD, CLIENT_ID);
-        map.put(OAuth2Settings.SCOPES_FIELD, SCOPES);
+        map.put(OAuth2Settings.CLIENT_ID_FIELD, CLIENT_ID_VALUE);
+        map.put(OAuth2Settings.SCOPES_FIELD, SCOPES_VALUE);
 
         var validationException = new ValidationException();
         var validationResult = OAuth2Settings.fromMap(map, validationException);
@@ -62,8 +63,8 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
         assertTrue(validationResult.isSuccess());
         var settings = validationResult.result();
         assertNotNull(settings);
-        assertThat(settings.clientId(), is(CLIENT_ID));
-        assertThat(settings.scopes(), is(SCOPES));
+        assertThat(settings.clientId(), is(CLIENT_ID_VALUE));
+        assertThat(settings.scopes(), is(SCOPES_VALUE));
         assertThat(validationException.validationErrors(), is(empty()));
     }
 
@@ -79,7 +80,7 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
 
     public void testFromMap_WithOnlyClientId_AddsValidationError() {
         var map = new HashMap<String, Object>();
-        map.put(OAuth2Settings.CLIENT_ID_FIELD, CLIENT_ID);
+        map.put(OAuth2Settings.CLIENT_ID_FIELD, CLIENT_ID_VALUE);
         var validationException = new ValidationException();
 
         OAuth2Settings.fromMap(map, validationException);
@@ -99,7 +100,7 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
 
     public void testFromMap_WithOnlyScopes_AddsValidationError() {
         var map = new HashMap<String, Object>();
-        map.put(OAuth2Settings.SCOPES_FIELD, SCOPES);
+        map.put(OAuth2Settings.SCOPES_FIELD, SCOPES_VALUE);
         var validationException = new ValidationException();
 
         OAuth2Settings.fromMap(map, validationException);
@@ -118,7 +119,7 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var settings = new OAuth2Settings(CLIENT_ID, SCOPES);
+        var settings = new OAuth2Settings(CLIENT_ID_VALUE, SCOPES_VALUE);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject();
@@ -126,16 +127,16 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
         builder.endObject();
         var xContentResult = Strings.toString(builder);
 
-        assertThat(XContentHelper.stripWhitespace(xContentResult), is(XContentHelper.stripWhitespace("""
+        assertThat(XContentHelper.stripWhitespace(xContentResult), is(XContentHelper.stripWhitespace(Strings.format("""
             {
-                "client_id":"client_id",
-                "scopes":["scope1", "scope2"]
+                "client_id":"%s",
+                "scopes":%s
             }
-            """)));
+            """, CLIENT_ID_VALUE, toJson(SCOPES_VALUE, "")))));
     }
 
     public void testUpdateServiceSettings_EmptyUpdateMap_KeepsOriginalValues() {
-        var settings = new OAuth2Settings(CLIENT_ID, SCOPES);
+        var settings = new OAuth2Settings(CLIENT_ID_VALUE, SCOPES_VALUE);
         var validationException = new ValidationException();
 
         var validationResult = settings.updateServiceSettings(new HashMap<>(), validationException);
@@ -143,12 +144,12 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
 
         var updated = validationResult.result();
         assertNotNull(updated);
-        assertThat(updated.clientId(), is(CLIENT_ID));
-        assertThat(updated.scopes(), is(SCOPES));
+        assertThat(updated.clientId(), is(CLIENT_ID_VALUE));
+        assertThat(updated.scopes(), is(SCOPES_VALUE));
     }
 
     public void testUpdateServiceSettings_UpdateClientId_ReplacesClientId() {
-        var settings = new OAuth2Settings(CLIENT_ID, SCOPES);
+        var settings = new OAuth2Settings(CLIENT_ID_VALUE, SCOPES_VALUE);
         var validationException = new ValidationException();
 
         var newClientId = "new-client";
@@ -162,11 +163,11 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
         var updated = validationResult.result();
         assertNotNull(updated);
         assertThat(updated.clientId(), is(newClientId));
-        assertThat(updated.scopes(), is(SCOPES));
+        assertThat(updated.scopes(), is(SCOPES_VALUE));
     }
 
     public void testUpdateServiceSettings_UpdateScopes_ReplacesScopes() {
-        var settings = new OAuth2Settings(CLIENT_ID, SCOPES);
+        var settings = new OAuth2Settings(CLIENT_ID_VALUE, SCOPES_VALUE);
         var validationException = new ValidationException();
 
         var newScopes = List.of("new-scope1", "new-scope2");
@@ -179,7 +180,7 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
 
         var updated = validationResult.result();
         assertNotNull(updated);
-        assertThat(updated.clientId(), is(CLIENT_ID));
+        assertThat(updated.clientId(), is(CLIENT_ID_VALUE));
         assertThat(updated.scopes(), is(newScopes));
     }
 

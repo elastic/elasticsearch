@@ -33,13 +33,13 @@ import static org.hamcrest.Matchers.is;
 
 public class AzureOpenAiRequestTests extends ESTestCase {
 
-    private static final String TEST_INFERENCE_ID = "test-inference-id";
-    private static final String RESOURCE_NAME = "resource";
-    private static final String DEPLOYMENT_ID = "deployment";
-    private static final String API_VERSION = "2024";
-    private static final String API_KEY = "apikey";
-    private static final String INPUT_TEXT = "input";
-    private static final String TEST_INPUT_TEXT = "test input text";
+    private static final String TEST_INFERENCE_ID_VALUE = "test-inference-id";
+    private static final String RESOURCE_NAME_VALUE = "some_resource";
+    private static final String DEPLOYMENT_ID_VALUE = "some_deployment";
+    private static final String API_VERSION_VALUE = "2024";
+    private static final String API_KEY_VALUE = "secret";
+    private static final String INPUT_TEXT_VALUE = "some_input";
+    private static final String TEST_INPUT_TEXT_VALUE = "test input text";
     private static final String CUSTOM_HEADER_NAME = "X-Custom-Header";
     private static final String CUSTOM_HEADER_VALUE = "custom-value";
 
@@ -57,13 +57,13 @@ public class AzureOpenAiRequestTests extends ESTestCase {
 
     public void testCreateHttpRequest_SetsRequestBodyToRequestEntity() throws IOException {
         var request = AzureOpenAiEmbeddingsRequestTests.createRequest(
-            TEST_INFERENCE_ID,
-            RESOURCE_NAME,
-            DEPLOYMENT_ID,
-            API_VERSION,
-            API_KEY,
+            TEST_INFERENCE_ID_VALUE,
+            RESOURCE_NAME_VALUE,
+            DEPLOYMENT_ID_VALUE,
+            API_VERSION_VALUE,
+            API_KEY_VALUE,
             null,
-            TEST_INPUT_TEXT,
+            TEST_INPUT_TEXT_VALUE,
             null,
             null,
             threadPool
@@ -72,36 +72,36 @@ public class AzureOpenAiRequestTests extends ESTestCase {
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap.get("input"), is(List.of(TEST_INPUT_TEXT)));
+        assertThat(requestMap.get("input"), is(List.of(TEST_INPUT_TEXT_VALUE)));
     }
 
     public void testCreateHttpRequest_ReturnsHttpRequestWithInferenceEntityId() {
         var request = AzureOpenAiEmbeddingsRequestTests.createRequest(
-            TEST_INFERENCE_ID,
-            RESOURCE_NAME,
-            DEPLOYMENT_ID,
-            API_VERSION,
-            API_KEY,
+            TEST_INFERENCE_ID_VALUE,
+            RESOURCE_NAME_VALUE,
+            DEPLOYMENT_ID_VALUE,
+            API_VERSION_VALUE,
+            API_KEY_VALUE,
             null,
-            INPUT_TEXT,
+            INPUT_TEXT_VALUE,
             null,
             null,
             threadPool
         );
         HttpRequest httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.inferenceEntityId(), is(TEST_INFERENCE_ID));
+        assertThat(httpRequest.inferenceEntityId(), is(TEST_INFERENCE_ID_VALUE));
     }
 
     public void testCreateHttpRequest_AppliesTaskSettingsHeadersWhenPresent() {
         var baseModel = AzureOpenAiEmbeddingsModelTests.createModel(
-            RESOURCE_NAME,
-            DEPLOYMENT_ID,
-            API_VERSION,
+            RESOURCE_NAME_VALUE,
+            DEPLOYMENT_ID_VALUE,
+            API_VERSION_VALUE,
             null,
-            API_KEY,
+            API_KEY_VALUE,
             null,
-            TEST_INFERENCE_ID,
+            TEST_INFERENCE_ID_VALUE,
             threadPool
         );
         var modelWithHeaders = AzureOpenAiEmbeddingsModel.of(
@@ -110,7 +110,7 @@ public class AzureOpenAiRequestTests extends ESTestCase {
         );
         var request = new AzureOpenAiEmbeddingsRequest(
             TruncatorTests.createTruncator(),
-            new Truncator.TruncationResult(List.of(INPUT_TEXT), new boolean[] { false }),
+            new Truncator.TruncationResult(List.of(INPUT_TEXT_VALUE), new boolean[] { false }),
             InputType.INGEST,
             modelWithHeaders
         );
@@ -123,13 +123,13 @@ public class AzureOpenAiRequestTests extends ESTestCase {
 
     public void testCreateHttpRequest_AppliesTaskSettingsHeadersWhenPresent_DoesNotOverwriteAuthHeader() {
         var baseModel = AzureOpenAiEmbeddingsModelTests.createModel(
-            RESOURCE_NAME,
-            DEPLOYMENT_ID,
-            API_VERSION,
+            RESOURCE_NAME_VALUE,
+            DEPLOYMENT_ID_VALUE,
+            API_VERSION_VALUE,
             null,
-            API_KEY,
+            API_KEY_VALUE,
             null,
-            TEST_INFERENCE_ID,
+            TEST_INFERENCE_ID_VALUE,
             threadPool
         );
         var modelWithHeaders = AzureOpenAiEmbeddingsModel.of(
@@ -138,7 +138,7 @@ public class AzureOpenAiRequestTests extends ESTestCase {
         );
         var request = new AzureOpenAiEmbeddingsRequest(
             TruncatorTests.createTruncator(),
-            new Truncator.TruncationResult(List.of(INPUT_TEXT), new boolean[] { false }),
+            new Truncator.TruncationResult(List.of(INPUT_TEXT_VALUE), new boolean[] { false }),
             InputType.INGEST,
             modelWithHeaders
         );
@@ -146,18 +146,18 @@ public class AzureOpenAiRequestTests extends ESTestCase {
         HttpRequest httpRequest = RequestTests.getHttpRequestSync(request);
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
-        assertThat(httpPost.getLastHeader(API_KEY_HEADER).getValue(), is(API_KEY));
+        assertThat(httpPost.getLastHeader(API_KEY_HEADER).getValue(), is(API_KEY_VALUE));
     }
 
     public void testCreateHttpRequest_DoesNotAddTaskSettingsHeadersWhenAbsent() {
         var request = AzureOpenAiEmbeddingsRequestTests.createRequest(
-            TEST_INFERENCE_ID,
-            RESOURCE_NAME,
-            DEPLOYMENT_ID,
-            API_VERSION,
-            API_KEY,
+            TEST_INFERENCE_ID_VALUE,
+            RESOURCE_NAME_VALUE,
+            DEPLOYMENT_ID_VALUE,
+            API_VERSION_VALUE,
+            API_KEY_VALUE,
             null,
-            INPUT_TEXT,
+            INPUT_TEXT_VALUE,
             null,
             null,
             threadPool

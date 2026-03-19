@@ -59,7 +59,7 @@ public abstract class AzureOpenAiModel extends RateLimitGroupingModel {
         super(model, taskSettings);
 
         this.uri = model.getUri();
-        baseServiceSettings = model.baseServiceSettings();
+        this.baseServiceSettings = model.baseServiceSettings();
         this.secretsApplier = model.secretsApplier();
     }
 

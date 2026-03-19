@@ -1,5 +1,0 @@
-area: Data streams
-issues: []
-pr: 143173
-summary: "Apm-data: explicit map of `timestamp.us` to long"
-type: bug

@@ -345,21 +345,21 @@ tests:
 - class: org.elasticsearch.indices.IndicesRequestCacheIT
   method: testCanCache
   issue: https://github.com/elastic/elasticsearch/issues/144526
-- class: org.elasticsearch.index.mapper.BlockSourceReaderTests
-  method: testEmptyArray
-  issue: https://github.com/elastic/elasticsearch/issues/144527
-- class: org.elasticsearch.index.mapper.BlockSourceReaderTests
-  method: testArray
-  issue: https://github.com/elastic/elasticsearch/issues/144528
-- class: org.elasticsearch.index.mapper.BlockSourceReaderTests
-  method: testSingle
-  issue: https://github.com/elastic/elasticsearch/issues/144530
-- class: org.elasticsearch.index.mapper.BlockSourceReaderTests
-  method: testMissing
-  issue: https://github.com/elastic/elasticsearch/issues/144531
 - class: org.elasticsearch.xpack.downsample.DownsampleRateIT
   method: testTimeSeriesQuerying_RandomDocuments
   issue: https://github.com/elastic/elasticsearch/issues/144532
+- class: org.elasticsearch.http.netty4.Netty4IncrementalRequestHandlingIT
+  method: testBulkIndexingRequestSplitting
+  issue: https://github.com/elastic/elasticsearch/issues/144579
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:spatial.convertCartesianFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/144580
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/144585
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/144587
 
 # Examples:
 #

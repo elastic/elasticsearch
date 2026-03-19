@@ -123,16 +123,20 @@ public final class JdkVectorLibrary implements VectorLibrary {
                             // Only byte vectors have cosine
                             // as floats are normalized to unit length to use dot_product instead
                             if (f == Function.COSINE && type != DataType.INT8) continue;
+                            // Only DOT_PRODUCT is needed for int4 — other functions are computed by
+                            // applying correction terms on top of the raw dot product result.
+                            if (f != Function.DOT_PRODUCT && type == DataType.INT4) continue;
 
                             String typeName = switch (type) {
                                 case INT7U -> "i7u";
+                                case INT4 -> "i4";
                                 case INT8 -> "i8";
                                 case FLOAT32 -> "f32";
                             };
 
                             FunctionDescriptor descriptor = switch (op) {
                                 case SINGLE -> switch (type) {
-                                    case INT7U -> intSingle;
+                                    case INT7U, INT4 -> intSingle;
                                     case INT8, FLOAT32 -> floatSingle;
                                 };
                                 case BULK -> bulk;
@@ -262,8 +266,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return new AssertionError(msg, t);
         }
 
-        static boolean checkBulk(int elementSize, MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
-            Objects.checkFromIndexSize(0L, (long) length * count * elementSize, a.byteSize());
+        static boolean checkBulk(int elementBits, MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
+            Objects.checkFromIndexSize(0L, (long) length * count * elementBits / 8, a.byteSize());
             Objects.checkFromIndexSize(0L, length, b.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());
             return true;
@@ -286,7 +290,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         static boolean checkBulkOffsets(
-            int elementSize,
+            int elementBits,
             MemorySegment a,
             MemorySegment b,
             int length,
@@ -295,9 +299,10 @@ public final class JdkVectorLibrary implements VectorLibrary {
             int count,
             MemorySegment result
         ) {
-            if (pitch < length * elementSize) throw new IllegalArgumentException("Pitch needs to be at least " + length);
+            long rowBytes = (long) length * elementBits / 8;
+            if (pitch < rowBytes) throw new IllegalArgumentException("Pitch needs to be at least " + length);
             Objects.checkFromIndexSize(0L, (long) pitch * count, a.byteSize());
-            Objects.checkFromIndexSize(0L, (long) length * elementSize, b.byteSize());
+            Objects.checkFromIndexSize(0L, rowBytes, b.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Integer.BYTES, offsets.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());
             return true;
@@ -343,6 +348,16 @@ public final class JdkVectorLibrary implements VectorLibrary {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0L, length, a.byteSize());
             return callSingleDistanceInt(squareI7uHandle, a, b, length);
+        }
+
+        private static final MethodHandle dotI4Handle = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT4, Operation.SINGLE)
+        );
+
+        static int dotProductI4(MemorySegment a, MemorySegment b, int elementCount) {
+            Objects.checkFromIndexSize(0L, 2L * elementCount, a.byteSize());
+            Objects.checkFromIndexSize(0L, elementCount, b.byteSize());
+            return callSingleDistanceInt(dotI4Handle, a, b, elementCount);
         }
 
         private static final MethodHandle cosI8Handle = HANDLES.get(
@@ -561,6 +576,10 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                             type = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
                                             checkMethod += "I7u";
                                             break;
+                                        case INT4:
+                                            type = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
+                                            checkMethod += "I4";
+                                            break;
                                         case INT8:
                                             type = MethodType.methodType(float.class, MemorySegment.class, MemorySegment.class, int.class);
                                             checkMethod += "I8";
@@ -623,7 +642,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                         )
                                     );
                                     yield MethodHandles.guardWithTest(
-                                        MethodHandles.insertArguments(checkMethod, 0, dt.bytes()),
+                                        MethodHandles.insertArguments(checkMethod, 0, dt.bits()),
                                         op.getValue(),
                                         MethodHandles.empty(op.getValue().type())
                                     );
@@ -674,7 +693,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                         )
                                     );
                                     yield MethodHandles.guardWithTest(
-                                        MethodHandles.insertArguments(checkMethod, 0, dt.bytes()),
+                                        MethodHandles.insertArguments(checkMethod, 0, dt.bits()),
                                         op.getValue(),
                                         MethodHandles.empty(op.getValue().type())
                                     );

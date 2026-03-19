@@ -48,7 +48,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -126,13 +125,6 @@ public class AllocationService {
         assert this.existingShardsAllocators == null : "cannot set allocators " + existingShardsAllocators + " twice";
         assert existingShardsAllocators.isEmpty() == false : "must add at least one ExistingShardsAllocator";
         this.existingShardsAllocators = Collections.unmodifiableMap(existingShardsAllocators);
-    }
-
-    /**
-     * @return The allocation deciders that the allocation service has been configured with.
-     */
-    public AllocationDeciders getAllocationDeciders() {
-        return allocationDeciders;
     }
 
     public ShardRoutingRoleStrategy getShardRoutingRoleStrategy() {
@@ -762,6 +754,11 @@ public class AllocationService {
         }
     }
 
+    public AllocationSimulation createAllocationSimulation(ClusterState clusterState) {
+        final RoutingAllocation allocation = createImmutableRoutingAllocation(clusterState, currentNanoTime());
+        return new AllocationSimulation(allocation, allocationDeciders, shardsAllocator);
+    }
+
     private RoutingAllocation createImmutableRoutingAllocation(ClusterState clusterState, long currentNanoTime) {
         return new ImmutableRoutingAllocation(
             allocationDeciders,
@@ -818,24 +815,6 @@ public class AllocationService {
             return new ShardAllocationDecision(allocateDecision, MoveDecision.NOT_TAKEN);
         } else {
             return shardsAllocator.explainShardAllocation(shardRouting, allocation);
-        }
-    }
-
-    public Function<ShardRouting, ShardAllocationDecision> explainAssignedShardAllocationFunction(
-        ClusterState clusterState,
-        long currentNanoTime,
-        RoutingAllocation.DebugMode debugMode
-    ) {
-        assert debugMode == RoutingAllocation.DebugMode.ON || debugMode == RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS;
-        final RoutingAllocation allocation = createImmutableRoutingAllocation(clusterState, currentNanoTime);
-        final Function<ShardRouting, ShardAllocationDecision> explainFunction = shardsAllocator.explainShardAllocationFunction(allocation);
-        if (Assertions.ENABLED) {
-            return shard -> {
-                assert shard.unassigned() == false;
-                return explainFunction.apply(shard);
-            };
-        } else {
-            return explainFunction;
         }
     }
 

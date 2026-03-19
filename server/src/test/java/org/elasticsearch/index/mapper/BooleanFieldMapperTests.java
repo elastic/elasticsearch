@@ -55,6 +55,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("null_value", b -> b.field("null_value", true));
 
         registerDimensionChecks(checker);
+        registerScriptChecks(checker);
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {

@@ -587,3 +587,110 @@ setup:
 
   - match: { hits.total.value: 0 }
 
+---
+"nested kNN with score_mode max - root score matches inner_hits score (#138496, #138011)":
+  - requires:
+      test_runner_features: ["close_to"]
+      reason: "Assert root and inner hit scores match"
+
+  - do:
+      search:
+        index: test
+        body:
+          _source: false
+          query:
+            nested:
+              path: nested
+              score_mode: max
+              query:
+                knn:
+                  field: nested.vector
+                  query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+                  num_candidates: 5
+              inner_hits: { size: 3, "fields": [ "nested.paragraph_id" ], _source: false }
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "1" }
+  # Root score must equal top inner hit score (score_mode max)
+  - close_to: { hits.hits.0._score: { value: 0.00909090, error: 0.0001 } }
+  - close_to: { hits.hits.0.inner_hits.nested.hits.hits.0._score: { value: 0.00909090, error: 0.0001 } }
+  - close_to: { hits.hits.1._score: { value: 0.0021519717, error: 0.0001 } }
+  - close_to: { hits.hits.1.inner_hits.nested.hits.hits.0._score: { value: 0.0021519717, error: 0.0001 } }
+  - close_to: { hits.hits.2._score: { value: 0.00001, error: 0.0001 } }
+  - close_to: { hits.hits.2.inner_hits.nested.hits.hits.0._score: { value: 0.00001, error: 0.0001 } }
+
+---
+"nested bool(knn + match) with score_mode max - root score matches inner_hits score (#138011)":
+  - requires:
+      test_runner_features: ["close_to"]
+      reason: "Assert root and inner hit scores match with multi-clause scoring"
+
+  - do:
+      indices.create:
+        index: nested_score_consistency
+        body:
+          mappings:
+            properties:
+              nested:
+                type: nested
+                properties:
+                  embedding:
+                    type: dense_vector
+                    dims: 5
+                    index: true
+                    similarity: l2_norm
+                  text:
+                    type: text
+
+  - do:
+      index:
+        index: nested_score_consistency
+        id: "1"
+        body:
+          nested:
+            - embedding: [0.0, 0.0, 0.0, 0.0, 0.0]
+              text: "foo bar"
+
+  - do:
+      index:
+        index: nested_score_consistency
+        id: "2"
+        body:
+          nested:
+            - embedding: [1.0, 1.0, 1.0, 1.0, 1.0]
+              text: "foo bar"
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: nested_score_consistency
+        body:
+          _source: false
+          query:
+            nested:
+              path: nested
+              score_mode: max
+              query:
+                bool:
+                  must:
+                    - knn:
+                        field: nested.embedding
+                        query_vector: [0.0, 0.0, 0.0, 0.0, 0.0]
+                        num_candidates: 5
+                    - match:
+                        nested.text: "foo"
+              inner_hits: { size: 3, _source: false }
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
+  # Root score must equal top inner hit score (bool KNN + match, score_mode max)
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.01 } }
+  - close_to: { hits.hits.0.inner_hits.nested.hits.hits.0._score: { value: 1.0, error: 0.01 } }
+  - close_to: { hits.hits.1._score: { value: 0.31, error: 0.2 } }
+  - close_to: { hits.hits.1.inner_hits.nested.hits.hits.0._score: { value: 0.31, error: 0.2 } }
+

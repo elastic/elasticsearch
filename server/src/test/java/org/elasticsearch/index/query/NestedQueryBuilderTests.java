@@ -510,4 +510,41 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         Query query = nested.toQuery(context);
         assertThat(query, instanceOf(ESToParentBlockJoinQuery.class));
     }
+
+    public void testKnnCopyWithUseMaxNestedKnnCandidatesInNestedAffectsEquality() {
+        KnnVectorQueryBuilder knn = new KnnVectorQueryBuilder(
+            "nested1." + VECTOR_FIELD,
+            new float[] { 1.0f, 2.0f, 3.0f },
+            1,
+            10,
+            null,
+            null,
+            null
+        );
+        KnnVectorQueryBuilder withFlag = knn.copyWithUseMaxNestedKnnCandidatesInNested(true);
+        assertNotEquals(knn, withFlag);
+        assertNotEquals(knn.hashCode(), withFlag.hashCode());
+        assertEquals(withFlag, knn.copyWithUseMaxNestedKnnCandidatesInNested(true));
+        assertEquals(knn, knn.copyWithUseMaxNestedKnnCandidatesInNested(false));
+    }
+
+    public void testNestedKnnWithScoreModeMaxAndBoolKnnPlusMatchBuildsSuccessfully() throws IOException {
+        BoolQueryBuilder bool = QueryBuilders.boolQuery()
+            .must(
+                new KnnVectorQueryBuilder(
+                    "nested1." + VECTOR_FIELD,
+                    new float[] { 1.0f, 2.0f, 3.0f },
+                    1,
+                    10,
+                    null,
+                    null,
+                    null
+                )
+            )
+            .must(QueryBuilders.matchQuery(TEXT_FIELD_NAME, "foo"));
+        NestedQueryBuilder nested = new NestedQueryBuilder("nested1", bool, ScoreMode.Max);
+        SearchExecutionContext context = createSearchExecutionContext();
+        Query query = nested.toQuery(context);
+        assertThat(query, instanceOf(ESToParentBlockJoinQuery.class));
+    }
 }

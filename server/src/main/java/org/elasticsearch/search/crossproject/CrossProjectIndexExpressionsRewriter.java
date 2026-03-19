@@ -133,13 +133,7 @@ public class CrossProjectIndexExpressionsRewriter {
         Set<String> allProjectAliases,
         @Nullable String projectRouting
     ) {
-        String[] splitResource = RemoteClusterAware.splitIndexName(resource);
-        assert splitResource.length == 2
-            : "Expected two strings (project and indexExpression) for a qualified resource ["
-                + resource
-                + "], but found ["
-                + splitResource.length
-                + "]";
+        String[] splitResource = CrossProjectIndexResolutionValidator.splitQualifiedResource(resource);
         String requestedProjectAlias = splitResource[0];
         assert requestedProjectAlias != null : "Expected a project alias for a qualified resource but was null";
         boolean isExclusion = false;

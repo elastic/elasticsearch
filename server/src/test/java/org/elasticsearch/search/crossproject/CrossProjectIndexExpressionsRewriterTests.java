@@ -508,6 +508,18 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
         assertChainedExpressionRejected("linked_project:chained_linked_project:-logs*");
     }
 
+    public void testChainedConcreteIndexWithSelectorIsRejected() {
+        assertChainedExpressionRejected("linked_project:chained_linked_project:logs::data");
+    }
+
+    public void testChainedConcreteIndexWithFailuresSelectorIsRejected() {
+        assertChainedExpressionRejected("linked_project:chained_linked_project:logs::failures");
+    }
+
+    public void testChainedWildcardWithSelectorIsRejected() {
+        assertChainedExpressionRejected("linked_project:chained_linked_project:*::data");
+    }
+
     public void testChainedExpressionMixedWithFlatIsRejected() {
         final ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
         final List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("linked_project"));

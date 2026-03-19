@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -120,8 +121,7 @@ public class ParallelParsingBenchmark {
                 List.of("line"),
                 1000,
                 parallelism,
-                executor,
-                SCHEMA
+                executor
             )
         ) {
             while (iter.hasNext()) {
@@ -161,30 +161,20 @@ public class ParallelParsingBenchmark {
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
-            return readSplit(object, projectedColumns, batchSize, false, true, SCHEMA);
-        }
-
-        @Override
-        public CloseableIterator<Page> readSplit(
-            StorageObject object,
-            List<String> projectedColumns,
-            int batchSize,
-            boolean skipFirstLine,
-            boolean lastSplit,
-            List<Attribute> resolvedAttributes
-        ) throws IOException {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
             final byte[] data;
             try (InputStream stream = object.newStream()) {
                 data = stream.readAllBytes();
             }
+            final int batchSize = context.batchSize();
+            final boolean skipFirstLine = context.firstSplit() == false;
 
             return new CloseableIterator<>() {
                 private int pos = 0;
                 private Page nextPage = null;
 
                 {
-                    // Skip first line if needed
+                    // Skip first line if needed (when not first split)
                     if (skipFirstLine) {
                         while (pos < data.length && data[pos] != '\n') {
                             pos++;

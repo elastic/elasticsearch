@@ -246,12 +246,7 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Embedding(
-            source(),
-            newChildren.get(0),
-            newChildren.get(1),
-            newChildren.size() > 2 ? (MapExpression) newChildren.get(2) : null
-        );
+        return new Embedding(source(), newChildren.get(0), newChildren.get(1), newChildren.size() > 2 ? newChildren.get(2) : null);
     }
 
     @Override

@@ -263,6 +263,9 @@ public class WriteLoadConstraintMonitor {
 
     private Collection<LongWithAttributes> getHotspottingNodeFlags() {
         final ClusterState state = clusterStateSupplier.get();
+        if (state == null) {
+            return List.of();
+        }
         final Map<NodeIdName, Long> hotspotNodeStartTimesView = hotspotNodeStartTimes;
 
         List<LongWithAttributes> nodeHotspotStatus = new ArrayList<>(state.nodes().size());

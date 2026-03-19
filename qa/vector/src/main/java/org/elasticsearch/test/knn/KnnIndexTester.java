@@ -25,6 +25,8 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.TieredMergePolicy;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NamedThreadFactory;
 import org.elasticsearch.cli.ProcessInfo;
@@ -51,6 +53,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.management.ManagementFactory;
@@ -448,6 +451,55 @@ public class KnnIndexTester {
     }
 
     /**
+     * Bundles the vector reader, document factory, total doc count, and optional index sort
+     * needed to create an index. Created from the test configuration and optional generator.
+     */
+    record IndexingSetup(KnnIndexer.IndexVectorReader reader, KnnIndexer.DocumentFactory factory, int totalDocs, Sort sort)
+        implements
+            Closeable {
+
+        static IndexingSetup create(TestConfiguration config, @Nullable PartitionDataGenerator generator) throws IOException {
+            if (generator != null) {
+                var assignments = generator.getPartitionAssignments();
+                int totalDocs = 0;
+                for (var docIds : assignments.values()) {
+                    totalDocs += docIds.size();
+                }
+                String[] docPartitionIds = new String[totalDocs];
+                int[] docOrdinals = new int[totalDocs];
+                int idx = 0;
+                for (var entry : assignments.entrySet()) {
+                    for (int docId : entry.getValue()) {
+                        docPartitionIds[idx] = entry.getKey();
+                        docOrdinals[idx] = docId;
+                        idx++;
+                    }
+                }
+                logger.info("IndexingSetup: generated data with {} partitions, dim={}", generator.getNumPartitions(), config.dimensions());
+                KnnIndexer.IndexVectorReader vectorReader = new KnnIndexer.PartitionGeneratingVectorReader(generator);
+                KnnIndexer.DocumentFactory documentFactory = new KnnIndexer.PartitionDocumentFactory(docPartitionIds, docOrdinals);
+                Sort indexSort = new Sort(new SortField(KnnIndexer.PARTITION_ID_FIELD, SortField.Type.STRING, false));
+                return new IndexingSetup(vectorReader, documentFactory, totalDocs, indexSort);
+            } else {
+                KnnIndexer.MultiFileVectorReader vectorReader = KnnIndexer.MultiFileVectorReader.create(
+                    config.docVectors(),
+                    config.dimensions(),
+                    config.vectorEncoding().luceneEncoding(),
+                    config.numDocs()
+                );
+                return new IndexingSetup(vectorReader, new KnnIndexer.DefaultDocumentFactory(), vectorReader.totalDocs(), null);
+            }
+        }
+
+        @Override
+        public void close() throws IOException {
+            if (reader instanceof Closeable c) {
+                c.close();
+            }
+        }
+    }
+
+    /**
      * Runs indexing, merge, and search phases using the given directory configuration.
      * When {@code dirConfig.shared()} is true, a single directory instance is used for all
      * phases. Otherwise, separate directories are used for write and read.
@@ -492,17 +544,13 @@ public class KnnIndexTester {
                     testConfiguration.writerMaxBufferedDocs()
                 );
                 if (testConfiguration.reindex()) {
-                    if (generator != null) {
-                        Directory writeDir = sharedDir != null ? sharedDir : dirConfig.factory().create(indexPath);
-                        try {
-                            knnIndexer.createGeneratedIndex(indexResults, writeDir, generator);
-                        } finally {
-                            if (sharedDir == null) {
-                                writeDir.close();
-                            }
+                    Directory writeDir = sharedDir != null ? sharedDir : dirConfig.factory().create(indexPath);
+                    try (var setup = IndexingSetup.create(testConfiguration, generator)) {
+                        knnIndexer.createIndex(indexResults, writeDir, setup.reader(), setup.factory(), setup.totalDocs(), setup.sort());
+                    } finally {
+                        if (sharedDir == null) {
+                            writeDir.close();
                         }
-                    } else {
-                        reindex(knnIndexer, indexResults, sharedDir);
                     }
                 } else if (generator == null && Files.exists(indexPath) == false) {
                     throw new IllegalArgumentException("Index path does not exist: " + indexPath);
@@ -513,9 +561,7 @@ public class KnnIndexTester {
             }
             numSegments(indexPath, indexResults, sharedDir);
 
-            boolean hasQueries = generator != null
-                ? testConfiguration.numQueries() > 0
-                : (testConfiguration.queryVectors() != null && testConfiguration.numQueries() > 0);
+            boolean hasQueries = testConfiguration.numQueries() > 0 && (generator != null || testConfiguration.queryVectors() != null);
             if (hasQueries) {
                 Directory readDir = sharedDir != null ? sharedDir : dirConfig.factory().create(indexPath);
                 try {
@@ -524,20 +570,7 @@ public class KnnIndexTester {
                         KnnSearcher.preWarmDirectory(readDir);
                         logDiagnostics(dirConfig, readDir, "After prewarm");
                     }
-                    if (generator != null) {
-                        runPartitionSearches(
-                            testConfiguration,
-                            indexPath,
-                            readDir,
-                            results,
-                            parsedArgs,
-                            indexPathName,
-                            indexType,
-                            generator
-                        );
-                    } else {
-                        runSearches(testConfiguration, indexPath, readDir, results, parsedArgs, indexPathName, indexType);
-                    }
+                    runSearches(testConfiguration, indexPath, readDir, results, parsedArgs, indexPathName, indexType, generator);
                     logDiagnostics(dirConfig, readDir, "After search");
                 } finally {
                     if (sharedDir == null) {
@@ -549,14 +582,6 @@ public class KnnIndexTester {
             if (sharedDir != null) {
                 sharedDir.close();
             }
-        }
-    }
-
-    static void reindex(KnnIndexer knnIndexer, Results indexResults, Directory sharedDir) throws Exception {
-        if (sharedDir != null) {
-            knnIndexer.createIndex(indexResults, sharedDir);
-        } else {
-            knnIndexer.createIndex(indexResults);
         }
     }
 
@@ -588,7 +613,8 @@ public class KnnIndexTester {
         Results[] results,
         ParsedArgs parsedArgs,
         String indexPathName,
-        String indexType
+        String indexType,
+        @Nullable PartitionDataGenerator generator
     ) throws Exception {
         if (parsedArgs.warmUpIterations() > 0) {
             logger.info("Running the searches for " + parsedArgs.warmUpIterations() + " warm up iterations");
@@ -597,38 +623,14 @@ public class KnnIndexTester {
             for (int i = 0; i < results.length; i++) {
                 var ignoreResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
                 KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
-                knnSearcher.runSearch(ignoreResults, testConfiguration.searchParams().get(i), dir);
+                var setup = KnnSearcher.SearchSetup.create(knnSearcher, testConfiguration.searchParams().get(i), generator);
+                knnSearcher.search(ignoreResults, testConfiguration.searchParams().get(i), dir, setup);
             }
         }
         for (int i = 0; i < results.length; i++) {
             KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
-            knnSearcher.runSearch(results[i], testConfiguration.searchParams().get(i), dir);
-        }
-    }
-
-    private static void runPartitionSearches(
-        TestConfiguration testConfiguration,
-        Path indexPath,
-        Directory dir,
-        Results[] results,
-        ParsedArgs parsedArgs,
-        String indexPathName,
-        String indexType,
-        PartitionDataGenerator generator
-    ) throws Exception {
-        if (parsedArgs.warmUpIterations() > 0) {
-            logger.info("Running partitioned searches for " + parsedArgs.warmUpIterations() + " warm up iterations");
-        }
-        for (int warmUpCount = 0; warmUpCount < parsedArgs.warmUpIterations(); warmUpCount++) {
-            for (int i = 0; i < results.length; i++) {
-                var ignoreResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
-                KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
-                knnSearcher.runPartitionSearch(ignoreResults, testConfiguration.searchParams().get(i), dir, generator);
-            }
-        }
-        for (int i = 0; i < results.length; i++) {
-            KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
-            knnSearcher.runPartitionSearch(results[i], testConfiguration.searchParams().get(i), dir, generator);
+            var setup = KnnSearcher.SearchSetup.create(knnSearcher, testConfiguration.searchParams().get(i), generator);
+            knnSearcher.search(results[i], testConfiguration.searchParams().get(i), dir, setup);
         }
     }
 

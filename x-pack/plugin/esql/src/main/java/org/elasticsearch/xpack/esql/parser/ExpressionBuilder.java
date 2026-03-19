@@ -86,7 +86,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
@@ -760,9 +759,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             Expression value = expression(entry.value.constant() != null ? entry.value.constant() : entry.value.mapExpression());
             String entryText = entry.getText();
             if (value instanceof Literal l) {
-                if (l.dataType() == NULL) {
-                    throw new ParsingException(source(ctx), "Invalid named parameter [{}], NULL is not supported", entryText);
-                }
                 namedArgs.add(Literal.keyword(source(stringCtx), key));
                 namedArgs.add(l);
                 names.add(key);

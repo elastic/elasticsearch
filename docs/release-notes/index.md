@@ -20,11 +20,137 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+## 9.3.2 [elasticsearch-9.3.2-release-notes]
+```{applies_to}
+stack: ga 9.3.2
+```
+
+### Features and enhancements [elasticsearch-9.3.2-features-enhancements]
+
+Authentication:
+* Bump Kiota Libs [#143556](https://github.com/elastic/elasticsearch/pull/143556)
+
+Authorization:
+* [JupiterOne] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` [#140049](https://github.com/elastic/elasticsearch/pull/140049)
+* [Sentinel One] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third-party agent indices in the `Kibana system` to support the unified alert data stream. [#142648](https://github.com/elastic/elasticsearch/pull/142648)
+
+Monitoring:
+* Apm-server: update monitor mappings to include new TBS metrics [#140700](https://github.com/elastic/elasticsearch/pull/140700)
+
+Search:
+* Fix nested object float arrays being mapped to dense vectors when they are mapped in dynamic template mappings [#143733](https://github.com/elastic/elasticsearch/pull/143733) (issue: [#143732](https://github.com/elastic/elasticsearch/issues/143732))
+
+Transform:
+* Skip checkpoint query filter when `runtime_mappings` are present [#142452](https://github.com/elastic/elasticsearch/pull/142452)
+
+
+### Fixes [elasticsearch-9.3.2-fixes]
+
+Aggregations:
+* Fix `ClassCastException` when merging `TopHits` with mixed sort field types [#141919](https://github.com/elastic/elasticsearch/pull/141919) (issue: [#141714](https://github.com/elastic/elasticsearch/issues/141714))
+
+CCS:
+* Fix: `_resolve/index API` should be able to accept an empty body [#143159](https://github.com/elastic/elasticsearch/pull/143159)
+
+Data streams:
+* Apm-data: explicit map of `timestamp.us` to long [#143173](https://github.com/elastic/elasticsearch/pull/143173)
+* Expand DLM user to allow interaction with .workflows-events [#143958](https://github.com/elastic/elasticsearch/pull/143958)
+
+ES|QL:
+* Account for missing `StubRelation` due to `SurrogateExpressions` replacement [#142882](https://github.com/elastic/elasticsearch/pull/142882) (issue: [#142219](https://github.com/elastic/elasticsearch/issues/142219))
+* ESQL - enable zero_terms_query option in MATCH function [#143668](https://github.com/elastic/elasticsearch/pull/143668) (issue: [#143070](https://github.com/elastic/elasticsearch/issues/143070))
+* Fix incorrect nullify with unmapped fields [#142300](https://github.com/elastic/elasticsearch/pull/142300) (issue: [#141870](https://github.com/elastic/elasticsearch/issues/141870))
+* Fix unresolved name pattern [#143210](https://github.com/elastic/elasticsearch/pull/143210)
+* Promptly clean up CCS exchange sinks [#143325](https://github.com/elastic/elasticsearch/pull/143325)
+* TS command ignores aliases in BY [#143489](https://github.com/elastic/elasticsearch/pull/143489)
+
+Highlighting:
+* Fix `UnsupportedOperationException` when using a `plain` highlighter with a query on a field used for index sorting (`index.sort.*`).  [#143680](https://github.com/elastic/elasticsearch/pull/143680)
+
+Machine Learning:
+* Fix Duplicate ML Model Allocations on Same Node [#142872](https://github.com/elastic/elasticsearch/pull/142872)
+* Fixed stats API to use correct allocation count for `required_native_memory_bytes` calculation [#143077](https://github.com/elastic/elasticsearch/pull/143077) (issue: [#107831](https://github.com/elastic/elasticsearch/issues/107831))
+
+Mapping:
+* Apply the source filter on metadata field mappers when loading from synthetic source [#143726](https://github.com/elastic/elasticsearch/pull/143726) (issue: [#143464](https://github.com/elastic/elasticsearch/issues/143464))
+
+Search:
+* Add circuit breaker for query construction to prevent OOM from automaton-based queries [#142150](https://github.com/elastic/elasticsearch/pull/142150)
+* Add timeout support for KNN searches in the DFS phase [#142925](https://github.com/elastic/elasticsearch/pull/142925)
+
+Security:
+* Disable CAE in microsoft-graph-authz plugin [#142848](https://github.com/elastic/elasticsearch/pull/142848) (issue: [#142743](https://github.com/elastic/elasticsearch/issues/142743))
+* Fix use-after-free in `SearchApplicationIndexService` buffer lifecycle [#143134](https://github.com/elastic/elasticsearch/pull/143134)
+
+Snapshot/Restore:
+* Fix cancellation race in `CancellableRateLimitedFluxIterator` [#141974](https://github.com/elastic/elasticsearch/pull/141974)
+
+Transform:
+* [ML]Fix latest transforms disregarding updates when sort and sync fields are non-monotonic [#142856](https://github.com/elastic/elasticsearch/pull/142856) (issue: [#90643](https://github.com/elastic/elasticsearch/issues/90643))
+
+Vector Search:
+* Fix GPU merge `ClassCastException` with wrapped directories [#143531](https://github.com/elastic/elasticsearch/pull/143531)
+
+
+## 9.2.7 [elasticsearch-9.2.7-release-notes]
+```{applies_to}
+stack: ga 9.2.7
+```
+
+### Features and enhancements [elasticsearch-9.2.7-features-enhancements]
+
+Authentication:
+* Bump Kiota Libs [#143556](https://github.com/elastic/elasticsearch/pull/143556)
+
+Authorization:
+* [JupiterOne] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` [#140049](https://github.com/elastic/elasticsearch/pull/140049)
+* [Sentinel One] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third-party agent indices in the `Kibana system` to support the unified alert data stream. [#142648](https://github.com/elastic/elasticsearch/pull/142648)
+
+Monitoring:
+* Apm-server: update monitor mappings to include new TBS metrics [#140700](https://github.com/elastic/elasticsearch/pull/140700)
+
+Search:
+* Fix nested object float arrays being mapped to dense vectors when they are mapped in dynamic template mappings [#143733](https://github.com/elastic/elasticsearch/pull/143733) (issue: [#143732](https://github.com/elastic/elasticsearch/issues/143732))
+
+Transform:
+* Skip checkpoint query filter when `runtime_mappings` are present [#142452](https://github.com/elastic/elasticsearch/pull/142452)
+
+
+### Fixes [elasticsearch-9.2.7-fixes]
+
+Aggregations:
+* Fix `ClassCastException` when merging `TopHits` with mixed sort field types [#141919](https://github.com/elastic/elasticsearch/pull/141919) (issue: [#141714](https://github.com/elastic/elasticsearch/issues/141714))
+
+Data streams:
+* Apm-data: explicit map of `timestamp.us` to long [#143173](https://github.com/elastic/elasticsearch/pull/143173)
+
+ES|QL:
+* ESQL - enable zero_terms_query option in MATCH function [#143668](https://github.com/elastic/elasticsearch/pull/143668) (issue: [#143070](https://github.com/elastic/elasticsearch/issues/143070))
+* Promptly clean up CCS exchange sinks [#143325](https://github.com/elastic/elasticsearch/pull/143325)
+
+Machine Learning:
+* Fix Duplicate ML Model Allocations on Same Node [#142872](https://github.com/elastic/elasticsearch/pull/142872)
+* Fixed stats API to use correct allocation count for `required_native_memory_bytes` calculation [#143077](https://github.com/elastic/elasticsearch/pull/143077) (issue: [#107831](https://github.com/elastic/elasticsearch/issues/107831))
+
+SQL:
+* Fix `QlIllegalArgumentException` with non-foldable date range queries [#142386](https://github.com/elastic/elasticsearch/pull/142386) (issue: [#137365](https://github.com/elastic/elasticsearch/issues/137365))
+
+Search:
+* Add circuit breaker for query construction to prevent OOM from automaton-based queries [#142150](https://github.com/elastic/elasticsearch/pull/142150)
+* Add timeout support for KNN searches in the DFS phase [#142925](https://github.com/elastic/elasticsearch/pull/142925)
+
+Security:
+* Disable CAE in microsoft-graph-authz plugin [#142848](https://github.com/elastic/elasticsearch/pull/142848) (issue: [#142743](https://github.com/elastic/elasticsearch/issues/142743))
+* Fix use-after-free in `SearchApplicationIndexService` buffer lifecycle [#143134](https://github.com/elastic/elasticsearch/pull/143134)
+
+Snapshot/Restore:
+* Fix cancellation race in `CancellableRateLimitedFluxIterator` [#141974](https://github.com/elastic/elasticsearch/pull/141974)
+
+Transform:
+* [ML]Fix latest transforms disregarding updates when sort and sync fields are non-monotonic [#142856](https://github.com/elastic/elasticsearch/pull/142856) (issue: [#90643](https://github.com/elastic/elasticsearch/issues/90643))
+
 
 ## 9.3.1 [elasticsearch-9.3.1-release-notes]
-```{applies_to}
-stack: ga 9.3.1
-```
 
 ### Features and enhancements [elasticsearch-9.3.1-features-enhancements]
 
@@ -55,16 +181,13 @@ Snapshot/Restore:
 Vector Search:
 * [GPU] Handle segments too big for MSAI segment access [#141872](https://github.com/elastic/elasticsearch/pull/141872) (issue: [#141746](https://github.com/elastic/elasticsearch/issues/141746))
 
+
 ## 9.2.6 [elasticsearch-9.2.6-release-notes]
-```{applies_to}
-stack: ga 9.2.6
-```
 
 ### Features and enhancements [elasticsearch-9.2.6-features-enhancements]
 
 Packaging:
 * Updating bundled jdk version to 25.0.2+10 [#142500](https://github.com/elastic/elasticsearch/pull/142500)
-
 
 ### Fixes [elasticsearch-9.2.6-fixes]
 
@@ -99,14 +222,15 @@ Mapping:
 * Allow shadowing time series metrics and dimension in non time series indexing [#141549](https://github.com/elastic/elasticsearch/pull/141549) (issue: [#140882](https://github.com/elastic/elasticsearch/issues/140882))
 
 Ranking:
-* Fixing for NPE when there is no query specified for the standard retriever [#142479](https://github.com/elastic/elasticsearch/pull/142479) (issue: [#142336](https://github.com/elastic/elasticsearch/issues/142336))
 * Implement comprehensive top N parameter handling for text similarity reranker [#142039](https://github.com/elastic/elasticsearch/pull/142039)
+* Fixing for NPE when there is no query specified for the standard retriever [#142479](https://github.com/elastic/elasticsearch/pull/142479) (issue: [#142336](https://github.com/elastic/elasticsearch/issues/142336))
 
 Search:
 * Ensure Rewriteable.rewriteAndFetch listeners are not executed on transport threads [#141904](https://github.com/elastic/elasticsearch/pull/141904)
-* Fix Top Hits Incompatible Field Types on Sort Across Indices [#142046](https://github.com/elastic/elasticsearch/pull/142046) (issue: [#141906](https://github.com/elastic/elasticsearch/issues/141906))
 * Fix handling empty collapse construct [#141973](https://github.com/elastic/elasticsearch/pull/141973) (issue: [#139299](https://github.com/elastic/elasticsearch/issues/139299))
+* Fix Top Hits Incompatible Field Types on Sort Across Indices [#142046](https://github.com/elastic/elasticsearch/pull/142046) (issue: [#141906])
 * Prevent large CancelTasksRequest descriptions by truncating nodes and actions [#141815](https://github.com/elastic/elasticsearch/pull/141815)
+(https://github.com/elastic/elasticsearch/issues/141906))
 * Reduce cancellation check interval in `CancellableBulkScorer` for better responsiveness [#141747](https://github.com/elastic/elasticsearch/pull/141747)
 
 Snapshot/Restore:

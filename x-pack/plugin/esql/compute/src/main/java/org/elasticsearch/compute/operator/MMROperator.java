@@ -150,12 +150,7 @@ public class MMROperator extends CompleteInputCollectorOperator {
             docRank++;
         }
 
-        var diversificationContext = new MMRResultDiversificationContext(
-            diversifyField,
-            lambda,
-            limit,
-            () -> queryVector
-        );
+        var diversificationContext = new MMRResultDiversificationContext(diversifyField, lambda, limit, () -> queryVector);
         diversificationContext.setFieldVectors(vectors);
 
         var diversification = new MMRResultDiversification(diversificationContext);

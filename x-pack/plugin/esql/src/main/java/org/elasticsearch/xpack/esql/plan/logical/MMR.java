@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 
@@ -39,10 +38,10 @@ public class MMR extends UnaryPlan
         ExecutesOn.Coordinator,
         PostAnalysisVerificationAware,
         PostOptimizationPlanVerificationAware {
-    public static final String LAMBDA_OPTION_NAME = "lambda";
-    private static final List<String> VALID_MMR_OPTION_NAMES = List.of(LAMBDA_OPTION_NAME);
 
+    public static final String LAMBDA_OPTION_NAME = "lambda";
     public static Float DEFAULT_LAMBDA = 0.5f;
+
     private final Attribute diversifyField;
     private final Expression limit;
     private final Expression queryVector;
@@ -122,10 +121,6 @@ public class MMR extends UnaryPlan
         return Objects.hash(super.hashCode(), diversifyField, limit, queryVector, options);
     }
 
-    public List<String> validOptionNames() {
-        return VALID_MMR_OPTION_NAMES;
-    }
-
     @Override
     public void postAnalysisVerification(Failures failures) {
         if (false == hasLimitedInput(this)) {
@@ -134,12 +129,6 @@ public class MMR extends UnaryPlan
 
         if (diversifyField.dataType() != DataType.DENSE_VECTOR) {
             failures.add(fail(this, "MMR diversify field must be a dense vector field"));
-        }
-
-        // ensure LIMIT value is integer
-        Integer limitValue = getMMRLimitValue(limit);
-        if (limitValue == null || limitValue < 1) {
-            failures.add(fail(this, "MMR limit must be a positive integer"));
         }
 
         if (queryVector != null && queryVector.dataType() != DENSE_VECTOR) {
@@ -152,6 +141,8 @@ public class MMR extends UnaryPlan
                 )
             );
         }
+        // ensure the limit is present and a positive integer
+        postAnalysisLimitVerification(failures);
         // ensure lambda, if given, is between 0.0 and 1.0
         postAnalysisOptionsVerification(failures);
     }
@@ -179,22 +170,23 @@ public class MMR extends UnaryPlan
         });
     }
 
-    public static Float extractLambdaFromOptions(MapExpression options) {
-        if (options == null) {
-            return DEFAULT_LAMBDA;
+    private void postAnalysisLimitVerification(Failures failures) {
+        if (limit instanceof Literal == false) {
+            failures.add(new Failure(this, "MMR limit is not a constant literal, got [" + limit.sourceText() + "]"));
+            return;
         }
-        Literal lambdaValueExpression = (Literal) options.keyFoldedMap().getOrDefault(MMR.LAMBDA_OPTION_NAME, null);
-        if (lambdaValueExpression == null) {
-            return DEFAULT_LAMBDA;
-        }
-        return ((Double) lambdaValueExpression.value()).floatValue();
-    }
 
-    public static Integer getMMRLimitValue(Expression limitExpression) {
-        if (limitExpression instanceof Literal litLimit && litLimit.dataType() == INTEGER) {
-            return (Integer) litLimit.value();
+        Literal limitLiteral = (Literal) limit;
+        if (limitLiteral.dataType() != INTEGER) {
+            failures.add(new Failure(this, "MMR limit is not an integer, got [" + limitLiteral.sourceText() + "]"));
+            return;
         }
-        return null;
+
+        int limitValue = ((Integer) limitLiteral.value()).intValue();
+
+        if (limitValue < 0) {
+            failures.add(fail(this, "MMR limit must be a positive integer, got [" + limitValue + "]"));
+        }
     }
 
     @Override

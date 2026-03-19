@@ -29,9 +29,6 @@ public class MMRExec extends UnaryExec {
     private final Expression queryVectorExpression;
     private final MapExpression options;
 
-    private VectorData queryVector;
-    private Float lambda;
-
     public MMRExec(
         Source source,
         PhysicalPlan child,
@@ -55,21 +52,8 @@ public class MMRExec extends UnaryExec {
         return limit;
     }
 
-    public VectorData queryVector() {
-        if (queryVectorExpression == null) {
-            return null;
-        }
-        if (queryVector == null) {
-            queryVector = extractQueryVectorData();
-        }
-        return queryVector;
-    }
-
-    public Float lambda() {
-        if (lambda == null) {
-            lambda = MMR.extractLambdaFromOptions(options);
-        }
-        return lambda;
+    public MapExpression options() {
+        return options;
     }
 
     @Override
@@ -110,7 +94,11 @@ public class MMRExec extends UnaryExec {
         return Objects.hash(super.hashCode(), diversifyField, limit, queryVectorExpression, options);
     }
 
-    private VectorData extractQueryVectorData() {
+    public VectorData queryVector() {
+        if (queryVectorExpression == null) {
+            return null;
+        }
+
         assert queryVectorExpression instanceof Literal && queryVectorExpression.dataType() == DataType.DENSE_VECTOR
             : "query vector must be resolved to a dense_vector literal";
 
@@ -123,5 +111,22 @@ public class MMRExec extends UnaryExec {
             values[i] = litValues.get(i).floatValue();
         }
         return VectorData.fromFloats(values);
+    }
+
+    public float lambda() {
+        if (options == null) {
+            return MMR.DEFAULT_LAMBDA;
+        }
+
+        Literal lambdaValueExpression = (Literal) options.keyFoldedMap().getOrDefault(MMR.LAMBDA_OPTION_NAME, null);
+        if (lambdaValueExpression == null) {
+            return MMR.DEFAULT_LAMBDA;
+        }
+        return ((Double) lambdaValueExpression.value()).floatValue();
+    }
+
+    public int limitValue() {
+        assert limit != null && limit instanceof Literal && ((Literal) limit).value() instanceof Number : "limit must be a number literal";
+        return ((Number) ((Literal) limit).value()).intValue();
     }
 }

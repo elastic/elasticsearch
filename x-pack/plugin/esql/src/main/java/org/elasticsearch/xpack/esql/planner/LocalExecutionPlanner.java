@@ -184,7 +184,6 @@ import java.util.stream.Stream;
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory;
-import static org.elasticsearch.xpack.esql.plan.logical.MMR.getMMRLimitValue;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
 /**
@@ -376,8 +375,8 @@ public class LocalExecutionPlanner {
 
         assert (mmr.diversifyField() != null) : "diversifyField is required for the MMROperator";
 
-        int limit = getMMRLimitValue(mmr.limit());
-        Float lambdaValue = mmr.lambda();
+        int limit = mmr.limitValue();
+        float lambdaValue = mmr.lambda();
         VectorData queryVector = mmr.queryVector();
 
         int diversifyFieldChannel = source.layout.get(mmr.diversifyField().id()).channel();

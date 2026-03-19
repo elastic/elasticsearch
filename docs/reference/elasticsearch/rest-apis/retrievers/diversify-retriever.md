@@ -48,7 +48,7 @@ The ordering of results returned from the inner retriever is preserved.
     :::
 
 `query_vector`
-:   (Required if the `field` is a `semantic_text` type, otherwise optional, array of `float`, `byte` or string)
+:   (Required if the `field` is a `semantic_text` type, otherwise optional. Array of `float`, `byte` or string)
 
     Query vector. Must have the same number of dimensions as the vector field you are searching against.
     Must be one of:

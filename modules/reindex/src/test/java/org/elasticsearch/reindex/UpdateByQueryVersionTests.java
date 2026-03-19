@@ -53,7 +53,6 @@ public class UpdateByQueryVersionTests extends AbstractAsyncBulkByScrollActionMe
                 UpdateByQueryVersionTests.this.threadPool,
                 null,
                 request(),
-                true,
                 listener()
             );
         }

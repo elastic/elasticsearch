@@ -1890,7 +1890,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
         final List<ShardRouting> existingStartedShards = new ArrayList<>();
 
-        // Shard 0 - primary started
+        // Shard 0 - start a primary, and randomly choose to start a replica thereof.
         final String shard0PrimaryNodeId = randomFrom(initialState.nodes().getDataNodes().values()).getId();
         existingStartedShards.add(
             routingNodes.startShard(
@@ -1921,7 +1921,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             );
         }
 
-        // Shard 1 - initializing primary or replica
+        // Shard 1 - initializing a primary, and randomly choose to initialize a replica thereof.
         final String shard1PrimaryNodeId = randomFrom(initialState.nodes().getDataNodes().values()).getId();
         ShardRouting initializingShard = routingNodes.initializeShard(
             indexRoutingTable.shard(1).primaryShard(),
@@ -1941,7 +1941,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             );
         }
 
-        // Shard 2 - Relocating primary
+        // Shard 2 - Start a primary and then immediately set to relocating
         final String shard2PrimaryNodeId = randomFrom(initialState.nodes().getDataNodes().values()).getId();
         final Tuple<ShardRouting, ShardRouting> relocationTuple = routingNodes.relocateShard(
             routingNodes.startShard(
@@ -1960,8 +1960,10 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             "test",
             routingChangesObserver
         );
+        // Add the shard as started on the source node.
         existingStartedShards.add(relocationTuple.v1());
 
+        // Now build the ClusterInfo to expect the RoutingTable/RoutingNodes set up above.
         final ClusterInfo clusterInfo = ClusterInfo.builder()
             .dataPath(
                 existingStartedShards.stream()
@@ -1969,31 +1971,62 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             )
             .build();
 
-        // No extra simulation calls since there is no new shard or relocated shard that are not in ClusterInfo
+        // The first call should do nothing because the ClusterInfo still matches the RoutingNodes.
         {
             DesiredBalanceComputer.maybeSimulateAlreadyStartedShards(clusterInfo, routingNodes, clusterInfoSimulator);
             verifyNoInteractions(clusterInfoSimulator);
         }
 
-        // Start the initializing shard and it should be identified and simulated
+        // Start the initializing shard (that was never added to the ClusterInfo) and it should be identified as new and simulated.
         final var startedShard = routingNodes.startShard(initializingShard, routingChangesObserver, randomLongBetween(100, 999));
         {
             DesiredBalanceComputer.maybeSimulateAlreadyStartedShards(clusterInfo, routingNodes, clusterInfoSimulator);
             verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedShard, null);
+            if (routingNodes.node(startedShard.currentNodeId()).numberOfStartedShardsForIndex(startedShard.index()) == 1) {
+                verify(clusterInfoSimulator).simulateAddIndexToNode(startedShard.currentNodeId(), startedShard.index());
+            }
             verifyNoMoreInteractions(clusterInfoSimulator);
         }
 
-        // Also start the relocating shard and both should be identified and simulated
+        // Start the relocating shard, and now both (the previous change and this one) should be identified as new and simulated.
         {
             Mockito.clearInvocations(clusterInfoSimulator);
             final var startedRelocatingShard = routingNodes.startShard(
-                relocationTuple.v2(),
+                relocationTuple.v2(), // ShardRouting for the target node
                 routingChangesObserver,
                 randomLongBetween(100, 999)
             );
             DesiredBalanceComputer.maybeSimulateAlreadyStartedShards(clusterInfo, routingNodes, clusterInfoSimulator);
+            // Simulation should be called for the two new shards
             verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedShard, null);
             verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedRelocatingShard, relocationTuple.v1().currentNodeId());
+            // Internal public methods should also be called, to handle the stats changes due to new or removed indices on nodes.
+            if (startedShard.currentNodeId() == startedRelocatingShard.currentNodeId()) {
+                // The shards were moved to the same node: if the index is new to that node, then there should be a call to simulate adding
+                // the index stats for the node.
+                if (routingNodes.node(startedShard.currentNodeId()).numberOfStartedShardsForIndex(startedShard.index()) == 2) {
+                    verify(clusterInfoSimulator).simulateAddIndexToNode(startedShard.currentNodeId(), startedShard.index());
+                }
+            } else {
+                // Check if the index is new on either node that received a new shard: if either is new, then the index stats should have
+                // been simulated, too.
+                if (routingNodes.node(startedShard.currentNodeId()).numberOfStartedShardsForIndex(startedShard.index()) == 1) {
+                    verify(clusterInfoSimulator).simulateAddIndexToNode(startedShard.currentNodeId(), startedShard.index());
+                }
+                if (routingNodes.node(startedRelocatingShard.currentNodeId())
+                    .numberOfStartedShardsForIndex(startedRelocatingShard.index()) == 1) {
+                    verify(clusterInfoSimulator).simulateAddIndexToNode(
+                        startedRelocatingShard.currentNodeId(),
+                        startedRelocatingShard.index()
+                    );
+                }
+            }
+            if (routingNodes.node(relocationTuple.v1().currentNodeId()).hasIndex(startedRelocatingShard.index()) == false) {
+                verify(clusterInfoSimulator).simulateRemoveIndexFromNode(
+                    relocationTuple.v1().currentNodeId(),
+                    relocationTuple.v1().index()
+                );
+            }
             verifyNoMoreInteractions(clusterInfoSimulator);
         }
     }

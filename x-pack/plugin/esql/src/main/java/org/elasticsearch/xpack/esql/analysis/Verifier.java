@@ -17,15 +17,19 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
@@ -39,8 +43,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
@@ -68,6 +74,8 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
  */
 public class Verifier {
 
+    static final String UNMAPPED_TIMESTAMP_SUFFIX = "; the [unmapped_fields] setting does not apply to the implicit @timestamp reference";
+
     /**
      * Extra plan verification checks defined in plugins.
      */
@@ -86,6 +94,13 @@ public class Verifier {
     }
 
     /**
+     * Verify that a {@link LogicalPlan} can be executed (no unmapped-field resolution context).
+     */
+    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics) {
+        return verify(plan, partialMetrics, null);
+    }
+
+    /**
      * Verify that a {@link LogicalPlan} can be executed.
      *
      * @param plan The logical plan to be verified
@@ -96,9 +111,10 @@ public class Verifier {
     Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics, UnmappedResolution unmappedResolution) {
         assert partialMetrics != null;
         Failures failures = new Failures();
+        boolean unmappedTimestampHandled = unmappedResolution != UnmappedResolution.FAIL && isTimestampUnmappedInAllIndices(plan, failures);
 
         // quick verification for unresolved attributes
-        checkUnresolvedAttributes(plan, failures);
+        checkUnresolvedAttributes(plan, failures, unmappedTimestampHandled);
 
         ConfigurationAware.verifyNoMarkerConfiguration(plan, failures);
 
@@ -109,6 +125,7 @@ public class Verifier {
 
         if (unmappedResolution == UnmappedResolution.LOAD) {
             checkLoadModeDisallowedCommands(plan, failures);
+            checkLoadModeDisallowedFunctions(plan, failures);
         }
 
         // collect plan checkers
@@ -149,7 +166,7 @@ public class Verifier {
         return failures.failures();
     }
 
-    private static void checkUnresolvedAttributes(LogicalPlan plan, Failures failures) {
+    private static void checkUnresolvedAttributes(LogicalPlan plan, Failures failures, boolean skipUnresolvedTimestamp) {
         plan.forEachUp(p -> {
             // if the children are unresolved, so will this node; counting it will only add noise
             if (p.childrenResolved() == false) {
@@ -182,6 +199,9 @@ public class Verifier {
                         return;
                     }
 
+                    if (skipUnresolvedTimestamp && ae instanceof UnresolvedTimestamp) {
+                        return;
+                    }
                     if (ae instanceof Unresolvable u) {
                         failures.add(fail(ae, u.unresolvedMessage()));
                     }
@@ -348,10 +368,53 @@ public class Verifier {
         }
     }
 
+    // TODO: remove this check when SORT + LIMIT BY (TopN) support is added
     private static void checkLimitBy(LogicalPlan plan, Failures failures) {
-        if (plan instanceof LimitBy) {
-            failures.add(fail(plan, "LIMIT BY is not yet supported"));
+        if (plan instanceof LimitBy limitBy) {
+            LogicalPlan child = limitBy.child();
+            while (child instanceof UnaryPlan unary) {
+                if (child instanceof OrderBy) {
+                    failures.add(fail(limitBy, "SORT cannot be used before LIMIT BY"));
+                    break;
+                }
+                if (child instanceof Limit) {
+                    break;
+                }
+                child = unary.child();
+            }
         }
+    }
+
+    /**
+     * The {@code unmapped_fields} setting does not apply to the implicit {@code @timestamp} reference ({@link TimestampAware} functions).
+     * Only emits the specific message when {@code @timestamp} is truly absent from all source index mappings;
+     * if the field was present but dropped/renamed by the query, the generic unresolved-attribute message is more appropriate.
+     * See https://github.com/elastic/elasticsearch/issues/142127
+     */
+    private static boolean isTimestampUnmappedInAllIndices(LogicalPlan plan, Failures failures) {
+        if (plan.anyMatch(p -> p instanceof EsRelation r && r.indexMode() != IndexMode.LOOKUP && hasTimestamp(r))) {
+            return false;
+        }
+        plan.forEachDown(p -> {
+            if (p instanceof TimestampAware ta && ta.timestamp() instanceof UnresolvedTimestamp) {
+                failures.add(fail(p, "[{}] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX + UNMAPPED_TIMESTAMP_SUFFIX, p.sourceText()));
+            }
+            p.forEachExpression(Expression.class, e -> {
+                if (e instanceof TimestampAware ta && ta.timestamp() instanceof UnresolvedTimestamp) {
+                    failures.add(fail(e, "[{}] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX + UNMAPPED_TIMESTAMP_SUFFIX, e.sourceText()));
+                }
+            });
+        });
+        return true;
+    }
+
+    private static boolean hasTimestamp(EsRelation relation) {
+        for (Attribute attr : relation.output()) {
+            if (MetadataAttribute.TIMESTAMP_FIELD.equals(attr.name())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -370,6 +433,25 @@ public class Verifier {
                 failures.add(fail(p, "LOOKUP JOIN is not supported with unmapped_fields=\"load\""));
             }
         });
+    }
+
+    /**
+     * Disallow full-text search when unmapped_fields=load. We do not restrict to "only when the FTF
+     * is applied to an unmapped field" because FTFs like KQL can reference unmapped fields inside the
+     * query string (e.g. KQL("author: Faulkner")), and the desired behavior there is unclear.
+     */
+    private static void checkLoadModeDisallowedFunctions(LogicalPlan plan, Failures failures) {
+        List<FullTextFunction> fullTextFunctions = new ArrayList<>();
+        plan.forEachExpressionDown(FullTextFunction.class, fullTextFunctions::add);
+        fullTextFunctions.forEach(
+            f -> failures.add(
+                fail(
+                    f,
+                    "unmapped_fields=\"load\" does not support full-text search function [{}]; use \"fail\" or \"nullify\"",
+                    f.functionName()
+                )
+            )
+        );
     }
 
     private void licenseCheck(LogicalPlan plan, Failures failures) {

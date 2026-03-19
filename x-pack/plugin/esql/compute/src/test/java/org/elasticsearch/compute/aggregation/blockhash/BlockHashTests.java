@@ -1351,23 +1351,25 @@ public class BlockHashTests extends BlockHashTestCase {
                 }
             });
 
-            Block[] keys = hash1.getKeys();
-            try {
-                Set<String> distinctKeys = new HashSet<>();
-                BytesRefBlock block0 = (BytesRefBlock) keys[0];
-                BytesRefBlock block1 = (BytesRefBlock) keys[1];
-                BytesRef scratch = new BytesRef();
-                StringBuilder builder = new StringBuilder();
-                for (int i = 0; i < totalPositions; i++) {
-                    builder.setLength(0);
-                    builder.append(BytesRefs.toString(block0.getBytesRef(i, scratch)));
-                    builder.append("#");
-                    builder.append(BytesRefs.toString(block1.getBytesRef(i, scratch)));
-                    distinctKeys.add(builder.toString());
+            try (IntVector nonEmpty = hash1.nonEmpty()) {
+                Block[] keys = hash1.getKeys(nonEmpty);
+                try {
+                    Set<String> distinctKeys = new HashSet<>();
+                    BytesRefBlock block0 = (BytesRefBlock) keys[0];
+                    BytesRefBlock block1 = (BytesRefBlock) keys[1];
+                    BytesRef scratch = new BytesRef();
+                    StringBuilder builder = new StringBuilder();
+                    for (int i = 0; i < totalPositions; i++) {
+                        builder.setLength(0);
+                        builder.append(BytesRefs.toString(block0.getBytesRef(i, scratch)));
+                        builder.append("#");
+                        builder.append(BytesRefs.toString(block1.getBytesRef(i, scratch)));
+                        distinctKeys.add(builder.toString());
+                    }
+                    assertThat(distinctKeys.size(), equalTo(totalPositions));
+                } finally {
+                    Releasables.close(keys);
                 }
-                assertThat(distinctKeys.size(), equalTo(totalPositions));
-            } finally {
-                Releasables.close(keys);
             }
         } finally {
             Releasables.close(output);
@@ -1710,9 +1712,9 @@ public class BlockHashTests extends BlockHashTestCase {
             }
             Block[] keys1 = null;
             Block[] keys2 = null;
-            try {
-                keys1 = hash1.getKeys();
-                keys2 = hash2.getKeys();
+            try (IntVector nonEmpty1 = hash1.nonEmpty(); IntVector nonEmpty2 = hash2.nonEmpty()) {
+                keys1 = hash1.getKeys(nonEmpty1);
+                keys2 = hash2.getKeys(nonEmpty2);
                 assertThat(keys1, equalTo(keys2));
             } finally {
                 Releasables.close(keys1);
@@ -1820,9 +1822,9 @@ public class BlockHashTests extends BlockHashTestCase {
             }
             Block[] keys1 = null;
             Block[] keys2 = null;
-            try {
-                keys1 = hash1.getKeys();
-                keys2 = hash2.getKeys();
+            try (IntVector nonEmpty1 = hash1.nonEmpty(); IntVector nonEmpty2 = hash2.nonEmpty()) {
+                keys1 = hash1.getKeys(nonEmpty1);
+                keys2 = hash2.getKeys(nonEmpty2);
                 // reverseOutput should swap the two key blocks
                 assertThat(keys1.length, equalTo(2));
                 assertThat(keys2.length, equalTo(2));

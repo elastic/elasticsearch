@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
@@ -132,6 +133,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -2510,6 +2512,68 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var sorts = esQueryExec.sorts();
         assertThat(sorts.size(), equalTo(1));
         assertThat(sorts.getFirst().field().name(), equalTo("last_name"));
+    }
+
+    public void testLimitByNotPushedToSource() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        var plan = plannerOptimizer.plan("""
+            from test
+            | limit 10 by first_name
+            """);
+
+        var limit = as(plan, LimitExec.class);
+
+        var limitBy = as(limit.child(), LimitByExec.class);
+        assertThat(limitBy.limitPerGroup().fold(FoldContext.small()), is(10));
+        assertThat(limitBy.groupings(), hasSize(1));
+        assertThat(Expressions.names(limitBy.groupings()), contains("first_name"));
+
+        // LIMIT BY must NOT push the limit into EsQueryExec
+        var sources = plan.collectLeaves().stream().filter(EsQueryExec.class::isInstance).toList();
+        assertThat(sources, hasSize(1));
+        assertThat(((EsQueryExec) sources.get(0)).limit(), is(nullValue()));
+    }
+
+    public void testLimitByMultipleKeys() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        var plan = plannerOptimizer.plan("""
+            from test
+            | limit 5 by first_name, last_name
+            """);
+
+        var limit = as(plan, LimitExec.class);
+
+        var limitBy = as(limit.child(), LimitByExec.class);
+        assertThat(limitBy.limitPerGroup().fold(FoldContext.small()), is(5));
+        assertThat(limitBy.groupings(), hasSize(2));
+        assertThat(Expressions.names(limitBy.groupings()), contains("first_name", "last_name"));
+
+        var sources = plan.collectLeaves().stream().filter(EsQueryExec.class::isInstance).toList();
+        assertThat(sources, hasSize(1));
+        assertThat(((EsQueryExec) sources.get(0)).limit(), is(nullValue()));
+    }
+
+    public void testLimitByWithFilter() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        var plan = plannerOptimizer.plan("""
+            from test
+            | where salary > 1000
+            | limit 10 by first_name
+            """);
+
+        var limit = as(plan, LimitExec.class);
+
+        var limitBy = as(limit.child(), LimitByExec.class);
+        assertThat(limitBy.limitPerGroup().fold(FoldContext.small()), is(10));
+        assertThat(limitBy.groupings(), hasSize(1));
+        assertThat(Expressions.names(limitBy.groupings()), contains("first_name"));
+
+        // Filter should be pushed to source but limit should not
+        var sources = plan.collectLeaves().stream().filter(EsQueryExec.class::isInstance).toList();
+        assertThat(sources, hasSize(1));
+        var source = (EsQueryExec) sources.get(0);
+        assertThat(source.limit(), is(nullValue()));
+        assertThat(source.query(), is(not(nullValue())));
     }
 
     private boolean isMultiTypeEsField(Expression e) {

@@ -1535,11 +1535,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             if (param.value() instanceof String s) {
                 return new IndexPattern(source(ctx), s);
             }
-            throw new ParsingException(
-                source(ctx),
-                "Parameter [{}] for index must be a string",
-                ctx.NAMED_OR_POSITIONAL_PARAM().getText()
-            );
+            throw new ParsingException(source(ctx), "Parameter [{}] for index must be a string", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
         } else if (ctx.promqlIndexPattern().isEmpty()) {
             // Default to all indices if no index pattern is provided
             return new IndexPattern(source(ctx), "*");

@@ -60,13 +60,19 @@ public abstract class MvSetOperationFunction extends BinaryScalarFunction implem
 
         if (left().dataType() != DataType.NULL && right().dataType() != DataType.NULL) {
             this.dataType = left().dataType().noText();
-            return isType(
+            TypeResolution leftResolution = isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(
+                left(),
+                sourceText(),
+                FIRST
+            );
+            TypeResolution rightResolution = isType(
                 right(),
                 t -> t.noText() == left().dataType().noText(),
                 sourceText(),
                 SECOND,
                 left().dataType().noText().typeName()
             );
+            return leftResolution.unresolved() ? leftResolution : rightResolution;
         }
 
         Expression evaluatedField = left().dataType() == DataType.NULL ? right() : left();

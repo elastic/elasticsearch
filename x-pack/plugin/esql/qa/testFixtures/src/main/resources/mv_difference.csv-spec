@@ -38,7 +38,7 @@ ROW values = null, element = ["a", "b", "c"]
 | EVAL result = mv_difference(values, element)
 ;
 
-values:null | element:keyword | result:null 
+values:null | element:keyword | result:keyword
 null        | [a, b, c]       | null         
 ;
 

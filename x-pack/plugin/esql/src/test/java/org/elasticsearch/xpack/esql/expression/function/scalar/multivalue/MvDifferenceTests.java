@@ -394,8 +394,8 @@ public class MvDifferenceTests extends AbstractScalarFunctionTestCase {
                                     );
                                     return new TestCaseSupplier.TestCase(
                                         typeDataWithNull,
-                                        nullPosition == 0 ? equalTo("ConstantNull") : originalTestCase.evaluatorToString(),
-                                        expectedType.expectedType(nullPosition, DataType.NULL, originalTestCase),
+                                        originalTestCase.evaluatorToString(),
+                                        originalTestCase.expectedType(),
                                         resultGivenANullParameter(nullPosition, originalTestCase)
                                     );
                                 }

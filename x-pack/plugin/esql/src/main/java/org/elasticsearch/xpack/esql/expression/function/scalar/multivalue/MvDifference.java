@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -37,17 +36,11 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram;
-
 /**
  * Adds a function that takes two multivalued expressions that return a result where the values of the first multivalued expression are
  * returned except for values that exist as a value in the second expression.
  *
- * The multivalued expressions are interpreted as sets, but the order of the first parameter is maintained.
- * Duplicates, however, are removed.
- *
- * a = ["a","b","c"] b = ["b"] MV_DIFFERENCE(a,b) => ["a","c"]
+ * a = ["a","a","b","c"] b = ["b"] MV_DIFFERENCE(a,b) => ["a","a","c"]
  */
 public class MvDifference extends MvSetOperationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -55,7 +48,6 @@ public class MvDifference extends MvSetOperationFunction {
         "MvDifference",
         MvDifference::new
     );
-    protected DataType dataType;
 
     @FunctionInfo(
         returnType = {
@@ -231,23 +223,6 @@ public class MvDifference extends MvSetOperationFunction {
             case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
-    }
-
-    @Override
-    protected TypeResolution resolveType() {
-        if (childrenResolved() == false) {
-            return new TypeResolution("Unresolved children");
-        }
-        this.dataType = left().dataType().noText();
-        return isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(left(), sourceText(), FIRST);
-    }
-
-    @Override
-    public DataType dataType() {
-        if (dataType == null) {
-            resolveType();
-        }
-        return dataType;
     }
 
     @Override

@@ -366,6 +366,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.RerankIT
   method: testRerankRowLimitEnforcement
   issue: https://github.com/elastic/elasticsearch/issues/144421
+- class: org.elasticsearch.indices.IndicesRequestCacheIT
+  method: testCanCache
+  issue: https://github.com/elastic/elasticsearch/issues/144526
 
 # Examples:
 #

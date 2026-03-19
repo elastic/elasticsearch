@@ -1027,7 +1027,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     public void testPropertiesDisallowedTypes() {
-        for (String type : List.of("object", "nested", "flattened", "alias", "join")) {
+        for (String type : List.of("object", "nested", "flattened", "alias", "join", "completion", "geo_point")) {
             MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
                 b.field("type", "flattened");
                 b.startObject("properties");
@@ -1041,9 +1041,29 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             assertThat(
                 "Type [" + type + "] should be disallowed",
                 e.getMessage(),
-                containsString("not supported as a property of flattened")
+                containsString("not supported as a mapped sub-field of flattened")
             );
         }
+    }
+
+    public void testPropertiesNoTypeSpecified() {
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("properties");
+            b.startObject("sub").field("doc_values", false).endObject();
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("No type specified for property [sub]"));
+    }
+
+    public void testPropertiesExpectedMap() {
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "flattened");
+            b.startObject("properties");
+            b.field("sub", "not_a_map");
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("Expected map for property [sub]"));
     }
 
     public void testPropertiesCopyToDisallowed() {

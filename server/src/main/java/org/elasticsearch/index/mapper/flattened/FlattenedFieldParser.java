@@ -46,7 +46,7 @@ class FlattenedFieldParser {
     private final boolean usesBinaryDocValues;
     private final boolean hasRootDocValues;
 
-    private final Map<String, FieldMapper> mappedProperties;
+    private final Map<String, FieldMapper> mappedSubFields;
 
     FlattenedFieldParser(
         String rootFieldFullPath,
@@ -58,7 +58,7 @@ class FlattenedFieldParser {
         String nullValue,
         boolean usesBinaryDocValues,
         boolean hasRootDocValues,
-        Map<String, FieldMapper> mappedProperties
+        Map<String, FieldMapper> mappedSubFields
     ) {
         this.rootFieldFullPath = rootFieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
@@ -69,7 +69,7 @@ class FlattenedFieldParser {
         this.nullValue = nullValue;
         this.usesBinaryDocValues = usesBinaryDocValues;
         this.hasRootDocValues = hasRootDocValues;
-        this.mappedProperties = mappedProperties;
+        this.mappedSubFields = mappedSubFields;
     }
 
     public void parse(final DocumentParserContext documentParserContext) throws IOException {
@@ -125,9 +125,9 @@ class FlattenedFieldParser {
             addField(context, path, currentName, value);
         } else if (token == XContentParser.Token.VALUE_NULL) {
             String key = path.pathAsText(currentName);
-            FieldMapper mappedMapper = mappedProperties.get(key);
-            if (mappedMapper != null) {
-                mappedMapper.parse(context.documentParserContext());
+            FieldMapper mappedSubField = mappedSubFields.get(key);
+            if (mappedSubField != null) {
+                mappedSubField.parse(context.documentParserContext());
             } else if (nullValue != null) {
                 addField(context, path, currentName, nullValue);
             }
@@ -146,11 +146,11 @@ class FlattenedFieldParser {
             );
         }
 
-        // Mapped properties are indexed exclusively through their own sub-field
-        // mapper and are not part of the flattened field's root/keyed representation.
-        FieldMapper mappedMapper = mappedProperties.get(key);
-        if (mappedMapper != null) {
-            mappedMapper.parse(context.documentParserContext());
+        // Mapped sub-fields are indexed exclusively in the sub-field mapper
+        // and are not part of the flattened field's root/keyed representation.
+        FieldMapper mappedSubField = mappedSubFields.get(key);
+        if (mappedSubField != null) {
+            mappedSubField.parse(context.documentParserContext());
             return;
         }
 

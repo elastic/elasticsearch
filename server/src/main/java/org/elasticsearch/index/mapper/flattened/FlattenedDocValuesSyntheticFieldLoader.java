@@ -32,7 +32,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
     private final String keyedIgnoredValuesFieldFullPath;
     private final String leafName;
     private final boolean usesBinaryDocValues;
-    private final List<SourceLoader.SyntheticFieldLoader> mappedPropertyLoaders;
+    private final List<SourceLoader.SyntheticFieldLoader> mappedSubFieldLoaders;
 
     protected DocValuesFieldValues docValues = NO_VALUES;
     protected List<Object> ignoredValues = List.of();
@@ -46,7 +46,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
      *                                             due to ignore_above
      * @param leafName                             the name of the leaf field to use in the rendered {@code _source}
      * @param usesBinaryDocValues                  whether the values are stored using binary or sorted set doc values
-     * @param mappedPropertyLoaders                synthetic field loaders for mapped sub-field properties; their values are
+     * @param mappedSubFieldLoaders                synthetic field loaders for mapped sub-fields; their values are
      *                                             written inside the flattened field's object alongside unmapped keys
      */
     FlattenedDocValuesSyntheticFieldLoader(
@@ -55,14 +55,14 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         @Nullable String keyedIgnoredValuesFieldFullPath,
         String leafName,
         boolean usesBinaryDocValues,
-        List<SourceLoader.SyntheticFieldLoader> mappedPropertyLoaders
+        List<SourceLoader.SyntheticFieldLoader> mappedSubFieldLoaders
     ) {
         this.fieldFullPath = fieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
         this.keyedIgnoredValuesFieldFullPath = keyedIgnoredValuesFieldFullPath;
         this.leafName = leafName;
         this.usesBinaryDocValues = usesBinaryDocValues;
-        this.mappedPropertyLoaders = mappedPropertyLoaders;
+        this.mappedSubFieldLoaders = mappedSubFieldLoaders;
     }
 
     @Override
@@ -78,9 +78,9 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
                 ignoredValues = new ArrayList<>();
                 ignoredValues.addAll(values);
             }));
-        Stream<Map.Entry<String, StoredFieldLoader>> propertyLoaders = mappedPropertyLoaders.stream()
+        Stream<Map.Entry<String, StoredFieldLoader>> subFieldLoaders = mappedSubFieldLoaders.stream()
             .flatMap(SourceLoader.SyntheticFieldLoader::storedFieldLoaders);
-        return Stream.concat(flattenedLoaders, propertyLoaders);
+        return Stream.concat(flattenedLoaders, subFieldLoaders);
     }
 
     @Override
@@ -108,10 +108,10 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
             }
         }
 
-        for (SourceLoader.SyntheticFieldLoader propertyLoader : mappedPropertyLoaders) {
-            DocValuesLoader propertyDvLoader = propertyLoader.docValuesLoader(reader, docIdsInLeaf);
-            if (propertyDvLoader != null) {
-                allLoaders.add(propertyDvLoader);
+        for (SourceLoader.SyntheticFieldLoader subFieldLoader : mappedSubFieldLoaders) {
+            DocValuesLoader subFieldDvLoader = subFieldLoader.docValuesLoader(reader, docIdsInLeaf);
+            if (subFieldDvLoader != null) {
+                allLoaders.add(subFieldDvLoader);
             }
         }
 
@@ -140,7 +140,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
     }
 
     private boolean hasPropertyValues() {
-        for (SourceLoader.SyntheticFieldLoader loader : mappedPropertyLoaders) {
+        for (SourceLoader.SyntheticFieldLoader loader : mappedSubFieldLoaders) {
             if (loader.hasValue()) {
                 return true;
             }
@@ -173,7 +173,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
             var writer = getWriter();
             writer.write(b);
         }
-        for (SourceLoader.SyntheticFieldLoader loader : mappedPropertyLoaders) {
+        for (SourceLoader.SyntheticFieldLoader loader : mappedSubFieldLoaders) {
             if (loader.hasValue()) {
                 loader.write(b);
             }
@@ -184,13 +184,13 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
     @Override
     public void reset() {
         ignoredValues = List.of();
-        for (SourceLoader.SyntheticFieldLoader loader : mappedPropertyLoaders) {
+        for (SourceLoader.SyntheticFieldLoader loader : mappedSubFieldLoaders) {
             loader.reset();
         }
     }
 
-    protected List<SourceLoader.SyntheticFieldLoader> getMappedPropertyLoaders() {
-        return mappedPropertyLoaders;
+    protected List<SourceLoader.SyntheticFieldLoader> getMappedSubFieldLoaders() {
+        return mappedSubFieldLoaders;
     }
 
     protected interface DocValuesFieldValues {

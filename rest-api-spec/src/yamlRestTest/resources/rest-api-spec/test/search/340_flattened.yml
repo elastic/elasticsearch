@@ -474,3 +474,62 @@ setup:
   - match: { test.mappings.properties.labels.type: flattened }
   - match: { test.mappings.properties.labels.properties.host\.name.type: keyword }
   - match: { test.mappings.properties.labels.properties.count.type: long }
+
+---
+"Test flattened mapped sub-field as index sort field":
+  - requires:
+      cluster_features: ["mapper.flattened.mapped_properties"]
+      reason: "mapped properties on flattened fields"
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              sort.field: labels.priority
+              sort.order: asc
+          mappings:
+            properties:
+              labels:
+                type: flattened
+                properties:
+                  priority:
+                    type: long
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          labels:
+            priority: 3
+            name: low
+        refresh: true
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          labels:
+            priority: 1
+            name: high
+        refresh: true
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          labels:
+            priority: 2
+            name: medium
+        refresh: true
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "1" }

@@ -43,7 +43,7 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
         String name,
         Mapper.IgnoreAbove ignoreAbove,
         boolean usesBinaryDocValues,
-        List<SourceLoader.SyntheticFieldLoader> mappedPropertyLoaders
+        List<SourceLoader.SyntheticFieldLoader> mappedSubFieldLoaders
     ) {
         this.ignoreAbove = ignoreAbove;
         this.fieldLoader = new BlockFlattenedDocValuesSyntheticFieldLoader(
@@ -52,7 +52,7 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
             ignoreAbove.valuesPotentiallyIgnored() ? name + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
             null,
             usesBinaryDocValues,
-            mappedPropertyLoaders
+            mappedSubFieldLoaders
         );
         this.storedFieldLoaders = fieldLoader.storedFieldLoaders().toList();
     }
@@ -185,9 +185,9 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
             String keyedIgnoredValuesFieldFullPath,
             String leafName,
             boolean usesBinaryDocValues,
-            List<SourceLoader.SyntheticFieldLoader> mappedPropertyLoaders
+            List<SourceLoader.SyntheticFieldLoader> mappedSubFieldLoaders
         ) {
-            super(fieldFullPath, keyedFieldFullPath, keyedIgnoredValuesFieldFullPath, leafName, usesBinaryDocValues, mappedPropertyLoaders);
+            super(fieldFullPath, keyedFieldFullPath, keyedIgnoredValuesFieldFullPath, leafName, usesBinaryDocValues, mappedSubFieldLoaders);
         }
 
         public void writeToBlock(BlockLoader.BytesRefBuilder builder) throws IOException {
@@ -201,7 +201,7 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
             if (hasFlattenedValues()) {
                 getWriter().write(jsonBuilder);
             }
-            for (SourceLoader.SyntheticFieldLoader loader : getMappedPropertyLoaders()) {
+            for (SourceLoader.SyntheticFieldLoader loader : getMappedSubFieldLoaders()) {
                 if (loader.hasValue()) {
                     loader.write(jsonBuilder);
                 }

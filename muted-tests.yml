@@ -357,6 +357,9 @@ tests:
 - class: org.elasticsearch.index.mapper.BlockSourceReaderTests
   method: testEmptyArray
   issue: https://github.com/elastic/elasticsearch/issues/144527
+- class: org.elasticsearch.index.mapper.BlockSourceReaderTests
+  method: testArray
+  issue: https://github.com/elastic/elasticsearch/issues/144528
 
 # Examples:
 #

@@ -27,6 +27,9 @@ import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIE
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiOAuth2Settings.AZURE_OPENAI_OAUTH_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiOAuth2Settings.REQUIRED_FIELDS;
 
+/**
+ * Represents the secrets required for Azure OpenAI OAuth2 client credentials flow authentication.
+ */
 public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretSettings {
 
     public static final String NAME = "azure_openai_oauth2_client_secret";
@@ -52,7 +55,7 @@ public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretSettings {
     }
 
     public SecureString getClientSecret() {
-        return secrets.getClientSecret();
+        return secrets.clientSecret();
     }
 
     @Override

@@ -21,6 +21,9 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.request.Azu
 import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiOAuth2Secrets.USE_CLIENT_SECRET_ERROR;
 import static org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings.EXACTLY_ONE_SECRETS_FIELD_ERROR;
 
+/**
+ * Factory for creating {@link AzureOpenAiSecretsApplier}s based on the provided {@link AzureOpenAiSecretSettings}.
+ */
 public final class AzureOpenAiSecretsFactory {
 
     private static final class NoopSecretsApplier implements AzureOpenAiSecretsApplier {

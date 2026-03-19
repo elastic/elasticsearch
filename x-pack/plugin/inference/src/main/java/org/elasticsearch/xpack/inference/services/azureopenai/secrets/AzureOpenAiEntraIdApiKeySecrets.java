@@ -19,7 +19,7 @@ import java.util.Objects;
 
 /**
  * Azure OpenAI secret settings for API key or Entra ID only.
- * Holds exactly one of the two (the other is null). Wire format matches main-branch behavior.
+ * Holds exactly one of the two (the other is null).
  */
 public class AzureOpenAiEntraIdApiKeySecrets extends AzureOpenAiSecretSettings {
 

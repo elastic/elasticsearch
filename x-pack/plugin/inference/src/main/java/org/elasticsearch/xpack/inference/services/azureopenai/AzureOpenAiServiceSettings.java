@@ -27,6 +27,10 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAi
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.DEPLOYMENT_ID;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.RESOURCE_NAME;
 
+/**
+ * Base class for Azure OpenAI service settings, containing fields common to all
+ * Azure OpenAI service setting types (e.g. completion, embeddings).
+ */
 public abstract class AzureOpenAiServiceSettings extends FilteredXContentObject implements ServiceSettings {
 
     public static final String OAUTH2_SETTINGS_NOT_CONFIGURED_ERROR =

@@ -11,6 +11,10 @@ import org.elasticsearch.core.Nullable;
 
 import java.util.Objects;
 
+/**
+ * Represents the result of validating a settings object.
+ * @param <T> The type of the result if validation is successful. This will be null if validation failed or is undefined.
+ */
 public final class ValidationResult<T> {
 
     private static final ValidationResult<?> UNDEFINED_RESULT = new ValidationResult<>(null, ValidationState.UNDEFINED);

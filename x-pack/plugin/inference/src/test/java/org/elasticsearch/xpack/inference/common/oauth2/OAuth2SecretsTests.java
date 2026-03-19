@@ -61,6 +61,6 @@ public class OAuth2SecretsTests extends AbstractBWCWireSerializationTestCase<OAu
 
     @Override
     protected OAuth2Secrets mutateInstance(OAuth2Secrets instance) throws IOException {
-        return new OAuth2Secrets(randomValueOtherThan(instance.getClientSecret(), () -> randomSecureStringOfLength(10)));
+        return new OAuth2Secrets(randomValueOtherThan(instance.clientSecret(), () -> randomSecureStringOfLength(10)));
     }
 }

@@ -17,6 +17,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * A class representing the secrets required for the OAuth2 client credentials flow.
+ */
 public class OAuth2Secrets implements ToXContentObject, Writeable {
 
     public static final String CLIENT_SECRET_FIELD = "client_secret";
@@ -31,7 +34,7 @@ public class OAuth2Secrets implements ToXContentObject, Writeable {
         this(in.readSecureString());
     }
 
-    public SecureString getClientSecret() {
+    public SecureString clientSecret() {
         return clientSecret;
     }
 

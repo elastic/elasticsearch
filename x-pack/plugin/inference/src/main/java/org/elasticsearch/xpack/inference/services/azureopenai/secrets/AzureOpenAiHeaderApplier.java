@@ -14,6 +14,10 @@ import org.elasticsearch.action.ActionListener;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+/**
+ * Applies a header to a request. Mainly used to apply secrets (like the entra ID or API key) to requests.
+ * @param headerSupplier a supplier to retrieve the header to apply to the request
+ */
 public record AzureOpenAiHeaderApplier(Supplier<Header> headerSupplier) implements AzureOpenAiSecretsApplier {
 
     public AzureOpenAiHeaderApplier(Supplier<Header> headerSupplier) {

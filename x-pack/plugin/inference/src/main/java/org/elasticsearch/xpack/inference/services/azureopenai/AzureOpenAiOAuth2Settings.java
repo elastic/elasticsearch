@@ -33,6 +33,10 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.getOAuth2Configurations;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 
+/**
+ * Represents the OAuth2 service-level settings required for Azure OpenAI client credentials flow authentication,
+ * which includes the standard OAuth2 fields (client ID and scopes)  as well as the tenant ID specific to Azure.
+ */
 public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable {
 
     public static final TransportVersion AZURE_OPENAI_OAUTH_SETTINGS = TransportVersion.fromName("azure_openai_oauth_settings");

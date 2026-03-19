@@ -24,6 +24,13 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.bearerToken;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiOAuth2Settings.REQUIRED_FIELDS_DESCRIPTION;
 
+/**
+ * Applies OAuth2 credentials to Azure OpenAI requests. Uses the Azure Identity library to
+ * retrieve an access token using the client credentials flow.
+ * @param inferenceId _
+ * @param clientSecretCredential The Azure Identity credential used to retrieve access tokens for Azure OpenAI requests
+ * @param tokenRequestContext The context used when requesting tokens, contains the scopes to request for the token
+ */
 public record AzureOpenAiOAuth2Applier(
     String inferenceId,
     ClientSecretCredential clientSecretCredential,

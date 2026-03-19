@@ -25,6 +25,10 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
 
+/**
+ * An abstract class representing the secrets required for Azure OpenAI authentication.
+ * This class enforces that exactly one of the supported authentication methods is used.
+ */
 public abstract class AzureOpenAiSecretSettings implements SecretSettings {
 
     public static final String API_KEY = "api_key";

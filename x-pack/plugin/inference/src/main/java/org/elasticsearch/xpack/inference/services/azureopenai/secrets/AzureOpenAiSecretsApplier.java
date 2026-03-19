@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.inference.services.azureopenai.secrets;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.action.ActionListener;
 
+/**
+ * An interface for applying secrets to Azure OpenAI requests.
+ */
 public interface AzureOpenAiSecretsApplier {
     void applyTo(HttpRequestBase request, ActionListener<HttpRequestBase> listener);
 }

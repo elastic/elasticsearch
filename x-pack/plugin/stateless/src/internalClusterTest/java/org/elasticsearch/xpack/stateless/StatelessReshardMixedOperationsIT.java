@@ -17,14 +17,18 @@
 
 package org.elasticsearch.xpack.stateless;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexRequest;
 import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
@@ -34,55 +38,52 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 
-public class StatelessReshardMixedOperationsIT extends AbstractStatelessPluginIntegTestCase {
-    public void testIndexingAndSearchDuringSplit() throws InterruptedException {
-        startMasterOnlyNode();
+public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptionBaseIT {
+    public void testMixedOperationsDuringSplit() throws Exception {
+        runTest(NoDisruptionExecutor::new, Disruptor.NOOP);
+    }
 
-        int shards = randomIntBetween(2, 5);
+    public void testMixedOperationsDuringSplitWithDisruption() throws Exception {
+        var disruptor = new Disruptor() {
+            private final AtomicBoolean stop = new AtomicBoolean(false);
+            private Thread thread;
 
-        int indexNodes = randomIntBetween(1, shards);
-        startIndexNodes(indexNodes);
-        int searchNodes = randomIntBetween(1, shards);
-        startSearchNodes(searchNodes);
-        ensureStableCluster(1 + indexNodes + searchNodes);
+            @Override
+            public void start(Index index, int clusterSize, int shardCount, String coordinator) {
+                var thread = new Thread(() -> {
+                    do {
+                        Failure randomFailure = randomFrom(Failure.values());
+                        try {
+                            induceFailure(randomFailure, index, coordinator);
+                        } catch (Exception e) {
+                            logger.error("Error in disruption thread", e);
+                            throw new RuntimeException(e);
+                        }
+                    } while (stop.get() == false);
+                });
+                thread.start();
 
-        String indexName = randomIndexName();
-        createIndex(indexName, shards, 1);
-        Index index = resolveIndex(indexName);
+                this.thread = thread;
+            }
 
-        int threadsCount = randomIntBetween(1, 10);
-        var threads = new ArrayList<Thread>();
+            @Override
+            public void stop() throws Exception {
+                stop.set(true);
+                this.thread.join();
+            }
+        };
 
-        // Let threads run for a bit so that we have some data to move around during split.
-        var readyForSplit = new CountDownLatch(threadsCount);
-        for (int i = 0; i < threadsCount; i++) {
-            int threadIndex = i;
-            // We don't need a lot of operations since we'll block both indexing and refresh at some point during split.
-            // And as a result most of them will be executed in the later stages of the split which is not that useful here.
-            var threadOperations = randomOperations(randomIntBetween(10, 50));
-            var thread = new Thread(() -> executeOperations(indexName, threadIndex, threadsCount, threadOperations, readyForSplit));
-            thread.start();
-            threads.add(thread);
-        }
-
-        readyForSplit.await();
-
-        // TODO execute multiple rounds
-        int splitRounds = 1;
-        for (int i = 0; i < splitRounds; i++) {
-            client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
-            awaitClusterState((state) -> state.metadata().projectFor(index).index(indexName).getReshardingMetadata() == null);
-        }
-
-        for (int i = 0; i < threadsCount; i++) {
-            threads.get(i).join(SAFE_AWAIT_TIMEOUT.millis());
-        }
+        runTest(UnderDisruptionExecutor::new, disruptor);
     }
 
     @Override
@@ -95,34 +96,34 @@ public class StatelessReshardMixedOperationsIT extends AbstractStatelessPluginIn
             .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.timeValueMillis(100));
     }
 
-    private void executeOperations(
-        String indexName,
-        int threadIndex,
-        int threadCount,
-        List<Operation> operations,
-        CountDownLatch halfwayDone
-    ) {
-        var indexed = new HashMap<String, String>();
-        var indexedAndRefreshed = new HashMap<String, String>();
+    private class NoDisruptionExecutor implements PerThreadOperationExecutor {
+        private final HashMap<String, String> indexed = new HashMap<>();
+        private final HashMap<String, String> indexedAndRefreshed = new HashMap<>();
 
-        // Prevent other threads from updating our documents since then we wouldn't be able to do asserts.
-        int id = Integer.MAX_VALUE / threadCount * threadIndex;
+        private String indexName;
+        private String coordinatorNode;
+        private int id;
 
-        for (int i = 0; i < operations.size(); i++) {
-            if (i == operations.size() / 2) {
-                halfwayDone.countDown();
-            }
+        @Override
+        public void initialize(String indexName, int threadIndex, int threadCount, String coordinatorNode) {
+            this.indexName = indexName;
+            this.coordinatorNode = coordinatorNode;
+            // Prevent other threads from updating our documents since then we wouldn't be able to do asserts.
+            this.id = Integer.MAX_VALUE / threadCount * threadIndex;
+        }
 
-            switch (operations.get(i)) {
+        @Override
+        public void execute(Operation operation) {
+            switch (operation) {
                 case REFRESH -> {
-                    var refreshResult = refresh(indexName);
+                    var refreshResult = client(coordinatorNode).admin().indices().prepareRefresh(indexName).get();
                     assertEquals(0, refreshResult.getFailedShards());
 
                     indexedAndRefreshed.putAll(indexed);
                     indexed.clear();
                 }
                 case SEARCH -> {
-                    var search = prepareSearch(indexName)
+                    var search = client(coordinatorNode).prepareSearch(indexName)
                         // We expect resharding to be seamless.
                         .setAllowPartialSearchResults(false)
                         .setQuery(QueryBuilders.matchAllQuery())
@@ -142,18 +143,27 @@ public class StatelessReshardMixedOperationsIT extends AbstractStatelessPluginIn
                     // we assume these are less used than bulks
                     boolean useIndexApi = randomDouble() < 0.1;
                     if (useIndexApi) {
-                        var indexRequest = createIndexRequest(indexName, id, indexed);
+                        String fieldValue = randomUnicodeOfCodepointLengthBetween(1, 25);
+
+                        String documentId = "document" + id;
+                        indexed.put(documentId, fieldValue);
                         id += 1;
 
-                        assertEquals(RestStatus.CREATED, indexRequest.get().status());
+                        var indexRequest = createIndexRequest(coordinatorNode, indexName, documentId, fieldValue);
+                        var indexResponse = indexRequest.get();
+                        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
                     } else {
                         int bulkSize = randomIntBetween(1, 20);
-                        final var client = client();
+                        final var client = client(coordinatorNode);
                         var bulkRequest = client.prepareBulk();
                         for (int j = 0; j < bulkSize; j++) {
-                            var indexRequest = createIndexRequest(indexName, id, indexed);
+                            String fieldValue = randomUnicodeOfCodepointLengthBetween(1, 25);
+
+                            String documentId = "document" + id;
+                            indexed.put(documentId, fieldValue);
                             id += 1;
 
+                            var indexRequest = createIndexRequest(coordinatorNode, indexName, documentId, fieldValue);
                             bulkRequest.add(indexRequest);
                         }
                         var bulkResponse = bulkRequest.get();
@@ -171,19 +181,255 @@ public class StatelessReshardMixedOperationsIT extends AbstractStatelessPluginIn
                 }
             }
         }
-
     }
 
-    private IndexRequestBuilder createIndexRequest(String indexName, int id, Map<String, String> indexed) {
-        var indexRequest = client().prepareIndex(indexName);
+    private class UnderDisruptionExecutor implements PerThreadOperationExecutor {
+        private final HashMap<String, String> allIndexedDocuments = new HashMap<>();
+        private final HashMap<String, String> indexedSinceLastRefresh = new HashMap<>();
+        private final HashMap<String, String> indexedAndRefreshed = new HashMap<>();
 
-        String documentId = "document" + id;
+        private String indexName;
+        private String coordinatorNode;
+        private Tuple<Integer, Integer> idRange;
+        private int currentId;
+
+        @Override
+        public void initialize(String indexName, int threadIndex, int threadCount, String coordinatorNode) {
+            this.indexName = indexName;
+            this.coordinatorNode = coordinatorNode;
+            // Prevent other threads from updating our documents since then we wouldn't be able to do asserts.
+            this.idRange = new Tuple<>(Integer.MAX_VALUE / threadCount * threadIndex, Integer.MAX_VALUE / threadCount * (threadIndex + 1));
+            this.currentId = idRange.v1();
+        }
+
+        @Override
+        public void execute(Operation operation) {
+            switch (operation) {
+                case REFRESH -> {
+                    BroadcastResponse refreshResult = client(coordinatorNode).admin().indices().prepareRefresh(indexName).get();
+                    // Refresh can fail on some shards due to disruption.
+                    // We'll assume nothing was refreshed in that case because otherwise it is not obvious
+                    // how to map what documents are refreshed (since we need to know the state of split to reason about that).
+                    if (refreshResult.getFailedShards() == 0) {
+                        indexedAndRefreshed.putAll(indexedSinceLastRefresh);
+                        indexedSinceLastRefresh.clear();
+                    }
+                }
+                case SEARCH -> {
+                    var search = client(coordinatorNode).prepareSearch(indexName)
+                        // Shards can fail due to disruption.
+                        .setAllowPartialSearchResults(true)
+                        .setQuery(QueryBuilders.matchAllQuery())
+                        .setSize(10000);
+
+                    try {
+                        var searchResponse = search.get();
+
+                        try {
+                            // Filter only documents that are in the id range of this thread.
+                            // By doing this transformation we also assert that there are no duplicates in hits.
+                            Map<String, String> fieldValueInHits = Arrays.stream(searchResponse.getHits().getHits()).filter(h -> {
+                                int id = Integer.parseInt(h.getId().substring("document".length()));
+                                return id >= idRange.v1() && id < idRange.v2();
+                            }).collect(Collectors.toMap(SearchHit::getId, h -> (String) h.getSourceAsMap().get("field")));
+
+                            // Partial refreshes are possible, but we only track fully succeeded ones.
+                            // `BroadcastResponse` doesn't give you details on what shards succeeded, only the number of successful shards.
+                            // So with such limited information this is the best we can do realistically.
+                            // That being said it is possible we may see documents here that were indexed but not
+                            // refreshed in the strict definition (there were no fully successful refreshes but may have been partial ones).
+                            // So we check both refreshed and indexed documents.
+                            for (var entry : fieldValueInHits.entrySet()) {
+                                var fieldValue = Optional.ofNullable(indexedAndRefreshed.get(entry.getKey()))
+                                    .or(() -> Optional.ofNullable(allIndexedDocuments.get(entry.getKey())));
+                                assertTrue(fieldValue.isPresent());
+                                assertEquals(entry.getValue(), fieldValue.get());
+                            }
+                        } finally {
+                            searchResponse.decRef();
+                        }
+                    } catch (ElasticsearchException e) {
+                        // We can get "all shards failed" if all search shards are allocated on the same node
+                        // or if there is one search node in total and it is down.
+                        assertTrue(e.getMessage().contains("all shards failed"));
+                    }
+                }
+                case INDEX -> {
+                    // we assume these are less used than bulks
+                    boolean useIndexApi = randomDouble() < 0.1;
+                    if (useIndexApi) {
+                        String fieldValue = randomUnicodeOfCodepointLengthBetween(1, 25);
+
+                        String documentId = "document" + currentId;
+                        currentId += 1;
+                        allIndexedDocuments.put(documentId, fieldValue);
+                        indexedSinceLastRefresh.put(documentId, fieldValue);
+
+                        var indexRequest = createIndexRequest(coordinatorNode, indexName, documentId, fieldValue);
+                        try {
+                            DocWriteResponse response = indexRequest.execute().actionGet();
+                            assertTrue(
+                                response.getResult() == DocWriteResponse.Result.CREATED
+                                    || response.getResult() == DocWriteResponse.Result.UPDATED
+                            );
+                            // We can see UPDATED if we retry an operation that failed but was already written to the translog.
+                            if (response.getResult() == DocWriteResponse.Result.UPDATED) {
+                                // Since it's a retry we should never see versions higher than 2.
+                                assertEquals(2, response.getVersion());
+                            }
+                        } catch (StaleRequestException e) {
+                            // TODO
+                            // We currently don't have grace period to drain queued requests and so can see this pretty often.
+                        }
+                    } else {
+                        int bulkSize = randomIntBetween(1, 20);
+
+                        final var client = client(coordinatorNode);
+                        var bulkRequest = client.prepareBulk();
+                        for (int j = 0; j < bulkSize; j++) {
+                            String fieldValue = randomUnicodeOfCodepointLengthBetween(1, 25);
+
+                            String documentId = "document" + currentId;
+                            currentId += 1;
+                            // Bulk requests can partially fail due to a node restart or something else after the data is already
+                            // in the translog.
+                            // Such writes will be successful and so have to assume all writes can succeed.
+                            allIndexedDocuments.put(documentId, fieldValue);
+                            indexedSinceLastRefresh.put(documentId, fieldValue);
+
+                            var indexRequest = createIndexRequest(coordinatorNode, indexName, documentId, fieldValue);
+                            bulkRequest.add(indexRequest);
+                        }
+
+                        try {
+                            bulkRequest.get();
+                        } catch (StaleRequestException e) {
+                            // TODO
+                            // We currently don't have grace period to drain queued requests and so can see this pretty often.
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void runTest(Supplier<PerThreadOperationExecutor> executorSupplier, Disruptor disruptor) throws Exception {
+        String masterNode = startMasterOnlyNode();
+
+        // Dedicated coordinator node so that we don't get hard failures for example when coordinator is restarted.
+        String dedicatedCoordinatorNode = startSearchNode();
+        // Exclude coordinator from allocation.
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(Settings.builder().put("cluster.routing.allocation.exclude._name", dedicatedCoordinatorNode))
+            .get();
+
+        int shards = randomIntBetween(2, 5);
+
+        int indexNodes = randomIntBetween(1, shards * 2);
+        startIndexNodes(indexNodes);
+        int searchNodes = randomIntBetween(1, shards * 2);
+        startSearchNodes(searchNodes);
+
+        int clusterSize = 1 + 1 + indexNodes + searchNodes;
+        ensureStableCluster(clusterSize, masterNode);
+
+        String indexName = randomIndexName();
+        createIndex(
+            indexName,
+            indexSettings(shards, 1)
+                // Due to all the disruption we can hit the default maximum of 5.
+                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), 100)
+                .build()
+        );
+        Index index = resolveIndex(indexName);
+        ensureGreen(indexName);
+
+        int threadsCount = randomIntBetween(1, 10);
+        var threads = new ArrayList<Thread>();
+
+        // Let threads run for a bit so that we have some data to move around during split.
+        var readyForSplit = new CountDownLatch(threadsCount);
+        for (int i = 0; i < threadsCount; i++) {
+            var executor = executorSupplier.get();
+            executor.initialize(indexName, i, threadsCount, dedicatedCoordinatorNode);
+
+            // We don't need a lot of operations since we'll block both indexing and refresh at some point during split.
+            // And as a result most of them will be executed in the later stages of the split which is not that useful here.
+            var threadOperations = randomOperations(randomIntBetween(10, 50));
+
+            var thread = new Thread(() -> executeOperations(executor, threadOperations, readyForSplit));
+            thread.start();
+            threads.add(thread);
+        }
+
+        readyForSplit.await();
+
+        logger.info("--> Starting disruption");
+        disruptor.start(index, clusterSize, shards * 2, dedicatedCoordinatorNode);
+        try {
+            // TODO execute multiple rounds
+            int splitRounds = 1;
+            for (int i = 0; i < splitRounds; i++) {
+                logger.info("--> Executing a split round");
+                client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+                awaitClusterState(
+                    masterNode,
+                    (state) -> state.metadata().projectFor(index).index(indexName).getReshardingMetadata() != null
+                );
+                awaitClusterState(
+                    masterNode,
+                    (state) -> state.metadata().projectFor(index).index(indexName).getReshardingMetadata() == null
+                );
+                logger.info("--> Split round complete");
+            }
+
+            for (int i = 0; i < threadsCount; i++) {
+                threads.get(i).join(SAFE_AWAIT_TIMEOUT.millis());
+            }
+        } finally {
+            logger.info("--> Stopping disruption");
+            disruptor.stop();
+            ensureStableCluster(clusterSize, masterNode);
+            logger.info("--> Disruptions stopped");
+        }
+    }
+
+    private interface PerThreadOperationExecutor {
+        void initialize(String indexName, int threadIndex, int threadCount, String coordinatorNode);
+
+        void execute(Operation operation);
+    }
+
+    private interface Disruptor {
+        void start(Index index, int clusterSize, int shardCount, String coordinator);
+
+        void stop() throws Exception;
+
+        Disruptor NOOP = new Disruptor() {
+            @Override
+            public void start(Index index, int clusterSize, int shardCount, String coordinator) {}
+
+            @Override
+            public void stop() {}
+        };
+    }
+
+    private void executeOperations(PerThreadOperationExecutor executor, List<Operation> operations, CountDownLatch halfwayDone) {
+        for (int i = 0; i < operations.size(); i++) {
+            if (i == operations.size() / 2) {
+                halfwayDone.countDown();
+            }
+
+            executor.execute(operations.get(i));
+        }
+    }
+
+    private IndexRequestBuilder createIndexRequest(String coordinatorNode, String indexName, String documentId, String fieldValue) {
+        var indexRequest = client(coordinatorNode).prepareIndex(indexName);
         indexRequest.setId(documentId);
-
-        String fieldValue = randomUnicodeOfCodepointLengthBetween(1, 25);
         indexRequest.setSource(Map.of("field", fieldValue));
-
-        indexed.put(documentId, fieldValue);
 
         if (randomBoolean()) {
             indexRequest.setRouting(randomAlphaOfLength(5));

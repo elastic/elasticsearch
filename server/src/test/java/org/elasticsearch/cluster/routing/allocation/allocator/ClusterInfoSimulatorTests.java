@@ -756,13 +756,10 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
         /** Set up the Simulator */
 
-        final var allocation = new RoutingAllocation(
-            new AllocationDeciders(List.of()),
-            harness.clusterState,
-            clusterInfo,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
-        ).mutableCloneForSimulation();
+        final var allocation = TestRoutingAllocationFactory.forClusterState(harness.clusterState)
+            .clusterInfo(clusterInfo)
+            .build()
+            .mutableCloneForSimulation();
 
         final var simulator = new ClusterInfoSimulator(allocation);
 
@@ -988,19 +985,9 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         var harness = setupHeapUsageTestHarness();
         var shardRouting1 = harness.shardRouting1; // Need to update these reference, harness doesn't allow it (as a record type.
 
-        /** Set up ClusterInfo */
-
-        ClusterInfo clusterInfo = ClusterInfo.builder().build();
-
         /** Set up the Simulator */
 
-        final var allocation = new RoutingAllocation(
-            new AllocationDeciders(List.of()),
-            harness.clusterState,
-            clusterInfo,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
-        ).mutableCloneForSimulation();
+        final var allocation = TestRoutingAllocationFactory.forClusterState(harness.clusterState).build().mutableCloneForSimulation();
 
         final var simulator = new ClusterInfoSimulator(allocation);
 
@@ -1074,13 +1061,10 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
         /** Set up the Simulator */
 
-        final var allocation = new RoutingAllocation(
-            new AllocationDeciders(List.of()),
-            harness.clusterState,
-            clusterInfo,
-            SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
-        ).mutableCloneForSimulation();
+        final var allocation = TestRoutingAllocationFactory.forClusterState(harness.clusterState)
+            .clusterInfo(clusterInfo)
+            .build()
+            .mutableCloneForSimulation();
 
         final var simulator = new ClusterInfoSimulator(allocation);
 

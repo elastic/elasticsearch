@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -4138,6 +4139,32 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     static Alias alias(String name, Expression value) {
         return new Alias(EMPTY, name, value);
+    }
+
+    public void testChangePoint() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
+
+        // AS before ON
+        LogicalPlan plan = query("ROW key=1, value=2 | CHANGE_POINT value AS my_type, my_pvalue ON key");
+        ChangePoint cp = as(plan, ChangePoint.class);
+        assertThat(cp.value().name(), equalTo("value"));
+        assertThat(cp.key().name(), equalTo("key"));
+        assertThat(cp.targetType().name(), equalTo("my_type"));
+        assertThat(cp.targetPvalue().name(), equalTo("my_pvalue"));
+
+        // ON before AS
+        plan = query("ROW key=1, value=2 | CHANGE_POINT value ON key AS my_type, my_pvalue");
+        cp = as(plan, ChangePoint.class);
+        assertThat(cp.value().name(), equalTo("value"));
+        assertThat(cp.key().name(), equalTo("key"));
+        assertThat(cp.targetType().name(), equalTo("my_type"));
+        assertThat(cp.targetPvalue().name(), equalTo("my_pvalue"));
+
+        // duplicate ON
+        expectError("ROW key=1, value=2 | CHANGE_POINT value ON key ON key2", "Only one ON can be specified");
+
+        // duplicate AS
+        expectError("ROW key=1, value=2 | CHANGE_POINT value AS a, b AS c, d", "Only one AS can be specified");
     }
 
     public void testValidFuse() {

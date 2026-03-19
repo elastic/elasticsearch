@@ -55,7 +55,7 @@ public class PromqlCommand extends UnaryPlan
     /**
      * The name of the column containing the step value (aka time bucket) in range queries.
      */
-    private static final String STEP_COLUMN_NAME = "step";
+    public static final String STEP_COLUMN_NAME = "step";
 
     private final LogicalPlan promqlPlan;
     private final Literal start;

@@ -1251,8 +1251,21 @@ public class SharedBlobCacheWarmingService {
 
             @Override
             public void onResponse(Releasable releasable) {
+                var cacheKey = new FileCacheKey(warmingRun.shardId(), blobFile.primaryTerm(), blobFile.blobName());
+                var releasedListener = ActionListener.releaseAfter(listener, releasable);
+                fetchRange(cacheKey, releasedListener.delegateResponse((l, e) -> {
+                    if (ExceptionsHelper.unwrap(e, ResourceAlreadyUploadedException.class) != null) {
+                        logger.debug(() -> "retrying " + blobFile + " " + byteRangeToWarm + " from object store", e);
+                        fetchRange(cacheKey, l);
+                    } else {
+                        l.onFailure(e);
+                    }
+                }));
+            }
+
+            private void fetchRange(FileCacheKey cacheKey, ActionListener<Void> l) {
                 cacheService.fetchRange(
-                    new FileCacheKey(warmingRun.shardId(), blobFile.primaryTerm(), blobFile.blobName()),
+                    cacheKey,
                     byteRangeToWarm,
                     directory.getCacheBlobReaderForWarming(blobFile),
                     WarmBlobByteRangeTask.this,
@@ -1260,7 +1273,7 @@ public class SharedBlobCacheWarmingService {
                     totalBytesCopied::addAndGet,
                     fetchExecutor,
                     true,
-                    ActionListener.releaseAfter(listener, releasable)
+                    l
                 );
             }
 

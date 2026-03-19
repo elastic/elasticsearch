@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondit
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.OptimalShardCountCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -39,6 +40,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -873,6 +875,128 @@ public class IndexMetadataTests extends ESTestCase {
         assertEquals(primaryTerm, backToOneShardMetadata.primaryTerm(0));
     }
 
+    public void testInferenceFieldMetadataBwcSerialization() throws IOException {
+        final TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(
+            InferenceFieldMetadata.INFERENCE_FIELD_EMBEDDING_TYPE
+        );
+
+        // Build an IndexMetadata with both TEXT_EMBEDDING and EMBEDDING inference fields
+        String textEmbeddingField = "text_field";
+        String embeddingField = "embedding_field";
+        Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
+            textEmbeddingField,
+            new InferenceFieldMetadata(
+                textEmbeddingField,
+                randomIdentifier(),
+                randomIdentifier(),
+                new String[] { "source" },
+                null,
+                InferenceFieldMetadata.EmbeddingType.TEXT_EMBEDDING
+            ),
+            embeddingField,
+            new InferenceFieldMetadata(
+                embeddingField,
+                randomIdentifier(),
+                randomIdentifier(),
+                new String[] { "source" },
+                null,
+                InferenceFieldMetadata.EmbeddingType.EMBEDDING
+            )
+        );
+
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .settings(indexSettings(IndexVersion.current(), 1, 0))
+            .putInferenceFields(inferenceFields)
+            .build();
+
+        // Round-trip with old version — EMBEDDING-typed field should be filtered out
+        final IndexMetadata deserialized = roundTripWithVersion(metadata, oldVersion);
+
+        assertThat(deserialized.getInferenceFields(), hasKey(textEmbeddingField));
+        assertThat(deserialized.getInferenceFields().get(textEmbeddingField).getEmbeddingType(), equalTo(InferenceFieldMetadata.EmbeddingType.TEXT_EMBEDDING));
+        assertThat(deserialized.getInferenceFields().containsKey(embeddingField), is(false));
+    }
+
+    public void testInferenceFieldMetadataBwcDiffSerializationFiltersEmbeddingTypeOnOldNode() throws IOException {
+        final TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(
+            InferenceFieldMetadata.INFERENCE_FIELD_EMBEDDING_TYPE
+        );
+
+        // before: only TEXT_EMBEDDING fields
+        String textEmbeddingField = "text_field";
+        IndexMetadata before = IndexMetadata.builder("test")
+            .settings(indexSettings(IndexVersion.current(), 1, 0))
+            .putInferenceFields(
+                Map.of(
+                    textEmbeddingField,
+                    new InferenceFieldMetadata(
+                        textEmbeddingField,
+                        randomIdentifier(),
+                        randomIdentifier(),
+                        new String[] { "source" },
+                        null,
+                        InferenceFieldMetadata.EmbeddingType.TEXT_EMBEDDING
+                    )
+                )
+            )
+            .build();
+
+        // after: add an EMBEDDING-typed field on top
+        String embeddingField = "embedding_field";
+        IndexMetadata after = IndexMetadata.builder(before)
+            .putInferenceFields(
+                Map.of(
+                    textEmbeddingField,
+                    before.getInferenceFields().get(textEmbeddingField),
+                    embeddingField,
+                    new InferenceFieldMetadata(
+                        embeddingField,
+                        randomIdentifier(),
+                        randomIdentifier(),
+                        new String[] { "source" },
+                        null,
+                        InferenceFieldMetadata.EmbeddingType.EMBEDDING
+                    )
+                )
+            )
+            .build();
+
+        Diff<IndexMetadata> diff = after.diff(before);
+
+        // Serialize the diff at old version and read it back
+        final Diff<IndexMetadata> deserializedDiff;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(oldVersion);
+            diff.writeTo(out);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {
+                in.setTransportVersion(oldVersion);
+                deserializedDiff = IndexMetadata.readDiffFrom(in);
+            }
+        }
+
+        IndexMetadata applied = deserializedDiff.apply(before);
+        // EMBEDDING field should be filtered out; TEXT_EMBEDDING field should survive
+        assertThat(applied.getInferenceFields(), hasKey(textEmbeddingField));
+        assertThat(applied.getInferenceFields().get(textEmbeddingField).getEmbeddingType(), equalTo(InferenceFieldMetadata.EmbeddingType.TEXT_EMBEDDING));
+        assertThat(applied.getInferenceFields().containsKey(embeddingField), is(false));
+
+        // Verify that at current version both fields are present
+        final Diff<IndexMetadata> deserializedDiffCurrent;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersion.current());
+            diff.writeTo(out);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {
+                in.setTransportVersion(TransportVersion.current());
+                deserializedDiffCurrent = IndexMetadata.readDiffFrom(in);
+            }
+        }
+
+        IndexMetadata appliedCurrent = deserializedDiffCurrent.apply(before);
+        assertThat(appliedCurrent.getInferenceFields(), hasKey(textEmbeddingField));
+        assertThat(appliedCurrent.getInferenceFields(), hasKey(embeddingField));
+        assertThat(appliedCurrent.getInferenceFields().get(embeddingField).getEmbeddingType(), equalTo(InferenceFieldMetadata.EmbeddingType.EMBEDDING));
+    }
+
     private IndexMetadata roundTripWithVersion(IndexMetadata indexMetadata, TransportVersion version) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
@@ -904,7 +1028,8 @@ public class IndexMetadataTests extends ESTestCase {
             randomIdentifier(),
             randomIdentifier(),
             randomSet(1, 5, ESTestCase::randomIdentifier).toArray(String[]::new),
-            InferenceFieldMetadataTests.generateRandomChunkingSettings()
+            InferenceFieldMetadataTests.generateRandomChunkingSettings(),
+            randomFrom(InferenceFieldMetadata.EmbeddingType.values())
         );
     }
 

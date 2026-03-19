@@ -71,7 +71,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             && nodeWriteThreadPoolStats.averageThreadPoolUtilization() >= hotspotUtilizationThreshold;
     }
 
-    public static double maxShardHotspottingProportion(List<ShardId> assignedShardIds, Map<ShardId, Double> shardWriteLoads) {
+    public static double maxSingleShardWriteLoadConcentration(List<ShardId> assignedShardIds, Map<ShardId, Double> shardWriteLoads) {
         double totalWriteLoad = 0.0;
         double maxSingleShardWriteLoad = 0.0;
         for (ShardId shardId : assignedShardIds) {
@@ -200,23 +200,20 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
 
         // hotspotting proportion is computed only for hotspotting nodes, and cached within cluster info with
         // nodeMaxShardWriteLoadProportion so it is only computed once
-        final Supplier<Boolean> nodeIsHotspottingOnSingleShard = () -> {
-            double maxShardWriteLoadProportion = allocation.clusterInfo()
-                .nodeMaxShardWriteLoadProportion(
-                    node.nodeId(),
-                    // compute cache entry if absent
-                    () -> {
-                        List<ShardId> shardIds = node.shardsWithState(ShardRoutingState.STARTED)
-                            .map(startedShardRouting -> startedShardRouting.shardId())
-                            .collect(Collectors.toList());
+        final double writeLoadShardConcentrationThreshold = writeLoadConstraintSettings.getHotspotUtilizationConcentrationThreshold();
+        final Supplier<Double> writeLoadMaxShardConcentration = () -> allocation.clusterInfo().nodeMaxShardWriteLoadProportion(
+            node.nodeId(),
+            // compute cache entry if absent
+            () -> {
+                List<ShardId> shardIds = node.shardsWithState(ShardRoutingState.STARTED)
+                    .map(startedShardRouting -> startedShardRouting.shardId())
+                    .collect(Collectors.toList());
 
-                        return maxShardHotspottingProportion(shardIds, allocation.clusterInfo().getShardWriteLoads());
-                    }
-                );
-            return maxShardWriteLoadProportion >= writeLoadConstraintSettings.getHotspotUtilizationConcentrationThreshold();
-        };
+                return maxSingleShardWriteLoadConcentration(shardIds, allocation.clusterInfo().getShardWriteLoads());
+            }
+        );
 
-        if (nodeIsHotspotting && nodeIsHotspottingOnSingleShard.get() == false) {
+        if (nodeIsHotspotting && writeLoadMaxShardConcentration.get() < writeLoadShardConcentrationThreshold) {
             if (logger.isDebugEnabled() || allocation.debugDecision()) {
                 final Double shardWriteLoad = getShardWriteLoad(allocation, shardRouting);
                 final String explain = Strings.format(
@@ -238,6 +235,18 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             } else {
                 return Decision.NOT_PREFERRED;
             }
+        } else if (nodeIsHotspotting && writeLoadMaxShardConcentration.get() >= writeLoadShardConcentrationThreshold) {
+            double shardConcentration = writeLoadMaxShardConcentration.get();
+            return allocation.decision(
+                Decision.YES,
+                NAME,
+                """
+                Node [%s] is hot-spotting, but has a single shard write load concentration of [%.2f] that exceeds the concentration \
+                threshold of [%.2f]. Nothing to do.""",
+                node.getShortNodeDescription(),
+                shardConcentration,
+                writeLoadShardConcentrationThreshold
+            );
         }
 
         return allocation.decision(

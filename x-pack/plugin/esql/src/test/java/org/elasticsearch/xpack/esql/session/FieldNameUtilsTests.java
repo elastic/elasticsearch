@@ -3352,9 +3352,13 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertEquals(parentPrefixes("a.b.c.d"), List.of("a", "a.b", "a.b.c"));
         assertEquals(parentPrefixes("a.b.c*"), List.of("a", "a.b"));
         assertEquals(parentPrefixes("a.b.c.*"), List.of("a", "a.b", "a.b.c"));
-        assertEquals(parentPrefixes("a.b.c..d"), List.of());
-        assertEquals(parentPrefixes("foo*...........\n\\n \t\n\n..a"), List.of());
+        assertEquals(parentPrefixes("a.b.c..d"), List.of("a", "a.b", "a.b.c", "a.b.c."));
+        assertEquals(
+            parentPrefixes("foo*...\n\\n \t\n\n..a"),
+            List.of("foo*", "foo*.", "foo*..", "foo*...\n\\n \t\n\n", "foo*...\n\\n \t\n\n.")
+        );
         assertEquals(parentPrefixes("foo*\n\\n \t\n\n.a"), List.of("foo*\n\\n \t\n\n"));
+        assertEquals(parentPrefixes("..."), List.of("", ".", ".."));
         assertEquals(parentPrefixes("a.*.*.*.*"), List.of("a", "a.*", "a.*.*", "a.*.*.*"));
     }
 

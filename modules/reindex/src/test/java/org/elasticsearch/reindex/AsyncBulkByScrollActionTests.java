@@ -408,6 +408,18 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     /**
+     * When using PIT, buildResponse includes the latest pitId from the hit source.
+     */
+    public void testBuildResponseIncludesPitIdWhenUsingPit() throws Exception {
+        configurePitOrScroll(true);
+        PaginatedHitSource.Response response = createPaginatedResponse(true, false, emptyList(), 0, emptyList(), null, null);
+        simulatePaginatedResponse(new DummyAsyncBulkByScrollAction(), System.nanoTime(), 0, response, true);
+        BulkByScrollResponse bulkResponse = listener.get();
+        assertTrue("PIT response should include pitId", bulkResponse.getPitId().isPresent());
+        assertThat(bulkResponse.getPitId().get(), equalTo(TEST_PIT_ID));
+    }
+
+    /**
      * Tests that each scroll response is a batch and that the batch is launched properly.
      */
     public void testScrollResponseBatchingBehavior() throws Exception {

@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -359,7 +360,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
         List<SearchFailure> searchFailures,
         boolean timedOut
     ) {
-        return new BulkByScrollResponse(took, task.getStatus(), indexingFailures, searchFailures, timedOut);
+        BytesReference pitId = paginatedHitSource instanceof PitPaginatedHitSource pit ? pit.getPitId() : null;
+        return new BulkByScrollResponse(took, task.getStatus(), indexingFailures, searchFailures, timedOut, null, pitId);
     }
 
     /**
@@ -631,13 +633,15 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 // However, status must be accurate for sliced tasks only, the leader state stores this response and derives
                 // its own combined status from it to serialize to .tasks index.
                 // For non-sliced, status is unused (comes from the worker state).
+                BytesReference pitId = paginatedHitSource instanceof PitPaginatedHitSource pit ? pit.getPitId() : null;
                 final BulkByScrollResponse response = new BulkByScrollResponse(
                     TimeValue.MINUS_ONE,
                     task.getStatus(),
                     List.of(),
                     List.of(),
                     false,
-                    resumeInfo
+                    resumeInfo,
+                    pitId
                 );
                 // Don't call finishHim — it clears the pagination which the relocated task needs.
                 // Do close local resources (e.g. the remote REST client) that won't be reused.

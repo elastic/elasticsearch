@@ -397,6 +397,45 @@ public class ReindexerTests extends ESTestCase {
     }
 
     /**
+     * When the response has a pitId, wrapListenerWithClosePit must close using the response's pitId (latest).
+     */
+    public void testWrapListenerWithClosePitUsesResponsePitIdWhenPresent() {
+        final BytesReference initialPitId = new BytesArray("initial-pit-id");
+        final BytesReference latestPitId = new BytesArray("latest-pit-id");
+        final BytesReference[] closedPitId = new BytesReference[1];
+        final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
+            initialPitId,
+            delegate,
+            id -> closedPitId[0] = id
+        );
+
+        wrapped.onResponse(reindexResponseWithPitId(latestPitId));
+
+        verify(delegate).onResponse(any());
+        assertThat(closedPitId[0], equalTo(latestPitId));
+    }
+
+    /**
+     * When the response has no pitId, wrapListenerWithClosePit must fall back to the initial pitId.
+     */
+    public void testWrapListenerWithClosePitFallsBackToInitialPitIdWhenResponseHasNone() {
+        final BytesReference initialPitId = new BytesArray("initial-pit-id");
+        final BytesReference[] closedPitId = new BytesReference[1];
+        final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
+        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(
+            initialPitId,
+            delegate,
+            id -> closedPitId[0] = id
+        );
+
+        wrapped.onResponse(reindexResponseWithBulkAndSearchFailures(null, null));
+
+        verify(delegate).onResponse(any());
+        assertThat(closedPitId[0], equalTo(initialPitId));
+    }
+
+    /**
      * When shouldNotCloseOnResponse returns true (e.g. sliced worker), wrapListenerWithClosePit must not close the PIT on response.
      */
     public void testWrapListenerWithClosePitDoesNotCloseOnResponseWhenShouldNotClose() {
@@ -1528,6 +1567,18 @@ public class ReindexerTests extends ESTestCase {
             bulkFailures,
             searchFailures,
             false
+        );
+    }
+
+    private BulkByScrollResponse reindexResponseWithPitId(BytesReference pitId) {
+        return new BulkByScrollResponse(
+            TimeValue.ZERO,
+            new BulkByScrollTask.Status(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0f, null, timeValueMillis(0)),
+            List.of(),
+            List.of(),
+            false,
+            null,
+            pitId
         );
     }
 

@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.ResumeInfo.PitWorkerResumeInfo;
@@ -77,6 +78,12 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
             () -> isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices()
         );
         client.search(firstSearchRequest, wrapListener(searchListener));
+    }
+
+    @Override
+    public BytesReference getPitId() {
+        PointInTimeBuilder pit = pitBuilder.get();
+        return pit != null ? pit.getEncodedId() : null;
     }
 
     @Override

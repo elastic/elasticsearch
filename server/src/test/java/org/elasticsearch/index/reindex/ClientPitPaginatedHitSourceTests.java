@@ -53,6 +53,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -193,6 +194,53 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
 
         paginatedHitSource.setSearchAfterValues(null);
         assertFalse(paginatedHitSource.hasMoreBatches());
+    }
+
+    /** Verifies getPitId returns the initial PIT ID before any search. */
+    public void testGetPitIdReturnsInitialValueBeforeSearch() {
+        ClientPitPaginatedHitSource paginatedHitSource = new ClientPitPaginatedHitSource(
+            logger,
+            BackoffPolicy.constantBackoff(TimeValue.ZERO, 0),
+            threadPool,
+            Assert::fail,
+            r -> fail(),
+            e -> fail(),
+            new ParentTaskAssigningClient(new MockClient(threadPool), new TaskId("n", randomInt())),
+            createPitSearchRequest()
+        );
+        assertThat(paginatedHitSource.getPitId(), equalTo(PIT_ID));
+    }
+
+    /** Verifies getPitId returns the updated PIT ID after a search response with a different pointInTimeId. */
+    public void testGetPitIdReturnsUpdatedValueAfterSearchResponse() throws InterruptedException {
+        BytesReference updatedPitId = new BytesArray("updated-pit-id".getBytes(StandardCharsets.UTF_8));
+        BlockingQueue<PaginatedHitSource.AsyncResponse> responses = new ArrayBlockingQueue<>(100);
+        MockClient client = new MockClient(threadPool);
+        TaskId parentTask = new TaskId("thenode", randomInt());
+
+        ClientPitPaginatedHitSource paginatedHitSource = new ClientPitPaginatedHitSource(
+            logger,
+            BackoffPolicy.constantBackoff(TimeValue.ZERO, 0),
+            threadPool,
+            Assert::fail,
+            responses::add,
+            e -> fail(),
+            new ParentTaskAssigningClient(client, parentTask),
+            createPitSearchRequest()
+        );
+
+        paginatedHitSource.start();
+        SearchResponse searchResponse = SearchResponseUtils.response(SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0))
+            .pointInTimeId(updatedPitId)
+            .shards(5, 4, 0)
+            .build();
+        try {
+            client.respond(TransportSearchAction.TYPE, searchResponse);
+            responses.poll(10, TimeUnit.SECONDS);
+            assertThat(paginatedHitSource.getPitId(), equalTo(updatedPitId));
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     /** Verifies setSearchAfterValues is used when requestNextBatch is called. */

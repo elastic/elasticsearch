@@ -88,6 +88,11 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
     }
 
     @Override
+    public BytesReference getPitId() {
+        return pitId.get();
+    }
+
+    @Override
     protected void restorePitState(PitWorkerResumeInfo resumeInfo) {
         pitId.set(resumeInfo.pitId());
         setSearchAfterValues(resumeInfo.searchAfterValues());

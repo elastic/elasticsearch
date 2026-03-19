@@ -77,6 +77,7 @@ import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
@@ -379,6 +380,15 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
         hitSource.cleanup(() -> cleanupCallbackCalled.set(true));
         verify(client).close();
         assertTrue(cleanupCallbackCalled.get());
+    }
+
+    /** Verifies getPitId returns the PIT ID from the response after doFirstSearch. */
+    public void testGetPitIdReturnsValueFromResponse() {
+        // pit_ok_with_long_search_after_value.json has pit_id "bG9uZy1waXQtaWQ" (base64 for "long-pit-id")
+        RemotePitPaginatedHitSource hitSource = sourceWithMockedRemoteCall("pit_ok_with_long_search_after_value.json");
+        hitSource.doFirstSearch(wrapAsListener(r -> {}));
+        BytesReference expectedPitId = new BytesArray("long-pit-id".getBytes(StandardCharsets.UTF_8));
+        assertThat(hitSource.getPitId(), equalTo(expectedPitId));
     }
 
     /** Verifies hasMoreBatches reflects search_after state. */

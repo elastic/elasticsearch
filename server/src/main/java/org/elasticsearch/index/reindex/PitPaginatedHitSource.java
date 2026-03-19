@@ -11,6 +11,7 @@ package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.ResumeInfo.PitWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
@@ -84,6 +85,12 @@ public abstract class PitPaginatedHitSource extends PaginatedHitSource {
     public final void setSearchAfterValues(Object[] values) {
         searchAfterValues.set(values);
     }
+
+    /**
+     * Returns the current PIT ID from the last search response that included one.
+     * Used when closing the PIT to ensure we close the most recent context.
+     */
+    public abstract BytesReference getPitId();
 
     protected abstract void restorePitState(PitWorkerResumeInfo resumeInfo);
 

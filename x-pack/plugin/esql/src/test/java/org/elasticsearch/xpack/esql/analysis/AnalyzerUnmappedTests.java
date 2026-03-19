@@ -786,10 +786,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     private void verificationFailure(String query, EsIndex index, String... expectedFailures) {
         EsqlStatement statement = TEST_PARSER.createStatement(query);
-        Map<IndexPattern, IndexResolution> indexResolutions = Map.of(
-            new IndexPattern(Source.EMPTY, index.name()),
-            valid(index)
-        );
+        Map<IndexPattern, IndexResolution> indexResolutions = Map.of(new IndexPattern(Source.EMPTY, index.name()), valid(index));
         Analyzer analyzer = AnalyzerTestUtils.analyzer(indexResolutions, TEST_VERIFIER, configuration(query), statement);
         var e = expectThrows(VerificationException.class, () -> analyzer.analyze(statement.plan()));
         for (String expectedFailure : expectedFailures) {

@@ -11,8 +11,8 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -31,16 +31,19 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashSet;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
+import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class MetadataCreateIndexServiceIT extends ESIntegTestCase {
 
@@ -97,45 +100,48 @@ public class MetadataCreateIndexServiceIT extends ESIntegTestCase {
     public void testCreateIndexBatching() throws Exception {
         final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
 
+        enum ExpectedResult {
+            SUCCESS,
+            INVALID_NAME,
+            INVALID_SETTINGS,
+            ALREADY_EXISTS
+        }
+
+        record RequestSpec(String indexName, boolean invalidSettings, ExpectedResult expectedResult) {}
+
         final int totalRequestCount = randomIntBetween(1, 20);
         final int validRequestCount = randomIntBetween(0, totalRequestCount);
         final int invalidRequestCount = totalRequestCount - validRequestCount;
 
-        final var allRequestNames = new ArrayList<String>(totalRequestCount);
-        final var validIndicesNames = new LinkedHashSet<String>();
-        final var invalidSettingsNames = new LinkedHashSet<String>();
+        final var allRequests = new ArrayList<RequestSpec>(totalRequestCount);
+        final var validIndicesNames = new HashSet<String>();
+        final var invalidSettingsNames = new HashSet<String>();
+        final var allIndicesNames = new HashSet<String>();
 
         for (int i = 0; i < validRequestCount; i++) {
-            final var indexName = randomIndexName();
+            final var indexName = addRandomIndexNameNoCollision(allIndicesNames);
             validIndicesNames.add(indexName);
-            allRequestNames.add(indexName);
+            allRequests.add(new RequestSpec(indexName, false, ExpectedResult.SUCCESS));
         }
-        // No collisions
-        assertThat(validIndicesNames.size(), equalTo(validRequestCount));
 
-        int duplicateCount = 0;
-        int invalidNameCount = 0;
-        int invalidSettingsCount = 0;
+        final var preExistingIndexName = addRandomIndexNameNoCollision(allIndicesNames);
+        createIndex(preExistingIndexName);
+
         for (int i = 0; i < invalidRequestCount; i++) {
             int failureType = validIndicesNames.isEmpty() ? randomIntBetween(0, 1) : randomIntBetween(0, 2);
             switch (failureType) {
-                case 0 -> {
-                    allRequestNames.add("INVALID_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
-                    invalidNameCount++;
-                }
+                case 0 -> allRequests.add(
+                    new RequestSpec(randomIdentifier("INVALID_BECAUSE_UPPER_CASE_"), false, ExpectedResult.INVALID_NAME)
+                );
                 case 1 -> {
-                    final var indexName = randomIndexName();
+                    var indexName = addRandomIndexNameNoCollision(allIndicesNames);
                     invalidSettingsNames.add(indexName);
-                    allRequestNames.add(indexName);
-                    invalidSettingsCount++;
+                    allRequests.add(new RequestSpec(indexName, true, ExpectedResult.INVALID_SETTINGS));
                 }
-                default -> {
-                    allRequestNames.add(randomFrom(validIndicesNames));
-                    duplicateCount++;
-                }
+                default -> allRequests.add(new RequestSpec(preExistingIndexName, false, ExpectedResult.ALREADY_EXISTS));
             }
         }
-        Collections.shuffle(allRequestNames, random());
+        Collections.shuffle(allRequests, random());
 
         final ClusterStateListener listener = event -> {
             final var projectMetadata = event.state().metadata().getProject(ProjectId.DEFAULT);
@@ -170,13 +176,26 @@ public class MetadataCreateIndexServiceIT extends ESIntegTestCase {
             });
             safeAwait(barrier);
 
-            final var futures = new ArrayList<ActionFuture<CreateIndexResponse>>(totalRequestCount);
-            for (final var indexName : allRequestNames) {
-                final var request = new CreateIndexRequest(indexName);
-                if (invalidSettingsNames.contains(indexName)) {
+            final var responsesLatch = new CountDownLatch(allRequests.size());
+            for (var requestSpec : allRequests) {
+                final var request = new CreateIndexRequest(requestSpec.indexName());
+                if (requestSpec.invalidSettings()) {
                     request.settings(Settings.builder().put("index.version.created", 1));
                 }
-                futures.add(client().execute(TransportCreateIndexAction.TYPE, request));
+
+                final ActionListener<CreateIndexResponse> delegate = switch (requestSpec.expectedResult()) {
+                    case SUCCESS -> assertNoFailureListener(response -> assertTrue(response.isAcknowledged()));
+                    case INVALID_NAME -> assertNoSuccessListener(
+                        e -> assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(InvalidIndexNameException.class))
+                    );
+                    case INVALID_SETTINGS -> assertNoSuccessListener(
+                        e -> assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(IllegalArgumentException.class))
+                    );
+                    case ALREADY_EXISTS -> assertNoSuccessListener(
+                        e -> assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(ResourceAlreadyExistsException.class))
+                    );
+                };
+                client().execute(TransportCreateIndexAction.TYPE, request, new LatchedActionListener<>(delegate, responsesLatch));
             }
 
             assertTrue(
@@ -192,33 +211,20 @@ public class MetadataCreateIndexServiceIT extends ESIntegTestCase {
             final var initialState = masterClusterService.state();
             safeAwait(barrier);
 
-            int successCount = 0;
-            int invalidNameExceptionCount = 0;
-            int alreadyExistsExceptionCount = 0;
-            int indexCreationExceptionCount = 0;
-            for (final var future : futures) {
-                try {
-                    assertTrue(future.get(30, TimeUnit.SECONDS).isAcknowledged());
-                    successCount++;
-                } catch (ExecutionException e) {
-                    final var cause = ExceptionsHelper.unwrapCause(e.getCause());
-                    switch (cause) {
-                        case InvalidIndexNameException ignored -> invalidNameExceptionCount++;
-                        case ResourceAlreadyExistsException ignored -> alreadyExistsExceptionCount++;
-                        case IllegalArgumentException ignored -> indexCreationExceptionCount++;
-                        case null, default -> throw new AssertionError("Unexpected failure when creating indices in batch", e);
-                    }
-                }
-            }
-            assertThat(successCount, equalTo(validIndicesNames.size()));
-            assertThat(invalidNameExceptionCount, equalTo(invalidNameCount));
-            assertThat(alreadyExistsExceptionCount, equalTo(duplicateCount));
-            assertThat(indexCreationExceptionCount, equalTo(invalidSettingsCount));
+            assertTrue("timed out waiting for create-index responses", responsesLatch.await(30, TimeUnit.SECONDS));
             if (validIndicesNames.isEmpty()) {
                 assertSame("cluster state should not change when all requests failed", masterClusterService.state(), initialState);
             }
         } finally {
             masterClusterService.removeListener(listener);
         }
+    }
+
+    private String addRandomIndexNameNoCollision(Set<String> existingIndexNames) {
+        var indexName = randomIndexName();
+        while (existingIndexNames.add(indexName) == false) {
+            indexName = randomIndexName();
+        }
+        return indexName;
     }
 }

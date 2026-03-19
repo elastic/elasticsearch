@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 144184
+summary: Synthetic id field for `time_series` indices (remove feature flag)
+type: feature

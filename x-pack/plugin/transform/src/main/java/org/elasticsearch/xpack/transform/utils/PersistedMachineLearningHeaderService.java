@@ -13,13 +13,13 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class PersistedMachineLearningHeaderService {
-    private static final String SERVERLESS_AUTHENTICATING_TOKEN_HEADER = "_security_serverless_authenticating_token";
 
     private final ThreadPool threadPool;
     private final SecurityContext securityContext;
@@ -43,10 +43,10 @@ public class PersistedMachineLearningHeaderService {
                 clusterState
             );
             if (crossProjectModeDecider.crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
-                String authenticatingToken = threadPool.getThreadContext().getHeader(SERVERLESS_AUTHENTICATING_TOKEN_HEADER);
+                String authenticatingToken = threadPool.getThreadContext().getHeader(AuthenticationField.CLOUD_TOKEN_HEADER);
                 if (authenticatingToken != null) {
                     HashMap<String, String> mutableHeaders = new HashMap<>(persistedHeaders);
-                    mutableHeaders.put(SERVERLESS_AUTHENTICATING_TOKEN_HEADER, authenticatingToken);
+                    mutableHeaders.put(AuthenticationField.CLOUD_TOKEN_HEADER, authenticatingToken);
                     persistedHeaders = Map.copyOf(mutableHeaders);
                 }
             }

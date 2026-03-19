@@ -61,12 +61,13 @@ public abstract class BlockHashTestCase extends ESTestCase {
     protected static void hash(boolean collectKeys, BlockHash blockHash, Consumer<OrdsAndKeys> callback, Block... values) {
         blockHash.add(new Page(values), new GroupingAggregatorFunction.AddInput() {
             private void addBlock(int positionOffset, IntBlock groupIds) {
+                IntVector nonEmpty = blockHash.nonEmpty();
                 OrdsAndKeys result = new OrdsAndKeys(
                     blockHash.toString(),
                     positionOffset,
                     groupIds,
-                    collectKeys ? blockHash.getKeys() : null,
-                    blockHash.nonEmpty()
+                    collectKeys ? blockHash.getKeys(nonEmpty) : null,
+                    nonEmpty
                 );
 
                 try {
@@ -117,18 +118,23 @@ public abstract class BlockHashTestCase extends ESTestCase {
             && blockHash instanceof BytesRefLongBlockHash == false
             && blockHash instanceof BytesRef2BlockHash == false
             && blockHash instanceof BytesRef3BlockHash == false) {
-            Block[] keys = blockHash.getKeys();
-            try (ReleasableIterator<IntBlock> lookup = blockHash.lookup(new Page(keys), ByteSizeValue.ofKb(between(1, 100)))) {
-                while (lookup.hasNext()) {
-                    try (IntBlock ords = lookup.next()) {
-                        for (int p = 0; p < ords.getPositionCount(); p++) {
-                            assertFalse(ords.isNull(p));
+            try (IntVector nonEmpty = blockHash.nonEmpty()) {
+                Block[] keys = blockHash.getKeys(nonEmpty);
+                try (ReleasableIterator<IntBlock> lookup = blockHash.lookup(new Page(keys), ByteSizeValue.ofKb(between(1, 100)))) {
+                    while (lookup.hasNext()) {
+                        try (IntBlock ords = lookup.next()) {
+                            for (int p = 0; p < ords.getPositionCount(); p++) {
+                                assertFalse(ords.isNull(p));
+                            }
                         }
                     }
+                } finally {
+                    Releasables.closeExpectNoException(keys);
                 }
-            } finally {
-                Releasables.closeExpectNoException(keys);
             }
+        }
+        try (BlockHashKeysTestHelper keys = new BlockHashKeysTestHelper(blockHash)) {
+            keys.assertRandomKeySubset();
         }
     }
 

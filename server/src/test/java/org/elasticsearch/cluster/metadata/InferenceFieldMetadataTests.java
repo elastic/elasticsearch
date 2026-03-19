@@ -9,9 +9,12 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata.EmbeddingType;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -19,6 +22,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.InferenceFieldMetadata.CHUNKING_SETTINGS_FIELD;
+import static org.elasticsearch.cluster.metadata.InferenceFieldMetadata.INFERENCE_FIELD_EMBEDDING_TYPE;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InferenceFieldMetadataTests extends AbstractXContentTestCase<InferenceFieldMetadata> {
@@ -63,12 +67,16 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
     }
 
     private static InferenceFieldMetadata createTestItem() {
+        return createTestItem(randomFrom(EmbeddingType.values()));
+    }
+
+    private static InferenceFieldMetadata createTestItem(EmbeddingType embeddingType) {
         String name = randomAlphaOfLengthBetween(3, 10);
         String inferenceId = randomIdentifier();
         String searchInferenceId = randomIdentifier();
         String[] inputFields = generateRandomStringArray(5, 10, false, false);
         Map<String, Object> chunkingSettings = generateRandomChunkingSettings();
-        return new InferenceFieldMetadata(name, inferenceId, searchInferenceId, inputFields, chunkingSettings);
+        return new InferenceFieldMetadata(name, inferenceId, searchInferenceId, inputFields, chunkingSettings, embeddingType);
     }
 
     public static Map<String, Object> generateRandomChunkingSettings() {
@@ -91,6 +99,94 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
             "sentence_overlap",
             randomIntBetween(0, 1)
         );
+    }
+
+    public void testSerializationWithEmbeddingType() throws IOException {
+        for (EmbeddingType embeddingType : EmbeddingType.values()) {
+            final InferenceFieldMetadata before = createTestItem(embeddingType);
+            final BytesStreamOutput out = new BytesStreamOutput();
+            out.setTransportVersion(INFERENCE_FIELD_EMBEDDING_TYPE);
+            before.writeTo(out);
+
+            final StreamInput in = out.bytes().streamInput();
+            in.setTransportVersion(INFERENCE_FIELD_EMBEDDING_TYPE);
+            final InferenceFieldMetadata after = new InferenceFieldMetadata(in);
+
+            assertThat(after, equalTo(before));
+            assertThat(after.getEmbeddingType(), equalTo(embeddingType));
+        }
+    }
+
+    public void testBwcOldNodeReceivesTextEmbeddingDefault() throws IOException {
+        // An EMBEDDING-typed entry written to a pre-INFERENCE_FIELD_EMBEDDING_TYPE stream should read back as TEXT_EMBEDDING
+        final InferenceFieldMetadata embeddingField = createTestItem(EmbeddingType.EMBEDDING);
+        final TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(INFERENCE_FIELD_EMBEDDING_TYPE);
+
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(oldVersion);
+        embeddingField.writeTo(out);
+
+        final StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(oldVersion);
+        final InferenceFieldMetadata deserialized = new InferenceFieldMetadata(in);
+
+        assertThat(deserialized.getEmbeddingType(), equalTo(EmbeddingType.TEXT_EMBEDDING));
+    }
+
+    public void testBwcTextEmbeddingUnchangedOnOldNode() throws IOException {
+        // A TEXT_EMBEDDING entry serialized to an old node should round-trip unchanged
+        final InferenceFieldMetadata textEmbeddingField = createTestItem(EmbeddingType.TEXT_EMBEDDING);
+        final TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(INFERENCE_FIELD_EMBEDDING_TYPE);
+
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(oldVersion);
+        textEmbeddingField.writeTo(out);
+
+        final StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(oldVersion);
+        final InferenceFieldMetadata deserialized = new InferenceFieldMetadata(in);
+
+        assertThat(deserialized.getEmbeddingType(), equalTo(EmbeddingType.TEXT_EMBEDDING));
+    }
+
+    public void testXContentRoundTripWithEmbeddingType() throws IOException {
+        for (EmbeddingType embeddingType : EmbeddingType.values()) {
+            final InferenceFieldMetadata original = createTestItem(embeddingType);
+            final String json = org.elasticsearch.common.Strings.toString(original);
+            assertTrue("XContent should contain embedding_type field", json.contains("\"embedding_type\""));
+
+            final XContentParser parser = createParser(
+                org.elasticsearch.xcontent.XContentFactory.jsonBuilder().generator().contentType().xContent(),
+                json
+            );
+            // advance past START_OBJECT and to the field name
+            parser.nextToken();
+            parser.nextToken();
+            final InferenceFieldMetadata parsed = InferenceFieldMetadata.fromXContent(parser);
+
+            assertThat(parsed.getEmbeddingType(), equalTo(embeddingType));
+        }
+    }
+
+    public void testXContentMissingEmbeddingTypeDefaultsToTextEmbedding() throws IOException {
+        // Simulate XContent produced by a node that does not yet emit embedding_type
+        final String json = """
+            {
+              "my_field": {
+                "inference_id": "my-inference",
+                "source_fields": ["body"]
+              }
+            }
+            """;
+        final XContentParser parser = createParser(
+            org.elasticsearch.xcontent.XContentFactory.jsonBuilder().generator().contentType().xContent(),
+            json
+        );
+        parser.nextToken(); // START_OBJECT
+        parser.nextToken(); // FIELD_NAME "my_field"
+        final InferenceFieldMetadata parsed = InferenceFieldMetadata.fromXContent(parser);
+
+        assertThat(parsed.getEmbeddingType(), equalTo(EmbeddingType.TEXT_EMBEDDING));
     }
 
     public void testNullCtorArgsThrowException() {

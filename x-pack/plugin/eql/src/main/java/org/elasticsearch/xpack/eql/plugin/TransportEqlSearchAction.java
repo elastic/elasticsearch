@@ -239,6 +239,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
 
             EqlConfiguration cfg = new EqlConfiguration(
                 request.indices(),
+                request.originalIndices(),
                 zoneId,
                 username,
                 clusterName,

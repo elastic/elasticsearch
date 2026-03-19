@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.embeddings;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -15,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -268,6 +270,11 @@ public class AzureOpenAiEmbeddingsServiceSettings extends AzureOpenAiServiceSett
         rateLimitSettings.writeTo(out);
         if (out.getTransportVersion().supports(AZURE_OPENAI_OAUTH_SETTINGS)) {
             out.writeOptionalWriteable(oAuth2Settings);
+        } else if (oAuth2Settings != null) {
+            throw new ElasticsearchStatusException(
+                "Cannot send OAuth2 settings to an older node. Please wait until all nodes are upgraded before using OAuth2.",
+                RestStatus.BAD_REQUEST
+            );
         }
     }
 

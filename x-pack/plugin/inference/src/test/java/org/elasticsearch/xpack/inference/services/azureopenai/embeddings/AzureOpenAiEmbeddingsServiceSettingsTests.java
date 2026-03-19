@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.embeddings;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -31,10 +33,13 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTest
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
+import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
 import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS_SET_BY_USER;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
@@ -699,5 +704,38 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AzureOpenAiServic
             instance.similarity(),
             instance.rateLimitSettings()
         );
+    }
+
+    // Versions before AZURE_OPENAI_OAUTH_SETTINGS throw an exception when serializing non-null OAuth2 settings,
+    // so we filter those out of the bwc versions to avoid test failures.
+    // The logic is tested directly by <>.
+    @Override
+    protected Collection<TransportVersion> bwcVersions() {
+        return super.bwcVersions().stream().filter(version -> version.supports(AZURE_OPENAI_OAUTH_SETTINGS)).toList();
+    }
+
+    public void testAzureOpenAiOAuth2Settings_AreNotBackwardsCompatible() throws IOException {
+        var unsupportedVersions = DEFAULT_BWC_VERSIONS.stream()
+            .filter(Predicate.not(version -> version.supports(AZURE_OPENAI_OAUTH_SETTINGS)))
+            .toList();
+        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
+            var testInstance = createTestInstance();
+            for (var unsupportedVersion : unsupportedVersions) {
+                if (testInstance.oAuth2Settings() != null) {
+                    var statusException = assertThrows(
+                        ElasticsearchStatusException.class,
+                        () -> copyWriteable(testInstance, getNamedWriteableRegistry(), instanceReader(), unsupportedVersion)
+                    );
+                    assertThat(statusException.status(), is(RestStatus.BAD_REQUEST));
+                    assertThat(
+                        statusException.getMessage(),
+                        is("Cannot send OAuth2 settings to an older node. Please wait until all nodes are upgraded before using OAuth2.")
+                    );
+                } else {
+                    // If the instance doesn't contain OAuth2 settings, assert that it can still be serialized
+                    assertBwcSerialization(testInstance, unsupportedVersion);
+                }
+            }
+        }
     }
 }

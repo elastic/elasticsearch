@@ -345,18 +345,6 @@ tests:
 - class: org.elasticsearch.indices.IndicesRequestCacheIT
   method: testCanCache
   issue: https://github.com/elastic/elasticsearch/issues/144526
-- class: org.elasticsearch.index.mapper.BlockSourceReaderTests
-  method: testEmptyArray
-  issue: https://github.com/elastic/elasticsearch/issues/144527
-- class: org.elasticsearch.index.mapper.BlockSourceReaderTests
-  method: testArray
-  issue: https://github.com/elastic/elasticsearch/issues/144528
-- class: org.elasticsearch.index.mapper.BlockSourceReaderTests
-  method: testSingle
-  issue: https://github.com/elastic/elasticsearch/issues/144530
-- class: org.elasticsearch.index.mapper.BlockSourceReaderTests
-  method: testMissing
-  issue: https://github.com/elastic/elasticsearch/issues/144531
 - class: org.elasticsearch.xpack.downsample.DownsampleRateIT
   method: testTimeSeriesQuerying_RandomDocuments
   issue: https://github.com/elastic/elasticsearch/issues/144532

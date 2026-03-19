@@ -46,6 +46,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -315,7 +316,7 @@ public abstract class DependencyLicensesTask extends AbstractDependenciesTask {
         String fileName = getFileName(name, counters, type);
 
         if (counters.containsKey(fileName) == false) {
-            reportProblem("missing-" + type.toLowerCase(java.util.Locale.ROOT), "Missing " + type + " file",
+            reportProblem("missing-" + type.toLowerCase(Locale.ROOT), "Missing " + type + " file",
                 "Missing " + type + " for " + jarName + ", expected in " + fileName,
                 "Add a " + type + " file named " + fileName + " to the licenses directory");
             return;

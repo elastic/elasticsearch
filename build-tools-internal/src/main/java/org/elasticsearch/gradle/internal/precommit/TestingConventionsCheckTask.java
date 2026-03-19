@@ -38,6 +38,7 @@ import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkQueue;
 import org.gradle.workers.WorkerExecutor;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.reflect.Method;
@@ -117,7 +118,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
     }
 
     private void reportViolationsAsProblems() {
-        java.io.File violationsOutput = getViolationsFile().getAsFile().get();
+        File violationsOutput = getViolationsFile().getAsFile().get();
         if (violationsOutput.exists()) {
             try {
                 List<String> violations = Files.readAllLines(violationsOutput.toPath());
@@ -221,7 +222,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
         }
 
         private void writeViolations(List<String> violations) {
-            java.io.File outputFile = getParameters().getViolationsFile().getAsFile().get();
+            File outputFile = getParameters().getViolationsFile().getAsFile().get();
             outputFile.getParentFile().mkdirs();
             try {
                 Files.write(outputFile.toPath(), violations);

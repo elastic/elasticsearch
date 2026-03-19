@@ -69,7 +69,6 @@ public class SplitPackagesAuditTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(SplitPackagesAuditTask.class);
 
     private final WorkerExecutor workerExecutor;
-    private final Problems problems;
     private FileCollection classpath;
     private final SetProperty<File> srcDirs;
     private final SetProperty<String> ignoreClasses;
@@ -77,14 +76,8 @@ public class SplitPackagesAuditTask extends DefaultTask {
     private Map<File, String> projectBuildDirs;
 
     @Inject
-    public SplitPackagesAuditTask(
-        WorkerExecutor workerExecutor,
-        ObjectFactory objectFactory,
-        ProjectLayout projectLayout,
-        Problems problems
-    ) {
+    public SplitPackagesAuditTask(WorkerExecutor workerExecutor, ObjectFactory objectFactory, ProjectLayout projectLayout) {
         this.workerExecutor = workerExecutor;
-        this.problems = problems;
         this.srcDirs = objectFactory.setProperty(File.class);
         this.ignoreClasses = objectFactory.setProperty(String.class);
         this.markerFile = objectFactory.fileProperty();

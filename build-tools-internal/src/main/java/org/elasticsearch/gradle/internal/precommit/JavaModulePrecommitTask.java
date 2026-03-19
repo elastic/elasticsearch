@@ -41,6 +41,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.inject.Inject;
@@ -125,7 +126,7 @@ public class JavaModulePrecommitTask extends PrecommitTask {
 
     private void checkModuleVersion(ModuleReference mref, List<Problem> problems) {
         getLogger().info("{} checking module version for {}", this, mref.descriptor().name());
-        java.util.Optional<String> rawVersion = mref.descriptor().rawVersion();
+        Optional<String> rawVersion = mref.descriptor().rawVersion();
         if (rawVersion.isEmpty()) {
             problems.add(problemReporter.create(
                 ProblemId.create("missing-module-version", "Missing module version", ElasticsearchProblems.JAVA_MODULE),

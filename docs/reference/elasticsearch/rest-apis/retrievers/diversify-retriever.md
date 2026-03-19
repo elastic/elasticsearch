@@ -58,7 +58,7 @@ The ordering of results returned from the inner retriever is preserved.
     If you provide a `query_vector`, you cannot also provide a `query_vector_builder`.
 
 `query_vector_builder`
-:   (Required if the `field` is a `semantic_text` type, otherwise optional, query vector builder object)
+:   (Required if the `field` is a `semantic_text` type, otherwise optional. The query vector builder object.)
 
     Defines a [model](docs-content://solutions/search/vector/knn.md#knn-semantic-search) to build a query vector.
     If you provide a `query_vector_builder`, you cannot also provide a `query_vector`.

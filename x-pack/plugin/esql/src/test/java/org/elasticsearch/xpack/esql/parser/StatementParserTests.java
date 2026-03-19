@@ -1089,7 +1089,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitBy() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.LIMIT_BY.isEnabled());
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         LogicalPlan plan = query("""
                 FROM foo
                 | SORT @timestamp DESC
@@ -1097,16 +1097,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
             """);
         assertThat(plan, instanceOf(LimitBy.class));
         LimitBy limitBy = (LimitBy) plan;
-        assertThat(limitBy.limit(), instanceOf(Literal.class));
-        assertThat(((Literal) limitBy.limit()).value(), equalTo(10));
+        assertThat(limitBy.limitPerGroup(), instanceOf(Literal.class));
+        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(10));
 
         assertThat(limitBy.groupings().size(), equalTo(2));
         assertThat(limitBy.groupings().get(0), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) limitBy.groupings().get(0)).name(), equalTo("hostname"));
-        assertThat(limitBy.groupings().get(1), instanceOf(Alias.class));
-        Alias divAlias = (Alias) limitBy.groupings().get(1);
-        assertThat(divAlias.child(), instanceOf(Div.class));
-        Div divExpr = (Div) divAlias.child();
+        assertThat(limitBy.groupings().get(1), instanceOf(Div.class));
+        Div divExpr = (Div) limitBy.groupings().get(1);
         assertThat(divExpr.left(), instanceOf(UnresolvedAttribute.class));
         assertThat(((UnresolvedAttribute) divExpr.left()).name(), equalTo("@timestamp"));
         assertThat(divExpr.right(), instanceOf(Literal.class));
@@ -1129,7 +1127,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLimitByQualifiedName() {
-        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.LIMIT_BY.isEnabled());
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
         LogicalPlan plan = query("""
                 FROM foo
                 | SORT @timestamp DESC
@@ -1137,8 +1135,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             """);
         assertThat(plan, instanceOf(LimitBy.class));
         LimitBy limitBy = (LimitBy) plan;
-        assertThat(limitBy.limit(), instanceOf(Literal.class));
-        assertThat(((Literal) limitBy.limit()).value(), equalTo(10));
+        assertThat(limitBy.limitPerGroup(), instanceOf(Literal.class));
+        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(10));
 
         assertThat(limitBy.groupings(), everyItem(instanceOf(UnresolvedAttribute.class)));
         assertThat(limitBy.groupings().size(), equalTo(1));
@@ -1160,6 +1158,36 @@ public class StatementParserTests extends AbstractStatementParserTests {
         LogicalPlan relation = orderBy.child();
         assertThat(relation, instanceOf(UnresolvedRelation.class));
         assertThat(((UnresolvedRelation) relation).indexPattern().indexPattern(), equalTo("foo"));
+    }
+
+    public void testLimitByNegativeValue() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        expectThrows(
+            ParsingException.class,
+            containsString("value of [LIMIT -1 BY languages] must be a non negative integer, found value [-1] type [integer]"),
+            () -> query("""
+                FROM foo
+                | LIMIT -1 BY languages
+                """)
+        );
+    }
+
+    public void testLimitByExpressionForN() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        expectThrows(ParsingException.class, containsString("mismatched input '*'"), () -> query("""
+            FROM foo
+            | LIMIT -1 * 42 BY languages
+            """));
+
+        expectThrows(ParsingException.class, containsString("mismatched input '*'"), () -> query("""
+            FROM foo
+            | LIMIT -1 * -42 BY languages
+            """));
+
+        expectThrows(ParsingException.class, containsString("mismatched input '+'"), () -> query("""
+            FROM foo
+            | LIMIT -1 + 5 BY languages
+            """));
     }
 
     public void testBasicSortCommand() {

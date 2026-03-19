@@ -212,7 +212,7 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
                     builder.field(entry.getKey(), entry.getValue());
                 }
             }
-            builder.endObject();
+            builder.endObject(); // metric
 
             builder.startArray("values");
             for (int i = 0; i < series.values.size(); i++) {
@@ -221,14 +221,14 @@ class PrometheusQueryRangeResponseListener implements ActionListener<EsqlQueryRe
                 builder.value(series.stringValues.get(i));
                 builder.endArray();
             }
-            builder.endArray();
+            builder.endArray(); // values
 
-            builder.endObject();
+            builder.endObject(); // result entry
         }
 
-        builder.endArray();
-        builder.endObject();
-        builder.endObject();
+        builder.endArray(); // result
+        builder.endObject(); // data
+        builder.endObject(); // root
         return builder;
     }
 

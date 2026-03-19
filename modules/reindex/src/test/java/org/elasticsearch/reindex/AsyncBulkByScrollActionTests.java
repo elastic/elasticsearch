@@ -74,6 +74,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -1162,6 +1163,33 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
         assertThat(preparedSearchRequest.scroll(), nullValue());
         assertEquals(0, preparedSearchRequest.source().from());
+    }
+
+    public void testPrepareSearchRequestWithPITUsesShardDocSort() {
+        configurePitOrScroll(true);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
+        assertThat(preparedSearchRequest.source().sorts(), hasSize(1));
+        assertThat(preparedSearchRequest.source().sorts().getFirst(), instanceOf(FieldSortBuilder.class));
+        assertEquals(
+            FieldSortBuilder.SHARD_DOC_FIELD_NAME,
+            ((FieldSortBuilder) preparedSearchRequest.source().sorts().getFirst()).getFieldName()
+        );
+    }
+
+    public void testPrepareSearchRequestWithScrollUsesDocSort() {
+        configurePitOrScroll(false);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
+        assertThat(preparedSearchRequest.source().sorts(), hasSize(1));
+        assertThat(preparedSearchRequest.source().sorts().getFirst(), instanceOf(FieldSortBuilder.class));
+        assertEquals("_doc", ((FieldSortBuilder) preparedSearchRequest.source().sorts().getFirst()).getFieldName());
+    }
+
+    public void testPrepareSearchRequestPreservesUserSort() {
+        configurePitOrScroll(true);
+        testRequest.getSearchRequest().source().sort("timestamp");
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
+        assertThat(preparedSearchRequest.source().sorts(), hasSize(1));
+        assertEquals("timestamp", ((FieldSortBuilder) preparedSearchRequest.source().sorts().getFirst()).getFieldName());
     }
 
     public void testBuildScrollableResultSourceReturnsPitHitSource() {

@@ -75,6 +75,7 @@ import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -151,6 +152,14 @@ public class Reindexer {
     }
 
     public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
+        // When manual slicing is used without a field, default to _id for consistent behavior with PIT
+        SliceBuilder sliceBuilder = request.getSearchRequest().source().slice();
+        if (sliceBuilder != null && sliceBuilder.getField() == null) {
+            request.getSearchRequest().source().slice(
+                new SliceBuilder(IdFieldMapper.NAME, sliceBuilder.getId(), sliceBuilder.getMax())
+            );
+        }
+
         final ActionListener<Void> initListener = listener.delegateFailure((l, v) -> {
             initTaskForRelocationIfEnabled(task);
             l.onResponse(v);

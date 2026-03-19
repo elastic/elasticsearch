@@ -51,6 +51,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -215,12 +216,19 @@ public abstract class AbstractAsyncBulkByScrollAction<
          * them and if we add _doc as the first sort by default then sorts will never work.... So we add it here, only if there isn't
          * another sort.
          *
+         * When using PIT, use _shard_doc for search_after compatibility and performance (see paginate-search-results docs).
+         * When using scroll, use _doc.
+         *
          * This modifies the original request!
          */
         final SearchSourceBuilder sourceBuilder = preparedSearchRequest.source();
         List<SortBuilder<?>> sorts = sourceBuilder.sorts();
         if (sorts == null || sorts.isEmpty()) {
-            sourceBuilder.sort(fieldSort("_doc"));
+            if (sourceBuilder.pointInTimeBuilder() != null) {
+                sourceBuilder.sort(fieldSort(FieldSortBuilder.SHARD_DOC_FIELD_NAME));
+            } else {
+                sourceBuilder.sort(fieldSort("_doc"));
+            }
         }
         sourceBuilder.version(needsSourceDocumentVersions);
         sourceBuilder.seqNoAndPrimaryTerm(needsSourceDocumentSeqNoAndPrimaryTerm);

@@ -89,9 +89,7 @@ public class RemoteScrollablePaginatedHitSource extends PaginatedHitSource {
 
     @Override
     protected void doFirstSearch(RejectAwareActionListener<Response> searchListener) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("executing initial remote scroll search");
-        }
+        logger.debug("executing initial remote scroll search");
         if (remoteVersion != null) {
             execute(
                 RemoteRequestBuilders.initialSearch(searchRequest, remote.getQuery(), remoteVersion),

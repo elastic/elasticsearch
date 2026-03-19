@@ -1631,6 +1631,56 @@ public class ReindexerTests extends ESTestCase {
         );
     }
 
+    public void testInitTaskDefaultsManualSliceFieldToId() {
+        ReindexRequest request = new ReindexRequest().setSourceIndices("source").setDestIndex("dest");
+        request.getSearchRequest().source(new SearchSourceBuilder().slice(new SliceBuilder(0, 2)));
+        assertNull("slice should have no field before initTask", request.getSearchRequest().source().slice().getField());
+
+        TestThreadPool threadPool = new TestThreadPool(getTestName()) {
+            @Override
+            public ExecutorService executor(String name) {
+                return DIRECT_EXECUTOR_SERVICE;
+            }
+        };
+        try {
+            Reindexer reindexer = new Reindexer(
+                mock(ClusterService.class),
+                mock(ProjectResolver.class),
+                new NoOpClient(threadPool),
+                threadPool,
+                mock(ScriptService.class),
+                mock(ReindexSslConfig.class),
+                null,
+                mock(TransportService.class),
+                mock(ReindexRelocationNodePicker.class),
+                mock(FeatureService.class)
+            );
+
+            BulkByScrollTask task = new BulkByScrollTask(
+                randomTaskId(),
+                "reindex",
+                "reindex",
+                "test",
+                TaskId.EMPTY_TASK_ID,
+                Collections.emptyMap(),
+                false,
+                randomOrigin()
+            );
+
+            PlainActionFuture<Void> initFuture = new PlainActionFuture<>();
+            reindexer.initTask(task, request, initFuture);
+            initFuture.actionGet();
+
+            assertThat(
+                "manual slice without field should default to _id",
+                request.getSearchRequest().source().slice().getField(),
+                equalTo(IdFieldMapper.NAME)
+            );
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
     private static ReindexRequest reindexRequest() {
         return new ReindexRequest();
     }

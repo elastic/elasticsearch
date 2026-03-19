@@ -47,7 +47,7 @@ public class RemotePitPaginatedHitSource extends PaginatedHitSource {
     private final SearchRequest searchRequest;
     private final AtomicReference<BytesReference> pitId;
     private final TimeValue baseKeepAlive;
-    final Version remoteVersion;
+    private final Version remoteVersion;
 
     public RemotePitPaginatedHitSource(
         Logger logger,
@@ -79,9 +79,7 @@ public class RemotePitPaginatedHitSource extends PaginatedHitSource {
 
     @Override
     protected void doFirstSearch(RejectAwareActionListener<Response> searchListener) {
-        if (logger.isDebugEnabled()) {
-            logger.debug("executing initial remote pit search");
-        }
+        logger.debug("executing initial remote pit search");
         execute(
             RemoteRequestBuilders.pitSearch(searchRequest, remote.getQuery(), pitId.get(), baseKeepAlive, null, remoteVersion),
             RESPONSE_PARSER,

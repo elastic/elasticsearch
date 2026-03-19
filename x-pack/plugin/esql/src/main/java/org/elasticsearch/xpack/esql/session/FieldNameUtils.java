@@ -328,19 +328,13 @@ public class FieldNameUtils {
     }
 
     /**
-     * Returns the dot-delimited parent prefixes of a field name. For example, "a.b.c" will return ["a", "a.b"]. This is skipped for
-     * special field names that contain ".." because they can't possibly be subfields of a dot-delimited field. There are more complex
-     * cases where we would want to skip, but skipping them all isn't our goal here.
+     * Returns the dot-delimited parent prefixes of a field name. For example, "a.b.c" will return ["a", "a.b"].
      */
     public static List<String> parentPrefixes(String name) {
-        if (name.contains("..")) {
-            return List.of();
-        }
-
         List<String> prefixes = new ArrayList<>();
         int pos = name.indexOf('.');
 
-        while (pos > 0) {
+        while (pos != -1) {
             prefixes.add(name.substring(0, pos));
             pos = name.indexOf('.', pos + 1);
         }

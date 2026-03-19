@@ -44,7 +44,6 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnr
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
-import static org.elasticsearch.xpack.esql.index.IndexResolution.*;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -744,10 +743,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 """),
             index,
             "Found 5 problems",
-            "FORK is not supported with unmapped_fields=\"load\"",
-            "Loading subfield [field.bbb] when parent [field] is of flattened field type is not supported with unmapped_fields=\"load\"",
+            "line 3:3: FORK is not supported with unmapped_fields=\"load\"",
             // this error appears 3 times thanks to the FORK branching out
-            "Loading subfield [field.aaa] when parent [field] is of flattened field type is not supported with unmapped_fields=\"load\""
+            "line 2:14: Loading subfield [field.aaa] when parent [field] is of flattened field type is not supported with "
+                + "unmapped_fields=\"load\"",
+            "line 3:85: Loading subfield [field.bbb] when parent [field] is of flattened field type is not supported with "
+                + "unmapped_fields=\"load\""
         );
     }
 
@@ -764,8 +765,9 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 | EVAL x = field.languages
                 """),
             index,
-            "LOOKUP JOIN is not supported with unmapped_fields=\"load\"",
-            "Loading subfield [field.languages] when parent [field] is of flattened field type is not supported with "
+            "Found 2 problems",
+            "line 3:15: LOOKUP JOIN is not supported with unmapped_fields=\"load\"",
+            "line 4:12: Loading subfield [field.languages] when parent [field] is of flattened field type is not supported with "
                 + "unmapped_fields=\"load\""
         );
     }
@@ -788,7 +790,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         EsqlStatement statement = TEST_PARSER.createStatement(query);
         Map<IndexPattern, IndexResolution> indexResolutions = Map.of(
             new IndexPattern(Source.EMPTY, index.name()),
-            valid(index)
+            IndexResolution.valid(index)
         );
         Analyzer analyzer = AnalyzerTestUtils.analyzer(indexResolutions, TEST_VERIFIER, configuration(query), statement);
         var e = expectThrows(VerificationException.class, () -> analyzer.analyze(statement.plan()));

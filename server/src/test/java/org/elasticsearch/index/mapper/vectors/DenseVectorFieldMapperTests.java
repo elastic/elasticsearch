@@ -85,6 +85,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -2031,6 +2032,41 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         );
         assertTrue(mapper.mappingSource().string().contains("\"confidence_interval\":0.95"));
         assertWarnings();
+    }
+
+    public void testConfidenceIntervalZeroNormalizedAndOmittedFromMappingSource() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(IndexVersions.UPGRADE_TO_LUCENE_10_4_0, fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", 6);
+            b.field("index", true);
+            b.field("similarity", "dot_product");
+            b.startObject("index_options");
+            b.field("type", "int4_hnsw");
+            b.field("m", 16);
+            b.field("ef_construction", 100);
+            b.field("confidence_interval", 0.0);
+            b.endObject();
+        }));
+        String source = mapper.mappingSource().string();
+        assertThat(source, containsString("\"type\":\"int4_hnsw\""));
+        assertThat(source, not(containsString("confidence_interval")));
+    }
+
+    public void testConfidenceIntervalAbsentInt4HnswMappingSourceStable() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(IndexVersions.UPGRADE_TO_LUCENE_10_4_0, fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", 6);
+            b.field("index", true);
+            b.field("similarity", "dot_product");
+            b.startObject("index_options");
+            b.field("type", "int4_hnsw");
+            b.field("m", 16);
+            b.field("ef_construction", 100);
+            b.endObject();
+        }));
+        String source = mapper.mappingSource().string();
+        assertThat(source, containsString("\"type\":\"int4_hnsw\""));
+        assertThat(source, not(containsString("confidence_interval")));
     }
 
     public void testKnnQuantizedFlatVectorsFormat() throws IOException {

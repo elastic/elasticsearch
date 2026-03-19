@@ -393,7 +393,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 previousMapper = this.mapper;
                 assert assertRefreshIsNotNeeded(type, incomingBuilder);
                 Mapping incomingMapping = buildMapping(incomingBuilder, MergeReason.MAPPING_RECOVERY);
-                this.mapper = newDocumentMapper(incomingMapping, MergeReason.MAPPING_RECOVERY, incomingMappingSource);
+                CompressedXContent canonicalMappingSource = incomingMapping.toCompressedXContent();
+                this.mapper = newDocumentMapper(incomingMapping, MergeReason.MAPPING_RECOVERY, canonicalMappingSource);
                 this.mappingVersion = newIndexMetadata.getMappingVersion();
             }
             String op = previousMapper != null ? "updated" : "added";

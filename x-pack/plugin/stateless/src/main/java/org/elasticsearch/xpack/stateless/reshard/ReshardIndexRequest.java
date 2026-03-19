@@ -17,7 +17,6 @@
 
 package org.elasticsearch.xpack.stateless.reshard;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -39,8 +38,6 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class ReshardIndexRequest extends MasterNodeRequest<ReshardIndexRequest> implements IndicesRequest {
 
-    private static final TransportVersion RESHARD_NEW_SHARD_COUNT = TransportVersion.fromName("reshard_specifies_new_shard_count");
-
     static final ConstructingObjectParser<ReshardIndexRequest, Void> PARSER = new ConstructingObjectParser<>(
         "reshard_request",
         args -> new ReshardIndexRequest((String) args[0], (Integer) args[1])
@@ -57,12 +54,7 @@ public class ReshardIndexRequest extends MasterNodeRequest<ReshardIndexRequest> 
     public ReshardIndexRequest(StreamInput in) throws IOException {
         super(in);
         index = in.readString();
-        if (in.getTransportVersion().supports(RESHARD_NEW_SHARD_COUNT)) {
-            newShardCount = in.readInt();
-        } else {
-            in.readInt();
-            newShardCount = -1;
-        }
+        newShardCount = in.readInt();
     }
 
     public ReshardIndexRequest(String index) {
@@ -109,11 +101,7 @@ public class ReshardIndexRequest extends MasterNodeRequest<ReshardIndexRequest> 
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(index);
-        if (out.getTransportVersion().supports(RESHARD_NEW_SHARD_COUNT)) {
-            out.writeInt(newShardCount);
-        } else {
-            out.writeInt(2);
-        }
+        out.writeInt(newShardCount);
     }
 
     @Override

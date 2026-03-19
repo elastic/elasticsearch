@@ -801,40 +801,38 @@ public class ComputeService {
                 })
             )
         ) {
-            try (Releasable ignored = exchangeSource.addEmptySink()) {
-                // Run the coordinator plan
-                runCompute(
-                    rootTask,
-                    new ComputeContext(
-                        sessionId,
-                        profileDescription(profileQualifier, "final"),
-                        LOCAL_CLUSTER,
-                        flags,
-                        EmptyIndexedByShardId.instance(),
-                        configuration,
-                        foldContext,
-                        exchangeSource::createExchangeSource,
-                        exchangeSinkSupplier
-                    ),
-                    coordinatorPlan,
-                    plannerSettings.get(),
-                    LocalPhysicalOptimization.ENABLED,
-                    planTimeProfile,
-                    computeListener.acquireCompute()
-                );
-                // Dispatch to each data node with its assigned splits
-                dataNodeComputeHandler.startExternalComputeOnDataNodes(
+            // Run the coordinator plan
+            runCompute(
+                rootTask,
+                new ComputeContext(
                     sessionId,
-                    rootTask,
+                    profileDescription(profileQualifier, "final"),
+                    LOCAL_CLUSTER,
                     flags,
+                    EmptyIndexedByShardId.instance(),
                     configuration,
-                    dataNodePlan,
-                    distributionPlan,
-                    exchangeSource,
-                    cancelQueryOnFailure,
-                    computeListener
-                );
-            }
+                    foldContext,
+                    exchangeSource::createExchangeSource,
+                    exchangeSinkSupplier
+                ),
+                coordinatorPlan,
+                plannerSettings.get(),
+                LocalPhysicalOptimization.ENABLED,
+                planTimeProfile,
+                computeListener.acquireCompute()
+            );
+            // Dispatch to each data node with its assigned splits
+            dataNodeComputeHandler.startExternalComputeOnDataNodes(
+                sessionId,
+                rootTask,
+                flags,
+                configuration,
+                dataNodePlan,
+                distributionPlan,
+                exchangeSource,
+                cancelQueryOnFailure,
+                computeListener
+            );
         }
     }
 

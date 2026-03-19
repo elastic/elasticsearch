@@ -118,13 +118,13 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
 
                         var luceneSupplier = luceneScoreSupplier(values, sim.function()).scorer();
                         luceneSupplier.setScoringOrdinal(1);
-                        assertFloatEquals(expected, luceneSupplier.score(0), 1e-6f);
+                        assertFloatEquals(expected, luceneSupplier.score(0), DELTA);
                         var supplier = factory.getInt7uOSQVectorScorerSupplier(sim, in, values).get();
                         var scorer = supplier.scorer();
                         scorer.setScoringOrdinal(1);
-                        assertFloatEquals(expected, scorer.score(0), 1e-6f);
+                        assertFloatEquals(expected, scorer.score(0), DELTA);
 
-                        if (supportsHeapSegments()) {
+                        if (SUPPORTS_HEAP_SEGMENTS) {
                             var qScorer = factory.getInt7uOSQVectorScorer(
                                 sim.function(),
                                 values,
@@ -134,7 +134,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
                                 vec2Correction.additionalCorrection(),
                                 vec2Correction.quantizedComponentSum()
                             ).get();
-                            assertFloatEquals(expected, qScorer.score(0), 1e-6f);
+                            assertFloatEquals(expected, qScorer.score(0), DELTA);
                         }
                     }
                 }
@@ -220,7 +220,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
                         var supplier = factory.getInt7uOSQVectorScorerSupplier(sim, in, values).get();
                         var scorer = supplier.scorer();
                         scorer.setScoringOrdinal(idx1);
-                        assertFloatEquals(expected, scorer.score(idx0), 1e-6f);
+                        assertFloatEquals(expected, scorer.score(idx0), DELTA);
                     }
                 }
             }
@@ -228,17 +228,11 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
     }
 
     public void testRandomScorer() throws IOException {
-        testRandomScorerImpl(
-            MMapDirectory.DEFAULT_MAX_CHUNK_SIZE,
-            org.elasticsearch.simdvec.Int7SQVectorScorerFactoryTests.FLOAT_ARRAY_RANDOM_FUNC
-        );
+        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, FLOAT_ARRAY_RANDOM_FUNC);
     }
 
     public void testRandomScorerMax() throws IOException {
-        testRandomScorerImpl(
-            MMapDirectory.DEFAULT_MAX_CHUNK_SIZE,
-            org.elasticsearch.simdvec.Int7SQVectorScorerFactoryTests.FLOAT_ARRAY_MAX_FUNC
-        );
+        testRandomScorerImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, FLOAT_ARRAY_MAX_FUNC);
     }
 
     public void testRandomScorerChunkSizeSmall() throws IOException {
@@ -248,7 +242,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
     }
 
     void testRandomScorerImpl(long maxChunkSize, IntFunction<float[]> floatArraySupplier) throws IOException {
-        assumeTrue("scorer only supported on JDK 22+", Runtime.version().feature() >= 22);
+        assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
         assumeTrue(notSupportedMsg(), supported());
         var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
 
@@ -296,7 +290,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
                             corrections[idx0].additionalCorrection(),
                             corrections[idx0].quantizedComponentSum()
                         ).get();
-                        assertFloatEquals(expected, scorer.score(idx1), 1e-6f);
+                        assertFloatEquals(expected, scorer.score(idx1), DELTA);
                     }
                 }
             }
@@ -352,7 +346,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
                             var supplier = factory.getInt7uOSQVectorScorerSupplier(sim, in, values).get();
                             var scorer = supplier.scorer();
                             scorer.setScoringOrdinal(idx1);
-                            assertFloatEquals(expected, scorer.score(idx0), 1e-6f);
+                            assertFloatEquals(expected, scorer.score(idx0), DELTA);
                         }
                     }
                 }
@@ -400,7 +394,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
                         var supplier = factory.getInt7uOSQVectorScorerSupplier(sim, in, values).get();
                         var scorer = supplier.scorer();
                         scorer.setScoringOrdinal(idx1);
-                        assertFloatEquals(expected, scorer.score(idx0), 1e-6f);
+                        assertFloatEquals(expected, scorer.score(idx0), DELTA);
                     }
                 }
             }
@@ -441,7 +435,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
                         var supplier = factory.getInt7uOSQVectorScorerSupplier(sim, in, values).get();
                         var scorer = supplier.scorer();
                         scorer.setScoringOrdinal(idx1);
-                        assertFloatEquals(expected, scorer.score(idx0), 1e-6f);
+                        assertFloatEquals(expected, scorer.score(idx0), DELTA);
                     }
                 }
             }
@@ -488,9 +482,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
                         var testScorer = supplier.scorer();
                         testScorer.setScoringOrdinal(idx0);
                         testScorer.bulkScore(nodes, scores, nodes.length);
-                        // applying the corrections in even a slightly different order can impact the score
-                        // account for this during bulk scoring
-                        assertFloatArrayEquals(expected, scores, 2e-5f);
+                        assertFloatArrayEquals(expected, scores, BULK_DELTA);
                     }
                 }
             }
@@ -537,7 +529,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
                         var testScorer = supplier.scorer();
                         testScorer.setScoringOrdinal(idx0);
                         testScorer.bulkScore(nodes, scores, nodes.length);
-                        assertFloatArrayEquals(expected, scores, 1e-6f);
+                        assertFloatArrayEquals(expected, scores, DELTA);
                     }
                 }
             }
@@ -616,7 +608,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         public Optional<Throwable> call() {
             try {
                 for (int i = 0; i < 100; i++) {
-                    assertFloatEquals(expectedScore, scorer.score(ord), 1e-6f);
+                    assertFloatEquals(expectedScore, scorer.score(ord), DELTA);
                 }
             } catch (Throwable t) {
                 return Optional.of(t);

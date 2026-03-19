@@ -24,6 +24,8 @@ import org.elasticsearch.simdvec.internal.ByteVectorScorer;
 import org.elasticsearch.simdvec.internal.ByteVectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.FloatVectorScorer;
 import org.elasticsearch.simdvec.internal.FloatVectorScorerSupplier;
+import org.elasticsearch.simdvec.internal.Int4VectorScorer;
+import org.elasticsearch.simdvec.internal.Int4VectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorer;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.Int7uOSQVectorScorer;
@@ -156,6 +158,39 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
             sim,
             values,
             quantizedQuery,
+            lowerInterval,
+            upperInterval,
+            additionalCorrection,
+            quantizedComponentSum
+        );
+    }
+
+    @Override
+    public Optional<RandomVectorScorerSupplier> getInt4VectorScorerSupplier(
+        VectorSimilarityType similarityType,
+        IndexInput input,
+        org.apache.lucene.util.quantization.QuantizedByteVectorValues values
+    ) {
+        input = FilterIndexInput.unwrapOnlyTest(input);
+        input = MemorySegmentAccessInputAccess.unwrap(input);
+        checkInvariants(values.size(), values.dimension() / 2, input);
+        return Optional.of(new Int4VectorScorerSupplier(input, values, similarityType));
+    }
+
+    @Override
+    public Optional<RandomVectorScorer> getInt4VectorScorer(
+        VectorSimilarityFunction sim,
+        org.apache.lucene.util.quantization.QuantizedByteVectorValues values,
+        byte[] unpackedQuery,
+        float lowerInterval,
+        float upperInterval,
+        float additionalCorrection,
+        int quantizedComponentSum
+    ) {
+        return Int4VectorScorer.create(
+            sim,
+            values,
+            unpackedQuery,
             lowerInterval,
             upperInterval,
             additionalCorrection,

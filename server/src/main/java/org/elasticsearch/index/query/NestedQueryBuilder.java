@@ -40,12 +40,15 @@ import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -268,7 +271,77 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        return toQuery((this.query::toQuery), path, scoreMode, ignoreUnmapped, context);
+        QueryBuilder innerToBuild = hasNestedKnnWithOtherScoringClauses(query)
+            ? rewriteInnerForNestedKnnMultiClause(query)
+            : query;
+        return toQuery(innerToBuild::toQuery, path, scoreMode, ignoreUnmapped, context);
+    }
+
+    /**
+     * Rewrites the inner query so that each KnnVectorQueryBuilder in must/should is replaced by a
+     * copy with useMaxNestedKnnCandidatesInNested set, so the built query considers more children
+     * per parent and the root score matches inner_hits. Only rewrites top-level bool.
+     */
+    private static QueryBuilder rewriteInnerForNestedKnnMultiClause(QueryBuilder inner) {
+        if ((inner instanceof BoolQueryBuilder) == false) {
+            return inner;
+        }
+        BoolQueryBuilder bool = (BoolQueryBuilder) inner;
+        BoolQueryBuilder rewritten = new BoolQueryBuilder();
+        rewritten.boost(bool.boost());
+        rewritten.queryName(bool.queryName());
+        if (bool.minimumShouldMatch() != null) {
+            rewritten.minimumShouldMatch(bool.minimumShouldMatch());
+        }
+        for (QueryBuilder clause : bool.must()) {
+            rewritten.must(clause instanceof KnnVectorQueryBuilder knn
+                ? knn.copyWithUseMaxNestedKnnCandidatesInNested(true)
+                : clause);
+        }
+        for (QueryBuilder clause : bool.should()) {
+            rewritten.should(clause instanceof KnnVectorQueryBuilder knn
+                ? knn.copyWithUseMaxNestedKnnCandidatesInNested(true)
+                : clause);
+        }
+        for (QueryBuilder clause : bool.filter()) {
+            rewritten.filter(clause);
+        }
+        for (QueryBuilder clause : bool.mustNot()) {
+            rewritten.mustNot(clause);
+        }
+        return rewritten;
+    }
+
+    /**
+     * Returns true when the inner query is a bool that contains both a KNN clause and at least one
+     * other scoring clause (must or should). In that case the diversifying KNN should consider
+     * more children per parent so the root score equals the max combined score (inner_hits).
+     */
+    static boolean hasNestedKnnWithOtherScoringClauses(QueryBuilder query) {
+        if ((query instanceof BoolQueryBuilder) == false) {
+            return false;
+        }
+        BoolQueryBuilder bool = (BoolQueryBuilder) query;
+        boolean hasKnn = false;
+        boolean hasOtherScoring = false;
+        for (QueryBuilder clause : concat(bool.must(), bool.should())) {
+            if (clause instanceof KnnVectorQueryBuilder) {
+                hasKnn = true;
+            } else {
+                hasOtherScoring = true;
+            }
+            if (hasKnn && hasOtherScoring) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static List<QueryBuilder> concat(List<QueryBuilder> a, List<QueryBuilder> b) {
+        List<QueryBuilder> out = new ArrayList<>(a.size() + b.size());
+        out.addAll(a);
+        out.addAll(b);
+        return out;
     }
 
     /**

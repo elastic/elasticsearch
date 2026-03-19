@@ -86,7 +86,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             (Integer) args[3],
             (Float) args[4],
             (RescoreVectorBuilder) args[7],
-            (Float) args[5]
+            (Float) args[5],
+            false
         )
     );
 
@@ -151,6 +152,12 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
      */
     private boolean isAutoPrefilteringEnabled = false;
 
+    /**
+     * Build-time hint: when true and in nested context, use max nested KNN candidates so the root
+     * score can equal the max combined score (consistent with inner_hits). Not serialized.
+     */
+    private final boolean useMaxNestedKnnCandidatesInNested;
+
     public KnnVectorQueryBuilder(
         String fieldName,
         float[] queryVector,
@@ -169,7 +176,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             numCands,
             visitPercentage,
             rescoreVectorBuilder,
-            vectorSimilarity
+            vectorSimilarity,
+            false
         );
     }
 
@@ -181,7 +189,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         Float visitPercentage,
         Float vectorSimilarity
     ) {
-        this(fieldName, null, queryVectorBuilder, null, k, numCands, visitPercentage, null, vectorSimilarity);
+        this(fieldName, null, queryVectorBuilder, null, k, numCands, visitPercentage, null, vectorSimilarity, false);
     }
 
     public KnnVectorQueryBuilder(
@@ -202,7 +210,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             numCands,
             visitPercentage,
             rescoreVectorBuilder,
-            vectorSimilarity
+            vectorSimilarity,
+            false
         );
     }
 
@@ -215,7 +224,18 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         RescoreVectorBuilder rescoreVectorBuilder,
         Float vectorSimilarity
     ) {
-        this(fieldName, queryVector, null, null, k, numCands, visitPercentage, rescoreVectorBuilder, vectorSimilarity);
+        this(
+            fieldName,
+            queryVector,
+            null,
+            null,
+            k,
+            numCands,
+            visitPercentage,
+            rescoreVectorBuilder,
+            vectorSimilarity,
+            false
+        );
     }
 
     private KnnVectorQueryBuilder(
@@ -227,7 +247,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         Integer numCands,
         Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
-        Float vectorSimilarity
+        Float vectorSimilarity,
+        boolean useMaxNestedKnnCandidatesInNested
     ) {
         if (k != null && k < 1) {
             throw new IllegalArgumentException("[" + K_FIELD.getPreferredName() + "] must be greater than 0");
@@ -269,6 +290,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         this.queryVectorBuilder = queryVectorBuilder;
         this.queryVectorSupplier = queryVectorSupplier;
         this.rescoreVectorBuilder = rescoreVectorBuilder;
+        this.useMaxNestedKnnCandidatesInNested = useMaxNestedKnnCandidatesInNested;
     }
 
     public KnnVectorQueryBuilder(StreamInput in) throws IOException {
@@ -291,6 +313,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         }
 
         this.queryVectorSupplier = null;
+        this.useMaxNestedKnnCandidatesInNested = false;
     }
 
     public String getFieldName() {
@@ -430,12 +453,15 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             }
             return new KnnVectorQueryBuilder(
                 fieldName,
-                queryVectorSupplier.get(),
+                VectorData.fromFloats(queryVectorSupplier.get()),
+                null,
+                null,
                 k,
                 numCands,
                 visitPercentage,
                 rescoreVectorBuilder,
-                vectorSimilarity
+                vectorSimilarity,
+                useMaxNestedKnnCandidatesInNested
             ).boost(boost).queryName(queryName).addFilterQueries(filterQueries).setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
         }
         if (queryVectorBuilder != null) {
@@ -450,7 +476,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 numCands,
                 visitPercentage,
                 rescoreVectorBuilder,
-                vectorSimilarity
+                vectorSimilarity,
+                useMaxNestedKnnCandidatesInNested
             ).boost(boost).queryName(queryName).addFilterQueries(filterQueries).setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
         }
         boolean changed = false;
@@ -475,7 +502,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 numCands,
                 visitPercentage,
                 rescoreVectorBuilder,
-                vectorSimilarity
+                vectorSimilarity,
+                useMaxNestedKnnCandidatesInNested
             ).boost(boost).queryName(queryName).addFilterQueries(rewrittenQueries).setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
         }
         if (ctx.convertToInnerHitsRewriteContext() != null) {
@@ -572,10 +600,18 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             filterQuery = new CachingEnableFilterQuery(filterQuery);
         }
 
+        int kToUse = k;
+        int numCandsToUse = adjustedNumCands;
+        if (parentBitSet != null && useMaxNestedKnnCandidatesInNested) {
+            int maxNested = context.getIndexSettings().getMaxNestedKnnCandidates();
+            kToUse = Math.max(k, maxNested);
+            numCandsToUse = Math.max(adjustedNumCands, kToUse);
+        }
+
         return vectorFieldType.createKnnQuery(
             queryVector,
-            k,
-            adjustedNumCands,
+            kToUse,
+            numCandsToUse,
             visitPercentage,
             oversample,
             filterQuery,
@@ -638,7 +674,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             vectorSimilarity,
             queryVectorBuilder,
             rescoreVectorBuilder,
-            isAutoPrefilteringEnabled
+            isAutoPrefilteringEnabled,
+            useMaxNestedKnnCandidatesInNested
         );
     }
 
@@ -653,7 +690,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             && Objects.equals(vectorSimilarity, other.vectorSimilarity)
             && Objects.equals(queryVectorBuilder, other.queryVectorBuilder)
             && Objects.equals(rescoreVectorBuilder, other.rescoreVectorBuilder)
-            && isAutoPrefilteringEnabled == other.isAutoPrefilteringEnabled;
+            && isAutoPrefilteringEnabled == other.isAutoPrefilteringEnabled
+            && useMaxNestedKnnCandidatesInNested == other.useMaxNestedKnnCandidatesInNested;
     }
 
     @Override
@@ -664,5 +702,25 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     public KnnVectorQueryBuilder setAutoPrefilteringEnabled(boolean isAutoPrefilteringEnabled) {
         this.isAutoPrefilteringEnabled = isAutoPrefilteringEnabled;
         return this;
+    }
+
+    /**
+     * Returns a copy of this builder with the given value for the "use max nested KNN candidates"
+     * hint. When true and in nested context, the built query considers more children per parent
+     * so the root score can equal the max combined score (consistent with inner_hits). Not serialized.
+     */
+    public KnnVectorQueryBuilder copyWithUseMaxNestedKnnCandidatesInNested(boolean value) {
+        return new KnnVectorQueryBuilder(
+            fieldName,
+            queryVector,
+            queryVectorBuilder,
+            queryVectorSupplier,
+            k,
+            numCands,
+            visitPercentage,
+            rescoreVectorBuilder,
+            vectorSimilarity,
+            value
+        ).boost(boost).queryName(queryName).addFilterQueries(filterQueries).setAutoPrefilteringEnabled(isAutoPrefilteringEnabled);
     }
 }

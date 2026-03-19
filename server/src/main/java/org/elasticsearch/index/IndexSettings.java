@@ -164,6 +164,20 @@ public final class IndexSettings {
     );
 
     /**
+     * Index setting describing the maximum value of children per parent to be considered by the
+     * diversifying KNN when a nested query's inner query is a bool with both a KNN clause and other scoring clauses.
+     * The root score should be equal to the max combined score, hence consistent with inner_hits.
+     */
+    public static final Setting<Integer> MAX_NESTED_KNN_CANDIDATES_SETTING = Setting.intSetting(
+        "index.max_nested_knn_candidates",
+        100,
+        1,
+        10000,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
      * Index setting describing the maximum value of allowed `script_fields`that can be retrieved
      * per search request. The default maximum of 32 is defensive for the reason that retrieving
      * script fields is a costly operation.
@@ -1141,6 +1155,7 @@ public final class IndexSettings {
     private volatile boolean warmerEnabled;
     private volatile int maxResultWindow;
     private volatile int maxInnerResultWindow;
+    private volatile int maxNestedKnnCandidates;
     private volatile int maxRescoreWindow;
     private volatile int maxDocvalueFields;
     private volatile int maxScriptFields;
@@ -1336,6 +1351,7 @@ public final class IndexSettings {
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
         maxInnerResultWindow = scopedSettings.get(MAX_INNER_RESULT_WINDOW_SETTING);
+        maxNestedKnnCandidates = scopedSettings.get(MAX_NESTED_KNN_CANDIDATES_SETTING);
         maxRescoreWindow = scopedSettings.get(MAX_RESCORE_WINDOW_SETTING);
         maxDocvalueFields = scopedSettings.get(MAX_DOCVALUE_FIELDS_SEARCH_SETTING);
         maxScriptFields = scopedSettings.get(MAX_SCRIPT_FIELDS_SETTING);
@@ -1466,6 +1482,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_SYNC_INTERVAL_SETTING, this::setTranslogSyncInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESULT_WINDOW_SETTING, this::setMaxResultWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_INNER_RESULT_WINDOW_SETTING, this::setMaxInnerResultWindow);
+        scopedSettings.addSettingsUpdateConsumer(MAX_NESTED_KNN_CANDIDATES_SETTING, this::setMaxNestedKnnCandidates);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESCORE_WINDOW_SETTING, this::setMaxRescoreWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_DOCVALUE_FIELDS_SEARCH_SETTING, this::setMaxDocvalueFields);
         scopedSettings.addSettingsUpdateConsumer(MAX_SCRIPT_FIELDS_SETTING, this::setMaxScriptFields);
@@ -1814,6 +1831,18 @@ public final class IndexSettings {
 
     private void setMaxInnerResultWindow(int maxInnerResultWindow) {
         this.maxInnerResultWindow = maxInnerResultWindow;
+    }
+
+    /**
+     * Returns the maximum number of nested children per parent to consider when the nested inner
+     * query has both KNN and other scoring clauses (so root score matches inner_hits).
+     */
+    public int getMaxNestedKnnCandidates() {
+        return maxNestedKnnCandidates;
+    }
+
+    private void setMaxNestedKnnCandidates(int maxNestedKnnCandidates) {
+        this.maxNestedKnnCandidates = maxNestedKnnCandidates;
     }
 
     /**

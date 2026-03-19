@@ -469,4 +469,54 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> queryBuilder.toQuery(searchExecutionContext));
         assertEquals("[joining] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", e.getMessage());
     }
+
+    /**
+     * When the nested inner query is a bool with both a KNN clause and another scoring clause,
+     * we consider more children per parent so root score matches inner_hits. This tests the detector.
+     */
+    public void testHasNestedKnnWithOtherScoringClauses() {
+        KnnVectorQueryBuilder knn = new KnnVectorQueryBuilder(
+            "nested1." + VECTOR_FIELD,
+            new float[] { 1.0f, 2.0f, 3.0f },
+            1,
+            10,
+            null,
+            null,
+            null
+        );
+        QueryBuilder match = QueryBuilders.matchQuery(TEXT_FIELD_NAME, "foo");
+
+        assertFalse(NestedQueryBuilder.hasNestedKnnWithOtherScoringClauses(knn));
+        assertFalse(NestedQueryBuilder.hasNestedKnnWithOtherScoringClauses(match));
+        assertFalse(NestedQueryBuilder.hasNestedKnnWithOtherScoringClauses(QueryBuilders.boolQuery().must(knn)));
+
+        assertTrue(NestedQueryBuilder.hasNestedKnnWithOtherScoringClauses(QueryBuilders.boolQuery().must(knn).should(match)));
+        assertTrue(NestedQueryBuilder.hasNestedKnnWithOtherScoringClauses(QueryBuilders.boolQuery().must(knn).must(match)));
+        assertTrue(NestedQueryBuilder.hasNestedKnnWithOtherScoringClauses(QueryBuilders.boolQuery().should(knn).should(match)));
+    }
+
+    /**
+     * Building a nested query with bool(KNN + other scoring) rewrites the inner query so KNN
+     * uses max nested candidates; no context mutation. Asserts build succeeds and returns
+     * ESToParentBlockJoinQuery.
+     */
+    public void testNestedKnnMultiClauseScoringRewriteBuildsSuccessfully() throws IOException {
+        BoolQueryBuilder bool = QueryBuilders.boolQuery()
+            .must(
+                new KnnVectorQueryBuilder(
+                    "nested1." + VECTOR_FIELD,
+                    new float[] { 1.0f, 2.0f, 3.0f },
+                    1,
+                    10,
+                    null,
+                    null,
+                    null
+                )
+            )
+            .should(QueryBuilders.matchQuery(TEXT_FIELD_NAME, "foo"));
+        NestedQueryBuilder nested = new NestedQueryBuilder("nested1", bool, ScoreMode.Max);
+        SearchExecutionContext context = createSearchExecutionContext();
+        Query query = nested.toQuery(context);
+        assertThat(query, instanceOf(ESToParentBlockJoinQuery.class));
+    }
 }

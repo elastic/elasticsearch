@@ -126,6 +126,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_FAST_REFRESH_SETTING,
                 IndexSettings.MAX_RESULT_WINDOW_SETTING,
                 IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING,
+                IndexSettings.MAX_NESTED_KNN_CANDIDATES_SETTING,
                 IndexSettings.MAX_TOKEN_COUNT_SETTING,
                 IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING,
                 IndexSettings.MAX_SCRIPT_FIELDS_SETTING,

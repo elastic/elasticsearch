@@ -152,7 +152,7 @@ public class Reindexer {
     }
 
     public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
-        // When manual slicing is used without a field, default to _id for consistent behavior with PIT
+        // When manual slicing is used without a field, default to _id for consistent behavior with PIT (see paginate-search-results docs)
         SliceBuilder sliceBuilder = request.getSearchRequest().source().slice();
         if (sliceBuilder != null && sliceBuilder.getField() == null) {
             request.getSearchRequest().source().slice(new SliceBuilder(IdFieldMapper.NAME, sliceBuilder.getId(), sliceBuilder.getMax()));

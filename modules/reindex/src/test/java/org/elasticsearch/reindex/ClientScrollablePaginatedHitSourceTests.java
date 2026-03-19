@@ -163,6 +163,7 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
         client.validateRequest(TransportSearchScrollAction.TYPE, (SearchScrollRequest r) -> assertEquals(r.scroll().seconds(), 110));
     }
 
+    /** Verifies hasMoreBatches reflects scroll ID state: false when absent or empty, true when non-empty. */
     public void testHasMoreBatches() {
         MockClient client = new MockClient(threadPool);
         TaskId parentTask = new TaskId("id", randomInt());

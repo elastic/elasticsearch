@@ -1682,6 +1682,9 @@ public class ReindexerTests extends ESTestCase {
         );
     }
 
+    /**
+     * Verifies that when a manual slice is specified without a field, initTask defaults the slice field to {@code _id}.
+     */
     public void testInitTaskDefaultsManualSliceFieldToId() {
         ReindexRequest request = new ReindexRequest().setSourceIndices("source").setDestIndex("dest");
         request.getSearchRequest().source(new SearchSourceBuilder().slice(new SliceBuilder(0, 2)));

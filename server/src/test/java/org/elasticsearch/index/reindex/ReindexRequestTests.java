@@ -528,6 +528,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertEquals(List.of("use _all if you really want to copy from all existing indexes"), validationException.validationErrors());
     }
 
+    /** Verifies that empty source indices are allowed when using PIT (point-in-time) search. */
     public void testEmptyIndicesAllowedWhenUsingPit() {
         ReindexRequest request = new ReindexRequest();
         request.setDestIndex("dest");
@@ -545,6 +546,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertNull("ReindexRequest with PIT and empty indices should pass validation", validationException);
     }
 
+    /** Verifies that empty source indices are rejected when not using PIT; validation suggests using _all instead. */
     public void testEmptyIndicesRejectedWhenNotUsingPit() {
         ReindexRequest request = new ReindexRequest();
         request.setDestIndex("dest");
@@ -555,6 +557,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertEquals(List.of("use _all if you really want to copy from all existing indexes"), validationException.validationErrors());
     }
 
+    /** Verifies that the {@code from} parameter is rejected when not using PIT. */
     public void testFromParameterRejectedWhenNotUsingPit() {
         ReindexRequest request = newRequest();
         request.getSearchRequest().scroll(null);  // avoid SearchRequest's scroll+from error; we test AbstractBulkByScrollRequest only
@@ -564,6 +567,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertEquals(List.of("from is not supported in this context"), validationException.validationErrors());
     }
 
+    /** Verifies that {@code from=0} is allowed when using PIT. */
     public void testFromZeroAllowedWhenUsingPit() {
         ReindexRequest request = new ReindexRequest();
         request.setDestIndex("dest");
@@ -581,6 +585,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertNull("ReindexRequest with PIT and from=0 should pass validation", validationException);
     }
 
+    /** Verifies that the task description uses sourceIndicesForDescription when indices are empty (e.g. PIT case). */
     public void testDescriptionUsesSourceIndicesForDescriptionWhenIndicesEmpty() {
         ReindexRequest request = new ReindexRequest();
         request.setDestIndex("dest");
@@ -591,6 +596,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertThat(description, not(containsString("all indices")));
     }
 
+    /** Verifies that the task description uses "all indices" when both indices and sourceIndicesForDescription are empty. */
     public void testDescriptionUsesAllIndicesWhenBothIndicesAndSourceIndicesForDescriptionEmpty() {
         ReindexRequest request = new ReindexRequest();
         request.setDestIndex("dest");
@@ -600,6 +606,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertThat(description, containsString("all indices"));
     }
 
+    /** Verifies that the task description uses the search request indices when set, even if sourceIndicesForDescription is also set. */
     public void testDescriptionUsesIndicesWhenSet() {
         ReindexRequest request = new ReindexRequest();
         request.setDestIndex("dest");
@@ -610,6 +617,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertThat(description, containsString("bar"));
     }
 
+    /** Verifies that a non-zero {@code from} parameter is rejected when using PIT. */
     public void testFromNonZeroRejectedWhenUsingPit() {
         ReindexRequest request = new ReindexRequest();
         request.setDestIndex("dest");

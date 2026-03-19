@@ -182,6 +182,10 @@ public class RoundTripTests extends ESTestCase {
         );
     }
 
+    /**
+     * Verifies backward compatibility: when reading a ReindexRequest from a node version that predates
+     * sourceIndicesForDescription, the field is null.
+     */
     public void testReindexRequestSourceIndicesForDescriptionBwc() throws IOException {
         ReindexRequest reindex = new ReindexRequest();
         reindex.getSearchRequest().indices(Strings.EMPTY_ARRAY);

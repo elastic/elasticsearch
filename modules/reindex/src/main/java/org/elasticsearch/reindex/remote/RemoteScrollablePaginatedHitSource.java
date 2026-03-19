@@ -108,11 +108,6 @@ public class RemoteScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
         return Optional.ofNullable(remoteVersion);
     }
 
-    /** Package-private for tests to call protected doNextSearch. */
-    void doNextSearchForTest(PaginationCursor cursor, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
-        doNextSearch(cursor, extraKeepAlive, searchListener);
-    }
-
     // Exposed for testing
     void onStartResponse(RejectAwareActionListener<Response> searchListener, Response response) {
         if (Strings.hasLength(response.getScrollId()) && response.getHits().isEmpty()) {

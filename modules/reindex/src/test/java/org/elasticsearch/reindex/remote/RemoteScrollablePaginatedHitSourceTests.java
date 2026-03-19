@@ -41,7 +41,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.index.reindex.PaginatedHitSource.Response;
-import org.elasticsearch.index.reindex.PaginationCursor;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.rest.RestStatus;
@@ -135,10 +134,10 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
             assertEquals(4, r.getTotalHits());
             assertThat(r.getFailures(), empty());
             assertThat(r.getHits(), hasSize(1));
-            assertEquals("test", r.getHits().get(0).getIndex());
-            assertEquals("AVToMiC250DjIiBO3yJ_", r.getHits().get(0).getId());
-            assertEquals("{\"test\":\"test2\"}", r.getHits().get(0).getSource().utf8ToString());
-            assertNull(r.getHits().get(0).getRouting());
+            assertEquals("test", r.getHits().getFirst().getIndex());
+            assertEquals("AVToMiC250DjIiBO3yJ_", r.getHits().getFirst().getId());
+            assertEquals("{\"test\":\"test2\"}", r.getHits().getFirst().getSource().utf8ToString());
+            assertNull(r.getHits().getFirst().getRouting());
             called.set(true);
         }));
         assertTrue(called.get());
@@ -146,8 +145,8 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
 
     public void testParseScrollOk() {
         AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall("scroll_ok.json").doNextSearchForTest(
-            PaginationCursor.forScroll("scroll"),
+        sourceWithMockedRemoteCall("scroll_ok.json").doNextScrollSearch(
+            "scroll",
             timeValueMillis(0),
             wrapAsListener(r -> {
                 assertFalse(r.isTimedOut());
@@ -155,10 +154,10 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
                 assertEquals(4, r.getTotalHits());
                 assertThat(r.getFailures(), empty());
                 assertThat(r.getHits(), hasSize(1));
-                assertEquals("test", r.getHits().get(0).getIndex());
-                assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().get(0).getId());
-                assertEquals("{\"test\":\"test3\"}", r.getHits().get(0).getSource().utf8ToString());
-                assertNull(r.getHits().get(0).getRouting());
+                assertEquals("test", r.getHits().getFirst().getIndex());
+                assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().getFirst().getId());
+                assertEquals("{\"test\":\"test3\"}", r.getHits().getFirst().getSource().utf8ToString());
+                assertNull(r.getHits().getFirst().getRouting());
                 called.set(true);
             })
         );
@@ -170,13 +169,13 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
      */
     public void testParseScrollFullyLoaded() {
         AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall("scroll_fully_loaded.json").doNextSearchForTest(
-            PaginationCursor.forScroll("scroll"),
+        sourceWithMockedRemoteCall("scroll_fully_loaded.json").doNextScrollSearch(
+            "scroll",
             timeValueMillis(0),
             wrapAsListener(r -> {
-                assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().get(0).getId());
-                assertEquals("{\"test\":\"test3\"}", r.getHits().get(0).getSource().utf8ToString());
-                assertEquals("testrouting", r.getHits().get(0).getRouting());
+                assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().getFirst().getId());
+                assertEquals("{\"test\":\"test3\"}", r.getHits().getFirst().getSource().utf8ToString());
+                assertEquals("testrouting", r.getHits().getFirst().getRouting());
                 called.set(true);
             })
         );
@@ -188,13 +187,13 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
      */
     public void testParseScrollFullyLoadedFrom1_7() {
         AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall("scroll_fully_loaded_1_7.json").doNextSearchForTest(
-            PaginationCursor.forScroll("scroll"),
+        sourceWithMockedRemoteCall("scroll_fully_loaded_1_7.json").doNextScrollSearch(
+            "scroll",
             timeValueMillis(0),
             wrapAsListener(r -> {
-                assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().get(0).getId());
-                assertEquals("{\"test\":\"test3\"}", r.getHits().get(0).getSource().utf8ToString());
-                assertEquals("testrouting", r.getHits().get(0).getRouting());
+                assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().getFirst().getId());
+                assertEquals("{\"test\":\"test3\"}", r.getHits().getFirst().getSource().utf8ToString());
+                assertEquals("testrouting", r.getHits().getFirst().getRouting());
                 called.set(true);
             })
         );
@@ -213,10 +212,10 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
             assertEquals(4, r.getTotalHits());
             assertThat(r.getFailures(), empty());
             assertThat(r.getHits(), hasSize(1));
-            assertEquals("test", r.getHits().get(0).getIndex());
-            assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().get(0).getId());
-            assertEquals("{\"test\":\"test3\"}", r.getHits().get(0).getSource().utf8ToString());
-            assertNull(r.getHits().get(0).getRouting());
+            assertEquals("test", r.getHits().getFirst().getIndex());
+            assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().getFirst().getId());
+            assertEquals("{\"test\":\"test3\"}", r.getHits().getFirst().getSource().utf8ToString());
+            assertNull(r.getHits().getFirst().getRouting());
             called.set(true);
         }));
         assertTrue(called.get());
@@ -231,28 +230,28 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
             assertEquals(FAKE_SCROLL_ID, r.getScrollId());
             assertEquals(4, r.getTotalHits());
             assertThat(r.getFailures(), hasSize(1));
-            assertEquals("test", r.getFailures().get(0).getIndex());
-            assertEquals((Integer) 0, r.getFailures().get(0).getShardId());
-            assertEquals("87A7NvevQxSrEwMbtRCecg", r.getFailures().get(0).getNodeId());
-            assertThat(r.getFailures().get(0).getReason(), instanceOf(EsRejectedExecutionException.class));
+            assertEquals("test", r.getFailures().getFirst().getIndex());
+            assertEquals((Integer) 0, r.getFailures().getFirst().getShardId());
+            assertEquals("87A7NvevQxSrEwMbtRCecg", r.getFailures().getFirst().getNodeId());
+            assertThat(r.getFailures().getFirst().getReason(), instanceOf(EsRejectedExecutionException.class));
             assertEquals(
                 "rejected execution of org.elasticsearch.transport.TransportService$5@52d06af2 on "
                     + "EsThreadPoolExecutor[search, queue capacity = 1000, org.elasticsearch.common.util.concurrent."
                     + "EsThreadPoolExecutor@778ea553[Running, pool size = 7, active threads = 7, queued tasks = 1000, "
                     + "completed tasks = 4182]]",
-                r.getFailures().get(0).getReason().getMessage()
+                r.getFailures().getFirst().getReason().getMessage()
             );
             assertThat(r.getHits(), hasSize(1));
-            assertEquals("test", r.getHits().get(0).getIndex());
-            assertEquals("AVToMiC250DjIiBO3yJ_", r.getHits().get(0).getId());
-            assertEquals("{\"test\":\"test1\"}", r.getHits().get(0).getSource().utf8ToString());
+            assertEquals("test", r.getHits().getFirst().getIndex());
+            assertEquals("AVToMiC250DjIiBO3yJ_", r.getHits().getFirst().getId());
+            assertEquals("{\"test\":\"test1\"}", r.getHits().getFirst().getSource().utf8ToString());
             called.set(true);
         };
         sourceWithMockedRemoteCall("rejection.json").doFirstSearch(wrapAsListener(checkResponse));
         assertTrue(called.get());
         called.set(false);
-        sourceWithMockedRemoteCall("rejection.json").doNextSearchForTest(
-            PaginationCursor.forScroll("scroll"),
+        sourceWithMockedRemoteCall("rejection.json").doNextScrollSearch(
+            "scroll",
             timeValueMillis(0),
             wrapAsListener(checkResponse)
         );
@@ -268,25 +267,25 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
             assertEquals(FAKE_SCROLL_ID, r.getScrollId());
             assertEquals(10000, r.getTotalHits());
             assertThat(r.getFailures(), hasSize(1));
-            assertEquals(null, r.getFailures().get(0).getIndex());
-            assertEquals(null, r.getFailures().get(0).getShardId());
-            assertEquals(null, r.getFailures().get(0).getNodeId());
-            assertThat(r.getFailures().get(0).getReason(), instanceOf(RuntimeException.class));
+            assertNull(r.getFailures().getFirst().getIndex());
+            assertNull(r.getFailures().getFirst().getShardId());
+            assertNull(r.getFailures().getFirst().getNodeId());
+            assertThat(r.getFailures().getFirst().getReason(), instanceOf(RuntimeException.class));
             assertEquals(
                 "Unknown remote exception with reason=[SearchContextMissingException[No search context found for id [82]]]",
-                r.getFailures().get(0).getReason().getMessage()
+                r.getFailures().getFirst().getReason().getMessage()
             );
             assertThat(r.getHits(), hasSize(1));
-            assertEquals("test", r.getHits().get(0).getIndex());
-            assertEquals("10000", r.getHits().get(0).getId());
-            assertEquals("{\"test\":\"test10000\"}", r.getHits().get(0).getSource().utf8ToString());
+            assertEquals("test", r.getHits().getFirst().getIndex());
+            assertEquals("10000", r.getHits().getFirst().getId());
+            assertEquals("{\"test\":\"test10000\"}", r.getHits().getFirst().getSource().utf8ToString());
             called.set(true);
         };
         sourceWithMockedRemoteCall("failure_with_status.json").doFirstSearch(wrapAsListener(checkResponse));
         assertTrue(called.get());
         called.set(false);
-        sourceWithMockedRemoteCall("failure_with_status.json").doNextSearchForTest(
-            PaginationCursor.forScroll("scroll"),
+        sourceWithMockedRemoteCall("failure_with_status.json").doNextScrollSearch(
+            "scroll",
             timeValueMillis(0),
             wrapAsListener(checkResponse)
         );
@@ -317,8 +316,8 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
             assertNull(r.getScrollId());
             assertEquals(0, r.getTotalHits());
             assertThat(r.getFailures(), hasSize(1));
-            assertThat(r.getFailures().get(0).getReason(), instanceOf(ParsingException.class));
-            ParsingException failure = (ParsingException) r.getFailures().get(0).getReason();
+            assertThat(r.getFailures().getFirst().getReason(), instanceOf(ParsingException.class));
+            ParsingException failure = (ParsingException) r.getFailures().getFirst().getReason();
             assertEquals("Unknown key for a VALUE_STRING in [invalid].", failure.getMessage());
             assertEquals(2, failure.getLineNumber());
             assertEquals(14, failure.getColumnNumber());
@@ -327,8 +326,8 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
         sourceWithMockedRemoteCall("request_failure.json").doFirstSearch(wrapAsListener(checkResponse));
         assertTrue(called.get());
         called.set(false);
-        sourceWithMockedRemoteCall("request_failure.json").doNextSearchForTest(
-            PaginationCursor.forScroll("scroll"),
+        sourceWithMockedRemoteCall("request_failure.json").doNextScrollSearch(
+            "scroll",
             timeValueMillis(0),
             wrapAsListener(checkResponse)
         );

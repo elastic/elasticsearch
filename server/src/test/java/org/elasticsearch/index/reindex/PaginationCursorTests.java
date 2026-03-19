@@ -19,6 +19,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class PaginationCursorTests extends ESTestCase {
 
+    /** Verifies that {@link PaginationCursor#forScroll} creates a cursor with the given scroll ID and scroll semantics. */
     public void testForScrollCreatesScrollCursor() {
         String scrollId = randomAlphaOfLengthBetween(1, 20);
         PaginationCursor cursor = PaginationCursor.forScroll(scrollId);
@@ -28,21 +29,25 @@ public class PaginationCursorTests extends ESTestCase {
         assertFalse(cursor.isSearchAfter());
     }
 
+    /** Verifies that {@link PaginationCursor#forScroll} rejects null and empty scroll IDs. */
     public void testForScrollRejectsNullAndEmpty() {
         expectThrows(NullPointerException.class, () -> PaginationCursor.forScroll(null));
         expectThrows(IllegalArgumentException.class, () -> PaginationCursor.forScroll(""));
     }
 
+    /** Verifies that {@link PaginationCursor#forSearchAfter} rejects null search_after arrays. */
     public void testForSearchAfterRejectsNull() {
         expectThrows(IllegalArgumentException.class, () -> PaginationCursor.forSearchAfter(null));
     }
 
+    /** Verifies that the constructor requires exactly one of scrollId or searchAfter to be non-null, and rejects both or neither. */
     public void testConstructorEnforcesExactlyOneNonNull() {
         expectThrows(IllegalArgumentException.class, () -> new PaginationCursor(null, null));
         expectThrows(IllegalArgumentException.class, () -> new PaginationCursor("scroll", new Object[] { 1 }));
         expectThrows(IllegalArgumentException.class, () -> new PaginationCursor("", null));
     }
 
+    /** Verifies that {@link PaginationCursor#forSearchAfter} creates a cursor with the given search_after values and search_after semantics. */
     public void testForSearchAfterCreatesSearchAfterCursor() {
         long sortLong = randomLong();
         String sortString = randomAlphaOfLengthBetween(1, 10);
@@ -61,6 +66,7 @@ public class PaginationCursorTests extends ESTestCase {
         assertEquals(sortString, cursor.searchAfter()[1]);
     }
 
+    /** Verifies that {@link PaginationCursor#forSearchAfter} accepts an empty search_after array. */
     public void testEmptySearchAfterArray() {
         Object[] searchAfter = new Object[0];
         PaginationCursor cursor = PaginationCursor.forSearchAfter(searchAfter);

@@ -272,6 +272,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         );
     }
 
+    /**
+     * Verifies that the initial search retries on thread pool rejection and eventually succeeds within the
+     * configured max retries.
+     */
     public void testStartRetriesOnRejectionAndSucceeds() throws Exception {
         configurePitOrScroll();
         client.searchesToReject = randomIntBetween(0, testRequest.getMaxRetries() - 1);
@@ -286,6 +290,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertEquals(client.searchesToReject, testTask.getStatus().getSearchRetries());
     }
 
+    /**
+     * Verifies that the initial search fails after exceeding the max retries on thread pool rejection.
+     */
     public void testStartRetriesOnRejectionButFailsOnTooManyRejections() throws Exception {
         configurePitOrScroll();
         client.searchesToReject = testRequest.getMaxRetries() + randomIntBetween(1, 100);
@@ -298,6 +305,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertEquals(testRequest.getMaxRetries(), testTask.getStatus().getSearchRetries());
     }
 
+    /**
+     * When using scroll search, verifies that the hit source retries on thread pool rejection and eventually succeeds
+     * within the configured max retries.
+     */
     public void testStartNextScrollRetriesOnRejectionAndSucceedsWithScrollSearch() throws Exception {
         configurePitOrScroll(false);
         client.scrollsToReject = randomIntBetween(0, testRequest.getMaxRetries() - 1);
@@ -322,6 +333,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertEquals(client.scrollsToReject, testTask.getStatus().getSearchRetries());
     }
 
+    /**
+     * When using PIT search, verifies that the hit source retries on thread pool rejection and eventually succeeds
+     * within the configured max retries.
+     */
     public void testStartNextScrollRetriesOnRejectionAndSucceedsWithPITSearch() throws Exception {
         configurePitOrScroll(true);
         client.searchesToReject = randomIntBetween(0, testRequest.getMaxRetries() - 1);
@@ -346,6 +361,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertEquals(client.searchesToReject, testTask.getStatus().getSearchRetries());
     }
 
+    /**
+     * When using scroll search, verifies that the hit source fails after exceeding the max retries on thread pool rejection.
+     */
     public void testStartNextScrollRetriesOnRejectionButFailsOnTooManyRejectionsWithScrollSearch() throws Exception {
         configurePitOrScroll(false);
         client.scrollsToReject = testRequest.getMaxRetries() + randomIntBetween(1, 100);
@@ -372,6 +390,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertEquals(testRequest.getMaxRetries(), testTask.getStatus().getSearchRetries());
     }
 
+    /**
+     * When using PIT search, verifies that the hit source fails after exceeding the max retries on thread pool rejection.
+     */
     public void testStartNextScrollRetriesOnRejectionButFailsOnTooManyRejectionsWithPITSearch() throws Exception {
         configurePitOrScroll(true);
         client.searchesToReject = testRequest.getMaxRetries() + randomIntBetween(1, 100);
@@ -771,6 +792,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies that the delay scheduled between PIT search batches is correctly calculated from the throttle rate.
+     * The initial delay should be zero; subsequent delays should reflect the throttling (e.g. ~100s at 1f, ~10s at 10f).
+     */
     public void testPITDelay() throws Exception {
         configurePitOrScroll(true);
         AtomicReference<TimeValue> capturedDelay = new AtomicReference<>();
@@ -1170,6 +1195,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertThat(preparedSearchRequest.scroll(), notNullValue());
     }
 
+    /**
+     * When using PIT, verifies that the prepared search request disables scroll and sets {@code from} to zero.
+     */
     public void testPrepareSearchRequestWithPITDisablesScrollAndSetsFromZero() {
         configurePitOrScroll(true);
         var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
@@ -1177,6 +1205,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertEquals(0, preparedSearchRequest.source().from());
     }
 
+    /**
+     * When using PIT without a user-defined sort, verifies that the prepared search request uses shard doc order
+     * ({@code _shard_doc}) for pagination.
+     */
     public void testPrepareSearchRequestWithPITUsesShardDocSort() {
         configurePitOrScroll(true);
         var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
@@ -1188,6 +1220,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         );
     }
 
+    /**
+     * When using scroll without a user-defined sort, verifies that the prepared search request uses doc order
+     * ({@code _doc}) for pagination.
+     */
     public void testPrepareSearchRequestWithScrollUsesDocSort() {
         configurePitOrScroll(false);
         var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
@@ -1196,6 +1232,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertEquals("_doc", ((FieldSortBuilder) preparedSearchRequest.source().sorts().getFirst()).getFieldName());
     }
 
+    /**
+     * When using PIT with a user-defined sort, verifies that the prepared search request preserves the user's sort
+     * instead of overriding it with shard doc order.
+     */
     public void testPrepareSearchRequestPreservesUserSort() {
         configurePitOrScroll(true);
         testRequest.getSearchRequest().source().sort("timestamp");
@@ -1204,6 +1244,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertEquals("timestamp", ((FieldSortBuilder) preparedSearchRequest.source().sorts().getFirst()).getFieldName());
     }
 
+    /**
+     * When using PIT, verifies that the action builds a {@link ClientPitPaginatedHitSource} as its paginated hit source.
+     */
     public void testBuildScrollableResultSourceReturnsPitHitSource() {
         configurePitOrScroll(true);
         final AtomicReference<PaginatedHitSource> capturedSource = new AtomicReference<>();
@@ -1218,6 +1261,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertThat(capturedSource.get(), instanceOf(ClientPitPaginatedHitSource.class));
     }
 
+    /**
+     * When using scroll, verifies that the action builds a {@link ClientScrollablePaginatedHitSource} as its paginated hit source.
+     */
     public void testBuildScrollableResultSourceReturnsScrollHitSource() {
         configurePitOrScroll(false);
         final AtomicReference<PaginatedHitSource> capturedSource = new AtomicReference<>();
@@ -1232,6 +1278,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertThat(capturedSource.get(), instanceOf(ClientScrollablePaginatedHitSource.class));
     }
 
+    /**
+     * When relocation is requested and a target node is available during scroll search, verifies that the task relocates
+     * and returns {@link ResumeInfo.ScrollWorkerResumeInfo} with the scroll ID for resumption.
+     */
     public void testNotifyDoneRelocatesWhenRequestedAndNodeAvailableWithScrollSearch() {
         configurePitOrScroll(false);
         testTask.requestRelocation();
@@ -1289,6 +1339,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertTrue("local resources should be cleaned up during relocation", cleanedUp.get());
     }
 
+    /**
+     * When relocation is requested and a target node is available during PIT search, verifies that the task relocates
+     * and returns {@link ResumeInfo.PitWorkerResumeInfo} with the PIT ID and search_after values for resumption.
+     */
     public void testNotifyDoneRelocatesWhenRequestedAndNodeAvailableWithPITSearch() {
         configurePitOrScroll(true);
         testTask.requestRelocation();
@@ -1346,6 +1400,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertTrue("local resources should be cleaned up during relocation", cleanedUp.get());
     }
 
+    /**
+     * When relocation is requested but no target node is available during scroll search, verifies that the task
+     * continues normally instead of relocating (asyncResponse.done() is called).
+     */
     public void testNotifyDoneContinuesWhenRelocationRequestedButNoNodeWithScrollSearch() throws Exception {
         configurePitOrScroll(false);
         testTask.requestRelocation();
@@ -1372,6 +1430,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertTrue("asyncResponse.done() should be called for normal flow", doneCalled.get());
     }
 
+    /**
+     * When relocation is requested but no target node is available during PIT search, verifies that the task
+     * continues normally instead of relocating (asyncResponse.done() is called).
+     */
     public void testNotifyDoneContinuesWhenRelocationRequestedButNoNodeWithPITSearch() throws Exception {
         configurePitOrScroll(true);
         testTask.requestRelocation();
@@ -1398,6 +1460,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertTrue("asyncResponse.done() should be called for normal flow", doneCalled.get());
     }
 
+    /**
+     * When relocation is not requested during scroll search, verifies that the task ignores relocation and completes
+     * normally (asyncResponse.done() is called).
+     */
     public void testNotifyDoneIgnoresRelocationWhenNotRequestedWithScrollSearch() throws Exception {
         configurePitOrScroll(false);
         worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
@@ -1423,6 +1489,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertTrue("asyncResponse.done() should be called when relocation is not requested", doneCalled.get());
     }
 
+    /**
+     * When relocation is not requested during PIT search, verifies that the task ignores relocation and completes
+     * normally (asyncResponse.done() is called).
+     */
     public void testNotifyDoneIgnoresRelocationWhenNotRequestedWithPITSearch() throws Exception {
         configurePitOrScroll(true);
         worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
@@ -1448,6 +1518,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertTrue("asyncResponse.done() should be called when relocation is not requested", doneCalled.get());
     }
 
+    /**
+     * When relocation is requested with a target node available during scroll search, verifies that remaining hits
+     * in the response are consumed via onScrollResponse before relocating; relocation does not happen while hits remain.
+     */
     public void testNotifyDoneConsumesRemainingHitsBeforeRelocatingWithScrollSearch() {
         configurePitOrScroll(false);
         testTask.requestRelocation();
@@ -1486,6 +1560,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertThat("listener should not be done - relocation should not happen while hits remain", listener.isDone(), equalTo(false));
     }
 
+    /**
+     * When relocation is requested with a target node available during PIT search, verifies that remaining hits
+     * in the response are consumed via onScrollResponse before relocating; relocation does not happen while hits remain.
+     */
     public void testNotifyDoneConsumesRemainingHitsBeforeRelocatingWithPITSearch() {
         configurePitOrScroll(true);
         testTask.requestRelocation();
@@ -1524,6 +1602,10 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertThat("listener should not be done - relocation should not happen while hits remain", listener.isDone(), equalTo(false));
     }
 
+    /**
+     * When PIT relocation is requested but search_after values are missing (the action has no pagination state),
+     * verifies that an {@link IllegalStateException} is thrown with an appropriate message.
+     */
     public void testNotifyDoneRelocationWithPITFailsWhenSearchAfterMissing() {
         configurePitOrScroll(true);
         testTask.requestRelocation();

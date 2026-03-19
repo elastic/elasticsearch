@@ -40,13 +40,17 @@ public class ReindexIT extends ESIntegTestCase {
     }
 
     /**
-     * Manual slicing without field defaults to _id. This test verifies that reindexing slice 0, then updating
-     * all docs, then reindexing slice 1 produces the correct doc IDs in the destination (no duplicates, no missing).
+     * Manual slicing without a field defaults to _id. This test verifies that using _id as a slice field
+     * produces correct document ids without duplication or missing values.
+     * The test reindexes slice 0, updates all docs, then reindexes slice 1, checking the updated docs haven't
+     * messed with the reindexing
      */
     public void testManualSliceWithoutFieldDefaultsToId() {
-        String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
-        String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
-        final int totalDocs = 20;
+        int index1DocCount = randomInt();
+        int index2DocCount = randomInt();
+        String sourceIndex = randomAlphanumericOfLength(index1DocCount).toLowerCase(Locale.ROOT);
+        String destIndex = randomAlphanumericOfLength(index2DocCount).toLowerCase(Locale.ROOT);
+        final int totalDocs = index1DocCount + index2DocCount;
 
         createIndex(sourceIndex);
         indexRandom(

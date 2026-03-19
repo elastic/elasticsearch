@@ -813,6 +813,13 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         return ClusterState.builder(oldState).routingTable(newRoutingTable).metadata(newMetadata).build();
     }
 
+    /**
+     * Returns a mock AllocationService, with a functioning {@link AllocationService#createAllocationSimulation(ClusterState)}
+     * method.
+     *
+     * @param allocationDeciders The allocation deciders to be effective in the {@link AllocationSimulation}
+     * @return the mocked AllocationService
+     */
     public static AllocationService mockAllocationService(AllocationDeciders allocationDeciders) {
         AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.createAllocationSimulation(any(ClusterState.class))).thenAnswer(
@@ -823,7 +830,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
     private static class MockAllocationSimulation extends AllocationSimulation {
 
-        public MockAllocationSimulation(ClusterState clusterState, AllocationDeciders allocationDeciders) {
+        MockAllocationSimulation(ClusterState clusterState, AllocationDeciders allocationDeciders) {
             super(
                 TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(allocationDeciders).build(),
                 allocationDeciders,

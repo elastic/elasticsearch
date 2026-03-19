@@ -31,14 +31,12 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.AllocationSimulation;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -86,14 +84,12 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_WARM_NODE_RO
 import static org.elasticsearch.cluster.routing.ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
 import static org.elasticsearch.common.util.set.Sets.haveNonEmptyIntersection;
 import static org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageDeciderService.AllocationState.MAX_AMOUNT_OF_SHARD_DECISIONS;
+import static org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageDeciderServiceTests.mockAllocationService;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Test the higher level parts of {@link ReactiveStorageDeciderService} that all require a similar setup.
@@ -569,10 +565,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         DiscoveryNodeRole role,
         AllocationDecider... allocationDeciders
     ) {
-        AllocationService allocationService = mock(AllocationService.class);
-        when(allocationService.createAllocationSimulation(any(ClusterState.class))).thenAnswer(
-            iom -> new AllocationSimulation(iom.getArgument(0), createAllocationDeciders(allocationDeciders), mock(ShardsAllocator.class))
-        );
+        AllocationService allocationService = mockAllocationService(createAllocationDeciders(allocationDeciders));
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             createContext(state, Set.of(role)),
             DISK_THRESHOLD_SETTINGS,
@@ -603,10 +596,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         Predicate<Map<ShardId, NodeDecisions>> unassignedNodeDecisions,
         AllocationDecider... allocationDeciders
     ) {
-        AllocationService allocationService = mock(AllocationService.class);
-        when(allocationService.createAllocationSimulation(any(ClusterState.class))).thenAnswer(
-            iom -> new AllocationSimulation(iom.getArgument(0), createAllocationDeciders(allocationDeciders), mock(ShardsAllocator.class))
-        );
+        AllocationService allocationService = mockAllocationService(createAllocationDeciders(allocationDeciders));
         ReactiveStorageDeciderService decider = new ReactiveStorageDeciderService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),

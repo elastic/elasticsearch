@@ -26,11 +26,9 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.AllocationSimulation;
 import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
-import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -61,14 +59,12 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageDeciderServiceTests.mockAllocationService;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     public void testScale() {
@@ -105,10 +101,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             }
         });
         AllocationDeciders allocationDeciders = new AllocationDeciders(allocationDecidersList);
-        AllocationService allocationService = mock(AllocationService.class);
-        when(allocationService.createAllocationSimulation(any(ClusterState.class))).thenAnswer(
-            iom -> new AllocationSimulation(iom.getArgument(0), allocationDeciders, mock(ShardsAllocator.class))
-        );
+        AllocationService allocationService = mockAllocationService(allocationDeciders);
         ProactiveStorageDeciderService service = new ProactiveStorageDeciderService(
             Settings.EMPTY,
             clusterSettings,

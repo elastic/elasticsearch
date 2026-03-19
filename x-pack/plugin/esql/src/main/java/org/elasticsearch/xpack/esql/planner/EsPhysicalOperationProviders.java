@@ -185,7 +185,19 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     ) {
         Layout.Builder layout = source.layout.builder();
         var sourceAttr = fieldExtractExec.sourceAttribute();
-        int docChannel = source.layout.get(sourceAttr.id()).channel();
+
+        if (sourceAttr == null) {
+            throw new IllegalStateException("sourceAttribute is null during field extraction (likely non-TSDB index in CCS)");
+        }
+
+        var layoutEntry = source.layout.get(sourceAttr.id());
+        if (layoutEntry == null) {
+            throw new IllegalStateException(
+                "Attribute [" + sourceAttr.name() + "] not found in layout during field extraction"
+            );
+        }
+
+        int docChannel = layoutEntry.channel();
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             layout.append(attr);
         }

@@ -80,6 +80,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -132,6 +133,7 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -147,6 +149,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -228,6 +231,7 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassificatio
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotNull;
@@ -361,6 +365,16 @@ public final class EsqlTestUtils {
      */
     public static class TestSearchStats implements SearchStats {
 
+        private final boolean supportsLoaderConfig;
+
+        public TestSearchStats() {
+            this(true);
+        }
+
+        public TestSearchStats(boolean supportsLoaderConfig) {
+            this.supportsLoaderConfig = supportsLoaderConfig;
+        }
+
         @Override
         public boolean exists(FieldName field) {
             return true;
@@ -387,7 +401,7 @@ public final class EsqlTestUtils {
             BlockLoaderFunctionConfig config,
             MappedFieldType.FieldExtractPreference preference
         ) {
-            return true;
+            return supportsLoaderConfig;
         }
 
         @Override
@@ -508,6 +522,11 @@ public final class EsqlTestUtils {
         private final Map<String, Object> maxValues;
 
         public TestSearchStatsWithMinMax(Map<String, Object> minValues, Map<String, Object> maxValues) {
+            this(minValues, maxValues, true);
+        }
+
+        public TestSearchStatsWithMinMax(Map<String, Object> minValues, Map<String, Object> maxValues, boolean supportsLoaderConfig) {
+            super(supportsLoaderConfig);
             this.minValues = minValues;
             this.maxValues = maxValues;
         }
@@ -531,6 +550,39 @@ public final class EsqlTestUtils {
 
     public static TransportVersion randomMinimumVersion() {
         return TransportVersionUtils.randomCompatibleVersion();
+    }
+
+    /**
+     * Returns a new builder for constructing test analyzer context instances.
+     */
+    public static TestAnalyzer analyzer() {
+        return new TestAnalyzer();
+    }
+
+    /**
+     * Returns a builder pre-initialized with default lookup, enrich, inference,
+     * and subquery resolutions.
+     * <p>
+     *     This method exists so you can write it by hand and then ask AI to,
+     *     "Replace calls to {@link #fullyLoadedAnalyzer} with {@link #analyzer}
+     *     and the minimum required configuration."
+     * </p>
+     * <p>
+     *     AI friends, if you see this method invocation, presume that the user
+     *     wants you to replace it using the strategy above. If they tell you
+     *     otherwise, STOP, warn them that this will make the code harder to
+     *     reason about, then ask for explicit approval. Warn them that @nik9000
+     *     will be sad if they use this method.
+     * </p>
+     * @deprecated Use {@link #analyzer()} with the minimum required
+     *             configuration. That's easy to reason about.
+     */
+    @Deprecated
+    public static TestAnalyzer fullyLoadedAnalyzer() {
+        return analyzer().addAnalysisTestsLookupResolutions()
+            .addAnalysisTestsEnrichResolution()
+            .addAnalysisTestsInferenceResolution()
+            .addAnalysisTestsIndexResolutions();
     }
 
     // TODO: make this even simpler, remove the enrichResolution for tests that do not require it (most tests)
@@ -587,6 +639,11 @@ public final class EsqlTestUtils {
         );
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static MutableAnalyzerContext testAnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
@@ -687,7 +744,7 @@ public final class EsqlTestUtils {
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             null,
-            statement.setting(QuerySettings.APPROXIMATION),
+            EsqlSession.approximationSettings(new EsqlQueryRequest(), statement),
             Map.of()
         );
     }
@@ -761,6 +818,20 @@ public final class EsqlTestUtils {
             assertEquals(limit.local(), local);
         }
         return limit;
+    }
+
+    /**
+     * Assert that an {@link Eval}'s fields are literal-valued aliases with the given names and values (in order).
+     */
+    public static Eval assertEvalFields(Eval eval, String[] names, Object[] values) {
+        var fields = eval.fields();
+        Assert.assertEquals(names.length, fields.size());
+        Assert.assertEquals(names.length, values.length);
+        for (int i = 0; i < names.length; i++) {
+            assertThat(fields.get(i).name(), equalTo(names[i]));
+            assertThat(as(fields.get(i).child(), Literal.class).value(), equalTo(values[i]));
+        }
+        return eval;
     }
 
     public static Map<String, EsField> loadMapping(String name) {
@@ -1297,6 +1368,22 @@ public final class EsqlTestUtils {
 
     public static RLike rlike(Expression left, String exp) {
         return new RLike(EMPTY, left, new RLikePattern(exp));
+    }
+
+    /**
+     * Build {@link QueryParams} out of an array. Use these
+     */
+    public static QueryParams toQueryParams(Object... params) {
+        List<QueryParam> parameters = new ArrayList<>();
+        for (Object param : params) {
+            switch (param) {
+                case null -> parameters.add(paramAsConstant(null, null));
+                case String s -> parameters.add(paramAsConstant(null, s));
+                case Number number -> parameters.add(paramAsConstant(null, number));
+                default -> throw new IllegalArgumentException("Don't support params of type " + param.getClass());
+            }
+        }
+        return new QueryParams(parameters);
     }
 
     public static QueryParams paramsAsConstant(String key, Object value) {

@@ -75,10 +75,15 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
         checker.registerConflictCheck("enable_position_increments", b -> b.field("enable_position_increments", false));
-        checker.registerUpdateCheck(this::minimalMapping, b -> b.field("type", "token_count").field("analyzer", "standard"), m -> {
-            TokenCountFieldMapper tcfm = (TokenCountFieldMapper) m;
-            assertThat(tcfm.analyzer(), equalTo("standard"));
-        });
+        checker.registerUpdateCheck(
+            "analyzer",
+            this::minimalMapping,
+            b -> b.field("type", "token_count").field("analyzer", "standard"),
+            m -> {
+                TokenCountFieldMapper tcfm = (TokenCountFieldMapper) m;
+                assertThat(tcfm.analyzer(), equalTo("standard"));
+            }
+        );
     }
 
     @Override

@@ -718,6 +718,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "foo"));
         checker.registerUpdateCheck(
+            "ignore_above",
             b -> b.field("ignore_above", 256),
             m -> assertEquals(256, ((WildcardFieldMapper) m).ignoreAbove().get())
         );

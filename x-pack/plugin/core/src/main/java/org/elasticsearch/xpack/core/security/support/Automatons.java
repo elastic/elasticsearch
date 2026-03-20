@@ -214,6 +214,24 @@ public final class Automatons {
         return str.length() > 1 && str.charAt(0) == '/' && str.charAt(str.length() - 1) == '/';
     }
 
+    /**
+     * Returns {@code true} if the string is a literal with no pattern syntax — no wildcards ({@code *}, {@code ?}),
+     * no escape sequences ({@code \}), and no leading {@code /} (which denotes a Lucene regex).
+     * The automaton built from such a string accepts exactly the string itself.
+     */
+    public static boolean isLiteralPattern(String pattern) {
+        for (int i = 0; i < pattern.length(); i++) {
+            char c = pattern.charAt(i);
+            if (c == WILDCARD_STRING || c == WILDCARD_CHAR || c == WILDCARD_ESCAPE) {
+                return false;
+            }
+            if (c == '/' && i == 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static Automaton buildAutomaton(String pattern) {
         if (pattern.startsWith("/")) { // it's a lucene regexp
             if (pattern.length() == 1 || pattern.endsWith("/") == false) {

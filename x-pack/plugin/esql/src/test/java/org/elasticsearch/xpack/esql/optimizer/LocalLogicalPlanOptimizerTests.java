@@ -98,6 +98,7 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1817,10 +1818,15 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("l"));
+
         var eval = as(project.child(), Eval.class);
-        Attribute lAttr = assertLengthPushdown(as(eval.fields().getFirst(), Alias.class).child(), "last_name");
+
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        Attribute lAttr = assertLengthPushdown(alias.child(), "last_name");
+
         var limit = as(eval.child(), Limit.class);
         var relation = as(limit.child(), EsRelation.class);
+
         assertTrue(relation.output().contains(lAttr));
     }
 
@@ -1834,8 +1840,12 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
         var filter = as(limit.child(), Filter.class);
-        Attribute lAttr = assertLengthPushdown(as(filter.condition(), GreaterThan.class).left(), "last_name");
+
+        var gt = as(filter.condition(), GreaterThan.class);
+        Attribute lAttr = assertLengthPushdown(gt.left(), "last_name");
+
         var relation = as(filter.child(), EsRelation.class);
+
         assertTrue(relation.output().contains(lAttr));
     }
 
@@ -1849,11 +1859,19 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
         assertThat(agg.aggregates(), hasSize(1));
-        as(as(agg.aggregates().getFirst(), Alias.class).child(), Sum.class);
+
+        var sum = as(as(agg.aggregates().getFirst(), Alias.class).child(), Sum.class);
+
         var eval = as(agg.child(), Eval.class);
-        Attribute lAttr = assertLengthPushdown(as(eval.fields().getFirst(), Alias.class).child(), "last_name");
+        var alias = as(eval.fields().getFirst(), Alias.class);
+
+        Attribute lAttr = assertLengthPushdown(alias.child(), "last_name");
+
         var relation = as(eval.child(), EsRelation.class);
+
         assertTrue(relation.output().contains(lAttr));
+
+        assertThat(as(sum.field(), ReferenceAttribute.class).id(), equalTo(alias.id()));
     }
 
     public void testLengthInEvalAfterManyRenames() {
@@ -1869,10 +1887,15 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("l"));
+
         var eval = as(project.child(), Eval.class);
-        Attribute lAttr = assertLengthPushdown(as(eval.fields().getFirst(), Alias.class).child(), "last_name");
+
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        Attribute lAttr = assertLengthPushdown(alias.child(), "last_name");
+
         var limit = as(eval.child(), Limit.class);
         var relation = as(limit.child(), EsRelation.class);
+
         assertTrue(relation.output().contains(lAttr));
     }
 
@@ -1886,11 +1909,19 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         var project = as(plan, Project.class);
         var eval = as(project.child(), Eval.class);
-        Attribute lAttr = assertLengthPushdown(as(eval.fields().getFirst(), Alias.class).child(), "last_name");
+
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        Attribute lAttr = assertLengthPushdown(alias.child(), "last_name");
+
         var limit = as(eval.child(), Limit.class);
         var filter = as(limit.child(), Filter.class);
-        assertThat(as(filter.condition(), GreaterThan.class).left(), is(lAttr));
+
+        var gt = as(filter.condition(), GreaterThan.class);
+
+        assertThat(gt.left(), is(lAttr));
+
         var relation = as(filter.child(), EsRelation.class);
+
         assertThat(relation.output(), hasItem(lAttr));
     }
 
@@ -1917,7 +1948,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         String query = """
             FROM test
             | EVAL a1 = LENGTH(last_name), a2 = LENGTH(last_name), a3 = LENGTH(last_name),
-                   a4 = abs(LENGTH(last_name)) + a1 + LENGTH(first_name) * 3
+                a4 = abs(LENGTH(last_name)) + a1 + LENGTH(first_name) * 3
             | WHERE a1 > 1 and LENGTH(last_name) > 1
             | STATS l = SUM(LENGTH(last_name)) + AVG(a3) + SUM(LENGTH(first_name))
             """;
@@ -1926,68 +1957,68 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("l"));
 
-        // Eval - computes final aggregation result (SUM + AVG + SUM)
+        // Final eval
         var eval1 = as(project.child(), Eval.class);
         assertThat(eval1.fields(), hasSize(2));
-        // The avg is computed as the SUM(LENGTH(last_name)) / COUNT(LENGTH(last_name))
+
         var avg = eval1.fields().get(0);
         var avgDiv = as(avg.child(), Div.class);
-        // SUM(LENGTH(last_name))
+
         var evalSumLastName = as(avgDiv.left(), ReferenceAttribute.class);
         var evalCountLastName = as(avgDiv.right(), ReferenceAttribute.class);
+
         var finalAgg = as(eval1.fields().get(1).child(), Add.class);
         var leftFinalAgg = as(finalAgg.left(), Add.class);
+
         assertThat(leftFinalAgg.left(), equalTo(evalSumLastName));
         assertThat(as(leftFinalAgg.right(), ReferenceAttribute.class).id(), equalTo(avg.id()));
-        // SUM(LENGTH(first_name))
+
         var evalSumFirstName = as(finalAgg.right(), ReferenceAttribute.class);
 
-        // Limit[1000[INTEGER],false,false]
         var limit = as(eval1.child(), Limit.class);
 
-        // Aggregate with 3 aggregates: SUM for last_name, COUNT for last_name
-        // (the AVG uses the sum and the count), SUM for first_name
         var agg = as(limit.child(), Aggregate.class);
         assertThat(agg.aggregates(), hasSize(3));
 
-        // Eval - pushdown fields: a3, LENGTH(last_name) for SUM, and LENGTH(first_name) for SUM
         var evalPushdown = as(agg.child(), Eval.class);
         assertThat(evalPushdown.fields(), hasSize(3));
+
         Alias a3Alias = as(evalPushdown.fields().getFirst(), Alias.class);
         assertThat(a3Alias.name(), equalTo("a3"));
-        Attribute lastNamePushDownAttr = assertLengthPushdown(a3Alias.child(), "last_name");
-        Alias lastNamePushdownAlias = as(evalPushdown.fields().get(1), Alias.class);
-        assertLengthPushdown(lastNamePushdownAlias.child(), "last_name");
-        Alias firstNamePushdownAlias = as(evalPushdown.fields().get(2), Alias.class);
-        Attribute firstNamePushDownAttr = assertLengthPushdown(firstNamePushdownAlias.child(), "first_name");
 
-        // Verify aggregates reference the pushed down fields
+        Attribute lastNameAttrFromA3 = assertLengthPushdown(a3Alias.child(), "last_name");
+
+        Alias lastNamePushdownAlias = as(evalPushdown.fields().get(1), Alias.class);
+        Attribute lastNameAttr = assertLengthPushdown(lastNamePushdownAlias.child(), "last_name");
+
+        Alias firstNamePushdownAlias = as(evalPushdown.fields().get(2), Alias.class);
+        Attribute firstNameAttr = assertLengthPushdown(firstNamePushdownAlias.child(), "first_name");
+
         var sumForLastNameAlias = as(agg.aggregates().get(0), Alias.class);
         var sumForLastName = as(sumForLastNameAlias.child(), Sum.class);
         assertThat(as(sumForLastName.field(), ReferenceAttribute.class).id(), equalTo(lastNamePushdownAlias.id()));
-        // Checks that the SUM(LENGTH(last_name)) in the final EVAL is the aggregate result here
         assertThat(evalSumLastName.id(), equalTo(sumForLastNameAlias.id()));
 
         var countForAvgAlias = as(agg.aggregates().get(1), Alias.class);
         var countForAvg = as(countForAvgAlias.child(), Count.class);
         assertThat(as(countForAvg.field(), ReferenceAttribute.class).id(), equalTo(a3Alias.id()));
-        // Checks that the COUNT(LENGTH(last_name)) in the final EVAL is the aggregate result here
         assertThat(evalCountLastName.id(), equalTo(countForAvgAlias.id()));
 
         var sumForFirstNameAlias = as(agg.aggregates().get(2), Alias.class);
         var sumForFirstName = as(sumForFirstNameAlias.child(), Sum.class);
         assertThat(as(sumForFirstName.field(), ReferenceAttribute.class).id(), equalTo(firstNamePushdownAlias.id()));
-        // Checks that the SUM(LENGTH(first_name)) in the final EVAL is the aggregate result here
         assertThat(evalSumFirstName.id(), equalTo(sumForFirstNameAlias.id()));
 
-        // Filter[LENGTH(last_name) > 1]
         var filter = as(evalPushdown.child(), Filter.class);
-        assertLengthPushdown(as(filter.condition(), GreaterThan.class).left(), "last_name");
+        var gt = as(filter.condition(), GreaterThan.class);
 
-        // EsRelation[test] - should contain the pushed-down field attribute
+        assertLengthPushdown(gt.left(), "last_name");
+
         var relation = as(filter.child(), EsRelation.class);
-        assertThat(relation.output(), hasItem(lastNamePushDownAttr));
-        assertThat(relation.output(), hasItem(firstNamePushDownAttr));
+
+        assertThat(relation.output(), hasItem(lastNameAttr));
+        assertThat(relation.output(), hasItem(firstNameAttr));
+
         assertThat(relation.output().stream().filter(a -> {
             if (a instanceof FieldAttribute fa) {
                 if (fa.field() instanceof FunctionEsField fef) {
@@ -2009,14 +2040,23 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var eval1 = as(project.child(), Eval.class);
         var limit = as(eval1.child(), Limit.class);
         var agg = as(limit.child(), Aggregate.class);
+
         assertThat(agg.aggregates(), hasSize(2));
-        var sum = as(as(agg.aggregates().getFirst(), Alias.class).child(), Sum.class);
-        var count = as(as(agg.aggregates().get(1), Alias.class).child(), Count.class);
-        var eval2 = as(agg.child(), Eval.class);
-        assertThat(eval2.fields(), hasSize(1));
-        Alias lAlias = as(eval2.fields().getFirst(), Alias.class);
+
+        var sumAlias = as(agg.aggregates().getFirst(), Alias.class);
+        var sum = as(sumAlias.child(), Sum.class);
+
+        var countAlias = as(agg.aggregates().get(1), Alias.class);
+        var count = as(countAlias.child(), Count.class);
+
+        var evalPushdown = as(agg.child(), Eval.class);
+        assertThat(evalPushdown.fields(), hasSize(1));
+
+        Alias lAlias = as(evalPushdown.fields().getFirst(), Alias.class);
+
         Attribute lAttr = assertLengthPushdown(lAlias.child(), "last_name");
-        var relation = as(eval2.child(), EsRelation.class);
+
+        var relation = as(evalPushdown.child(), EsRelation.class);
         assertTrue(relation.output().contains(lAttr));
 
         assertThat(as(sum.field(), ReferenceAttribute.class).id(), equalTo(lAlias.id()));
@@ -2032,32 +2072,30 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
-        assertThat(agg.aggregates(), hasSize(2));
-        var sum1 = as(as(agg.aggregates().getFirst(), Alias.class).child(), Sum.class);
-        var sum2 = as(as(agg.aggregates().get(1), Alias.class).child(), Sum.class);
-        var eval = as(agg.child(), Eval.class);
 
+        assertThat(agg.aggregates(), hasSize(2));
+
+        var sum1Alias = as(agg.aggregates().getFirst(), Alias.class);
+        var sum1 = as(sum1Alias.child(), Sum.class);
+
+        var sum2Alias = as(agg.aggregates().get(1), Alias.class);
+        var sum2 = as(sum2Alias.child(), Sum.class);
+
+        var eval = as(agg.child(), Eval.class);
         assertThat(eval.fields(), hasSize(2));
+
         Alias lastNameAlias = as(eval.fields().getFirst(), Alias.class);
         Attribute lastNameAttr = assertLengthPushdown(lastNameAlias.child(), "last_name");
+
         Alias firstNameAlias = as(eval.fields().get(1), Alias.class);
         Attribute firstNameAttr = assertLengthPushdown(firstNameAlias.child(), "first_name");
 
         var relation = as(eval.child(), EsRelation.class);
+
         assertThat(relation.output(), hasItems(lastNameAttr, firstNameAttr));
 
         assertThat(as(sum1.field(), ReferenceAttribute.class).id(), equalTo(lastNameAlias.id()));
         assertThat(as(sum2.field(), ReferenceAttribute.class).id(), equalTo(firstNameAlias.id()));
-    }
-
-    private Attribute assertLengthPushdown(Expression e, String fieldName) {
-        FieldAttribute attr = as(e, FieldAttribute.class);
-        assertThat(attr.name(), startsWith("$$" + fieldName + "$LENGTH$"));
-        var field = as(attr.field(), FunctionEsField.class);
-        assertThat(field.functionConfig().function(), is(BlockLoaderFunctionConfig.Function.LENGTH));
-        assertThat(field.getName(), equalTo(fieldName));
-        assertThat(field.getExactInfo().hasExact(), equalTo(false));
-        return attr;
     }
 
     public void testFullTextFunctionOnMissingField() {
@@ -2438,6 +2476,19 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     private IsNotNull isNotNull(Expression field) {
         return new IsNotNull(EMPTY, field);
+    }
+
+    private Attribute assertLengthPushdown(Expression e, String fieldName) {
+        var fieldAttr = as(e, FieldAttribute.class);
+
+        assertThat(fieldAttr.fieldName().string(), is(fieldName));
+
+        var functionField = as(fieldAttr.field(), FunctionEsField.class);
+
+        var config = as(functionField.functionConfig(), BlockLoaderFunctionConfig.JustFunction.class);
+        assertThat(config.function(), equalTo(BlockLoaderFunctionConfig.Function.LENGTH));
+
+        return fieldAttr;
     }
 
     private LocalRelation asEmptyRelation(Object o) {

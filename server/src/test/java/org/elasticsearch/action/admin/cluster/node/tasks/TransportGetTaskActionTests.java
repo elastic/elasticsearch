@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -67,6 +68,43 @@ public class TransportGetTaskActionTests extends ESTestCase {
     @After
     public final void shutdownTestNodes() throws Exception {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Verifies that using the task management Get API to retrieve a reindex task triggers a deprecation warning.
+     * Callers should use the dedicated reindex API ({@code GET /_reindex/<task_id>}) instead.
+     */
+    public void testDeprecationWarningForReindexGetTask() throws Exception {
+        var transportService = mock(TransportService.class);
+        var clusterService = mock(ClusterService.class);
+        var client = mock(NodeClient.class);
+
+        var nodeId = "node1";
+        when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create(nodeId));
+        var taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
+        when(transportService.getTaskManager()).thenReturn(taskManager);
+
+        TransportGetTaskAction getTaskAction = new TransportGetTaskAction(
+            threadPool,
+            transportService,
+            new ActionFilters(emptySet()),
+            clusterService,
+            client,
+            NamedXContentRegistry.EMPTY,
+            projectResolver
+        );
+
+        // Register a reindexing task to be retrieved
+        Task runningTask = taskManager.register("task", ReindexAction.NAME, new GetTaskRequest());
+        TaskId taskId = new TaskId(nodeId, runningTask.getId());
+
+        // Calls the getTask API with a request to find the reindexing task above. We expect the deprecation logger to be invoked
+        var future = new TestPlainActionFuture<GetTaskResponse>();
+        assertBusy(() -> taskManager.registerAndExecute("transport", getTaskAction, new GetTaskRequest().setTaskId(taskId), null, future));
+        assertWarnings(
+            "Using the task management APIs to get reindex tasks is deprecated. "
+                + "Use the dedicated reindex API instead, GET /_reindex/<task_id>."
+        );
     }
 
     public void testGetTaskActionWithMultiProjectEnabled() {

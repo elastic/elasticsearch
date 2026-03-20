@@ -18,8 +18,13 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.rest.action.admin.cluster.RestGetTaskAction;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -39,6 +44,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     public static final String NAME = "cluster:admin/tasks/cancel";
 
     public static final ActionType<ListTasksResponse> TYPE = new ActionType<>(NAME);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetTaskAction.class);
 
     @Inject
     public TransportCancelTasksAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
@@ -69,6 +75,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         if (request.getTargetTaskId().isSet()) {
             // we are only checking one task, we can optimize it
             CancellableTask task = taskManager.getCancellableTask(request.getTargetTaskId().getId());
+            // Log a deprecation message if this is a reindex task
+            softDeprecateReindexingTasks(task);
             if (task != null) {
                 if (request.match(task)) {
                     return List.of(task);
@@ -84,14 +92,46 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
                 }
             }
         } else {
+            boolean softDeprecatedWarningLogged = false;
             final var tasks = new ArrayList<CancellableTask>();
             for (CancellableTask task : taskManager.getCancellableTasks().values()) {
+                // Log a deprecation message if this is a reindex task, and we haven't already logged one
+                softDeprecatedWarningLogged = softDeprecateReindexingTasks(task, softDeprecatedWarningLogged);
                 if (request.match(task)) {
                     tasks.add(task);
                 }
             }
             return tasks;
         }
+    }
+
+    /**
+     * The Get and Cancel APIs have been soft deprecated for reindexing tasks in favour of the dedicated reindexing APIs.
+     * This method logs a deprecation warning if we're processing a reindexing task
+     *
+     * @param task The task
+     */
+    private void softDeprecateReindexingTasks(Task task) {
+        softDeprecateReindexingTasks(task, false);
+    }
+
+    /**
+     * The Get and Cancel APIs have been soft deprecated for reindexing tasks in favour of the dedicated reindexing APIs.
+     * This method logs a deprecation warning if we're processing a reindexing task, and we haven't already logged
+     * a deprecation message.
+     * @param task The task
+     */
+    private boolean softDeprecateReindexingTasks(Task task, boolean softDeprecatedWarningLogged) {
+        if (softDeprecatedWarningLogged == false && task != null && task.getAction().equals(ReindexAction.NAME)) {
+            deprecationLogger.warn(
+                DeprecationCategory.API,
+                "cancel-api-deprecated-for-reindexing-tasks",
+                "Using the task management APIs to cancel reindex tasks is deprecated. "
+                    + "Use the dedicated reindex API instead, POST /_reindex/<task_id>/_cancel."
+            );
+            return true;
+        }
+        return false;
     }
 
     @Override

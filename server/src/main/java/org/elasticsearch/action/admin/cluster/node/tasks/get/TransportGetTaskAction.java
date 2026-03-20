@@ -26,12 +26,16 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.rest.action.admin.cluster.RestGetTaskAction;
 import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -64,6 +68,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
     public static final String TASKS_ORIGIN = "tasks";
     public static final ActionType<GetTaskResponse> TYPE = new ActionType<>("cluster:monitor/task/get");
     private static final TimeValue DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT = timeValueSeconds(30);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetTaskAction.class);
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -144,6 +149,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             // Task isn't running, go look in the task index
             getFinishedTaskFromIndex(thisTask, request, listener);
         } else {
+            logSoftDeprecationWarning(runningTask.getAction());
             if (projectResolver.supportsMultipleProjects()) {
                 var requestProjectId = projectResolver.getProjectId();
                 assert requestProjectId != null : "project ID cannot be null";
@@ -269,7 +275,24 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             )
         ) {
             TaskResult result = TaskResult.PARSER.apply(parser, null);
+            logSoftDeprecationWarning(result.getTask().action());
             listener.onResponse(new GetTaskResponse(result));
+        }
+    }
+
+    /**
+     * The Get API has been soft deprecated for reindexing tasks in favour of the dedicated reindexing APIs.
+     * @param action This is the action of the task the user was trying to get. If this matches a reindexing task,
+     *               then we log a warning to the user to use the dedicated reindexing APIs instead
+     */
+    private void logSoftDeprecationWarning(String action) {
+        if (action != null && action.equals(ReindexAction.NAME)) {
+            deprecationLogger.warn(
+                DeprecationCategory.API,
+                "get-api-deprecated-for-reindexing-tasks",
+                "Using the task management APIs to get reindex tasks is deprecated. "
+                    + "Use the dedicated reindex API instead, GET /_reindex/<task_id>."
+            );
         }
     }
 }

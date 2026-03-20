@@ -667,7 +667,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     private static BytesRef buildTsId(Doc doc) {
         return new TsidBuilder().addStringDimension("hostname", doc.hostName())
             .addStringDimension("metric.field", doc.metricField())
-            .buildTsid();
+            .buildTsid(IndexVersion.current());
     }
 
     /**

@@ -565,6 +565,27 @@ public class MlIndexAndAliasTests extends ESTestCase {
         }
     }
 
+    public void testLatestIndexMatchingBaseName_emptyFilteredFallsBackToOriginal() {
+        Metadata.Builder metadata = Metadata.builder();
+        
+        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-foobar", IndexVersion.current(), List.of("job1")));
+        metadata.put(createSharedResultsIndex(".ml-anomalies-custom-foox", IndexVersion.current(), List.of("job2")));
+
+        ClusterState state = ClusterState.builder(new ClusterName("_name"))
+            .metadata(metadata)
+            .build();
+
+        String index = ".ml-anomalies-custom-foo";
+
+        String result = MlIndexAndAlias.latestIndexMatchingBaseName(
+            index,
+            TestIndexNameExpressionResolver.newInstance(),
+            state
+        );
+
+        assertEquals(index, result);
+    }
+
     private record AliasActionMatcher(String aliasName, String index, IndicesAliasesRequest.AliasActions.Type actionType) {
         boolean matches(IndicesAliasesRequest.AliasActions aliasAction) {
             return aliasAction.actionType() == actionType

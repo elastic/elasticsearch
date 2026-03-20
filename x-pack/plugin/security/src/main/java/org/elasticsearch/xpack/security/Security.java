@@ -18,7 +18,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -82,7 +81,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
-import org.elasticsearch.plugins.ActionRegistryConsumer;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -492,8 +490,7 @@ public class Security extends Plugin
         SearchPlugin,
         RestServerActionPlugin,
         ReloadablePlugin,
-        PersistentTaskPlugin,
-        ActionRegistryConsumer {
+        PersistentTaskPlugin {
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
 
@@ -652,7 +649,14 @@ public class Security extends Plugin
     private final SetOnce<RemoteClusterAuthenticationService> remoteClusterAuthenticationService = new SetOnce<>();
 
     private final SetOnce<SecurityMigrations.Manager> migrationManager = new SetOnce<>();
-    private final SetOnce<Map<String, String>> contextConstrainedActions = new SetOnce<>();
+    /**
+     * Actions that can only be dispatched as child actions (i.e. from within an already-authorized parent action).
+     * Maps each constrained action name to a predicate matching allowed originating actions.
+     */
+    static final Map<String, Predicate<String>> CONTEXT_CONSTRAINED_ACTIONS = Map.of(
+        "indices:admin/inference/fields/get",
+        Regex.simpleMatcher("indices:data/read/*")
+    );
     private final SetOnce<List<Closeable>> closableComponents = new SetOnce<>();
 
     public Security(Settings settings) {
@@ -1181,7 +1185,7 @@ public class Security extends Plugin
             authorizedProjectsResolver,
             crossProjectModeDecider,
             projectRoutingResolver,
-            contextConstrainedActions::get
+            CONTEXT_CONSTRAINED_ACTIONS
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1233,7 +1237,7 @@ public class Security extends Plugin
                 securityContext.get(),
                 destructiveOperations,
                 remoteClusterTransportInterceptor,
-                contextConstrainedActions::get
+                CONTEXT_CONSTRAINED_ACTIONS
             )
         );
 
@@ -1939,11 +1943,6 @@ public class Security extends Plugin
     @Override
     public void onNodeStarted() {
         this.nodeStartedListenable.onResponse(null);
-    }
-
-    @Override
-    public void onActionRegistryReady(ActionModule actionModule) {
-        contextConstrainedActions.set(actionModule.getContextConstrainedActions());
     }
 
     /**

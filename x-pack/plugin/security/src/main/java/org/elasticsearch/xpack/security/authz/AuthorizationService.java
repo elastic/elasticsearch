@@ -111,9 +111,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.action.ContextConstrainedAction.HEADER_KEY;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
@@ -155,7 +155,7 @@ public class AuthorizationService {
     private final RestrictedIndices restrictedIndices;
     private final AuthorizationDenialMessages authorizationDenialMessages;
     private final ProjectResolver projectResolver;
-    private final Supplier<Map<String, String>> contextConstrainedActions;
+    private final Map<String, Predicate<String>> contextConstrainedActions;
 
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
@@ -183,7 +183,7 @@ public class AuthorizationService {
         AuthorizedProjectsResolver authorizedProjectsResolver,
         CrossProjectModeDecider crossProjectModeDecider,
         ProjectRoutingResolver projectRoutingResolver,
-        Supplier<Map<String, String>> contextConstrainedActions
+        Map<String, Predicate<String>> contextConstrainedActions
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -308,6 +308,11 @@ public class AuthorizationService {
     ) {
 
         final AuthorizationContext enclosingContext = extractAuthorizationContext(threadContext, action);
+
+        if (checkContextConstraint(enclosingContext, authentication, action, listener) == false) {
+            return;
+        }
+
         final ParentActionAuthorization parentAuthorization = securityContext.getParentAuthorization();
 
         /* authorization fills in certain transient headers, which must be observed in the listener (action handler execution)
@@ -345,10 +350,6 @@ public class AuthorizationService {
                 checkOperatorPrivileges(authentication, action, originalRequest);
             } catch (ElasticsearchException e) {
                 listener.onFailure(e);
-                return;
-            }
-
-            if (checkContextConstraint(authentication, action, listener) == false) {
                 return;
             }
 
@@ -454,34 +455,37 @@ public class AuthorizationService {
     }
 
     /**
-     * Checks whether the action is context-constrained and, if so, whether the required
-     * invocation context marker is present in the thread context.
+     * Checks whether the action is context-constrained and, if so, whether it is being
+     * dispatched as a child of an allowed originating action.
      *
      * @return {@code true} if the action is allowed to proceed, {@code false} if it was denied
      *         (in which case the listener has already been notified of the failure)
      */
-    private boolean checkContextConstraint(final Authentication authentication, final String action, final ActionListener<Void> listener) {
-        final Map<String, String> constraints = contextConstrainedActions.get();
-        if (constraints == null) {
+    private boolean checkContextConstraint(
+        @Nullable final AuthorizationContext enclosingContext,
+        final Authentication authentication,
+        final String action,
+        final ActionListener<Void> listener
+    ) {
+        final Predicate<String> allowedOriginatingActions = contextConstrainedActions.get(action);
+        if (allowedOriginatingActions == null) {
             return true;
         }
-        final String requiredContext = constraints.get(action);
-        if (requiredContext != null && authentication.isCrossClusterAccess() == false) {
-            final String actualContext = threadContext.getHeader(HEADER_KEY);
-            if (requiredContext.equals(actualContext) == false) {
-                listener.onFailure(
-                    new IllegalStateException(
-                        "action ["
-                            + action
-                            + "] requires invocation context ["
-                            + requiredContext
-                            + "] but context was ["
-                            + actualContext
-                            + "]"
-                    )
-                );
-                return false;
-            }
+        if (authentication.isCrossClusterAccess()) {
+            return true;
+        }
+        final String originatingAction = enclosingContext != null ? enclosingContext.getAction() : null;
+        if (originatingAction == null || allowedOriginatingActions.test(originatingAction) == false) {
+            listener.onFailure(
+                new IllegalStateException(
+                    "action ["
+                        + action
+                        + "] may only be executed as a child of a permitted originating action but originating action was ["
+                        + originatingAction
+                        + "]"
+                )
+            );
+            return false;
         }
         return true;
     }

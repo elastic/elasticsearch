@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ContextConstrainedAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
@@ -45,7 +44,9 @@ import org.elasticsearch.xpack.security.authz.PreAuthorizationUtils;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.Executor;
-import java.util.function.Supplier;
+import java.util.function.Predicate;
+
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_VALUE;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
@@ -61,7 +62,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final ThreadPool threadPool;
     private final SecurityContext securityContext;
     private final Settings settings;
-    private final Supplier<Map<String, String>> contextConstrainedActions;
+    private final Map<String, Predicate<String>> contextConstrainedActions;
 
     public SecurityServerTransportInterceptor(
         Settings settings,
@@ -72,7 +73,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
         RemoteClusterTransportInterceptor remoteClusterTransportInterceptor,
-        Supplier<Map<String, String>> contextConstrainedActions
+        Map<String, Predicate<String>> contextConstrainedActions
     ) {
         this.remoteClusterTransportInterceptor = remoteClusterTransportInterceptor;
         this.securityContext = securityContext;
@@ -257,14 +258,9 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         }
     }
 
-    // pkg-private method to allow overriding for tests
-    void assertNoAuthentication(String action) {
-        assert false : "there should always be a user when sending a message for action [" + action + "]";
-    }
-
     /**
-     * Checks whether the action is context-constrained and, if so, whether the required
-     * invocation context marker is present in the thread context.
+     * Checks whether the action is context-constrained and, if so, whether the originating
+     * action in the thread context matches the allowed pattern.
      *
      * @return {@code true} if the action is allowed to proceed, {@code false} if it was denied
      *         (in which case the handler has already been notified of the failure)
@@ -274,32 +270,33 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         String action,
         TransportResponseHandler<T> handler
     ) {
-        final Map<String, String> constraints = contextConstrainedActions.get();
-        if (constraints != null) {
-            final String requiredContext = constraints.get(action);
-            if (requiredContext != null) {
-                final String actualContext = threadPool.getThreadContext().getHeader(ContextConstrainedAction.HEADER_KEY);
-                if (requiredContext.equals(actualContext) == false) {
-                    handler.handleException(
-                        new SendRequestTransportException(
-                            connection.getNode(),
-                            action,
-                            new IllegalStateException(
-                                "action ["
-                                    + action
-                                    + "] requires invocation context ["
-                                    + requiredContext
-                                    + "] but context was ["
-                                    + actualContext
-                                    + "]"
-                            )
-                        )
-                    );
-                    return false;
-                }
-            }
+        final Predicate<String> allowedOriginatingActions = contextConstrainedActions.get(action);
+        if (allowedOriginatingActions == null) {
+            return true;
+        }
+        final String originatingAction = ORIGINATING_ACTION_VALUE.get(threadPool.getThreadContext());
+        if (originatingAction == null || allowedOriginatingActions.test(originatingAction) == false) {
+            handler.handleException(
+                new SendRequestTransportException(
+                    connection.getNode(),
+                    action,
+                    new IllegalStateException(
+                        "action ["
+                            + action
+                            + "] may only be executed as a child of a permitted originating action but originating action was ["
+                            + originatingAction
+                            + "]"
+                    )
+                )
+            );
+            return false;
         }
         return true;
+    }
+
+    // pkg-private method to allow overriding for tests
+    void assertNoAuthentication(String action) {
+        assert false : "there should always be a user when sending a message for action [" + action + "]";
     }
 
     @Override

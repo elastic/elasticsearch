@@ -87,6 +87,6 @@ public class ContextConstrainedActionIT extends ESRestTestCase {
             () -> client().performRequest(new Request("GET", "/test-index/_inference_fields_internal"))
         );
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(500));
-        assertThat(e.getMessage(), containsString("requires invocation context"));
+        assertThat(e.getMessage(), containsString("may only be executed as a child of"));
     }
 }

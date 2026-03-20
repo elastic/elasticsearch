@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.ContextConstrainedAction;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.MockIndicesRequest;
@@ -104,6 +103,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -375,7 +375,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizedProjectsResolver,
             crossProjectModeDecider,
             projectRoutingResolver,
-            Map::of
+            Map.of()
         );
     }
 
@@ -1358,7 +1358,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizedProjectsResolver,
             crossProjectModeDecider,
             projectRoutingResolver,
-            Map::of
+            Map.of()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1423,7 +1423,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizedProjectsResolver,
             crossProjectModeDecider,
             projectRoutingResolver,
-            Map::of
+            Map.of()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1971,7 +1971,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
             projectRoutingResolver,
-            Map::of
+            Map.of()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -2026,7 +2026,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
             projectRoutingResolver,
-            Map::of
+            Map.of()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -3569,7 +3569,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
             projectRoutingResolver,
-            Map::of
+            Map.of()
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3734,7 +3734,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
             projectRoutingResolver,
-            Map::of
+            Map.of()
         );
         Authentication authentication;
         try (StoredContext ignore = threadContext.stashContext()) {
@@ -3814,7 +3814,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         verifyNoMoreInteractions(auditTrail);
     }
 
-    public void testContextConstrainedActionDeniedWithoutMarker() {
+    public void testContextConstrainedActionDeniedAsTopLevel() {
         initServiceWithContextConstraint();
         AuditUtil.getOrGenerateRequestId(threadContext);
         final Authentication authentication = createAuthentication(new User("user1", "role1"));
@@ -3823,7 +3823,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             IllegalStateException.class,
             () -> authorize(authentication, "indices:admin/test/constrained", mock(TransportRequest.class))
         );
-        assertThat(e.getMessage(), containsString("requires invocation context"));
+        assertThat(e.getMessage(), containsString("may only be executed as a child of"));
         verify(auditTrail, never()).accessDenied(
             any(String.class),
             any(Authentication.class),
@@ -3833,32 +3833,29 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
     }
 
-    public void testContextConstrainedActionDeniedWithWrongMarker() {
+    public void testContextConstrainedActionDeniedWithWrongOriginatingAction() {
         initServiceWithContextConstraint();
         AuditUtil.getOrGenerateRequestId(threadContext);
-        threadContext.putHeader(ContextConstrainedAction.HEADER_KEY, "wrong_context");
+        // Set an originating action that is NOT in the allowed set
+        ORIGINATING_ACTION_VALUE.set(threadContext, "cluster:admin/other");
+        AUTHORIZATION_INFO_VALUE.set(threadContext, mock(AuthorizationInfo.class));
         final Authentication authentication = createAuthentication(new User("user1", "role1"));
         roleMap.put("role1", new RoleDescriptor("role1", null, null, null));
         final IllegalStateException e = expectThrows(
             IllegalStateException.class,
             () -> authorize(authentication, "indices:admin/test/constrained", mock(TransportRequest.class))
         );
-        assertThat(e.getMessage(), containsString("requires invocation context"));
-        verify(auditTrail, never()).accessDenied(
-            any(String.class),
-            any(Authentication.class),
-            any(String.class),
-            any(TransportRequest.class),
-            any(AuthorizationInfo.class)
-        );
+        assertThat(e.getMessage(), containsString("may only be executed as a child of"));
     }
 
-    public void testContextConstrainedActionAllowedWithCorrectMarker() {
+    public void testContextConstrainedActionAllowedWithCorrectOriginatingAction() {
         final String constrainedAction = "indices:data/read/search";
-        initServiceWithContextConstraint(constrainedAction, "test_context");
+        initServiceWithContextConstraint(constrainedAction, Regex.simpleMatcher("indices:data/read/*"));
         mockEmptyMetadata();
         AuditUtil.getOrGenerateRequestId(threadContext);
-        threadContext.putHeader(ContextConstrainedAction.HEADER_KEY, "test_context");
+        // Set up an originating action that matches the allowed pattern
+        ORIGINATING_ACTION_VALUE.set(threadContext, "indices:data/read/search");
+        AUTHORIZATION_INFO_VALUE.set(threadContext, mock(AuthorizationInfo.class));
         final Authentication authentication = createAuthentication(new User("user1", "role1"));
         roleMap.put(
             "role1",
@@ -3879,7 +3876,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
     }
 
-    public void testContextConstrainedActionSystemUserDeniedWithoutMarker() {
+    public void testContextConstrainedActionSystemUserDeniedAsTopLevel() {
         initServiceWithContextConstraint();
         AuditUtil.getOrGenerateRequestId(threadContext);
         final Authentication authentication = createAuthentication(InternalUsers.SYSTEM_USER);
@@ -3887,7 +3884,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             IllegalStateException.class,
             () -> authorize(authentication, "indices:admin/test/constrained", mock(TransportRequest.class))
         );
-        assertThat(e.getMessage(), containsString("requires invocation context"));
+        assertThat(e.getMessage(), containsString("may only be executed as a child of"));
     }
 
     public void testNonConstrainedActionUnaffected() {
@@ -3907,10 +3904,10 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     private void initServiceWithContextConstraint() {
-        initServiceWithContextConstraint("indices:admin/test/constrained", "test_context");
+        initServiceWithContextConstraint("indices:admin/test/constrained", Regex.simpleMatcher("indices:data/read/*"));
     }
 
-    private void initServiceWithContextConstraint(String actionName, String requiredContext) {
+    private void initServiceWithContextConstraint(String actionName, Predicate<String> allowedOriginatingActions) {
         authorizationService = new AuthorizationService(
             Settings.EMPTY,
             rolesStore,
@@ -3932,7 +3929,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizedProjectsResolver,
             crossProjectModeDecider,
             projectRoutingResolver,
-            () -> Map.of(actionName, requiredContext)
+            Map.of(actionName, allowedOriginatingActions)
         );
         setFakeOriginatingAction = false;
     }

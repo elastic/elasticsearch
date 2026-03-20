@@ -417,7 +417,6 @@ import org.elasticsearch.usage.UsageService;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -463,7 +462,6 @@ public class ActionModule extends AbstractModule {
     private final ReservedClusterStateService reservedClusterStateService;
     private final RestExtension restExtension;
     private final ClusterService clusterService;
-    private final Map<String, String> contextConstrainedActions;
 
     public ActionModule(
         Environment env,
@@ -491,7 +489,6 @@ public class ActionModule extends AbstractModule {
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
         actions = setupActions(env, actionPlugins);
-        contextConstrainedActions = collectContextConstrainedActions(actions);
         actionFilters = setupActionFilters(actionPlugins);
         this.bulkService = bulkService;
         this.projectResolver = projectResolver;
@@ -612,20 +609,6 @@ public class ActionModule extends AbstractModule {
 
     public Map<String, ActionHandler> getActions() {
         return actions;
-    }
-
-    public Map<String, String> getContextConstrainedActions() {
-        return contextConstrainedActions;
-    }
-
-    static Map<String, String> collectContextConstrainedActions(Map<String, ActionHandler> actions) {
-        Map<String, String> constraints = new HashMap<>();
-        for (ActionHandler handler : actions.values()) {
-            if (handler.getAction() instanceof ContextConstrainedAction cca) {
-                constraints.put(handler.getAction().name(), cca.requiredInvocationContext());
-            }
-        }
-        return Map.copyOf(constraints);
     }
 
     static Map<String, ActionHandler> setupActions(Environment env, List<ActionPlugin> actionPlugins) {

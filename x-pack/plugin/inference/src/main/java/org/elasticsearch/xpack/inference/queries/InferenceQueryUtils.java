@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.queries;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ContextConstrainedAction;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -618,18 +617,14 @@ public final class InferenceQueryUtils {
                         )
                     );
                 } else {
-                    try (
-                        var ignore = ContextConstrainedAction.openContext(threadContext, GetInferenceFieldsInternalAction.REQUIRED_CONTEXT)
-                    ) {
-                        client.execute(
-                            connection,
-                            GetInferenceFieldsInternalAction.REMOTE_TYPE,
-                            request,
-                            l1.delegateFailureAndWrap((l2, resp) -> {
-                                l2.onResponse(Map.of(clusterAlias, Tuple.tuple(resp, transportVersion)));
-                            })
-                        );
-                    }
+                    client.execute(
+                        connection,
+                        GetInferenceFieldsInternalAction.REMOTE_TYPE,
+                        request,
+                        l1.delegateFailureAndWrap((l2, resp) -> {
+                            l2.onResponse(Map.of(clusterAlias, Tuple.tuple(resp, transportVersion)));
+                        })
+                    );
                 }
             }));
         }

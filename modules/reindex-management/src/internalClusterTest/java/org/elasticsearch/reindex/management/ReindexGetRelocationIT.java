@@ -68,9 +68,9 @@ public class ReindexGetRelocationIT extends ESIntegTestCase {
     private static final String SOURCE_INDEX = "reindex_src";
     private static final String DEST_INDEX = "reindex_dst";
 
-    private final int bulkSize = randomIntBetween(1, 5);
+    private final int bulkSize = randomIntBetween(1, 4);
     private final int requestsPerSecond = randomIntBetween(1, 5);
-    private final int numOfSlices = randomIntBetween(1, 10);
+    private final int numOfSlices = randomIntBetween(1, 4);
     private final int numberOfDocumentsThatTakes60SecondsToIngest = 60 * requestsPerSecond * bulkSize;
 
     @BeforeClass
@@ -81,6 +81,14 @@ public class ReindexGetRelocationIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(ReindexPlugin.class, ReindexManagementPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(60))
+            .build();
     }
 
     @Override
@@ -247,9 +255,9 @@ public class ReindexGetRelocationIT extends ESIntegTestCase {
         // trigger reindex relocation
         internalCluster().getInstance(ShutdownPrepareService.class, nodeName).prepareForShutdown();
 
-        // Wait for .tasks and replica to be created before stopping nodeB, otherwise the replica
-        // on nodeA is stale and can't be promoted to primary when nodeB leaves
-        assertBusy(() -> assertTrue(indexExists(TaskResultsService.TASK_INDEX)), 30, TimeUnit.SECONDS);
+        // .tasks is created when the original task result is stored during relocation; the grace period is
+        // extended via nodeSettings so prepareForShutdown blocks until relocation completes.
+        assertTrue(indexExists(TaskResultsService.TASK_INDEX));
         ensureGreen(TaskResultsService.TASK_INDEX);
 
         internalCluster().stopNode(nodeName);

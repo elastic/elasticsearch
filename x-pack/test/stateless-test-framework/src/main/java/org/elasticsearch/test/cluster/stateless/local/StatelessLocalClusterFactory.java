@@ -17,7 +17,6 @@
 
 package org.elasticsearch.test.cluster.stateless.local;
 
-import org.apache.commons.lang3.RandomStringUtils;
 import org.elasticsearch.test.cluster.local.AbstractLocalClusterFactory;
 import org.elasticsearch.test.cluster.local.LocalClusterSpec;
 import org.elasticsearch.test.cluster.local.distribution.DistributionResolver;
@@ -39,10 +38,7 @@ public class StatelessLocalClusterFactory extends AbstractLocalClusterFactory<Lo
             spec.getName(),
             baseWorkingDir,
             distributionResolver,
-            spec.getNodes()
-                .stream()
-                .map(s -> new Node(baseWorkingDir, distributionResolver, s, RandomStringUtils.randomAlphabetic(7), true))
-                .collect(Collectors.toList())
+            spec.getNodes().stream().map(s -> new StatelessNode(baseWorkingDir, distributionResolver, s)).collect(Collectors.toList())
         );
     }
 }

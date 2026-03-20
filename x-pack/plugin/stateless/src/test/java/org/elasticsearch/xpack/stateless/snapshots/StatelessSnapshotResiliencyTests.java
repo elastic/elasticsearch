@@ -381,7 +381,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING);
             res.add(TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING);
             res.add(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT);
-            res.add(StatelessSnapshotShardContextFactory.STATELESS_SNAPSHOT_ENABLED_SETTING);
+            res.add(StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING);
             res.add(RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING);
             return Set.copyOf(res);
         }
@@ -429,6 +429,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     final var shardBasePath = testStatelessPlugin.objectStoreService.shardBasePath(shardId);
                     return blobStore.blobContainer(shardBasePath.add(String.valueOf(primaryTerm)));
                 });
+                when(plugin.getSnapshotsCommitService()).thenReturn(testStatelessPlugin.snapshotsCommitService);
                 return new StatelessSnapshotShardContextFactory(plugin);
             }
 
@@ -800,7 +801,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 TelemetryProvider.NOOP
             );
             clusterService.addListener(statelessCommitService);
-            this.snapshotsCommitService = new SnapshotsCommitService(clusterService, statelessCommitService);
+            this.snapshotsCommitService = new SnapshotsCommitService(clusterService, services.indicesService(), statelessCommitService);
             clusterService.addListener(snapshotsCommitService);
             this.closedShardService = new ClosedShardService();
             this.translogReplicator = new TranslogReplicator(threadPool, settings, objectStoreService, consistencyService);

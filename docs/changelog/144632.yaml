@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 144632
+summary: Fix NoSuchElementException in ML index resolution when filtered indices are empty
+type: bug

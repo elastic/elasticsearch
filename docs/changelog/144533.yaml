@@ -1,5 +1,0 @@
-area: Allocation
-issues: []
-pr: 144533
-summary: "Allocation: add hotspot check for utilization concentration"
-type: enhancement

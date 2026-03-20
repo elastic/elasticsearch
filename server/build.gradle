@@ -90,6 +90,7 @@ dependencies {
   internalClusterTestImplementation(project(':modules:reindex'))
   internalClusterTestImplementation(project(':modules:mapper-extras'))
   internalClusterTestImplementation(project(':modules:data-streams'))
+  internalClusterTestImplementation(project(':test:external-modules:test-multi-project'))
 }
 
 spotless {

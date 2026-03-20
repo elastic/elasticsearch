@@ -14,12 +14,11 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -27,12 +26,18 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.multiproject.TestOnlyMultiProjectPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -46,6 +51,38 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class MetadataCreateIndexServiceIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(TestOnlyMultiProjectPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(TestOnlyMultiProjectPlugin.MULTI_PROJECT_ENABLED.getKey(), true)
+            .build();
+    }
+
+    @Override
+    protected boolean multiProjectIntegrationTest() {
+        return true;
+    }
+
+    private enum CreateIndexResult {
+        SUCCESS,
+        INVALID_NAME,
+        INVALID_SETTINGS,
+        ALREADY_EXISTS
+    }
+
+    private record CreateIndexRequestSpec(
+        String indexName,
+        boolean invalidSettings,
+        CreateIndexResult expectedResult,
+        ProjectId projectId
+    ) {}
 
     public void testRequestTemplateIsRespected() throws InterruptedException {
         /*
@@ -99,66 +136,61 @@ public class MetadataCreateIndexServiceIT extends ESIntegTestCase {
 
     public void testCreateIndexBatching() throws Exception {
         final var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final var metadataCreateIndexService = internalCluster().getCurrentMasterNodeInstance(MetadataCreateIndexService.class);
 
-        enum ExpectedResult {
-            SUCCESS,
-            INVALID_NAME,
-            INVALID_SETTINGS,
-            ALREADY_EXISTS
+        final var projects = new HashSet<ProjectId>();
+        final var projectCount = randomIntBetween(1, 5);
+        while (projects.size() < projectCount) {
+            projects.add(randomUniqueProjectId());
         }
+        addProjectsToClusterState(masterClusterService, projects);
 
-        record RequestSpec(String indexName, boolean invalidSettings, ExpectedResult expectedResult) {}
-
+        final var allIndexNames = new HashSet<String>();
         final int totalRequestCount = randomIntBetween(1, 20);
         final int validRequestCount = randomIntBetween(0, totalRequestCount);
         final int invalidRequestCount = totalRequestCount - validRequestCount;
 
-        final var allRequests = new ArrayList<RequestSpec>(totalRequestCount);
-        final var validIndicesNames = new HashSet<String>();
-        final var invalidSettingsNames = new HashSet<String>();
-        final var allIndicesNames = new HashSet<String>();
+        // The same index name can exist in different projects. Pre-create it in all of them
+        final var preExistingIndexName = addRandomIndexNameNoCollision(allIndexNames);
+        addIndexToAllProjects(metadataCreateIndexService, preExistingIndexName, projects);
 
+        final var allRequests = new ArrayList<CreateIndexRequestSpec>(totalRequestCount);
+        final var validIndicesByProject = new HashMap<ProjectId, Set<String>>(projects.size());
         for (int i = 0; i < validRequestCount; i++) {
-            final var indexName = addRandomIndexNameNoCollision(allIndicesNames);
-            validIndicesNames.add(indexName);
-            allRequests.add(new RequestSpec(indexName, false, ExpectedResult.SUCCESS));
+            final var projectId = randomFrom(projects);
+            final var indexName = addRandomIndexNameNoCollision(allIndexNames);
+            validIndicesByProject.putIfAbsent(projectId, new HashSet<>());
+            validIndicesByProject.get(projectId).add(indexName);
+            allRequests.add(new CreateIndexRequestSpec(indexName, false, CreateIndexResult.SUCCESS, projectId));
         }
 
-        final var preExistingIndexName = addRandomIndexNameNoCollision(allIndicesNames);
-        createIndex(preExistingIndexName);
-
+        final var invalidSettingsNames = new HashSet<String>();
         for (int i = 0; i < invalidRequestCount; i++) {
-            int failureType = validIndicesNames.isEmpty() ? randomIntBetween(0, 1) : randomIntBetween(0, 2);
-            switch (failureType) {
-                case 0 -> allRequests.add(
-                    new RequestSpec(randomIdentifier("INVALID_BECAUSE_UPPER_CASE_"), false, ExpectedResult.INVALID_NAME)
-                );
-                case 1 -> {
-                    var indexName = addRandomIndexNameNoCollision(allIndicesNames);
-                    invalidSettingsNames.add(indexName);
-                    allRequests.add(new RequestSpec(indexName, true, ExpectedResult.INVALID_SETTINGS));
+            final var projectId = randomFrom(projects);
+            switch (randomIntBetween(0, 2)) {
+                case 0 -> {
+                    final var indexName = randomIdentifier("INVALID_BECAUSE_UPPER_CASE_");
+                    allRequests.add(new CreateIndexRequestSpec(indexName, false, CreateIndexResult.INVALID_NAME, projectId));
                 }
-                default -> allRequests.add(new RequestSpec(preExistingIndexName, false, ExpectedResult.ALREADY_EXISTS));
+                case 1 -> {
+                    final var indexName = addRandomIndexNameNoCollision(allIndexNames);
+                    invalidSettingsNames.add(indexName);
+                    allRequests.add(new CreateIndexRequestSpec(indexName, true, CreateIndexResult.INVALID_SETTINGS, projectId));
+                }
+                default -> allRequests.add(
+                    new CreateIndexRequestSpec(preExistingIndexName, false, CreateIndexResult.ALREADY_EXISTS, projectId)
+                );
             }
         }
         Collections.shuffle(allRequests, random());
-
-        final ClusterStateListener listener = event -> {
-            final var projectMetadata = event.state().metadata().getProject(ProjectId.DEFAULT);
-            if (projectMetadata == null) {
-                return;
-            }
-            final var createdInState = validIndicesNames.stream().filter(projectMetadata::hasIndex).toList();
-            assertThat(
-                "expected either none or all valid indices to appear atomically, but found " + createdInState.size(),
-                createdInState,
-                anyOf(hasSize(0), hasSize(validIndicesNames.size()))
-            );
-            for (final var indexName : invalidSettingsNames) {
-                assertFalse("invalid index [" + indexName + "] should never be created", projectMetadata.hasIndex(indexName));
-            }
-        };
+        final ClusterStateListener listener = event -> assertAllIndicesCreatedAtomically(
+            event,
+            projects,
+            validIndicesByProject,
+            invalidSettingsNames
+        );
         masterClusterService.addListener(listener);
+
         try {
             final var barrier = new CyclicBarrier(2);
             masterClusterService.submitUnbatchedStateUpdateTask("block", new ClusterStateUpdateTask() {
@@ -177,25 +209,24 @@ public class MetadataCreateIndexServiceIT extends ESIntegTestCase {
             safeAwait(barrier);
 
             final var responsesLatch = new CountDownLatch(allRequests.size());
-            for (var requestSpec : allRequests) {
-                final var request = new CreateIndexRequest(requestSpec.indexName());
+            for (final var requestSpec : allRequests) {
+                final var settingsBuilder = Settings.builder().put("index.routing.allocation.enable", "none");
                 if (requestSpec.invalidSettings()) {
-                    request.settings(Settings.builder().put("index.version.created", 1));
+                    settingsBuilder.put("index.version.created", 1);
                 }
-
-                final ActionListener<CreateIndexResponse> delegate = switch (requestSpec.expectedResult()) {
-                    case SUCCESS -> assertNoFailureListener(response -> assertTrue(response.isAcknowledged()));
-                    case INVALID_NAME -> assertNoSuccessListener(
-                        e -> assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(InvalidIndexNameException.class))
-                    );
-                    case INVALID_SETTINGS -> assertNoSuccessListener(
-                        e -> assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(IllegalArgumentException.class))
-                    );
-                    case ALREADY_EXISTS -> assertNoSuccessListener(
-                        e -> assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(ResourceAlreadyExistsException.class))
-                    );
-                };
-                client().execute(TransportCreateIndexAction.TYPE, request, new LatchedActionListener<>(delegate, responsesLatch));
+                final var request = new CreateIndexClusterStateUpdateRequest(
+                    "create-index",
+                    requestSpec.projectId(),
+                    requestSpec.indexName(),
+                    randomAlphaOfLength(20)
+                ).settings(settingsBuilder.build()).waitForActiveShards(ActiveShardCount.NONE);
+                metadataCreateIndexService.createIndex(
+                    TimeValue.THIRTY_SECONDS,
+                    TimeValue.THIRTY_SECONDS,
+                    TimeValue.THIRTY_SECONDS,
+                    request,
+                    new LatchedActionListener<>(listenerForCreateIndexResult(requestSpec.expectedResult()), responsesLatch)
+                );
             }
 
             assertTrue(
@@ -212,12 +243,99 @@ public class MetadataCreateIndexServiceIT extends ESIntegTestCase {
             safeAwait(barrier);
 
             assertTrue("timed out waiting for create-index responses", responsesLatch.await(30, TimeUnit.SECONDS));
-            if (validIndicesNames.isEmpty()) {
+            if (validIndicesByProject.isEmpty()) {
                 assertSame("cluster state should not change when all requests failed", masterClusterService.state(), initialState);
             }
         } finally {
             masterClusterService.removeListener(listener);
         }
+    }
+
+    private void assertAllIndicesCreatedAtomically(
+        ClusterChangedEvent event,
+        Set<ProjectId> projects,
+        Map<ProjectId, Set<String>> indicesPerProject,
+        Set<String> invalidIndices
+    ) {
+        var projectsWithValidIndices = 0;
+        var allCreatedInProject = 0;
+        for (var projectId : projects) {
+            final var projectMetadata = event.state().metadata().getProject(projectId);
+            final var expectedIndicesInProject = indicesPerProject.getOrDefault(projectId, Set.of());
+            final var createdInProject = expectedIndicesInProject.stream().filter(projectMetadata::hasIndex).toList();
+            assertThat(
+                "expected either none or all valid indices to appear atomically in single project",
+                createdInProject,
+                anyOf(hasSize(0), hasSize(expectedIndicesInProject.size()))
+            );
+            if (expectedIndicesInProject.isEmpty() == false) {
+                projectsWithValidIndices += 1;
+                if (createdInProject.size() == expectedIndicesInProject.size()) {
+                    allCreatedInProject += 1;
+                }
+            }
+            invalidIndices.forEach(
+                invalid -> assertFalse("invalid index [" + invalid + "] should never be created", projectMetadata.hasIndex(invalid))
+            );
+        }
+        assertThat(
+            "expected either none or all valid indices to appear atomically across all projects",
+            allCreatedInProject,
+            anyOf(equalTo(0), equalTo(projectsWithValidIndices))
+        );
+    }
+
+    private void addIndexToAllProjects(MetadataCreateIndexService service, String indexName, Set<ProjectId> projects) {
+        for (final var projectId : projects) {
+            service.createIndex(
+                TimeValue.THIRTY_SECONDS,
+                TimeValue.THIRTY_SECONDS,
+                TimeValue.THIRTY_SECONDS,
+                new CreateIndexClusterStateUpdateRequest("create-pre-existing", projectId, indexName, randomAlphaOfLength(20)).settings(
+                    Settings.builder().put("index.routing.allocation.enable", "none").build()
+                ).waitForActiveShards(ActiveShardCount.NONE),
+                assertNoFailureListener(r -> {})
+            );
+        }
+        awaitClusterState(
+            state -> projects.stream()
+                .allMatch(p -> state.metadata().projects().containsKey(p) && state.metadata().getProject(p).hasIndex(indexName))
+        );
+    }
+
+    private void addProjectsToClusterState(ClusterService clusterService, Set<ProjectId> projects) {
+        clusterService.submitUnbatchedStateUpdateTask("init-projects", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                final var metadataBuilder = Metadata.builder(currentState.metadata());
+                projects.forEach(p -> metadataBuilder.put(ProjectMetadata.builder(p)));
+                return ClusterState.builder(currentState)
+                    .metadata(metadataBuilder)
+                    .routingTable(currentState.globalRoutingTable().initializeProjects(projects))
+                    .build();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("failed to initialize projects", e);
+            }
+        });
+        awaitClusterState(state -> state.metadata().projects().keySet().containsAll(projects));
+    }
+
+    private ActionListener<ShardsAcknowledgedResponse> listenerForCreateIndexResult(CreateIndexResult expectedResult) {
+        return switch (expectedResult) {
+            case SUCCESS -> assertNoFailureListener(response -> assertTrue(response.isAcknowledged()));
+            case INVALID_NAME -> assertNoSuccessListener(
+                e -> assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(InvalidIndexNameException.class))
+            );
+            case INVALID_SETTINGS -> assertNoSuccessListener(
+                e -> assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(IllegalArgumentException.class))
+            );
+            case ALREADY_EXISTS -> assertNoSuccessListener(
+                e -> assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(ResourceAlreadyExistsException.class))
+            );
+        };
     }
 
     private String addRandomIndexNameNoCollision(Set<String> existingIndexNames) {

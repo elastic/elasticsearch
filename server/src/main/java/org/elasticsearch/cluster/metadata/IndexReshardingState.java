@@ -393,6 +393,10 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return sourceShards[shardNum];
         }
 
+        public boolean sourceStateAtLeast(int shardNum, SourceShardState sourceShardState) {
+            return getSourceShardState(shardNum).ordinal() >= sourceShardState.ordinal();
+        }
+
         public boolean isSourceShard(int shardId) {
             return shardId < shardCountBefore();
         }

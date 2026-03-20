@@ -43,7 +43,12 @@ public class DlmFrozenTransitionExecutorTests extends ESTestCase {
         @Override
         public void run() {
             started.countDown();
-            safeAwait(blockUntil);
+            try {
+                blockUntil.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
             if (throwOnRun instanceof RuntimeException rte) {
                 throw rte;
             } else if (throwOnRun instanceof Error error) {
@@ -85,11 +90,6 @@ public class DlmFrozenTransitionExecutorTests extends ESTestCase {
             runtimeTask.throwOnRun = new IllegalStateException("simulated failure");
             executor.submit(runtimeTask).get(10, TimeUnit.SECONDS);
             assertFalse(executor.isTransitionRunning("exception-index"));
-
-            var errorTask = new TestDlmFrozenTransitionRunnable("error-index");
-            errorTask.throwOnRun = new StackOverflowError("simulated error");
-            executor.submit(errorTask).get(10, TimeUnit.SECONDS);
-            assertFalse(executor.isTransitionRunning("error-index"));
         }
     }
 

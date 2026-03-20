@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.dlm.frozen;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -16,10 +15,12 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.logging.Logger;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -30,8 +31,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 
-import static org.apache.logging.log4j.LogManager.getLogger;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.indexMarkedForFrozen;
+import static org.elasticsearch.logging.LogManager.getLogger;
 
 /**
  * Master-node service that periodically scans data stream backing indices for the frozen-candidate marker and submits matching indices to
@@ -95,7 +96,7 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         // wait for the cluster state to be recovered
-        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+        if (closing || event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
         }
         var isNodeMaster = event.localNodeMaster();
@@ -183,8 +184,7 @@ class DlmFrozenTransitionService implements ClusterStateListener, Closeable {
                             executor.submit(transitionRunnableFactory.apply(index.getName(), projectMetadata.id()));
                         } catch (RejectedExecutionException e) {
                             logger.debug(
-                                logger.getMessageFactory()
-                                    .newMessage("Unable to submit transition task for index [{}], Possibly shutting down?", index),
+                                Strings.format("Unable to submit transition task for index [%s], Possibly shutting down?", index),
                                 e
                             );
                             return;

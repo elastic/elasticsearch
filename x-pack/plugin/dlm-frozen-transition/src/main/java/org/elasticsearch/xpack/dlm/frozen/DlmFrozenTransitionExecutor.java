@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.dlm.frozen;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.logging.Logger;
 
 import java.util.List;
 import java.util.Set;
@@ -19,8 +19,16 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
-import static org.apache.logging.log4j.LogManager.getLogger;
+import static org.elasticsearch.logging.LogManager.getLogger;
 
+/**
+ * DlmFrozenTransitionExecutor is responsible for managing and executing tasks related to
+ * frozen transitions in the distributed lifecycle management (DLM) feature.
+ * <br>
+ * This executor limits the number of concurrent transition tasks based on a configurable capacity
+ * and prevents transitions being executed concurrently for the same index.
+ * It also ensures that tasks are tracked and cleaned up upon completion or failure.
+ */
 class DlmFrozenTransitionExecutor implements AutoCloseable {
 
     private static final Logger logger = getLogger(DlmFrozenTransitionExecutor.class);
@@ -75,10 +83,11 @@ class DlmFrozenTransitionExecutor implements AutoCloseable {
         return () -> {
             final String indexName = task.getIndexName();
             try {
+                logger.debug("Starting transition for index [{}]", indexName);
                 task.run();
-                logger.info("Transition completed for index [{}]", indexName);
-            } catch (Throwable t) {
-                logger.error(() -> Strings.format("Error executing transition for index [%s]", indexName), t);
+                logger.debug("Transition completed for index [{}]", indexName);
+            } catch (Exception ex) {
+                logger.error(() -> Strings.format("Error executing transition for index [%s]", indexName), ex);
             } finally {
                 runningTransitions.remove(indexName);
             }

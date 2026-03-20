@@ -523,7 +523,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
 
             if (resolvedIndices.getRemoteClusterIndices().isEmpty()) {
-                if (resolvesCrossProject) {
+                if (resolvesCrossProject && rewritten.getResolvedIndexExpressions() != null) {
                     ElasticsearchException ex = CrossProjectIndexResolutionValidator.validate(
                         original.indicesOptions(),
                         rewritten.getProjectRouting(),

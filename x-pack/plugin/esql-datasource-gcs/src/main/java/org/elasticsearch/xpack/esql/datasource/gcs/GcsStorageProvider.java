@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.gcs;
 
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
+import com.google.cloud.ReadChannel;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
@@ -52,10 +53,10 @@ public final class GcsStorageProvider implements StorageProvider {
 
     public GcsStorageProvider(GcsConfiguration config) {
         this.config = config;
-        // When explicit credentials are provided, build the client eagerly so misconfigurations
-        // are caught early. When using ADC (config is null), defer client creation to first use
-        // so the plugin can load even when no GCS credentials are configured.
-        if (config != null && config.hasCredentials()) {
+        // When explicit credentials or anonymous mode are configured, build the client eagerly
+        // so misconfigurations are caught early. When using ADC (config is null), defer client
+        // creation to first use so the plugin can load even when no GCS credentials are configured.
+        if (config != null && (config.hasCredentials() || config.isAnonymous())) {
             this.storage = buildStorageClient(config);
         }
     }
@@ -87,6 +88,17 @@ public final class GcsStorageProvider implements StorageProvider {
 
     private static Storage buildStorageClient(GcsConfiguration config) {
         try {
+            if (config != null && config.isAnonymous()) {
+                StorageOptions.Builder builder = StorageOptions.getUnauthenticatedInstance().toBuilder();
+                if (config.projectId() != null) {
+                    builder.setProjectId(config.projectId());
+                }
+                if (config.endpoint() != null) {
+                    builder.setHost(config.endpoint());
+                }
+                return builder.build().getService();
+            }
+
             StorageOptions.Builder builder = StorageOptions.newBuilder();
 
             if (config != null && config.hasCredentials()) {
@@ -172,8 +184,30 @@ public final class GcsStorageProvider implements StorageProvider {
             if (e.getCode() == 404) {
                 return false;
             }
-            throw new IOException("Failed to check existence of " + path, e);
+            if (e.getCode() == 403) {
+                return existsViaRead(bucket, objectName, path);
+            }
+            throw new IOException("Failed to check existence of " + path + credentialHint(), e);
         }
+    }
+
+    private boolean existsViaRead(String bucket, String objectName, StoragePath path) throws IOException {
+        try (ReadChannel reader = storage().reader(BlobId.of(bucket, objectName))) {
+            return true;
+        } catch (StorageException e) {
+            if (e.getCode() == 404) {
+                return false;
+            }
+            throw new IOException("Failed to check existence of " + path + " (metadata denied, read also failed)", e);
+        }
+    }
+
+    private String credentialHint() {
+        if (config == null || (config.isAnonymous() == false && config.hasCredentials() == false)) {
+            return ". If accessing a public bucket, use WITH (auth = 'none'). "
+                + "Otherwise, provide credentials via WITH (credentials = '...') or set GOOGLE_APPLICATION_CREDENTIALS";
+        }
+        return "";
     }
 
     @Override
@@ -303,10 +337,17 @@ public final class GcsStorageProvider implements StorageProvider {
 
                 com.google.api.gax.paging.Page<Blob> page = storage.list(bucket, options);
                 currentIterator = page.iterateAll().iterator();
-            } catch (StorageException e) {
-                throw new UncheckedIOException(new IOException("Failed to list objects in bucket " + bucket + " with prefix " + prefix, e));
             } catch (Exception e) {
-                throw new UncheckedIOException(new IOException("Failed to list objects in bucket " + bucket + " with prefix " + prefix, e));
+                String msg = (e instanceof StorageException se && se.getCode() == 403)
+                    ? "Access denied listing objects in bucket ["
+                        + bucket
+                        + "] with prefix ["
+                        + prefix
+                        + "]. "
+                        + "Verify that the configured credentials have storage.objects.list permission, "
+                        + "or use exact file paths instead of glob patterns."
+                    : "Failed to list objects in bucket [" + bucket + "] with prefix [" + prefix + "]";
+                throw new UncheckedIOException(new IOException(msg, e));
             }
         }
     }

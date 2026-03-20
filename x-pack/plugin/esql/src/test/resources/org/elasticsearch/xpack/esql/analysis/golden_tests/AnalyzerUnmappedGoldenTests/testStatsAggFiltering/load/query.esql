@@ -1,2 +1,0 @@
-SET unmapped_fields="load"; FROM employees
-| STATS c = COUNT(*) WHERE does_not_exist1::LONG > 0

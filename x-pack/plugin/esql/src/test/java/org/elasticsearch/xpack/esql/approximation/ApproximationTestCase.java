@@ -66,12 +66,12 @@ public abstract class ApproximationTestCase extends ESTestCase {
     }
 
     static Approximation.QueryProperties verify(String query) throws Exception {
-        return Approximation.verifyPlan(getLogicalPlan(query));
+        return Approximation.verifyPlanOrThrow(getLogicalPlan(query));
     }
 
     static void assertError(String esql, Matcher<String> matcher) {
         Exception e = assertThrows(VerificationException.class, () -> verify(esql));
-        assertThat(e.getMessage().substring("Found 1 problem\n".length()), matcher);
+        assertThat(e.getMessage(), matcher);
     }
 
     static Result newCountResult(long count) {

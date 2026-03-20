@@ -78,6 +78,7 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_dotted_field_fix"
     );
+    public static final NodeFeature DOC_VALUES_MULTI_VALUE = new NodeFeature("mapper.doc_values.multi_value");
     static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_nested_object_fix"
     );
@@ -137,6 +138,7 @@ public class MapperFeatures implements FeatureSpecification {
             TDIGEST_TYPE,
             TEXT_FIELD_DOC_VALUES,
             DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX,
+            DOC_VALUES_MULTI_VALUE,
             DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX
         );
     }

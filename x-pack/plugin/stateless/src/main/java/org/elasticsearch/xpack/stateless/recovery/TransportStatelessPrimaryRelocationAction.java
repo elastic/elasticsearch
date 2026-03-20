@@ -21,7 +21,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -100,8 +99,6 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     public static final String START_RELOCATION_ACTION_NAME = TYPE.name() + "/start";
     public static final String PREWARM_RELOCATION_ACTION_NAME = TYPE.name() + "/prewarm";
     public static final String PRIMARY_CONTEXT_HANDOFF_ACTION_NAME = TYPE.name() + "/primary_context_handoff";
-
-    private static final TransportVersion PREWARM_RELOCATION_ACTION = TransportVersion.fromName("prewarm_relocation_action");
 
     public static final Setting<TimeValue> SLOW_RELOCATION_THRESHOLD_SETTING = Setting.timeSetting(
         "serverless.cluster.primary_relocation.slow_handoff_warning_threshold",
@@ -201,9 +198,6 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             final var indexShard = indexService.getShard(request.shardId().id());
             indexShard.prepareForIndexRecovery();
 
-            if (clusterService.state().getMinTransportVersion().supports(PREWARM_RELOCATION_ACTION) == false) {
-                indexShardCacheWarmer.preWarmIndexShardCache(indexShard);
-            }
             transportService.sendChildRequest(
                 recoveryRef.target().sourceNode(),
                 START_RELOCATION_ACTION_NAME,
@@ -217,9 +211,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
     private void handleStartRelocation(Task task, StatelessPrimaryRelocationAction.Request request, ActionListener<Void> listener) {
         // Executed remotely by `TransportStatelessPrimaryRelocationAction#doExecute` (i.e. we are on the source node here)
-        if (clusterService.state().getMinTransportVersion().supports(PREWARM_RELOCATION_ACTION)) {
-            initiatePrewarm(task, request);
-        }
+        initiatePrewarm(task, request);
 
         PeerRecoverySourceClusterStateDelay.ensureClusterStateVersion(
             request.clusterStateVersion(),

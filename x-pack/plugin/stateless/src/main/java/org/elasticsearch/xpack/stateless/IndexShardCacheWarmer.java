@@ -75,18 +75,23 @@ public class IndexShardCacheWarmer {
         preWarmIndexShardCache(indexShard, INDEXING_EARLY);
     }
 
-    public void preWarmIndexShardCacheForPeerRecovery(IndexShard indexShard, StatelessCommitService.SourceBlobsInfo sourceBlobsInfo) {
-        preWarmIndexShardCache(indexShard, INDEXING_EARLY, sourceBlobsInfo);
+    public void preWarmIndexShardCacheForPeerRecovery(
+        IndexShard indexShard,
+        StatelessCommitService.SourceBlobsInfo sourceBlobsInfo,
+        boolean preWarmForIdLookup
+    ) {
+        preWarmIndexShardCache(indexShard, INDEXING_EARLY, sourceBlobsInfo, preWarmForIdLookup);
     }
 
     public void preWarmIndexShardCache(IndexShard indexShard, SharedBlobCacheWarmingService.Type warmingType) {
-        preWarmIndexShardCache(indexShard, warmingType, null);
+        preWarmIndexShardCache(indexShard, warmingType, null, false);
     }
 
     public void preWarmIndexShardCache(
         IndexShard indexShard,
         SharedBlobCacheWarmingService.Type warmingType,
-        @Nullable StatelessCommitService.SourceBlobsInfo sourceBlobsInfo
+        @Nullable StatelessCommitService.SourceBlobsInfo sourceBlobsInfo,
+        boolean preWarmForIdLookup
     ) {
         final IndexShardState currentState = indexShard.state(); // single volatile read
         if (currentState == IndexShardState.CLOSED) {
@@ -102,13 +107,14 @@ public class IndexShardCacheWarmer {
         assert warmingType != INDEXING_EARLY || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.PEER
             : "Only peer recoveries are supported";
         assert sourceBlobsInfo == null || warmingType == INDEXING_EARLY;
-        threadPool.generic().execute(() -> doPreWarmIndexShardCache(indexShard, warmingType, sourceBlobsInfo));
+        threadPool.generic().execute(() -> doPreWarmIndexShardCache(indexShard, warmingType, sourceBlobsInfo, preWarmForIdLookup));
     }
 
     private void doPreWarmIndexShardCache(
         IndexShard indexShard,
         SharedBlobCacheWarmingService.Type warmingType,
-        @Nullable StatelessCommitService.SourceBlobsInfo sourceBlobsInfo
+        @Nullable StatelessCommitService.SourceBlobsInfo sourceBlobsInfo,
+        boolean preWarmForIdLookup
     ) {
         assert indexShard.routingEntry().isPromotableToPrimary();
         final Store store = indexShard.store();
@@ -149,7 +155,14 @@ public class IndexShardCacheWarmer {
                             // instance that will be used _only_ during pre-warming.
                             prewarmingDirectory.updateMetadata(state.blobFileRanges(), last.getAllFilesSizeInBytes());
                             if (last.hollow() == false || readSingleBlobIfHollow == false) {
-                                warmingService.warmCacheForShardRecovery(warmingType, indexShard, last, prewarmingDirectory, null);
+                                warmingService.warmCacheForShardRecovery(
+                                    warmingType,
+                                    indexShard,
+                                    last,
+                                    prewarmingDirectory,
+                                    null,
+                                    preWarmForIdLookup
+                                );
                             }
                         }
                     }, e -> logException(indexShard.shardId(), e)), store::decRef)

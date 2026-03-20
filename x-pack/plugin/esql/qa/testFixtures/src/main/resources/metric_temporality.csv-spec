@@ -1,0 +1,45 @@
+
+
+//TODO: When we support temporality, the rate should be the same for all series
+
+rateWithoutTBucket
+required_capability: ts_command_v0
+
+TS metric_temporality
+ | STATS bytes_per_second = ROUND(SUM(rate(network.total_bytes_in)),7) BY cluster
+ | KEEP cluster, bytes_per_second
+ | SORT cluster
+;
+
+cluster:keyword | bytes_per_second:double
+prod-cumulative | 0.2928479
+prod-delta      | 0.1919041
+prod-null       | 0.2928479
+;
+
+// ---------------------------------------------------------------------------------
+
+
+rateByTBucket
+required_capability: ts_command_v0
+
+TS metric_temporality
+ | STATS bytes_per_second = ROUND(SUM(rate(network.total_bytes_in)),7) BY cluster, @timestamp = TBUCKET(5m)
+ | KEEP @timestamp, cluster, bytes_per_second
+ | SORT @timestamp, cluster
+;
+
+@timestamp:datetime      | cluster:keyword | bytes_per_second:double
+2024-05-10T00:00:00.000Z | prod-cumulative | 0.33
+2024-05-10T00:00:00.000Z | prod-delta      | 0.2266667
+2024-05-10T00:00:00.000Z | prod-null       | 0.33
+2024-05-10T00:05:00.000Z | prod-cumulative | 0.2766667
+2024-05-10T00:05:00.000Z | prod-delta      | 0.1733333
+2024-05-10T00:05:00.000Z | prod-null       | 0.2766667
+2024-05-10T00:10:00.000Z | prod-cumulative | 0.2733333
+2024-05-10T00:10:00.000Z | prod-delta      | 0.1766667
+2024-05-10T00:10:00.000Z | prod-null       | 0.2733333
+2024-05-10T00:15:00.000Z | prod-cumulative | 0.03
+2024-05-10T00:15:00.000Z | prod-delta      | 0.03
+2024-05-10T00:15:00.000Z | prod-null       | 0.03   
+;

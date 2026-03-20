@@ -486,6 +486,11 @@ class ClientTransformIndexer extends TransformIndexer {
         closePointInTime(super::onStop);
     }
 
+    @Override
+    protected void onAbort() {
+        closePointInTime(super::onAbort);
+    }
+
     // visible for testing
     void closePointInTime(Runnable runAfter) {
         // we shouldn't need to do this, because a transform is only ever running on one thread anyway, but now that we're waiting for

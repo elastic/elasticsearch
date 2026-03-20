@@ -20,6 +20,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -30,6 +31,8 @@ import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSetti
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.utils.FloatConversionUtils;
@@ -186,6 +189,39 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         assertThat(ex.getMessage(), containsString("required [element_type] field is missing"));
     }
 
+    public void testGetDenseVectorsAsSupplier() throws IOException {
+        for (int i = 0; i < 10; i++) {
+            Model model = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
+
+            List<String> inputs = randomList(3, 8, () -> randomSemanticTextInput().toString());
+            var inferenceResults = randomChunkedInferenceEmbedding(model, inputs);
+
+            List<VectorData> chunkVectors = new ArrayList<>();
+            for (EmbeddingResults.Chunk chunk : inferenceResults.chunks()) {
+                VectorData thisVector = switch (chunk.embedding()) {
+                    case EmbeddingFloatResults.Embedding efr -> new VectorData(efr.values());
+                    case EmbeddingByteResults.Embedding ebr -> new VectorData(ebr.values());
+                    default -> throw new IllegalStateException("Unexpected value: " + chunk.embedding().getClass());
+                };
+                chunkVectors.add(thisVector);
+            }
+
+            var field = semanticTextFieldFromChunkedInferenceResults(
+                useLegacyFormat,
+                "testfield",
+                model,
+                generateRandomChunkingSettings(),
+                inputs,
+                inferenceResults,
+                randomFrom(XContentType.values())
+            );
+
+            var vectors = field.getDenseVectorData();
+            assertNotNull(vectors);
+            assertEquals(chunkVectors, vectors);
+        }
+    }
+
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbedding(Model model, List<String> inputs) {
         return switch (model.getTaskType()) {
             case SPARSE_EMBEDDING -> randomChunkedInferenceEmbeddingSparse(inputs);
@@ -204,11 +240,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
         List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
         for (String input : inputs) {
-            byte[] values = new byte[embeddingLength];
-            for (int j = 0; j < values.length; j++) {
-                // to avoid vectors with zero magnitude
-                values[j] = (byte) Math.max(1, randomByte());
-            }
+            byte[] values = randomByteVectorOfLength(embeddingLength);
             chunks.add(
                 new EmbeddingResults.Chunk(
                     new DenseEmbeddingByteResults.Embedding(values),
@@ -219,6 +251,15 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         return new ChunkedInferenceEmbedding(chunks);
     }
 
+    public static byte[] randomByteVectorOfLength(int embeddingLength) {
+        byte[] values = new byte[embeddingLength];
+        for (int j = 0; j < values.length; j++) {
+            // to avoid vectors with zero magnitude
+            values[j] = (byte) Math.max(1, randomByte());
+        }
+        return values;
+    }
+
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbeddingFloat(Model model, List<String> inputs) {
         DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
         int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, model.getServiceSettings().dimensions());
@@ -226,11 +267,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
         List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
         for (String input : inputs) {
-            float[] values = new float[embeddingLength];
-            for (int j = 0; j < values.length; j++) {
-                // to avoid vectors with zero magnitude
-                values[j] = Math.max(1e-6f, randomFloat());
-            }
+            float[] values = randomFloatVectorOfLength(embeddingLength);
             chunks.add(
                 new EmbeddingResults.Chunk(
                     new DenseEmbeddingFloatResults.Embedding(values),
@@ -239,6 +276,15 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             );
         }
         return new ChunkedInferenceEmbedding(chunks);
+    }
+
+    public static float[] randomFloatVectorOfLength(int embeddingLength) {
+        float[] values = new float[embeddingLength];
+        for (int j = 0; j < values.length; j++) {
+            // to avoid vectors with zero magnitude
+            values[j] = Math.max(1e-6f, randomFloat());
+        }
+        return values;
     }
 
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbeddingSparse(List<String> inputs) {

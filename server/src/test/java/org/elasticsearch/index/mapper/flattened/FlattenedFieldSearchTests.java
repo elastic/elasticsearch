@@ -678,15 +678,8 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
         BulkRequestBuilder bulkRequest = client().prepareBulk("range_test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         int[] responseTimes = { 50, 120, 200, 350, 500 };
         for (int i = 0; i < responseTimes.length; i++) {
-            bulkRequest.add(
-                client().prepareIndex()
-                    .setId(Integer.toString(i))
-                    .setSource(
-                        Strings.format("""
-                            {"metrics": {"response_time": %d, "label": "req-%d"}}""", responseTimes[i], i),
-                        XContentType.JSON
-                    )
-            );
+            bulkRequest.add(client().prepareIndex().setId(Integer.toString(i)).setSource(Strings.format("""
+                {"metrics": {"response_time": %d, "label": "req-%d"}}""", responseTimes[i], i), XContentType.JSON));
         }
         BulkResponse bulkResponse = bulkRequest.get();
         assertNoFailures(bulkResponse);

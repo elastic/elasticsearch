@@ -42,6 +42,7 @@ module org.elasticsearch.xpack.stateless {
     exports org.elasticsearch.xpack.stateless
         to
             org.elasticsearch.server,
+            org.elasticsearch.serverless.autoscaling,
             org.elasticsearch.serverless.stateless,
             org.elasticsearch.metering;
     exports org.elasticsearch.xpack.stateless.action to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
@@ -51,6 +52,7 @@ module org.elasticsearch.xpack.stateless {
     exports org.elasticsearch.xpack.stateless.objectstore to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.xpack.stateless.cache to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.xpack.stateless.lucene to org.elasticsearch.serverless.stateless;
+    exports org.elasticsearch.xpack.stateless.memory to org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.xpack.stateless.reshard to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.xpack.stateless.utils to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
 

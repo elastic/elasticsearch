@@ -716,12 +716,11 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     public void testRoutingPathWithSingleBytePrefixTsid() throws IOException {
-        boolean useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean();
         TimeSeriesRoutingFixture fixture = indexRoutingForTimeSeriesDimensions(
             IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG),
             8,
             "dim.*,other.*,top",
-            useSyntheticId
+            randomBoolean()
         );
         assumeTrue("require single-byte-prefix tsid", TsidBuilder.useSingleBytePrefixLayout(fixture.routing.creationVersion));
         assertIndexShard(fixture, Map.of("dim", Map.of("a", "a")), 5);

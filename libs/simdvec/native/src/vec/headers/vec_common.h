@@ -44,7 +44,7 @@ static inline const T* sequential_mapper(const T* data, const int32_t i, const i
 // Offset layout: vectors share a common base but are at non-sequential positions
 // given by offsets[i], each `pitch` elements from the base.
 template <typename T>
-static inline const T* array_mapper(const T* data, const int32_t i, const int32_t* offsets, const int32_t pitch) {
+static inline const T* offsets_mapper(const T* data, const int32_t i, const int32_t* offsets, const int32_t pitch) {
     return data + (int64_t)offsets[i] * pitch;
 }
 

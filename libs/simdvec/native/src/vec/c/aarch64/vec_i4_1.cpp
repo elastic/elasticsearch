@@ -136,5 +136,5 @@ EXPORT void vec_doti4_bulk_offsets(
     int32_t count,
     f32_t* results
 ) {
-    doti4_bulk_impl<array_mapper>(docs, query, packed_len, pitch, offsets, count, results);
+    doti4_bulk_impl<offsets_mapper>(docs, query, packed_len, pitch, offsets, count, results);
 }

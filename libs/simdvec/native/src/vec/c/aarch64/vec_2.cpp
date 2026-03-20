@@ -253,7 +253,7 @@ EXPORT void vec_dotd1q4_bulk_offsets_2(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    dotd1q4_inner_bulk<array_mapper>(a, query, length, pitch, offsets, count, results);
+    dotd1q4_inner_bulk<offsets_mapper>(a, query, length, pitch, offsets, count, results);
 }
 
 #ifdef __clang__

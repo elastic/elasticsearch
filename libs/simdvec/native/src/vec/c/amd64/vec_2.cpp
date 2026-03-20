@@ -212,7 +212,7 @@ EXPORT void vec_dot7u_bulk_offsets_2(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    dot7u_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
+    dot7u_inner_bulk<offsets_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
 template<int offsetRegs>
@@ -383,7 +383,7 @@ EXPORT void vec_sqr7u_bulk_offsets_2(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    sqr7u_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
+    sqr7u_inner_bulk<offsets_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
 #ifdef __clang__

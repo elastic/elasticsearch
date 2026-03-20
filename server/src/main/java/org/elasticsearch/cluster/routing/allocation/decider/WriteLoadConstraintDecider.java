@@ -230,9 +230,9 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                     final Double shardWriteLoad = getShardWriteLoad(allocation, shardRouting);
                     final String explain = Strings.format(
                         """
-                            Node [%s] has a queue latency of [%d] millis that exceeds the queue latency threshold of [%s] and a thread pool \
-                            utilization of [%f] that exceeds the utilization threshold of [%s]. This node is hot-spotting. Shard write load \
-                            [%s]. Should move shard(s) away""",
+                            Node [%s] has a queue latency of [%d] millis that exceeds the queue latency threshold of [%s] and a thread \
+                            pool utilization of [%f] that exceeds the utilization threshold of [%s]. This node is hot-spotting. Shard \
+                            write load [%s]. Should move shard(s) away""",
                         node.getShortNodeDescription(),
                         nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
                         nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2),

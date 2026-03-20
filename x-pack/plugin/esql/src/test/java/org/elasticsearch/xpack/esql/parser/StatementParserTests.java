@@ -4142,7 +4142,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testChangePoint() {
-        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_ARGS_ANY_ORDER.isEnabled());
 
         // AS before ON
         LogicalPlan plan = query("ROW key=1, value=2 | CHANGE_POINT value AS my_type, my_pvalue ON key");

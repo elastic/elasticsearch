@@ -752,7 +752,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         boolean optionResolved = false;
         for (EsqlBaseParser.ChangePointConfigurationContext changePointContext : changePointOptionsContexts) {
             if (changePointContext.targetType != null) {
-                if (optionResolved == true) {
+                if (optionResolved) {
                     throw new ParsingException(source(changePointContext), "Only one AS can be specified");
                 }
                 optionResolved = true;

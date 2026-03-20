@@ -143,7 +143,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
     public static final String KEYED_IGNORED_VALUES_FIELD_SUFFIX = "._keyed._ignored";
     public static final String TIME_SERIES_DIMENSIONS_ARRAY_PARAM = "time_series_dimensions";
 
-    public static final NodeFeature MAPPED_PROPERTIES_FEATURE = new NodeFeature("mapper.flattened.mapped_properties");
+    public static final NodeFeature FLATTENED_MAPPED_SUBFIELDS_FEATURE = new NodeFeature("mapper.flattened.mapped_subfields");
 
     private static class Defaults {
         public static final int DEPTH_LIMIT = 20;

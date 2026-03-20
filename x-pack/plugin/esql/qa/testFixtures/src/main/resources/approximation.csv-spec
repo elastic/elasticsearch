@@ -432,12 +432,11 @@ Warn on max
 required_capability: approximation_v4
 
 SET approximation=true\;
-FROM many_numbers | STATS max=MAX(sv) BY sv | SORT max | LIMIT 3
+FROM many_numbers
+| STATS max=MAX(sv) BY sv | SORT max | LIMIT 3
 ;
 
-// MultiClusterSpecIT adds remote indices, so the index "*:many_numbers" can
-// be added. Therefore the position of the aggregation function varies a bit.
-warningRegex:line 2:[\d]*: approximation not supported: aggregation function \[MAX\(sv\)\] cannot be approximated
+warning:line 3:13: approximation not supported: aggregation function [MAX(sv)] cannot be approximated
 
 max:integer | sv:integer
 1           | 1

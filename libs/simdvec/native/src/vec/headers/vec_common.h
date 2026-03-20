@@ -37,7 +37,7 @@ static inline auto sqr_scalar(const T a, const T b) {
 
 // Contiguous layout: vectors are packed sequentially, each `pitch` elements apart.
 template <typename T>
-static inline const T* identity_mapper(const T* data, const int32_t i, const int32_t* offsets, const int32_t pitch) {
+static inline const T* sequential_mapper(const T* data, const int32_t i, const int32_t* offsets, const int32_t pitch) {
     return data + (int64_t)i * pitch;
 }
 

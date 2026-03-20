@@ -201,7 +201,7 @@ static inline void dot7u_inner_bulk(
 }
 
 EXPORT void vec_dot7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    dot7u_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
+    dot7u_inner_bulk<sequential_mapper>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_dot7u_bulk_offsets_2(
@@ -372,7 +372,7 @@ static inline void sqr7u_inner_bulk(
 }
 
 EXPORT void vec_sqr7u_bulk_2(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    sqr7u_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
+    sqr7u_inner_bulk<sequential_mapper>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_sqr7u_bulk_offsets_2(

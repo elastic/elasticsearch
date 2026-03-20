@@ -138,7 +138,7 @@ static inline void doti4_bulk_impl(
 }
 
 EXPORT void vec_doti4_bulk(const int8_t* docs, const int8_t* query, int32_t packed_len, int32_t count, f32_t* results) {
-    doti4_bulk_impl<identity_mapper>(docs, query, packed_len, packed_len, NULL, count, results);
+    doti4_bulk_impl<sequential_mapper>(docs, query, packed_len, packed_len, NULL, count, results);
 }
 
 EXPORT void vec_doti4_bulk_offsets(

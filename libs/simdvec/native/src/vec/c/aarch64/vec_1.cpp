@@ -199,7 +199,7 @@ static inline void cosi8_inner_bulk(
 }
 
 EXPORT void vec_cosi8_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    cosi8_inner_bulk<int8_t, identity_mapper>(a, b, dims, dims, NULL, count, results);
+    cosi8_inner_bulk<int8_t, sequential_mapper>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_cosi8_bulk_offsets(
@@ -343,7 +343,7 @@ static inline void call_i8_bulk(
 }
 
 EXPORT void vec_doti7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    call_i8_bulk<int8_t, int32x4_t, identity_mapper, vdotq_s32, dot_scalar<int8_t>, vec_doti8>(a, b, dims, dims, NULL, count, results);
+    call_i8_bulk<int8_t, int32x4_t, sequential_mapper, vdotq_s32, dot_scalar<int8_t>, vec_doti8>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_doti7u_bulk_offsets(
@@ -358,7 +358,7 @@ EXPORT void vec_doti7u_bulk_offsets(
 }
 
 EXPORT void vec_doti8_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    call_i8_bulk<int8_t, int32x4_t, identity_mapper, vdotq_s32, dot_scalar<int8_t>, vec_doti8>(a, b, dims, dims, NULL, count, results);
+    call_i8_bulk<int8_t, int32x4_t, sequential_mapper, vdotq_s32, dot_scalar<int8_t>, vec_doti8>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_doti8_bulk_offsets(
@@ -434,7 +434,7 @@ static inline int32x4x2_t sqri8_vector(const int32x4x2_t acc, const int8x16_t va
 }
 
 EXPORT void vec_sqri7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    call_i8_bulk<int8_t, int32x4x2_t, identity_mapper, sqri8_vector, sqr_scalar<int8_t>, vec_sqri8>(a, b, dims, dims, NULL, count, results);
+    call_i8_bulk<int8_t, int32x4x2_t, sequential_mapper, sqri8_vector, sqr_scalar<int8_t>, vec_sqri8>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_sqri7u_bulk_offsets(
@@ -449,7 +449,7 @@ EXPORT void vec_sqri7u_bulk_offsets(
 }
 
 EXPORT void vec_sqri8_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    call_i8_bulk<int8_t, int32x4x2_t, identity_mapper, sqri8_vector, sqr_scalar<int8_t>, vec_sqri8>(a, b, dims, dims, NULL, count, results);
+    call_i8_bulk<int8_t, int32x4x2_t, sequential_mapper, sqri8_vector, sqr_scalar<int8_t>, vec_sqri8>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_sqri8_bulk_offsets(
@@ -571,7 +571,7 @@ EXPORT f32_t vec_dotf32(const f32_t* a, const f32_t* b, const int32_t elementCou
 }
 
 EXPORT void vec_dotf32_bulk(const f32_t* a, const f32_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    call_f32_bulk<f32_t, identity_mapper, vfmaq_f32, dot_scalar<f32_t>, vec_dotf32>(a, b, dims, dims, NULL, count, results);
+    call_f32_bulk<f32_t, sequential_mapper, vfmaq_f32, dot_scalar<f32_t>, vec_dotf32>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_dotf32_bulk_offsets(
@@ -620,7 +620,7 @@ EXPORT f32_t vec_sqrf32(const f32_t* a, const f32_t* b, const int32_t elementCou
 }
 
 EXPORT void vec_sqrf32_bulk(const f32_t* a, const f32_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    call_f32_bulk<f32_t, identity_mapper, sqrf32_vector, sqr_scalar, vec_sqrf32>(a, b, dims, dims, NULL, count, results);
+    call_f32_bulk<f32_t, sequential_mapper, sqrf32_vector, sqr_scalar, vec_sqrf32>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_sqrf32_bulk_offsets(
@@ -867,7 +867,7 @@ EXPORT void vec_dotd1q4_bulk(
     const int32_t length,
     const int32_t count,
     f32_t* results) {
-    dotd1q4_inner_bulk<identity_mapper>(a, query, length, length, NULL, count, results);
+    dotd1q4_inner_bulk<sequential_mapper>(a, query, length, length, NULL, count, results);
 }
 
 EXPORT void vec_dotd1q4_bulk_offsets(
@@ -917,7 +917,7 @@ EXPORT void vec_dotd2q4_bulk(
     const int32_t length,
     const int32_t count,
     f32_t* results) {
-    dotd2q4_inner_bulk<identity_mapper>(a, query, length, length, NULL, count, results);
+    dotd2q4_inner_bulk<sequential_mapper>(a, query, length, length, NULL, count, results);
 }
 
 EXPORT void vec_dotd2q4_bulk_offsets(
@@ -971,7 +971,7 @@ EXPORT void vec_dotd4q4_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    dotd4q4_inner_bulk<identity_mapper>(a, query, length, length, NULL, count, results);
+    dotd4q4_inner_bulk<sequential_mapper>(a, query, length, length, NULL, count, results);
 }
 
 EXPORT void vec_dotd4q4_bulk_offsets(

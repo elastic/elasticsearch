@@ -242,7 +242,7 @@ EXPORT void vec_dotd1q4_bulk_2(
     const int32_t length,
     const int32_t count,
     f32_t* results) {
-    dotd1q4_inner_bulk<identity_mapper>(a, query, length, length, NULL, count, results);
+    dotd1q4_inner_bulk<sequential_mapper>(a, query, length, length, NULL, count, results);
 }
 
 EXPORT void vec_dotd1q4_bulk_offsets_2(

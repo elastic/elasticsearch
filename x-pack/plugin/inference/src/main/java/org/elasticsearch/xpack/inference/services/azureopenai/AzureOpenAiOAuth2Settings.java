@@ -62,9 +62,9 @@ public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable 
         var oauth2ServiceSettings = OAuth2Settings.fromMap(map, validationException);
         var tenantId = extractOptionalString(map, TENANT_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        var hasFields = validateFields(oauth2ServiceSettings, tenantId, validationException);
+        var hasAllFields = validateFields(oauth2ServiceSettings, tenantId, validationException);
 
-        if (hasFields) {
+        if (hasAllFields) {
             return new AzureOpenAiOAuth2Settings(oauth2ServiceSettings.result(), tenantId);
         }
 
@@ -139,9 +139,9 @@ public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable 
 
         var tenantIdToUpdate = updated.tenantId() != null ? updated.tenantId() : this.tenantId;
 
-        var hasFields = validateFields(updated.oauth2Settings(), tenantIdToUpdate, validationException);
+        var hasAllFields = validateFields(updated.oauth2Settings(), tenantIdToUpdate, validationException);
 
-        if (hasFields == false) {
+        if (hasAllFields == false) {
             return this;
         }
 

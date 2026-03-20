@@ -832,9 +832,9 @@ POST _reindex
 ### Reindex from a remote project [reindex-cps-remote]
 
 When using `source.remote.host`, you can reindex from another {{serverless-short}} project or an {{ech}} deployment over HTTP.
+By default, the reindex operation pulls documents only from the specified remote target.
 
-When targeting a {{serverless-short}} project, the `source.index` field on the remote side can also resolve across the remote project and all of its linked projects.
-For {{cps}} to work on the remote side, you must authenticate with an [{{ecloud}} API key](docs-content://deploy-manage/api-keys/elastic-cloud-api-keys.md). An [{{es}} API key](docs-content://deploy-manage/api-keys/elasticsearch-api-keys.md) only provides access to the remote project itself, not its linked projects.
+If the remote target is a {{cps}}-enabled {{serverless-short}} project, the `source.index` field can also resolve across the remote project and all of its linked projects. For this to work, the request must authenticate with an [{{ecloud}} API key](docs-content://deploy-manage/api-keys/elastic-cloud-api-keys.md) that has **Cloud, Elasticsearch, and Kibana API** access. An [{{es}} API key](docs-content://deploy-manage/api-keys/elasticsearch-api-keys.md) only provides access to the remote project itself, not its linked projects.
 
 The following request reindexes documents from the `logs` index on a remote project. The source targets the `logs` index on the remote project and any of its linked projects, but not the `logs` index on the origin project (the project you sent the reindex request to):
 

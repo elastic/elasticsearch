@@ -489,25 +489,19 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testTsStatsFirstWithTimestampSort() {
+        // TS two-phase semantics for FIRST: first phase computes FirstOverTime(cpu) and MIN(@timestamp) per _tsid,
+        // second phase picks FIRST(cpu_result, min_ts) per host (the result from the time series with the earliest timestamp).
         record TsKey(String host, String cluster) {}
-        Map<TsKey, Doc> lastPerTs = new HashMap<>();
+        // First phase: FirstOverTime picks the value at the EARLIEST timestamp per time series
+        Map<TsKey, Doc> firstPerTs = new HashMap<>();
         for (Doc doc : docs) {
-            lastPerTs.merge(new TsKey(doc.host, doc.cluster), doc, (a, b) -> a.timestamp > b.timestamp ? a : b);
+            firstPerTs.merge(new TsKey(doc.host, doc.cluster), doc, (a, b) -> a.timestamp < b.timestamp ? a : b);
         }
         // Second phase: FIRST picks the result from the time series with the earliest MIN(@timestamp)
-        Map<TsKey, Long> minTsPerTs = new HashMap<>();
-        for (Doc doc : docs) {
-            minTsPerTs.merge(new TsKey(doc.host, doc.cluster), doc.timestamp, Math::min);
-        }
         Map<String, Doc> firstByHost = new HashMap<>();
-        Map<String, Long> firstTsByHost = new HashMap<>();
-        for (var entry : lastPerTs.entrySet()) {
+        for (var entry : firstPerTs.entrySet()) {
             String host = entry.getKey().host;
-            long minTs = minTsPerTs.get(entry.getKey());
-            if (firstTsByHost.containsKey(host) == false || minTs < firstTsByHost.get(host)) {
-                firstByHost.put(host, entry.getValue());
-                firstTsByHost.put(host, minTs);
-            }
+            firstByHost.merge(host, entry.getValue(), (a, b) -> a.timestamp < b.timestamp ? a : b);
         }
         try (var resp = run("TS hosts | STATS first_cpu = FIRST(cpu, @timestamp) BY host | SORT host")) {
             List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);

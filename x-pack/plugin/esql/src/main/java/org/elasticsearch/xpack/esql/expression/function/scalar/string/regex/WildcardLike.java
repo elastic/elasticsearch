@@ -57,13 +57,22 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
 
             Matching the exact characters `*` and `.` will require escaping.
             The escape character is backslash `\\`. Since also backslash is a special character in string literals,
-            it will require further escaping.
+            it will require further escaping. To match a literal backslash itself, escape it (e.g. `\\\\\\\\` in double-quoted
+            strings, or `\\\\` in triple-quoted strings).
 
             <<load-esql-example, file=string tag=likeEscapingSingleQuotes>>
 
             To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
 
             <<load-esql-example, file=string tag=likeEscapingTripleQuotes>>
+
+            For Windows-style paths like `C:\\Windows\\System32`, triple-quoted strings avoid excessive escaping:
+
+            <<load-esql-example, file=string tag=likeEscapingWindowsPath>>
+
+            When sending queries via the REST API (e.g. with cURL), JSON adds another escaping layer: a single literal
+            backslash in a LIKE pattern requires 8 backslashes in the JSON string (4 for JSON × 2 for LIKE). Triple-quoted
+            strings reduce this to 4 backslashes in JSON.
 
             ```{applies_to}
             stack: ga 9.1

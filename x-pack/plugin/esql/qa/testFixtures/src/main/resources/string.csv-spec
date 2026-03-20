@@ -2548,6 +2548,20 @@ foo * bar
 ;
 
 
+likeEscapingWindowsPath
+// tag::likeEscapingWindowsPath[]
+ROW path = "C:\\Windows\\System32\\RuntimeBroker.exe"
+| WHERE path LIKE """C:\\Windows\\System32\\*"""
+// end::likeEscapingWindowsPath[]
+;
+
+// tag::likeEscapingWindowsPath-result[]
+path:keyword
+C:\Windows\System32\RuntimeBroker.exe
+// end::likeEscapingWindowsPath-result[]
+;
+
+
 rlikeEscapingSingleQuotes
 // tag::rlikeEscapingSingleQuotes[]
 ROW message = "foo ( bar"

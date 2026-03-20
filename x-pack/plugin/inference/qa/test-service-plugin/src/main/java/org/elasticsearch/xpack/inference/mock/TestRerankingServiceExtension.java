@@ -365,7 +365,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
 
         @Override
         public TaskSettings updatedTaskSettings(Map<String, Object> newSettingsMap) {
-            TestTaskSettings newSettingsObject = fromMap(new HashMap<>(newSettingsMap));
+            TestTaskSettings newSettingsObject = fromMap(newSettingsMap);
             return new TestTaskSettings(
                 newSettingsMap.containsKey("should_fail_validation") ? newSettingsObject.shouldFailValidation() : shouldFailValidation,
                 newSettingsMap.containsKey("use_text_length") ? newSettingsObject.useTextLength() : useTextLength,

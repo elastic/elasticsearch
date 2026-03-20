@@ -17,7 +17,9 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
+import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -124,20 +126,29 @@ public final class GeoShapeCentroidAggregator extends MetricsAggregator {
         if (bucket >= counts.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalGeoShapeCentroid(
+        final double bucketLatSum = latSum.get(bucket);
+        final double bucketLonSum = lonSum.get(bucket);
+        final double bucketWeight = weightSum.get(bucket);
+        final long bucketCount = counts.get(bucket);
+        final DimensionalShapeType bucketShapeType = DimensionalShapeType.fromOrdinalByte(dimensionalShapeTypes.get(bucket));
+        final GeoPoint bucketCentroid = bucketWeight > 0
+            ? new GeoPoint(bucketLatSum / bucketWeight, bucketLonSum / bucketWeight)
+            : null;
+        return new InternalGeoCentroid(
             name,
-            latSum.get(bucket),
-            lonSum.get(bucket),
-            weightSum.get(bucket),
-            counts.get(bucket),
-            DimensionalShapeType.fromOrdinalByte(dimensionalShapeTypes.get(bucket)),
+            bucketCentroid,
+            bucketCount,
+            bucketLatSum,
+            bucketLonSum,
+            bucketWeight,
+            bucketShapeType,
             metadata()
         );
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return InternalGeoShapeCentroid.empty(name, metadata());
+        return InternalGeoCentroid.empty(name, metadata());
     }
 
     @Override

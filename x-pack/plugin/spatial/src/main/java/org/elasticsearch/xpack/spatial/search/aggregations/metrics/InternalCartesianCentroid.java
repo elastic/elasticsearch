@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.lucene.spatial.DimensionalShapeType;
 import org.elasticsearch.search.aggregations.metrics.InternalCentroid;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 
@@ -23,6 +24,22 @@ public class InternalCartesianCentroid extends InternalCentroid implements Carte
 
     public InternalCartesianCentroid(String name, SpatialPoint centroid, long count, Map<String, Object> metadata) {
         super(name, centroid, count, metadata);
+    }
+
+    /**
+     * Constructor for shape centroid results that carry raw weighted sums for correct cross-shard reduction.
+     */
+    public InternalCartesianCentroid(
+        String name,
+        SpatialPoint centroid,
+        long count,
+        double xWeightedSum,
+        double yWeightedSum,
+        double totalWeight,
+        DimensionalShapeType shapeType,
+        Map<String, Object> metadata
+    ) {
+        super(name, centroid, count, xWeightedSum, yWeightedSum, totalWeight, shapeType, metadata);
     }
 
     /**
@@ -70,6 +87,29 @@ public class InternalCartesianCentroid extends InternalCentroid implements Carte
     protected InternalCartesianCentroid copyWith(double firstSum, double secondSum, long totalCount) {
         final CartesianPoint result = (Double.isNaN(firstSum)) ? null : new CartesianPoint(firstSum / totalCount, secondSum / totalCount);
         return copyWith(result, totalCount);
+    }
+
+    @Override
+    protected InternalCartesianCentroid copyWithShapeFields(
+        double firstWeightedSum,
+        double secondWeightedSum,
+        double totalWeight,
+        long count,
+        DimensionalShapeType shapeType
+    ) {
+        final CartesianPoint result = totalWeight > 0
+            ? new CartesianPoint(firstWeightedSum / totalWeight, secondWeightedSum / totalWeight)
+            : null;
+        return new InternalCartesianCentroid(
+            name,
+            result,
+            count,
+            firstWeightedSum,
+            secondWeightedSum,
+            totalWeight,
+            shapeType,
+            getMetadata()
+        );
     }
 
     @Override

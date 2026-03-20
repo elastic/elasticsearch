@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
+import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
@@ -124,20 +125,29 @@ public final class CartesianShapeCentroidAggregator extends MetricsAggregator {
         if (bucket >= counts.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalCartesianShapeCentroid(
+        final double bucketXSum = lonSum.get(bucket);  // x-coordinate sum (named "lon" for historical reasons)
+        final double bucketYSum = latSum.get(bucket);  // y-coordinate sum (named "lat" for historical reasons)
+        final double bucketWeight = weightSum.get(bucket);
+        final long bucketCount = counts.get(bucket);
+        final DimensionalShapeType bucketShapeType = DimensionalShapeType.fromOrdinalByte(dimensionalShapeTypes.get(bucket));
+        final CartesianPoint bucketCentroid = bucketWeight > 0
+            ? new CartesianPoint(bucketXSum / bucketWeight, bucketYSum / bucketWeight)
+            : null;
+        return new InternalCartesianCentroid(
             name,
-            lonSum.get(bucket),
-            latSum.get(bucket),
-            weightSum.get(bucket),
-            counts.get(bucket),
-            DimensionalShapeType.fromOrdinalByte(dimensionalShapeTypes.get(bucket)),
+            bucketCentroid,
+            bucketCount,
+            bucketXSum,
+            bucketYSum,
+            bucketWeight,
+            bucketShapeType,
             metadata()
         );
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return InternalCartesianShapeCentroid.empty(name, metadata());
+        return InternalCartesianCentroid.empty(name, metadata());
     }
 
     @Override

@@ -13,6 +13,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.lucene.spatial.DimensionalShapeType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -24,6 +25,22 @@ public class InternalGeoCentroid extends InternalCentroid implements GeoCentroid
 
     public InternalGeoCentroid(String name, SpatialPoint centroid, long count, Map<String, Object> metadata) {
         super(name, centroid, count, metadata);
+    }
+
+    /**
+     * Constructor for shape centroid results that carry raw weighted sums for correct cross-shard reduction.
+     */
+    public InternalGeoCentroid(
+        String name,
+        SpatialPoint centroid,
+        long count,
+        double latWeightedSum,
+        double lonWeightedSum,
+        double totalWeight,
+        DimensionalShapeType shapeType,
+        Map<String, Object> metadata
+    ) {
+        super(name, centroid, count, latWeightedSum, lonWeightedSum, totalWeight, shapeType, metadata);
     }
 
     /**
@@ -71,6 +88,20 @@ public class InternalGeoCentroid extends InternalCentroid implements GeoCentroid
     protected InternalGeoCentroid copyWith(double firstSum, double secondSum, long totalCount) {
         final GeoPoint result = (Double.isNaN(firstSum)) ? null : new GeoPoint(firstSum / totalCount, secondSum / totalCount);
         return copyWith(result, totalCount);
+    }
+
+    @Override
+    protected InternalGeoCentroid copyWithShapeFields(
+        double firstWeightedSum,
+        double secondWeightedSum,
+        double totalWeight,
+        long count,
+        DimensionalShapeType shapeType
+    ) {
+        final GeoPoint result = totalWeight > 0
+            ? new GeoPoint(firstWeightedSum / totalWeight, secondWeightedSum / totalWeight)
+            : null;
+        return new InternalGeoCentroid(name, result, count, firstWeightedSum, secondWeightedSum, totalWeight, shapeType, getMetadata());
     }
 
     @Override

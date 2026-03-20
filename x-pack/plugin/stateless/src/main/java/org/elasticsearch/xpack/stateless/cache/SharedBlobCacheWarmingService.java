@@ -112,6 +112,8 @@ public class SharedBlobCacheWarmingService {
     }
 
     public static final String BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC = "es.blob_cache_warming.page_aligned_bytes.total";
+    public static final String BLOB_CACHE_WARMING_ID_LOOKUP_PREWARM_REQS_TOTAL_METRIC =
+        "es.blob_cache_warming.id_lookup_prewarm_reqs.total";
 
     /** Region of a blob **/
     private record BlobRegion(BlobFile blob, int region) {}
@@ -205,6 +207,24 @@ public class SharedBlobCacheWarmingService {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING = Setting.boolSetting(
+        "stateless.blob_cache_warming.prewarm_index_shard_for_id_lookups",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    // The ratio of term dictionary files to prewarm if prewarming for id lookups.
+    // e.g. 0.1 means the first 10% of each .tim file is prewarmed.
+    public static final Setting<Double> ID_LOOKUP_PREWARM_RATIO_SETTING = Setting.doubleSetting(
+        "stateless.blob_cache_warming.id_lookup_prewarm_ratio",
+        0.0,
+        0.0,
+        1.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final String SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME = "stateless.search.offline_warming";
     public static final Setting<Boolean> SEARCH_OFFLINE_WARMING_ENABLED_SETTING = Setting.boolSetting(
         SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".enabled",
@@ -233,10 +253,13 @@ public class SharedBlobCacheWarmingService {
     private final ThrottledTaskRunner throttledTaskRunner;
     private final ThrottledTaskRunner cfeThrottledTaskRunner;
     private final LongCounter cacheWarmingPageAlignedBytesTotalMetric;
+    private final LongCounter idLookupPrewarmReqsTotalMetric;
     private final long prewarmingRangeMinimizationStep;
     private volatile boolean prefetchCommitsForSearchShardRecovery;
     private volatile int minSearchPower;
     private volatile boolean searchOfflineWarmingEnabled;
+    private volatile boolean prewarmIndexShardForIdLookupsEnabled;
+    private volatile double idLookupPrewarmRatio;
     private volatile TimeValue boostWindow;
     private volatile long maxUploadPrewarmSize;
 
@@ -265,6 +288,8 @@ public class SharedBlobCacheWarmingService {
         this.cfeThrottledTaskRunner = new ThrottledTaskRunner("cfe-prewarming-cache", 2, threadPool.generic());
         this.cacheWarmingPageAlignedBytesTotalMetric = telemetryProvider.getMeterRegistry()
             .registerLongCounter(BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC, "Total bytes warmed in cache", "bytes");
+        this.idLookupPrewarmReqsTotalMetric = telemetryProvider.getMeterRegistry()
+            .registerLongCounter(BLOB_CACHE_WARMING_ID_LOOKUP_PREWARM_REQS_TOTAL_METRIC, "Total id lookup prewarm requests", "unit");
         this.prewarmingRangeMinimizationStep = clusterSettings.get(PREWARMING_RANGE_MINIMIZATION_STEP).getBytes();
         clusterSettings.initializeAndWatch(
             SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING,
@@ -274,6 +299,11 @@ public class SharedBlobCacheWarmingService {
         clusterSettings.initializeAndWatch(ServerlessSharedSettings.BOOST_WINDOW_SETTING, value -> this.boostWindow = value);
         clusterSettings.initializeAndWatch(SEARCH_OFFLINE_WARMING_ENABLED_SETTING, value -> this.searchOfflineWarmingEnabled = value);
         clusterSettings.initializeAndWatch(UPLOAD_PREWARM_MAX_SIZE_SETTING, value -> this.maxUploadPrewarmSize = value.getBytes());
+        clusterSettings.initializeAndWatch(
+            PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING,
+            value -> this.prewarmIndexShardForIdLookupsEnabled = value
+        );
+        clusterSettings.initializeAndWatch(ID_LOOKUP_PREWARM_RATIO_SETTING, value -> this.idLookupPrewarmRatio = value);
     }
 
     public void warmCacheBeforeUpload(VirtualBatchedCompoundCommit vbcc, ActionListener<Void> listener) {
@@ -452,7 +482,18 @@ public class SharedBlobCacheWarmingService {
         BlobStoreCacheDirectory directory,
         @Nullable Map<BlobFile, Long> endOffsetsToWarm
     ) {
-        warmCacheRecovery(type, indexShard, commit, directory, endOffsetsToWarm, ActionListener.noop());
+        warmCacheForShardRecovery(type, indexShard, commit, directory, endOffsetsToWarm, false);
+    }
+
+    public void warmCacheForShardRecovery(
+        Type type,
+        IndexShard indexShard,
+        StatelessCompoundCommit commit,
+        BlobStoreCacheDirectory directory,
+        @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+        boolean preWarmForIdLookup
+    ) {
+        warmCacheRecovery(type, indexShard, commit, directory, endOffsetsToWarm, preWarmForIdLookup, ActionListener.noop());
     }
 
     protected void warmCacheRecovery(
@@ -461,6 +502,7 @@ public class SharedBlobCacheWarmingService {
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory,
         @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+        boolean preWarmForIdLookup,
         ActionListener<Void> listener
     ) {
         ShardId shardId = indexShard.shardId();
@@ -516,6 +558,10 @@ public class SharedBlobCacheWarmingService {
                     "generation=" + commit.generation(),
                     Maps.copyMapWithAddedEntry(RecoveryMetricsCollector.commonMetricLabels(indexShard), "prewarming_type", type.name())
                 );
+                boolean preWarmForIdLookupRequested = preWarmForIdLookup && type == Type.INDEXING_EARLY;
+                if (preWarmForIdLookupRequested) {
+                    idLookupPrewarmReqsTotalMetric.incrementBy(1, Map.of("es_blob_cache_prewarming_type", type.name()));
+                }
                 try (
                     // warming up the latest commit upon recovery will fetch a few regions of every active
                     // segment (the first region of every segment is always fetched)
@@ -525,6 +571,7 @@ public class SharedBlobCacheWarmingService {
                         store::isClosing,
                         commit.commitFiles(),
                         directory,
+                        preWarmForIdLookupRequested && prewarmIndexShardForIdLookupsEnabled,
                         listeners.acquire()
                     )
                 ) {
@@ -678,6 +725,7 @@ public class SharedBlobCacheWarmingService {
         private final Map<String, BlobLocation> filesToWarm;
         private final int segmentCount;
         protected final AtomicLong skippedTasksCount = new AtomicLong(0L);
+        private final boolean preWarmForIdLookup;
 
         RecoveryWarmer(
             WarmingRun warmingRun,
@@ -685,12 +733,14 @@ public class SharedBlobCacheWarmingService {
             Supplier<Boolean> isStoreClosing,
             Map<String, BlobLocation> filesToWarm,
             BlobStoreCacheDirectory directory,
+            boolean preWarmForIdLookup,
             ActionListener<Void> listener
         ) {
             super(warmingRun, isStoreClosing, directory, listener);
             this.indexShard = indexShard;
             this.filesToWarm = Collections.unmodifiableMap(filesToWarm);
             this.segmentCount = segmentCount(filesToWarm);
+            this.preWarmForIdLookup = preWarmForIdLookup;
         }
 
         void run() {
@@ -750,12 +800,17 @@ public class SharedBlobCacheWarmingService {
                     // parse it and schedule warming of corresponding parts of CFS file
                     .andThenAccept(ignored -> addCfe(fileName))
                     .addListener(listeners.acquire());
-            } else if (shouldFullyWarmUp(fileName, fileExtension) || blobLocation.fileLength() <= BUFFER_SIZE) {
-                // warm entire file when it is small
+            } else if (shouldFullyWarmUp(fileName, fileExtension, preWarmForIdLookup) || blobLocation.fileLength() <= BUFFER_SIZE) {
+                // warm entire file when it is small or required for id lookup
                 addLocation(blobLocation, fileName, listeners.acquire());
             } else {
                 // header
-                addLocation(blobLocation, fileName, blobLocation.offset(), BUFFER_SIZE, listeners.acquire());
+                final var length = getHeaderPreWarmSize(
+                    fileExtension,
+                    blobLocation.fileLength(),
+                    preWarmForIdLookup ? idLookupPrewarmRatio : 0.0
+                );
+                addLocation(blobLocation, fileName, blobLocation.offset(), length, listeners.acquire());
                 // footer
                 addLocation(
                     blobLocation,
@@ -765,6 +820,14 @@ public class SharedBlobCacheWarmingService {
                     listeners.acquire()
                 );
             }
+        }
+
+        private static long getHeaderPreWarmSize(LuceneFilesExtensions fileExtension, long length, double idLookupPreWarmRatio) {
+            if (fileExtension != LuceneFilesExtensions.TIM) {
+                return BUFFER_SIZE;
+            }
+            final var value = Math.max((long) (idLookupPreWarmRatio * length), BUFFER_SIZE);
+            return value;
         }
 
         private void addLocation(BlobLocation location, String fileName, ActionListener<Void> listener) {
@@ -873,10 +936,16 @@ public class SharedBlobCacheWarmingService {
             }
         }
 
-        private static boolean shouldFullyWarmUp(String fileName, @Nullable LuceneFilesExtensions fileExtension) {
+        private static boolean shouldFullyWarmUp(
+            String fileName,
+            @Nullable LuceneFilesExtensions fileExtension,
+            boolean preWarmForIdLookup
+        ) {
             return fileExtension == null // segments_N are fully warmed up in cache
                 || fileExtension.isMetadata() // metadata files
-                || StatelessCompoundCommit.isGenerationalFile(fileName); // generational files
+                || StatelessCompoundCommit.isGenerationalFile(fileName) // generational files
+                || (preWarmForIdLookup && fileExtension == LuceneFilesExtensions.TIP) // term index for id lookup
+                || (preWarmForIdLookup && fileExtension == LuceneFilesExtensions.BFI); // bloom filter index for id lookup
         }
     }
 

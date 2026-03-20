@@ -79,7 +79,12 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
     // max heap size per node ID
     final Map<String, ByteSizeValue> maxHeapSizePerNode;
     final Set<String> nodeIdsWriteLoadHotspotting;
-    // largest shard's write load proportion on a node, computed as an online cache
+    /**
+     * The largest shard's write load proportion on a node, computed as an online cache.
+     * This is not serialized or compared within ClusterInfo, as its values are computed
+     * from the shardWriteLoads table using the shard -> node assignments present in the
+     * decider
+     */
     final Map<String, Double> nodeMaxSingleShardWriteLoadCache;
     private final Map<ShardId, Set<String>> shardToNodeIds;
 

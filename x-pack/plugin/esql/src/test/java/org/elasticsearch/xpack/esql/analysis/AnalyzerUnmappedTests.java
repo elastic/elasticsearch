@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -15,6 +16,11 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -23,7 +29,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
@@ -697,6 +705,100 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verify that referencing a sub-field of a flattened field (e.g. "foo.bar" when "foo" is flattened) is rejected
+     */
+    public void testFlattenedSubFieldRejectionWithSimpleCases() {
+        EsIndex index = createIndex1();
+        unmappedLoadAndFlattenedSubfieldHelper("FROM test | KEEP field.a", index, "field.a", "field");
+        unmappedLoadAndFlattenedSubfieldHelper("FROM test | STATS x = SAMPLE(field.a, 1)", index, "field.a", "field");
+        unmappedLoadAndFlattenedSubfieldHelper("FROM test | EVAL x = TO_STRING(field.a)", index, "field.a", "field");
+        unmappedLoadAndFlattenedSubfieldHelper("FROM test | KEEP field.a.b", index, "field.a.b", "field");
+        unmappedLoadAndFlattenedSubfieldHelper("FROM test | KEEP field.a.b.c", index, "field.a.b.c", "field");
+        unmappedLoadAndFlattenedSubfieldHelper("FROM test | SORT field.x, field.z", index, "field.x", "field");
+        unmappedLoadAndFlattenedSubfieldHelper("FROM test | SORT field.x | KEEP field.z", index, "field.x", "field", "field.z", "field");
+        verificationFailure(setUnmappedLoad("FROM test | KEEP field | KEEP field.a"), index, "Unknown column [field.a]");
+        verificationFailure(
+            setUnmappedLoad("FROM test | KEEP field | WHERE field.sub.subfield == \"x\""),
+            index,
+            "Unknown column [field.sub.subfield]"
+        );
+        verificationFailure(
+            setUnmappedLoad("FROM test | KEEP field | WHERE field.a.b == \"x\" | KEEP field.a"),
+            index,
+            "Unknown column [field.a.b], did you mean [field]?"
+        );
+    }
+
+    /**
+     * Verify that referencing a sub-field of a flattened field is rejected in a FORK
+     */
+    public void testFlattenedSubFieldRejectionWithFork() {
+        EsIndex index = createIndex1();
+        verificationFailure(
+            setUnmappedLoad("""
+                FROM test
+                | eval aaa = field.aaa
+                | FORK (eval x = resource.attributes.host.name) (eval y = attributes.xxx) (eval z = field.bbb)
+                """),
+            index,
+            "Found 5 problems",
+            "line 3:3: FORK is not supported with unmapped_fields=\"load\"",
+            // this error appears 3 times thanks to the FORK branching out
+            "line 2:14: Loading subfield [field.aaa] when parent [field] is of flattened field type is not supported with "
+                + "unmapped_fields=\"load\"",
+            "line 3:85: Loading subfield [field.bbb] when parent [field] is of flattened field type is not supported with "
+                + "unmapped_fields=\"load\""
+        );
+    }
+
+    /**
+     * Verify that referencing a sub-field of a flattened field is rejected in a LOOKUP JOIN
+     */
+    public void testFlattenedSubFieldRejectionWithLookupJoin() {
+        EsIndex index = createIndex1();
+        verificationFailure(
+            setUnmappedLoad("""
+                FROM test
+                | EVAL language_code = 1
+                | LOOKUP JOIN languages_lookup ON language_code
+                | EVAL x = field.languages
+                """),
+            index,
+            "Found 2 problems",
+            "line 3:15: LOOKUP JOIN is not supported with unmapped_fields=\"load\"",
+            "line 4:12: Loading subfield [field.languages] when parent [field] is of flattened field type is not supported with "
+                + "unmapped_fields=\"load\""
+        );
+    }
+
+    private void unmappedLoadAndFlattenedSubfieldHelper(String query, EsIndex index, String... pairs) {
+        assert pairs.length % 2 == 0;
+        String errorMessage =
+            "Loading subfield [%s] when parent [%s] is of flattened field type is not supported with unmapped_fields=\"load\"";
+        String[] errors = new String[pairs.length / 2];
+        int j = 0;
+
+        for (int i = 0; i < pairs.length; i += 2) {
+            errors[j++] = String.format(Locale.ROOT, errorMessage, pairs[i], pairs[i + 1]);
+        }
+
+        verificationFailure(setUnmappedLoad(query), index, errors);
+    }
+
+    private void verificationFailure(String query, EsIndex index, String... expectedFailures) {
+        EsqlStatement statement = TEST_PARSER.createStatement(query);
+        Map<IndexPattern, IndexResolution> indexResolutions = Map.of(
+            new IndexPattern(Source.EMPTY, index.name()),
+            IndexResolution.valid(index)
+        );
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(indexResolutions, TEST_VERIFIER, configuration(query), statement);
+        var e = expectThrows(VerificationException.class, () -> analyzer.analyze(statement.plan()));
+        for (String expectedFailure : expectedFailures) {
+            assertThat(e.getMessage(), containsString(expectedFailure));
+        }
+    }
+
     private void verificationFailure(String statement, String expectedFailure) {
         var e = expectThrows(VerificationException.class, () -> analyzeStatement(statement));
         assertThat(e.getMessage(), containsString(expectedFailure));
@@ -772,6 +874,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
         var e = expectThrows(VerificationException.class, () -> analyzer.analyze(st.plan()));
         assertThat(e.getMessage(), containsString(expectedFailure));
+    }
+
+    private static EsIndex createIndex1() {
+        Map<String, EsField> mapping = Map.of("field", new UnsupportedEsField("field", List.of("flattened")));
+        return new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Set.of());
     }
 
     @Override

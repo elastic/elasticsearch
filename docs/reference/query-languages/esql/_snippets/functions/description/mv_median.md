@@ -2,5 +2,5 @@
 
 ## Description
 
-Converts a multivalued field into a single valued field containing the median value.
+Converts a multivalued field into a single valued field containing the [median](https://en.wikipedia.org/wiki/Median) value.
 

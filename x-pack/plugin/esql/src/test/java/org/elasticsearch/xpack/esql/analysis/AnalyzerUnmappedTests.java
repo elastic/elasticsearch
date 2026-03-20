@@ -496,9 +496,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | LOOKUP JOIN languages_lookup ON language_code
             | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
             """);
-        verificationFailures(query, "4:3: FORK is not supported with unmapped_fields=\"load\"",
-        "3:15: LOOKUP JOIN is not supported with unmapped_fields=\"load\"",
-        "3:15: LOOKUP JOIN is not supported with unmapped_fields=\"load\"");
+        verificationFailures(
+            query,
+            "4:3: FORK is not supported with unmapped_fields=\"load\"",
+            "3:15: LOOKUP JOIN is not supported with unmapped_fields=\"load\"",
+            "3:15: LOOKUP JOIN is not supported with unmapped_fields=\"load\""
+        );
     }
 
     public void testLoadMode_AllowsSingleSubqueryInFrom() {
@@ -585,12 +588,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         verificationFailures(
             setUnmappedLoad("FROM (FROM test),(FROM test) | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"),
             "1:60: FORK is not supported with unmapped_fields=\"load\"",
-        "1:34: Subqueries and views are not supported with unmapped_fields=\"load\"",
-        "1:46: Subqueries and views are not supported with unmapped_fields=\"load\"",
-        "1:34: Subqueries and views are not supported with unmapped_fields=\"load\"",
-        "1:46: Subqueries and views are not supported with unmapped_fields=\"load\"",
-        "1:34: FORK after subquery is not supported",
-        "1:34: FORK after subquery is not supported"
+            "1:34: Subqueries and views are not supported with unmapped_fields=\"load\"",
+            "1:46: Subqueries and views are not supported with unmapped_fields=\"load\"",
+            "1:34: Subqueries and views are not supported with unmapped_fields=\"load\"",
+            "1:46: Subqueries and views are not supported with unmapped_fields=\"load\"",
+            "1:34: FORK after subquery is not supported",
+            "1:34: FORK after subquery is not supported"
         );
     }
 
@@ -916,10 +919,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     private void verificationFailures(String statement, String... expectedFailures) {
         var e = expectThrows(VerificationException.class, () -> analyzeStatement(statement));
         String msg = e.getMessage();
-        assertThat(
-            msg,
-            containsString("Found " + expectedFailures.length + " problem" + (expectedFailures.length > 1 ? "s" : ""))
-        );
+        assertThat(msg, containsString("Found " + expectedFailures.length + " problem" + (expectedFailures.length > 1 ? "s" : "")));
         for (String expected : expectedFailures) {
             assertThat(msg, containsString("line " + expected));
         }

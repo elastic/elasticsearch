@@ -168,11 +168,7 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         assertScoresEquals(expectedScores, bulkScoresSeg);
 
         for (int i = 1; i < numVecs; i++) {
-            assertEquals(
-                bulkScoresSeg.get(JAVA_FLOAT_UNALIGNED, 0L),
-                bulkScoresSeg.get(JAVA_FLOAT_UNALIGNED, (long) i * Float.BYTES),
-                0f
-            );
+            assertEquals(bulkScoresSeg.get(JAVA_FLOAT_UNALIGNED, 0L), bulkScoresSeg.get(JAVA_FLOAT_UNALIGNED, (long) i * Float.BYTES), 0f);
         }
     }
 

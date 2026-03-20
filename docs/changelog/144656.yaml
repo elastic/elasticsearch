@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 144656
+summary: Push down LENGTH function to data nodes in ES|QL
+type: enhancement

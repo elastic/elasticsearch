@@ -1244,6 +1244,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (fa.field() instanceof InvalidMappedField imf) {
                 return imf.getTypesToIndices();
             }
+            // Field isn't currently invalid, meaning it's mapped to a single type in all the indices where it's actually mapped.
             TreeSet<String> indicesWithField = new TreeSet<>(esIndex.concreteQualifiedIndices());
             indicesWithField.removeAll(esIndex.getUnmappedIndices(fa.name()));
             return new TreeMap<>(Map.of(fa.dataType().typeName(), indicesWithField));

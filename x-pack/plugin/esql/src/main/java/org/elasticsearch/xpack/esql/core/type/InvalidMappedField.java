@@ -48,9 +48,9 @@ public class InvalidMappedField extends EsField {
     }
 
     /**
-     * A {@link InvalidMappedField} is potentially unmapped if at least one index does not contain a mapping for the field, and the user
-     * requested we load the values from {@code _source}. In that case, there is an additional type conflict since we treat unmapped fields
-     * as {@link DataType#KEYWORD}.
+     * An {@link InvalidMappedField} is potentially unmapped if at least one index does not contain a mapping for the field, and the user
+     * requested we load the values from {@code _source}. In that case, there is (possibly) an additional type conflict since we treat
+     * unmapped fields as {@link DataType#KEYWORD}.
      */
     public static InvalidMappedField potentiallyUnmapped(String name, Map<String, Set<String>> typesToIndices) {
         return new InvalidMappedField(
@@ -149,7 +149,6 @@ public class InvalidMappedField extends EsField {
         errorMessage.append(typesToIndices.size() + (isInsistKeywordOnlyKeyword ? 1 : 0));
         errorMessage.append("] incompatible types: ");
         boolean first = true;
-        // FIXME(gal, NOCOMMIT) Rephrase to use LOAD
         if (isInsistKeywordOnlyKeyword) {
             first = false;
             errorMessage.append("[keyword] enforced by INSIST command");

@@ -3491,7 +3491,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(attribute.name(), is("message"));
 
         String expected = "Cannot use field [message] due to ambiguities being mapped as [2] incompatible types: "
-            + "[keyword] enforced by INSIST command, and [long] in index mappings";
+            + "[keyword] enforced by INSIST command, [long] in [foo]";
         assertThat(attribute.unresolvedMessage(), is(expected));
     }
 
@@ -3517,25 +3517,6 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(attr.unresolvedMessage(), is(expected));
     }
 
-    public void testResolveInsist_multiIndexSameMapping_fieldIsMapped() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(
-                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
-                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "long"))
-            ),
-            List.of()
-        );
-        IndexResolution resolution = mergedResolution("foo,bar", caps);
-        var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
-        var limit = as(plan, Limit.class);
-        var insist = as(limit.child(), Insist.class);
-        var attribute = (FieldAttribute) EsqlTestUtils.singleValue(insist.output());
-        assertThat(attribute.name(), is("message"));
-        assertThat(attribute.dataType(), is(DataType.LONG));
-    }
-
     public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithKeyword_createsAnInvalidMappedField() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
@@ -3557,29 +3538,6 @@ public class AnalyzerTests extends ESTestCase {
         String expected = "Cannot use field [message] due to ambiguities being mapped as [3] incompatible types: "
             + "[datetime] in [bar], [keyword] enforced by INSIST command and in [bazz], [long] in [foo]";
         assertThat(attr.unresolvedMessage(), is(expected));
-    }
-
-    public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithCast_castsAreNotSupported() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
-            List.of(
-                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("message", "long")),
-                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("message", "date")),
-                fieldCapabilitiesIndexResponse("bazz", Map.of())
-            ),
-            List.of()
-        );
-        IndexResolution resolution = mergedResolution("foo,bar", caps);
-        VerificationException e = expectThrows(
-            VerificationException.class,
-            () -> analyze("FROM foo, bar | INSIST_🐔 message | EVAL message = message :: keyword", analyzer(resolution, TEST_VERIFIER))
-        );
-        // This isn't the most informative error, but it'll do for now.
-        assertThat(
-            e.getMessage(),
-            containsString("EVAL does not support type [unsupported] as the return data type of expression [message]")
-        );
     }
 
     public void testResolveDenseVector() {

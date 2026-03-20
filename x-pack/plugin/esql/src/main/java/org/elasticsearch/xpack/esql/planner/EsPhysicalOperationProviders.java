@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
@@ -215,8 +216,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         );
     }
 
-    private static String getFieldName(Attribute attr) {
-        // Do not use the field attribute name, this can deviate from the field name for union types.
+    private static String getFieldName(NamedExpression attr) {
+        // Do not use the field attribute name, as it can deviate from the field name for union types.
         return attr instanceof FieldAttribute fa ? fa.fieldName().string() : attr.name();
     }
 
@@ -264,7 +265,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             if (!(potentiallyUnmapped instanceof AbstractConvertFunction convert)) {
                 return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
             }
-            fieldName = ((FieldAttribute) convert.field()).fieldName().string();
+            fieldName = getFieldName((NamedExpression) convert.field());
             shardContext = wrapWithUnmappedFieldContext(shardContext, new PotentiallyUnmappedKeywordEsField(fieldName));
             conversion = potentiallyUnmapped;
         }
@@ -637,8 +638,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                     blockLoaderFunctionConfig,
                     warnings,
                     blockLoaderSizeOrdinals,
-                    blockLoaderSizeScript,
-                    this::resolveSourcePaths
+                    blockLoaderSizeScript
                 )
             );
             if (loader == null) {

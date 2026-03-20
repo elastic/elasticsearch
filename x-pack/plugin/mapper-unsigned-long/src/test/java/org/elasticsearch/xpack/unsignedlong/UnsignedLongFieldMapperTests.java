@@ -15,6 +15,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -50,6 +51,12 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return List.of(new UnsignedLongMapperPlugin());
+    }
+
+    @Override
+    protected FieldMapper.DocValuesParameter.Values getDocValuesParameters(MapperService mapperService) {
+        UnsignedLongFieldMapper mapper = (UnsignedLongFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        return mapper.docValuesParameters();
     }
 
     @Override

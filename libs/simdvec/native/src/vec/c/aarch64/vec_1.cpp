@@ -52,11 +52,28 @@ static inline int32x4_t combine(int32x4x2_t a) {
     return op(a.val[0], a.val[1]);
 }
 
+// Traits for accumulator zero-init and horizontal reduction.
+// Allows call_i8_bulk to work with both int32x4_t (dotprod)
+// and int32x4x2_t (widening multiply) accumulators.
+template <typename AccT>
+struct acc_ops;
+
+template <>
+struct acc_ops<int32x4_t> {
+    static int32x4_t zero() { return vdupq_n_s32(0); }
+    static int32_t reduce(int32x4_t a) { return vaddvq_s32(a); }
+};
+
+template <>
+struct acc_ops<int32x4x2_t> {
+    static int32x4x2_t zero() { return { .val = { vdupq_n_s32(0), vdupq_n_s32(0) } }; }
+    static int32_t reduce(int32x4x2_t a) { return vaddvq_s32(combine<vaddq_s32>(a)); }
+};
+
 static inline cosine_results_t cosi8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
-    int32x4x2_t zero = { .val = { vdupq_n_s32(0), vdupq_n_s32(0) } };
-    int32x4x2_t sums = zero;
-    int32x4x2_t a_norms = zero;
-    int32x4x2_t b_norms = zero;
+    int32x4_t sums = vdupq_n_s32(0);
+    int32x4_t a_norms = vdupq_n_s32(0);
+    int32x4_t b_norms = vdupq_n_s32(0);
 
     constexpr int stride = sizeof(int8x16_t);
     for (int i = 0; i < dims; i += stride) {
@@ -64,21 +81,18 @@ static inline cosine_results_t cosi8_inner(const int8_t* a, const int8_t* b, con
         int8x16_t va = vld1q_s8(a + i);
         int8x16_t vb = vld1q_s8(b + i);
 
-        int16x8x2_t sum = create_pair<vmull_s8>(va, vb);
-        int16x8x2_t a_norm = create_pair<vmull_s8>(va, va);
-        int16x8x2_t b_norm = create_pair<vmull_s8>(vb, vb);
-
-        // Accumulate, adding adjacent 32-bit lanes
-        sums = apply<vpadalq_s16>(sums, sum);
-        a_norms = apply<vpadalq_s16>(a_norms, a_norm);
-        b_norms = apply<vpadalq_s16>(b_norms, b_norm);
+        // vdotq_s32 multiplies groups of 4 signed 8-bit values and accumulates
+        // directly into 32-bit lanes
+        sums = vdotq_s32(sums, va, vb);
+        a_norms = vdotq_s32(a_norms, va, va);
+        b_norms = vdotq_s32(b_norms, vb, vb);
     }
 
     // reduce
     return cosine_results_t {
-        vaddvq_s32(combine<vaddq_s32>(sums)),
-        vaddvq_s32(combine<vaddq_s32>(a_norms)),
-        vaddvq_s32(combine<vaddq_s32>(b_norms))
+        vaddvq_s32(sums),
+        vaddvq_s32(a_norms),
+        vaddvq_s32(b_norms)
     };
 }
 
@@ -113,16 +127,15 @@ static inline void cosi8_inner_bulk(
     constexpr int batches = 2;
 
     // First of all, calculate the b norm
-    int32x4x2_t b_norms = { .val = { vdupq_n_s32(0), vdupq_n_s32(0) } };
+    int32x4_t b_norms_vec = vdupq_n_s32(0);
 
     int bi = 0;
     constexpr int stride = sizeof(int8x16_t);
     for(; bi < (dims & ~(stride - 1)); bi += stride) {
         int8x16_t vb8 = vld1q_s8(b + bi);
-        int16x8x2_t norms = create_pair<vmull_s8>(vb8, vb8);
-        b_norms = apply<vpadalq_s16>(b_norms, norms);
+        b_norms_vec = vdotq_s32(b_norms_vec, vb8, vb8);
     }
-    int32_t b_norm = vaddvq_s32(b_norms.val[0]) + vaddvq_s32(b_norms.val[1]);
+    int32_t b_norm = vaddvq_s32(b_norms_vec);
     for (; bi < dims; bi++) {
         b_norm += b[bi] * b[bi];
     }
@@ -132,12 +145,12 @@ static inline void cosi8_inner_bulk(
     // Process <batches> vectors at a time; this helps the CPU scheduler/prefetcher
     for (; c + batches - 1 < count; c += batches) {
         const int8_t* as[batches];
-        int32x4x2_t sums[batches];
-        int32x4x2_t a_norms[batches];
+        int32x4_t sums[batches];
+        int32x4_t a_norms[batches];
         apply_indexed<batches>([&](auto I) {
             as[I] = a + mapper(c + I, offsets) * pitch;
-            sums[I] = { .val = { vdupq_n_s32(0), vdupq_n_s32(0) } };
-            a_norms[I] = { .val = { vdupq_n_s32(0), vdupq_n_s32(0) } };
+            sums[I] = vdupq_n_s32(0);
+            a_norms[I] = vdupq_n_s32(0);
         });
 
         int i=0;
@@ -147,18 +160,16 @@ static inline void cosi8_inner_bulk(
             apply_indexed<batches>([&](auto I) {
                 int8x16_t va = vld1q_s8(as[I] + i);
 
-                int16x8x2_t sum = create_pair<vmull_s8>(va, vb);
-                int16x8x2_t a_norm = create_pair<vmull_s8>(va, va);
-                sums[I] = apply<vpadalq_s16>(sums[I], sum);
-                a_norms[I] = apply<vpadalq_s16>(a_norms[I], a_norm);
+                sums[I] = vdotq_s32(sums[I], va, vb);
+                a_norms[I] = vdotq_s32(a_norms[I], va, va);
             });
         }
 
         int32_t sum[batches];
         int32_t a_norm[batches];
         apply_indexed<batches>([&](auto I) {
-            sum[I] = vaddvq_s32(combine<vaddq_s32>(sums[I]));
-            a_norm[I] = vaddvq_s32(combine<vaddq_s32>(a_norms[I]));
+            sum[I] = vaddvq_s32(sums[I]);
+            a_norm[I] = vaddvq_s32(a_norms[I]);
         });
         // scalar tail
         for (; i < dims; i++) {
@@ -203,8 +214,8 @@ EXPORT void vec_cosi8_bulk_offsets(
 }
 
 static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
-    int32x4x2_t acc0 = { .val = { vdupq_n_s32(0), vdupq_n_s32(0) } };
-    int32x4x2_t acc1 = { .val = { vdupq_n_s32(0), vdupq_n_s32(0) } };
+    int32x4_t acc0 = vdupq_n_s32(0);
+    int32x4_t acc1 = vdupq_n_s32(0);
 
     // Some unrolling gives around 50% performance improvement.
     constexpr int stride = sizeof(int8x16x2_t);
@@ -213,16 +224,14 @@ static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_
         int8x16x2_t va = vld1q_s8_x2(a + i);
         int8x16x2_t vb = vld1q_s8_x2(b + i);
 
-        int16x8x2_t dot0 = create_pair<vmull_s8>(va.val[0], vb.val[0]);
-        int16x8x2_t dot1 = create_pair<vmull_s8>(va.val[1], vb.val[1]);
-
-        // Accumulate 4 x 32 bit vectors (adding adjacent 16 bit lanes).
-        acc0 = apply<vpadalq_s16>(acc0, dot0);
-        acc1 = apply<vpadalq_s16>(acc1, dot1);
+        // vdotq_s32 multiplies groups of 4 signed 8-bit values and accumulates
+        // directly into 32-bit lanes
+        acc0 = vdotq_s32(acc0, va.val[0], vb.val[0]);
+        acc1 = vdotq_s32(acc1, va.val[1], vb.val[1]);
     }
 
     // reduce
-    return vaddvq_s32(vaddq_s32(combine<vaddq_s32>(acc0), combine<vaddq_s32>(acc1)));
+    return vaddvq_s32(vaddq_s32(acc0, acc1));
 }
 
 static inline int32_t doti8_common(const int8_t* a, const int8_t* b, const int32_t dims) {
@@ -255,6 +264,7 @@ EXPORT f32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t dims) {
  * a bit fiddly.
  *
  * Template parameters:
+ * AccT: accumulator type (e.g. int32x4_t for dotprod, int32x4x2_t for widening multiply)
  * mapper: gets the nth vector from the input array.
  * inner_op: SIMD vectorised comparison operation, sum, a, b, returns new sum
  * scalar_op: scalar per-dimension vector operation, takes a, b, returns sum
@@ -263,8 +273,9 @@ EXPORT f32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t dims) {
  * This should compile to a single inline method, with no function callouts.
  */
 template <
+    typename AccT,
     int64_t(*mapper)(const int32_t, const int32_t*),
-    int32x4x2_t(*inner_op)(const int32x4x2_t, const int8x16_t, const int8x16_t),
+    AccT(*inner_op)(const AccT, const int8x16_t, const int8x16_t),
     int32_t(*scalar_op)(const int8_t, const int8_t),
     f32_t(*bulk_tail)(const int8_t*, const int8_t*, const int32_t),
     int batches = 4>
@@ -290,10 +301,10 @@ static inline void call_i8_bulk(
     // processors (e.g. Graviton)
     for (; c + batches - 1 < count; c += batches) {
         const int8_t* as[batches];
-        int32x4x2_t acc[batches];
+        AccT acc[batches];
         apply_indexed<batches>([&](auto I) {
             as[I] = a + mapper(c + I, offsets) * pitch;
-            acc[I] = { .val = { vdupq_n_s32(0), vdupq_n_s32(0) } };
+            acc[I] = acc_ops<AccT>::zero();
         });
 
         int i=0;
@@ -308,7 +319,7 @@ static inline void call_i8_bulk(
 
         int32_t res[batches];
         apply_indexed<batches>([&](auto I) {
-            res[I] = vaddvq_s32(combine<vaddq_s32>(acc[I]));
+            res[I] = acc_ops<AccT>::reduce(acc[I]);
         });
         // scalar tail
         for (; i < dims; i++) {
@@ -330,15 +341,8 @@ static inline void call_i8_bulk(
     }
 }
 
-static inline int32x4x2_t doti8_vector(const int32x4x2_t acc, const int8x16_t va, const int8x16_t vb) {
-    // a * b, creating a int16x8 for the low/high 8 bytes of each int8x16
-    int16x8x2_t vals = create_pair<vmull_s8>(va, vb);
-    // accumulate the int16x8x2 into int32x4x2s, adding pairwise
-    return apply<vpadalq_s16>(acc, vals);
-}
-
 EXPORT void vec_doti7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    call_i8_bulk<identity_mapper, doti8_vector, dot_scalar<int8_t>, vec_doti8>(a, b, dims, dims, NULL, count, results);
+    call_i8_bulk<int32x4_t, identity_mapper, vdotq_s32, dot_scalar<int8_t>, vec_doti8>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_doti7u_bulk_offsets(
@@ -349,11 +353,11 @@ EXPORT void vec_doti7u_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    call_i8_bulk<array_mapper, doti8_vector, dot_scalar<int8_t>, vec_doti8>(a, b, dims, pitch, offsets, count, results);
+    call_i8_bulk<int32x4_t, array_mapper, vdotq_s32, dot_scalar<int8_t>, vec_doti8>(a, b, dims, pitch, offsets, count, results);
 }
 
 EXPORT void vec_doti8_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    call_i8_bulk<identity_mapper, doti8_vector, dot_scalar<int8_t>, vec_doti8>(a, b, dims, dims, NULL, count, results);
+    call_i8_bulk<int32x4_t, identity_mapper, vdotq_s32, dot_scalar<int8_t>, vec_doti8>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_doti8_bulk_offsets(
@@ -364,7 +368,7 @@ EXPORT void vec_doti8_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    call_i8_bulk<array_mapper, doti8_vector, dot_scalar<int8_t>, vec_doti8>(a, b, dims, pitch, offsets, count, results);
+    call_i8_bulk<int32x4_t, array_mapper, vdotq_s32, dot_scalar<int8_t>, vec_doti8>(a, b, dims, pitch, offsets, count, results);
 }
 
 static inline int32x4x2_t sqri8_vector_acc(const int32x4x2_t acc, const int16x8_t diff) {
@@ -429,7 +433,7 @@ static inline int32x4x2_t sqri8_vector(const int32x4x2_t acc, const int8x16_t va
 }
 
 EXPORT void vec_sqri7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    call_i8_bulk<identity_mapper, sqri8_vector, sqr_scalar<int8_t>, vec_sqri8>(a, b, dims, dims, NULL, count, results);
+    call_i8_bulk<int32x4x2_t, identity_mapper, sqri8_vector, sqr_scalar<int8_t>, vec_sqri8>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_sqri7u_bulk_offsets(
@@ -440,11 +444,11 @@ EXPORT void vec_sqri7u_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    call_i8_bulk<array_mapper, sqri8_vector, sqr_scalar<int8_t>, vec_sqri8>(a, b, dims, pitch, offsets, count, results);
+    call_i8_bulk<int32x4x2_t, array_mapper, sqri8_vector, sqr_scalar<int8_t>, vec_sqri8>(a, b, dims, pitch, offsets, count, results);
 }
 
 EXPORT void vec_sqri8_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    call_i8_bulk<identity_mapper, sqri8_vector, sqr_scalar<int8_t>, vec_sqri8>(a, b, dims, dims, NULL, count, results);
+    call_i8_bulk<int32x4x2_t, identity_mapper, sqri8_vector, sqr_scalar<int8_t>, vec_sqri8>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_sqri8_bulk_offsets(
@@ -455,7 +459,7 @@ EXPORT void vec_sqri8_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    call_i8_bulk<array_mapper, sqri8_vector, sqr_scalar<int8_t>, vec_sqri8>(a, b, dims, pitch, offsets, count, results);
+    call_i8_bulk<int32x4x2_t, array_mapper, sqri8_vector, sqr_scalar<int8_t>, vec_sqri8>(a, b, dims, pitch, offsets, count, results);
 }
 
 // --- single precision floats

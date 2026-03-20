@@ -2347,6 +2347,7 @@ public class EsqlCapabilities {
          */
         CHANGE_POINT_SUPPORT_NULL_COLUMN,
 
+        /**
          * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}
          * See https://github.com/elastic/elasticsearch/issues/143494
          */

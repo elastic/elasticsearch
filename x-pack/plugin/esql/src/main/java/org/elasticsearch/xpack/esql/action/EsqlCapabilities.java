@@ -2125,7 +2125,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation.
          */
-        APPROXIMATION_V4(Build.current().isSnapshot()),
+        APPROXIMATION_V5(Build.current().isSnapshot()),
 
         /**
          * Create a ScoreOperator only when shard contexts are available

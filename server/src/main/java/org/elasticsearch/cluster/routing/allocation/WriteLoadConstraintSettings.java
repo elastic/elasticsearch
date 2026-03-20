@@ -125,6 +125,17 @@ public class WriteLoadConstraintSettings {
         Setting.Property.NodeScope
     );
 
+    private static RatioValue parseMaxSingleShardRatio(String sValue) {
+        RatioValue parsedValue = RatioValue.parseRatioValue(sValue);
+        double parsedRatio = parsedValue.getAsRatio();
+        if (parsedRatio > 0.50 || parsedRatio == 0.0) {
+            return parsedValue;
+        }
+        throw new IllegalArgumentException(
+            SETTING_PREFIX + "hotspot_utilization_max_single_shard_threshold may be between 50% and 100%, or 0% to disable"
+        );
+    }
+
     /**
      * The threshold over which we consider a single shard as carrying enough of the load, that trying to correct a
      * hotspot by relocating shards is not taken. This is phrased as a ratio. The production values should always
@@ -133,7 +144,7 @@ public class WriteLoadConstraintSettings {
     public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_MAX_SINGLE_SHARD_THRESHOLD_SETTING = new Setting<>(
         SETTING_PREFIX + "hotspot_utilization_max_single_shard_threshold",
         "0%",
-        RatioValue::parseRatioValue,
+        WriteLoadConstraintSettings::parseMaxSingleShardRatio,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

@@ -641,6 +641,64 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         assertThat(mostRecentQueueLatencyMetrics.get(dataNodeToDelay), greaterThanOrEqualTo(delayMillis));
     }
 
+    public void testMaxSingleShardWriteLoadSetting() {
+        internalCluster().startMasterOnlyNode(Settings.EMPTY);
+
+        updateClusterSettings(
+            Settings.builder()
+                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_MAX_SINGLE_SHARD_THRESHOLD_SETTING.getKey(), "0%")
+        );
+
+        updateClusterSettings(
+            Settings.builder()
+                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_MAX_SINGLE_SHARD_THRESHOLD_SETTING.getKey(), "90%")
+        );
+
+        updateClusterSettings(
+            Settings.builder()
+                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_MAX_SINGLE_SHARD_THRESHOLD_SETTING.getKey(), "100%")
+        );
+
+        updateClusterSettings(
+            Settings.builder()
+                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_MAX_SINGLE_SHARD_THRESHOLD_SETTING.getKey(), "51%")
+        );
+
+        expectThrows(
+            IllegalArgumentException.class,
+            equalTo(
+                "cluster.routing.allocation.write_load_decider.hotspot_utilization_max_single_shard_threshold may be between "
+                    + "50% and 100%, or 0% to disable"
+            ),
+            () -> {
+                updateClusterSettings(
+                    Settings.builder()
+                        .put(
+                            WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_MAX_SINGLE_SHARD_THRESHOLD_SETTING.getKey(),
+                            "50%"
+                        )
+                );
+            }
+        );
+
+        expectThrows(
+            IllegalArgumentException.class,
+            equalTo(
+                "cluster.routing.allocation.write_load_decider.hotspot_utilization_max_single_shard_threshold may be between "
+                    + "50% and 100%, or 0% to disable"
+            ),
+            () -> {
+                updateClusterSettings(
+                    Settings.builder()
+                        .put(
+                            WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_MAX_SINGLE_SHARD_THRESHOLD_SETTING.getKey(),
+                            "1%"
+                        )
+                );
+            }
+        );
+    }
+
     private static Map<String, Long> getMostRecentQueueLatencyMetrics(List<String> dataNodes) {
         final Map<String, Long> measurements = new HashMap<>();
         for (String nodeName : dataNodes) {

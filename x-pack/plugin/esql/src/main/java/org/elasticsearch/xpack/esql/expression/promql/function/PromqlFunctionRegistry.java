@@ -127,7 +127,7 @@ public class PromqlFunctionRegistry {
         ),
         withinSeries(
             "rate",
-            Rate::new,
+            Rate::createWithImplicitTemporality,
             "Calculates the per-second average rate of increase of the time series in the range vector.",
             "rate(http_requests_total[5m])"
         ),

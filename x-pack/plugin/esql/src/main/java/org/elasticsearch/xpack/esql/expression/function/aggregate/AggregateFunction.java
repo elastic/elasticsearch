@@ -118,6 +118,21 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
         out.writeNamedWriteableCollection(parameters);
     }
 
+    protected interface DeserializationFunction<T extends AggregateFunction> {
+        T createAfterDeserialization(Source source, Expression field, Expression filter, Expression window, List<Expression> parameters)
+            throws IOException;
+    }
+
+    protected static <T extends AggregateFunction> T readFrom(StreamInput in, DeserializationFunction<T> constructor) throws IOException {
+        return constructor.createAfterDeserialization(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
+            readWindow(in),
+            in.readNamedWriteableCollectionAsList(Expression.class)
+        );
+    }
+
     public Expression field() {
         return field;
     }

@@ -579,7 +579,7 @@ public class EsqlFunctionRegistry {
                 def(TopSnippets.class, tri(TopSnippets::new), "top_snippets") },
             // time-series functions
             new FunctionDefinition[] {
-                defTS3(Rate.class, Rate::new, "rate"),
+                defTS3(Rate.class, Rate::createWithImplicitTemporality, "rate"),
                 defTS3(Irate.class, Irate::new, "irate"),
                 defTS3(Idelta.class, Idelta::new, "idelta"),
                 defTS3(Delta.class, Delta::new, "delta"),
@@ -840,7 +840,9 @@ public class EsqlFunctionRegistry {
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
         boolean variadic = false;
         int countOfParamsToDescribe = params.length;
-        if (TimestampAware.class.isAssignableFrom(def.clazz())) {
+        if (TemporalityAware.class.isAssignableFrom(def.clazz())) {
+            countOfParamsToDescribe -= 2; // skip the implicit @timestamp and temporality parameters (last two, or before Configuration)
+        } else if (TimestampAware.class.isAssignableFrom(def.clazz())) {
             countOfParamsToDescribe--; // skip the implicit @timestamp parameter (last or last before Configuration)
         }
         if (ConfigurationFunction.class.isAssignableFrom(def.clazz())) {

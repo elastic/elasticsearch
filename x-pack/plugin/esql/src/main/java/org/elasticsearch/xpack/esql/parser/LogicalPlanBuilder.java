@@ -1298,21 +1298,47 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         );
 
         // TODO: Perform type and value validation
-        var queryCtx = ctx.promqlQueryPart();
-        if (queryCtx == null || queryCtx.isEmpty()) {
-            throw new ParsingException(source, "PromQL expression cannot be empty");
-        }
+        final String promqlQuery;
+        final int promqlStartLine;
+        final int promqlStartColumn;
+        if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
+            // PromQL expression supplied as a query parameter, e.g. value=(?query)
+            QueryParam param = paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_PARAM());
+            if (param == null) {
+                throw new ParsingException(source, "No value found for parameter [{}]", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
+            }
+            if (param.value() instanceof String s) {
+                promqlQuery = s;
+            } else {
+                throw new ParsingException(
+                    source,
+                    "Parameter [{}] in PromQL expression must be a string",
+                    ctx.NAMED_OR_POSITIONAL_PARAM().getText()
+                );
+            }
+            if (promqlQuery.isBlank()) {
+                throw new ParsingException(source, "PromQL expression cannot be empty");
+            }
+            Token paramToken = ctx.NAMED_OR_POSITIONAL_PARAM().getSymbol();
+            promqlStartLine = paramToken.getLine();
+            promqlStartColumn = paramToken.getCharPositionInLine();
+        } else {
+            var queryCtx = ctx.promqlQueryPart();
+            if (queryCtx == null || queryCtx.isEmpty()) {
+                throw new ParsingException(source, "PromQL expression cannot be empty");
+            }
 
-        Token startToken = queryCtx.getFirst().start;
-        Token stopToken = queryCtx.getLast().stop;
-        // copy the query verbatim to avoid missing tokens interpreted by the enclosing lexer
-        String promqlQuery = source(startToken, stopToken).text();
-        if (promqlQuery.isBlank()) {
-            throw new ParsingException(source, "PromQL expression cannot be empty");
-        }
+            Token startToken = queryCtx.getFirst().start;
+            Token stopToken = queryCtx.getLast().stop;
+            // copy the query verbatim to avoid missing tokens interpreted by the enclosing lexer
+            promqlQuery = source(startToken, stopToken).text();
+            if (promqlQuery.isBlank()) {
+                throw new ParsingException(source, "PromQL expression cannot be empty");
+            }
 
-        int promqlStartLine = startToken.getLine();
-        int promqlStartColumn = startToken.getCharPositionInLine();
+            promqlStartLine = startToken.getLine();
+            promqlStartColumn = startToken.getCharPositionInLine();
+        }
 
         PromqlParser promqlParser = new PromqlParser();
         LogicalPlan promqlPlan;
@@ -1501,7 +1527,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     private IndexPattern parseIndexPattern(EsqlBaseParser.PromqlParamValueContext ctx) {
-        if (ctx.promqlIndexPattern().isEmpty()) {
+        if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
+            QueryParam param = paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_PARAM());
+            if (param == null) {
+                throw new ParsingException(source(ctx), "No value found for parameter [{}]", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
+            }
+            if (param.value() instanceof String s) {
+                return new IndexPattern(source(ctx), s);
+            }
+            throw new ParsingException(source(ctx), "Parameter [{}] for index must be a string", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
+        } else if (ctx.promqlIndexPattern().isEmpty()) {
             // Default to all indices if no index pattern is provided
             return new IndexPattern(source(ctx), "*");
         } else {

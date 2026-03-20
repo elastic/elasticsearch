@@ -1219,11 +1219,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static FieldAttribute invalidInsistAttribute(FieldAttribute fa, List<IndexResolution> indexResolutions) {
             String name = fa.name();
-            EsIndex esIndex = indexResolutions.stream()
+            List<EsIndex> unmappedIndices = indexResolutions.stream()
                 .map(IndexResolution::get)
                 .filter(r -> r.isPartiallyUnmappedField(name))
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException(Strings.format("No index with unmapped '%s' found", name)));
+                .toList();
+            if (unmappedIndices.isEmpty()) {
+                throw new IllegalStateException(Strings.format("No index with unmapped '%s' found", name));
+            }
+            if (unmappedIndices.size() > 1) {
+                throw new IllegalStateException(
+                    Strings.format(
+                        "Multiple indices with unmapped '%s' found: %s; Unexpected since we forks/subqueries/etc. are currently disabled!",
+                        name,
+                        unmappedIndices.stream().map(EsIndex::name).toList()
+                    )
+                );
+            }
+            EsIndex esIndex = unmappedIndices.getFirst();
             InvalidMappedField field = InvalidMappedField.potentiallyUnmapped(name, getTypesToIndices(fa, esIndex));
             return new FieldAttribute(fa.source(), null, fa.qualifier(), name, field);
         }

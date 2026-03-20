@@ -345,11 +345,15 @@ public class IndexResolver {
         IndicesOptions indicesOptions,
         Map<String, Object> runtimeMappings,
         boolean crossProjectEnabled,
+        String projectRouting,
         ActionListener<IndexResolution> listener
     ) {
         FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, indicesOptions, runtimeMappings);
         if (crossProjectEnabled) {
             fieldRequest.includeResolvedTo(true);
+            if (projectRouting != null) {
+                fieldRequest.projectRouting(projectRouting);
+            }
         }
         client.fieldCaps(fieldRequest, listener.delegateFailureAndWrap((l, response) -> {
             l.onResponse(mergedMappings(typeRegistry, indexWildcard, response));

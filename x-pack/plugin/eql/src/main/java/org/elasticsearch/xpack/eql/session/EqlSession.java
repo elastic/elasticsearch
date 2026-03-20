@@ -128,6 +128,7 @@ public class EqlSession {
             configuration.indicesOptions(),
             configuration.runtimeMappings(),
             configuration.crossProjectEnabled(),
+            configuration.projectRouting(),
             map(listener, r -> preAnalyzer.preAnalyze(parsed, r))
         );
     }

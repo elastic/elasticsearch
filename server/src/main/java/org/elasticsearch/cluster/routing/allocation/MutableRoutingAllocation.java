@@ -22,7 +22,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
-public final class MutableRoutingAllocation extends RoutingAllocation {
+final class MutableRoutingAllocation extends RoutingAllocation {
 
     private final IndexMetadataUpdater indexMetadataUpdater = new IndexMetadataUpdater();
     private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();

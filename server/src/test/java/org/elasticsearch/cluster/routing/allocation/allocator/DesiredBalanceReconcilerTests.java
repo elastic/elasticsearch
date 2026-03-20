@@ -40,7 +40,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
-import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
@@ -1617,12 +1616,12 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             .build();
     }
 
-    private static void reconcile(MutableRoutingAllocation routingAllocation, DesiredBalance desiredBalance) {
+    private static void reconcile(RoutingAllocation routingAllocation, DesiredBalance desiredBalance) {
         reconcile(routingAllocation, desiredBalance, ALLOCATION_STATS_PLACEHOLDER);
     }
 
     private static void reconcile(
-        MutableRoutingAllocation routingAllocation,
+        RoutingAllocation routingAllocation,
         DesiredBalance desiredBalance,
         AtomicReference<DesiredBalanceMetrics.AllocationStats> allocationStatsAtomicReference
     ) {
@@ -1648,7 +1647,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
     }
 
     private static AllocationService createTestAllocationService(
-        Consumer<MutableRoutingAllocation> allocationConsumer,
+        Consumer<RoutingAllocation> allocationConsumer,
         AllocationDecider... allocationDeciders
     ) {
         return createTestAllocationService(
@@ -1659,19 +1658,19 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         );
     }
 
-    private static MutableRoutingAllocation createRoutingAllocationFrom(ClusterState clusterState, AllocationDecider... deciders) {
+    private static RoutingAllocation createRoutingAllocationFrom(ClusterState clusterState, AllocationDecider... deciders) {
         return TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(deciders).mutable();
     }
 
     private static AllocationService createTestAllocationService(
-        Consumer<MutableRoutingAllocation> allocationConsumer,
+        Consumer<RoutingAllocation> allocationConsumer,
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
         AllocationDecider... allocationDeciders
     ) {
         final var allocationService = new AllocationService(new AllocationDeciders(List.of(allocationDeciders)), new ShardsAllocator() {
             @Override
-            public void allocate(MutableRoutingAllocation allocation) {
+            public void allocate(RoutingAllocation allocation) {
                 allocationConsumer.accept(allocation);
             }
 

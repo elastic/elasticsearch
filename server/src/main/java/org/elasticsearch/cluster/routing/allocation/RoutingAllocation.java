@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
@@ -271,9 +273,24 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
     }
 
     /**
+     * Remove the allocation id of the provided shard from the set of in-sync shard copies
+     */
+    public abstract void removeAllocationId(ShardRouting shardRouting);
+
+    /**
      * Returns observer to use for changes made to the routing nodes
      */
     public abstract RoutingChangesObserver changes();
+
+    /**
+     * Returns updated {@link Metadata} based on the changes that were made to the routing nodes
+     */
+    public abstract Metadata updateMetadataWithRoutingChanges(GlobalRoutingTable newRoutingTable);
+
+    /**
+     * Returns updated {@link RestoreInProgress} based on the changes that were made to the routing nodes
+     */
+    public abstract RestoreInProgress updateRestoreInfoWithRoutingChanges(RestoreInProgress restoreInProgress);
 
     /**
      * Returns true iff changes were made to the routing nodes
@@ -339,9 +356,30 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
      */
     public abstract boolean isReconciling();
 
-    public abstract RoutingAllocation immutableClone();
+    /**
+     * Set the {@link #isReconciling} flag, and return a {@link Releasable} which clears it again.
+     */
+    public abstract Releasable withReconcilingFlag();
 
-    public MutableRoutingAllocation mutableCloneForSimulation() {
+    public void setSimulatedClusterInfo(ClusterInfo clusterInfo) {
+        assert isSimulating : "Should be called only while simulating";
+        this.clusterInfo = clusterInfo;
+    }
+
+    public RoutingAllocation immutableClone() {
+        GlobalRoutingTable routingTable = clusterState.globalRoutingTable();
+        return new ImmutableRoutingAllocation(
+            deciders,
+            routingNodesChanged()
+                ? ClusterState.builder(clusterState).routingTable(routingTable.rebuild(routingNodes(), metadata())).build()
+                : clusterState,
+            clusterInfo,
+            shardSizeInfo,
+            currentNanoTime
+        );
+    }
+
+    public RoutingAllocation mutableCloneForSimulation() {
         return new MutableRoutingAllocation(
             deciders,
             clusterState.mutableRoutingNodes(),

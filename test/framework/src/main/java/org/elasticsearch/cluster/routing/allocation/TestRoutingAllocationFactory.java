@@ -78,7 +78,7 @@ public class TestRoutingAllocationFactory {
             return new ImmutableRoutingAllocation(allocationDeciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
         }
 
-        public MutableRoutingAllocation mutable() {
+        public RoutingAllocation mutable() {
             return new MutableRoutingAllocation(
                 allocationDeciders,
                 routingNodes != null ? routingNodes : clusterState.mutableRoutingNodes(),

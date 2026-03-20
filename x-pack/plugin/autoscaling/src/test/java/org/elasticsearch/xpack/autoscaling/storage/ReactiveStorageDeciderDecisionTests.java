@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
-import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -676,15 +675,15 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         );
     }
 
-    private static MutableRoutingAllocation createRoutingAllocation(ClusterState state, AllocationDeciders allocationDeciders) {
+    private static RoutingAllocation createRoutingAllocation(ClusterState state, AllocationDeciders allocationDeciders) {
         return TestRoutingAllocationFactory.forClusterState(state)
             .allocationDeciders(allocationDeciders)
             .clusterInfo(createClusterInfo(state))
             .mutable();
     }
 
-    private void withRoutingAllocation(Consumer<MutableRoutingAllocation> block) {
-        MutableRoutingAllocation allocation = createRoutingAllocation(state, createAllocationDeciders());
+    private void withRoutingAllocation(Consumer<RoutingAllocation> block) {
+        RoutingAllocation allocation = createRoutingAllocation(state, createAllocationDeciders());
         block.accept(allocation);
         state = ReactiveStorageDeciderServiceTests.updateClusterState(state, allocation);
     }

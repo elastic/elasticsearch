@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
-import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -221,10 +220,10 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             AllocationBalancingRoundMetrics.NOOP,
             new ShardRelocationOrder.DefaultOrder()
         ) {
-            private MutableRoutingAllocation lastAllocation;
+            private RoutingAllocation lastAllocation;
 
             @Override
-            public void allocate(MutableRoutingAllocation allocation, ActionListener<Void> listener) {
+            public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
                 lastAllocation = allocation;
                 super.allocate(allocation, listener);
                 queue.runAllTasks();
@@ -233,7 +232,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             }
 
             @Override
-            protected void reconcile(DesiredBalance desiredBalance, MutableRoutingAllocation allocation) {
+            protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
                 // do nothing as balance is not computed yet (during allocate)
             }
 

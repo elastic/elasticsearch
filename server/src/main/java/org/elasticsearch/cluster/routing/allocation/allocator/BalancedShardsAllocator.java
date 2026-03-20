@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
-import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -158,7 +157,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     @Override
-    public void allocate(MutableRoutingAllocation allocation) {
+    public void allocate(RoutingAllocation allocation) {
         assert allocation.isSimulating() == false || balancerSettings.completeEarlyOnShardAssignmentChange()
             : "inconsistent states: isSimulating ["
                 + allocation.isSimulating()

@@ -314,13 +314,13 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         );
     }
 
-    private static ClusterState withRoutingAllocation(ClusterState clusterState, Consumer<MutableRoutingAllocation> block) {
-        MutableRoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState).mutable();
+    private static ClusterState withRoutingAllocation(ClusterState clusterState, Consumer<RoutingAllocation> block) {
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState).mutable();
         block.accept(allocation);
         return updateClusterState(clusterState, allocation);
     }
 
-    private static ClusterState updateClusterState(ClusterState state, MutableRoutingAllocation allocation) {
+    private static ClusterState updateClusterState(ClusterState state, RoutingAllocation allocation) {
         assert allocation.metadata() == state.metadata();
         if (allocation.routingNodesChanged() == false) {
             return state;

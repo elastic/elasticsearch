@@ -11,8 +11,13 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 final class ImmutableRoutingAllocation extends RoutingAllocation {
@@ -35,8 +40,25 @@ final class ImmutableRoutingAllocation extends RoutingAllocation {
     }
 
     @Override
+    public void removeAllocationId(ShardRouting shardRouting) {
+        assert false : "This should never be called on an immutable routing allocation";
+    }
+
+    @Override
     public RoutingChangesObserver changes() {
         return RoutingChangesObserver.NOOP;
+    }
+
+    @Override
+    public Metadata updateMetadataWithRoutingChanges(GlobalRoutingTable newRoutingTable) {
+        assert false : "This should never be called on an immutable routing allocation";
+        return metadata();
+    }
+
+    @Override
+    public RestoreInProgress updateRestoreInfoWithRoutingChanges(RestoreInProgress restoreInProgress) {
+        assert false : "This should never be called on an immutable routing allocation";
+        return restoreInProgress;
     }
 
     @Override
@@ -50,7 +72,8 @@ final class ImmutableRoutingAllocation extends RoutingAllocation {
     }
 
     @Override
-    public RoutingAllocation immutableClone() {
-        return this;
+    public Releasable withReconcilingFlag() {
+        assert false : "This should never be called on an immutable routing allocation";
+        return () -> {};
     }
 }

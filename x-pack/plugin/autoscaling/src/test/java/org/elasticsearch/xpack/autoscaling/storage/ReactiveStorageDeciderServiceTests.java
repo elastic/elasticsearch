@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.AllocationSimulation;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
-import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
@@ -251,7 +250,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         int shardId = randomInt(indexMetadata.getNumberOfShards() - 1);
         IndexShardRoutingTable subjectRoutings = initialClusterState.routingTable(projectId)
             .shardRoutingTable(indexMetadata.getIndex().getName(), shardId);
-        MutableRoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(initialClusterState).mutable();
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(initialClusterState).mutable();
         ShardRouting primaryShard = subjectRoutings.primaryShard();
         ShardRouting replicaShard = subjectRoutings.replicaShards().get(0);
         DiscoveryNode[] nodes = initialClusterState.nodes().getAllNodes().toArray(DiscoveryNode[]::new);
@@ -800,7 +799,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         return ClusterInfo.shardIdentifierFromRouting(s);
     }
 
-    public static ClusterState updateClusterState(ClusterState oldState, MutableRoutingAllocation allocation) {
+    public static ClusterState updateClusterState(ClusterState oldState, RoutingAllocation allocation) {
         assert allocation.metadata() == oldState.metadata();
         if (allocation.routingNodesChanged() == false) {
             return oldState;

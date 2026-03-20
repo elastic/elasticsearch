@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
-import org.elasticsearch.cluster.routing.allocation.MutableRoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -38,7 +37,7 @@ public interface ShardsAllocator {
      *
      * @param allocation current node allocation
      */
-    void allocate(MutableRoutingAllocation allocation);
+    void allocate(RoutingAllocation allocation);
 
     /**
      * Allocates shards to nodes in the cluster. An implementation of this method should:
@@ -49,7 +48,7 @@ public interface ShardsAllocator {
      * @param allocation current node allocation
      * @param listener listener to be executed once async allocation is completed
      */
-    default void allocate(MutableRoutingAllocation allocation, ActionListener<Void> listener) {
+    default void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
         allocate(allocation);
         listener.onResponse(null);
     }
@@ -57,12 +56,7 @@ public interface ShardsAllocator {
     /**
      * Execute allocation commands
      */
-    default RoutingExplanations execute(
-        MutableRoutingAllocation allocation,
-        AllocationCommands commands,
-        boolean explain,
-        boolean retryFailed
-    ) {
+    default RoutingExplanations execute(RoutingAllocation allocation, AllocationCommands commands, boolean explain, boolean retryFailed) {
         var originalDebugMode = allocation.getDebugMode();
         allocation.debugDecision(true);
         // we ignore disable allocation, because commands are explicit

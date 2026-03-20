@@ -37,8 +37,8 @@ public class CancellableTask extends Task {
             if (this.isCancelled) {
                 return;
             }
-            this.isCancelled = true;
             this.reason = reason;
+            this.isCancelled = true;
         }
         listeners.onResponse(null);
         onCancelled();

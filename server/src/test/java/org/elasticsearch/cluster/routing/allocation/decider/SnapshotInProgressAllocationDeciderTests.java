@@ -111,6 +111,7 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
 
     public void testYesWhenShardSnapshotComplete() {
         final var routingAllocation = TestRoutingAllocationFactory.forClusterState(
+            // snapshot in progress but complete
             makeClusterState(
                 shardId,
                 randomFrom(

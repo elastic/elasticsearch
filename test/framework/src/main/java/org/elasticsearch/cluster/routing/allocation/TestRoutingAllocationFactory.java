@@ -18,6 +18,11 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 
+/**
+ * A Factory for creating {@link RoutingAllocation} instances for testing. {@link RoutingAllocation} instances are usually
+ * created by the {@link AllocationService} only. This utility allows us to test the infrastructure that interfaces with them
+ * without needing to create an {@link AllocationService} instance.
+ */
 public class TestRoutingAllocationFactory {
 
     /**

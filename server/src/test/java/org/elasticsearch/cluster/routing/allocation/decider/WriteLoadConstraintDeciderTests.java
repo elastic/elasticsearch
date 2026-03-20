@@ -40,7 +40,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -358,7 +357,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         final var clusterSettings = createBuiltInClusterSettings(settings);
         final var writeLoadConstraintDecider = new WriteLoadConstraintDecider(clusterSettings);
         final var routingAllocation = TestRoutingAllocationFactory.forClusterState(state)
-            .allocationDeciders(new AllocationDeciders(List.of(writeLoadConstraintDecider)))
+            .allocationDeciders(writeLoadConstraintDecider)
             .clusterInfo(clusterInfo)
             .mutable();
 
@@ -449,7 +448,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
         final var writeLoadConstraintDecider = createWriteLoadConstraintDecider(settings);
         final var routingAllocation = TestRoutingAllocationFactory.forClusterState(state)
-            .allocationDeciders(new AllocationDeciders(List.of(writeLoadConstraintDecider)))
+            .allocationDeciders(writeLoadConstraintDecider)
             .clusterInfo(clusterInfo)
             .mutable();
         routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
@@ -606,7 +605,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             .build();
 
         var routingAllocation = TestRoutingAllocationFactory.forClusterState(state)
-            .allocationDeciders(new AllocationDeciders(List.of(decider)))
+            .allocationDeciders(decider)
             .clusterInfo(clusterInfo)
             .mutable();
         routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
@@ -753,7 +752,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
          * Create the RoutingAllocation from the ClusterState and ClusterInfo above, and set up the other input for the WriteLoadDecider.
          */
 
-        var routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).mutable();
+        var routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build();
 
         ShardRouting shardRoutingOnNodeExceedingUtilThreshold = TestShardRouting.newShardRouting(
             testShardId1,

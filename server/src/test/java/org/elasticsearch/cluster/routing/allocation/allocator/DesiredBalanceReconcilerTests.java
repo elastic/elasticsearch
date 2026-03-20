@@ -1602,7 +1602,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         DesiredBalance balance,
         AllocationDecider... allocationDeciders
     ) {
-        final var routingAllocation = createRoutingAllocationFrom(clusterState, allocationDeciders);
+        final RoutingAllocation routingAllocation = createRoutingAllocationFrom(clusterState, allocationDeciders);
         desiredBalanceReconciler.reconcile(balance, routingAllocation);
         // start all initializing shards
         routingAllocation.routingNodes().forEach(routingNode -> routingNode.forEach(shardRouting -> {

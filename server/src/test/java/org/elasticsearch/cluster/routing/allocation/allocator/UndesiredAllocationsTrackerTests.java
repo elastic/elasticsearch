@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -41,7 +40,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -221,9 +219,7 @@ public class UndesiredAllocationsTrackerTests extends ESTestCase {
                 return allocation.decision(Decision.YES, "test_yes_decider", "Always says yes");
             }
         };
-        final var allocation = TestRoutingAllocationFactory.forClusterState(state)
-            .allocationDeciders(new AllocationDeciders(List.of(alwaysSaysNo, alwaysSaysYes)))
-            .build();
+        final var allocation = TestRoutingAllocationFactory.forClusterState(state).allocationDeciders(alwaysSaysNo, alwaysSaysYes).build();
         final var currentNodeId = shardRouting.currentNodeId();
         final var otherNodeId = state.nodes().getNodes().keySet().stream().filter(n -> n.equals(currentNodeId) == false).findFirst().get();
 

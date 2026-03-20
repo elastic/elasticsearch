@@ -17,6 +17,7 @@ import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -39,8 +40,9 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     public void testRemoteEnrichAfterCoordinatorOnlyPlans() {
-        var testAnalyzer = analyzer().addIndex("test", "mapping-default.json")
-            .addAnalysisTestsLookupResolutions()
+        var testAnalyzer = analyzer().addDefaultIndex()
+            .addLanguagesLookup()
+            .addTestLookup()
             .addAnalysisTestsInferenceResolution()
             .addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json")
             .addEnrichPolicy(Enrich.Mode.COORDINATOR, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json");
@@ -219,8 +221,9 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
      * The validation should not trigger for remote enrich after a lookup join. Lookup joins can be executed anywhere.
      */
     public void testRemoteEnrichAfterLookupJoin() {
-        var testAnalyzer = analyzer().addIndex("test", "mapping-default.json")
-            .addAnalysisTestsLookupResolutions()
+        var testAnalyzer = analyzer().addDefaultIndex()
+            .addLanguagesLookup()
+            .addTestLookup()
             .addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json");
 
         String lookupCommand = randomBoolean() ? "LOOKUP JOIN test_lookup ON languages" : "LOOKUP JOIN languages_lookup ON language_code";
@@ -259,7 +262,8 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
     public void testRemoteLookupJoinWithPipelineBreaker() {
         var testAnalyzer = analyzer().addIndex("test,remote:test", "mapping-default.json")
-            .addAnalysisTestsLookupResolutions()
+            .addLanguagesLookup()
+            .addTestLookup()
             .addAnalysisTestsEnrichResolution();
         assertEquals(
             "1:92: LOOKUP JOIN with remote indices can't be executed after [STATS c = COUNT(*) by languages]@1:25",
@@ -285,11 +289,11 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
                 + "add another SORT after the LOOKUP JOIN if order is required"
         );
 
-        assertEquals(
-            "1:68: LOOKUP JOIN with remote indices can't be executed after [LIMIT 2]@1:25",
-            testAnalyzer.stripErrorPrefix(true)
-                .error("FROM test,remote:test | LIMIT 2 | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code")
-        );
+        testAnalyzer.stripErrorPrefix(true)
+            .error(
+                "FROM test,remote:test | LIMIT 2 | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
+                equalTo("1:68: LOOKUP JOIN with remote indices can't be executed after [LIMIT 2]@1:25")
+            );
 
         assertEquals(
             "1:96: LOOKUP JOIN with remote indices can't be executed after [ENRICH _coordinator:languages_coord]@1:58",
@@ -310,7 +314,8 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
     public void testRemoteEnrichAfterLookupJoinWithPipelineBreakerCCS() {
         var testAnalyzer = analyzer().addIndex("test,remote:test", "mapping-default.json")
-            .addAnalysisTestsLookupResolutions()
+            .addLanguagesLookup()
+            .addTestLookup()
             .addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json")
             .addEnrichPolicy(
                 Enrich.Mode.COORDINATOR,
@@ -347,14 +352,13 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
                 + "add another SORT after the LOOKUP JOIN if order is required"
         );
 
-        err = testAnalyzer.stripErrorPrefix(true).error("""
+        testAnalyzer.stripErrorPrefix(true).error("""
             FROM test,remote:test
             | LIMIT 2
             | EVAL language_code = languages
             | LOOKUP JOIN languages_lookup ON language_code
             | ENRICH _remote:languages ON language_code
-            """);
-        assertThat(err, containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [LIMIT 2]@2:3"));
+            """, containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [LIMIT 2]@2:3"));
 
         err = error(testAnalyzer.query("""
             FROM test,remote:test
@@ -370,8 +374,9 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     public void testRemoteEnrichAfterLookupJoinWithPipelineBreaker() {
-        var testAnalyzer = analyzer().addIndex("test", "mapping-default.json")
-            .addAnalysisTestsLookupResolutions()
+        var testAnalyzer = analyzer().addDefaultIndex()
+            .addLanguagesLookup()
+            .addTestLookup()
             .addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json")
             .addEnrichPolicy(
                 Enrich.Mode.COORDINATOR,
@@ -408,14 +413,13 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
                 + "add another SORT after the LOOKUP JOIN if order is required"
         );
 
-        err = testAnalyzer.stripErrorPrefix(true).error("""
+        testAnalyzer.stripErrorPrefix(true).error("""
             FROM test
             | LIMIT 2
             | EVAL language_code = languages
             | LOOKUP JOIN languages_lookup ON language_code
             | ENRICH _remote:languages ON language_code
-            """);
-        assertThat(err, containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [LIMIT 2]@2:3"));
+            """, containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [LIMIT 2]@2:3"));
 
         err = error(testAnalyzer.query("""
             FROM test
@@ -430,11 +434,27 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         );
     }
 
-    public void testDanglingOrderByInInlineStats() {
-        assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
+    public void testDanglingOrderByMvExpand() {
         var testAnalyzer = analyzer().addIndex("test", "mapping-default.json")
             .addAnalysisTestsLookupResolutions()
             .addAnalysisTestsEnrichResolution();
+
+        var err = error(testAnalyzer.query("""
+            FROM test
+            | SORT languages
+            | MV_EXPAND languages
+            | WHERE languages == 1
+            """));
+
+        assertThat(err, is("""
+            2:3: Unbounded SORT not supported yet [SORT languages] please add a LIMIT
+            line 3:3: MV_EXPAND [MV_EXPAND languages] cannot yet have an unbounded SORT [SORT languages] before it: either move the SORT \
+            after it, or add a LIMIT after the SORT"""));
+    }
+
+    public void testDanglingOrderByInInlineStats() {
+        assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
+        var testAnalyzer = analyzer().addDefaultIndex().addLanguagesLookup().addTestLookup().addAnalysisTestsEnrichResolution();
 
         var err = error(testAnalyzer.query("""
             FROM test
@@ -446,9 +466,11 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
         assertThat(err, is("""
             2:3: Unbounded SORT not supported yet [SORT languages] please add a LIMIT
-            line 4:3: INLINE STATS [INLINE STATS count(*) BY languages] cannot yet have an unbounded SORT [SORT languages] before\
-             it : either move the SORT after it, or add a LIMIT before the SORT
-            line 5:3: INLINE STATS [INLINE STATS s = sum(salary) BY first_name] cannot yet have an unbounded SORT [SORT languages]\
-             before it : either move the SORT after it, or add a LIMIT before the SORT"""));
+            line 3:3: MV_EXPAND [MV_EXPAND languages] cannot yet have an unbounded SORT [SORT languages] before it: either move the \
+            SORT after it, or add a LIMIT after the SORT
+            line 4:3: INLINE STATS [INLINE STATS count(*) BY languages] cannot yet have an unbounded SORT [SORT languages] before it: \
+            either move the SORT after it, or add a LIMIT after the SORT
+            line 5:3: INLINE STATS [INLINE STATS s = sum(salary) BY first_name] cannot yet have an unbounded SORT [SORT languages] before \
+            it: either move the SORT after it, or add a LIMIT after the SORT"""));
     }
 }

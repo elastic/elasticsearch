@@ -273,7 +273,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         IOConsumer<XContentBuilder> changeOptions,
         Matcher<FieldMapper> check
     ) throws IOException {
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck("index_options", b -> {
             base.accept(b);
             b.startObject("index_options");
             originalOptions.accept(b);

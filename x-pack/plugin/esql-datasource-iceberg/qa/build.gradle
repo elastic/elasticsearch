@@ -13,6 +13,10 @@ apply plugin: org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecomm
 apply plugin: org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin
 
+configurations.all {
+  resolutionStrategy.force "io.airlift:aircompressor:${versions.aircompressor}"
+}
+
 dependencies {
   // Test fixtures and spec reader infrastructure from ESQL
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))

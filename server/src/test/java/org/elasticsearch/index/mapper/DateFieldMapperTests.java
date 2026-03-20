@@ -87,6 +87,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("format", b -> b.field("format", "yyyy-MM-dd"));
         checker.registerConflictCheck("locale", b -> b.field("locale", "es"));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "34500000"));
+        registerScriptChecks(checker);
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -119,6 +120,44 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertEquals("LongField <field:1457654400000>", field.toString());
         assertEquals(DocValuesType.SORTED_NUMERIC, field.fieldType().docValuesType());
         assertFalse(field.fieldType().stored());
+    }
+
+    public void testMultiValueSorted() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", "sorted").endObject();
+        }));
+        DateFieldMapper mapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(
+            mapper.docValuesParameters(),
+            equalTo(
+                new FieldMapper.DocValuesParameter.Values(
+                    true,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED
+                )
+            )
+        );
+    }
+
+    public void testMultiValueSortedSetNotAllowed() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        var e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", "sorted_set").endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString("Unknown value [sorted_set] for field [multi_value] - accepted values are [no, sorted, arrays]")
+        );
+    }
+
+    public void testMultiValueDefaultIsSorted() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        DateFieldMapper mapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.docValuesParameters().multiValue(), equalTo(FieldMapper.DocValuesParameter.Values.MultiValue.SORTED));
     }
 
     public void testNotIndexed() throws Exception {

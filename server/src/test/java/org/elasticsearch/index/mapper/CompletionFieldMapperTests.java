@@ -125,10 +125,11 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         });
 
         checker.registerUpdateCheck(
+            "search_analyzer",
             b -> b.field("search_analyzer", "standard"),
             m -> assertEquals("standard", m.fieldType().getTextSearchInfo().searchAnalyzer().name())
         );
-        checker.registerUpdateCheck(b -> b.field("max_input_length", 30), m -> {
+        checker.registerUpdateCheck("max_input_length", b -> b.field("max_input_length", 30), m -> {
             CompletionFieldMapper cfm = (CompletionFieldMapper) m;
             assertEquals(30, cfm.getMaxInputLength());
         });

@@ -21,7 +21,6 @@ import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -572,7 +571,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         }
     }
 
-    public void testReadUnsupportedTypeReturnsNullBlock() throws Exception {
+    public void testReadListColumnAsMultiValue() throws Exception {
         TypeDescription schema = TypeDescription.createStruct()
             .addField("id", TypeDescription.createLong())
             .addField("tags", TypeDescription.createList(TypeDescription.createString()));
@@ -581,6 +580,7 @@ public class OrcFormatReaderTests extends ESTestCase {
             batch.size = 2;
             LongColumnVector idCol = (LongColumnVector) batch.cols[0];
             ListColumnVector tagsCol = (ListColumnVector) batch.cols[1];
+            tagsCol.childCount = 3;
             BytesColumnVector tagsChild = (BytesColumnVector) tagsCol.child;
 
             tagsChild.ensureSize(3, false);
@@ -601,7 +601,7 @@ public class OrcFormatReaderTests extends ESTestCase {
 
         SourceMetadata metadata = reader.metadata(storageObject);
         List<Attribute> attributes = metadata.schema();
-        assertEquals(DataType.UNSUPPORTED, attributes.get(1).dataType());
+        assertEquals(DataType.KEYWORD, attributes.get(1).dataType());
 
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
             assertTrue(iterator.hasNext());
@@ -614,9 +614,12 @@ public class OrcFormatReaderTests extends ESTestCase {
             assertEquals(1L, idBlock.getLong(0));
             assertEquals(2L, idBlock.getLong(1));
 
-            Block tagsBlock = page.getBlock(1);
-            assertTrue(tagsBlock.isNull(0));
-            assertTrue(tagsBlock.isNull(1));
+            BytesRefBlock tagsBlock = (BytesRefBlock) page.getBlock(1);
+            assertEquals(2, tagsBlock.getValueCount(0));
+            assertEquals(new BytesRef("a"), tagsBlock.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("b"), tagsBlock.getBytesRef(1, new BytesRef()));
+            assertEquals(1, tagsBlock.getValueCount(1));
+            assertEquals(new BytesRef("x"), tagsBlock.getBytesRef(2, new BytesRef()));
         }
     }
 

@@ -29,7 +29,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -58,7 +57,7 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
         terminate(threadPool);
     }
 
-    public void testSliceIntoSubRequests() throws IOException {
+    public void testSliceIntoSubRequests() {
         SearchRequest searchRequest = randomSearchRequest(
             () -> randomSearchSourceBuilder(() -> null, () -> null, () -> null, Collections::emptyList, () -> null, () -> null)
         );

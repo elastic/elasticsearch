@@ -57,6 +57,12 @@ public abstract class WebServerTestCase extends ESTestCase {
     }
 
     String webServerAddress() {
-        return webServer.getHostName() + ":" + webServer.getPort();
+        String host = webServer.getHostName();
+        if (host.contains(":") && false == host.startsWith("[")) {
+            // ipv6 format
+            host = "[" + host + "]";
+        }
+
+        return host + ":" + webServer.getPort();
     }
 }

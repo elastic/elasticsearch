@@ -1,6 +1,7 @@
 # This file is auto-generated. See .buildkite/pipelines/periodic-java-ea.template.yml
 env:
   JAVA_EA_VERSION: "${JAVA_EA_VERSION:-26-pre}"
+  EXTRA_GRADLE_ARGS: "--continue"
 
 steps:
   - group: bwc
@@ -366,8 +367,8 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 8.19.13 / bwc
-        command: .ci/scripts/run-gradle.sh -Druntime.java=$$JAVA_EA_VERSION -Dbwc.checkout.align=true v8.19.13#bwcTest
+      - label: 8.19.14 / bwc
+        command: .ci/scripts/run-gradle.sh -Druntime.java=$$JAVA_EA_VERSION -Dbwc.checkout.align=true v8.19.14#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -376,7 +377,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 8.19.13
+          BWC_VERSION: 8.19.14
         retry:
           automatic:
             - exit_status: "-1"
@@ -423,8 +424,8 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 9.2.7 / bwc
-        command: .ci/scripts/run-gradle.sh -Druntime.java=$$JAVA_EA_VERSION -Dbwc.checkout.align=true v9.2.7#bwcTest
+      - label: 9.2.8 / bwc
+        command: .ci/scripts/run-gradle.sh -Druntime.java=$$JAVA_EA_VERSION -Dbwc.checkout.align=true v9.2.8#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -433,7 +434,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 9.2.7
+          BWC_VERSION: 9.2.8
         retry:
           automatic:
             - exit_status: "-1"
@@ -442,8 +443,8 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 9.3.2 / bwc
-        command: .ci/scripts/run-gradle.sh -Druntime.java=$$JAVA_EA_VERSION -Dbwc.checkout.align=true v9.3.2#bwcTest
+      - label: 9.3.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Druntime.java=$$JAVA_EA_VERSION -Dbwc.checkout.align=true v9.3.3#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -452,7 +453,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 9.3.2
+          BWC_VERSION: 9.3.3
         retry:
           automatic:
             - exit_status: "-1"
@@ -557,7 +558,7 @@ steps:
         timeout_in_minutes: 300
         matrix:
           setup:
-            BWC_VERSION: ["8.19.13", "9.2.7", "9.3.2", "9.4.0"]
+            BWC_VERSION: ["8.19.14", "9.2.8", "9.3.3", "9.4.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404

@@ -146,24 +146,18 @@ final class DoubleBlockHash extends BlockHash {
     }
 
     @Override
-    public DoubleBlock[] getKeys() {
-        if (seenNull) {
-            final int size = Math.toIntExact(hash.size() + 1);
-            final double[] keys = new double[size];
-            for (int i = 1; i < size; i++) {
-                keys[i] = Double.longBitsToDouble(hash.get(i - 1));
+    public DoubleBlock[] getKeys(IntVector selected) {
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(selected.getPositionCount())) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int groupId = selected.getInt(i);
+                if (groupId == 0) {
+                    builder.appendNull();
+                } else {
+                    builder.appendDouble(Double.longBitsToDouble(hash.get(groupId - 1)));
+                }
             }
-            BitSet nulls = new BitSet(1);
-            nulls.set(0);
-            return new DoubleBlock[] {
-                blockFactory.newDoubleArrayBlock(keys, keys.length, null, nulls, Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING) };
+            return new DoubleBlock[] { builder.build() };
         }
-        final int size = Math.toIntExact(hash.size());
-        final double[] keys = new double[size];
-        for (int i = 0; i < size; i++) {
-            keys[i] = Double.longBitsToDouble(hash.get(i));
-        }
-        return new DoubleBlock[] { blockFactory.newDoubleArrayVector(keys, keys.length).asBlock() };
     }
 
     @Override

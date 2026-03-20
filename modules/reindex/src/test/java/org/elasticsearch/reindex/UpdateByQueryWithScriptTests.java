@@ -61,8 +61,6 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
             transportService,
             scriptService,
             null,
-            null,
-            null,
             null
         );
         return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(
@@ -72,7 +70,6 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
             threadPool,
             scriptService,
             request,
-            true,
             listener()
         );
     }

@@ -29,19 +29,15 @@ import org.elasticsearch.xpack.stateless.StatelessPlugin;
  */
 public class StatelessTemplateSettingsDecoratorProvider implements TemplateDecoratorProvider {
 
-    private final boolean enabled;
-
     public StatelessTemplateSettingsDecoratorProvider() {
         throw new IllegalStateException("This no arg constructor only exists for SPI validation");
     }
 
-    public StatelessTemplateSettingsDecoratorProvider(StatelessPlugin plugin) {
-        this.enabled = plugin.isEnabled();
-    }
+    public StatelessTemplateSettingsDecoratorProvider(StatelessPlugin plugin) {}
 
     @Override
     public Template.TemplateDecorator get() {
-        return enabled ? new StatelessTemplateSettingsDecorator() : Template.TemplateDecorator.DEFAULT;
+        return new StatelessTemplateSettingsDecorator();
     }
 
     private class StatelessTemplateSettingsDecorator implements Template.TemplateDecorator {

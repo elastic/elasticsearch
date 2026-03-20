@@ -50,15 +50,14 @@ public class StatelessPluginTests extends ESTestCase {
     }
 
     public void testValidLicense() throws Exception {
-        final var enabled = randomBoolean();
-        final var settings = enabled ? Settings.builder().put(STATELESS_ENABLED.getKey(), true).build() : Settings.EMPTY;
+        final var settings = Settings.builder().put(STATELESS_ENABLED.getKey(), true).build();
         final var licenseActive = randomBoolean();
         final Runnable runnable = () -> createStatelessPlugin(
             settings,
             randomBoolean() ? License.OperationMode.ENTERPRISE : License.OperationMode.TRIAL,
             licenseActive
         );
-        if (enabled && licenseActive == false) {
+        if (licenseActive == false) {
             expectThrows(IllegalStateException.class, runnable::run);
         } else {
             runnable.run();
@@ -66,21 +65,15 @@ public class StatelessPluginTests extends ESTestCase {
     }
 
     public void testInvalidLicense() throws Exception {
-        final var enabled = randomBoolean();
-        final var settings = enabled ? Settings.builder().put(STATELESS_ENABLED.getKey(), true).build() : Settings.EMPTY;
-        final var licenseActive = randomBoolean();
+        final var settings = Settings.builder().put(STATELESS_ENABLED.getKey(), true).build();
         final License.OperationMode invalidMode = randomFrom(
             License.OperationMode.PLATINUM,
             License.OperationMode.GOLD,
             License.OperationMode.STANDARD,
             License.OperationMode.BASIC
         );
-        final Runnable runnable = () -> createStatelessPlugin(settings, invalidMode, licenseActive);
-        if (enabled) {
-            expectThrows(IllegalStateException.class, runnable::run);
-        } else {
-            runnable.run();
-        }
+        final Runnable runnable = () -> createStatelessPlugin(settings, invalidMode, randomBoolean());
+        expectThrows(IllegalStateException.class, runnable::run);
     }
 
     public void testSettingsWithValidStatelessRole() throws Exception {
@@ -101,15 +94,6 @@ public class StatelessPluginTests extends ESTestCase {
             .build();
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> createStatelessPlugin(nodeSettings));
         assertThat(ex.getMessage(), containsString("does not support a node with more than 1 role of"));
-    }
-
-    public void testSettingsWithStatelessRoleAndStatelessDisabledFail() throws Exception {
-        final var nodeSettings = Settings.builder()
-            .put(STATELESS_ENABLED.getKey(), false)
-            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), List.of(randomFrom(STATELESS_ROLES).roleName()))
-            .build();
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> createStatelessPlugin(nodeSettings));
-        assertThat(ex.getMessage(), containsString("but stateless-only node roles are configured"));
     }
 
     public void testSettingsWithNonStatelessRoleAndStatelessEnabledFail() throws Exception {

@@ -597,12 +597,12 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
     }
 
-    public void testmaxSingleShardWriteLoadConcentrationSingleShard() {
+    public void testMaxSingleShardWriteLoadSingleShard() {
         ShardId testShardId = new ShardId(randomIndexName(), randomUUID(), 0);
 
         // only shard means 1.0
         assertThat(
-            WriteLoadConstraintDecider.maxSingleShardWriteLoadConcentration(
+            WriteLoadConstraintDecider.maxSingleShardWriteLoad(
                 List.of(testShardId),
                 Map.of(testShardId, randomDoubleBetween(0.001, 20.0, false))
             ),
@@ -610,17 +610,14 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
 
         // inexplicably not in map means 0.0
-        assertThat(WriteLoadConstraintDecider.maxSingleShardWriteLoadConcentration(List.of(testShardId), Map.of()), equalTo(0.0));
+        assertThat(WriteLoadConstraintDecider.maxSingleShardWriteLoad(List.of(testShardId), Map.of()), equalTo(0.0));
 
         // shard is in map with zero load
-        assertThat(
-            WriteLoadConstraintDecider.maxSingleShardWriteLoadConcentration(List.of(testShardId), Map.of(testShardId, 0.0)),
-            equalTo(0.0)
-        );
+        assertThat(WriteLoadConstraintDecider.maxSingleShardWriteLoad(List.of(testShardId), Map.of(testShardId, 0.0)), equalTo(0.0));
 
         // shard with 0 load
         assertThat(
-            WriteLoadConstraintDecider.maxSingleShardWriteLoadConcentration(
+            WriteLoadConstraintDecider.maxSingleShardWriteLoad(
                 List.of(testShardId),
                 Map.of(testShardId, 0.0, new ShardId(randomIndexName(), randomUUID(), 0), randomDoubleBetween(0.0001, 20.0, true))
             ),
@@ -628,7 +625,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
     }
 
-    public void testmaxSingleShardWriteLoadConcentrationMultipleShards() {
+    public void testmaxSingleShardWriteLoadMultipleShards() {
         ShardId testShardId1 = new ShardId(randomIndexName(), randomUUID(), 0);
         ShardId testShardId2 = new ShardId(randomIndexName(), randomUUID(), 0);
 
@@ -637,7 +634,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
         // picks the biggest one
         assertThat(
-            WriteLoadConstraintDecider.maxSingleShardWriteLoadConcentration(
+            WriteLoadConstraintDecider.maxSingleShardWriteLoad(
                 List.of(testShardId1, testShardId2),
                 Map.of(testShardId1, shard1Load, testShardId2, shard2Load)
             ),
@@ -646,7 +643,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
         // both zero
         assertThat(
-            WriteLoadConstraintDecider.maxSingleShardWriteLoadConcentration(
+            WriteLoadConstraintDecider.maxSingleShardWriteLoad(
                 List.of(testShardId1, testShardId2),
                 Map.of(testShardId1, 0.0, testShardId2, 0.0)
             ),
@@ -654,20 +651,17 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
 
         // not in map
-        assertThat(
-            WriteLoadConstraintDecider.maxSingleShardWriteLoadConcentration(List.of(testShardId1, testShardId2), Map.of()),
-            equalTo(0.0)
-        );
+        assertThat(WriteLoadConstraintDecider.maxSingleShardWriteLoad(List.of(testShardId1, testShardId2), Map.of()), equalTo(0.0));
 
         // one in map
         assertThat(
-            WriteLoadConstraintDecider.maxSingleShardWriteLoadConcentration(List.of(testShardId1, testShardId2), Map.of(testShardId1, 0.0)),
+            WriteLoadConstraintDecider.maxSingleShardWriteLoad(List.of(testShardId1, testShardId2), Map.of(testShardId1, 0.0)),
             equalTo(0.0)
         );
 
         // totally random map entry
         assertThat(
-            WriteLoadConstraintDecider.maxSingleShardWriteLoadConcentration(
+            WriteLoadConstraintDecider.maxSingleShardWriteLoad(
                 List.of(testShardId1, testShardId2),
                 Map.of(new ShardId(randomIndexName(), randomUUID(), 0), randomDoubleBetween(0.0001, 20.0, true))
             ),
@@ -675,18 +669,17 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
     }
 
-    public void testHotspotUtilizationConcentrationCheck() {
-        /* Test that a hotspot that is too concentrated (over 90%) is left alone, as rebalancing won't
-         * do anything and the hotspot shard should not be moved. Test that when this proportion is not
-         * exceeded, the same check sees both shards flagged for migration away */
-
+    public void testHotspotUtilizationSingleShardRatioCheck() {
+        /* Test that a hotspot that is too concentrated on a single shard (over 90%) is left alone, as
+         * rebalancing won't do anything and the hotspot shard should not be moved. Test that when this
+         * proportion is not exceeded, the same check sees both shards flagged for migration away */
         var writeLoadDecider = createWriteLoadConstraintDecider(
             Settings.builder()
                 .put(
                     WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
                     WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
                 )
-                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_CONCENTRATION_THRESHOLD_SETTING.getKey(), "90%")
+                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_MAX_SINGLE_SHARD_THRESHOLD_SETTING.getKey(), "90%")
                 .build()
         );
 
@@ -750,8 +743,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         Decision moveDecision = writeLoadDecider.canRemain(indexMetadata, highShardRouting, routingNode, routingAllocation);
         assertEquals(Decision.Type.YES, moveDecision.type());
         String explanationRegex = Strings.format("""
-            Node \\[%s\\] is hot-spotting, but has a single shard write load concentration of \\[0.95\\] that exceeds the \
-            concentration threshold of \\[0.90\\]. Nothing to do.""", node.getShortNodeDescription());
+            Node \\[%s\\] is hot-spotting, but has a single shard max write load ratio of \\[0.95\\] that exceeds the \
+            threshold of \\[0.90\\]. Nothing to do.""", node.getShortNodeDescription());
 
         assertThat(moveDecision.getExplanation(), matchesPattern(explanationRegex));
 
@@ -766,7 +759,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                     WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
                     WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
                 )
-                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_CONCENTRATION_THRESHOLD_SETTING.getKey(), "0%")
+                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_MAX_SINGLE_SHARD_THRESHOLD_SETTING.getKey(), "0%")
                 .build()
         );
 

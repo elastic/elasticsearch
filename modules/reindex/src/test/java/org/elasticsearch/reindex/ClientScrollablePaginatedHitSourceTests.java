@@ -211,7 +211,10 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
         paginatedHitSource.close(() -> closeCallbackCalled.set(true));
 
         client.awaitOperation();
-        client.validateRequest(TransportClearScrollAction.TYPE, (ClearScrollRequest r) -> assertThat(r.getScrollIds(), contains("scroll_123")));
+        client.validateRequest(
+            TransportClearScrollAction.TYPE,
+            (ClearScrollRequest r) -> assertThat(r.getScrollIds(), contains("scroll_123"))
+        );
         client.respond(TransportClearScrollAction.TYPE, new ClearScrollResponse(true, 1));
         assertTrue(closeCallbackCalled.get());
     }

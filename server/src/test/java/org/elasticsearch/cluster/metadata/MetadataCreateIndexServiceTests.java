@@ -97,7 +97,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -1981,7 +1980,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     validIndexNames.add(indexName);
                 } else {
                     // invalid index name
-                    indexName = "INVALID_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+                    indexName = randomIdentifier("INVALID_BECAUSE_UPPER_CASE_");
                 }
                 tasks.add(
                     new MetadataCreateIndexService.CreateIndexClusterStateUpdateTask(

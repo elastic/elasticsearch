@@ -13,7 +13,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.instrumentation.EntitlementInstrumented;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.MethodSignature;
 import org.elasticsearch.entitlement.rules.DeniedEntitlementStrategy;
 import org.elasticsearch.entitlement.runtime.registry.InstrumentationInfo;
@@ -62,30 +61,23 @@ public final class InstrumenterImpl implements Instrumenter {
 
     private final String registryClassMethodDescriptor;
     private final String handleClass;
-    private final Map<MethodKey, InstrumentationInfo> instrumentedMethods;
     private final Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass;
 
     InstrumenterImpl(
         String handleClass,
         String registryClassMethodDescriptor,
-        Map<MethodKey, InstrumentationInfo> instrumentedMethods,
         Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass
     ) {
         this.handleClass = handleClass;
         this.registryClassMethodDescriptor = registryClassMethodDescriptor;
-        this.instrumentedMethods = instrumentedMethods;
         this.rulesByClass = rulesByClass;
     }
 
-    public static InstrumenterImpl create(
-        Class<?> registryClass,
-        Map<MethodKey, InstrumentationInfo> checkMethods,
-        Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass
-    ) {
+    public static InstrumenterImpl create(Class<?> registryClass, Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass) {
         Type registryClassType = Type.getType(registryClass);
         String handleClass = registryClassType.getInternalName() + "Handle";
         String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(registryClassType);
-        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, checkMethods, rulesByClass);
+        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, rulesByClass);
     }
 
     private static boolean isJvmConstant(Object value) {
@@ -239,13 +231,14 @@ public final class InstrumenterImpl implements Instrumenter {
                 boolean isStatic = (access & ACC_STATIC) != 0;
                 boolean isCtor = "<init>".equals(name);
                 List<String> paramTypes = Stream.of(Type.getArgumentTypes(descriptor)).map(EntitlementClassVisitor::getTypeName).toList();
-                var key = new MethodKey(className, name, paramTypes);
-                var instrumentationMethod = instrumentedMethods.get(key);
+                var sig = new MethodSignature(name, paramTypes);
+                var classRules = rulesByClass.get(className);
+                var instrumentationMethod = classRules != null ? classRules.get(sig) : null;
                 if (instrumentationMethod == null && isStatic == false && isCtor == false) {
                     instrumentationMethod = findInheritedRule(name, paramTypes);
                 }
                 if (instrumentationMethod != null) {
-                    logger.debug("Will instrument {}", key);
+                    logger.debug("Will instrument [{}.{}]", className, sig);
                     return new EntitlementMethodVisitor(
                         Opcodes.ASM9,
                         mv,
@@ -256,7 +249,7 @@ public final class InstrumenterImpl implements Instrumenter {
                         instrumentationMethod.handler()
                     );
                 } else {
-                    logger.trace("Will not instrument {}", key);
+                    logger.trace("Will not instrument [{}.{}]", className, sig);
                 }
             }
             return mv;

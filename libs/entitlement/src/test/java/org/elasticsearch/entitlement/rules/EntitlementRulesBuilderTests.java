@@ -10,6 +10,8 @@
 package org.elasticsearch.entitlement.rules;
 
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
+import org.elasticsearch.entitlement.instrumentation.MethodSignature;
+import org.elasticsearch.entitlement.runtime.registry.InstrumentationInfo;
 import org.elasticsearch.entitlement.runtime.registry.InstrumentationRegistryImpl;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -50,14 +52,16 @@ public class EntitlementRulesBuilderTests extends ESTestCase {
     }
 
     private void assertHasRule(InternalInstrumentationRegistry registry, MethodKey expectedKey) {
+        var rulesByClass = registry.getInstrumentedMethods();
+        Map<MethodSignature, InstrumentationInfo> classRules = rulesByClass.get(expectedKey.className());
         assertTrue(
-            "Expected registry to contain " + expectedKey + " but had: " + registry.getInstrumentedMethods().keySet(),
-            registry.getInstrumentedMethods().containsKey(expectedKey)
+            "Expected registry to contain " + expectedKey + " but had: " + rulesByClass,
+            classRules != null && classRules.containsKey(expectedKey.methodSignature())
         );
     }
 
-    private Map<MethodKey, ?> methods(InternalInstrumentationRegistry registry) {
-        return registry.getInstrumentedMethods();
+    private long ruleCount(InternalInstrumentationRegistry registry) {
+        return registry.getInstrumentedMethods().values().stream().mapToInt(Map::size).sum();
     }
 
     public void testOnConcreteClassInstanceMethod() {
@@ -179,7 +183,7 @@ public class EntitlementRulesBuilderTests extends ESTestCase {
         builder.on(OtherDummy.class).calling(OtherDummy::noArg).enforce(Policies::empty).elseThrowNotEntitled();
         assertHasRule(registry, new MethodKey(CONCRETE_INTERNAL, "noArg", List.of()));
         assertHasRule(registry, new MethodKey(OTHER_DUMMY_INTERNAL, "noArg", List.of()));
-        assertEquals(2, methods(registry).size());
+        assertEquals(2, ruleCount(registry));
     }
 
     public void testMultipleRulesSameClass() {
@@ -193,7 +197,7 @@ public class EntitlementRulesBuilderTests extends ESTestCase {
             .elseThrowNotEntitled();
         assertHasRule(registry, new MethodKey(CONCRETE_INTERNAL, "noArg", List.of()));
         assertHasRule(registry, new MethodKey(CONCRETE_INTERNAL, "withArg", List.of("java.lang.String")));
-        assertEquals(2, methods(registry).size());
+        assertEquals(2, ruleCount(registry));
     }
 
     public void testOverloadedMethodDifferentKeys() {
@@ -207,7 +211,7 @@ public class EntitlementRulesBuilderTests extends ESTestCase {
             .elseThrowNotEntitled();
         assertHasRule(registry, new MethodKey(CONCRETE_INTERNAL, "overloaded", List.of("java.lang.Integer")));
         assertHasRule(registry, new MethodKey(CONCRETE_INTERNAL, "overloaded", List.of("java.lang.String")));
-        assertEquals(2, methods(registry).size());
+        assertEquals(2, ruleCount(registry));
     }
 
     public void testPrimitiveParam() {

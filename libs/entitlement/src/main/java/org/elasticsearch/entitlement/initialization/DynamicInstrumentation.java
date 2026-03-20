@@ -13,10 +13,7 @@ import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bridge.InstrumentationRegistry;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
-import org.elasticsearch.entitlement.instrumentation.MethodSignature;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
-import org.elasticsearch.entitlement.runtime.registry.InstrumentationInfo;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -26,9 +23,7 @@ import java.lang.instrument.UnmodifiableClassException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -65,13 +60,12 @@ class DynamicInstrumentation {
     static void initialize(Instrumentation inst, boolean verifyBytecode, InternalInstrumentationRegistry registry)
         throws UnmodifiableClassException {
 
-        var checkMethods = registry.getInstrumentedMethods();
-        var rulesByClass = buildRulesByClass(checkMethods);
+        var rulesByClass = registry.getInstrumentedMethods();
 
         Set<String> classesInRuleHierarchy = ConcurrentHashMap.newKeySet();
-        checkMethods.keySet().stream().map(MethodKey::className).forEach(classesInRuleHierarchy::add);
+        classesInRuleHierarchy.addAll(rulesByClass.keySet());
 
-        Instrumenter instrumenter = INSTRUMENTATION_SERVICE.newInstrumenter(InstrumentationRegistry.class, checkMethods, rulesByClass);
+        Instrumenter instrumenter = INSTRUMENTATION_SERVICE.newInstrumenter(InstrumentationRegistry.class, rulesByClass);
         var transformer = new Transformer(instrumenter, classesInRuleHierarchy, verifyBytecode);
         inst.addTransformer(transformer, true);
 
@@ -93,24 +87,6 @@ class DynamicInstrumentation {
         if (transformer.hadErrors()) {
             throw new RuntimeException("Failed to transform JDK classes for entitlements");
         }
-    }
-
-    /**
-     * Build a map from internal class name to a map of method signatures to instrumentation info.
-     * Constructors ({@code <init>}) are excluded since they are not inherited.
-     */
-    private static Map<String, Map<MethodSignature, InstrumentationInfo>> buildRulesByClass(
-        Map<MethodKey, InstrumentationInfo> checkMethods
-    ) {
-        Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass = new HashMap<>();
-        for (var entry : checkMethods.entrySet()) {
-            MethodKey key = entry.getKey();
-            if ("<init>".equals(key.methodName())) {
-                continue;
-            }
-            rulesByClass.computeIfAbsent(key.className(), k -> new HashMap<>()).put(key.methodSignature(), entry.getValue());
-        }
-        return Map.copyOf(rulesByClass);
     }
 
     /**

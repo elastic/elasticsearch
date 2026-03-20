@@ -11,6 +11,7 @@ package org.elasticsearch.entitlement.runtime.registry;
 
 import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
+import org.elasticsearch.entitlement.instrumentation.MethodSignature;
 import org.elasticsearch.entitlement.rules.DeniedEntitlementStrategy;
 import org.elasticsearch.entitlement.rules.EntitlementRule;
 import org.elasticsearch.entitlement.rules.function.CheckMethod;
@@ -24,7 +25,7 @@ import java.util.UUID;
 
 public class InstrumentationRegistryImpl implements InternalInstrumentationRegistry {
     private final PolicyChecker policyChecker;
-    private final Map<MethodKey, InstrumentationInfo> methodToImplementationInfo = new HashMap<>();
+    private final Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass = new HashMap<>();
     private final Map<String, DeniedEntitlementStrategy> implementationIdToStrategy = new HashMap<>();
     private final Map<String, VarargCall<CheckMethod>> implementationIdToProvider = new HashMap<>();
 
@@ -57,15 +58,18 @@ public class InstrumentationRegistryImpl implements InternalInstrumentationRegis
     }
 
     @Override
-    public Map<MethodKey, InstrumentationInfo> getInstrumentedMethods() {
-        return Collections.unmodifiableMap(methodToImplementationInfo);
+    public Map<String, Map<MethodSignature, InstrumentationInfo>> getInstrumentedMethods() {
+        return Collections.unmodifiableMap(rulesByClass);
     }
 
     public void registerRule(EntitlementRule rule) {
+        MethodKey methodKey = rule.methodKey();
         String id = UUID.randomUUID().toString();
-        InstrumentationInfo previous = methodToImplementationInfo.put(rule.methodKey(), new InstrumentationInfo(id, rule.strategy()));
+        InstrumentationInfo info = new InstrumentationInfo(id, rule.strategy());
+        InstrumentationInfo previous = rulesByClass.computeIfAbsent(methodKey.className(), k -> new HashMap<>())
+            .put(methodKey.methodSignature(), info);
         if (previous != null) {
-            throw new IllegalStateException("Rule has already been registered for method [" + rule.methodKey() + "].");
+            throw new IllegalStateException("Rule has already been registered for method [" + methodKey + "].");
         }
         implementationIdToStrategy.put(id, rule.strategy());
         implementationIdToProvider.put(id, rule.checkMethod());

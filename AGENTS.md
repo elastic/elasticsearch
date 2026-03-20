@@ -12,6 +12,7 @@
 
 ## Verification & Lint Tasks
 - `./gradlew spotlessJavaCheck` / `spotlessApply` (or `:server:spotlessJavaCheck`): enforce formatter profile in `build-conventions/formatterConfig.xml`.
+- `spotlessApply` also prunes unused imports and reorders imports automatically. Run it instead of manually hunting for unused imports after refactoring.
 
 ## Project Structure
 The repository is organized into several key directories:

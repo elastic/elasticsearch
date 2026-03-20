@@ -11,18 +11,13 @@ package org.elasticsearch.entitlement.instrumentation.impl;
 
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.MethodSignature;
 import org.elasticsearch.entitlement.runtime.registry.InstrumentationInfo;
 
 import java.util.Map;
 
 public class InstrumentationServiceImpl implements InstrumentationService {
-    public Instrumenter newInstrumenter(
-        Class<?> clazz,
-        Map<MethodKey, InstrumentationInfo> methods,
-        Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass
-    ) {
-        return InstrumenterImpl.create(clazz, methods, rulesByClass);
+    public Instrumenter newInstrumenter(Class<?> clazz, Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass) {
+        return InstrumenterImpl.create(clazz, rulesByClass);
     }
 }

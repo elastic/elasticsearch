@@ -10,13 +10,32 @@
 package org.elasticsearch.entitlement.runtime.registry;
 
 import org.elasticsearch.entitlement.bridge.InstrumentationRegistry;
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
+import org.elasticsearch.entitlement.instrumentation.MethodSignature;
 import org.elasticsearch.entitlement.rules.EntitlementRule;
 
 import java.util.Map;
 
+/**
+ * Internal extension of {@link InstrumentationRegistry} used during entitlement initialization to
+ * build up and query the set of instrumented methods. The bridge {@link InstrumentationRegistry}
+ * handles runtime check dispatch; this interface adds the ability to register rules at startup
+ * and retrieve the full rule map for use by the instrumenter.
+ */
 public interface InternalInstrumentationRegistry extends InstrumentationRegistry {
-    Map<MethodKey, InstrumentationInfo> getInstrumentedMethods();
 
+    /**
+     * Returns all registered instrumentation rules, grouped by internal class name.
+     * The outer map is keyed by the class's internal name (e.g. {@code "java/net/Socket"}),
+     * and each inner map is keyed by {@link MethodSignature} mapping to the
+     * {@link InstrumentationInfo} for that method.
+     */
+    Map<String, Map<MethodSignature, InstrumentationInfo>> getInstrumentedMethods();
+
+    /**
+     * Registers an entitlement rule for instrumentation. Rules are indexed by the
+     * {@link EntitlementRule#methodKey() method key}'s class name and method signature.
+     *
+     * @throws IllegalStateException if a rule has already been registered for the same method
+     */
     void registerRule(EntitlementRule rule);
 }

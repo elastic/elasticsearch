@@ -13,13 +13,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.entitlement.bridge.InstrumentationRegistry;
 import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
-import org.elasticsearch.entitlement.instrumentation.MethodSignature;
 import org.elasticsearch.entitlement.rules.EntitlementRulesBuilder;
 import org.elasticsearch.entitlement.rules.function.Call0;
 import org.elasticsearch.entitlement.rules.function.CheckMethod;
 import org.elasticsearch.entitlement.rules.function.VarargCall;
-import org.elasticsearch.entitlement.runtime.registry.InstrumentationInfo;
 import org.elasticsearch.entitlement.runtime.registry.InstrumentationRegistryImpl;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 import org.elasticsearch.logging.LogManager;
@@ -34,8 +31,6 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -1052,8 +1047,7 @@ public class InstrumenterTests extends ESTestCase {
         InstrumenterImpl instrumenter = new InstrumenterImpl(
             Type.getType(InstrumenterTests.class).getInternalName(),
             Type.getMethodDescriptor(Type.getType(InstrumentationRegistry.class)),
-            reg.getInstrumentedMethods(),
-            buildRulesByClass(reg.getInstrumentedMethods())
+            reg.getInstrumentedMethods()
         );
 
         var loader = instrumentTestClass(instrumenter, TestSubClass.class);
@@ -1072,8 +1066,7 @@ public class InstrumenterTests extends ESTestCase {
         InstrumenterImpl instrumenter = new InstrumenterImpl(
             Type.getType(InstrumenterTests.class).getInternalName(),
             Type.getMethodDescriptor(Type.getType(InstrumentationRegistry.class)),
-            registry.getInstrumentedMethods(),
-            buildRulesByClass(registry.getInstrumentedMethods())
+            registry.getInstrumentedMethods()
         );
 
         return instrumentTestClass(instrumenter, TestSubClass.class);
@@ -1087,25 +1080,10 @@ public class InstrumenterTests extends ESTestCase {
         InstrumenterImpl instrumenter = new InstrumenterImpl(
             Type.getType(InstrumenterTests.class).getInternalName(),
             Type.getMethodDescriptor(Type.getType(InstrumentationRegistry.class)),
-            registry.getInstrumentedMethods(),
-            buildRulesByClass(registry.getInstrumentedMethods())
+            registry.getInstrumentedMethods()
         );
 
         return instrumentTestClass(instrumenter);
-    }
-
-    private static Map<String, Map<MethodSignature, InstrumentationInfo>> buildRulesByClass(
-        Map<MethodKey, InstrumentationInfo> checkMethods
-    ) {
-        Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass = new HashMap<>();
-        for (var entry : checkMethods.entrySet()) {
-            MethodKey key = entry.getKey();
-            if ("<init>".equals(key.methodName())) {
-                continue;
-            }
-            rulesByClass.computeIfAbsent(key.className(), k -> new HashMap<>()).put(key.methodSignature(), entry.getValue());
-        }
-        return Map.copyOf(rulesByClass);
     }
 
     private static TestLoader instrumentTestClass(InstrumenterImpl instrumenter) throws IOException {

@@ -208,13 +208,13 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             nodeWriteThreadPoolUtilizationThreshold
         );
 
-        /* The shard concentration is computed only for hotspotting nodes, and cached within cluster info with
-        nodeMaxShardWriteLoadProportion so it is only computed once
-        Note: if the shard concentration is high, ie above the threshold, then we don't do anything about it in flagging
-        it as a hotspot to resolve with a NOT_PREFERRED */
-        final double writeLoadShardConcentrationThreshold = writeLoadConstraintSettings.getHotspotUtilizationConcentrationThreshold();
-        final Supplier<Double> writeLoadMaxShardConcentration = () -> allocation.clusterInfo()
-            .nodeMaxShardWriteLoadProportion(
+        if (nodeIsHotspotting) {
+            /* The shard concentration is computed only for hotspotting nodes, and cached within cluster info with
+            nodeMaxShardWriteLoadProportion so it is only computed once
+            Note: if the shard concentration is high, ie above the threshold, then we don't do anything about it in flagging
+            it as a hotspot to resolve with a NOT_PREFERRED */
+            final double writeLoadShardConcentrationThreshold = writeLoadConstraintSettings.getHotspotUtilizationConcentrationThreshold();
+            final double writeLoadMaxShardConcentration = allocation.clusterInfo().nodeMaxShardWriteLoadProportion(
                 node.nodeId(),
                 // compute cache entry if absent
                 () -> {
@@ -226,32 +226,29 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 }
             );
 
-        if (nodeIsHotspotting
-            && writeLoadShardConcentrationIsHigh(writeLoadMaxShardConcentration.get(), writeLoadShardConcentrationThreshold) == false) {
-            if (logger.isDebugEnabled() || allocation.debugDecision()) {
-                final Double shardWriteLoad = getShardWriteLoad(allocation, shardRouting);
-                final String explain = Strings.format(
-                    """
-                        Node [%s] has a queue latency of [%d] millis that exceeds the queue latency threshold of [%s] and a thread pool \
-                        utilization of [%f] that exceeds the utilization threshold of [%s]. This node is hot-spotting. Shard write load \
-                        [%s]. Should move shard(s) away""",
-                    node.getShortNodeDescription(),
-                    nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
-                    nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2),
-                    nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
-                    writeLoadConstraintSettings.getHotspotUtilizationThresholdString(),
-                    shardWriteLoad == null ? "unknown" : shardWriteLoad
-                );
-                if (logger.isDebugEnabled()) {
-                    logCanRemainMessage.maybeExecute(() -> logger.debug(explain));
+            if (writeLoadShardConcentrationIsHigh(writeLoadMaxShardConcentration, writeLoadShardConcentrationThreshold) == false) {
+                if (logger.isDebugEnabled() || allocation.debugDecision()) {
+                    final Double shardWriteLoad = getShardWriteLoad(allocation, shardRouting);
+                    final String explain = Strings.format(
+                        """
+                            Node [%s] has a queue latency of [%d] millis that exceeds the queue latency threshold of [%s] and a thread pool \
+                            utilization of [%f] that exceeds the utilization threshold of [%s]. This node is hot-spotting. Shard write load \
+                            [%s]. Should move shard(s) away""",
+                        node.getShortNodeDescription(),
+                        nodeWriteThreadPoolStats.maxThreadPoolQueueLatencyMillis(),
+                        nodeWriteThreadPoolQueueLatencyThreshold.toHumanReadableString(2),
+                        nodeWriteThreadPoolStats.averageThreadPoolUtilization(),
+                        writeLoadConstraintSettings.getHotspotUtilizationThresholdString(),
+                        shardWriteLoad == null ? "unknown" : shardWriteLoad
+                    );
+                    if (logger.isDebugEnabled()) {
+                        logCanRemainMessage.maybeExecute(() -> logger.debug(explain));
+                    }
+                    return allocation.decision(Decision.NOT_PREFERRED, NAME, explain);
+                } else {
+                    return Decision.NOT_PREFERRED;
                 }
-                return allocation.decision(Decision.NOT_PREFERRED, NAME, explain);
             } else {
-                return Decision.NOT_PREFERRED;
-            }
-        } else if (nodeIsHotspotting
-            && writeLoadShardConcentrationIsHigh(writeLoadMaxShardConcentration.get(), writeLoadShardConcentrationThreshold)) {
-                double shardConcentration = writeLoadMaxShardConcentration.get();
                 return allocation.decision(
                     Decision.YES,
                     NAME,
@@ -259,10 +256,11 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                         Node [%s] is hot-spotting, but has a single shard write load concentration of [%.2f] that exceeds the \
                         concentration threshold of [%.2f]. Nothing to do.""",
                     node.getShortNodeDescription(),
-                    shardConcentration,
+                    writeLoadMaxShardConcentration,
                     writeLoadShardConcentrationThreshold
                 );
             }
+        }
 
         return allocation.decision(
             Decision.YES,

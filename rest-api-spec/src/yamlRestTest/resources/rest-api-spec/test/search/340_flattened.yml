@@ -507,3 +507,18 @@ setup:
   - match: { hits.hits.0._id: "2" }
   - match: { hits.hits.1._id: "3" }
   - match: { hits.hits.2._id: "1" }
+
+---
+"Flattened field cannot be used as a multi-field":
+  - do:
+      catch: /Type \[flattened\] cannot be used in multi field/
+      indices.create:
+        index: test_flattened_multi_field
+        body:
+          mappings:
+            properties:
+              my_field:
+                type: keyword
+                fields:
+                  flat:
+                    type: flattened

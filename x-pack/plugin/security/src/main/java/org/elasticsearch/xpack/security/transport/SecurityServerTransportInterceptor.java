@@ -46,10 +46,9 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_VALUE;
-
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_VALUE;
 
 public class SecurityServerTransportInterceptor implements TransportInterceptor {
 

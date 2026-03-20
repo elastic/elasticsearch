@@ -537,7 +537,6 @@ public class SecurityServerTransportInterceptorTests extends AbstractServerTrans
         assertTrue(exceptionSent.get());
     }
 
-
     private static class TestNoopRemoteClusterTransportInterceptor implements RemoteClusterTransportInterceptor {
 
         @Override

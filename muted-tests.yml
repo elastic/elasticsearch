@@ -285,9 +285,6 @@ tests:
 - class: org.elasticsearch.test.apmintegration.MetricsApmIT
   method: testJvmMetrics {withOTel=false}
   issue: https://github.com/elastic/elasticsearch/issues/144167
-- class: org.elasticsearch.xpack.security.authc.service.ServiceAccountIT
-  method: testAuthenticateShouldNotFallThroughInCaseOfFailure
-  issue: https://github.com/elastic/elasticsearch/issues/144262
 - class: org.elasticsearch.test.apmintegration.MetricsApmIT
   method: testApmIntegration {withOTel=false}
   issue: https://github.com/elastic/elasticsearch/issues/144282

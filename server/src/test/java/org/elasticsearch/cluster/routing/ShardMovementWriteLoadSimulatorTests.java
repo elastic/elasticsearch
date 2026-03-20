@@ -275,7 +275,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
             .shardWriteLoads(shardWriteLoads)
             .build();
 
-        return TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).immutable().mutableCloneForSimulation();
+        return TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build().mutableCloneForSimulation();
     }
 
     private ClusterState createClusterState() {

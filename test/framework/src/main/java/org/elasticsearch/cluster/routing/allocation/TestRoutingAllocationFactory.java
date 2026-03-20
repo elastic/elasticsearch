@@ -69,15 +69,24 @@ public class TestRoutingAllocationFactory {
             return this;
         }
 
+        /**
+         * Build either an immutable or a mutable {@link RoutingAllocation} randomly
+         */
         public RoutingAllocation build() {
             return randomBoolean() ? mutable() : immutable();
         }
 
+        /**
+         * Build an immutable {@link RoutingAllocation}
+         */
         public RoutingAllocation immutable() {
             assert routingNodes == null : "Attempted to specify RoutingNodes for an immutable RoutingAllocation";
             return new ImmutableRoutingAllocation(allocationDeciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
         }
 
+        /**
+         * Build a mutable {@link RoutingAllocation}
+         */
         public RoutingAllocation mutable() {
             return new MutableRoutingAllocation(
                 allocationDeciders,

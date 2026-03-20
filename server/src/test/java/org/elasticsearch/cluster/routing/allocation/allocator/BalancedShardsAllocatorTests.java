@@ -812,7 +812,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             .shardSizes(Map.of(shardIdentifierFromRouting(new ShardId(index.getIndex(), 0), true), ByteSizeValue.ofGb(8).getBytes()))
             .build();
         allocator.allocate(
-            TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).mutable().mutableCloneForSimulation()
+            TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).build().mutableCloneForSimulation()
         );
 
         final var modelNodes = modelNodesRef.get();
@@ -1140,18 +1140,15 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         );
         assertThat(allShards, hasSize(numberOfShardsWithNoWriteLoad));
 
-        final var allocation = TestRoutingAllocationFactory.forClusterState(clusterState)
-            .clusterInfo(ClusterInfo.builder().shardWriteLoads(shardWriteLoads).build())
-            .shardSizeInfo(SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES.snapshotShardSizes())
-            .immutable();
+        final ClusterInfo clusterInfo = ClusterInfo.builder().shardWriteLoads(shardWriteLoads).build();
 
         // Assign all shards to node
-        final var allocatedRoutingNodes = allocation.routingNodes().mutableCopy();
+        final var allocatedRoutingNodes = clusterState.getRoutingNodes().mutableCopy();
         for (ShardRouting shardRouting : allocatedRoutingNodes.unassigned()) {
             allocatedRoutingNodes.initializeShard(shardRouting, nodeId, null, randomNonNegativeLong(), RoutingChangesObserver.NOOP);
         }
 
-        final var comparator = new PrioritiseByShardWriteLoadComparator(allocation.clusterInfo(), allocatedRoutingNodes.node(nodeId));
+        final var comparator = new PrioritiseByShardWriteLoadComparator(clusterInfo, allocatedRoutingNodes.node(nodeId));
 
         logger.info("--> testing shard movement priority comparator, maxValue={}, threshold={}", maxWriteLoad, writeLoadThreshold);
         var sortedShards = allocatedRoutingNodes.getAssignedShards().values().stream().flatMap(List::stream).sorted(comparator).toList();

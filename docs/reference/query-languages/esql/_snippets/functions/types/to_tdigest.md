@@ -4,6 +4,7 @@
 
 | field | result |
 | --- | --- |
+| exponential_histogram {applies_to}`stack: preview 9.4.0` | tdigest |
 | histogram | tdigest |
 | tdigest | tdigest |
 

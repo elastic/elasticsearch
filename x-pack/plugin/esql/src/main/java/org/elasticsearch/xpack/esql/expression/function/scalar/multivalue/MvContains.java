@@ -102,7 +102,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression."
+            description = "Expression that can be null, a single value, or multiple values."
         ) Expression superset,
         @Param(
             name = "subset",
@@ -125,7 +125,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression."
+            description = "Expression that can be null, a single value, or multiple values."
         ) Expression subset
     ) {
         super(source, superset, subset);

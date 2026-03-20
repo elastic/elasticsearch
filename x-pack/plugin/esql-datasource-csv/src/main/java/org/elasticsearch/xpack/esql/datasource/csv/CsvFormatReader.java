@@ -12,7 +12,9 @@ import com.fasterxml.jackson.dataformat.csv.CsvMapper;
 import com.fasterxml.jackson.dataformat.csv.CsvParser;
 import com.fasterxml.jackson.dataformat.csv.CsvSchema;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -73,7 +75,7 @@ import java.util.regex.Pattern;
  * {@code integer} ({@code int}, {@code i}), {@code long} ({@code l}),
  * {@code double} ({@code d}), {@code keyword} ({@code k}, {@code string}, {@code s}),
  * {@code text} ({@code txt}), {@code boolean} ({@code bool}),
- * {@code datetime} ({@code date}, {@code dt}), {@code null} ({@code n}).
+ * {@code datetime} ({@code date}, {@code dt}), {@code ip}, {@code null} ({@code n}).
  *
  * <h2>Configurable options</h2>
  * All options are set via the {@code WITH} clause and parsed by {@link #withConfig(java.util.Map)}.
@@ -513,6 +515,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             case "TEXT", "TXT" -> DataType.TEXT;
             case "BOOLEAN", "BOOL" -> DataType.BOOLEAN;
             case "DATETIME", "DATE", "DT" -> DataType.DATETIME;
+            case "IP" -> DataType.IP;
             case "NULL", "N" -> DataType.NULL;
             default -> throw EsqlIllegalArgumentException.illegalDataType(typeName);
         };
@@ -951,6 +954,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 case KEYWORD, TEXT -> new BytesRef(value);
                 case BOOLEAN -> tryParseBoolean(value);
                 case DATETIME -> tryParseDatetime(value);
+                case IP -> tryParseIp(value);
                 case NULL -> null;
                 default -> {
                     lastFieldError = "Unsupported data type: " + dataType;
@@ -1033,6 +1037,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 case KEYWORD, TEXT -> new BytesRef(value);
                 case BOOLEAN -> tryParseBoolean(value);
                 case DATETIME -> tryParseDatetime(value);
+                case IP -> tryParseIp(value);
                 case NULL -> null;
                 default -> {
                     lastFieldError = "Unsupported data type: " + dataType;
@@ -1113,6 +1118,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         }
 
+        private Object tryParseIp(String value) {
+            try {
+                return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(value)));
+            } catch (IllegalArgumentException e) {
+                lastFieldError = "Failed to parse CSV value [" + value + "] as [IP]";
+                return null;
+            }
+        }
+
         private void onRowError(String message, Exception cause, String[] row) {
             if (modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
                 throw new EsqlIllegalArgumentException(cause, message);
@@ -1174,7 +1188,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 case INTEGER -> Integer.class;
                 case LONG, DATETIME -> Long.class;
                 case DOUBLE -> Double.class;
-                case KEYWORD, TEXT -> BytesRef.class;
+                case KEYWORD, TEXT, IP -> BytesRef.class;
                 case BOOLEAN -> Boolean.class;
                 case NULL -> Void.class;
                 default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);

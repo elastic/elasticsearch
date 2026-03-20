@@ -1,5 +1,0 @@
-area: Vector Search
-issues: []
-pr: 143531
-summary: Fix GPU merge `ClassCastException` with wrapped directories
-type: bug

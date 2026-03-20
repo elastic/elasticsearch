@@ -17,7 +17,6 @@
 
 package org.elasticsearch.test.cluster.stateless.local;
 
-import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.cluster.local.AbstractLocalClusterFactory.Node;
@@ -55,7 +54,7 @@ public class StatelessLocalClusterHandle extends DefaultLocalClusterHandle {
         nodeLock.lock();
         // When stopping a node in stateless mode we replace it on subsequent startup, similar to container churn behavior.
         Node oldNode = nodes.get(index);
-        Node newNode = new Node(baseWorkingDir, distributionResolver, oldNode.getSpec(), RandomStringUtils.randomAlphabetic(7), true);
+        Node newNode = new StatelessNode(baseWorkingDir, distributionResolver, oldNode.getSpec());
 
         nodes.set(index, newNode);
         nodeLock.unlock();
@@ -73,7 +72,7 @@ public class StatelessLocalClusterHandle extends DefaultLocalClusterHandle {
         nodeLock.lock();
         Node oldNode = nodes.get(index);
         LocalClusterSpec.LocalNodeSpec oldNodeSpec = oldNode.getSpec();
-        Node newNode = new Node(baseWorkingDir, distributionResolver, oldNodeSpec, RandomStringUtils.randomAlphabetic(7), true);
+        Node newNode = new StatelessNode(baseWorkingDir, distributionResolver, oldNodeSpec);
 
         LOGGER.info("Replacing node '{}' with node '{}'", oldNode.getName(), newNode.getName());
         nodes.add(index, newNode);

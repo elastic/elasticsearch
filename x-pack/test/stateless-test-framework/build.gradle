@@ -28,4 +28,6 @@ dependencies {
     implementation("org.elasticsearch.test:framework")
     implementation("org.apache.logging.log4j:log4j-api:${versions["log4j"]}")
     implementation("org.apache.commons:commons-lang3:${versions["commons_lang3"]}")
+    implementation("com.fasterxml.jackson.core:jackson-core:${versions["jackson"]}")
+    implementation("com.fasterxml.jackson.core:jackson-databind:${versions["jackson"]}")
 }

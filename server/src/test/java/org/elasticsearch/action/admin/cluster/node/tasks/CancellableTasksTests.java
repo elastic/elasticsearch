@@ -628,7 +628,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         reader.join();
     }
 
-    public void testToStringReturnsConsistCancellationStateAndReason() throws Exception {
+    public void testToStringReturnsConsistentCancellationStateAndReason() throws Exception {
         final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", TaskId.EMPTY_TASK_ID, emptyMap());
         final CountDownLatch start = new CountDownLatch(1);
 

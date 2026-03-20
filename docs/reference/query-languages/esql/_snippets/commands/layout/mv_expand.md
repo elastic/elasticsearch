@@ -25,7 +25,7 @@ rows can be in any order. To guarantee a certain ordering, place a `SORT` after
 Additionally, if a `WHERE` clause follows `MV_EXPAND`, it may prevent the query
 planner from merging a preceding `SORT` with a trailing `LIMIT` into an
 efficient `TopN` operation. In such cases, the query will fail with a
-validation exception: `Unbounded SORT not supported yet [SORT field] please add a LIMIT`.
+validation exception: `MV_EXPAND [MV_EXPAND field] cannot yet have an unbounded SORT [SORT field] before it: either move the SORT after it, or add a LIMIT after the SORT`.
 To work around this, add a `LIMIT` before `MV_EXPAND`:
 
 ```esql

@@ -761,7 +761,7 @@ public class AzureBlobStore implements BlobStore {
                 }
                 if (numOfBytesRead == -1 && currentTotalLength.get() < length) {
                     throw new IllegalStateException(
-                        "InputStream provided" + currentTotalLength.get() + " bytes, less than the expected" + length + " bytes"
+                        "InputStream provided " + currentTotalLength.get() + " bytes, less than the expected" + length + " bytes"
                     );
                 }
                 return ByteBuffer.wrap(buffer);

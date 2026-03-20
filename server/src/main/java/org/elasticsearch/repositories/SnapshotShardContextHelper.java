@@ -25,23 +25,30 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
+
+import static org.elasticsearch.snapshots.SnapshotShardsService.getShardStateId;
+
 public class SnapshotShardContextHelper {
     public static final Logger logger = LogManager.getLogger(SnapshotShardContextHelper.class);
 
     private SnapshotShardContextHelper() {}
 
+    public record SnapshotIndexCommitAndShardStateId(SnapshotIndexCommit snapshotIndexCommit, @Nullable String shardStateId) {}
+
     /**
      * Acquire an index commit for the shard snapshot, validating that the shard is a started primary and no resharding is in progress.
      * A {@code null} {@code snapshotStatus} means the snapshot is running on a remote node, abort handling and status updates skipped
-     * on this node as they are handled on the remote node.
+     * on this node as they are handled on the remote node. When it is non-null, the snapshot is running locally and abort listener is
+     * registered.
      */
-    public static SnapshotIndexCommit acquireSnapshotIndexCommit(
+    public static SnapshotIndexCommitAndShardStateId acquireSnapshotIndexCommit(
         ClusterService clusterService,
         IndexShard indexShard,
         Snapshot snapshot,
         boolean supportsRelocationDuringSnapshot,
         @Nullable IndexShardSnapshotStatus snapshotStatus
-    ) {
+    ) throws IOException {
         final var shardId = indexShard.shardId();
         if (indexShard.routingEntry().primary() == false) {
             throw new IndexShardSnapshotFailedException(shardId, "snapshot should be performed only on primary");
@@ -92,12 +99,13 @@ public class SnapshotShardContextHelper {
                 throw new IndexShardSnapshotFailedException(shardId, "cannot snapshot a shard during resharding");
             }
 
+            final var shardStateId = getShardStateId(indexShard, snapshotIndexCommit.indexCommit()); // not aborted so indexCommit() ok
             if (snapshotStatus != null) {
                 snapshotStatus.updateStatusDescription("commit reference acquired, proceeding with snapshot");
                 snapshotStatus.addAbortListener(makeAbortListener(indexShard.shardId(), snapshot, snapshotIndexCommit));
                 snapshotStatus.ensureNotAborted();
             }
-            return snapshotIndexCommit;
+            return new SnapshotIndexCommitAndShardStateId(snapshotIndexCommit, shardStateId);
         } catch (Exception e) {
             closeSnapshotIndexCommit(snapshotIndexCommit, shardId, snapshot);
             throw e;

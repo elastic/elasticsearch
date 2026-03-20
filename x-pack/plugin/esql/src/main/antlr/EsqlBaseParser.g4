@@ -221,7 +221,11 @@ stringOrParameter
     ;
 
 limitCommand
-    : LIMIT constant
+    : LIMIT constant limitByGroupKey?
+    ;
+
+limitByGroupKey:
+    {this.isDevVersion()}? BY booleanExpression (COMMA booleanExpression)*
     ;
 
 sortCommand

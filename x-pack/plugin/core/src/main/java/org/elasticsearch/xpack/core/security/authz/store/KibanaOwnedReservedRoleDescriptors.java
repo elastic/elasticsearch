@@ -278,7 +278,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .build(),
                 // "Alerting V2" views prefix
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(ReservedRolesStore.ALERTING_V2_VIEWS)
+                    .indices(ReservedRolesStore.ALERTING_V2_ALERT_VIEWS, ReservedRolesStore.ALERTING_V2_RULE_VIEWS)
                     .privileges("indices:admin/esql/view/put") // TODO: use named index privilege when available in serverless
                     .build(),
                 // "Alerts as data" public index aliases used in Security Solution,
@@ -289,7 +289,14 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.CASES_ANALYTICS_INDEXES).privileges("all").build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.CASES_ANALYTICS_ALIASES).privileges("all").build(),
                 // "Alerting V2" indexes
-                RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.ALERTING_V2_INDEX_ALIAS).privileges("all").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.ALERTING_V2_ALERT_INDEX_ALIAS)
+                    .privileges("all")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.ALERTING_V2_RULE_INDEX_ALIAS)
+                    .privileges("all")
+                    .build(),
                 // "Alerts as data" public index alias used in Security Solution
                 // Kibana system user uses them to read / write alerts.
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -355,6 +362,9 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices("logs", "logs.*", "$.logs", "$.logs.*")
                     .privileges("read", "manage")
                     .build(),
+                // Read access for all log data streams with a dot-separated namespace
+                // (e.g. logs-<integration>.<dataset>)
+                RoleDescriptor.IndicesPrivileges.builder().indices("logs-*.*").privileges("read").build(),
                 // Kibana Security Solution EDR workflows team
                 // - `.endpoint-script-file*`:
                 // indexes are used internally within Kibana in support of Elastic Defend scripts library.

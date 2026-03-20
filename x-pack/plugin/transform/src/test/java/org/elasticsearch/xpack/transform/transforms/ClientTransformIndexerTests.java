@@ -218,6 +218,30 @@ public class ClientTransformIndexerTests extends ESTestCase {
         }
     }
 
+    public void testPitClosedOnAbort() throws InterruptedException {
+        TransformConfig config = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig()).setSettings(
+            new SettingsConfig.Builder().setUsePit(true).build()
+        ).build();
+
+        try (var threadPool = createThreadPool()) {
+            final var client = new PitMockClient(threadPool, true);
+            MockClientTransformIndexer indexer = createMockIndexerForPitTest(client, config);
+
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+")));
+            });
+
+            assertEquals(1L, client.getPitContextCounter());
+
+            indexer.onAbort();
+            assertEquals(0L, client.getPitContextCounter());
+
+            // calling onAbort again should be a no-op
+            indexer.onAbort();
+            assertEquals(0L, client.getPitContextCounter());
+        }
+    }
+
     public void testPitInjectionIfPitNotSupported() throws InterruptedException {
         // pit must be enabled, otherwise take a random config
         TransformConfig config = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig()).setSettings(
@@ -283,7 +307,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(TransformAuditor.class),
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                     mock(TransformNode.class),
-                    mock(CrossProjectModeDecider.class)
+                    mock(CrossProjectModeDecider.class),
+                    projectId -> false
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -352,7 +377,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     mock(TransformAuditor.class),
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                     mock(TransformNode.class),
-                    mock(CrossProjectModeDecider.class)
+                    mock(CrossProjectModeDecider.class),
+                    projectId -> false
                 ),
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
@@ -558,7 +584,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(TransformAuditor.class),
                 new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                 mock(TransformNode.class),
-                mock(CrossProjectModeDecider.class)
+                mock(CrossProjectModeDecider.class),
+                projectId -> false
             ),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),
@@ -715,7 +742,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                             // copy the pit from the request
                             searchRequest.pointInTimeBuilder() != null
                                 ? CompositeBytesReference.of(searchRequest.pointInTimeBuilder().getEncodedId(), new BytesArray("+"))
-                                : null
+                                : null,
+                            null
                         )
                     );
 
@@ -770,7 +798,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(TransformAuditor.class),
                 new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                 mock(TransformNode.class),
-                mock(CrossProjectModeDecider.class)
+                mock(CrossProjectModeDecider.class),
+                projectId -> false
             ),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),

@@ -31,16 +31,10 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
 
   private final List<Integer> channels;
 
-  public CountDistinctBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      CountDistinctBooleanAggregator.SingleState state) {
+  CountDistinctBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static CountDistinctBooleanAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new CountDistinctBooleanAggregatorFunction(driverContext, channels, CountDistinctBooleanAggregator.initSingle());
+    this.state = CountDistinctBooleanAggregator.initSingle();
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

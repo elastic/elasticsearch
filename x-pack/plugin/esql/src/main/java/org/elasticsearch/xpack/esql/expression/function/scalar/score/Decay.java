@@ -110,7 +110,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     private static final Double DEFAULT_CARTESIAN_POINT_OFFSET = 0.0;
     private static final Long DEFAULT_TEMPORAL_OFFSET = 0L;
 
-    private static final Double DEFAULT_DECAY = 0.5;
+    private static final double DEFAULT_DECAY = 0.5;
 
     private static final BytesRef DEFAULT_FUNCTION = new BytesRef("linear");
 
@@ -376,7 +376,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         Object originFolded = origin.fold(foldCtx);
         Object scaleFolded = getFoldedScale(foldCtx, valueDataType);
         Object offsetFolded = getOffset(foldCtx, valueDataType, offsetExpr);
-        Double decayFolded = decayExpr != null ? (Double) decayExpr.fold(foldCtx) : DEFAULT_DECAY;
+        double decayFolded = decayExpr != null ? ((Number) decayExpr.fold(foldCtx)).doubleValue() : DEFAULT_DECAY;
         DecayFunction decayFunction = DecayFunction.fromBytesRef(typeExpr != null ? (BytesRef) typeExpr.fold(foldCtx) : DEFAULT_FUNCTION);
 
         return switch (valueDataType) {

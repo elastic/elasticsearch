@@ -35,16 +35,10 @@ public final class AnyIntGroupingAggregatorFunction implements GroupingAggregato
 
   private final DriverContext driverContext;
 
-  public AnyIntGroupingAggregatorFunction(List<Integer> channels,
-      AnyIntAggregator.GroupingState state, DriverContext driverContext) {
+  AnyIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = AnyIntAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static AnyIntGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new AnyIntGroupingAggregatorFunction(channels, AnyIntAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

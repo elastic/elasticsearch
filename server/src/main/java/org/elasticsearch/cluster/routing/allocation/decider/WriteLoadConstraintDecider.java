@@ -83,7 +83,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         }
 
         if (totalWriteLoad > 0.0) {
-            return Math.min(maxSingleShardWriteLoad / totalWriteLoad, 1.0);
+            return maxSingleShardWriteLoad / totalWriteLoad;
         } else {
             // no shards or some issue -- return 0.0
             return 0.0;

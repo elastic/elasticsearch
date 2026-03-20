@@ -1,5 +1,6 @@
 area: Geo
-issues: []
+issues:
+ - 144504
 pr: 144637
 summary: Fix `geo_centroid` over `geo_shape` merging multiple shards
 type: bug

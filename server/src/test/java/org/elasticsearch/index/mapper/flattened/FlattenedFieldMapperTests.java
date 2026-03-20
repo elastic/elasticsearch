@@ -1103,6 +1103,20 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertThat(e.getMessage(), containsString("[fields] (multi-fields) is not supported on properties of flattened field"));
     }
 
+    public void testFlattenedCannotBeUsedAsMultiField() {
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(mapping(b -> {
+            b.startObject("my_field");
+            {
+                b.field("type", "keyword");
+                b.startObject("fields");
+                b.startObject("flat").field("type", "flattened").endObject();
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("cannot be used in multi field"));
+    }
+
     public void testPropertiesTotalFieldsCount() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "flattened");

@@ -244,7 +244,7 @@ setup:
 ---
 "Test flattened field with mapped properties":
   - requires:
-      cluster_features: ["mapper.flattened.mapped_properties"]
+      cluster_features: ["mapper.flattened.mapped_subfields"]
       reason: "mapped properties on flattened fields"
   - do:
       indices.create:
@@ -330,10 +330,10 @@ setup:
   - match: { hits.hits.1._id: "1" }
 
 ---
-"Test flattened mapped properties with aggregations":
+"Test flattened mapped subfields with aggregations":
   - requires:
-      cluster_features: ["mapper.flattened.mapped_properties"]
-      reason: "mapped properties on flattened fields"
+      cluster_features: ["mapper.flattened.mapped_subfields"]
+      reason: "mapped subfields on flattened fields"
   - do:
       indices.create:
         index: test
@@ -395,10 +395,10 @@ setup:
   - match: { aggregations.priority_stats.max: 3.0 }
 
 ---
-"Test flattened mapped properties with synthetic source":
+"Test flattened mapped subfields with synthetic source":
   - requires:
-      cluster_features: ["mapper.flattened.mapped_properties"]
-      reason: "mapped properties on flattened fields"
+      cluster_features: ["mapper.flattened.mapped_subfields"]
+      reason: "mapped subfields on flattened fields"
   - do:
       indices.create:
         index: test
@@ -437,10 +437,10 @@ setup:
   - match: { hits.hits.0._source.labels.status_code: 200 }
 
 ---
-"Test flattened mapped properties serialization in mapping":
+"Test flattened mapped subfields serialization in mapping":
   - requires:
-      cluster_features: ["mapper.flattened.mapped_properties"]
-      reason: "mapped properties on flattened fields"
+      cluster_features: ["mapper.flattened.mapped_subfields"]
+      reason: "mapped subfields on flattened fields"
   - do:
       indices.create:
         index: test
@@ -466,8 +466,8 @@ setup:
 ---
 "Test flattened mapped sub-field as index sort field":
   - requires:
-      cluster_features: ["mapper.flattened.mapped_properties"]
-      reason: "mapped properties on flattened fields"
+      cluster_features: ["mapper.flattened.mapped_subfields"]
+      reason: "mapped subfields on flattened fields"
   - do:
       indices.create:
         index: test

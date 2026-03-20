@@ -506,7 +506,6 @@ public class StatelessPlugin extends Plugin
     private final boolean useRealMemoryCircuitBreakerExplicitlySet;
     private final boolean pageCacheReyclerLimitExplicitlySet;
 
-    private final boolean enabled;
     private final boolean hasSearchRole;
     private final boolean hasIndexRole;
     private final boolean hasMasterRole;
@@ -530,57 +529,43 @@ public class StatelessPlugin extends Plugin
     }
 
     public StatelessPlugin(Settings settings) {
-        enabled = STATELESS_ENABLED.get(settings);
-        if (enabled) {
-            var nonStatelessDataNodeRoles = NodeRoleSettings.NODE_ROLES_SETTING.get(settings)
-                .stream()
-                .filter(r -> r.canContainData() && STATELESS_ROLES.contains(r) == false)
-                .map(DiscoveryNodeRole::roleName)
-                .collect(Collectors.toSet());
-            if (nonStatelessDataNodeRoles.isEmpty() == false) {
-                throw new IllegalArgumentException(NAME + " does not support node roles " + nonStatelessDataNodeRoles);
-            }
-            var statelessDataNodeRoles = NodeRoleSettings.NODE_ROLES_SETTING.get(settings)
-                .stream()
-                .filter(STATELESS_ROLES::contains)
-                .map(DiscoveryNodeRole::roleName)
-                .collect(Collectors.toSet());
-            if (statelessDataNodeRoles.size() > 1) {
-                throw new IllegalArgumentException(NAME + " does not support a node with more than 1 role of " + statelessDataNodeRoles);
-            }
-            if (CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.exists(settings)) {
-                if (CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings)) {
-                    throw new IllegalArgumentException(
-                        NAME + " does not support " + CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()
-                    );
-                }
-            }
-            if (DATA_STREAMS_LIFECYCLE_ONLY_MODE.exists(settings)) {
-                if (DATA_STREAMS_LIFECYCLE_ONLY_MODE.get(settings) == false) {
-                    throw new IllegalArgumentException(
-                        NAME + " does not support setting " + DATA_STREAMS_LIFECYCLE_ONLY_MODE.getKey() + " to false"
-                    );
-                }
-            }
-            if (Objects.equals(SHARDS_ALLOCATOR_TYPE_SETTING.get(settings), DESIRED_BALANCE_ALLOCATOR) == false) {
+        var nonStatelessDataNodeRoles = NodeRoleSettings.NODE_ROLES_SETTING.get(settings)
+            .stream()
+            .filter(r -> r.canContainData() && STATELESS_ROLES.contains(r) == false)
+            .map(DiscoveryNodeRole::roleName)
+            .collect(Collectors.toSet());
+        if (nonStatelessDataNodeRoles.isEmpty() == false) {
+            throw new IllegalArgumentException(NAME + " does not support node roles " + nonStatelessDataNodeRoles);
+        }
+        var statelessDataNodeRoles = NodeRoleSettings.NODE_ROLES_SETTING.get(settings)
+            .stream()
+            .filter(STATELESS_ROLES::contains)
+            .map(DiscoveryNodeRole::roleName)
+            .collect(Collectors.toSet());
+        if (statelessDataNodeRoles.size() > 1) {
+            throw new IllegalArgumentException(NAME + " does not support a node with more than 1 role of " + statelessDataNodeRoles);
+        }
+        if (CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.exists(settings)) {
+            if (CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings)) {
                 throw new IllegalArgumentException(
-                    NAME + " can only be used with " + SHARDS_ALLOCATOR_TYPE_SETTING.getKey() + "=" + DESIRED_BALANCE_ALLOCATOR
-                );
-            }
-
-            logger.info("[{}] is enabled", NAME);
-        } else {
-            var statelessDataNodeRoles = NodeRoleSettings.NODE_ROLES_SETTING.get(settings)
-                .stream()
-                .filter(r -> r.canContainData() && STATELESS_ROLES.contains(r))
-                .map(DiscoveryNodeRole::roleName)
-                .collect(Collectors.toSet());
-            if (statelessDataNodeRoles.isEmpty() == false) {
-                throw new IllegalArgumentException(
-                    NAME + " is not enabled, but stateless-only node roles are configured: " + statelessDataNodeRoles
+                    NAME + " does not support " + CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()
                 );
             }
         }
+        if (DATA_STREAMS_LIFECYCLE_ONLY_MODE.exists(settings)) {
+            if (DATA_STREAMS_LIFECYCLE_ONLY_MODE.get(settings) == false) {
+                throw new IllegalArgumentException(
+                    NAME + " does not support setting " + DATA_STREAMS_LIFECYCLE_ONLY_MODE.getKey() + " to false"
+                );
+            }
+        }
+        if (Objects.equals(SHARDS_ALLOCATOR_TYPE_SETTING.get(settings), DESIRED_BALANCE_ALLOCATOR) == false) {
+            throw new IllegalArgumentException(
+                NAME + " can only be used with " + SHARDS_ALLOCATOR_TYPE_SETTING.getKey() + "=" + DESIRED_BALANCE_ALLOCATOR
+            );
+        }
+
+        logger.info("[{}] is enabled", NAME);
         hasIndexRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
 
         logSettings(settings);
@@ -596,17 +581,9 @@ public class StatelessPlugin extends Plugin
         hollowShardsEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(settings);
     }
 
-    public boolean isEnabled() {
-        return enabled;
-    }
-
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (enabled) {
-            return List.of(statelessExecutorBuilders(settings, hasIndexRole));
-        } else {
-            return super.getExecutorBuilders(settings);
-        }
+        return List.of(statelessExecutorBuilders(settings, hasIndexRole));
     }
 
     // overridable by tests
@@ -654,67 +631,60 @@ public class StatelessPlugin extends Plugin
 
     @Override
     public Settings additionalSettings() {
-        if (enabled) {
-            var settings = Settings.builder()
-                .put(super.additionalSettings())
-                .put(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
-                .put(DATA_STREAMS_LIFECYCLE_ONLY_MODE.getKey(), true)
-                .put(FAILURE_STORE_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(30));
-            settings.put(DiscoveryModule.ELECTION_STRATEGY_SETTING.getKey(), StatelessElectionStrategy.NAME)
-                .put(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), 0)
-                .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), false);
-            if (sharedCachedSettingExplicitlySet == false) {
-                if (hasSearchRole) {
-                    settings.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "90%")
-                        .put(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(), "250GB");
-                }
-                if (hasIndexRole) {
-                    settings.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "50%")
-                        .put(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(), "-1");
-                }
+        var settings = Settings.builder()
+            .put(super.additionalSettings())
+            .put(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+            .put(DATA_STREAMS_LIFECYCLE_ONLY_MODE.getKey(), true)
+            .put(FAILURE_STORE_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(30));
+        settings.put(DiscoveryModule.ELECTION_STRATEGY_SETTING.getKey(), StatelessElectionStrategy.NAME)
+            .put(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), 0)
+            .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), false);
+        if (sharedCachedSettingExplicitlySet == false) {
+            if (hasSearchRole) {
+                settings.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "90%")
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(), "250GB");
             }
-            if (sharedCacheMmapExplicitlySet == false) {
-                settings.put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true);
+            if (hasIndexRole) {
+                settings.put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "50%")
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(), "-1");
             }
-            if (useRealMemoryCircuitBreakerExplicitlySet == false) {
-                if (hasIndexRole) {
-                    settings.put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false);
-                }
-            }
-            if (pageCacheReyclerLimitExplicitlySet == false) {
-                if (hasIndexRole) {
-                    settings.put(PageCacheRecycler.LIMIT_HEAP_SETTING.getKey(), "3%");
-                }
-            }
-
-            // always override counting reads, stateless does not expose this number so the overhead for tracking it is wasted in any case
-            settings.put(SharedBlobCacheService.SHARED_CACHE_COUNT_READS.getKey(), false);
-
-            String nodeMemoryAttrName = "node.attr." + MEMORY_NODE_ATTR;
-            if (settings.get(nodeMemoryAttrName) == null) {
-                settings.put(nodeMemoryAttrName, Long.toString(OsProbe.getInstance().osStats().getMem().getAdjustedTotal().getBytes()));
-            } else {
-                throw new IllegalArgumentException("Directly setting [" + nodeMemoryAttrName + "] is not permitted - it is reserved.");
-            }
-            // Explicitly disable the recovery source, as it is not needed in stateless mode.
-            settings.put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false);
-            return settings.build();
-        } else {
-            return super.additionalSettings();
         }
+        if (sharedCacheMmapExplicitlySet == false) {
+            settings.put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true);
+        }
+        if (useRealMemoryCircuitBreakerExplicitlySet == false) {
+            if (hasIndexRole) {
+                settings.put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false);
+            }
+        }
+        if (pageCacheReyclerLimitExplicitlySet == false) {
+            if (hasIndexRole) {
+                settings.put(PageCacheRecycler.LIMIT_HEAP_SETTING.getKey(), "3%");
+            }
+        }
+
+        // always override counting reads, stateless does not expose this number so the overhead for tracking it is wasted in any case
+        settings.put(SharedBlobCacheService.SHARED_CACHE_COUNT_READS.getKey(), false);
+
+        String nodeMemoryAttrName = "node.attr." + MEMORY_NODE_ATTR;
+        if (settings.get(nodeMemoryAttrName) == null) {
+            settings.put(nodeMemoryAttrName, Long.toString(OsProbe.getInstance().osStats().getMem().getAdjustedTotal().getBytes()));
+        } else {
+            throw new IllegalArgumentException("Directly setting [" + nodeMemoryAttrName + "] is not permitted - it is reserved.");
+        }
+        settings.put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false);
+        return settings.build();
     }
 
     void checkLicense() {
-        if (enabled) {
-            final var licenseState = getLicenseState();
-            if (STATELESS_FEATURE.checkAndStartTracking(licenseState, NAME) == false) {
-                throw new IllegalStateException(
-                    NAME
-                        + " cannot be enabled with a ["
-                        + licenseState.getOperationMode()
-                        + "] license. It is only allowed with an Enterprise license."
-                );
-            }
+        final var licenseState = getLicenseState();
+        if (STATELESS_FEATURE.checkAndStartTracking(licenseState, NAME) == false) {
+            throw new IllegalStateException(
+                NAME
+                    + " cannot be enabled with a ["
+                    + licenseState.getOperationMode()
+                    + "] license. It is only allowed with an Enterprise license."
+            );
         }
     }
 
@@ -1099,9 +1069,7 @@ public class StatelessPlugin extends Plugin
     @Override
     public void close() throws IOException {
         super.close();
-        if (enabled) {
-            STATELESS_FEATURE.stopTracking(getLicenseState(), NAME);
-        }
+        STATELESS_FEATURE.stopTracking(getLicenseState(), NAME);
 
         // We should close the shared blob cache only after we made sure that all shards have been closed.
         try {

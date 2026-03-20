@@ -5,6 +5,6 @@ Converts an input value to a `date_range` value.
 A string will be parsed as a date range in the format `start..end`, where start and end are dates in ISO format.
 
 ```esql
-ROW str = "2020-01-01T00:00:00.000Z..2020-12-31T23:59:59.999Z"
+ROW str = "2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z"
 | EVAL range = TO_DATE_RANGE(str)
 ```

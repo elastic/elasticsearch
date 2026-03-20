@@ -484,8 +484,8 @@ public class MetadataCreateIndexService {
         ClusterState currentState,
         CreateIndexClusterStateUpdateRequest request,
         boolean silent,
-        RerouteBehavior rerouteBehavior,
         BiConsumer<ProjectMetadata.Builder, IndexMetadata> metadataTransformer,
+        RerouteBehavior rerouteBehavior,
         ActionListener<Void> rerouteListener
     ) throws Exception {
 
@@ -626,7 +626,7 @@ public class MetadataCreateIndexService {
         RerouteBehavior rerouteBehavior,
         ActionListener<Void> rerouteListener
     ) throws Exception {
-        return applyCreateIndexRequest(currentState, request, silent, rerouteBehavior, null, rerouteListener);
+        return applyCreateIndexRequest(currentState, request, silent, null, rerouteBehavior, rerouteListener);
     }
 
     /**

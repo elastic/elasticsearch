@@ -797,8 +797,11 @@ public class EsqlSession {
         // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also in
         // case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with an older
         // node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may cause bugs.
-        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(parsed, preAnalysis.enriches().isEmpty() == false)
-            .withMinimumTransportVersion(localClusterMinimumVersion);
+        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(
+            parsed,
+            preAnalysis.enriches().isEmpty() == false,
+            unmappedResolution == UnmappedResolution.LOAD
+        ).withMinimumTransportVersion(localClusterMinimumVersion);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
 
         resolveIndicesAndAnalyze(

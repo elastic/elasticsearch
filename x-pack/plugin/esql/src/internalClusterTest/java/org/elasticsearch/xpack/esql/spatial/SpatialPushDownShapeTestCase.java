@@ -427,6 +427,79 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
         statsCentroidManyShards(16);
     }
 
+    public void testStatsCentroidEuropeanCoordinatesOneShard() throws IOException, ParseException {
+        statsCentroidEuropeanCoordinates(1);
+    }
+
+    public void testStatsCentroidEuropeanCoordinatesManyShards() throws IOException, ParseException {
+        statsCentroidEuropeanCoordinates(16);
+    }
+
+    /**
+     * Test ST_CENTROID_AGG using synthetic polygons at realistic European coordinates,
+     * similar to the OSM data in https://github.com/elastic/elasticsearch/issues/144504
+     */
+    private void statsCentroidEuropeanCoordinates(int numShards) throws IOException, ParseException {
+        assumeTrue("Test for shapes only", fieldType().contains("shape"));
+        initIndexes(numShards);
+        boolean isGeo = fieldType().equals("geo_shape");
+
+        ArrayList<CentroidTest> data = new ArrayList<>();
+        // Synthetic polygons at realistic northern European coordinates (as in the OSM bug report)
+        // All within the filter polygon from the issue: POLYGON((-0.1 49.0, 5.0 48.0, 15.0 49.0, 14.0 60.0, -0.1 61.0, -0.1 49.0))
+        data.add(new CentroidTest("POLYGON ((3.0 50.0, 5.0 50.0, 5.0 52.0, 3.0 52.0, 3.0 50.0))", true, true));  // Belgium/NL area
+        data.add(new CentroidTest("POLYGON ((5.0 51.0, 8.0 51.0, 8.0 53.0, 5.0 53.0, 5.0 51.0))", true, true));  // Germany west
+        data.add(new CentroidTest("POLYGON ((8.0 52.0, 11.0 52.0, 11.0 54.0, 8.0 54.0, 8.0 52.0))", true, true)); // Germany central
+        data.add(new CentroidTest("POLYGON ((11.0 53.0, 14.0 53.0, 14.0 55.0, 11.0 55.0, 11.0 53.0))", true, true)); // Germany east
+
+        // Shapes outside the filter polygon (high longitude/latitude)
+        if (isGeo) {
+            data.add(new CentroidTest("POLYGON ((20.0 55.0, 25.0 55.0, 25.0 60.0, 20.0 60.0, 20.0 55.0))", false, false));
+        }
+        // Null data
+        data.add(new CentroidTest(null, false, false));
+
+        int expectedIntersects = 0;
+        int expectedWithin = 0;
+        int expectedDisjoint = 0;
+        CentroidCalculator intersectsCentroid = new CentroidCalculator();
+        CentroidCalculator withinCentroid = new CentroidCalculator();
+        CentroidCalculator disjointCentroid = new CentroidCalculator();
+        CentroidCalculator totalCentroid = new CentroidCalculator();
+
+        for (int i = 0; i < data.size(); i++) {
+            CentroidTest test = data.get(i);
+            if (test.data == null) {
+                addEmptyToIndexes(i, "indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
+            } else {
+                addToIndexes(i, "\"" + test.data + "\"", "indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
+                Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, test.data);
+                totalCentroid.add(geometry);
+                if (test.intersects) {
+                    expectedIntersects++;
+                    intersectsCentroid.add(geometry);
+                } else {
+                    expectedDisjoint++;
+                    disjointCentroid.add(geometry);
+                }
+                if (test.within) {
+                    expectedWithin++;
+                    withinCentroid.add(geometry);
+                }
+            }
+        }
+        refresh("indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
+
+        // Use the same filter polygon from the OSM bug report
+        String filterPolygon = isGeo
+            ? "POLYGON ((-0.1 49.0, 5.0 48.0, 15.0 49.0, 14.0 60.0, -0.1 61.0, -0.1 49.0))"
+            : "POLYGON ((-0.1 49.0, 15.0 49.0, 15.0 60.0, -0.1 60.0, -0.1 49.0))";
+        assertCentroidFunction("ST_WITHIN", filterPolygon, expectedWithin, withinCentroid, numShards);
+        assertCentroidFunction("ST_INTERSECTS", filterPolygon, expectedIntersects, intersectsCentroid, numShards);
+        assertCentroidFunction("ST_DISJOINT", filterPolygon, expectedDisjoint, disjointCentroid, numShards);
+        assertCentroidFunction(null, filterPolygon, data.size(), totalCentroid, numShards);
+    }
+
     /**
      * Test ST_CENTROID_AGG on shapes. This verifies that results are the same with and without doc-values,
      * testing the EXTRACT_SPATIAL_CENTROID optimization.

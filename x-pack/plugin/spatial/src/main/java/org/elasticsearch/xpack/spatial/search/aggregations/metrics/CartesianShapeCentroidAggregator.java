@@ -18,11 +18,9 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
-import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianShapeValuesSource;
 
@@ -126,17 +124,20 @@ public final class CartesianShapeCentroidAggregator extends MetricsAggregator {
         if (bucket >= counts.size()) {
             return buildEmptyAggregation();
         }
-        final long bucketCount = counts.get(bucket);
-        final double bucketWeight = weightSum.get(bucket);
-        final CartesianPoint bucketCentroid = (bucketWeight > 0)
-            ? new CartesianPoint(lonSum.get(bucket) / bucketWeight, latSum.get(bucket) / bucketWeight)
-            : null;
-        return new InternalCartesianCentroid(name, bucketCentroid, bucketCount, metadata());
+        return new InternalCartesianShapeCentroid(
+            name,
+            lonSum.get(bucket),
+            latSum.get(bucket),
+            weightSum.get(bucket),
+            counts.get(bucket),
+            DimensionalShapeType.fromOrdinalByte(dimensionalShapeTypes.get(bucket)),
+            metadata()
+        );
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return InternalGeoCentroid.empty(name, metadata());
+        return InternalCartesianShapeCentroid.empty(name, metadata());
     }
 
     @Override

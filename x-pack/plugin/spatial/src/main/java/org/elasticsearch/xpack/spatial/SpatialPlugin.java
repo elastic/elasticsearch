@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.spatial;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.ingest.Processor;
@@ -71,6 +73,8 @@ import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeBound
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeCentroidAggregator;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.InternalCartesianBounds;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.InternalCartesianCentroid;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.InternalCartesianShapeCentroid;
+import org.elasticsearch.xpack.spatial.search.aggregations.metrics.InternalGeoShapeCentroid;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSourceType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
@@ -191,6 +195,18 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         return Map.of(CircleProcessor.TYPE, new CircleProcessor.Factory(), GeoGridProcessor.TYPE, new GeoGridProcessor.Factory());
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(
+            new NamedWriteableRegistry.Entry(InternalAggregation.class, InternalGeoShapeCentroid.NAME, InternalGeoShapeCentroid::new),
+            new NamedWriteableRegistry.Entry(
+                InternalAggregation.class,
+                InternalCartesianShapeCentroid.NAME,
+                InternalCartesianShapeCentroid::new
+            )
+        );
     }
 
     @Override

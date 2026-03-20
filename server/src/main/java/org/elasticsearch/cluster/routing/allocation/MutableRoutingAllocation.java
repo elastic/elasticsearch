@@ -122,6 +122,7 @@ final class MutableRoutingAllocation extends RoutingAllocation {
         );
     }
 
+    @Override
     public void setSimulatedClusterInfo(ClusterInfo clusterInfo) {
         assert isSimulating : "Should be called only while simulating";
         this.clusterInfo = clusterInfo;
@@ -130,6 +131,7 @@ final class MutableRoutingAllocation extends RoutingAllocation {
     /**
      * Remove the allocation id of the provided shard from the set of in-sync shard copies
      */
+    @Override
     public void removeAllocationId(ShardRouting shardRouting) {
         indexMetadataUpdater.removeAllocationId(shardRouting);
     }
@@ -137,6 +139,7 @@ final class MutableRoutingAllocation extends RoutingAllocation {
     /**
      * Returns updated {@link Metadata} based on the changes that were made to the routing nodes
      */
+    @Override
     public Metadata updateMetadataWithRoutingChanges(GlobalRoutingTable newRoutingTable) {
         Metadata metadata = indexMetadataUpdater.applyChanges(metadata(), newRoutingTable);
         return resizeSourceIndexUpdater.applyChanges(metadata, newRoutingTable);
@@ -145,6 +148,7 @@ final class MutableRoutingAllocation extends RoutingAllocation {
     /**
      * Returns updated {@link RestoreInProgress} based on the changes that were made to the routing nodes
      */
+    @Override
     public RestoreInProgress updateRestoreInfoWithRoutingChanges(RestoreInProgress restoreInProgress) {
         return restoreInProgressUpdater.applyChanges(restoreInProgress);
     }
@@ -169,6 +173,7 @@ final class MutableRoutingAllocation extends RoutingAllocation {
     /**
      * Set the {@link #isReconciling} flag, and return a {@link Releasable} which clears it again.
      */
+    @Override
     public Releasable withReconcilingFlag() {
         assert isReconciling == false : "already reconciling";
         isReconciling = true;

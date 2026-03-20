@@ -361,10 +361,7 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
      */
     public abstract Releasable withReconcilingFlag();
 
-    public void setSimulatedClusterInfo(ClusterInfo clusterInfo) {
-        assert isSimulating : "Should be called only while simulating";
-        this.clusterInfo = clusterInfo;
-    }
+    public abstract void setSimulatedClusterInfo(ClusterInfo clusterInfo);
 
     public RoutingAllocation immutableClone() {
         GlobalRoutingTable routingTable = clusterState.globalRoutingTable();

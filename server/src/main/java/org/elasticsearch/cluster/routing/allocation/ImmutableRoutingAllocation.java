@@ -76,4 +76,9 @@ final class ImmutableRoutingAllocation extends RoutingAllocation {
         assert false : "This should never be called on an immutable routing allocation";
         return () -> {};
     }
+
+    @Override
+    public void setSimulatedClusterInfo(ClusterInfo clusterInfo) {
+        assert false : "This should never be called on an immutable routing allocation";
+    }
 }

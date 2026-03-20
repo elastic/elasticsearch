@@ -91,7 +91,10 @@ EXPORT int32_t vec_doti4_2(const int8_t* query, const int8_t* doc, int32_t packe
     return doti4_inner_avx512(query, doc, packed_len);
 }
 
-template <int64_t(*mapper)(const int32_t, const int32_t*), int batches = 4>
+// batches=2 rather than 4: most CPUs have only 1 port for 512-bit integer
+// multiply (vpmaddubsw zmm), so batches>2 saturates that port without
+// increasing per-doc throughput, while adding instruction overhead.
+template <int64_t(*mapper)(const int32_t, const int32_t*), int batches = 2>
 static inline void doti4_bulk_impl_avx512(
     const int8_t* docs,
     const int8_t* query,

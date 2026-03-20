@@ -31,8 +31,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
@@ -50,7 +48,14 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILA
  */
 public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> extends KnnVectorsReader {
 
-    private static final Logger logger = LogManager.getLogger(IVFVectorsReader.class);
+    // Two-Signal Model constants for dynamic visit ratio computation.
+    // Computes a visit ratio from the num_candidates/k ratio and k magnitude.
+    private static final double V_MIN = 0.003;
+    private static final double V_MAX = 0.04;
+    private static final double LOG1P_R_MAX = Math.log1p(10.0);
+    private static final double LOG1P_K_MAX = Math.log1p(10_000.0);
+    private static final double RATIO_WEIGHT = 0.85;
+    private static final double K_WEIGHT = 0.15;
 
     protected final IndexInput ivfCentroids, ivfClusters;
     private final SegmentReadState state;
@@ -305,9 +310,9 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             approximateCost = esAcceptDocs == null ? acceptDocs.cost() : esAcceptDocs.approximateCost();
         }
         float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / numVectors));
-        float visitRatio = dynamicVisitRatio;
-        int numCands = 0;
         int k = knnCollector.k();
+        int numCands = k;
+        float visitRatio = dynamicVisitRatio;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
             visitRatio = ivfSearchStrategy.getVisitRatio();
@@ -317,47 +322,10 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
         FieldEntry entry = fields.get(fieldInfo.number);
         if (visitRatio == dynamicVisitRatio) {
-            if (numCands > 0) {
-                // Two-signal model: smooth log-based visit ratio from num_candidates/k ratio and k.
-                // Produces visitRatio in [V_MIN, V_MAX] which, after the SOAR 2× multiplier,
-                // gives actual visit percentage in [~1%, ~10%].
-                // The nc/k ratio (capped at R_MAX=100) drives 85% of the signal via log scaling,
-                // while k itself (capped at K_MAX=10000) contributes the remaining 15%.
-                final float V_MIN = 0.005f;
-                final float V_MAX = 0.05f;
-                final double R_MAX = 100.0;
-                final double K_MAX = 10_000.0;
-                double r = (double) numCands / Math.max(k, 1);
-                double x = Math.log1p(r) / Math.log1p(R_MAX);
-                double y = Math.log1p(k) / Math.log1p(K_MAX);
-                x = Math.max(0.0, Math.min(1.0, x));
-                y = Math.max(0.0, Math.min(1.0, y));
-                double z = 0.85 * x + 0.15 * y;
-                visitRatio = (float) (V_MIN + (V_MAX - V_MIN) * z);
-            } else {
-                // Fallback when called without IVFKnnSearchStrategy (e.g. checkIndex).
-                // Use log-based heuristic for reasonable default behavior.
-                final float V_MIN = 0.005f;
-                final float V_MAX = 0.05f;
-                double r = 1.0; // assume nc == k
-                double x = Math.log1p(r) / Math.log1p(100.0);
-                double y = Math.log1p(k) / Math.log1p(10_000.0);
-                x = Math.max(0.0, Math.min(1.0, x));
-                y = Math.max(0.0, Math.min(1.0, y));
-                double z = 0.85 * x + 0.15 * y;
-                visitRatio = (float) (V_MIN + (V_MAX - V_MIN) * z);
-            }
+            visitRatio = computeDynamicVisitRatio(numCands, k);
         }
         // we account for soar vectors here. We can potentially visit a vector twice so we multiply by 2 here.
         long maxVectorVisited = (long) (2.0 * visitRatio * numVectors);
-        logger.debug(
-            "IVF search segment: numVectors=[{}], visitRatio=[{}], maxVectorVisited=[{}], numCands=[{}], k=[{}]",
-            numVectors,
-            visitRatio,
-            maxVectorVisited,
-            numCands,
-            k
-        );
         IndexInput postListSlice = entry.postingListSlice(ivfClusters);
         CentroidIterator centroidPrefetchingIterator = getCentroidIterator(
             fieldInfo,
@@ -401,12 +369,20 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
                 }
             }
         }
-        logger.debug(
-            "IVF search result: expectedDocs=[{}], actualDocs=[{}], visitedCount=[{}]",
-            expectedDocs,
-            actualDocs,
-            knnCollector.visitedCount()
-        );
+    }
+
+    /**
+     * Computes the dynamic visit ratio using the Two-Signal model.
+     * The formula blends the num_candidates/k ratio signal with the k magnitude signal.
+     */
+    static float computeDynamicVisitRatio(int numCands, int k) {
+        double r = (double) numCands / Math.max(k, 1);
+        double z = RATIO_WEIGHT * logScale(r - 1.0, LOG1P_R_MAX) + K_WEIGHT * logScale(k, LOG1P_K_MAX);
+        return (float) (V_MIN + (V_MAX - V_MIN) * z);
+    }
+
+    private static double logScale(double value, double log1pMax) {
+        return Math.max(0.0, Math.min(1.0, Math.log1p(value) / log1pMax));
     }
 
     @Override

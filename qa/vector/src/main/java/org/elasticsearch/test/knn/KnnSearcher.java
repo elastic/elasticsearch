@@ -198,7 +198,7 @@ class KnnSearcher {
                     segmentInfo.append(segVectors);
                 }
                 segmentInfo.append("]");
-                logger.info("Segment layout: {}", segmentInfo);
+                logger.debug("Segment layout: {}", segmentInfo);
                 finalResults.numSegments = segCount;
                 finalResults.totalIndexVectors = totalIndexVectors;
                 IndexSearcher searcher = searchParameters.searchThreads() > 1

@@ -95,9 +95,7 @@ public class CancellableTask extends Task {
      */
     public final void ensureNotCancelled() {
         if (isCancelled()) {
-            synchronized (this) {
-                throw getTaskCancelledException();
-            }
+            throw getTaskCancelledException();
         }
     }
 
@@ -109,11 +107,7 @@ public class CancellableTask extends Task {
         if (isCancelled() == false) {
             return false;
         }
-        final TaskCancelledException taskCancelledException;
-        synchronized (this) {
-            taskCancelledException = getTaskCancelledException();
-        } // NB releasing the mutex before notifying the listener
-        listener.onFailure(taskCancelledException);
+        listener.onFailure(getTaskCancelledException());
         return true;
     }
 
@@ -124,7 +118,6 @@ public class CancellableTask extends Task {
     }
 
     private TaskCancelledException getTaskCancelledException() {
-        assert Thread.holdsLock(this);
         assert reason != null;
         return new TaskCancelledException("task cancelled [" + reason + ']');
     }

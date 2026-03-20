@@ -14,6 +14,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
@@ -677,8 +678,15 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
         BulkRequestBuilder bulkRequest = client().prepareBulk("range_test").setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         int[] responseTimes = { 50, 120, 200, 350, 500 };
         for (int i = 0; i < responseTimes.length; i++) {
-            bulkRequest.add(client().prepareIndex().setId(Integer.toString(i)).setSource("""
-                {"metrics": {"response_time": %d, "label": "req-%d"}}""".formatted(responseTimes[i], i), XContentType.JSON));
+            bulkRequest.add(
+                client().prepareIndex()
+                    .setId(Integer.toString(i))
+                    .setSource(
+                        Strings.format("""
+                            {"metrics": {"response_time": %d, "label": "req-%d"}}""", responseTimes[i], i),
+                        XContentType.JSON
+                    )
+            );
         }
         BulkResponse bulkResponse = bulkRequest.get();
         assertNoFailures(bulkResponse);

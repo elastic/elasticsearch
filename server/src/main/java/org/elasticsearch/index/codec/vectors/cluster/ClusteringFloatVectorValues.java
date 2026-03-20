@@ -60,7 +60,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         int[] results
     ) throws IOException {
         final float[] distances = new float[4];
-        final PrefixScratch prefixScratch = dimension() >= (PREFIX_MIN_DIMENSIONS * 2) ? prefixScratch(centroids.length) : null;
+        final PrefixScratch prefixScratch = maybeCreatePrefixScratch(centroids.length);
         boolean changed = false;
         for (int i = startOrd; i < endOrd; i++) {
             float[] vector = vectorValue(i);
@@ -77,6 +77,10 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
             }
         }
         return changed;
+    }
+
+    final PrefixScratch maybeCreatePrefixScratch(int numCentroids) {
+        return dimension() >= (PREFIX_MIN_DIMENSIONS * 2) && numCentroids > PREFIX_TOPK_SIZE * 2 ? new PrefixScratch() : null;
     }
 
     /**
@@ -105,7 +109,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         int[] results
     ) throws IOException {
         final float[] distances = new float[4];
-        final PrefixScratch prefixScratch = dimension() >= (PREFIX_MIN_DIMENSIONS * 2) ? prefixScratch(centroids.length) : null;
+        final PrefixScratch prefixScratch = maybeCreatePrefixScratch(centroids.length);
         boolean changed = false;
         for (int i = startOrd; i < endOrd; i++) {
             float[] vector = vectorValue(i);
@@ -541,20 +545,9 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         ids[i] = id;
     }
 
-    private static PrefixScratch prefixScratch(int candidateCount) {
-        if (candidateCount < PREFIX_TOPK_SIZE) {
-            return null;
-        }
-        return new PrefixScratch();
-    }
-
-    private static final class PrefixScratch {
-        final float[] topPrefixDistances;
-        final int[] topPrefixIds;
-
-        PrefixScratch() {
-            this.topPrefixDistances = new float[PREFIX_TOPK_SIZE];
-            this.topPrefixIds = new int[PREFIX_TOPK_SIZE];
+    private record PrefixScratch(float[] topPrefixDistances, int[] topPrefixIds) {
+        public PrefixScratch() {
+            this(new float[PREFIX_TOPK_SIZE], new int[PREFIX_TOPK_SIZE]);
         }
     }
 

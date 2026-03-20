@@ -5114,11 +5114,11 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testViewInFrom() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
-        LogicalPlan plan = analyze("""
+        LogicalPlan plan = basic().addLanguages().addView("view", "FROM languages | WHERE language_code > 1").query("""
             FROM test, view
             | WHERE emp_no > 10000
             | SORT emp_no, language_code
-            """, Map.of("view", "FROM languages | WHERE language_code > 1"));
+            """);
 
         Limit limit = as(plan, Limit.class);
         OrderBy orderBy = as(limit.child(), OrderBy.class);
@@ -5195,10 +5195,10 @@ public class AnalyzerTests extends ESTestCase {
      */
     public void testViewInFromWithoutMainIndexPattern() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING.isEnabled());
-        LogicalPlan plan = analyze("""
+        LogicalPlan plan = basic().addLanguages().addView("view", "FROM languages | WHERE language_code > 1").query("""
             FROM view
             | WHERE language_name is not null
-            """, Map.of("view", "FROM languages | WHERE language_code > 1"));
+            """);
 
         Limit limit = as(plan, Limit.class);
         Filter filter = as(limit.child(), Filter.class);
@@ -5327,23 +5327,19 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testMultipleViewsInFrom() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
-        LogicalPlan plan = analyze(
-            """
+        LogicalPlan plan = basic().addLanguages()
+            .addSampleData()
+            .addLanguagesLookup()
+            .addView("view1", "FROM languages | WHERE language_code > 10 | RENAME language_name as languageName")
+            .addView("view2", "FROM sample_data | STATS max(@timestamp)")
+            .addView("view3", "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code")
+            .query("""
                 FROM test, view1, view2, view3
                 | WHERE emp_no > 10000
                 | STATS count(*) by emp_no, language_code
                 | RENAME emp_no AS empNo, language_code AS languageCode
                 | MV_EXPAND languageCode
-                """,
-            Map.of(
-                "view1",
-                "FROM languages | WHERE language_code > 10 | RENAME language_name as languageName",
-                "view2",
-                "FROM sample_data | STATS max(@timestamp)",
-                "view3",
-                "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code"
-            )
-        );
+                """);
 
         Limit limit = as(plan, Limit.class);
         MvExpand mvExpand = as(limit.child(), MvExpand.class);

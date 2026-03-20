@@ -325,7 +325,7 @@ public class RecoveryMetricsIT extends AbstractStatelessPluginIntegTestCase {
 
         CountDownLatch warmingDone = new CountDownLatch(1);
         // Block further recovery until prewarming is done
-        MockTransportService.getInstance(indexingNode1)
+        MockTransportService.getInstance(indexingNode2)
             .addRequestHandlingBehavior(PRIMARY_CONTEXT_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
                 safeAwait(warmingDone);
                 handler.messageReceived(request, channel, task);

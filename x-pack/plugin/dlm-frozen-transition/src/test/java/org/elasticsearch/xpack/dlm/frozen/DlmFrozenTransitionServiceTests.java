@@ -68,7 +68,11 @@ public class DlmFrozenTransitionServiceTests extends ESTestCase {
         @Override
         public void run() {
             started.countDown();
-            safeAwait(blockUntil);
+            try {
+                blockUntil.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 

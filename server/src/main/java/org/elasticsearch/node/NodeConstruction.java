@@ -220,7 +220,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchUtils;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
-import org.elasticsearch.search.crossproject.LinkedProjectAliasesHelper;
+import org.elasticsearch.plugins.internal.search.crossproject.LinkedProjectAliasesHelper;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.snapshots.CachingSnapshotAndShardByStateMetricsService;

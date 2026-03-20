@@ -34,7 +34,7 @@ count:long | @timestamp:datetime      | type:keyword | pvalue:double
 
 
 detect nothing (long) with reversed arguments
-required_capability: change_point
+required_capability: change_point_args_any_order
 
 FROM k8s
   | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)

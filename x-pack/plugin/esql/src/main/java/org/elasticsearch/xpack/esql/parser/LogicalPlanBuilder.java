@@ -743,7 +743,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return key == null ? new UnresolvedAttribute(src, "@timestamp") : key;
     }
 
-    private Tuple<Attribute, Attribute> visitChangePointAs(List<EsqlBaseParser.ChangePointConfigurationContext> changePointOptionsContexts, Source src) {
+    private Tuple<Attribute, Attribute> visitChangePointAs(
+        List<EsqlBaseParser.ChangePointConfigurationContext> changePointOptionsContexts,
+        Source src
+    ) {
         UnresolvedAttribute unresolvedTargetValue = null;
         UnresolvedAttribute unresolvedTargetPvalue = null;
         boolean optionResolved = false;
@@ -761,7 +764,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     throw qualifiersUnsupportedInFieldDefinitions(unresolvedTargetValue.source(), changePointContext.targetType.getText());
                 }
                 if (unresolvedTargetPvalue != null && unresolvedTargetPvalue.qualifier() != null) {
-                    throw qualifiersUnsupportedInFieldDefinitions(unresolvedTargetPvalue.source(), changePointContext.targetPvalue.getText());
+                    throw qualifiersUnsupportedInFieldDefinitions(
+                        unresolvedTargetPvalue.source(),
+                        changePointContext.targetPvalue.getText()
+                    );
                 }
 
             }

@@ -25,14 +25,17 @@ import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.reindex.ReindexAction;
+import org.elasticsearch.index.reindex.ReindexTaskManagementFeatures;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -51,6 +54,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -81,14 +86,19 @@ public class TransportGetTaskActionTests extends ESTestCase {
 
         var nodeId = "node1";
         when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create(nodeId));
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         var taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
         when(transportService.getTaskManager()).thenReturn(taskManager);
+
+        FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), eq(ReindexTaskManagementFeatures.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
 
         TransportGetTaskAction getTaskAction = new TransportGetTaskAction(
             threadPool,
             transportService,
             new ActionFilters(emptySet()),
             clusterService,
+            featureService,
             client,
             NamedXContentRegistry.EMPTY,
             projectResolver
@@ -141,13 +151,19 @@ public class TransportGetTaskActionTests extends ESTestCase {
             }
         };
         when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create(nodeId));
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         var taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
         when(transportService.getTaskManager()).thenReturn(taskManager);
+
+        FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), any())).thenReturn(false);
+
         TransportGetTaskAction getTaskAction = new TransportGetTaskAction(
             threadPool,
             transportService,
             new ActionFilters(emptySet()),
             clusterService,
+            featureService,
             client,
             NamedXContentRegistry.EMPTY,
             projectResolver

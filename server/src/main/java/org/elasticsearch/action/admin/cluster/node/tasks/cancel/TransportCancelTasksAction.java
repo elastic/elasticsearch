@@ -20,7 +20,9 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.reindex.ReindexAction;
+import org.elasticsearch.index.reindex.ReindexTaskManagementFeatures;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.action.admin.cluster.RestGetTaskAction;
 import org.elasticsearch.tasks.CancellableTask;
@@ -46,8 +48,15 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     public static final ActionType<ListTasksResponse> TYPE = new ActionType<>(NAME);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetTaskAction.class);
 
+    private final FeatureService featureService;
+
     @Inject
-    public TransportCancelTasksAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+    public TransportCancelTasksAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        FeatureService featureService
+    ) {
         super(
             NAME,
             clusterService,
@@ -59,6 +68,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             // implementations of CancellableTask#onCancelled() are nontrivial so we use GENERIC here. TODO could it be SAME?
             transportService.getThreadPool().executor(ThreadPool.Names.GENERIC)
         );
+        this.featureService = featureService;
     }
 
     @Override
@@ -106,7 +116,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     }
 
     /**
-     * The Get and Cancel APIs have been soft deprecated for reindexing tasks in favour of the dedicated reindexing APIs.
+     * The Get and Cancel APIs have been soft deprecated for reindexing tasks in favour of the dedicated reindexing APIs,
+     * when the cluster supports {@link org.elasticsearch.index.reindex.ReindexTaskManagementFeatures#REINDEX_PIT_SEARCH_FEATURE}.
      * This method logs a deprecation warning if we're processing a reindexing task
      *
      * @param task The task
@@ -116,13 +127,17 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     }
 
     /**
-     * The Get and Cancel APIs have been soft deprecated for reindexing tasks in favour of the dedicated reindexing APIs.
+     * The Get and Cancel APIs have been soft deprecated for reindexing tasks in favour of the dedicated reindexing APIs,
+     * when the cluster supports {@link org.elasticsearch.index.reindex.ReindexTaskManagementFeatures#REINDEX_PIT_SEARCH_FEATURE}.
      * This method logs a deprecation warning if we're processing a reindexing task, and we haven't already logged
      * a deprecation message.
      * @param task The task
      */
     private boolean softDeprecateReindexingTasks(Task task, boolean softDeprecatedWarningLogged) {
-        if (softDeprecatedWarningLogged == false && task != null && task.getAction().equals(ReindexAction.NAME)) {
+        if (softDeprecatedWarningLogged == false
+            && task != null
+            && task.getAction().equals(ReindexAction.NAME)
+            && featureService.clusterHasFeature(clusterService.state(), ReindexTaskManagementFeatures.REINDEX_PIT_SEARCH_FEATURE)) {
             deprecationLogger.warn(
                 DeprecationCategory.API,
                 "cancel-api-deprecated-for-reindexing-tasks",

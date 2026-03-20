@@ -32,8 +32,10 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.ReindexAction;
+import org.elasticsearch.index.reindex.ReindexTaskManagementFeatures;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.action.admin.cluster.RestGetTaskAction;
 import org.elasticsearch.tasks.RemovedTaskListener;
@@ -72,6 +74,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
+    private final FeatureService featureService;
     private final TransportService transportService;
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
@@ -83,6 +86,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
+        FeatureService featureService,
         Client client,
         NamedXContentRegistry xContentRegistry,
         ProjectResolver projectResolver
@@ -90,6 +94,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         super(TYPE.name(), transportService, actionFilters, GetTaskRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
+        this.featureService = featureService;
         this.transportService = transportService;
         this.client = new OriginSettingClient(client, TASKS_ORIGIN);
         this.xContentRegistry = xContentRegistry;
@@ -281,12 +286,15 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
     }
 
     /**
-     * The Get API has been soft deprecated for reindexing tasks in favour of the dedicated reindexing APIs.
+     * The Get API has been soft deprecated for reindexing tasks in favour of the dedicated reindexing APIs,
+     * when the cluster supports {@link ReindexTaskManagementFeatures#REINDEX_PIT_SEARCH_FEATURE}.
      * @param action This is the action of the task the user was trying to get. If this matches a reindexing task,
      *               then we log a warning to the user to use the dedicated reindexing APIs instead
      */
     private void logSoftDeprecationWarning(String action) {
-        if (action != null && action.equals(ReindexAction.NAME)) {
+        if (action != null
+            && action.equals(ReindexAction.NAME)
+            && featureService.clusterHasFeature(clusterService.state(), ReindexTaskManagementFeatures.REINDEX_PIT_SEARCH_FEATURE)) {
             deprecationLogger.warn(
                 DeprecationCategory.API,
                 "get-api-deprecated-for-reindexing-tasks",

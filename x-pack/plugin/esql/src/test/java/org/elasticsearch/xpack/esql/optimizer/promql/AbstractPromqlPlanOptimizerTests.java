@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -32,7 +31,7 @@ import static org.hamcrest.Matchers.not;
 public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
 
     protected static TestAnalyzer tsAnalyzer() {
-        return analyzerWithEnrichPolicies().addIndex("k8s", "k8s-mappings.json", IndexMode.TIME_SERIES);
+        return analyzerWithEnrichPolicies().addK8s();
     }
 
     protected LogicalPlan planPromql(String query) {

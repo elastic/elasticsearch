@@ -104,8 +104,6 @@ public class TransportEnsureDocsSearchableAction extends TransportSingleShardAct
 
     @Override
     protected ShardIterator shards(ProjectState state, InternalRequest request) {
-        assert DiscoveryNode.isStateless(clusterService.getSettings())
-            : EnsureDocsSearchableAction.TYPE.name() + " should only be used in stateless";
         final var primaryShard = state.routingTable()
             .shardRoutingTable(request.concreteIndex(), request.request().shardId())
             .primaryShard();
@@ -123,8 +121,6 @@ public class TransportEnsureDocsSearchableAction extends TransportSingleShardAct
         ShardId shardId,
         ActionListener<ActionResponse.Empty> listener
     ) throws IOException {
-        assert DiscoveryNode.isStateless(clusterService.getSettings())
-            : EnsureDocsSearchableAction.TYPE.name() + " should only be used in stateless";
         assert DiscoveryNode.hasRole(clusterService.getSettings(), DiscoveryNodeRole.INDEX_ROLE)
             : EnsureDocsSearchableAction.TYPE.name() + " should only be executed on a stateless indexing node";
         logger.debug("received request with {} docs", request.docIds().length);

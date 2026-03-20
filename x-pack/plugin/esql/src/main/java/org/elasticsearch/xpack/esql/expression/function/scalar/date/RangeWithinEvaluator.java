@@ -120,7 +120,8 @@ public class RangeWithinEvaluator implements ExpressionEvaluator {
             for (int j = 0; j < rightCount; j++) {
                 long rFrom = rightFrom.getLong(rightFirst + j);
                 long rTo = rightTo.getLong(rightFirst + j);
-                if (point >= rFrom && point <= rTo) {
+                // Range is [from, to); to is exclusive
+                if (point >= rFrom && point < rTo) {
                     return true;
                 }
             }

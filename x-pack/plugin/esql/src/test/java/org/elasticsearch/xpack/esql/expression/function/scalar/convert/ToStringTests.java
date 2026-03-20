@@ -42,6 +42,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CART
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -328,7 +329,8 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
                             new TestCaseSupplier.TypedData(
-                                new LongRangeBlockBuilder.LongRange(dateAsLong, dateAsLong),
+                                // Half-open [from, to): one millisecond window so both bounds format distinctly
+                                new LongRangeBlockBuilder.LongRange(dateAsLong, dateAsLong + 1),
                                 DataType.DATE_RANGE,
                                 "date"
                             )
@@ -336,7 +338,13 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
                         "ToStringFromDateRangeEvaluator[field=Attribute[channel=0], "
                             + "formatter=format[strict_date_optional_time] locale[]]",
                         DataType.KEYWORD,
-                        matchesBytesRef(expectedString + ".." + expectedString)
+                        matchesBytesRef(
+                            EsqlDataTypeConverter.dateRangeToString(
+                                dateAsLong,
+                                dateAsLong + 1,
+                                DEFAULT_DATE_TIME_FORMATTER.withZone(zoneId)
+                            )
+                        )
                     ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
                 )
             );

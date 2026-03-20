@@ -59,9 +59,8 @@ public class ToDateRangeTests extends AbstractScalarFunctionTestCase {
             String toStr = Instant.ofEpochMilli(toMillis).toString();
             String rangeString = fromStr + ".." + toStr;
 
-            // parseDateRange subtracts 1 from the 'to' value
             long expectedFrom = DEFAULT_DATE_TIME_FORMATTER.parseMillis(fromStr);
-            long expectedTo = DEFAULT_DATE_TIME_FORMATTER.parseMillis(toStr) - 1;
+            long expectedTo = DEFAULT_DATE_TIME_FORMATTER.parseMillis(toStr);
             var expectedRange = new LongRangeBlockBuilder.LongRange(expectedFrom, expectedTo);
 
             return new TestCaseSupplier.TestCase(
@@ -81,9 +80,8 @@ public class ToDateRangeTests extends AbstractScalarFunctionTestCase {
             String toStr = Instant.ofEpochMilli(toMillis).toString();
             String rangeString = fromStr + ".." + toStr;
 
-            // parseDateRange subtracts 1 from the 'to' value
             long expectedFrom = DEFAULT_DATE_TIME_FORMATTER.parseMillis(fromStr);
-            long expectedTo = DEFAULT_DATE_TIME_FORMATTER.parseMillis(toStr) - 1;
+            long expectedTo = DEFAULT_DATE_TIME_FORMATTER.parseMillis(toStr);
             var expectedRange = new LongRangeBlockBuilder.LongRange(expectedFrom, expectedTo);
 
             return new TestCaseSupplier.TestCase(
@@ -134,18 +132,10 @@ public class ToDateRangeTests extends AbstractScalarFunctionTestCase {
             )
         );
         suppliers.addAll(
-            casesForKeyword(
-                "0001-01-01T00:00:00.000Z..0001-12-31T23:59:59.999Z",
-                "0001-01-01T00:00:00.000Z",
-                "0001-12-31T23:59:59.999Z"
-            )
+            casesForKeyword("0001-01-01T00:00:00.000Z..0001-12-31T23:59:59.999Z", "0001-01-01T00:00:00.000Z", "0001-12-31T23:59:59.999Z")
         );
         suppliers.addAll(
-            casesForKeyword(
-                "9999-01-01T00:00:00.000Z..9999-12-31T23:59:59.999Z",
-                "9999-01-01T00:00:00.000Z",
-                "9999-12-31T23:59:59.999Z"
-            )
+            casesForKeyword("9999-01-01T00:00:00.000Z..9999-12-31T23:59:59.999Z", "9999-01-01T00:00:00.000Z", "9999-12-31T23:59:59.999Z")
         );
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
@@ -157,7 +147,7 @@ public class ToDateRangeTests extends AbstractScalarFunctionTestCase {
      */
     private static List<TestCaseSupplier> casesForKeyword(String rangeString, String expectedFromStr, String expectedToStr) {
         long expectedFrom = DEFAULT_DATE_TIME_FORMATTER.parseMillis(expectedFromStr);
-        long expectedTo = DEFAULT_DATE_TIME_FORMATTER.parseMillis(expectedToStr) - 1;
+        long expectedTo = DEFAULT_DATE_TIME_FORMATTER.parseMillis(expectedToStr);
         var expectedRange = new LongRangeBlockBuilder.LongRange(expectedFrom, expectedTo);
         final String read = "Attribute[channel=0]";
         return List.of(
@@ -165,9 +155,7 @@ public class ToDateRangeTests extends AbstractScalarFunctionTestCase {
                 "keyword: " + rangeString,
                 List.of(DataType.KEYWORD),
                 () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef(rangeString), DataType.KEYWORD, "field")
-                    ),
+                    List.of(new TestCaseSupplier.TypedData(new BytesRef(rangeString), DataType.KEYWORD, "field")),
                     "ToDateRangeFromStringEvaluator[field=" + read + "]",
                     DataType.DATE_RANGE,
                     equalTo(expectedRange)
@@ -187,9 +175,7 @@ public class ToDateRangeTests extends AbstractScalarFunctionTestCase {
             "keyword invalid: " + name,
             List.of(DataType.KEYWORD),
             () -> new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(rangeString), DataType.KEYWORD, "field")
-                ),
+                List.of(new TestCaseSupplier.TypedData(new BytesRef(rangeString), DataType.KEYWORD, "field")),
                 "ToDateRangeFromStringEvaluator[field=" + read + "]",
                 DataType.DATE_RANGE,
                 nullValue()

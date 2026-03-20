@@ -37,7 +37,7 @@ public class RangeMaxTests extends AbstractScalarFunctionTestCase {
         final String read = "Attribute[channel=0]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        // Basic test cases
+        // Block stores [from, to); RANGE_MAX returns inclusive end (to - 1)
         suppliers.add(new TestCaseSupplier("basic range", List.of(DataType.DATE_RANGE), () -> {
             long from = 1000L;
             long to = 2000L;
@@ -47,11 +47,10 @@ public class RangeMaxTests extends AbstractScalarFunctionTestCase {
                 List.of(new TestCaseSupplier.TypedData(range, DataType.DATE_RANGE, "field")),
                 "RangeMaxEvaluator[range=" + read + "]",
                 DataType.DATETIME,
-                equalTo(to)
+                equalTo(to - 1)
             );
         }));
 
-        // Test with different ranges
         suppliers.add(new TestCaseSupplier("large range", List.of(DataType.DATE_RANGE), () -> {
             long from = 0L;
             long to = 1_000_000_000_000L;
@@ -61,7 +60,7 @@ public class RangeMaxTests extends AbstractScalarFunctionTestCase {
                 List.of(new TestCaseSupplier.TypedData(range, DataType.DATE_RANGE, "field")),
                 "RangeMaxEvaluator[range=" + read + "]",
                 DataType.DATETIME,
-                equalTo(to)
+                equalTo(to - 1)
             );
         }));
 
@@ -74,7 +73,7 @@ public class RangeMaxTests extends AbstractScalarFunctionTestCase {
                 List.of(new TestCaseSupplier.TypedData(range, DataType.DATE_RANGE, "field")),
                 "RangeMaxEvaluator[range=" + read + "]",
                 DataType.DATETIME,
-                equalTo(to)
+                equalTo(to - 1)
             );
         }));
 

@@ -700,13 +700,18 @@ public class EsqlDataTypeConverter {
         return formatter == null ? nanoTimeToString(dateTime) : formatter.formatNanos(dateTime);
     }
 
+    /**
+     * Parses "from..to" as half-open [from, to): the block stores the exclusive upper bound {@code to} as given.
+     * {@link #dateRangeToString(long, long)} formats both bounds as stored (no further normalization in ESQL;
+     * index-level adjustment happens only when loading doc values into blocks).
+     */
     public static LongRangeBlockBuilder.LongRange parseDateRange(String s, ZoneId zoneId) {
         var ss = s.split("\\.\\.");
         assert ss.length == 2 : "can't parse range: " + s;
         var formatter = DEFAULT_DATE_TIME_FORMATTER.withZone(zoneId);
         long from = dateTimeToLong(ss[0], formatter);
-        long to = dateTimeToLong(ss[1], formatter) - 1;
-        if (from > to) {
+        long to = dateTimeToLong(ss[1], formatter);
+        if (from >= to) {
             throw new IllegalArgumentException("date range 'from' [" + ss[0] + "] must be less than or equal to 'to' [" + ss[1] + "]");
         }
         return new LongRangeBlockBuilder.LongRange(from, to);
@@ -717,7 +722,12 @@ public class EsqlDataTypeConverter {
     }
 
     public static String dateRangeToString(long from, long to) {
-        return dateTimeToString(from) + ".." + dateTimeToString(to);
+        return dateRangeToString(from, to, DEFAULT_DATE_TIME_FORMATTER);
+    }
+
+    /** Formats a half-open [from, to) range using the block's stored millis for both bounds. */
+    public static String dateRangeToString(long from, long to, DateFormatter formatter) {
+        return dateTimeToString(from, formatter) + ".." + dateTimeToString(to, formatter);
     }
 
     public static BytesRef numericBooleanToString(Object field) {

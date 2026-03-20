@@ -52,12 +52,13 @@ public class RangeMaxEvaluator implements ExpressionEvaluator {
                     continue;
                 }
 
+                // Block stores exclusive end; return inclusive end for display (to - 1)
                 LongBlock toBlock = rangeValues.getToBlock();
                 int first = rangeValues.getFirstValueIndex(p);
                 int valueCount = rangeValues.getValueCount(p);
-                long maxValue = toBlock.getLong(first);
+                long maxValue = toBlock.getLong(first) - 1;
                 for (int i = 1; i < valueCount; i++) {
-                    maxValue = Math.max(maxValue, toBlock.getLong(first + i));
+                    maxValue = Math.max(maxValue, toBlock.getLong(first + i) - 1);
                 }
                 result.appendLong(maxValue);
             }

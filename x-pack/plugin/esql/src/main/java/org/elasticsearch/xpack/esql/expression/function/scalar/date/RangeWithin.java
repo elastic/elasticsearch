@@ -140,7 +140,7 @@ public class RangeWithin extends EsqlScalarFunction {
         assert leftType == DATETIME && rightType == DATE_RANGE;
         long point = (Long) leftVal;
         LongRangeBlockBuilder.LongRange r = (LongRangeBlockBuilder.LongRange) rightVal;
-        return point >= r.from() && point <= r.to();
+        return point >= r.from() && point < r.to();
     }
 
     @Override

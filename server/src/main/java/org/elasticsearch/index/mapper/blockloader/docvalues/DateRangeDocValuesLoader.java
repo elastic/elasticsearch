@@ -78,8 +78,11 @@ public class DateRangeDocValuesLoader extends BlockDocValuesReader.DocValuesBloc
                         for (var range : ranges) {
                             lastDoc = doc;
                             this.docId = doc;
-                            builder.from().appendLong((long) range.getFrom());
-                            builder.to().appendLong((long) range.getTo());
+                            // ESQL stores [a,b) as (a,b); index stores inclusive end (b-1), so convert.
+                            long from = (long) range.getFrom();
+                            long toIndex = (long) range.getTo();
+                            builder.from().appendLong(from);
+                            builder.to().appendLong(toIndex + 1);
                         }
                     }
                 }

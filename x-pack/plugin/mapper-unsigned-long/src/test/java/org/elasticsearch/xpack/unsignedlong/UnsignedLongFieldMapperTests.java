@@ -80,6 +80,8 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
+        registerDimensionChecks(checker);
+        checker.registerConflictCheck("time_series_metric", b -> b.field("time_series_metric", "gauge"));
     }
 
     public void testDefaults() throws Exception {

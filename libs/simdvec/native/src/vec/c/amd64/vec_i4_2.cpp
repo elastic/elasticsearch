@@ -14,7 +14,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <algorithm>
 
 #ifdef __clang__
 #pragma clang attribute push(__attribute__((target("arch=icelake-client"))), apply_to=function)
@@ -43,7 +42,8 @@ static inline int32_t doti4_inner_avx512(const int8_t* query, const int8_t* doc,
     while (i < blk) {
         __m512i acc_high16 = _mm512_setzero_si512();
         __m512i acc_low16 = _mm512_setzero_si512();
-        const int end = std::min(i + chunk, blk);
+        const int end_raw = i + chunk;
+        const int end = end_raw < blk ? end_raw : blk;
 
         for (; i < end; i += stride) {
             __m512i doc_bytes = _mm512_loadu_si512((const __m512i*)(doc + i));
@@ -137,7 +137,8 @@ static inline void doti4_bulk_impl_avx512(
                 acc_low16[I] = _mm512_setzero_si512();
             });
 
-            const int end = std::min(i + chunk, blk);
+            const int end_raw = i + chunk;
+            const int end = end_raw < blk ? end_raw : blk;
 
             for (; i < end; i += stride) {
                 __m512i query_high = _mm512_loadu_si512((const __m512i*)(query + i));
@@ -184,7 +185,9 @@ static inline void doti4_bulk_impl_avx512(
         apply_indexed<batches>([&](auto I) {
             results[c + I] = (f32_t)res[I];
         });
-        std::copy_n(next_doc_ptrs, batches, current_doc_ptrs);
+        apply_indexed<batches>([&](auto I) {
+            current_doc_ptrs[I] = next_doc_ptrs[I];
+        });
     }
 
     for (; c < count; c++) {

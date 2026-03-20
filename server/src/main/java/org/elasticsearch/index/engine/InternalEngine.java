@@ -397,9 +397,10 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Whether the soft deletes policy should retain operations for peer recovery based on the local checkpoint of the safe commit.
+     * Whether the soft deletes policy should retain operations for peer recovery. When {@code true} (the default), the policy considers
+     * the local checkpoint of the safe commit, retention leases, and retention operations to determine the min retained sequence number.
      * Subclasses that don't support peer recovery (e.g. serverless) can override this to return {@code false} so that the min retained
-     * sequence number advances based only on the global checkpoint, retention operations, and retention leases.
+     * sequence number advances based solely on the global checkpoint, allowing the most aggressive reclamation of soft-deleted documents.
      */
     protected boolean shouldRetainForPeerRecovery() {
         return true;

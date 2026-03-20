@@ -1,0 +1,7 @@
+area: Search
+issues:
+ - 143980
+pr: 144673
+summary: "Fix BWC regression: int4 vector types drop `confidence_interval` after Lucene\
+  \ 10.4 upgrade"
+type: bug

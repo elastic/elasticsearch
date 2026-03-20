@@ -3543,10 +3543,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return null;
         }
         float confidenceInterval = (float) XContentMapValues.nodeDoubleValue(confidenceIntervalNode);
-        // Treat 0.0 as absent so mapping serialization matches omitting the field (mixed-cluster BWC).
-        if (Float.compare(confidenceInterval, 0.0f) == 0) {
-            return null;
-        }
         boolean shouldWarn = indexVersion.onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_4_0);
         if (shouldWarn) {
             deprecationLogger.warn(

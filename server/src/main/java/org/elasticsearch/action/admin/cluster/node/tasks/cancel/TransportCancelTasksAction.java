@@ -117,7 +117,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
 
     /**
      * The Get and Cancel APIs have been soft deprecated for reindexing tasks in favour of the dedicated reindexing APIs,
-     * when the cluster supports {@link org.elasticsearch.index.reindex.ReindexTaskManagementFeatures#REINDEX_PIT_SEARCH_FEATURE}.
+     * when the cluster supports {@link org.elasticsearch.index.reindex.ReindexTaskManagementFeatures#RELOCATE_ON_SHUTDOWN_NODE_FEATURE}.
      * This method logs a deprecation warning if we're processing a reindexing task
      *
      * @param task The task
@@ -128,7 +128,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
 
     /**
      * The Get and Cancel APIs have been soft deprecated for reindexing tasks in favour of the dedicated reindexing APIs,
-     * when the cluster supports {@link org.elasticsearch.index.reindex.ReindexTaskManagementFeatures#REINDEX_PIT_SEARCH_FEATURE}.
+     * when the cluster supports {@link org.elasticsearch.index.reindex.ReindexTaskManagementFeatures#RELOCATE_ON_SHUTDOWN_NODE_FEATURE}.
      * This method logs a deprecation warning if we're processing a reindexing task, and we haven't already logged
      * a deprecation message.
      * @param task The task
@@ -137,7 +137,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         if (softDeprecatedWarningLogged == false
             && task != null
             && task.getAction().equals(ReindexAction.NAME)
-            && featureService.clusterHasFeature(clusterService.state(), ReindexTaskManagementFeatures.REINDEX_PIT_SEARCH_FEATURE)) {
+            && featureService.clusterHasFeature(clusterService.state(), ReindexTaskManagementFeatures.RELOCATE_ON_SHUTDOWN_NODE_FEATURE)) {
             deprecationLogger.warn(
                 DeprecationCategory.API,
                 "cancel-api-deprecated-for-reindexing-tasks",

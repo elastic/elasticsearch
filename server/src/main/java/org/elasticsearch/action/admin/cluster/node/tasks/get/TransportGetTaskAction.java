@@ -287,14 +287,14 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
 
     /**
      * The Get API has been soft deprecated for reindexing tasks in favour of the dedicated reindexing APIs,
-     * when the cluster supports {@link ReindexTaskManagementFeatures#REINDEX_PIT_SEARCH_FEATURE}.
+     * when the cluster supports {@link ReindexTaskManagementFeatures#RELOCATE_ON_SHUTDOWN_NODE_FEATURE}.
      * @param action This is the action of the task the user was trying to get. If this matches a reindexing task,
      *               then we log a warning to the user to use the dedicated reindexing APIs instead
      */
     private void logSoftDeprecationWarning(String action) {
         if (action != null
             && action.equals(ReindexAction.NAME)
-            && featureService.clusterHasFeature(clusterService.state(), ReindexTaskManagementFeatures.REINDEX_PIT_SEARCH_FEATURE)) {
+            && featureService.clusterHasFeature(clusterService.state(), ReindexTaskManagementFeatures.RELOCATE_ON_SHUTDOWN_NODE_FEATURE)) {
             deprecationLogger.warn(
                 DeprecationCategory.API,
                 "get-api-deprecated-for-reindexing-tasks",

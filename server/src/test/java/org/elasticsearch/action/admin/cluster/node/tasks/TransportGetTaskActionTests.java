@@ -18,6 +18,8 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -31,6 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.get.GetResult;
@@ -39,16 +42,23 @@ import org.elasticsearch.index.reindex.ReindexTaskManagementFeatures;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -91,7 +101,7 @@ public class TransportGetTaskActionTests extends ESTestCase {
         when(transportService.getTaskManager()).thenReturn(taskManager);
 
         FeatureService featureService = mock(FeatureService.class);
-        when(featureService.clusterHasFeature(any(), eq(ReindexTaskManagementFeatures.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
+        when(featureService.clusterHasFeature(any(), eq(ReindexTaskManagementFeatures.RELOCATE_ON_SHUTDOWN_NODE_FEATURE))).thenReturn(true);
 
         TransportGetTaskAction getTaskAction = new TransportGetTaskAction(
             threadPool,
@@ -114,6 +124,336 @@ public class TransportGetTaskActionTests extends ESTestCase {
         assertWarnings(
             "Using the task management APIs to get reindex tasks is deprecated. "
                 + "Use the dedicated reindex API instead, GET /_reindex/<task_id>."
+        );
+    }
+
+    /**
+     * When the cluster does not report the reindex task-management feature, GET on a running reindex task must not log a deprecation.
+     */
+    public void testNoDeprecationWarningForReindexGetTaskWhenFeatureUnsupported() throws Exception {
+        var transportService = mock(TransportService.class);
+        var clusterService = mock(ClusterService.class);
+        var client = mock(NodeClient.class);
+
+        var nodeId = "node1";
+        when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create(nodeId));
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+        var taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
+        when(transportService.getTaskManager()).thenReturn(taskManager);
+
+        FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), eq(ReindexTaskManagementFeatures.RELOCATE_ON_SHUTDOWN_NODE_FEATURE))).thenReturn(
+            false
+        );
+
+        TransportGetTaskAction getTaskAction = new TransportGetTaskAction(
+            threadPool,
+            transportService,
+            new ActionFilters(emptySet()),
+            clusterService,
+            featureService,
+            client,
+            NamedXContentRegistry.EMPTY,
+            projectResolver
+        );
+
+        Task runningTask = taskManager.register("task", ReindexAction.NAME, new GetTaskRequest());
+        TaskId taskId = new TaskId(nodeId, runningTask.getId());
+
+        var future = new TestPlainActionFuture<GetTaskResponse>();
+        assertBusy(() -> taskManager.registerAndExecute("transport", getTaskAction, new GetTaskRequest().setTaskId(taskId), null, future));
+    }
+
+    /**
+     * GET on a non-reindex running task must not log the reindex deprecation even when the cluster reports the feature as supported.
+     */
+    public void testNoDeprecationWarningForNonReindexGetTask() throws Exception {
+        var transportService = mock(TransportService.class);
+        var clusterService = mock(ClusterService.class);
+        var client = mock(NodeClient.class);
+
+        var nodeId = "node1";
+        when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create(nodeId));
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+        var taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
+        when(transportService.getTaskManager()).thenReturn(taskManager);
+
+        FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), eq(ReindexTaskManagementFeatures.RELOCATE_ON_SHUTDOWN_NODE_FEATURE))).thenReturn(true);
+
+        TransportGetTaskAction getTaskAction = new TransportGetTaskAction(
+            threadPool,
+            transportService,
+            new ActionFilters(emptySet()),
+            clusterService,
+            featureService,
+            client,
+            NamedXContentRegistry.EMPTY,
+            projectResolver
+        );
+
+        Task runningTask = taskManager.register("transport", TransportListTasksAction.TYPE.name(), new ListTasksRequest());
+        TaskId taskId = new TaskId(nodeId, runningTask.getId());
+
+        var future = new TestPlainActionFuture<GetTaskResponse>();
+        assertBusy(() -> taskManager.registerAndExecute("transport", getTaskAction, new GetTaskRequest().setTaskId(taskId), null, future));
+    }
+
+    /**
+     * A running task with a null action must not trigger the reindex GET deprecation logger
+     */
+    public void testNoDeprecationWhenRunningTaskHasNullAction() throws Exception {
+        var transportService = mock(TransportService.class);
+        var clusterService = mock(ClusterService.class);
+        var client = mock(NodeClient.class);
+
+        var nodeId = "node1";
+        when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create(nodeId));
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+        var taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
+        when(transportService.getTaskManager()).thenReturn(taskManager);
+
+        FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), eq(ReindexTaskManagementFeatures.RELOCATE_ON_SHUTDOWN_NODE_FEATURE))).thenReturn(true);
+
+        TransportGetTaskAction getTaskAction = new TransportGetTaskAction(
+            threadPool,
+            transportService,
+            new ActionFilters(emptySet()),
+            clusterService,
+            featureService,
+            client,
+            NamedXContentRegistry.EMPTY,
+            projectResolver
+        );
+
+        Task runningTask = taskManager.register("task", null, new GetTaskRequest());
+        TaskId taskId = new TaskId(nodeId, runningTask.getId());
+
+        var future = new TestPlainActionFuture<GetTaskResponse>();
+        assertBusy(() -> taskManager.registerAndExecute("transport", getTaskAction, new GetTaskRequest().setTaskId(taskId), null, future));
+    }
+
+    /**
+     * When the task is not running, GET loads a completed task from the tasks index; a stored reindex task must emit the deprecation
+     * when the cluster supports the feature.
+     */
+    public void testDeprecationWarningWhenLoadingFinishedReindexTaskFromIndex() throws Exception {
+        var transportService = mock(TransportService.class);
+        var clusterService = mock(ClusterService.class);
+        var nodeId = "node1";
+        TaskId taskId = new TaskId(nodeId, 42L);
+        TaskInfo storedInfo = new TaskInfo(
+            taskId,
+            "reindex",
+            nodeId,
+            ReindexAction.NAME,
+            null,
+            null,
+            0L,
+            0L,
+            false,
+            false,
+            TaskId.EMPTY_TASK_ID,
+            Map.of()
+        );
+        BytesReference source = buildCompletedTaskResultSource(storedInfo);
+
+        NodeClient client = new NodeClient(Settings.EMPTY, threadPool, projectResolver) {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                if (TransportGetAction.TYPE.equals(action)) {
+                    var getRequest = (GetRequest) request;
+                    assertEquals(TaskResultsService.TASK_INDEX, getRequest.index());
+                    assertEquals(taskId.toString(), getRequest.id());
+                    ((ActionListener<GetResponse>) listener).onResponse(getResponseForStoredTask(taskId, source));
+                } else {
+                    fail("unexpected action " + action);
+                }
+            }
+        };
+
+        when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create(nodeId));
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+        var taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
+        when(transportService.getTaskManager()).thenReturn(taskManager);
+
+        FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), eq(ReindexTaskManagementFeatures.RELOCATE_ON_SHUTDOWN_NODE_FEATURE))).thenReturn(true);
+
+        TransportGetTaskAction getTaskAction = new TransportGetTaskAction(
+            threadPool,
+            transportService,
+            new ActionFilters(emptySet()),
+            clusterService,
+            featureService,
+            client,
+            NamedXContentRegistry.EMPTY,
+            projectResolver
+        );
+
+        var future = new TestPlainActionFuture<GetTaskResponse>();
+        assertBusy(() -> taskManager.registerAndExecute("transport", getTaskAction, new GetTaskRequest().setTaskId(taskId), null, future));
+        assertWarnings(
+            "Using the task management APIs to get reindex tasks is deprecated. "
+                + "Use the dedicated reindex API instead, GET /_reindex/<task_id>."
+        );
+    }
+
+    /**
+     * Loading a finished reindex task from the tasks index must not log when the cluster does not report the feature.
+     */
+    public void testNoDeprecationWhenLoadingFinishedReindexTaskFromIndex() throws Exception {
+        var transportService = mock(TransportService.class);
+        var clusterService = mock(ClusterService.class);
+        var nodeId = "node1";
+        TaskId taskId = new TaskId(nodeId, 43L);
+        TaskInfo storedInfo = new TaskInfo(
+            taskId,
+            "reindex",
+            nodeId,
+            ReindexAction.NAME,
+            null,
+            null,
+            0L,
+            0L,
+            false,
+            false,
+            TaskId.EMPTY_TASK_ID,
+            Map.of()
+        );
+        BytesReference source = buildCompletedTaskResultSource(storedInfo);
+
+        NodeClient client = new NodeClient(Settings.EMPTY, threadPool, projectResolver) {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                if (TransportGetAction.TYPE.equals(action)) {
+                    ((ActionListener<GetResponse>) listener).onResponse(getResponseForStoredTask(taskId, source));
+                } else {
+                    fail("unexpected action " + action);
+                }
+            }
+        };
+
+        when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create(nodeId));
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+        var taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
+        when(transportService.getTaskManager()).thenReturn(taskManager);
+
+        FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), eq(ReindexTaskManagementFeatures.RELOCATE_ON_SHUTDOWN_NODE_FEATURE))).thenReturn(
+            false
+        );
+
+        TransportGetTaskAction getTaskAction = new TransportGetTaskAction(
+            threadPool,
+            transportService,
+            new ActionFilters(emptySet()),
+            clusterService,
+            featureService,
+            client,
+            NamedXContentRegistry.EMPTY,
+            projectResolver
+        );
+
+        var future = new TestPlainActionFuture<GetTaskResponse>();
+        assertBusy(() -> taskManager.registerAndExecute("transport", getTaskAction, new GetTaskRequest().setTaskId(taskId), null, future));
+    }
+
+    /**
+     * Loading a finished non-reindex task from the tasks index must not log the reindex deprecation when the feature is supported.
+     */
+    public void testNoDeprecationWhenLoadingFinishedNonReindexTaskFromIndex() throws Exception {
+        var transportService = mock(TransportService.class);
+        var clusterService = mock(ClusterService.class);
+        var nodeId = "node1";
+        TaskId taskId = new TaskId(nodeId, 44L);
+        TaskInfo storedInfo = new TaskInfo(
+            taskId,
+            "transport",
+            nodeId,
+            TransportListTasksAction.TYPE.name(),
+            null,
+            null,
+            0L,
+            0L,
+            false,
+            false,
+            TaskId.EMPTY_TASK_ID,
+            Map.of()
+        );
+        BytesReference source = buildCompletedTaskResultSource(storedInfo);
+
+        NodeClient client = new NodeClient(Settings.EMPTY, threadPool, projectResolver) {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                if (TransportGetAction.TYPE.equals(action)) {
+                    ((ActionListener<GetResponse>) listener).onResponse(getResponseForStoredTask(taskId, source));
+                } else {
+                    fail("unexpected action " + action);
+                }
+            }
+        };
+
+        when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create(nodeId));
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+        var taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
+        when(transportService.getTaskManager()).thenReturn(taskManager);
+
+        FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), eq(ReindexTaskManagementFeatures.RELOCATE_ON_SHUTDOWN_NODE_FEATURE))).thenReturn(true);
+
+        TransportGetTaskAction getTaskAction = new TransportGetTaskAction(
+            threadPool,
+            transportService,
+            new ActionFilters(emptySet()),
+            clusterService,
+            featureService,
+            client,
+            NamedXContentRegistry.EMPTY,
+            projectResolver
+        );
+
+        var future = new TestPlainActionFuture<GetTaskResponse>();
+        assertBusy(() -> taskManager.registerAndExecute("transport", getTaskAction, new GetTaskRequest().setTaskId(taskId), null, future));
+    }
+
+    private static BytesReference buildCompletedTaskResultSource(TaskInfo taskInfo) throws IOException {
+        TaskResult stored = new TaskResult(true, taskInfo);
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            stored.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            return BytesReference.bytes(builder);
+        }
+    }
+
+    private static GetResponse getResponseForStoredTask(TaskId taskId, BytesReference source) {
+        return new GetResponse(
+            new GetResult(
+                TaskResultsService.TASK_INDEX,
+                taskId.toString(),
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                1L,
+                true,
+                source,
+                null,
+                null
+            )
         );
     }
 

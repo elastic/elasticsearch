@@ -17,12 +17,12 @@ import org.elasticsearch.features.NodeFeature;
 public final class ReindexTaskManagementFeatures {
 
     /**
-     * The reindex module already declares a {@code #REINDEX_PIT_SEARCH_FEATURE} .
+     * The reindex module already declares a {@code #RELOCATE_ON_SHUTDOWN_NODE_FEATURE} .
      * However, since server cannot depend on modules/reindex, we're forced to duplicate the feature flag here using the same ID.
      * The actual features are registered for the node via {@code org.elasticsearch.reindex.management.ReindexManagementFeatures}
      * when the corresponding feature flags are enabled.
      */
-    public static final NodeFeature REINDEX_PIT_SEARCH_FEATURE = new NodeFeature("reindex_pit_search");
+    public static final NodeFeature RELOCATE_ON_SHUTDOWN_NODE_FEATURE = new NodeFeature("reindex_pit_search");
 
     private ReindexTaskManagementFeatures() {}
 }

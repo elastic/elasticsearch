@@ -1,0 +1,66 @@
+[[release-notes-8.19.13]]
+== {es} version 8.19.13
+
+coming[8.19.13]
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[bug-8.19.13]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fix `ClassCastException` when merging `TopHits` with mixed sort field types {es-pull}141919[#141919] (issue: {es-issue}141714[#141714])
+
+Data streams::
+* Apm-data: explicit map of `timestamp.us` to long {es-pull}143173[#143173]
+
+ES|QL::
+* Promptly clean up CCS exchange sinks {es-pull}143325[#143325]
+
+Infra/Logging::
+* Fix cluster name in ECS upgrade {es-pull}141792[#141792]
+* [Backport 8.19] Fix cluster name in ECS upgrade {es-pull}143536[#143536]
+
+Machine Learning::
+* Fix Duplicate ML Model Allocations on Same Node {es-pull}142872[#142872]
+
+Packaging::
+* [ES-14264] Updating 8.19 ubuntu image to fix issues with dotted env vars {es-pull}143172[#143172]
+
+SQL::
+* Fix `QlIllegalArgumentException` with non-foldable date range queries {es-pull}142386[#142386] (issue: {es-issue}137365[#137365])
+
+Search::
+* Add circuit breaker for query construction to prevent OOM from automaton-based queries {es-pull}142150[#142150]
+* Add timeout support for KNN searches in the DFS phase {es-pull}142925[#142925]
+
+Security::
+* Disable CAE in microsoft-graph-authz plugin {es-pull}142848[#142848] (issue: {es-issue}142743[#142743])
+* Fix use-after-free in `SearchApplicationIndexService` buffer lifecycle {es-pull}143134[#143134]
+
+Transform::
+* [ML]Fix latest transforms disregarding updates when sort and sync fields are non-monotonic {es-pull}142856[#142856] (issue: {es-issue}90643[#90643])
+
+[[enhancement-8.19.13]]
+[float]
+=== Enhancements
+
+Authorization::
+* [JupiterOne] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` {es-pull}140049[#140049]
+* [Sentinel One] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third-party agent indices in the `Kibana system` to support the unified alert data stream. {es-pull}142648[#142648]
+
+Search::
+* Fix nested object float arrays being mapped to dense vectors when they are mapped in dynamic template mappings {es-pull}143733[#143733] (issue: {es-issue}143732[#143732])
+
+Transform::
+* Skip checkpoint query filter when `runtime_mappings` are present {es-pull}142452[#142452]
+
+[[upgrade-8.19.13]]
+[float]
+=== Upgrades
+
+Authentication::
+* Bump Kiota Libs {es-pull}143556[#143556]
+
+

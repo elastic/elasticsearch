@@ -224,9 +224,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
         Polygon largePolygon = new Polygon(new LinearRing(new double[] { -5, 5, 5, -5, -5 }, new double[] { 55, 55, 65, 65, 55 }));
 
         // Small polygon: 0.1×0.1 degree square, centroid lat=10.05, lon=0.05, area=0.01 sq-deg
-        Polygon smallPolygon = new Polygon(
-            new LinearRing(new double[] { 0, 0.1, 0.1, 0, 0 }, new double[] { 10, 10, 10.1, 10.1, 10 })
-        );
+        Polygon smallPolygon = new Polygon(new LinearRing(new double[] { 0, 0.1, 0.1, 0, 0 }, new double[] { 10, 10, 10.1, 10.1, 10 }));
         int numSmallPolygons = 100;
 
         // Compute expected area-weighted centroid from CentroidCalculator
@@ -244,10 +242,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
         // The count-weighted centroid that old (buggy) code would produce in a multi-shard scenario:
         // lat = (1 * largeCalc.getY() + numSmallPolygons * smallCalc.getY()) / (1 + numSmallPolygons) ≈ 10.5
         // We verify the correct result is close to expectedLat (≈ 59.5), far from 10.5.
-        assertTrue(
-            "Area-weighted centroid lat " + expectedLat + " should be far from count-weighted lat",
-            expectedLat > 50
-        );
+        assertTrue("Area-weighted centroid lat " + expectedLat + " should be far from count-weighted lat", expectedLat > 50);
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             // Segment 1: large polygon

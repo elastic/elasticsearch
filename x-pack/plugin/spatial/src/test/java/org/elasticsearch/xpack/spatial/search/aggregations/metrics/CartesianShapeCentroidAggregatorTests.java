@@ -197,9 +197,7 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
      */
     public void testMultiSegmentAreaWeightedReduction() throws Exception {
         // Large polygon: 1000×1000 square, centroid at (500, 500), area = 1_000_000
-        Polygon largePolygon = new Polygon(
-            new LinearRing(new double[] { 0, 1000, 1000, 0, 0 }, new double[] { 0, 0, 1000, 1000, 0 })
-        );
+        Polygon largePolygon = new Polygon(new LinearRing(new double[] { 0, 1000, 1000, 0, 0 }, new double[] { 0, 0, 1000, 1000, 0 }));
 
         // Small polygon: 1×1 square, centroid at (0.5, 0.5), area = 1
         Polygon smallPolygon = new Polygon(new LinearRing(new double[] { 0, 1, 1, 0, 0 }, new double[] { 0, 0, 1, 1, 0 }));

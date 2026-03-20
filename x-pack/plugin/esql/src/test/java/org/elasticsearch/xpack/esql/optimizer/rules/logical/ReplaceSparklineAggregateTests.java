@@ -195,7 +195,7 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
             assertThat(sparklineAggregateNames, hasItem(attribute.name()));
         }
         assertNotNull(sparkline.dateBucketRounding());
-        assertTrue(sparkline.minDate() > 0); // TODO: Update this to take in the date to check
+        assertTrue(sparkline.minDate() > 0);
         assertTrue(sparkline.maxDate() > sparkline.minDate());
     }
 
@@ -320,5 +320,9 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
 
     public void testSparklineWithCompoundAggregate() {
         plan("from test | sort last_name desc | stats s = " + SPARKLINE_EXPR + ", c = count(*) / 0.001 by last_name | sort c desc");
+    }
+
+    public void testSparklineWithInlineWhere() {
+        plan("from test | stats s = " + SPARKLINE_EXPR + "where salary > 1000, c = count(*) by last_name | sort c desc");
     }
 }

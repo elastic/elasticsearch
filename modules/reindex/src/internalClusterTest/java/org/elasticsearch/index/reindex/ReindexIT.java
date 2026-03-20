@@ -46,8 +46,8 @@ public class ReindexIT extends ESIntegTestCase {
      * messed with the reindexing
      */
     public void testManualSliceWithoutFieldDefaultsToId() {
-        int index1DocCount = randomInt();
-        int index2DocCount = randomInt();
+        int index1DocCount = randomIntBetween(50, 100);
+        int index2DocCount = randomIntBetween(50, 100);
         String sourceIndex = randomAlphanumericOfLength(index1DocCount).toLowerCase(Locale.ROOT);
         String destIndex = randomAlphanumericOfLength(index2DocCount).toLowerCase(Locale.ROOT);
         final int totalDocs = index1DocCount + index2DocCount;

@@ -602,16 +602,19 @@ public abstract class AbstractAsyncBulkByScrollAction<
             if (nodeToRelocateTo.isPresent()) {
                 final PaginatedHitSource.Response paginatedHitSourceResponse = asyncResponse.response();
                 final WorkerResumeInfo workerResumeInfo;
-                if (paginatedHitSourceResponse.getPitId() != null) {
+                if (paginatedHitSource instanceof PitPaginatedHitSource pit) {
                     final Object[] searchAfterValues = paginatedHitSourceResponse.getSearchAfterValues();
                     if (searchAfterValues == null) {
                         throw new IllegalStateException("PIT relocation requires search_after values from the last hit");
                     }
+                    final BytesReference pitIdForResume = paginatedHitSourceResponse.getPitId() != null
+                        ? paginatedHitSourceResponse.getPitId()
+                        : pit.getPitId();
                     final Version remoteVersion = paginatedHitSource instanceof RemotePitPaginatedHitSource s
                         ? s.remoteVersion().orElseThrow(() -> new IllegalStateException("Remote PIT version should be set"))
                         : null;
                     workerResumeInfo = new ResumeInfo.PitWorkerResumeInfo(
-                        paginatedHitSourceResponse.getPitId(),
+                        pitIdForResume,
                         searchAfterValues,
                         startTimeEpochMillis.get(),
                         worker.getStatus(),

@@ -90,7 +90,22 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
         BytesReference pitId = new BytesArray("merged-pit-id".getBytes(StandardCharsets.UTF_8));
         List<BulkByScrollResponse> responses = new ArrayList<>();
         for (int i = 0; i < between(2, 5); i++) {
-            BulkByScrollTask.Status status = new BulkByScrollTask.Status(i, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0f, null, timeValueMillis(0));
+            BulkByScrollTask.Status status = new BulkByScrollTask.Status(
+                i,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                timeValueMillis(0),
+                0f,
+                null,
+                timeValueMillis(0)
+            );
             responses.add(new BulkByScrollResponse(timeValueMillis(100), status, emptyList(), emptyList(), false));
         }
 

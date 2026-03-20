@@ -145,22 +145,18 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
 
     public void testParseScrollOk() {
         AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall("scroll_ok.json").doNextScrollSearch(
-            "scroll",
-            timeValueMillis(0),
-            wrapAsListener(r -> {
-                assertFalse(r.isTimedOut());
-                assertEquals(FAKE_SCROLL_ID, r.getScrollId());
-                assertEquals(4, r.getTotalHits());
-                assertThat(r.getFailures(), empty());
-                assertThat(r.getHits(), hasSize(1));
-                assertEquals("test", r.getHits().getFirst().getIndex());
-                assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().getFirst().getId());
-                assertEquals("{\"test\":\"test3\"}", r.getHits().getFirst().getSource().utf8ToString());
-                assertNull(r.getHits().getFirst().getRouting());
-                called.set(true);
-            })
-        );
+        sourceWithMockedRemoteCall("scroll_ok.json").doNextScrollSearch("scroll", timeValueMillis(0), wrapAsListener(r -> {
+            assertFalse(r.isTimedOut());
+            assertEquals(FAKE_SCROLL_ID, r.getScrollId());
+            assertEquals(4, r.getTotalHits());
+            assertThat(r.getFailures(), empty());
+            assertThat(r.getHits(), hasSize(1));
+            assertEquals("test", r.getHits().getFirst().getIndex());
+            assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().getFirst().getId());
+            assertEquals("{\"test\":\"test3\"}", r.getHits().getFirst().getSource().utf8ToString());
+            assertNull(r.getHits().getFirst().getRouting());
+            called.set(true);
+        }));
         assertTrue(called.get());
     }
 
@@ -169,16 +165,12 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
      */
     public void testParseScrollFullyLoaded() {
         AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall("scroll_fully_loaded.json").doNextScrollSearch(
-            "scroll",
-            timeValueMillis(0),
-            wrapAsListener(r -> {
-                assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().getFirst().getId());
-                assertEquals("{\"test\":\"test3\"}", r.getHits().getFirst().getSource().utf8ToString());
-                assertEquals("testrouting", r.getHits().getFirst().getRouting());
-                called.set(true);
-            })
-        );
+        sourceWithMockedRemoteCall("scroll_fully_loaded.json").doNextScrollSearch("scroll", timeValueMillis(0), wrapAsListener(r -> {
+            assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().getFirst().getId());
+            assertEquals("{\"test\":\"test3\"}", r.getHits().getFirst().getSource().utf8ToString());
+            assertEquals("testrouting", r.getHits().getFirst().getRouting());
+            called.set(true);
+        }));
         assertTrue(called.get());
     }
 
@@ -187,16 +179,12 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
      */
     public void testParseScrollFullyLoadedFrom1_7() {
         AtomicBoolean called = new AtomicBoolean();
-        sourceWithMockedRemoteCall("scroll_fully_loaded_1_7.json").doNextScrollSearch(
-            "scroll",
-            timeValueMillis(0),
-            wrapAsListener(r -> {
-                assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().getFirst().getId());
-                assertEquals("{\"test\":\"test3\"}", r.getHits().getFirst().getSource().utf8ToString());
-                assertEquals("testrouting", r.getHits().getFirst().getRouting());
-                called.set(true);
-            })
-        );
+        sourceWithMockedRemoteCall("scroll_fully_loaded_1_7.json").doNextScrollSearch("scroll", timeValueMillis(0), wrapAsListener(r -> {
+            assertEquals("AVToMiDL50DjIiBO3yKA", r.getHits().getFirst().getId());
+            assertEquals("{\"test\":\"test3\"}", r.getHits().getFirst().getSource().utf8ToString());
+            assertEquals("testrouting", r.getHits().getFirst().getRouting());
+            called.set(true);
+        }));
         assertTrue(called.get());
     }
 
@@ -250,11 +238,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
         sourceWithMockedRemoteCall("rejection.json").doFirstSearch(wrapAsListener(checkResponse));
         assertTrue(called.get());
         called.set(false);
-        sourceWithMockedRemoteCall("rejection.json").doNextScrollSearch(
-            "scroll",
-            timeValueMillis(0),
-            wrapAsListener(checkResponse)
-        );
+        sourceWithMockedRemoteCall("rejection.json").doNextScrollSearch("scroll", timeValueMillis(0), wrapAsListener(checkResponse));
         assertTrue(called.get());
     }
 
@@ -326,11 +310,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
         sourceWithMockedRemoteCall("request_failure.json").doFirstSearch(wrapAsListener(checkResponse));
         assertTrue(called.get());
         called.set(false);
-        sourceWithMockedRemoteCall("request_failure.json").doNextScrollSearch(
-            "scroll",
-            timeValueMillis(0),
-            wrapAsListener(checkResponse)
-        );
+        sourceWithMockedRemoteCall("request_failure.json").doNextScrollSearch("scroll", timeValueMillis(0), wrapAsListener(checkResponse));
         assertTrue(called.get());
     }
 

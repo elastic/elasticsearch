@@ -47,7 +47,9 @@ public class PaginationCursorTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> new PaginationCursor("", null));
     }
 
-    /** Verifies that {@link PaginationCursor#forSearchAfter} creates a cursor with the given search_after values and search_after semantics. */
+    /** Verifies that {@link PaginationCursor#forSearchAfter} creates a cursor with the
+     * given search_after values and search_after semantics.
+     */
     public void testForSearchAfterCreatesSearchAfterCursor() {
         long sortLong = randomLong();
         String sortString = randomAlphaOfLengthBetween(1, 10);

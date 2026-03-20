@@ -20,7 +20,7 @@ package org.elasticsearch.xpack.stateless.snapshots;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotResiliencyTestHelper.TestClusterNodes.TransportInterceptorFactory;
-import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotShardContextFactory.StatelessSnapshotEnabledStatus;
+import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings.StatelessSnapshotEnabledStatus;
 
 public class StatelessSnapshotResiliencyWithReadFromObjectStoreTests extends StatelessSnapshotResiliencyTests {
 
@@ -39,7 +39,7 @@ public class StatelessSnapshotResiliencyWithReadFromObjectStoreTests extends Sta
                 return Settings.builder()
                     .put(super.nodeSettings(node))
                     .put(
-                        StatelessSnapshotShardContextFactory.STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(),
+                        StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(),
                         StatelessSnapshotEnabledStatus.READ_FROM_OBJECT_STORE
                     )
                     .build();

@@ -629,6 +629,34 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         }
     }
 
+    public void testToStringReturnsConsistCancellationStateAndReason() throws Exception {
+        final int iterations = 10000;
+        for (int i = 0; i < iterations; i++) {
+            final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", TaskId.EMPTY_TASK_ID, emptyMap());
+            final AtomicReference<String> failure = new AtomicReference<>();
+            final CountDownLatch start = new CountDownLatch(1);
+
+            final Thread reader = new Thread(() -> {
+                safeAwait(start);
+                while (task.isCancelled() == false) {
+                    Thread.onSpinWait();
+                }
+
+                String toString = task.toString();
+                if (toString.endsWith("reason='null', isCancelled=true}")) {
+                    failure.set("null reason when isCancelled() is true");
+                } else if (toString.endsWith("reason='test-reason', isCancelled=false}")) {
+                    failure.set("isCancelled false when reason is set");
+                }
+            });
+            reader.start();
+            start.countDown();
+            TaskCancelHelper.cancel(task, "test-reason");
+            reader.join();
+            assertNull(failure.get());
+        }
+    }
+
     public void testNotifyIfCancelled() throws Exception {
         final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", TaskId.EMPTY_TASK_ID, emptyMap());
 

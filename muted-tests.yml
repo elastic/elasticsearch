@@ -312,9 +312,6 @@ tests:
 - class: org.elasticsearch.entitlement.qa.EntitlementsAllowedNonModularIT
   method: "testAction {actionName=createLDAPCertStore}"
   issue: https://github.com/elastic/elasticsearch/issues/144376
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/172_knn_query_base64_vectors/kNN query with ambiguous hex/base64 byte string prefers hex}
-  issue: https://github.com/elastic/elasticsearch/issues/144379
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:approximation.Approximate stats by on large single-valued data}
   issue: https://github.com/elastic/elasticsearch/issues/144382
@@ -354,6 +351,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
   method: testForceSleepsProfile {SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/144619
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  method: testCreatesEisChatCompletionEndpoint
+  issue: https://github.com/elastic/elasticsearch/issues/144671
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:spatial_shapes.convertFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/144672
 
 # Examples:
 #

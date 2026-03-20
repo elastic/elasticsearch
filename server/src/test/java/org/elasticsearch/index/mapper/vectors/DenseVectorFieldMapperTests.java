@@ -2033,15 +2033,10 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         assertWarnings();
     }
 
-    /**
-     * BWC test: before Lucene 10.4, int4_hnsw and int4_flat always serialized confidence_interval
-     * (defaulting to 0.0 for dynamic quantiles). New nodes must preserve this behavior so that
-     * old nodes in a mixed cluster can parse the mapping source without triggering the DocumentMapper
-     * round-trip assertion (see https://github.com/elastic/elasticsearch/issues/143980).
-     */
+    // BWC: pre-Lucene-10.4 nodes expect confidence_interval to always be present for int4 types (#143980).
     public void testInt4IndexOptionsAlwaysSerializeConfidenceInterval() throws IOException {
         for (String indexType : List.of("int4_hnsw", "int4_flat")) {
-            // When confidence_interval is not specified, it should default to 0.0 in the serialized mapping
+            // no confidence_interval specified — should default to 0.0
             DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
                 b.field("type", "dense_vector");
                 b.field("dims", 8);
@@ -2057,7 +2052,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 mappingSource.contains("\"confidence_interval\":0.0")
             );
 
-            // When confidence_interval is explicitly set, it should be preserved
+            // explicit confidence_interval should be preserved
             DocumentMapper mapperWithCI = createDocumentMapper(fieldMapping(b -> {
                 b.field("type", "dense_vector");
                 b.field("dims", 8);

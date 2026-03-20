@@ -150,14 +150,6 @@ To prevent this, {{esql}} uses the [request circuit breaker](#request-circuit-br
 
 The request breaker settings (`indices.breaker.request.limit`, `indices.breaker.request.overhead`, and `indices.breaker.request.type`) are documented in the [Request circuit breaker](#request-circuit-breaker) section.
 
-{{esql}} also supports the following block factory settings that tune how memory is reserved per execution driver:
-
-`esql.block_factory.local_breaker.over_reserved`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The number of bytes to over-reserve from the request breaker per driver to reduce the frequency of atomic operations. Defaults to `8kb`.
-
-`esql.block_factory.local_breaker.max_over_reserved`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The maximum number of bytes that can be over-reserved across all drivers. Defaults to `512kb`.
-
 
 
 ### {{ml-cap}} circuit breaker [circuit-breakers-page-model-inference]

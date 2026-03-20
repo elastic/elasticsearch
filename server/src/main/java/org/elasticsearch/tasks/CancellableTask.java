@@ -119,7 +119,8 @@ public class CancellableTask extends Task {
 
     @Override
     public String toString() {
-        return "CancellableTask{" + super.toString() + ", reason='" + reason + '\'' + ", isCancelled=" + isCancelled() + '}';
+        String cancelReason = reason;
+        return "CancellableTask{" + super.toString() + ", reason='" + cancelReason + '\'' + ", isCancelled=" + (cancelReason != null) + '}';
     }
 
     private TaskCancelledException getTaskCancelledException() {

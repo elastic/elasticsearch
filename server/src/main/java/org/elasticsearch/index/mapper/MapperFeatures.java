@@ -141,7 +141,7 @@ public class MapperFeatures implements FeatureSpecification {
             DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX,
             DOC_VALUES_MULTI_VALUE,
             DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX,
-                FLATTENED_MAPPED_SUBFIELDS_FEATURE
+            FLATTENED_MAPPED_SUBFIELDS_FEATURE
         );
     }
 }

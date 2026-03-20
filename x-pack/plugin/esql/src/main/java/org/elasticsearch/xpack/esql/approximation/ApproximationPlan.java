@@ -55,11 +55,11 @@ import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * The approximation plan, that is substituted during logical plan optimization
@@ -76,6 +76,36 @@ public class ApproximationPlan {
     public static final String BUCKET_ID_COLUMN_NAME = "$bucket_id";
 
     /**
+     * Prefix for confidence interval column names in the approximation output.
+     */
+    public static final String CONFIDENCE_INTERVAL_COLUMN_PREFIX = "_approximation_confidence_interval(";
+
+    /**
+     * Prefix for certified column names in the approximation output.
+     */
+    public static final String CERTIFIED_COLUMN_PREFIX = "_approximation_certified(";
+
+    /**
+     * Returns the {@code _meta} map for an approximation column, or {@code null}
+     * if the column name does not match an approximation pattern.
+     */
+    public static Map<String, Object> columnMetadata(Attribute column) {
+        if (column.synthetic() == false) {
+            return null;
+        }
+        String columnName = column.name();
+        if (columnName.startsWith(CONFIDENCE_INTERVAL_COLUMN_PREFIX) && columnName.endsWith(")")) {
+            String sourceColumn = columnName.substring(CONFIDENCE_INTERVAL_COLUMN_PREFIX.length(), columnName.length() - 1);
+            return Map.of("approximation", Map.of("type", "confidence_interval", "column", sourceColumn));
+        }
+        if (columnName.startsWith(CERTIFIED_COLUMN_PREFIX) && columnName.endsWith(")")) {
+            String sourceColumn = columnName.substring(CERTIFIED_COLUMN_PREFIX.length(), columnName.length() - 1);
+            return Map.of("approximation", Map.of("type", "certified", "column", sourceColumn));
+        }
+        return null;
+    }
+
+    /**
      * The number of times (trials) the sampled rows are divided into buckets.
      */
     static final int TRIAL_COUNT = 2;
@@ -86,11 +116,6 @@ public class ApproximationPlan {
     public static final int BUCKET_COUNT = 16;
 
     /**
-     * Default confidence level for confidence intervals.
-     */
-    static final double DEFAULT_CONFIDENCE_LEVEL = 0.90;
-
-    /**
      * For grouped statistics (STATS ... BY), a grouping needs at least this
      * number of sampled rows to be included in the results. For a simple
      * aggregation as count, this still leads to acceptable confidence
@@ -98,7 +123,7 @@ public class ApproximationPlan {
      * will never be marked as "certified reliable", because all buckets need
      * to data for that.
      */
-    static final int MIN_ROW_COUNT_FOR_RESULT_INCLUSION = 10;
+    private static final int MIN_ROW_COUNT_FOR_RESULT_INCLUSION = 10;
 
     /**
      * These numerical scalar functions produce multivalued output. This means that
@@ -109,8 +134,6 @@ public class ApproximationPlan {
      * multivalued fields, that are filled with nulls.
      */
     private static final Set<Class<? extends EsqlScalarFunction>> MULTIVALUED_OUTPUT_FUNCTIONS = Set.of(MvAppend.class);
-
-    private static final AggregateFunction COUNT_ALL_ROWS = new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, StringUtils.WILDCARD));
 
     /**
      * A placeholder expression in the main approximation plan, that is replaced
@@ -164,6 +187,13 @@ public class ApproximationPlan {
     }
 
     private static final Logger logger = LogManager.getLogger(ApproximationPlan.class);
+
+    /**
+     * Returns whether the logical plan is an approximation plan.
+     */
+    public static boolean is(LogicalPlan logicalPlan) {
+        return logicalPlan.anyMatch(plan -> plan instanceof SampledAggregate);
+    }
 
     /**
      * Returns a plan that approximates the original plan and computes confidence intervals.
@@ -223,13 +253,16 @@ public class ApproximationPlan {
     public static LogicalPlan get(LogicalPlan logicalPlan, ApproximationSettings settings) {
         logger.debug("generating approximation plan");
 
+        Double confidenceLevel = settings.confidenceLevel();
+
         // Whether of not the first STATS command has been encountered yet.
         Holder<Boolean> encounteredStats = new Holder<>(false);
 
         // The keys are the IDs of the fields that have buckets. Confidence intervals are computed
         // for these fields at the end of the computation. They map to the list of buckets for
         // that field.
-        Map<NameId, List<Attribute>> fieldBuckets = new HashMap<>();
+        // If confidenceLevel is null, no buckets are needed, and this map is not used.
+        Map<NameId, List<Attribute>> fieldBuckets = confidenceLevel != null ? new HashMap<>() : null;
 
         // For each rounded expression, also keep track of the not rounded expression.
         // These are used when a division between two rounded expressions is encountered.
@@ -258,14 +291,16 @@ public class ApproximationPlan {
         });
 
         // Add the confidence intervals for all fields with buckets.
-        double confidenceLevel = settings.confidenceLevel() != null ? settings.confidenceLevel() : DEFAULT_CONFIDENCE_LEVEL;
-        approximationPlan = new Eval(Source.EMPTY, approximationPlan, getConfidenceIntervals(logicalPlan, fieldBuckets, confidenceLevel));
+        if (confidenceLevel != null) {
+            List<Alias> confidenceIntervals = getConfidenceIntervals(approximationPlan, fieldBuckets, confidenceLevel);
+            approximationPlan = new Eval(Source.EMPTY, approximationPlan, confidenceIntervals);
+        }
 
         // Drop all bucket fields and uncorrected fields from the output.
-        Set<Attribute> dropAttributes = Stream.concat(
-            fieldBuckets.values().stream().flatMap(List::stream),
-            notRoundedExpressions.values().stream()
-        ).collect(Collectors.toSet());
+        Set<Attribute> dropAttributes = new HashSet<>(notRoundedExpressions.values());
+        if (fieldBuckets != null) {
+            dropAttributes.addAll(fieldBuckets.values().stream().flatMap(List::stream).toList());
+        }
 
         List<Attribute> keepAttributes = new ArrayList<>(approximationPlan.output());
         keepAttributes.removeAll(dropAttributes);
@@ -364,7 +399,7 @@ public class ApproximationPlan {
             }
             originalAggregates.add(agg);
 
-            if (Approximation.SUPPORTED_SINGLE_VALUED_AGGS.contains(aggFn.getClass())) {
+            if (fieldBuckets != null && Approximation.SUPPORTED_SINGLE_VALUED_AGGS.contains(aggFn.getClass())) {
                 // For the supported single-valued aggregations, add buckets with sampled
                 // values, that will be used to compute a confidence interval.
                 // For multivalued aggregations, confidence intervals do not make sense.
@@ -494,31 +529,33 @@ public class ApproximationPlan {
         Map<NameId, Attribute> notRoundedExpressions
     ) {
         List<Alias> fields = new ArrayList<>(eval.fields());
-        for (Alias field : eval.fields()) {
-            // Don't create buckets for non-numeric or multivalued fields.
-            if (field.dataType().isNumeric() == false
-                || field.child().anyMatch(expr -> MULTIVALUED_OUTPUT_FUNCTIONS.contains(expr.getClass()))) {
-                continue;
-            }
-            // If any of the field's dependencies has buckets, create buckets for this field as well.
-            if (field.child().anyMatch(e -> e instanceof NamedExpression ne && fieldBuckets.containsKey(ne.id()))) {
-                List<Attribute> buckets = new ArrayList<>();
-                for (int bucketId = 0; bucketId < TRIAL_COUNT * BUCKET_COUNT; bucketId++) {
-                    final int finalBucketId = bucketId;
-                    Alias bucket = new Alias(
-                        Source.EMPTY,
-                        field.name() + "$bucket$" + bucketId,
-                        field.child()
-                            .transformDown(
-                                e -> e instanceof NamedExpression ne && fieldBuckets.containsKey(ne.id())
-                                    ? fieldBuckets.get(ne.id()).get(finalBucketId)
-                                    : e
-                            )
-                    );
-                    fields.add(bucket);
-                    buckets.add(bucket.toAttribute());
+        if (fieldBuckets != null) {
+            for (Alias field : eval.fields()) {
+                // Don't create buckets for non-numeric or multivalued fields.
+                if (field.dataType().isNumeric() == false
+                    || field.child().anyMatch(expr -> MULTIVALUED_OUTPUT_FUNCTIONS.contains(expr.getClass()))) {
+                    continue;
                 }
-                fieldBuckets.put(field.id(), buckets);
+                // If any of the field's dependencies has buckets, create buckets for this field as well.
+                if (field.child().anyMatch(e -> e instanceof NamedExpression ne && fieldBuckets.containsKey(ne.id()))) {
+                    List<Attribute> buckets = new ArrayList<>();
+                    for (int bucketId = 0; bucketId < TRIAL_COUNT * BUCKET_COUNT; bucketId++) {
+                        final int finalBucketId = bucketId;
+                        Alias bucket = new Alias(
+                            Source.EMPTY,
+                            field.name() + "$bucket$" + bucketId,
+                            field.child()
+                                .transformDown(
+                                    e -> e instanceof NamedExpression ne && fieldBuckets.containsKey(ne.id())
+                                        ? fieldBuckets.get(ne.id()).get(finalBucketId)
+                                        : e
+                                )
+                        );
+                        fields.add(bucket);
+                        buckets.add(bucket.toAttribute());
+                    }
+                    fieldBuckets.put(field.id(), buckets);
+                }
             }
         }
 
@@ -553,6 +590,10 @@ public class ApproximationPlan {
      * to the map of fields with buckets.
      */
     private static LogicalPlan projectIncludingBuckets(Project project, Map<NameId, List<Attribute>> fieldBuckets) {
+        if (fieldBuckets == null) {
+            return project;
+        }
+
         for (NamedExpression projection : project.projections()) {
             if (projection instanceof Alias alias
                 && alias.child() instanceof NamedExpression named
@@ -583,7 +624,7 @@ public class ApproximationPlan {
      * of the target field.
      */
     private static LogicalPlan mvExpandIncludingBuckets(MvExpand mvExpand, Map<NameId, List<Attribute>> fieldBuckets) {
-        if (fieldBuckets.containsKey(mvExpand.target().id())) {
+        if (fieldBuckets != null && fieldBuckets.containsKey(mvExpand.target().id())) {
             fieldBuckets.put(mvExpand.expanded().id(), fieldBuckets.get(mvExpand.target().id()));
         }
         return mvExpand;
@@ -654,14 +695,16 @@ public class ApproximationPlan {
                 confidenceIntervalsAndCertified.add(
                     new Alias(
                         Source.EMPTY,
-                        "CONFIDENCE_INTERVAL(" + output.name() + ")",
-                        new MvSlice(Source.EMPTY, confidenceInterval, Literal.integer(Source.EMPTY, 0), Literal.integer(Source.EMPTY, 1))
+                        CONFIDENCE_INTERVAL_COLUMN_PREFIX + output.name() + ")",
+                        new MvSlice(Source.EMPTY, confidenceInterval, Literal.integer(Source.EMPTY, 0), Literal.integer(Source.EMPTY, 1)),
+                        null,
+                        true
                     )
                 );
                 confidenceIntervalsAndCertified.add(
                     new Alias(
                         Source.EMPTY,
-                        "CERTIFIED(" + output.name() + ")",
+                        CERTIFIED_COLUMN_PREFIX + output.name() + ")",
                         new GreaterThanOrEqual(
                             Source.EMPTY,
                             new MvSlice(
@@ -671,7 +714,9 @@ public class ApproximationPlan {
                                 Literal.integer(Source.EMPTY, 2)
                             ),
                             Literal.fromDouble(Source.EMPTY, 0.5)
-                        )
+                        ),
+                        null,
+                        true
                     )
                 );
             }

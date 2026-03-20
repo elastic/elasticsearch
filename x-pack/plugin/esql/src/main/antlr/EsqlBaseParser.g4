@@ -225,7 +225,7 @@ limitCommand
     ;
 
 limitByGroupKey:
-    {this.isDevVersion()}? BY grouping=fields
+    {this.isDevVersion()}? BY booleanExpression (COMMA booleanExpression)*
     ;
 
 sortCommand

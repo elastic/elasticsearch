@@ -1811,7 +1811,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     public void testCreateClusterBlocksTransformerForIndexCreation() {
         boolean isStateless = randomBoolean();
         boolean useRefreshBlock = randomBoolean();
-        var minTransportVersion = TransportVersionUtils.randomCompatibleVersion();
 
         var applier = MetadataCreateIndexService.createClusterBlocksTransformerForIndexCreation(
             Settings.builder()

@@ -34,7 +34,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     static final String FORMAT_FIELD = "format";
     static final String VALUE_FIELD = "value";
 
-    static final ConstructingObjectParser<InferenceString, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<InferenceString, Void> PARSER = new ConstructingObjectParser<>(
         InferenceString.class.getSimpleName(),
         args -> new InferenceString((DataType) args[0], (DataFormat) args[1], (String) args[2])
     );

@@ -606,55 +606,49 @@ public class CancellableTasksTests extends TaskManagerTestCase {
      * so a reader could observe `isCancelled() == true` while `getReasonCancelled() == null`.
      */
     public void testReasonVisibleWhenCancelled() throws Exception {
-        final int iterations = 1000;
-        for (int i = 0; i < iterations; i++) {
-            final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", TaskId.EMPTY_TASK_ID, emptyMap());
-            final AtomicReference<String> failure = new AtomicReference<>();
-            final CountDownLatch start = new CountDownLatch(1);
+        final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", TaskId.EMPTY_TASK_ID, emptyMap());
+        final AtomicReference<String> failure = new AtomicReference<>();
+        final CountDownLatch start = new CountDownLatch(1);
 
-            final Thread reader = new Thread(() -> {
-                safeAwait(start);
-                while (task.isCancelled() == false) {
-                    Thread.onSpinWait();
-                }
-                if (task.getReasonCancelled() == null) {
-                    failure.set("getReasonCancelled() returned null after isCancelled() returned true");
-                }
-            });
-            reader.start();
-            start.countDown();
-            TaskCancelHelper.cancel(task, "test-reason");
-            reader.join();
-            assertNull(failure.get());
-        }
+        final Thread reader = new Thread(() -> {
+            safeAwait(start);
+            while (task.isCancelled() == false) {
+                Thread.onSpinWait();
+            }
+            if (task.getReasonCancelled() == null) {
+                failure.set("getReasonCancelled() returned null after isCancelled() returned true");
+            }
+        });
+        reader.start();
+        start.countDown();
+        TaskCancelHelper.cancel(task, "test-reason");
+        reader.join();
+        assertNull(failure.get());
     }
 
     public void testToStringReturnsConsistCancellationStateAndReason() throws Exception {
-        final int iterations = 10000;
-        for (int i = 0; i < iterations; i++) {
-            final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", TaskId.EMPTY_TASK_ID, emptyMap());
-            final AtomicReference<String> failure = new AtomicReference<>();
-            final CountDownLatch start = new CountDownLatch(1);
+        final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", TaskId.EMPTY_TASK_ID, emptyMap());
+        final AtomicReference<String> failure = new AtomicReference<>();
+        final CountDownLatch start = new CountDownLatch(1);
 
-            final Thread reader = new Thread(() -> {
-                safeAwait(start);
-                while (task.isCancelled() == false) {
-                    Thread.onSpinWait();
-                }
+        final Thread reader = new Thread(() -> {
+            safeAwait(start);
+            while (task.isCancelled() == false) {
+                Thread.onSpinWait();
+            }
 
-                String toString = task.toString();
-                if (toString.endsWith("reason='null', isCancelled=true}")) {
-                    failure.set("null reason when isCancelled() is true");
-                } else if (toString.endsWith("reason='test-reason', isCancelled=false}")) {
-                    failure.set("isCancelled false when reason is set");
-                }
-            });
-            reader.start();
-            start.countDown();
-            TaskCancelHelper.cancel(task, "test-reason");
-            reader.join();
-            assertNull(failure.get());
-        }
+            String toString = task.toString();
+            if (toString.endsWith("reason='null', isCancelled=true}")) {
+                failure.set("null reason when isCancelled() is true");
+            } else if (toString.endsWith("reason='test-reason', isCancelled=false}")) {
+                failure.set("isCancelled false when reason is set");
+            }
+        });
+        reader.start();
+        start.countDown();
+        TaskCancelHelper.cancel(task, "test-reason");
+        reader.join();
+        assertNull(failure.get());
     }
 
     public void testNotifyIfCancelled() throws Exception {

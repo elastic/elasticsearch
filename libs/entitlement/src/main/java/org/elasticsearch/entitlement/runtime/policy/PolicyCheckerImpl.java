@@ -491,6 +491,8 @@ public class PolicyCheckerImpl implements PolicyChecker {
             checkURLFileRead(callerClass, urlConnection.getURL());
         } else if (urlConnection instanceof JarURLConnection jarURLConnection) {
             checkJarURLAccess(callerClass, jarURLConnection);
+        } else if (isJrtUrl(urlConnection.getURL())) {
+            checkEntitlementPresent(callerClass, ReadJdkImageEntitlement.class);
         } else {
             checkUnsupportedURLProtocolConnection(callerClass, urlConnection.getURL().getProtocol());
         }

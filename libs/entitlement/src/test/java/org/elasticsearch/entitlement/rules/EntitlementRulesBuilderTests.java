@@ -19,8 +19,12 @@ import java.util.Map;
 
 import static org.elasticsearch.entitlement.rules.DslTestTypes.AbstractSub;
 import static org.elasticsearch.entitlement.rules.DslTestTypes.Concrete;
+import static org.elasticsearch.entitlement.rules.DslTestTypes.ConcreteWithDefault;
 import static org.elasticsearch.entitlement.rules.DslTestTypes.DummyWithGeneric;
+import static org.elasticsearch.entitlement.rules.DslTestTypes.InterfaceWithDefault;
 import static org.elasticsearch.entitlement.rules.DslTestTypes.OtherDummy;
+import static org.elasticsearch.entitlement.rules.DslTestTypes.SubWithoutOverride;
+import static org.elasticsearch.entitlement.rules.DslTestTypes.SuperWithMethod;
 import static org.elasticsearch.entitlement.rules.DslTestTypes.TargetInterface;
 
 /**
@@ -33,6 +37,8 @@ public class EntitlementRulesBuilderTests extends ESTestCase {
     private static final String ABSTRACT_SUB_INTERNAL = "org/elasticsearch/entitlement/rules/DslTestTypes$AbstractSub";
     private static final String TARGET_IFACE_INTERNAL = "org/elasticsearch/entitlement/rules/DslTestTypes$TargetInterface";
     private static final String OTHER_DUMMY_INTERNAL = "org/elasticsearch/entitlement/rules/DslTestTypes$OtherDummy";
+    private static final String IFACE_WITH_DEFAULT_INTERNAL = "org/elasticsearch/entitlement/rules/DslTestTypes$InterfaceWithDefault";
+    private static final String SUPER_WITH_METHOD_INTERNAL = "org/elasticsearch/entitlement/rules/DslTestTypes$SuperWithMethod";
     private static final String DUMMY_WITH_GENERIC_INTERNAL = "org/elasticsearch/entitlement/rules/DslTestTypes$DummyWithGeneric";
 
     private InternalInstrumentationRegistry newRegistry() {
@@ -160,13 +166,6 @@ public class EntitlementRulesBuilderTests extends ESTestCase {
         assertHasRule(registry, new MethodKey(DUMMY_WITH_GENERIC_INTERNAL, "takeOne", List.of("java.lang.Integer")));
     }
 
-    public void testOnClassName() {
-        var registry = newRegistry();
-        var className = Concrete.class.getName();
-        newBuilder(registry).on(className, Concrete.class).calling(Concrete::noArg).enforce(Policies::empty).elseThrowNotEntitled();
-        assertHasRule(registry, new MethodKey(CONCRETE_INTERNAL, "noArg", List.of()));
-    }
-
     public void testOnClassWithConsumer() {
         var registry = newRegistry();
         newBuilder(registry).on(Concrete.class, b -> b.calling(Concrete::noArg).enforce(Policies::empty).elseThrowNotEntitled());
@@ -221,5 +220,23 @@ public class EntitlementRulesBuilderTests extends ESTestCase {
         var registry = newRegistry();
         newBuilder(registry).on(Concrete.class).calling(Concrete::withArray, byte[].class).enforce(Policies::empty).elseThrowNotEntitled();
         assertHasRule(registry, new MethodKey(CONCRETE_INTERNAL, "withArray", List.of("byte[]")));
+    }
+
+    public void testDefaultInterfaceMethodResolvesToInterface() {
+        var registry = newRegistry();
+        newBuilder(registry).on(ConcreteWithDefault.class)
+            .calling(InterfaceWithDefault::defaultMethod)
+            .enforce(Policies::empty)
+            .elseThrowNotEntitled();
+        assertHasRule(registry, new MethodKey(IFACE_WITH_DEFAULT_INTERNAL, "defaultMethod", List.of()));
+    }
+
+    public void testInheritedSuperclassMethodResolvesToSuperclass() {
+        var registry = newRegistry();
+        newBuilder(registry).on(SubWithoutOverride.class)
+            .calling(SuperWithMethod::inheritedMethod)
+            .enforce(Policies::empty)
+            .elseThrowNotEntitled();
+        assertHasRule(registry, new MethodKey(SUPER_WITH_METHOD_INTERNAL, "inheritedMethod", List.of()));
     }
 }

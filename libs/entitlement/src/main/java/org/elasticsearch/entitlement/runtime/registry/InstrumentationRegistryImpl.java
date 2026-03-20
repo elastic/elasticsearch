@@ -63,7 +63,10 @@ public class InstrumentationRegistryImpl implements InternalInstrumentationRegis
 
     public void registerRule(EntitlementRule rule) {
         String id = UUID.randomUUID().toString();
-        methodToImplementationInfo.put(rule.methodKey(), new InstrumentationInfo(id, rule.strategy()));
+        InstrumentationInfo previous = methodToImplementationInfo.put(rule.methodKey(), new InstrumentationInfo(id, rule.strategy()));
+        if (previous != null) {
+            throw new IllegalStateException("Rule has already been registered for method [" + rule.methodKey() + "].");
+        }
         implementationIdToStrategy.put(id, rule.strategy());
         implementationIdToProvider.put(id, rule.checkMethod());
     }

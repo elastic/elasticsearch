@@ -14,17 +14,27 @@ import org.elasticsearch.entitlement.bridge.InstrumentationRegistry;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
+import org.elasticsearch.entitlement.instrumentation.MethodSignature;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
+import org.elasticsearch.entitlement.runtime.registry.InstrumentationInfo;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.lang.instrument.Instrumentation;
 import java.lang.instrument.UnmodifiableClassException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.concurrent.ConcurrentHashMap;
 
 class DynamicInstrumentation {
+
+    private static final Logger logger = LogManager.getLogger(DynamicInstrumentation.class);
 
     private static final InstrumentationService INSTRUMENTATION_SERVICE = new ProviderLocator<>(
         "entitlement",
@@ -56,13 +66,16 @@ class DynamicInstrumentation {
         throws UnmodifiableClassException {
 
         var checkMethods = registry.getInstrumentedMethods();
-        var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
+        var rulesByClass = buildRulesByClass(checkMethods);
 
-        Instrumenter instrumenter = INSTRUMENTATION_SERVICE.newInstrumenter(InstrumentationRegistry.class, checkMethods);
-        var transformer = new Transformer(instrumenter, classesToTransform, verifyBytecode);
+        Set<String> classesInRuleHierarchy = ConcurrentHashMap.newKeySet();
+        checkMethods.keySet().stream().map(MethodKey::className).forEach(classesInRuleHierarchy::add);
+
+        Instrumenter instrumenter = INSTRUMENTATION_SERVICE.newInstrumenter(InstrumentationRegistry.class, checkMethods, rulesByClass);
+        var transformer = new Transformer(instrumenter, classesInRuleHierarchy, verifyBytecode);
         inst.addTransformer(transformer, true);
 
-        var classesToRetransform = findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform);
+        var classesToRetransform = findClassesToRetransform(inst, inst.getAllLoadedClasses(), classesInRuleHierarchy);
         try {
             inst.retransformClasses(classesToRetransform);
         } catch (VerifyError e) {
@@ -82,13 +95,89 @@ class DynamicInstrumentation {
         }
     }
 
-    private static Class<?>[] findClassesToRetransform(Class<?>[] loadedClasses, Set<String> classesToTransform) {
+    /**
+     * Build a map from internal class name to a map of method signatures to instrumentation info.
+     * Constructors ({@code <init>}) are excluded since they are not inherited.
+     */
+    private static Map<String, Map<MethodSignature, InstrumentationInfo>> buildRulesByClass(
+        Map<MethodKey, InstrumentationInfo> checkMethods
+    ) {
+        Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass = new HashMap<>();
+        for (var entry : checkMethods.entrySet()) {
+            MethodKey key = entry.getKey();
+            if ("<init>".equals(key.methodName())) {
+                continue;
+            }
+            rulesByClass.computeIfAbsent(key.className(), k -> new HashMap<>()).put(key.methodSignature(), entry.getValue());
+        }
+        return Map.copyOf(rulesByClass);
+    }
+
+    /**
+     * Finds already-loaded classes that need retransformation, including subtypes of classes with rules.
+     * Classes are sorted by hierarchy depth (supertypes first) so that the {@code classesInRuleHierarchy}
+     * set is populated correctly for transitive inheritance (e.g. A extends B extends Socket).
+     */
+    private static Class<?>[] findClassesToRetransform(Instrumentation inst, Class<?>[] loadedClasses, Set<String> classesInRuleHierarchy) {
+        Arrays.sort(loadedClasses, Comparator.comparingInt(DynamicInstrumentation::hierarchyDepth));
+
         List<Class<?>> retransform = new ArrayList<>();
         for (Class<?> loadedClass : loadedClasses) {
-            if (classesToTransform.contains(loadedClass.getName().replace(".", "/"))) {
-                retransform.add(loadedClass);
+            if (loadedClass.isHidden()) {
+                continue;
             }
+            String internalName = loadedClass.getName().replace('.', '/');
+            boolean directMatch = classesInRuleHierarchy.contains(internalName);
+            boolean hierarchyMatch = false;
+            if (directMatch == false) {
+                ClassLoader cl = loadedClass.getClassLoader();
+                if (cl != null && cl != ClassLoader.getPlatformClassLoader()) {
+                    continue;
+                }
+                hierarchyMatch = hasSupertypeInSet(loadedClass, classesInRuleHierarchy);
+                if (hierarchyMatch == false) {
+                    continue;
+                }
+            }
+            if (inst.isModifiableClass(loadedClass) == false) {
+                logger.warn(
+                    "Class [{}] matched for instrumentation but is not modifiable (directMatch={}, loader={}, super={}, interfaces={})",
+                    loadedClass.getName(),
+                    directMatch,
+                    loadedClass.getClassLoader(),
+                    loadedClass.getSuperclass(),
+                    Arrays.toString(loadedClass.getInterfaces())
+                );
+                continue;
+            }
+            if (hierarchyMatch) {
+                classesInRuleHierarchy.add(internalName);
+            }
+            retransform.add(loadedClass);
         }
         return retransform.toArray(new Class<?>[0]);
+    }
+
+    private static boolean hasSupertypeInSet(Class<?> clazz, Set<String> classNames) {
+        Class<?> sup = clazz.getSuperclass();
+        if (sup != null && classNames.contains(sup.getName().replace('.', '/'))) {
+            return true;
+        }
+        for (Class<?> iface : clazz.getInterfaces()) {
+            if (classNames.contains(iface.getName().replace('.', '/'))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int hierarchyDepth(Class<?> clazz) {
+        int depth = 0;
+        Class<?> c = clazz;
+        while (c != null) {
+            depth++;
+            c = c.getSuperclass();
+        }
+        return depth;
     }
 }

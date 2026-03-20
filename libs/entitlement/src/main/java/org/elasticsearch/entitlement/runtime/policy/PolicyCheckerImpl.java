@@ -525,8 +525,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
         return false;
     }
 
-    @Override
-    public void checkJarURLAccess(Class<?> callerClass, JarURLConnection connection) {
+    private void checkJarURLAccess(Class<?> callerClass, JarURLConnection connection) {
         var jarFileUrl = connection.getJarFileURL();
         if (handleNetworkOrFileUrlCheck(callerClass, jarFileUrl)) {
             return;

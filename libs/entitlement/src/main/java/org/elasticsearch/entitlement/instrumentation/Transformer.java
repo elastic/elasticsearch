@@ -19,20 +19,32 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A {@link ClassFileTransformer} that applies an {@link Instrumenter} to the appropriate classes.
+ * <p>
+ * Supports hierarchy-aware instrumentation: classes that extend a type with entitlement rules
+ * are automatically detected and instrumented. The {@link #classesInRuleHierarchy} set is seeded
+ * with classes that have direct rules and grows incrementally as subtypes are discovered,
+ * relying on the JVM guarantee that supertypes are always loaded before subtypes.
  */
 public class Transformer implements ClassFileTransformer {
     private static final Logger logger = LogManager.getLogger(Transformer.class);
+
     private final Instrumenter instrumenter;
-    private final Set<String> classesToTransform;
+    private final Set<String> classesInRuleHierarchy;
     private final AtomicBoolean hadErrors = new AtomicBoolean(false);
 
     private boolean verifyClasses;
 
-    public Transformer(Instrumenter instrumenter, Set<String> classesToTransform, boolean verifyClasses) {
+    /**
+     * @param instrumenter          the instrumenter to apply to matched classes
+     * @param classesInRuleHierarchy a concurrent set of internal class names that should be instrumented,
+     *                               including both classes with direct rules and discovered subtypes.
+     *                               This set is grown by the transformer as new subtypes are discovered.
+     * @param verifyClasses          whether to verify bytecode before and after instrumentation
+     */
+    public Transformer(Instrumenter instrumenter, Set<String> classesInRuleHierarchy, boolean verifyClasses) {
         this.instrumenter = instrumenter;
-        this.classesToTransform = classesToTransform;
+        this.classesInRuleHierarchy = classesInRuleHierarchy;
         this.verifyClasses = verifyClasses;
-        // TODO: Should warn if any MethodKey doesn't match any methods
     }
 
     public void enableClassVerification() {
@@ -51,18 +63,61 @@ public class Transformer implements ClassFileTransformer {
         ProtectionDomain protectionDomain,
         byte[] classfileBuffer
     ) {
-        if (classesToTransform.contains(className)) {
-            logger.debug("Transforming " + className);
-            try {
-                return instrumenter.instrumentClass(className, classfileBuffer, verifyClasses);
-            } catch (Throwable t) {
-                hadErrors.set(true);
-                logger.error("Failed to instrument class " + className, t);
-                // throwing an exception from a transformer results in the exception being swallowed,
-                // effectively the same as returning null anyways, so we instead log it here completely
-                return null;
+        if (classesInRuleHierarchy.contains(className)) {
+            return doInstrument(className, classfileBuffer);
+        }
+
+        if (isNonJdkClassLoader(loader)) {
+            return null;
+        }
+
+        if (hasSupertypeInRuleHierarchy(classBeingRedefined, classfileBuffer)) {
+            classesInRuleHierarchy.add(className);
+            return doInstrument(className, classfileBuffer);
+        }
+
+        return null;
+    }
+
+    /**
+     * Returns {@code true} if the given classloader indicates a non-JDK class.
+     * JDK classes are loaded by the bootstrap classloader ({@code null}) or the platform classloader.
+     * Non-JDK classes (plugins, application code) should not have inherited rules applied,
+     * because they live in child {@link java.lang.ModuleLayer}s that cannot access the bridge package.
+     */
+    private static boolean isNonJdkClassLoader(ClassLoader loader) {
+        return loader != null && loader != ClassLoader.getPlatformClassLoader();
+    }
+
+    private boolean hasSupertypeInRuleHierarchy(Class<?> classBeingRedefined, byte[] classfileBuffer) {
+        if (classBeingRedefined != null) {
+            Class<?> sup = classBeingRedefined.getSuperclass();
+            if (sup != null && classesInRuleHierarchy.contains(sup.getName().replace('.', '/'))) {
+                return true;
+            }
+            for (Class<?> iface : classBeingRedefined.getInterfaces()) {
+                if (classesInRuleHierarchy.contains(iface.getName().replace('.', '/'))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        for (String supertype : instrumenter.readDirectSupertypes(classfileBuffer)) {
+            if (classesInRuleHierarchy.contains(supertype)) {
+                return true;
             }
         }
-        return null;
+        return false;
+    }
+
+    private byte[] doInstrument(String className, byte[] classfileBuffer) {
+        logger.debug("Transforming [{}]", className);
+        try {
+            return instrumenter.instrumentClass(className, classfileBuffer, verifyClasses);
+        } catch (Throwable t) {
+            hadErrors.set(true);
+            logger.error("Failed to instrument class [{}]", className, t);
+            return null;
+        }
     }
 }

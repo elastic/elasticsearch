@@ -102,6 +102,22 @@
 /// [org.elasticsearch.entitlement.bridge.InstrumentationRegistry], which needs to be accessible by both this project and the
 /// code injected by the agent, and is therefore located in the `bridge` subproject.
 ///
+/// ### Hierarchy-aware rule inheritance
+///
+/// Rules defined on a type are automatically inherited by all subtypes. When a class is loaded that extends or implements
+/// a type with entitlement rules, the instrumentation system detects this relationship and applies the inherited rules to the
+/// subtype's methods. This eliminates the need to duplicate rules across concrete implementation classes; instead, rules can
+/// be defined once on a common supertype or interface.
+///
+/// When rules exist at multiple levels in the type hierarchy, the most specific rule (nearest ancestor) takes precedence.
+/// This allows subtypes to override inherited rules with different enforcement behavior when needed.
+///
+/// Constructors ({@code <init>}) are not inherited: constructor rules apply only to the class on which they are defined.
+///
+/// Hierarchy-based instrumentation is restricted to JDK classes (loaded by the bootstrap or platform classloader).
+/// Plugin and application classes loaded in child module layers are excluded because they cannot access the bridge
+/// package patched into {@code java.base}.
+///
 /// ### How that works across different Java versions
 ///
 /// The entitlement project uses multi-release jars via the `mrjar` plugin, which makes it possible to specify classes for

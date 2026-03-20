@@ -21,6 +21,11 @@ import java.util.function.Consumer;
  * It serves as the top-level entry point in the fluent API for creating entitlement
  * rule definitions.
  * <p>
+ * Rules are hierarchy-aware: a rule defined on a class automatically applies to all subtypes
+ * that inherit or override the instrumented method. This means rules should be defined on the
+ * highest-level type that is relevant, avoiding duplication across concrete implementations.
+ * If a more specific rule is defined on a subtype, it takes precedence over the inherited rule.
+ * <p>
  * Example usage:
  * <pre>{@code
  * EntitlementRulesBuilder builder = new EntitlementRulesBuilder(registry);
@@ -38,47 +43,8 @@ public class EntitlementRulesBuilder {
     }
 
     /**
-     * Starts defining rules for a class specified by name.
-     * <p>
-     * This method is useful when the class may not be available at compile time
-     * or when working with dynamically loaded classes.
-     *
-     * @param <T> the type of the class
-     * @param className the fully qualified name of the class
-     * @param publicType the public type/interface used for type safety
-     * @return a class method builder for the specified class
-     * @throws IllegalArgumentException if the class cannot be found
-     */
-    @SuppressWarnings("unchecked")
-    public <T> ClassMethodBuilder<T> on(String className, Class<? extends T> publicType) {
-        try {
-            return new ClassMethodBuilder<>(registry, (Class<T>) Class.forName(className));
-        } catch (ClassNotFoundException e) {
-            throw new IllegalArgumentException("Class not found: " + className, e);
-        }
-    }
-
-    /**
-     * Starts defining rules for a class specified by name and applies the specified configuration.
-     * <p>
-     * This method is useful when the class may not be available at compile time
-     * or when working with dynamically loaded classes.
-     *
-     * @param <T> the type of the class
-     * @param className the fully qualified name of the class
-     * @param publicType the public type/interface used for type safety
-     * @param builderConsumer a consumer that configures the rules for the class
-     * @return a class method builder for the specified class
-     * @throws IllegalArgumentException if the class cannot be found
-     */
-    public <T> ClassMethodBuilder<T> on(String className, Class<? extends T> publicType, Consumer<ClassMethodBuilder<T>> builderConsumer) {
-        ClassMethodBuilder<T> classMethodBuilder = on(className, publicType);
-        builderConsumer.accept(classMethodBuilder);
-        return classMethodBuilder;
-    }
-
-    /**
      * Starts defining rules for the specified class.
+     * Rules defined here also apply to subtypes of the specified class.
      *
      * @param <T> the type of the class
      * @param clazz the class to define rules for
@@ -90,6 +56,7 @@ public class EntitlementRulesBuilder {
 
     /**
      * Starts defining rules for the specified class and applies the specified configuration.
+     * Rules defined here also apply to subtypes of the specified class.
      *
      * @param <T> the type of the class
      * @param clazz the class to define rules for
@@ -104,6 +71,7 @@ public class EntitlementRulesBuilder {
 
     /**
      * Applies the same rule configuration to multiple classes.
+     * Rules defined here also apply to subtypes of each specified class.
      * <p>
      * This method is useful when multiple classes share the same entitlement
      * requirements and rule definitions.

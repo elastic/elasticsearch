@@ -16,7 +16,12 @@ public interface Instrumenter {
 
     /**
      * Instruments the appropriate methods of a class by adding a prologue that checks for entitlements.
-     * The prologue:
+     * <p>
+     * For each method in the class, the instrumenter first checks for a direct rule matching the class and method.
+     * If no direct rule is found and the method is a non-static instance method, it searches the supertype hierarchy
+     * (superclasses and interfaces via BFS) for an inherited rule. The nearest ancestor rule takes precedence.
+     * <p>
+     * The injected prologue:
      * <ol>
      * <li>
      * gets the {@link InstrumentationRegistry} instance from the
@@ -38,4 +43,12 @@ public interface Instrumenter {
      * @return the instrumented class bytes
      */
     byte[] instrumentClass(String className, byte[] classfileBuffer, boolean verify);
+
+    /**
+     * Reads the direct supertypes (superclass and interfaces) from raw classfile bytes.
+     *
+     * @param classfileBuffer the raw classfile bytes
+     * @return internal names of all direct supertypes (e.g. {@code "java/lang/Object"})
+     */
+    String[] readDirectSupertypes(byte[] classfileBuffer);
 }

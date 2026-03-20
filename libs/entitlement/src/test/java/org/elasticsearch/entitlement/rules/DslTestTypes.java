@@ -94,6 +94,26 @@ public final class DslTestTypes {
         }
     }
 
+    /** Interface with a default method for testing resolution across interfaces. */
+    public interface InterfaceWithDefault {
+        default String defaultMethod() {
+            return "default";
+        }
+    }
+
+    /** Concrete class implementing InterfaceWithDefault without overriding the default method. */
+    public static class ConcreteWithDefault implements InterfaceWithDefault {}
+
+    /** Superclass with a concrete method for testing inherited method resolution. */
+    public static class SuperWithMethod {
+        public String inheritedMethod() {
+            return "inherited";
+        }
+    }
+
+    /** Subclass that does NOT override inheritedMethod. */
+    public static class SubWithoutOverride extends SuperWithMethod {}
+
     /** Dummy with generic-style method for TypeToken tests. */
     public static class DummyWithGeneric {
         public static Object takeOne(int i) {

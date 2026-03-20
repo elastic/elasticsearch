@@ -13,10 +13,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.entitlement.bridge.InstrumentationRegistry;
 import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
+import org.elasticsearch.entitlement.instrumentation.MethodKey;
+import org.elasticsearch.entitlement.instrumentation.MethodSignature;
 import org.elasticsearch.entitlement.rules.EntitlementRulesBuilder;
 import org.elasticsearch.entitlement.rules.function.Call0;
 import org.elasticsearch.entitlement.rules.function.CheckMethod;
 import org.elasticsearch.entitlement.rules.function.VarargCall;
+import org.elasticsearch.entitlement.runtime.registry.InstrumentationInfo;
 import org.elasticsearch.entitlement.runtime.registry.InstrumentationRegistryImpl;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 import org.elasticsearch.logging.LogManager;
@@ -31,6 +34,8 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -62,6 +67,10 @@ public class InstrumenterTests extends ESTestCase {
 
         void someMethod(int arg, String anotherArg);
 
+        default void inheritableMethod(int arg) {}
+
+        default void overriddenMethod(int arg) {}
+
         boolean someMethodReturningFalse();
 
         void someMethodWithSideEffects(AtomicInteger counter);
@@ -83,6 +92,86 @@ public class InstrumenterTests extends ESTestCase {
         float someMethodReturningFloat(float arg);
 
         double someMethodReturningDouble(double arg);
+    }
+
+    /**
+     * Base class for hierarchy-aware instrumentation tests. Rules are defined on this class,
+     * and subtypes should inherit them.
+     */
+    public static class TestBaseClass {
+        public void inheritableMethod(int arg) {}
+
+        public void overriddenMethod(int arg) {}
+    }
+
+    /**
+     * Subclass that should inherit rules from {@link TestBaseClass} via hierarchy lookup.
+     */
+    public static class TestSubClass extends TestBaseClass implements Testable {
+        @Override
+        public void inheritableMethod(int arg) {}
+
+        @Override
+        public void overriddenMethod(int arg) {}
+
+        @Override
+        public void someMethod(int arg) {}
+
+        @Override
+        public void someMethod(int arg, String anotherArg) {}
+
+        @Override
+        public void someMethodWithSideEffects(AtomicInteger counter) {}
+
+        @Override
+        public boolean someMethodReturningFalse() {
+            return false;
+        }
+
+        @Override
+        public String someMethodReturningString(String arg) {
+            return "subclass";
+        }
+
+        @Override
+        public int someMethodReturningInt(int arg) {
+            return -2;
+        }
+
+        @Override
+        public boolean someMethodReturningBoolean(boolean arg) {
+            return false;
+        }
+
+        @Override
+        public byte someMethodReturningByte(byte arg) {
+            return -2;
+        }
+
+        @Override
+        public short someMethodReturningShort(short arg) {
+            return -2;
+        }
+
+        @Override
+        public char someMethodReturningChar(char arg) {
+            return 'Y';
+        }
+
+        @Override
+        public long someMethodReturningLong(long arg) {
+            return -2L;
+        }
+
+        @Override
+        public float someMethodReturningFloat(float arg) {
+            return -2.0f;
+        }
+
+        @Override
+        public double someMethodReturningDouble(double arg) {
+            return -2.0;
+        }
     }
 
     /**
@@ -922,6 +1011,74 @@ public class InstrumenterTests extends ESTestCase {
         verifier.assertCalled(2);
     }
 
+    /**
+     * Verifies that a rule defined on a base class is applied to a subclass method via hierarchy lookup.
+     */
+    public void testInheritedRuleFromSuperclass() throws Exception {
+        var verifier = new TestVerifier(TestBaseClass.class.getMethod("inheritableMethod", int.class));
+        var loader = buildInstrumentationForSubclass(
+            builder -> builder.on(TestBaseClass.class)
+                .callingVoid(TestBaseClass::inheritableMethod, Integer.class)
+                .enforce(verifier)
+                .elseThrowNotEntitled()
+        );
+
+        var instance = loader.newInstance();
+        expectThrows(NotEntitledException.class, () -> instance.inheritableMethod(42));
+        verifier.assertCalled(1);
+    }
+
+    /**
+     * Verifies that when both a superclass and a subclass define a rule for the same method,
+     * the subclass (more specific) rule takes precedence.
+     */
+    public void testSubclassRuleOverridesSuperclass() throws Exception {
+        var baseVerifier = new TestVerifier(TestBaseClass.class.getMethod("overriddenMethod", int.class));
+        var subVerifier = new TestVerifier(TestSubClass.class.getMethod("overriddenMethod", int.class));
+
+        InstrumentationRegistryImpl reg = new InstrumentationRegistryImpl(null);
+        EntitlementRulesBuilder rulesBuilder = new EntitlementRulesBuilder(reg);
+
+        rulesBuilder.on(TestBaseClass.class)
+            .callingVoid(TestBaseClass::overriddenMethod, Integer.class)
+            .enforce(baseVerifier)
+            .elseThrowNotEntitled();
+        rulesBuilder.on(TestSubClass.class)
+            .callingVoid(TestSubClass::overriddenMethod, Integer.class)
+            .enforce(subVerifier)
+            .elseThrowNotEntitled();
+
+        InstrumenterTests.registry = reg;
+        InstrumenterImpl instrumenter = new InstrumenterImpl(
+            Type.getType(InstrumenterTests.class).getInternalName(),
+            Type.getMethodDescriptor(Type.getType(InstrumentationRegistry.class)),
+            reg.getInstrumentedMethods(),
+            buildRulesByClass(reg.getInstrumentedMethods())
+        );
+
+        var loader = instrumentTestClass(instrumenter, TestSubClass.class);
+        Testable instance = loader.newInstance();
+
+        expectThrows(NotEntitledException.class, () -> instance.overriddenMethod(42));
+        subVerifier.assertCalled(1);
+        baseVerifier.assertCalled(0);
+    }
+
+    private static TestLoader buildInstrumentationForSubclass(Consumer<EntitlementRulesBuilder> builderConsumer) throws Exception {
+        InstrumentationRegistryImpl registry = new InstrumentationRegistryImpl(null);
+        EntitlementRulesBuilder rulesBuilder = new EntitlementRulesBuilder(registry);
+        builderConsumer.accept(rulesBuilder);
+        InstrumenterTests.registry = registry;
+        InstrumenterImpl instrumenter = new InstrumenterImpl(
+            Type.getType(InstrumenterTests.class).getInternalName(),
+            Type.getMethodDescriptor(Type.getType(InstrumentationRegistry.class)),
+            registry.getInstrumentedMethods(),
+            buildRulesByClass(registry.getInstrumentedMethods())
+        );
+
+        return instrumentTestClass(instrumenter, TestSubClass.class);
+    }
+
     private static TestLoader buildInstrumentation(Consumer<EntitlementRulesBuilder> builderConsumer) throws Exception {
         InstrumentationRegistryImpl registry = new InstrumentationRegistryImpl(null);
         EntitlementRulesBuilder rulesBuilder = new EntitlementRulesBuilder(registry);
@@ -930,14 +1087,32 @@ public class InstrumenterTests extends ESTestCase {
         InstrumenterImpl instrumenter = new InstrumenterImpl(
             Type.getType(InstrumenterTests.class).getInternalName(),
             Type.getMethodDescriptor(Type.getType(InstrumentationRegistry.class)),
-            registry.getInstrumentedMethods()
+            registry.getInstrumentedMethods(),
+            buildRulesByClass(registry.getInstrumentedMethods())
         );
 
         return instrumentTestClass(instrumenter);
     }
 
+    private static Map<String, Map<MethodSignature, InstrumentationInfo>> buildRulesByClass(
+        Map<MethodKey, InstrumentationInfo> checkMethods
+    ) {
+        Map<String, Map<MethodSignature, InstrumentationInfo>> rulesByClass = new HashMap<>();
+        for (var entry : checkMethods.entrySet()) {
+            MethodKey key = entry.getKey();
+            if ("<init>".equals(key.methodName())) {
+                continue;
+            }
+            rulesByClass.computeIfAbsent(key.className(), k -> new HashMap<>()).put(key.methodSignature(), entry.getValue());
+        }
+        return Map.copyOf(rulesByClass);
+    }
+
     private static TestLoader instrumentTestClass(InstrumenterImpl instrumenter) throws IOException {
-        var clazz = TestClassToInstrument.class;
+        return instrumentTestClass(instrumenter, TestClassToInstrument.class);
+    }
+
+    private static TestLoader instrumentTestClass(InstrumenterImpl instrumenter, Class<?> clazz) throws IOException {
         byte[] newBytecode = instrumenter.instrumentClass(Type.getInternalName(clazz), getClassBytecode(clazz), true);
         if (logger.isTraceEnabled()) {
             logger.trace("Bytecode after instrumentation:\n{}", bytecode2text(newBytecode));

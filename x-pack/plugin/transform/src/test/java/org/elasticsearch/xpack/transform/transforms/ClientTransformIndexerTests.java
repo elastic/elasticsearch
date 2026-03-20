@@ -218,6 +218,30 @@ public class ClientTransformIndexerTests extends ESTestCase {
         }
     }
 
+    public void testPitClosedOnAbort() throws InterruptedException {
+        TransformConfig config = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig()).setSettings(
+            new SettingsConfig.Builder().setUsePit(true).build()
+        ).build();
+
+        try (var threadPool = createThreadPool()) {
+            final var client = new PitMockClient(threadPool, true);
+            MockClientTransformIndexer indexer = createMockIndexerForPitTest(client, config);
+
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+")));
+            });
+
+            assertEquals(1L, client.getPitContextCounter());
+
+            indexer.onAbort();
+            assertEquals(0L, client.getPitContextCounter());
+
+            // calling onAbort again should be a no-op
+            indexer.onAbort();
+            assertEquals(0L, client.getPitContextCounter());
+        }
+    }
+
     public void testPitInjectionIfPitNotSupported() throws InterruptedException {
         // pit must be enabled, otherwise take a random config
         TransformConfig config = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig()).setSettings(

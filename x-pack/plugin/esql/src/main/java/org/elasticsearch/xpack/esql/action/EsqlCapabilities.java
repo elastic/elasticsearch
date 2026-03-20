@@ -2358,6 +2358,8 @@ public class EsqlCapabilities {
          */
         REJECT_LOADING_FLATTENED_SUBFIELDS,
 
+        FIX_DIV_ERROR_MESSAGE,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

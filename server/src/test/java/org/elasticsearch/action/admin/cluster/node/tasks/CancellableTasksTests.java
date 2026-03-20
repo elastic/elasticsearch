@@ -55,6 +55,8 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
+import static net.bytebuddy.matcher.ElementMatchers.anyOf;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -638,7 +640,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             assertThat(
                 "toString should consistently render status and reason",
                 task.toString(),
-                not(oneOf(endsWith("reason='null', isCancelled=true}"), endsWith("reason='test-reason', isCancelled=false}")))
+                anyOf(endsWith("reason='null', isCancelled=false}"), endsWith("reason='test-reason', isCancelled=true}"))
             );
         });
         reader.start();

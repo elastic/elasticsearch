@@ -41,6 +41,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -51,8 +52,8 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.LocalPrimarySnapshotShardContext;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.repositories.SnapshotShardContext;
-import org.elasticsearch.snapshots.AbortedSnapshotException;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -60,7 +61,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
-import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.junit.After;
 
@@ -69,14 +69,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
-import static org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotShardContextFactory.STATELESS_SNAPSHOT_ENABLED_SETTING;
+import static org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.Is.isA;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -93,7 +91,7 @@ public class StatelessSnapshotShardContextFactoryTests extends ESTestCase {
     }
 
     public void testDelegateToSuperClassWhenDisabled() throws IOException {
-        testHarness = createTestHarness(Settings.EMPTY, null);
+        testHarness = createTestHarness(Settings.EMPTY);
 
         final var snapshotShardContextListener = testHarness.asyncCreate(new PlainActionFuture<>());
         final var snapshotShardContext = safeAwait(snapshotShardContextListener);
@@ -114,114 +112,60 @@ public class StatelessSnapshotShardContextFactoryTests extends ESTestCase {
         assertTrue(testHarness.commitClosed().get());
     }
 
-    public void testCommitIsReleasedOnFailureToFlush() throws IOException {
-        final var commitService = mock(StatelessCommitService.class);
+    public void testAcquireCommitFailureIsPropagated() throws IOException {
         testHarness = createTestHarness(
-            Settings.builder().put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "read_from_object_store").build(),
-            commitService
+            Settings.builder().put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "read_from_object_store").build()
         );
-        final long generation = testHarness.indexCommit().getGeneration();
-        if (randomBoolean()) {
-            doThrow(new AlreadyClosedException("shard closed")).when(commitService)
-                .ensureMaxGenerationToUploadForFlush(eq(testHarness.shardId()), eq(generation));
-        } else {
-            doThrow(new AlreadyClosedException("shard closed")).when(commitService)
-                .addListenerForUploadedGeneration(eq(testHarness.shardId()), eq(generation), any());
-        }
+
+        final var expectedException = new AlreadyClosedException("shard closed");
+        when(
+            testHarness.snapshotsCommitService()
+                .acquireAndMaybeRegisterCommitForSnapshot(eq(testHarness.shardId()), any(Snapshot.class), anyBoolean(), any())
+        ).thenThrow(expectedException);
 
         try {
             testHarness.asyncCreate(new PlainActionFuture<>());
             fail("should have failed");
         } catch (AlreadyClosedException e) {
-            assertTrue(testHarness.commitClosed().get());
+            assertThat(e, sameInstance(expectedException));
         }
     }
 
-    @SuppressWarnings("unchecked")
-    public void testCommitIsReleasedOnCommitServiceListenerFailure() throws IOException {
-        final var commitService = mock(StatelessCommitService.class);
-        testHarness = createTestHarness(
-            Settings.builder().put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "read_from_object_store").build(),
-            commitService
-        );
-        final var expectedException = new RuntimeException("boom");
-        final long generation = testHarness.indexCommit().getGeneration();
-        doAnswer(invocation -> {
-            final var listener = (ActionListener<Void>) invocation.getArgument(2);
-            listener.onFailure(expectedException);
-            return null;
-        }).when(commitService).addListenerForUploadedGeneration(eq(testHarness.shardId()), eq(generation), anyActionListener());
-
-        final var snapshotShardContextListener = testHarness.asyncCreate(new PlainActionFuture<>());
-        assertThat(safeAwaitFailure(snapshotShardContextListener), sameInstance(expectedException));
-        assertTrue(testHarness.commitClosed().get());
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testCommitIsReleasedOnCommitServiceResponseFailure() throws IOException {
-        final var commitService = mock(StatelessCommitService.class);
-        testHarness = createTestHarness(
-            Settings.builder().put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "read_from_object_store").build(),
-            commitService
-        );
-
-        final int exceptionVariant = between(0, 2);
-        final long generation = testHarness.indexCommit().getGeneration();
-        doAnswer(invocation -> {
-            if (exceptionVariant == 0) {
-                testHarness.indexShardSnapshotStatus().abortIfNotCompleted("", ignore -> {});
-            }
-            final var listener = (ActionListener<Void>) invocation.getArgument(2);
-            listener.onResponse(null);
-            return null;
-        }).when(commitService).addListenerForUploadedGeneration(eq(testHarness.shardId()), eq(generation), anyActionListener());
-
-        final var expectedException = new RuntimeException("boom");
-        if (exceptionVariant == 1) {
-            when(testHarness.indexShard.store()).thenThrow(expectedException);
-        } else {
-            when(testHarness.indexShard.store()).thenReturn(mock(Store.class));
-            when(testHarness.indexCommit.getFileNames()).thenReturn(randomList(1, 3, ESTestCase::randomIdentifier));
-            when(commitService.getBlobLocation(eq(testHarness.shardId()), any())).thenThrow(expectedException);
-        }
-
-        final var snapshotShardContextListener = testHarness.asyncCreate(new PlainActionFuture<>());
-        assertThat(
-            safeAwaitFailure(snapshotShardContextListener),
-            exceptionVariant == 0 ? isA(AbortedSnapshotException.class) : sameInstance(expectedException)
-        );
-        assertTrue(testHarness.commitClosed().get());
-    }
-
-    @SuppressWarnings("unchecked")
     public void testCommitIsReleasedOnShardSnapshotCompletion() throws IOException {
-        final var commitService = mock(StatelessCommitService.class);
         testHarness = createTestHarness(
-            Settings.builder().put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "read_from_object_store").build(),
-            commitService
+            Settings.builder().put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "read_from_object_store").build()
         );
 
-        final long generation = testHarness.indexCommit().getGeneration();
-        when(testHarness.indexShard.store()).thenReturn(mock(Store.class));
-        when(testHarness.indexCommit.getFileNames()).thenReturn(randomList(1, 3, ESTestCase::randomIdentifier));
-        when(commitService.getBlobLocation(eq(testHarness.shardId()), any())).thenReturn(
-            new BlobLocation(
-                new BlobFile("stateless_commit_" + generation, new PrimaryTermAndGeneration(1L, generation)),
-                randomLongBetween(0, 50),
-                randomLongBetween(1, 900)
+        final var commitClosed = new AtomicBoolean(false);
+        final var indexCommit = mock(IndexCommit.class);
+        when(indexCommit.getGeneration()).thenReturn(randomNonNegativeLong());
+        final var snapshotIndexCommit = new SnapshotIndexCommit(
+            new Engine.IndexCommitRef(indexCommit, () -> assertTrue(commitClosed.compareAndSet(false, true)))
+        );
+        final long generation = indexCommit.getGeneration();
+        when(
+            testHarness.snapshotsCommitService()
+                .acquireAndMaybeRegisterCommitForSnapshot(eq(testHarness.shardId()), any(Snapshot.class), anyBoolean(), any())
+        ).thenReturn(
+            new SnapshotsCommitService.SnapshotCommitInfo(
+                snapshotIndexCommit,
+                Store.MetadataSnapshot.EMPTY,
+                Map.of(
+                    randomIdentifier(),
+                    new BlobLocation(
+                        new BlobFile("stateless_commit_" + generation, new PrimaryTermAndGeneration(1L, generation)),
+                        randomLongBetween(0, 50),
+                        randomLongBetween(1, 900)
+                    )
+                ),
+                randomIdentifier()
             )
         );
-
-        doAnswer(invocation -> {
-            final var listener = (ActionListener<Void>) invocation.getArgument(2);
-            listener.onResponse(null);
-            return null;
-        }).when(commitService).addListenerForUploadedGeneration(eq(testHarness.shardId()), eq(generation), anyActionListener());
 
         final var snapshotShardContextListener = testHarness.asyncCreate(new PlainActionFuture<>());
         final var snapshotShardContext = safeAwait(snapshotShardContextListener);
         assertThat(snapshotShardContext, isA(StatelessSnapshotShardContext.class));
-        assertFalse(testHarness.commitClosed().get());
+        assertFalse(commitClosed.get());
 
         // Commit is released in both success and failure cases
         final var shardSnapshotResult = new ShardSnapshotResult(
@@ -234,14 +178,13 @@ public class StatelessSnapshotShardContextFactoryTests extends ESTestCase {
         } else {
             snapshotShardContext.onFailure(new RuntimeException("boom"));
         }
-        assertTrue(testHarness.commitClosed().get());
+        assertTrue(commitClosed.get());
     }
 
     private record TestHarness(
         StatelessPlugin stateless,
         ShardId shardId,
-        IndexShard indexShard,
-        IndexCommit indexCommit,
+        SnapshotsCommitService snapshotsCommitService,
         AtomicBoolean commitClosed,
         ShardGeneration shardGeneration,
         IndexShardSnapshotStatus indexShardSnapshotStatus
@@ -283,9 +226,8 @@ public class StatelessSnapshotShardContextFactoryTests extends ESTestCase {
         }
     }
 
-    private static TestHarness createTestHarness(Settings settings, StatelessCommitService commitService) {
+    private static TestHarness createTestHarness(Settings settings) throws IOException {
         final var stateless = mock(StatelessPlugin.class);
-        when(stateless.getCommitService()).thenReturn(commitService);
 
         final var clusterService = ClusterServiceUtils.createClusterService(
             new DeterministicTaskQueue().getThreadPool(),
@@ -294,6 +236,9 @@ public class StatelessSnapshotShardContextFactoryTests extends ESTestCase {
         when(stateless.getClusterService()).thenReturn(clusterService);
         final var indicesService = mock(IndicesService.class);
         when(stateless.getIndicesService()).thenReturn(indicesService);
+
+        final var snapshotsCommitService = mock(SnapshotsCommitService.class);
+        when(stateless.getSnapshotsCommitService()).thenReturn(snapshotsCommitService);
 
         final var shardId = new ShardId(new Index(randomIndexName(), randomUUID()), between(0, 5));
 
@@ -316,14 +261,28 @@ public class StatelessSnapshotShardContextFactoryTests extends ESTestCase {
             )
         );
         when(indexShard.routingEntry()).thenReturn(shardRouting);
+        when(indexShard.shardId()).thenReturn(shardId);
 
         final var closed = new AtomicBoolean(false);
         when(indexShard.state()).thenReturn(IndexShardState.STARTED);
         final IndexCommit indexCommit = mock(IndexCommit.class);
         when(indexCommit.getGeneration()).thenReturn(randomNonNegativeLong());
+        final long seqNo = randomLongBetween(1, 100);
+        when(indexCommit.getUserData()).thenReturn(
+            Map.of(
+                Engine.HISTORY_UUID_KEY,
+                randomUUID(),
+                SequenceNumbers.MAX_SEQ_NO,
+                Long.toString(seqNo),
+                SequenceNumbers.LOCAL_CHECKPOINT_KEY,
+                Long.toString(seqNo)
+            )
+        );
         when(indexShard.acquireIndexCommitForSnapshot()).thenReturn(
             new Engine.IndexCommitRef(indexCommit, () -> assertTrue(closed.compareAndSet(false, true)))
         );
+        when(indexShard.getLastSyncedGlobalCheckpoint()).thenReturn(seqNo);
+        when(indexShard.store()).thenReturn(mock(Store.class));
         final var indexMetadata = IndexMetadata.builder(shardId.getIndexName())
             .settings(
                 Settings.builder()
@@ -338,6 +297,6 @@ public class StatelessSnapshotShardContextFactoryTests extends ESTestCase {
         when(indexShard.indexSettings()).thenReturn(indexSettings);
         final var shardGeneration = ShardGeneration.newGeneration();
         final var shardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration, randomLongBetween(1, Long.MAX_VALUE));
-        return new TestHarness(stateless, shardId, indexShard, indexCommit, closed, shardGeneration, shardSnapshotStatus);
+        return new TestHarness(stateless, shardId, snapshotsCommitService, closed, shardGeneration, shardSnapshotStatus);
     }
 }

@@ -341,7 +341,7 @@ public class FakeStatelessNode implements Closeable {
                 () -> {}
             );
             localCloseables.add(commitService);
-            snapshotsCommitService = new SnapshotsCommitService(clusterService, commitService);
+            snapshotsCommitService = new SnapshotsCommitService(clusterService, indicesService, commitService);
             clusterService.addListener(snapshotsCommitService);
             indexingDirectory = localCloseables.add(
                 new IndexDirectory(

@@ -205,7 +205,7 @@ import org.elasticsearch.xpack.stateless.reshard.TransportReshardSplitAction;
 import org.elasticsearch.xpack.stateless.reshard.TransportUpdateSplitSourceShardStateAction;
 import org.elasticsearch.xpack.stateless.reshard.TransportUpdateSplitTargetShardStateAction;
 import org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService;
-import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotShardContextFactory;
+import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings;
 import org.elasticsearch.xpack.stateless.utils.IndexingShardRefreshListenerProvider;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollectorProvider;
@@ -525,6 +525,10 @@ public class StatelessPlugin extends Plugin
         return Objects.requireNonNull(this.commitService.get());
     }
 
+    public SnapshotsCommitService getSnapshotsCommitService() {
+        return Objects.requireNonNull(this.snapshotsCommitServiceRef.get());
+    }
+
     public StatelessPlugin(Settings settings) {
         enabled = STATELESS_ENABLED.get(settings);
         if (enabled) {
@@ -794,7 +798,12 @@ public class StatelessPlugin extends Plugin
         clusterService.addListener(commitService);
         setAndGet(this.commitService, commitService);
 
-        clusterService.addListener(setAndGet(this.snapshotsCommitServiceRef, new SnapshotsCommitService(clusterService, commitService)));
+        final var snapshotsCommitService = setAndGet(
+            this.snapshotsCommitServiceRef,
+            new SnapshotsCommitService(clusterService, indicesService, commitService)
+        );
+        clusterService.addListener(snapshotsCommitService);
+        components.add(snapshotsCommitService);
 
         var closedShardService = new ClosedShardService();
         components.add(closedShardService);
@@ -1209,7 +1218,7 @@ public class StatelessPlugin extends Plugin
             ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_DURATION_THRESHOLD_SETTING,
             ScalingExecutorBuilder.HOT_THREADS_ON_LARGE_QUEUE_INTERVAL_SETTING,
             SearchShardInformationIndexListener.QUERY_SEARCH_SHARD_INFORMATION_SETTING,
-            StatelessSnapshotShardContextFactory.STATELESS_SNAPSHOT_ENABLED_SETTING,
+            StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING,
             StatelessShardRelocationOrder.PRIORITIZE_WRITE_SHARD_RELOCATIONS_SETTING
         );
     }

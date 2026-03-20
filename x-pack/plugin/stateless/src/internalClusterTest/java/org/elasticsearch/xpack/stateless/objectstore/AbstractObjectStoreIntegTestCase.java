@@ -50,8 +50,8 @@ import org.elasticsearch.snapshots.UpdateIndexShardSnapshotStatusRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
-import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotShardContextFactory;
-import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotShardContextFactory.StatelessSnapshotEnabledStatus;
+import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings;
+import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings.StatelessSnapshotEnabledStatus;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -92,7 +92,7 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(
-            StatelessSnapshotShardContextFactory.STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(),
+            StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(),
             statelessSnapshotEnabledStatus
         );
     }

@@ -17,11 +17,15 @@
 
 package org.elasticsearch.xpack.stateless.snapshots;
 
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -29,10 +33,15 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
@@ -74,7 +83,9 @@ import static org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTe
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SnapshotsCommitServiceTests extends ESTestCase {
 
@@ -400,7 +411,12 @@ public class SnapshotsCommitServiceTests extends ESTestCase {
             final var barrier = new CyclicBarrier(2);
             final var registerThread = new Thread(() -> {
                 safeAwait(barrier);
-                testHarness.snapshotsCommitService.registerReleaseForSnapshot(shardId, snapshot, snapshotIndexCommit);
+                try {
+                    testHarness.snapshotsCommitService.registerReleaseForSnapshot(shardId, snapshot, snapshotIndexCommit);
+                } catch (IndexShardSnapshotFailedException e) {
+                    // registerReleaseForSnapshot may throw IndexShardSnapshotFailedException if the snapshot
+                    // completes before or during registration — this is expected in the race.
+                }
             });
             final var completionThread = new Thread(() -> {
                 safeAwait(barrier);
@@ -482,6 +498,136 @@ public class SnapshotsCommitServiceTests extends ESTestCase {
             assertTrue("releasable should be released after concurrent recovery and snapshot completion", releasableReleased.get());
             assertFalse(testHarness.snapshotsCommitService.hasTrackingForShard(shardId));
         }
+    }
+
+    public void testAcquireAndMaybeRegisterSuccess() throws Exception {
+        try (var fixture = createTestFixture()) {
+            final var testHarness = fixture.node;
+            final var shardId = testHarness.shardId;
+            final var commitService = testHarness.commitService;
+
+            // Create and upload a commit with a file
+            final var commits = testHarness.generateIndexCommitsWithoutMergeOrDeletion(1);
+            final var commit = commits.getFirst();
+            commitService.onCommitCreation(commit);
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, commit.getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, commit.getGeneration());
+
+            // Set up cluster state with a running snapshot
+            final var snapshot = randomSnapshot();
+            final var stateWithSnapshot = createClusterStateWithSnapshotsInProgress(testHarness, snapshot);
+            ClusterServiceUtils.setState(testHarness.clusterService, stateWithSnapshot);
+
+            final var commitRefReleased = new AtomicBoolean(false);
+            mockIndexShardAndCommit(testHarness, commit, commitRefReleased);
+
+            // TODO: randomize in a future PR, see also ES-14099
+            final boolean supportsRelocation = false;
+            final var result = testHarness.snapshotsCommitService.acquireAndMaybeRegisterCommitForSnapshot(
+                shardId,
+                snapshot,
+                supportsRelocation,
+                null
+            );
+
+            assertNotNull(result);
+            assertEquals(Store.MetadataSnapshot.EMPTY, result.metadataSnapshot());
+            assertFalse(commitRefReleased.get());
+
+            if (supportsRelocation) {
+                // Commit is registered — SnapshotsCommitService tracks it
+                assertTrue(testHarness.snapshotsCommitService.hasTrackingForShard(shardId));
+            } else {
+                // Commit is NOT registered — caller is responsible for the lifecycle
+                assertFalse(testHarness.snapshotsCommitService.hasTrackingForShard(shardId));
+            }
+        }
+    }
+
+    public void testCommitIsReleasedWhenAcquireAndMaybeRegisterThrows() throws Exception {
+        try (var fixture = createTestFixture()) {
+            final var testHarness = fixture.node;
+            final var shardId = testHarness.shardId;
+            final var commitService = testHarness.commitService;
+
+            // Create and upload a commit
+            final var commits = testHarness.generateIndexCommitsWithoutMergeOrDeletion(1);
+            final var commit = commits.getFirst();
+            commitService.onCommitCreation(commit);
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, commit.getGeneration());
+            waitUntilBCCIsUploaded(commitService, shardId, commit.getGeneration());
+
+            // Set up cluster state with a running snapshot
+            final var snapshot = randomSnapshot();
+            final var stateWithSnapshot = createClusterStateWithSnapshotsInProgress(testHarness, snapshot);
+            ClusterServiceUtils.setState(testHarness.clusterService, stateWithSnapshot);
+
+            final var commitRefReleased = new AtomicBoolean(false);
+            final var shardMocks = mockIndexShardAndCommit(testHarness, commit, commitRefReleased);
+
+            // Randomly pick which operation fails after the commit is acquired
+            final Exception expectedException;
+            final int failureVariant = between(0, 2);
+            switch (failureVariant) {
+                case 0 -> {
+                    // getShardStateId fails via indexCommit.getUserData()
+                    expectedException = new IOException("simulated getUserData failure");
+                    when(shardMocks.indexCommit().getUserData()).thenThrow(expectedException);
+                }
+                case 1 -> {
+                    expectedException = new IOException("simulated store failure");
+                    when(shardMocks.store().getMetadata(any(IndexCommit.class))).thenThrow(expectedException);
+                }
+                default -> {
+                    // Simulate concurrent shard delete
+                    commitService.closeShard(shardId);
+                    commitService.unregister(shardId);
+                    expectedException = new AlreadyClosedException("shard closed");
+                }
+            }
+
+            expectThrows(
+                expectedException.getClass(),
+                () -> testHarness.snapshotsCommitService.acquireAndMaybeRegisterCommitForSnapshot(shardId, snapshot, false, null)
+            );
+            assertTrue(commitRefReleased.get());
+            assertFalse(testHarness.snapshotsCommitService.hasTrackingForShard(shardId));
+        }
+    }
+
+    private record ShardStoreAndCommit(IndexShard indexShard, Store store, IndexCommit indexCommit) {}
+
+    private static ShardStoreAndCommit mockIndexShardAndCommit(
+        FakeStatelessNode testHarness,
+        StatelessCommitRef commit,
+        AtomicBoolean commitRefReleased
+    ) throws IOException {
+        final var shardId = testHarness.shardId;
+        final var indexShard = mock(IndexShard.class);
+        final var indexService = mock(IndexService.class);
+        when(testHarness.indicesService.indexServiceSafe(shardId.getIndex())).thenReturn(indexService);
+        when(indexService.getShard(shardId.id())).thenReturn(indexShard);
+        when(indexShard.routingEntry()).thenReturn(
+            TestShardRouting.newShardRouting(shardId, randomIdentifier(), true, ShardRoutingState.STARTED)
+        );
+        when(indexShard.shardId()).thenReturn(shardId);
+        when(indexShard.state()).thenReturn(IndexShardState.STARTED);
+        when(indexShard.indexSettings()).thenReturn(testHarness.indexSettings);
+
+        // Mock the index commit, instead of commit.getIndexCommit() so that we can simulate failures
+        final var mockIndexCommit = mock(IndexCommit.class);
+        when(indexShard.acquireIndexCommitForSnapshot()).thenReturn(
+            new Engine.IndexCommitRef(mockIndexCommit, () -> commitRefReleased.set(true))
+        );
+        // Set up defaults, individual tests can override
+        when(mockIndexCommit.getFileNames()).thenReturn(commit.getFileNames().stream().toList());
+        when(mockIndexCommit.getUserData()).thenReturn(Map.of());
+        when(indexShard.getLastSyncedGlobalCheckpoint()).thenReturn(randomLongBetween(1, 100));
+        final var store = mock(Store.class);
+        when(indexShard.store()).thenReturn(store);
+        when(store.getMetadata(any(IndexCommit.class))).thenReturn(Store.MetadataSnapshot.EMPTY);
+
+        return new ShardStoreAndCommit(indexShard, store, mockIndexCommit);
     }
 
     private record TestFixture(FakeStatelessNode node, Set<StaleCompoundCommit> deletedCommits) implements Closeable {

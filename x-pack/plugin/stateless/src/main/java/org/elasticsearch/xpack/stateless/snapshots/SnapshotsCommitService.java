@@ -17,26 +17,39 @@
 
 package org.elasticsearch.xpack.stateless.snapshots;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.repositories.SnapshotShardContextHelper.acquireSnapshotIndexCommit;
+import static org.elasticsearch.repositories.SnapshotShardContextHelper.closeSnapshotIndexCommit;
+import static org.elasticsearch.snapshots.SnapshotShardsService.getShardStateId;
 
 /**
  * This class is responsible for tracking and releasing commits needed for ongoing shard snapshots.
@@ -50,6 +63,7 @@ public class SnapshotsCommitService implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(SnapshotsCommitService.class);
 
     private final ClusterService clusterService;
+    private final IndicesService indicesService;
     private final StatelessCommitService commitService;
 
     // Per-shard map of snapshot to Releasable that prevents commit deletion. Each Releasable, when closed, releases
@@ -64,9 +78,59 @@ public class SnapshotsCommitService implements ClusterStateListener {
     // or (c) on shard closed.
     private final Map<ShardId, Map<Snapshot, Releasable>> snapshotsCommitReleasables = new ConcurrentHashMap<>();
 
-    public SnapshotsCommitService(ClusterService clusterService, StatelessCommitService commitService) {
+    public SnapshotsCommitService(ClusterService clusterService, IndicesService indicesService, StatelessCommitService commitService) {
         this.clusterService = clusterService;
+        this.indicesService = indicesService;
         this.commitService = commitService;
+    }
+
+    public record SnapshotCommitInfo(
+        SnapshotIndexCommit snapshotIndexCommit,
+        Store.MetadataSnapshot metadataSnapshot,
+        Map<String, BlobLocation> blobLocations,
+        @Nullable String shardStateId
+    ) {}
+
+    /**
+     * Acquire an index commit for the shard snapshot. If relocation during snapshots is supported, i.e.
+     * {@code supportsRelocationDuringSnapshot} = true, also register a releasable for the snapshot so that
+     * this class manages the commit's lifecycle. Otherwise, the caller is responsible for releasing the commit.
+     */
+    public SnapshotCommitInfo acquireAndMaybeRegisterCommitForSnapshot(
+        ShardId shardId,
+        Snapshot snapshot,
+        boolean supportsRelocationDuringSnapshot,
+        @Nullable IndexShardSnapshotStatus snapshotStatus // null if the snapshot is running on a remote node
+    ) throws IOException {
+        final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
+        assert indexShard.routingEntry().primary() : "get commit info should only be executed on a primary shard";
+        final var snapshotIndexCommit = acquireSnapshotIndexCommit(
+            clusterService,
+            indexShard,
+            snapshot,
+            supportsRelocationDuringSnapshot,
+            snapshotStatus
+        );
+        try {
+            final var indexCommit = snapshotIndexCommit.indexCommit();
+            final var shardStateId = getShardStateId(indexShard, indexCommit); // not aborted so indexCommit() ok
+            final var metadataSnapshot = indexShard.store().getMetadata(indexCommit);
+            final Map<String, BlobLocation> blobLocations = indexCommit.getFileNames()
+                .stream()
+                .collect(
+                    Collectors.toUnmodifiableMap(
+                        Function.identity(),
+                        fileName -> Objects.requireNonNull(commitService.getBlobLocation(shardId, fileName))
+                    )
+                );
+            if (supportsRelocationDuringSnapshot) {
+                registerReleaseForSnapshot(shardId, snapshot, snapshotIndexCommit);
+            }
+            return new SnapshotCommitInfo(snapshotIndexCommit, metadataSnapshot, blobLocations, shardStateId);
+        } catch (Exception e) {
+            closeSnapshotIndexCommit(snapshotIndexCommit, shardId, snapshot);
+            throw e;
+        }
     }
 
     /**
@@ -75,17 +139,9 @@ public class SnapshotsCommitService implements ClusterStateListener {
      * and shard close. Therefore, the caller is not responsible for the release, i.e., the ownership is transferred to this
      * class.
      */
-    public void registerReleaseForSnapshot(ShardId shardId, Snapshot snapshot, SnapshotIndexCommit snapshotIndexCommit) {
-        final var releasable = Releasables.releaseOnce(() -> snapshotIndexCommit.closingBefore(new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void unused) {}
-
-            @Override
-            public void onFailure(Exception e) {
-                // we're already failing exceptionally, and prefer to propagate the original exception instead of this one
-                logger.warn(Strings.format("exception closing commit for [%s] in [%s]", shardId, snapshot), e);
-            }
-        }).onResponse(null));
+    // Package private for testing
+    void registerReleaseForSnapshot(ShardId shardId, Snapshot snapshot, SnapshotIndexCommit snapshotIndexCommit) {
+        final var releasable = Releasables.releaseOnce(() -> closeSnapshotIndexCommit(snapshotIndexCommit, shardId, snapshot));
 
         final var old = new Releasable[1];
         final var shardReleasables = snapshotsCommitReleasables.compute(shardId, (k, v) -> {
@@ -104,16 +160,12 @@ public class SnapshotsCommitService implements ClusterStateListener {
         } else if (isShardSnapshotReadingData(SnapshotsInProgress.get(clusterService.state()).snapshot(snapshot), shardId) == false) {
             // If the snapshotting node is a remote node and lagging, master can remove it and concurrently mark the shard snapshot
             // as FAILED during the registration attempt.
-            logger.debug(
-                "shard {} snapshot [{}] concurrently completed while registering commit [{}]",
-                shardId,
-                snapshot,
-                snapshotIndexCommit.indexCommit().getGeneration()
-            );
+            logger.debug("shard {} snapshot [{}] concurrently completed while registering commit releasable", shardId, snapshot);
             Releasables.close(shardReleasables.remove(snapshot));
             if (shardReleasables.isEmpty()) {
                 removeShardIfNoTrackedSnapshot(shardId);
             }
+            throw new IndexShardSnapshotFailedException(shardId, "snapshot [" + snapshot + "] is no longer active");
         }
     }
 

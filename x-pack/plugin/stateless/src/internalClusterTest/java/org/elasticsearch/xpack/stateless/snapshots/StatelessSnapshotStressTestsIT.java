@@ -48,8 +48,8 @@ public class StatelessSnapshotStressTestsIT extends AbstractStatelessPluginInteg
         doTestRandomActivities(
             Settings.builder()
                 .put(
-                    StatelessSnapshotShardContextFactory.STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(),
-                    StatelessSnapshotShardContextFactory.StatelessSnapshotEnabledStatus.READ_FROM_OBJECT_STORE
+                    StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(),
+                    StatelessSnapshotSettings.StatelessSnapshotEnabledStatus.READ_FROM_OBJECT_STORE
                 )
                 .build()
         );

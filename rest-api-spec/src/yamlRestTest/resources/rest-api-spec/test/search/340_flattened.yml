@@ -474,6 +474,8 @@ setup:
         body:
           settings:
             index:
+              number_of_shards: 1
+              number_of_replicas: 0
               sort.field: labels.priority
               sort.order: asc
           mappings:

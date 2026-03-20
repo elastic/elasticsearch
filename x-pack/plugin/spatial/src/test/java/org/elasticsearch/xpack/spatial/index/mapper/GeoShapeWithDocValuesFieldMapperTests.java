@@ -33,17 +33,19 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper.GeoShapeFieldType;
+import org.elasticsearch.script.GeometryFieldScript;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent.MapParams;
 import org.elasticsearch.xcontent.ToXContent.Params;
 import org.elasticsearch.xpack.spatial.index.mapper.GeometricShapeSyntheticSourceSupport.FieldType;
-import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -75,18 +77,19 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
-        checker.registerUpdateCheck(b -> b.field("orientation", "right"), m -> {
+        checker.registerUpdateCheck("orientation", b -> b.field("orientation", "right"), m -> {
             AbstractShapeGeometryFieldMapper<?> gsfm = (AbstractShapeGeometryFieldMapper<?>) m;
             assertEquals(Orientation.RIGHT, gsfm.orientation());
         });
-        checker.registerUpdateCheck(b -> b.field("ignore_z_value", false), m -> {
+        checker.registerUpdateCheck("ignore_z_value", b -> b.field("ignore_z_value", false), m -> {
             AbstractShapeGeometryFieldMapper<?> gpfm = (AbstractShapeGeometryFieldMapper<?>) m;
             assertFalse(gpfm.ignoreZValue());
         });
-        checker.registerUpdateCheck(b -> b.field("coerce", true), m -> {
+        checker.registerUpdateCheck("coerce", b -> b.field("coerce", true), m -> {
             AbstractShapeGeometryFieldMapper<?> gpfm = (AbstractShapeGeometryFieldMapper<?>) m;
             assertTrue(gpfm.coerce());
         });
+        registerScriptChecks(checker);
     }
 
     protected AbstractShapeGeometryFieldType<?> fieldType(Mapper fieldMapper) {
@@ -551,7 +554,28 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
 
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
-        throw new AssumptionViolatedException("not supported");
+        return new IngestScriptSupport() {
+            protected ScriptFactory emptyFieldScript() {
+                return (GeometryFieldScript.Factory) (
+                    fieldName,
+                    params,
+                    searchLookup,
+                    onScriptError) -> (GeometryFieldScript.LeafFactory) ctx -> new GeometryFieldScript(
+                        fieldName,
+                        params,
+                        searchLookup,
+                        OnScriptError.FAIL,
+                        ctx
+                    ) {
+                        @Override
+                        public void execute() {}
+                    };
+            }
+
+            protected ScriptFactory nonEmptyFieldScript() {
+                return emptyFieldScript();
+            }
+        };
     }
 
     @Override

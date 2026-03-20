@@ -889,7 +889,7 @@ public class IndexMetadataTests extends ESTestCase {
                 randomIdentifier(),
                 new String[] { "source" },
                 null,
-                InferenceFieldMetadata.EmbeddingType.TEXT_EMBEDDING
+                InferenceFieldMetadata.InferenceFieldType.SEMANTIC_TEXT
             ),
             embeddingField,
             new InferenceFieldMetadata(
@@ -898,7 +898,7 @@ public class IndexMetadataTests extends ESTestCase {
                 randomIdentifier(),
                 new String[] { "source" },
                 null,
-                InferenceFieldMetadata.EmbeddingType.EMBEDDING
+                InferenceFieldMetadata.InferenceFieldType.SEMANTIC
             )
         );
 
@@ -912,8 +912,8 @@ public class IndexMetadataTests extends ESTestCase {
 
         assertThat(deserialized.getInferenceFields(), hasKey(textEmbeddingField));
         assertThat(
-            deserialized.getInferenceFields().get(textEmbeddingField).getEmbeddingType(),
-            equalTo(InferenceFieldMetadata.EmbeddingType.TEXT_EMBEDDING)
+            deserialized.getInferenceFields().get(textEmbeddingField).getInferenceFieldType(),
+            equalTo(InferenceFieldMetadata.InferenceFieldType.SEMANTIC_TEXT)
         );
         assertThat(deserialized.getInferenceFields().containsKey(embeddingField), is(false));
     }
@@ -934,7 +934,7 @@ public class IndexMetadataTests extends ESTestCase {
                         randomIdentifier(),
                         new String[] { "source" },
                         null,
-                        InferenceFieldMetadata.EmbeddingType.TEXT_EMBEDDING
+                        InferenceFieldMetadata.InferenceFieldType.SEMANTIC_TEXT
                     )
                 )
             )
@@ -954,7 +954,7 @@ public class IndexMetadataTests extends ESTestCase {
                         randomIdentifier(),
                         new String[] { "source" },
                         null,
-                        InferenceFieldMetadata.EmbeddingType.EMBEDDING
+                        InferenceFieldMetadata.InferenceFieldType.SEMANTIC
                     )
                 )
             )
@@ -977,8 +977,8 @@ public class IndexMetadataTests extends ESTestCase {
         // EMBEDDING field should be filtered out; TEXT_EMBEDDING field should survive
         assertThat(applied.getInferenceFields(), hasKey(textEmbeddingField));
         assertThat(
-            applied.getInferenceFields().get(textEmbeddingField).getEmbeddingType(),
-            equalTo(InferenceFieldMetadata.EmbeddingType.TEXT_EMBEDDING)
+            applied.getInferenceFields().get(textEmbeddingField).getInferenceFieldType(),
+            equalTo(InferenceFieldMetadata.InferenceFieldType.SEMANTIC_TEXT)
         );
         assertThat(applied.getInferenceFields().containsKey(embeddingField), is(false));
 
@@ -997,8 +997,8 @@ public class IndexMetadataTests extends ESTestCase {
         assertThat(appliedCurrent.getInferenceFields(), hasKey(textEmbeddingField));
         assertThat(appliedCurrent.getInferenceFields(), hasKey(embeddingField));
         assertThat(
-            appliedCurrent.getInferenceFields().get(embeddingField).getEmbeddingType(),
-            equalTo(InferenceFieldMetadata.EmbeddingType.EMBEDDING)
+            appliedCurrent.getInferenceFields().get(embeddingField).getInferenceFieldType(),
+            equalTo(InferenceFieldMetadata.InferenceFieldType.SEMANTIC)
         );
     }
 
@@ -1034,7 +1034,7 @@ public class IndexMetadataTests extends ESTestCase {
             randomIdentifier(),
             randomSet(1, 5, ESTestCase::randomIdentifier).toArray(String[]::new),
             InferenceFieldMetadataTests.generateRandomChunkingSettings(),
-            randomFrom(InferenceFieldMetadata.EmbeddingType.values())
+            randomFrom(InferenceFieldMetadata.InferenceFieldType.values())
         );
     }
 

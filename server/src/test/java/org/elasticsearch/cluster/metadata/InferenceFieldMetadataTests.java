@@ -10,7 +10,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.cluster.metadata.InferenceFieldMetadata.EmbeddingType;
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata.InferenceFieldType;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.AbstractXContentTestCase;
@@ -67,16 +67,16 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
     }
 
     private static InferenceFieldMetadata createTestItem() {
-        return createTestItem(randomFrom(EmbeddingType.values()));
+        return createTestItem(randomFrom(InferenceFieldType.values()));
     }
 
-    private static InferenceFieldMetadata createTestItem(EmbeddingType embeddingType) {
+    private static InferenceFieldMetadata createTestItem(InferenceFieldType inferenceFieldType) {
         String name = randomAlphaOfLengthBetween(3, 10);
         String inferenceId = randomIdentifier();
         String searchInferenceId = randomIdentifier();
         String[] inputFields = generateRandomStringArray(5, 10, false, false);
         Map<String, Object> chunkingSettings = generateRandomChunkingSettings();
-        return new InferenceFieldMetadata(name, inferenceId, searchInferenceId, inputFields, chunkingSettings, embeddingType);
+        return new InferenceFieldMetadata(name, inferenceId, searchInferenceId, inputFields, chunkingSettings, inferenceFieldType);
     }
 
     public static Map<String, Object> generateRandomChunkingSettings() {
@@ -102,8 +102,8 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
     }
 
     public void testSerializationWithEmbeddingType() throws IOException {
-        for (EmbeddingType embeddingType : EmbeddingType.values()) {
-            final InferenceFieldMetadata before = createTestItem(embeddingType);
+        for (InferenceFieldType inferenceFieldType : InferenceFieldType.values()) {
+            final InferenceFieldMetadata before = createTestItem(inferenceFieldType);
             final BytesStreamOutput out = new BytesStreamOutput();
             out.setTransportVersion(INFERENCE_FIELD_EMBEDDING_TYPE);
             before.writeTo(out);
@@ -113,13 +113,13 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
             final InferenceFieldMetadata after = new InferenceFieldMetadata(in);
 
             assertThat(after, equalTo(before));
-            assertThat(after.getEmbeddingType(), equalTo(embeddingType));
+            assertThat(after.getInferenceFieldType(), equalTo(inferenceFieldType));
         }
     }
 
     public void testBwcOldNodeReceivesTextEmbeddingDefault() throws IOException {
         // An EMBEDDING-typed entry written to a pre-INFERENCE_FIELD_EMBEDDING_TYPE stream should read back as TEXT_EMBEDDING
-        final InferenceFieldMetadata embeddingField = createTestItem(EmbeddingType.EMBEDDING);
+        final InferenceFieldMetadata embeddingField = createTestItem(InferenceFieldType.SEMANTIC);
         final TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(INFERENCE_FIELD_EMBEDDING_TYPE);
 
         final BytesStreamOutput out = new BytesStreamOutput();
@@ -130,12 +130,12 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
         in.setTransportVersion(oldVersion);
         final InferenceFieldMetadata deserialized = new InferenceFieldMetadata(in);
 
-        assertThat(deserialized.getEmbeddingType(), equalTo(EmbeddingType.TEXT_EMBEDDING));
+        assertThat(deserialized.getInferenceFieldType(), equalTo(InferenceFieldType.SEMANTIC_TEXT));
     }
 
     public void testBwcTextEmbeddingUnchangedOnOldNode() throws IOException {
         // A TEXT_EMBEDDING entry serialized to an old node should round-trip unchanged
-        final InferenceFieldMetadata textEmbeddingField = createTestItem(EmbeddingType.TEXT_EMBEDDING);
+        final InferenceFieldMetadata textEmbeddingField = createTestItem(InferenceFieldType.SEMANTIC_TEXT);
         final TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(INFERENCE_FIELD_EMBEDDING_TYPE);
 
         final BytesStreamOutput out = new BytesStreamOutput();
@@ -146,12 +146,12 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
         in.setTransportVersion(oldVersion);
         final InferenceFieldMetadata deserialized = new InferenceFieldMetadata(in);
 
-        assertThat(deserialized.getEmbeddingType(), equalTo(EmbeddingType.TEXT_EMBEDDING));
+        assertThat(deserialized.getInferenceFieldType(), equalTo(InferenceFieldType.SEMANTIC_TEXT));
     }
 
     public void testXContentRoundTripWithEmbeddingType() throws IOException {
-        for (EmbeddingType embeddingType : EmbeddingType.values()) {
-            final InferenceFieldMetadata original = createTestItem(embeddingType);
+        for (InferenceFieldType inferenceFieldType : InferenceFieldType.values()) {
+            final InferenceFieldMetadata original = createTestItem(inferenceFieldType);
             final String json = org.elasticsearch.common.Strings.toString(original);
             assertTrue("XContent should contain embedding_type field", json.contains("\"embedding_type\""));
 
@@ -164,7 +164,7 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
             parser.nextToken();
             final InferenceFieldMetadata parsed = InferenceFieldMetadata.fromXContent(parser);
 
-            assertThat(parsed.getEmbeddingType(), equalTo(embeddingType));
+            assertThat(parsed.getInferenceFieldType(), equalTo(inferenceFieldType));
         }
     }
 
@@ -186,7 +186,7 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
         parser.nextToken(); // FIELD_NAME "my_field"
         final InferenceFieldMetadata parsed = InferenceFieldMetadata.fromXContent(parser);
 
-        assertThat(parsed.getEmbeddingType(), equalTo(EmbeddingType.TEXT_EMBEDDING));
+        assertThat(parsed.getInferenceFieldType(), equalTo(InferenceFieldType.SEMANTIC_TEXT));
     }
 
     public void testNullCtorArgsThrowException() {

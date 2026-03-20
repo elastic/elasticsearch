@@ -1735,7 +1735,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     : ImmutableOpenMap.<String, MappingMetadata>builder(1).fPut(MapperService.SINGLE_MAPPING_NAME, after.mapping).build(),
                 DiffableUtils.getStringKeySerializer()
             );
-            inferenceFields = new InferenceFieldEmbeddingTypeFilterDiff(before.inferenceFields, after.inferenceFields);
+            inferenceFields = new InferenceFieldTypeFilterDiff(before.inferenceFields, after.inferenceFields);
             aliases = DiffableUtils.diff(before.aliases, after.aliases, DiffableUtils.getStringKeySerializer());
             customData = DiffableUtils.diff(before.customData, after.customData, DiffableUtils.getStringKeySerializer());
             inSyncAllocationIds = DiffableUtils.diff(
@@ -1771,12 +1771,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
          * that pre-date {@link InferenceFieldMetadata#INFERENCE_FIELD_EMBEDDING_TYPE}. Old coordinators do not know about
          * the EMBEDDING routing path and would incorrectly call chunkedInfer() for those fields.
          */
-        private static final class InferenceFieldEmbeddingTypeFilterDiff implements Diff<ImmutableOpenMap<String, InferenceFieldMetadata>> {
+        private static final class InferenceFieldTypeFilterDiff implements Diff<ImmutableOpenMap<String, InferenceFieldMetadata>> {
 
             private final ImmutableOpenMap<String, InferenceFieldMetadata> before;
             private final ImmutableOpenMap<String, InferenceFieldMetadata> after;
 
-            InferenceFieldEmbeddingTypeFilterDiff(
+            InferenceFieldTypeFilterDiff(
                 ImmutableOpenMap<String, InferenceFieldMetadata> before,
                 ImmutableOpenMap<String, InferenceFieldMetadata> after
             ) {
@@ -1804,7 +1804,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             ) {
                 var builder = ImmutableOpenMap.<String, InferenceFieldMetadata>builder();
                 for (var entry : map.entrySet()) {
-                    if (entry.getValue().getEmbeddingType() == InferenceFieldMetadata.EmbeddingType.TEXT_EMBEDDING) {
+                    if (entry.getValue().getInferenceFieldType() == InferenceFieldMetadata.InferenceFieldType.SEMANTIC_TEXT) {
                         builder.fPut(entry.getKey(), entry.getValue());
                     }
                 }
@@ -2033,7 +2033,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeCollection(
                 inferenceFields.values()
                     .stream()
-                    .filter(f -> f.getEmbeddingType() == InferenceFieldMetadata.EmbeddingType.TEXT_EMBEDDING)
+                    .filter(f -> f.getInferenceFieldType() == InferenceFieldMetadata.InferenceFieldType.SEMANTIC_TEXT)
                     .toList()
             );
         }

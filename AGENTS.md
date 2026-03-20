@@ -95,6 +95,8 @@ The repository is organized into several key directories:
 ## Methods with Required Javadoc Reading
 If you encounter any of the following methods, you must go and read their javadoc before taking any other actions:
 * `fullyLoadedAnalyzer`
+* `TestAnalyzer.statementError`
+* `TestAnalyzer.error`
 
 ## Backwards compatibility
 - For changes to a `Writeable` implementation (`writeTo` and constructor from `StreamInput`), add a new `public static final <UNIQUE_DESCRIPTIVE_NAME> = TransportVersion.fromName("<unique_descriptive_name>")` and use it in the new code paths. Confirm the backport branches and then generate a new version file with `./gradlew generateTransportVersion`.

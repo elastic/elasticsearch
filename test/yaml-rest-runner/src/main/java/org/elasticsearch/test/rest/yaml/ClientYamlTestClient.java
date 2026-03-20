@@ -50,6 +50,7 @@ import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.frequently;
+import static java.util.Collections.emptyMap;
 
 /**
  * Used by {@link ESClientYamlSuiteTestCase} to execute REST requests according to the tests written in yaml suite files. Wraps a
@@ -202,10 +203,137 @@ public class ClientYamlTestClient implements Closeable {
 
         try {
             Response response = getRestClient(nodeSelector).performRequest(request);
-            return new ClientYamlTestResponse(response);
+            ClientYamlTestResponse yamlResponse = new ClientYamlTestResponse(response);
+            // Temporary: log index.version.created after each successful indices.create (for mixed-cluster / BWC debugging).
+            if ("indices.create".equals(apiName) && pathParts.containsKey("index")) {
+                String createdIndex = pathParts.get("index");
+                // Index named used by tsdb/25_id_generation
+                if ("id_generation_test".equals(createdIndex)) {
+                    logIndexVersionCreatedAfterCreate(nodeSelector, finalPath, createdIndex);
+                    logClusterNodesAfterIndicesCreate(nodeSelector, createdIndex);
+                }
+            }
+            return yamlResponse;
         } catch (ResponseException e) {
             throw new ClientYamlTestResponseException(e);
         }
+    }
+
+    /**
+     * Temporary helper for mixed-cluster debugging; remove when no longer needed.
+     */
+    private void logIndexVersionCreatedAfterCreate(NodeSelector nodeSelector, String encodedIndexPathPrefix, String indexName) {
+        try {
+            Request settingsRequest = new Request("GET", encodedIndexPathPrefix + "/_settings");
+            settingsRequest.addParameter("flat_settings", "true");
+            setOptions(settingsRequest, emptyMap());
+            Response settingsResponse = getRestClient(nodeSelector).performRequest(settingsRequest);
+            ClientYamlTestResponse parsed = new ClientYamlTestResponse(settingsResponse);
+            Object body = parsed.getBody();
+            String versionCreated = extractIndexVersionCreated(body, indexName);
+            logger.info(
+                "after indices.create index [{}] index.version.created [{}] settings {}",
+                indexName,
+                versionCreated,
+                parsed.getBodyAsString()
+            );
+        } catch (RuntimeException | IOException e) {
+            logger.warn("failed to log index settings after indices.create for index [{}]", indexName, e);
+        }
+    }
+
+    private static String extractIndexVersionCreated(Object body, String indexName) {
+        if (body instanceof Map<?, ?> == false) {
+            return null;
+        }
+        Map<?, ?> root = (Map<?, ?>) body;
+        Object idx = root.get(indexName);
+        if (idx instanceof Map<?, ?> == false) {
+            return null;
+        }
+        Map<?, ?> idxMap = (Map<?, ?>) idx;
+        Object settings = idxMap.get("settings");
+        if (settings instanceof Map<?, ?> == false) {
+            return null;
+        }
+        Map<?, ?> setMap = (Map<?, ?>) settings;
+        Object flat = setMap.get("index.version.created");
+        if (flat != null) {
+            return String.valueOf(flat);
+        }
+        Object index = setMap.get("index");
+        if (index instanceof Map<?, ?> im) {
+            Object version = im.get("version");
+            if (version instanceof Map<?, ?> vm) {
+                Object created = vm.get("created");
+                if (created != null) {
+                    return String.valueOf(created);
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Temporary helper for mixed-cluster debugging; remove when no longer needed.
+     */
+    private void logClusterNodesAfterIndicesCreate(NodeSelector nodeSelector, String indexName) {
+        try {
+            RestClient client = getRestClient(nodeSelector);
+
+            Request masterRequest = new Request("GET", "/_cluster/state/master_node");
+            setOptions(masterRequest, emptyMap());
+            Response masterResponse = client.performRequest(masterRequest);
+            Object masterBody = new ClientYamlTestResponse(masterResponse).getBody();
+            String masterNodeId = extractMasterNodeId(masterBody);
+
+            Request nodesRequest = new Request("GET", "/_nodes");
+            nodesRequest.addParameter("filter_path", "nodes.*.name,nodes.*.version");
+            setOptions(nodesRequest, emptyMap());
+            Response nodesResponse = client.performRequest(nodesRequest);
+            ClientYamlTestResponse nodesParsed = new ClientYamlTestResponse(nodesResponse);
+            String summary = formatClusterNodesSummary(nodesParsed.getBody(), masterNodeId);
+
+            logger.info("after indices.create index [{}] cluster master_node_id [{}]; nodes {}", indexName, masterNodeId, summary);
+        } catch (RuntimeException | IOException e) {
+            logger.warn("failed to log cluster nodes after indices.create for index [{}]", indexName, e);
+        }
+    }
+
+    private static String extractMasterNodeId(Object clusterStateBody) {
+        if (clusterStateBody instanceof Map<?, ?> == false) {
+            return null;
+        }
+        Object id = ((Map<?, ?>) clusterStateBody).get("master_node");
+        return id != null ? String.valueOf(id) : null;
+    }
+
+    private static String formatClusterNodesSummary(Object nodesInfoBody, String masterNodeId) {
+        if (nodesInfoBody instanceof Map<?, ?> == false) {
+            return nodesInfoBody == null ? "null" : String.valueOf(nodesInfoBody);
+        }
+        Object nodesObj = ((Map<?, ?>) nodesInfoBody).get("nodes");
+        if (nodesObj instanceof Map<?, ?> == false) {
+            return String.valueOf(nodesInfoBody);
+        }
+        Map<?, ?> nodes = (Map<?, ?>) nodesObj;
+        if (nodes.isEmpty()) {
+            return "{}";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<?, ?> e : nodes.entrySet()) {
+            String id = String.valueOf(e.getKey());
+            if (e.getValue() instanceof Map<?, ?> n) {
+                sb.append(id).append("=name:").append(n.get("name")).append(",version:").append(n.get("version"));
+                if (masterNodeId != null && masterNodeId.equals(id)) {
+                    sb.append(",role:master");
+                }
+                sb.append("; ");
+            } else {
+                sb.append(id).append('=').append(e.getValue()).append("; ");
+            }
+        }
+        return sb.toString();
     }
 
     protected RestClient getRestClient(NodeSelector nodeSelector) {

@@ -639,7 +639,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         return List.of(new TestCaseSupplier(List.of(DataType.INTEGER, DataType.INTEGER, DataType.INTEGER, DataType.SOURCE), () -> {
             int randomValue = randomInt();
             int randomOrigin = randomInt();
-            // Scale must be > 0: negative scale flips the sign of log(decay)/scale for decay in (0, 1), inviting overflow in exp decay.
+            // scale must be > 0
             int randomScale = randomIntBetween(1, Integer.MAX_VALUE);
             int randomOffset = randomInt();
             double randomDecay = randomDecayOpenUnitInterval();
@@ -1178,10 +1178,6 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
     }
 
-    /**
-     * Matches {@link DecayFunction#temporalDecay} used by {@code DecayDateNanosEvaluator}—full nanosecond
-     * timestamps and scale/offset (not millisecond truncation plus {@link ScoreScriptUtils} date decay).
-     */
     private static double expectedDateNanosTemporalDecay(
         long valueNanos,
         long originNanos,
@@ -1202,10 +1198,6 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         };
     }
 
-    /**
-     * Random decay in {@code (0, 1)}. Extremes {@code 0} or {@code 1} make {@link ScoreScriptUtils} numeric and
-     * date decays yield NaN or infinities; {@code randomDouble()} includes {@code 0} and can be arbitrarily close to {@code 1}.
-     */
     private static double randomDecayOpenUnitInterval() {
         return randomDoubleBetween(1e-12, Math.nextDown(1.0), true);
     }

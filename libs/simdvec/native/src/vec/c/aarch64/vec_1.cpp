@@ -55,7 +55,7 @@ static inline int32x4_t combine(int32x4x2_t a) {
 // Traits for accumulator zero-init and horizontal reduction.
 // Allows call_i8_bulk to work with both int32x4_t (dotprod)
 // and int32x4x2_t (widening multiply) accumulators.
-template <typename AccT>
+template <typename TAcc>
 struct acc_ops;
 
 template <>
@@ -264,7 +264,7 @@ EXPORT f32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t dims) {
  * a bit fiddly.
  *
  * Template parameters:
- * AccT: accumulator type (e.g. int32x4_t for dotprod, int32x4x2_t for widening multiply)
+ * TAcc: accumulator type (e.g. int32x4_t for dotprod, int32x4x2_t for widening multiply)
  * mapper: gets the nth vector from the input array.
  * inner_op: SIMD vectorised comparison operation, sum, a, b, returns new sum
  * scalar_op: scalar per-dimension vector operation, takes a, b, returns sum
@@ -274,9 +274,9 @@ EXPORT f32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t dims) {
  */
 template <
     typename TData,
-    typename AccT,
+    typename TAcc,
     const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
-    AccT(*inner_op)(const AccT, const int8x16_t, const int8x16_t),
+    TAcc(*inner_op)(const TAcc, const int8x16_t, const int8x16_t),
     int32_t(*scalar_op)(const int8_t, const int8_t),
     f32_t(*bulk_tail)(const int8_t*, const int8_t*, const int32_t),
     int batches = 4>
@@ -302,10 +302,10 @@ static inline void call_i8_bulk(
     // processors (e.g. Graviton)
     for (; c + batches - 1 < count; c += batches) {
         const int8_t* as[batches];
-        AccT acc[batches];
+        TAcc acc[batches];
         apply_indexed<batches>([&](auto I) {
             as[I] = mapper(a, c + I, offsets, pitch);
-            acc[I] = acc_ops<AccT>::zero();
+            acc[I] = acc_ops<TAcc>::zero();
         });
 
         int i=0;
@@ -320,7 +320,7 @@ static inline void call_i8_bulk(
 
         int32_t res[batches];
         apply_indexed<batches>([&](auto I) {
-            res[I] = acc_ops<AccT>::reduce(acc[I]);
+            res[I] = acc_ops<TAcc>::reduce(acc[I]);
         });
         // scalar tail
         for (; i < dims; i++) {

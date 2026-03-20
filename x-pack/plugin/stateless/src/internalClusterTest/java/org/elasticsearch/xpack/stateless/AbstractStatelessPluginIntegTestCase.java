@@ -300,6 +300,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory blobStoreCacheDirectory,
             @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+            boolean preWarmForIdLookup,
             ActionListener<Void> listener
         ) {
             listener.onResponse(null);

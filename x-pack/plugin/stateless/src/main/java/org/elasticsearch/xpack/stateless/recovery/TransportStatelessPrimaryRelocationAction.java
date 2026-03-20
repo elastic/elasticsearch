@@ -21,6 +21,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -107,7 +108,15 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         Setting.Property.NodeScope
     );
 
+    public static final Setting<TimeValue> ID_LOOKUP_RECENCY_THRESHOLD_SETTING = Setting.timeSetting(
+        "serverless.cluster.primary_relocation.id_lookup_recency_threshold",
+        TimeValue.timeValueMinutes(10),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private volatile TimeValue slowRelocationWarningThreshold;
+    private volatile TimeValue idLookupRecencyThreshold;
 
     private final TransportService transportService;
     private final ClusterService clusterService;
@@ -149,6 +158,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
         clusterService.getClusterSettings()
             .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
+        clusterService.getClusterSettings()
+            .initializeAndWatch(ID_LOOKUP_RECENCY_THRESHOLD_SETTING, value -> this.idLookupRecencyThreshold = value);
 
         transportService.registerRequestHandler(
             START_RELOCATION_ACTION_NAME,
@@ -246,10 +257,22 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 return;
             }
 
+            boolean hasRecentIdLookup = false;
+            final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            final var engine = indexService.getShard(shardId.id()).getEngineOrNull();
+            if (engine instanceof IndexEngine indexEngine) {
+                // TODO: do we need to check if the shard is going to be hollowed and therefore, skip preWarming for ID looups?
+                hasRecentIdLookup = indexEngine.hasRecentIdLookup(idLookupRecencyThreshold);
+            }
+
             transportService.sendChildRequest(
                 request.targetNode(),
                 PREWARM_RELOCATION_ACTION_NAME,
-                new PrewarmRelocationRequest(shardId, new BlobFileWithLength(latestBcc.toBlobFile(), latestBcc.calculateBccBlobLength())),
+                new PrewarmRelocationRequest(
+                    shardId,
+                    new BlobFileWithLength(latestBcc.toBlobFile(), latestBcc.calculateBccBlobLength()),
+                    hasRecentIdLookup
+                ),
                 task,
                 TransportRequestOptions.EMPTY,
                 // The response (whether prewarm succeeded or not) does not affect the relocation listener, so we use a noop listener
@@ -278,7 +301,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 Set.of()
             );
             try {
-                indexShardCacheWarmer.preWarmIndexShardCacheForPeerRecovery(indexShard, sourceBlobsInfo);
+                indexShardCacheWarmer.preWarmIndexShardCacheForPeerRecovery(indexShard, sourceBlobsInfo, request.hasRecentIdLookup());
             } catch (IndexShardNotRecoveringException e) {
                 // This could happen if the prewarm request is delayed. The caller decides whether to ignore this failure.
                 logger.trace(format("%s not prewarming as shard is not recovering", request.shardId()), e);
@@ -756,18 +779,30 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     }
 
     public static class PrewarmRelocationRequest extends AbstractTransportRequest {
+
+        private static final TransportVersion PREWARM_RELOCATION_ID_LOOKUP_FLAG = TransportVersion.fromName(
+            "prewarm_relocation_id_lookup_flag"
+        );
+
         private final ShardId shardId;
         private final BlobFileWithLength latestBccBlob;
+        private final boolean hasRecentIdLookup;
 
-        public PrewarmRelocationRequest(ShardId shardId, BlobFileWithLength latestBccBlob) {
+        public PrewarmRelocationRequest(ShardId shardId, BlobFileWithLength latestBccBlob, boolean hasRecentIdLookup) {
             this.shardId = shardId;
             this.latestBccBlob = latestBccBlob;
+            this.hasRecentIdLookup = hasRecentIdLookup;
         }
 
         public PrewarmRelocationRequest(StreamInput in) throws IOException {
             super(in);
             this.shardId = new ShardId(in);
             this.latestBccBlob = new BlobFileWithLength(in);
+            if (in.getTransportVersion().supports(PREWARM_RELOCATION_ID_LOOKUP_FLAG)) {
+                this.hasRecentIdLookup = in.readBoolean();
+            } else {
+                this.hasRecentIdLookup = false;
+            }
         }
 
         @Override
@@ -775,6 +810,9 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             super.writeTo(out);
             shardId.writeTo(out);
             latestBccBlob.writeTo(out);
+            if (out.getTransportVersion().supports(PREWARM_RELOCATION_ID_LOOKUP_FLAG)) {
+                out.writeBoolean(hasRecentIdLookup);
+            }
         }
 
         public ShardId shardId() {
@@ -783,6 +821,10 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
         public BlobFileWithLength latestBccBlob() {
             return latestBccBlob;
+        }
+
+        public boolean hasRecentIdLookup() {
+            return hasRecentIdLookup;
         }
     }
 

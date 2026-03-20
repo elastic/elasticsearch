@@ -238,7 +238,8 @@ public class IndexVersions {
     public static final IndexVersion FLATTENED_FIELD_NO_ROOT_DOC_VALUES = def(9_077_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion IGNORED_SOURCE_AS_DOC_VALUES = def(9_078_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT = def(9_079_0_00, Version.LUCENE_10_4_0);
-
+    public static final IndexVersion TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG = def(9_080_00_0, Version.LUCENE_10_4_0);
+    public static final IndexVersion SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB = def(9_081_0_00, Version.LUCENE_10_4_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

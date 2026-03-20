@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
@@ -17,7 +18,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
@@ -131,9 +131,7 @@ public final class GeoShapeCentroidAggregator extends MetricsAggregator {
         final double bucketWeight = weightSum.get(bucket);
         final long bucketCount = counts.get(bucket);
         final DimensionalShapeType bucketShapeType = DimensionalShapeType.fromOrdinalByte(dimensionalShapeTypes.get(bucket));
-        final GeoPoint bucketCentroid = bucketWeight > 0
-            ? new GeoPoint(bucketLatSum / bucketWeight, bucketLonSum / bucketWeight)
-            : null;
+        final GeoPoint bucketCentroid = bucketWeight > 0 ? new GeoPoint(bucketLatSum / bucketWeight, bucketLonSum / bucketWeight) : null;
         return new InternalGeoCentroid(
             name,
             bucketCentroid,

@@ -98,9 +98,7 @@ public class InternalGeoCentroid extends InternalCentroid implements GeoCentroid
         long count,
         DimensionalShapeType shapeType
     ) {
-        final GeoPoint result = totalWeight > 0
-            ? new GeoPoint(firstWeightedSum / totalWeight, secondWeightedSum / totalWeight)
-            : null;
+        final GeoPoint result = totalWeight > 0 ? new GeoPoint(firstWeightedSum / totalWeight, secondWeightedSum / totalWeight) : null;
         return new InternalGeoCentroid(name, result, count, firstWeightedSum, secondWeightedSum, totalWeight, shapeType, getMetadata());
     }
 

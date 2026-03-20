@@ -215,7 +215,13 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
             @Override
             public InternalAggregation get() {
                 if (hasShapeValues) {
-                    return copyWithShapeFields(combinedFirstWeighted, combinedSecondWeighted, combinedWeight, shapeCount, combinedShapeType);
+                    return copyWithShapeFields(
+                        combinedFirstWeighted,
+                        combinedSecondWeighted,
+                        combinedWeight,
+                        shapeCount,
+                        combinedShapeType
+                    );
                 }
                 return copyWith(firstSum, secondSum, totalCount);
             }

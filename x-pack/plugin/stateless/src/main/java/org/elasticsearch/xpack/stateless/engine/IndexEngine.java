@@ -44,6 +44,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.ElasticsearchMergeScheduler;
 import org.elasticsearch.index.engine.ElasticsearchReaderManager;
@@ -92,6 +93,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
@@ -140,6 +142,7 @@ public class IndexEngine extends InternalEngine {
     private final AtomicBoolean ongoingFlushMustUpload = new AtomicBoolean(false);
     private final AtomicInteger forceMergesInProgress = new AtomicInteger(0);
     private final AtomicInteger queuedOrRunningMergesCount = new AtomicInteger();
+    private final AtomicLong lastDocIdAndVersionLookupMillis = new AtomicLong();
 
     @SuppressWarnings("this-escape")
     public IndexEngine(
@@ -944,6 +947,16 @@ public class IndexEngine extends InternalEngine {
 
     public boolean hasQueuedOrRunningMerges() {
         return queuedOrRunningMergesCount.get() > 0;
+    }
+
+    @Override
+    protected void notifyLastDocIdAndVersionLookup() {
+        lastDocIdAndVersionLookupMillis.accumulateAndGet(engineConfig.getThreadPool().relativeTimeInMillis(), Math::max);
+    }
+
+    public boolean hasRecentIdLookup(TimeValue recencyThreshold) {
+        long lastLookup = lastDocIdAndVersionLookupMillis.get();
+        return lastLookup > 0 && (engineConfig.getThreadPool().relativeTimeInMillis() - lastLookup) <= recencyThreshold.getMillis();
     }
 
     private final class StatelessThreadPoolMergeScheduler extends org.elasticsearch.index.engine.ThreadPoolMergeScheduler {

@@ -1087,13 +1087,14 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
                     @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+                    boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {
                     // Makes sure recovery warming is completed before continuing with the shard recovery, so that when the test checks
                     // the number of written regions in cache after the shard is started we are sure no other regions are likely to be
                     // warmed afterward.
                     var subscribableListener = new SubscribableListener<Void>();
-                    super.warmCacheRecovery(type, indexShard, commit, directory, endOffsetsToWarm, subscribableListener);
+                    super.warmCacheRecovery(type, indexShard, commit, directory, endOffsetsToWarm, false, subscribableListener);
                     safeAwait(subscribableListener);
                     subscribableListener.addListener(listener);
                 }

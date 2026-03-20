@@ -21,6 +21,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -34,6 +35,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -41,7 +43,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -51,6 +55,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLog;
@@ -86,7 +92,10 @@ import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForReco
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -97,6 +106,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
@@ -112,6 +122,7 @@ import static org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDyna
 import static org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PREWARM_RELOCATION_ACTION_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -142,6 +153,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         plugins.add(MockRepository.Plugin.class);
         plugins.add(InternalSettingsPlugin.class);
         plugins.add(ShutdownPlugin.class);
+        plugins.add(TestTelemetryPlugin.class);
+        plugins.add(MockTransportService.TestPlugin.class);
         return plugins;
     }
 
@@ -695,6 +708,47 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         ensureSearchHits(indexName, totalDocs);
     }
 
+    public void testIdLookupPreWarmRequestsMetric() throws Exception {
+        var nodeSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), randomBoolean())
+            // Metric is always emitted regardless of the feature being enabled or not
+            .put(SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING.getKey(), randomBoolean())
+            .build();
+        var node1 = startMasterAndIndexNode(nodeSettings);
+        var node2 = startMasterAndIndexNode(nodeSettings);
+        var indexName = "index1";
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put("index.routing.allocation.require._name", node1)
+                .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
+                .build()
+        );
+        ensureGreen(indexName);
+        indexDocs(indexName, randomIntBetween(100, 1000), ESTestCase::randomUUID);
+        flush(indexName);
+
+        IndexShard indexShardOnNode1 = findIndexShard(indexName);
+        IndexEngine shardEngineOnNode1 = getShardEngine(indexShardOnNode1, IndexEngine.class);
+        assertTrue(shardEngineOnNode1.hasRecentIdLookup(ID_LOOKUP_RECENCY_THRESHOLD_SETTING.getDefault(nodeSettings)));
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", node2), indexName);
+        ensureGreen(indexName);
+
+        final TestTelemetryPlugin plugin = getTelemetryPlugin(node2);
+        plugin.collect();
+        assertBusy(() -> {
+            var preWarmReqs = getTotalLongCounterValue(
+                SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_ID_LOOKUP_PREWARM_REQS_TOTAL_METRIC,
+                plugin
+            );
+            assertThat(preWarmReqs, equalTo(1L));
+        });
+    }
+
     /**
      * This test is to ensure that inline exception handling in {@link org.elasticsearch.transport.TransportService} does
      * not trip the assertCompleteAllowed assertion in {@link PlainActionFuture#onFailure}. One such example is search
@@ -864,6 +918,79 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         ensureStableCluster(3);
         ensureGreen(indexName);
+    }
+
+    public void testPreWarmingBasedOnIdLookupOnIndexShardRelocation() throws Exception {
+        var nodeSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
+            // use smaller region and range size to decrease the chance of incidental prewarming
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), "4kb")
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), "4kb")
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
+            .put(SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING.getKey(), true)
+            .put(SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING.getKey(), 1.0)  // make sure we always hit the cache
+            .build();
+        var node1 = startMasterAndIndexNode(nodeSettings);
+        var node2 = startMasterAndIndexNode(nodeSettings);
+        var indexName = "index1";
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put("index.routing.allocation.require._name", node1)
+                .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
+                .build()
+        );
+        ensureGreen(indexName);
+        final var bulkResponse = indexDocs(
+            indexName,
+            randomIntBetween(100, 1000),
+            UnaryOperator.identity(),
+            ESTestCase::randomUUID,
+            () -> Map.of("field-1", randomInt(), "field-2", randomAlphaOfLength(5))
+        );
+        flush(indexName);
+        final var returnedIds = new LinkedList<>(Arrays.stream(bulkResponse.getItems()).map(BulkItemResponse::getId).toList());
+
+        // wait for INDEXING_EARLY and INDEXING to be completed before blocking access to the latest BCC.
+        final var indexingEarlyWarmingCompleted = new SubscribableListener<CompletedWarmingDetails>();
+        final var indexingWarmingCompleted = new SubscribableListener<CompletedWarmingDetails>();
+        runOnWarmingComplete(node2, Type.INDEXING_EARLY, indexingEarlyWarmingCompleted);
+        runOnWarmingComplete(node2, Type.INDEXING, indexingWarmingCompleted);
+
+        IndexShard indexShardOnNode1 = findIndexShard(indexName);
+        IndexEngine shardEngineOnNode1 = getShardEngine(indexShardOnNode1, IndexEngine.class);
+        assertTrue(shardEngineOnNode1.hasRecentIdLookup(ID_LOOKUP_RECENCY_THRESHOLD_SETTING.getDefault(nodeSettings)));
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", node2), indexName);
+        ensureGreen(indexName);
+        assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(node2)));
+        safeAwait(indexingEarlyWarmingCompleted);
+        safeAwait(indexingWarmingCompleted);
+        logger.info("--> fail object store repository after access to commits after warming");
+        var mockRepository = getObjectStoreMockRepository(getObjectStoreService(node2));
+        var transportService = MockTransportService.getInstance(node2);
+        mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.PREFIX + ".*");
+        mockRepository.setRandomControlIOExceptionRate(1.0);
+        mockRepository.setRandomDataFileIOExceptionRate(1.0);
+        mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
+                assert false : "should not have sent a request for VBCC data to the indexing node but sent request " + request;
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        var indicesService = internalCluster().getInstance(IndicesService.class, node2);
+        var indexService = indicesService.indexService(resolveIndex(indexName));
+        var indexShard = indexService.getShardOrNull(0);
+        assertNotNull(indexShard);
+        Collections.shuffle(returnedIds, random());
+        final var idsToLookup = returnedIds.subList(10, randomIntBetween(10, 100));
+        try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
+            for (var id : idsToLookup) {
+                assertNotNull(VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(searcher.getIndexReader(), Uid.encodeId(id), false));
+            }
+        }
     }
 
     /**
@@ -1089,6 +1216,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
             @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+            boolean preWarmForIdLookup,
             ActionListener<Void> listener
         ) {
             var wrappedListener = new SubscribableListener<Void>();
@@ -1101,7 +1229,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             for (Consumer<Type> beforeWarmingStartsListener : beforeWarmingStartsListeners) {
                 beforeWarmingStartsListener.accept(type);
             }
-            super.warmCacheRecovery(type, indexShard, commit, directory, endOffsetsToWarm, wrappedListener);
+            super.warmCacheRecovery(type, indexShard, commit, directory, endOffsetsToWarm, preWarmForIdLookup, wrappedListener);
             if (mustSucceed.get()) {
                 safeAwait(wrappedListener);
             } else {

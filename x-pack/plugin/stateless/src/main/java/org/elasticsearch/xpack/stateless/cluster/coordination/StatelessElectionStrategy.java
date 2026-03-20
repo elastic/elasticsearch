@@ -19,7 +19,6 @@ package org.elasticsearch.xpack.stateless.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -47,7 +46,6 @@ import java.util.function.Supplier;
 
 public class StatelessElectionStrategy extends ElectionStrategy {
     private static final Logger logger = LogManager.getLogger(StatelessElectionStrategy.class);
-    private static final TransportVersion STATELESS_LEASE_BLOB_V1_FORMAT = TransportVersion.fromName("stateless_lease_blob_v1_format");
 
     public static final String NAME = "stateless_election_strategy";
     public static final String LEASE_BLOB = "lease";
@@ -154,13 +152,11 @@ public class StatelessElectionStrategy extends ElectionStrategy {
                 );
                 return;
             }
-            final StatelessLease newLease;
-            if (currentLease.formatVersion() == StatelessLease.LEGACY_FORMAT_VERSION
-                && clusterState.getMinTransportVersion().supports(STATELESS_LEASE_BLOB_V1_FORMAT) == false) {
-                newLease = new StatelessLease(StatelessLease.LEGACY_FORMAT_VERSION, currentLease.currentTerm(), nodeLeftGeneration, 0);
-            } else {
-                newLease = new StatelessLease(currentLease.currentTerm(), nodeLeftGeneration, projectsMarkedForDeletionGeneration);
-            }
+            final StatelessLease newLease = new StatelessLease(
+                currentLease.currentTerm(),
+                nodeLeftGeneration,
+                projectsMarkedForDeletionGeneration
+            );
             if (nodeLeftGeneration <= currentLease.nodeLeftGeneration()
                 && projectsMarkedForDeletionGeneration <= currentLease.projectsUnderDeletedGeneration()) {
                 assert nodeLeftGeneration == currentLease.nodeLeftGeneration()

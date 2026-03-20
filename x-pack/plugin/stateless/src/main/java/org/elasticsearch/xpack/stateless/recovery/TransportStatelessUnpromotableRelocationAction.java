@@ -23,7 +23,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
@@ -98,8 +97,6 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
     private static final RelocationHandoffResponse EMPTY_RESPONSE = new RelocationHandoffResponse(
         new PITHandoffResponse(Collections.emptyList())
     );
-
-    private static final TransportVersion PIT_RELOCATION_FEATURE = TransportVersion.fromName("pit_relocation_feature");
 
     private final TransportService transportService;
     private final ClusterService clusterService;
@@ -199,18 +196,11 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
         final var nodes = clusterService.state().nodes();
         if (relocatingNodeId != null && nodes.nodeExists(relocatingNodeId)) {
             var relocatingNode = nodes.get(relocatingNodeId);
-            // check transport version to see if relocating node already supports PIT relocation
-            TransportVersion transportVersion = transportService.getConnection(relocatingNode).getTransportVersion();
-            if (transportVersion.supports(PIT_RELOCATION_FEATURE)) {
-                sendStartHandoffRequest(task, request, relocatingNode, listener.delegateResponse((l, e) -> {
-                    // Ensure recovery process continues even if handoff fails
-                    logger.warn(format("%s failed to send start handoff request", request.getShardId()), e);
-                    listener.onResponse(EMPTY_RESPONSE);
-                }));
-            } else {
-                // relocating node does not support PIT relocation, just return empty response
+            sendStartHandoffRequest(task, request, relocatingNode, listener.delegateResponse((l, e) -> {
+                // Ensure recovery process continues even if handoff fails
+                logger.warn(format("%s failed to send start handoff request", request.getShardId()), e);
                 listener.onResponse(EMPTY_RESPONSE);
-            }
+            }));
         } else {
             // no shard relocation in progress, just return empty response
             listener.onResponse(EMPTY_RESPONSE);

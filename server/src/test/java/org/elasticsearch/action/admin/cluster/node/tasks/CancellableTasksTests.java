@@ -37,6 +37,7 @@ import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.FakeTcpChannel;
 import org.elasticsearch.transport.TestTransportChannels;
 import org.elasticsearch.transport.TransportService;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,10 +56,13 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.oneOf;
 
 public class CancellableTasksTests extends TaskManagerTestCase {
 
@@ -607,7 +611,6 @@ public class CancellableTasksTests extends TaskManagerTestCase {
      */
     public void testReasonVisibleWhenCancelled() throws Exception {
         final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", TaskId.EMPTY_TASK_ID, emptyMap());
-        final AtomicReference<String> failure = new AtomicReference<>();
         final CountDownLatch start = new CountDownLatch(1);
 
         final Thread reader = new Thread(() -> {
@@ -615,20 +618,16 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             while (task.isCancelled() == false) {
                 Thread.onSpinWait();
             }
-            if (task.getReasonCancelled() == null) {
-                failure.set("getReasonCancelled() returned null after isCancelled() returned true");
-            }
+            assertNotNull("getReasonCancelled() returned null after isCancelled() returned true", task.getReasonCancelled());
         });
         reader.start();
         start.countDown();
         TaskCancelHelper.cancel(task, "test-reason");
         reader.join();
-        assertNull(failure.get());
     }
 
     public void testToStringReturnsConsistCancellationStateAndReason() throws Exception {
         final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", TaskId.EMPTY_TASK_ID, emptyMap());
-        final AtomicReference<String> failure = new AtomicReference<>();
         final CountDownLatch start = new CountDownLatch(1);
 
         final Thread reader = new Thread(() -> {
@@ -636,19 +635,16 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             while (task.isCancelled() == false) {
                 Thread.onSpinWait();
             }
-
-            String toString = task.toString();
-            if (toString.endsWith("reason='null', isCancelled=true}")) {
-                failure.set("null reason when isCancelled() is true");
-            } else if (toString.endsWith("reason='test-reason', isCancelled=false}")) {
-                failure.set("isCancelled false when reason is set");
-            }
+            assertThat(
+                "toString should consistently render status and reason",
+                task.toString(),
+                not(oneOf(endsWith("reason='null', isCancelled=true}"), endsWith("reason='test-reason', isCancelled=false}")))
+            );
         });
         reader.start();
         start.countDown();
         TaskCancelHelper.cancel(task, "test-reason");
         reader.join();
-        assertNull(failure.get());
     }
 
     public void testNotifyIfCancelled() throws Exception {

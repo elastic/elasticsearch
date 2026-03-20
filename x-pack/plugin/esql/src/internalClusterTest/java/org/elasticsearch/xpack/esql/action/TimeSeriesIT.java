@@ -574,7 +574,6 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1)
                 .build()
         );
-        // The rate aggregation is executed with one shard at a time
         {
             EsqlQueryRequest request = new EsqlQueryRequest();
             request.profile(true);
@@ -593,7 +592,6 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 }
             }
         }
-        // non-rate aggregation is executed with multiple shards at a time
         {
             EsqlQueryRequest request = new EsqlQueryRequest();
             request.profile(true);

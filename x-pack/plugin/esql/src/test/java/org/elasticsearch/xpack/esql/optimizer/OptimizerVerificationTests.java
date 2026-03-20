@@ -435,9 +435,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     public void testDanglingOrderByMvExpand() {
-        var testAnalyzer = analyzer().addIndex("test", "mapping-default.json")
-            .addAnalysisTestsLookupResolutions()
-            .addAnalysisTestsEnrichResolution();
+        var testAnalyzer = analyzer().addDefaultIndex().addLanguagesLookup().addTestLookup().addAnalysisTestsEnrichResolution();
 
         var err = error(testAnalyzer.query("""
             FROM test

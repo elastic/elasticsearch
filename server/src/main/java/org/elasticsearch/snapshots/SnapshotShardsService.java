@@ -222,6 +222,10 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         }
     }
 
+    public ThrottledTaskRunner getStartShardSnapshotTaskRunner() {
+        return startShardSnapshotTaskRunner;
+    }
+
     /**
      * The {@link SnapshotShardsService} should be activated for all nodes that contain data.
      * On stateful, since nodes share both indexing and search functionality, this is determined by whether

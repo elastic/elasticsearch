@@ -3542,8 +3542,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
         float confidenceInterval = (float) XContentMapValues.nodeDoubleValue(confidenceIntervalNode);
         // 0.0 (dynamic quantiles) is the old default; suppress deprecation noise on BWC round-trips.
-        boolean shouldWarn = indexVersion.onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_4_0)
-            && confidenceInterval != 0.0f;
+        boolean shouldWarn = indexVersion.onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_4_0) && confidenceInterval != 0.0f;
         if (shouldWarn) {
             deprecationLogger.warn(
                 DeprecationCategory.MAPPINGS,

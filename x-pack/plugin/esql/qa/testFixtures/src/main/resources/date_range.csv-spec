@@ -27,7 +27,52 @@ FROM decades
 ;
 
 date_range:date_range  | decade:integer | description:keyword | range:keyword
-1900-01-01..1910-01-01 | 1900           | Edwardian Era       | 1900-01-01T00:00:00.000Z..1909-12-31T23:59:59.999Z
+1900-01-01..1910-01-01 | 1900           | Edwardian Era       | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z
+;
+
+dateRangeFieldType
+required_capability: date_range_field_type
+FROM decades
+| SORT decade;
+
+date_range:date_range  | decade:integer | description:keyword
+1900-01-01..1910-01-01 | 1900           | Edwardian Era
+1910-01-01..1920-01-01 | 1910           | Ragtime Era
+1920-01-01..1930-01-01 | 1920           | Roaring Twenties
+1930-01-01..1940-01-01 | 1930           | Dirty Thirties
+1940-01-01..1950-01-01 | 1940           | Fabulous Forties
+1950-01-01..1960-01-01 | 1950           | Nifty Fifties
+1960-01-01..1970-01-01 | 1960           | Swinging Sixties
+1970-01-01..1980-01-01 | 1970           | Groovy Seventies
+1980-01-01..1990-01-01 | 1980           | Radical Eighties
+1990-01-01..2000-01-01 | 1990           | Nineties Nostalgia
+2000-01-01..2010-01-01 | 2000           | Innovation Explosion Decade
+2010-01-01..2020-01-01 | 2010           | Renaissance Decade
+2020-01-01..2030-01-01 | 2020           | Empowerment Era
+;
+
+dateRangeIdentityFieldType
+required_capability: date_range_field_type
+
+FROM decades
+| WHERE decade == 1900
+| EVAL range = TO_DATE_RANGE(date_range)
+;
+
+date_range:date_range  | decade:integer | description:keyword | range:date_range
+1900-01-01..1910-01-01 | 1900           | Edwardian Era       | 1900-01-01..1910-01-01
+;
+
+dateRangeToStringFieldType
+required_capability: date_range_field_type
+
+FROM decades
+| WHERE decade == 1900
+| EVAL range = TO_STRING(date_range)
+;
+
+date_range:date_range  | decade:integer | description:keyword | range:keyword
+1900-01-01..1910-01-01 | 1900           | Edwardian Era       | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z
 ;
 
 // Requires range_within (TO_DATE_RANGE(keyword) support).
@@ -35,14 +80,14 @@ toDateRangeFromString
 required_capability: range_within
 
 // tag::to_date_range-str[]
-ROW str = "2020-01-01T00:00:00.000Z..2020-12-31T23:59:59.999Z"
+ROW str = "2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z"
 | EVAL range = TO_DATE_RANGE(str)
 // end::to_date_range-str[]
 ;
 
 // tag::to_date_range-str-result[]
 str:keyword                                          | range:date_range
-2020-01-01T00:00:00.000Z..2020-12-31T23:59:59.999Z   | 2020-01-01T00:00:00.000Z..2020-12-31T23:59:59.999Z
+2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z   | 2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z
 // end::to_date_range-str-result[]
 ;
 
@@ -74,26 +119,26 @@ str:keyword            | range:date_range
 toDateRangeWithEval
 required_capability: range_within
 
-ROW start_date = "2023-01-01T00:00:00.000Z", end_date = "2023-12-31T23:59:59.999Z"
+ROW start_date = "2023-01-01T00:00:00.000Z", end_date = "2024-01-01T00:00:00.000Z"
 | EVAL range_str = CONCAT(start_date, "..", end_date)
 | EVAL range = TO_DATE_RANGE(range_str)
 | KEEP start_date, end_date, range
 ;
 
 start_date:keyword              | end_date:keyword                | range:date_range
-2023-01-01T00:00:00.000Z        | 2023-12-31T23:59:59.999Z        | 2023-01-01T00:00:00.000Z..2023-12-31T23:59:59.999Z
+2023-01-01T00:00:00.000Z        | 2024-01-01T00:00:00.000Z        | 2023-01-01T00:00:00.000Z..2024-01-01T00:00:00.000Z
 ;
 
 // Requires range_within (TO_DATE_RANGE(keyword) support).
 toDateRangeSingleDay
 required_capability: range_within
 
-ROW str = "2024-07-04T00:00:00.000Z..2024-07-04T23:59:59.999Z"
+ROW str = "2024-07-04T00:00:00.000Z..2024-07-05T00:00:00.000Z"
 | EVAL range = TO_DATE_RANGE(str)
 ;
 
 str:keyword                                          | range:date_range
-2024-07-04T00:00:00.000Z..2024-07-04T23:59:59.999Z   | 2024-07-04T00:00:00.000Z..2024-07-04T23:59:59.999Z
+2024-07-04T00:00:00.000Z..2024-07-05T00:00:00.000Z   | 2024-07-04T00:00:00.000Z..2024-07-05T00:00:00.000Z
 ;
 
 ###############################################
@@ -270,8 +315,8 @@ warningRegex: evaluation of \[LOOKUP JOIN multi_column_joinable_lookup ON join_k
 warningRegex: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
 
 date_range:date_range                              | decade:integer | description:keyword      | date:date
-1980-01-01T00:00:00.000Z..1989-12-31T23:59:59.999Z | 1980           | Radical Eighties          | 1980-02-29T23:59:59.999Z
-1990-01-01T00:00:00.000Z..1999-12-31T23:59:59.999Z | 1990           | Nineties Nostalgia        | 1999-05-02T00:00:01.000Z
+1980-01-01T00:00:00.000Z..1990-01-01T00:00:00.000Z | 1980           | Radical Eighties          | 1980-02-29T23:59:59.999Z
+1990-01-01T00:00:00.000Z..2000-01-01T00:00:00.000Z | 1990           | Nineties Nostalgia        | 1999-05-02T00:00:01.000Z
 ;
 
 ###############################################
@@ -362,7 +407,7 @@ FROM decades_main
 ;
 
 date_range:date_range                              | some_date:date
-1950-01-01T00:00:00.000Z..1959-12-31T23:59:59.999Z | 1955-06-15T00:00:00.000Z
+1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z | 1955-06-15T00:00:00.000Z
 ;
 
 // date_range from FROM, date_range from LOOKUP (decades_main + lookup_with_date_range)
@@ -377,7 +422,7 @@ FROM decades_main
 ;
 
 date_range:date_range                              | lookup_range:date_range
-1950-01-01T00:00:00.000Z..1959-12-31T23:59:59.999Z | 1952-01-01T00:00:00.000Z..1953-12-31T23:59:59.999Z
+1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z | 1952-01-01T00:00:00.000Z..1954-01-01T00:00:00.000Z
 ;
 
 // Multiple ranges in WHERE (OR)

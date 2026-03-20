@@ -39,7 +39,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -610,11 +609,6 @@ public final class CsvAssert {
                 actualValue,
                 String.class,
                 x -> DEFAULT_DATE_NANOS_FORMATTER.formatNanos(DEFAULT_DATE_NANOS_FORMATTER.parseNanos((String) x))
-            );
-            case Type.DATE_RANGE -> rebuildExpected(
-                actualValue,
-                String.class,
-                x -> EsqlDataTypeConverter.dateRangeToString(EsqlDataTypeConverter.parseDateRange((String) x, ZoneOffset.UTC))
             );
             default -> actualValue;
         };

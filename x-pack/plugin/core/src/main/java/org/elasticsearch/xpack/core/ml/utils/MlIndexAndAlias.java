@@ -524,9 +524,15 @@ public final class MlIndexAndAlias {
      * @return The latest index by index name version suffix
      */
     public static String latestIndex(String[] concreteIndices) {
+        if (concreteIndices == null || concreteIndices.length == 0) {
+            throw new IllegalStateException("No ML indices available");
+        }
+
         return concreteIndices.length == 1
             ? concreteIndices[0]
-            : Arrays.stream(concreteIndices).max(MlIndexAndAlias.INDEX_NAME_COMPARATOR).get();
+            : Arrays.stream(concreteIndices)
+                .max(MlIndexAndAlias.INDEX_NAME_COMPARATOR)
+                .orElse(concreteIndices[0]); // safe fallback
     }
 
     /**
@@ -600,6 +606,10 @@ public final class MlIndexAndAlias {
         String[] filtered = Arrays.stream(matching).filter(i -> {
             return i.equals(index) || (has6DigitSuffix(i) && i.length() == baseIndexName.length() + FIRST_INDEX_SIX_DIGIT_SUFFIX.length());
         }).toArray(String[]::new);
+
+        if (filtered.length == 0) {
+            return index;
+        }
 
         return MlIndexAndAlias.latestIndex(filtered);
     }

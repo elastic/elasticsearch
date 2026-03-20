@@ -111,7 +111,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
@@ -155,7 +154,6 @@ public class AuthorizationService {
     private final RestrictedIndices restrictedIndices;
     private final AuthorizationDenialMessages authorizationDenialMessages;
     private final ProjectResolver projectResolver;
-    private final Map<String, Predicate<String>> contextConstrainedActions;
 
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
@@ -182,8 +180,7 @@ public class AuthorizationService {
         ProjectResolver projectResolver,
         AuthorizedProjectsResolver authorizedProjectsResolver,
         CrossProjectModeDecider crossProjectModeDecider,
-        ProjectRoutingResolver projectRoutingResolver,
-        Map<String, Predicate<String>> contextConstrainedActions
+        ProjectRoutingResolver projectRoutingResolver
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -216,7 +213,6 @@ public class AuthorizationService {
         this.authorizationDenialMessages = authorizationDenialMessages;
         this.projectResolver = projectResolver;
         this.authorizedProjectsResolver = authorizedProjectsResolver;
-        this.contextConstrainedActions = contextConstrainedActions;
     }
 
     public void checkPrivileges(
@@ -308,11 +304,6 @@ public class AuthorizationService {
     ) {
 
         final AuthorizationContext enclosingContext = extractAuthorizationContext(threadContext, action);
-
-        if (checkContextConstraint(enclosingContext, authentication, action, listener) == false) {
-            return;
-        }
-
         final ParentActionAuthorization parentAuthorization = securityContext.getParentAuthorization();
 
         /* authorization fills in certain transient headers, which must be observed in the listener (action handler execution)
@@ -452,42 +443,6 @@ public class AuthorizationService {
             throw actionDenied(authentication, null, action, originalRequest, "because it requires operator privileges", operatorException);
         }
         operatorPrivilegesService.maybeInterceptRequest(threadContext, originalRequest);
-    }
-
-    /**
-     * Checks whether the action is context-constrained and, if so, whether it is being
-     * dispatched as a child of an allowed originating action.
-     *
-     * @return {@code true} if the action is allowed to proceed, {@code false} if it was denied
-     *         (in which case the listener has already been notified of the failure)
-     */
-    private boolean checkContextConstraint(
-        @Nullable final AuthorizationContext enclosingContext,
-        final Authentication authentication,
-        final String action,
-        final ActionListener<Void> listener
-    ) {
-        final Predicate<String> allowedOriginatingActions = contextConstrainedActions.get(action);
-        if (allowedOriginatingActions == null) {
-            return true;
-        }
-        if (authentication.isCrossClusterAccess()) {
-            return true;
-        }
-        final String originatingAction = enclosingContext != null ? enclosingContext.getAction() : null;
-        if (originatingAction == null || allowedOriginatingActions.test(originatingAction) == false) {
-            listener.onFailure(
-                new IllegalStateException(
-                    "action ["
-                        + action
-                        + "] may only be executed as a child of a permitted originating action but originating action was ["
-                        + originatingAction
-                        + "]"
-                )
-            );
-            return false;
-        }
-        return true;
     }
 
     private void maybeAuthorizeRunAs(

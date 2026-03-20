@@ -49,7 +49,7 @@ public class ContextConstrainedActionIT extends ESRestTestCase {
 
     /**
      * Verifies that dispatching a context-constrained action via NodeClient without
-     * calling ContextConstrainedAction.openContext() is rejected by the AuthorizationService.
+     * an appropriate originating action is rejected by the SecurityActionFilter.
      */
     public void testContextConstrainedActionRejectedWithoutOpenContext() throws Exception {
         String inferenceId = "test-endpoint";

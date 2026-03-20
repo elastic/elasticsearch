@@ -1184,8 +1184,7 @@ public class Security extends Plugin
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver,
-            CONTEXT_CONSTRAINED_ACTIONS
+            projectRoutingResolver
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1250,7 +1249,8 @@ public class Security extends Plugin
                 threadPool,
                 securityContext.get(),
                 destructiveOperations,
-                secondaryAuthActions.get() == null ? Set::of : secondaryAuthActions.get()
+                secondaryAuthActions.get() == null ? Set::of : secondaryAuthActions.get(),
+                CONTEXT_CONSTRAINED_ACTIONS
             )
         );
 

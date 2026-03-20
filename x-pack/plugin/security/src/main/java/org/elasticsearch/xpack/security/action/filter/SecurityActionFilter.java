@@ -42,7 +42,10 @@ import org.elasticsearch.xpack.security.authc.support.SecondaryAuthActions;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 
+import java.util.Map;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_VALUE;
 
 public class SecurityActionFilter implements ActionFilter {
 
@@ -57,6 +60,7 @@ public class SecurityActionFilter implements ActionFilter {
     private final SecurityContext securityContext;
     private final DestructiveOperations destructiveOperations;
     private final SecondaryAuthActions secondaryAuthActions;
+    private final Map<String, Predicate<String>> contextConstrainedActions;
 
     public SecurityActionFilter(
         AuthenticationService authcService,
@@ -66,7 +70,8 @@ public class SecurityActionFilter implements ActionFilter {
         ThreadPool threadPool,
         SecurityContext securityContext,
         DestructiveOperations destructiveOperations,
-        SecondaryAuthActions secondaryAuthActions
+        SecondaryAuthActions secondaryAuthActions,
+        Map<String, Predicate<String>> contextConstrainedActions
     ) {
         this.authcService = authcService;
         this.authzService = authzService;
@@ -76,6 +81,7 @@ public class SecurityActionFilter implements ActionFilter {
         this.securityContext = securityContext;
         this.destructiveOperations = destructiveOperations;
         this.secondaryAuthActions = secondaryAuthActions;
+        this.contextConstrainedActions = contextConstrainedActions;
     }
 
     @Override
@@ -164,6 +170,28 @@ public class SecurityActionFilter implements ActionFilter {
         }
 
         final String securityAction = SecurityActionMapper.action(action, request);
+        final Predicate<String> allowedOriginatingActions = contextConstrainedActions.get(securityAction);
+        if (allowedOriginatingActions != null) {
+            final String originatingAction = ORIGINATING_ACTION_VALUE.get(threadContext);
+            // When the originating action is the constrained action itself, this is a transport-inbound
+            // re-entry: ServerTransportFilter authorized the request (setting ORIGINATING_ACTION_VALUE
+            // to this action via setIfEmpty on an empty transient), then HandledTransportAction's
+            // executeDirect re-entered the action filter chain. The constraint was already validated
+            // by SecurityServerTransportInterceptor on the sending node, so we skip.
+            if (securityAction.equals(originatingAction) == false
+                && (originatingAction == null || allowedOriginatingActions.test(originatingAction) == false)) {
+                listener.onFailure(
+                    new IllegalStateException(
+                        "action ["
+                            + securityAction
+                            + "] may only be executed as a child of a permitted originating action but originating action was ["
+                            + originatingAction
+                            + "]"
+                    )
+                );
+                return;
+            }
+        }
         final SubscribableListener<AuthResult> authListener = new SubscribableListener<>();
         authcService.authenticate(
             securityAction,

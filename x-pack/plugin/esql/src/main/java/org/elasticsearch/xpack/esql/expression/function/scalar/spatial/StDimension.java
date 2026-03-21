@@ -12,10 +12,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Position;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -100,11 +103,11 @@ public class StDimension extends SpatialUnaryDocValuesFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (spatialDocValues) {
-            return new StDimensionFromPointDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
-        } else {
-            return new StDimensionFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+        if (spatialField().dataType() == DataType.GEO_POINT || spatialField().dataType() == DataType.CARTESIAN_POINT) {
+            // Points always have dimension 0, so return a constant
+            return new ConstantPointDimensionEvaluator.Factory(toEvaluator.apply(spatialField()));
         }
+        return new StDimensionFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
     }
 
     @Override
@@ -127,12 +130,6 @@ public class StDimension extends SpatialUnaryDocValuesFunction {
         return NodeInfo.create(this, StDimension::new, spatialField());
     }
 
-    @Evaluator(extraName = "FromPointDocValues", warnExceptions = { IllegalArgumentException.class })
-    static void fromPointDocValues(IntBlock.Builder results, @Position int p, LongBlock encoded) {
-        // Doc values are only used for points, which always have dimension 0
-        results.appendInt(0);
-    }
-
     @Evaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
     static void fromWellKnownBinary(IntBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
         BytesRef scratch = new BytesRef();
@@ -146,6 +143,71 @@ public class StDimension extends SpatialUnaryDocValuesFunction {
             maxDimension = Math.max(maxDimension, dimension);
         }
         results.appendInt(maxDimension);
+    }
+
+    /**
+     * Evaluator that returns a constant integer for every non-null position.
+     * Used for point types where the dimension is always 0.
+     */
+    static class ConstantPointDimensionEvaluator implements ExpressionEvaluator {
+        private final DriverContext context;
+        private final ExpressionEvaluator field;
+
+        ConstantPointDimensionEvaluator(DriverContext context, ExpressionEvaluator field) {
+            this.context = context;
+            this.field = field;
+        }
+
+        @Override
+        public Block eval(Page page) {
+            try (Block fieldBlock = field.eval(page)) {
+                int positionCount = page.getPositionCount();
+                if (fieldBlock.areAllValuesNull()) {
+                    return context.blockFactory().newConstantNullBlock(positionCount);
+                }
+                if (fieldBlock.asVector() != null) {
+                    // No nulls, return constant
+                    return context.blockFactory().newConstantIntBlockWith(0, positionCount);
+                }
+                try (IntBlock.Builder result = context.blockFactory().newIntBlockBuilder(positionCount)) {
+                    for (int p = 0; p < positionCount; p++) {
+                        if (fieldBlock.isNull(p)) {
+                            result.appendNull();
+                        } else {
+                            result.appendInt(0);
+                        }
+                    }
+                    return result.build();
+                }
+            }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return field.baseRamBytesUsed();
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(field);
+        }
+
+        @Override
+        public String toString() {
+            return "StDimensionConstantPointEvaluator[field=" + field + "]";
+        }
+
+        record Factory(ExpressionEvaluator.Factory field) implements ExpressionEvaluator.Factory {
+            @Override
+            public ExpressionEvaluator get(DriverContext context) {
+                return new ConstantPointDimensionEvaluator(context, field.get(context));
+            }
+
+            @Override
+            public String toString() {
+                return "StDimensionConstantPointEvaluator[field=" + field + "]";
+            }
+        }
     }
 
     /**

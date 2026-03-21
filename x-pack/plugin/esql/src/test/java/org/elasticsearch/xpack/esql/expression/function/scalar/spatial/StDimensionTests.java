@@ -34,12 +34,13 @@ public class StDimensionTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        String evaluatorName = "StDimensionFromWKBEvaluator[wkbBlock=Attribute[channel=0]]";
+        String pointEvaluatorName = "StDimensionConstantPointEvaluator[field=Attribute[channel=0]]";
+        String shapeEvaluatorName = "StDimensionFromWKBEvaluator[wkbBlock=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
-        TestCaseSupplier.forUnaryGeoPoint(suppliers, evaluatorName, INTEGER, StDimensionTests::valueOf, List.of());
-        TestCaseSupplier.forUnaryCartesianPoint(suppliers, evaluatorName, INTEGER, StDimensionTests::valueOf, List.of());
-        TestCaseSupplier.forUnaryGeoShape(suppliers, evaluatorName, INTEGER, StDimensionTests::valueOf, List.of());
-        TestCaseSupplier.forUnaryCartesianShape(suppliers, evaluatorName, INTEGER, StDimensionTests::valueOf, List.of());
+        TestCaseSupplier.forUnaryGeoPoint(suppliers, pointEvaluatorName, INTEGER, StDimensionTests::valueOf, List.of());
+        TestCaseSupplier.forUnaryCartesianPoint(suppliers, pointEvaluatorName, INTEGER, StDimensionTests::valueOf, List.of());
+        TestCaseSupplier.forUnaryGeoShape(suppliers, shapeEvaluatorName, INTEGER, StDimensionTests::valueOf, List.of());
+        TestCaseSupplier.forUnaryCartesianShape(suppliers, shapeEvaluatorName, INTEGER, StDimensionTests::valueOf, List.of());
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 

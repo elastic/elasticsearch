@@ -378,6 +378,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
   issue: https://github.com/elastic/elasticsearch/issues/144699
+- class: org.elasticsearch.index.mapper.TsidExtractingIdFieldMapperTests
+  method: testParsedDescriptionWithIndexDimensions
+  issue: https://github.com/elastic/elasticsearch/issues/144678
 
 # Examples:
 #

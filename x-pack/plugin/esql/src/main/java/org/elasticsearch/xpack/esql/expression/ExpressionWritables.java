@@ -75,13 +75,13 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialCo
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StEnvelope;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
-import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
-import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeometryType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIsEmpty;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StNPoints;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplify;

@@ -17,24 +17,36 @@ import java.io.IOException;
 import java.util.Locale;
 
 /**
- * Represents the "dataset" configuration, which can be either a GCP bucket name (string)
- * or a structured object describing synthetic data generation.
+ * Represents the "dataset" configuration using NamedXContent style parsing:
  *
- * <p>Usage in config JSON:
  * <pre>
- *   "dataset": "somegcpbucketdataset"          — downloads from GCP
- *   "dataset": { "type": "partition_generated", "num_partitions": 50, ... }  — generates locally
+ *   "dataset": "somegcpbucketdataset"                                  — shorthand for GCP
+ *   "dataset": { "gcp": { "name": "somegcpbucketdataset" } }           — explicit GCP
+ *   "dataset": { "partition_generated": { "num_partitions": 50, ... } } — synthetic data
  * </pre>
+ *
+ * Each variant provides a {@link DataGenerator} via {@link #createDataGenerator} that
+ * encapsulates all data provisioning for indexing and searching.
  */
 sealed interface DatasetConfig permits DatasetConfig.GcpDataset, DatasetConfig.PartitionGenerated {
 
+    /**
+     * Creates a {@link DataGenerator} that supplies vectors for indexing and queries for searching.
+     */
+    DataGenerator createDataGenerator(TestConfiguration config) throws IOException;
+
     /** A dataset that is downloaded from a Google Cloud Storage bucket. */
-    record GcpDataset(String name) implements DatasetConfig {}
+    record GcpDataset(String name) implements DatasetConfig {
+
+        @Override
+        public DataGenerator createDataGenerator(TestConfiguration config) throws IOException {
+            return new FileDataGenerator(config);
+        }
+    }
 
     /** A synthetically generated partitioned dataset. */
     record PartitionGenerated(int numPartitions, String partitionDistribution, long generatorSeed) implements DatasetConfig {
 
-        static final ParseField TYPE_FIELD = new ParseField("type");
         static final ParseField NUM_PARTITIONS_FIELD = new ParseField("num_partitions");
         static final ParseField PARTITION_DISTRIBUTION_FIELD = new ParseField("partition_distribution");
         static final ParseField GENERATOR_SEED_FIELD = new ParseField("generator_seed");
@@ -42,7 +54,6 @@ sealed interface DatasetConfig permits DatasetConfig.GcpDataset, DatasetConfig.P
         private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("partition_generated", false, Builder::new);
 
         static {
-            PARSER.declareString(Builder::setType, TYPE_FIELD);
             PARSER.declareInt(Builder::setNumPartitions, NUM_PARTITIONS_FIELD);
             PARSER.declareString(Builder::setPartitionDistribution, PARTITION_DISTRIBUTION_FIELD);
             PARSER.declareLong(Builder::setGeneratorSeed, GENERATOR_SEED_FIELD);
@@ -50,21 +61,18 @@ sealed interface DatasetConfig permits DatasetConfig.GcpDataset, DatasetConfig.P
 
         static PartitionGenerated fromXContent(XContentParser parser) throws IOException {
             Builder builder = PARSER.apply(parser, null);
-            if ("partition_generated".equals(builder.type) == false) {
-                throw new IllegalArgumentException("Unknown dataset type: [" + builder.type + "]. Supported: partition_generated");
-            }
             return new PartitionGenerated(builder.numPartitions, builder.partitionDistribution, builder.generatorSeed);
         }
 
+        @Override
+        public DataGenerator createDataGenerator(TestConfiguration config) {
+            return new PartitionDataGenerator(config.numDocs(), config.dimensions(), numPartitions, partitionDistribution, generatorSeed);
+        }
+
         private static class Builder {
-            private String type;
             private int numPartitions = 100;
             private String partitionDistribution = "uniform";
             private long generatorSeed = 42L;
-
-            void setType(String type) {
-                this.type = type;
-            }
 
             void setNumPartitions(int numPartitions) {
                 this.numPartitions = numPartitions;
@@ -81,14 +89,45 @@ sealed interface DatasetConfig permits DatasetConfig.GcpDataset, DatasetConfig.P
     }
 
     /**
-     * Parses the "dataset" field which can be either a string (GCP bucket name)
-     * or an object (structured dataset config).
+     * Parses the "dataset" field. Accepts either a string shorthand for GCP datasets
+     * or a NamedXContent-style object where the key identifies the dataset type.
      */
     static DatasetConfig parse(XContentParser parser) throws IOException {
         if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
             return new GcpDataset(parser.text());
-        } else {
-            return PartitionGenerated.fromXContent(parser);
         }
+        // NamedXContent style: { "gcp": {...} } or { "partition_generated": {...} }
+        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+            throw new IllegalArgumentException("Expected a string or object for dataset, got: " + parser.currentToken());
+        }
+        parser.nextToken();
+        String typeName = parser.currentName();
+        parser.nextToken();
+        DatasetConfig result = switch (typeName) {
+            case "gcp" -> parseGcp(parser);
+            case "partition_generated" -> PartitionGenerated.fromXContent(parser);
+            default -> throw new IllegalArgumentException("Unknown dataset type: [" + typeName + "]. Supported: gcp, partition_generated");
+        };
+        // consume the outer END_OBJECT
+        parser.nextToken();
+        return result;
+    }
+
+    private static GcpDataset parseGcp(XContentParser parser) throws IOException {
+        String name = null;
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                if ("name".equals(parser.currentName())) {
+                    parser.nextToken();
+                    name = parser.text();
+                } else {
+                    throw new IllegalArgumentException("Unknown field in gcp dataset config: " + parser.currentName());
+                }
+            }
+        }
+        if (name == null) {
+            throw new IllegalArgumentException("gcp dataset config requires a 'name' field");
+        }
+        return new GcpDataset(name);
     }
 }

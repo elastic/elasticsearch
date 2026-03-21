@@ -9,7 +9,14 @@
 
 package org.elasticsearch.test.knn;
 
+import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,8 +28,9 @@ import static org.elasticsearch.test.knn.KnnIndexTester.logger;
  * Generates synthetic partitioned vector data for KNN benchmarking.
  * Documents are distributed across partitions according to a configurable distribution,
  * and each document is assigned a partition_id and a random vector.
+ * Implements {@link DataGenerator} to provide unified indexing and search setup.
  */
-class PartitionDataGenerator {
+class PartitionDataGenerator implements DataGenerator {
 
     private final int numDocs;
     private final int dimensions;
@@ -108,6 +116,78 @@ class PartitionDataGenerator {
             queries[i] = nextByteVector();
         }
         return queries;
+    }
+
+    @Override
+    public KnnIndexTester.IndexingSetup createIndexingSetup() {
+        var assignments = getPartitionAssignments();
+        int totalDocs = 0;
+        for (var docIds : assignments.values()) {
+            totalDocs += docIds.size();
+        }
+        String[] docPartitionIds = new String[totalDocs];
+        int[] docOrdinals = new int[totalDocs];
+        int idx = 0;
+        for (var entry : assignments.entrySet()) {
+            for (int docId : entry.getValue()) {
+                docPartitionIds[idx] = entry.getKey();
+                docOrdinals[idx] = docId;
+                idx++;
+            }
+        }
+        logger.info("IndexingSetup: generated data with {} partitions, dim={}", this.numPartitions, this.dimensions);
+        KnnIndexer.IndexVectorReader vectorReader = new KnnIndexer.PartitionGeneratingVectorReader(this);
+        KnnIndexer.DocumentFactory documentFactory = new KnnIndexer.PartitionDocumentFactory(docPartitionIds, docOrdinals);
+        Sort indexSort = new Sort(new SortField(KnnIndexer.PARTITION_ID_FIELD, SortField.Type.STRING, false));
+        return new KnnIndexTester.IndexingSetup(vectorReader, documentFactory, totalDocs, indexSort);
+    }
+
+    @Override
+    public KnnSearcher.SearchSetup createSearchSetup(KnnSearcher searcher, SearchParameters searchParameters) throws IOException {
+        float[][] floatQueries = null;
+        byte[][] byteQueries = null;
+
+        if (searcher.vectorEncoding.equals(VectorEncoding.BYTE)) {
+            byteQueries = generateQueryByteVectors(searcher.numQueryVectors);
+        } else {
+            floatQueries = generateQueryVectors(searcher.numQueryVectors);
+        }
+
+        Query selectivityFilter = searchParameters.filterSelectivity() < 1f
+            ? KnnSearcher.generateRandomQuery(
+                new Random(searchParameters.seed()),
+                searcher.indexPath,
+                searcher.numDocs,
+                searchParameters.filterSelectivity(),
+                searchParameters.filterCached()
+            )
+            : null;
+
+        List<String> partitionIds = new ArrayList<>(getPartitionAssignments().keySet());
+        Random queryRandom = new Random(searchParameters.seed());
+        int numSampledPartitions = Math.min(partitionIds.size(), 10);
+        List<String> sampledPartitions = new ArrayList<>(partitionIds);
+        Collections.shuffle(sampledPartitions, queryRandom);
+        sampledPartitions = sampledPartitions.subList(0, numSampledPartitions);
+        logger.info("Sampled {} of {} partitions for search", numSampledPartitions, partitionIds.size());
+
+        var provider = new KnnSearcher.PartitionFilterQueryProvider(sampledPartitions, searcher.numQueryVectors, selectivityFilter);
+        var consumer = new KnnSearcher.PartitionResultsConsumer(
+            searcher.indexPath,
+            searcher.vectorEncoding,
+            searcher.similarityFunction,
+            searcher.numQueryVectors,
+            provider,
+            selectivityFilter,
+            floatQueries,
+            byteQueries
+        );
+        return new KnnSearcher.SearchSetup(floatQueries, byteQueries, provider, consumer);
+    }
+
+    @Override
+    public boolean hasQueries() {
+        return true;
     }
 
     private Map<String, List<Integer>> computePartitionAssignments() {

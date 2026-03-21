@@ -407,6 +407,10 @@ record TestConfiguration(
             return this;
         }
 
+        DatasetConfig datasetConfig() {
+            return datasetConfig;
+        }
+
         public Builder setDataDir(String dataDir) {
             this.dataDir = dataDir;
             return this;
@@ -861,10 +865,11 @@ record TestConfiguration(
                 builder.field(DATASET_FIELD.getPreferredName(), gcpDataset.name());
             } else if (datasetConfig instanceof PartitionGenerated pg) {
                 builder.startObject(DATASET_FIELD.getPreferredName());
-                builder.field("type", "partition_generated");
+                builder.startObject("partition_generated");
                 builder.field("num_partitions", pg.numPartitions());
                 builder.field("partition_distribution", pg.partitionDistribution());
                 builder.field("generator_seed", pg.generatorSeed());
+                builder.endObject();
                 builder.endObject();
             }
             if (!dataDir.equals(".data")) {

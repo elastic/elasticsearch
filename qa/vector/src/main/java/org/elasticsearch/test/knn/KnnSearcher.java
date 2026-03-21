@@ -58,7 +58,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
@@ -82,7 +81,6 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -107,14 +105,14 @@ import static org.elasticsearch.test.knn.KnnIndexer.VECTOR_FIELD;
 class KnnSearcher {
 
     private final List<Path> docPath;
-    private final Path indexPath;
-    private final Path queryPath;
-    private final int numDocs;
-    private final int numQueryVectors;
+    final Path indexPath;
+    final Path queryPath;
+    final int numDocs;
+    final int numQueryVectors;
     private final KnnIndexTester.IndexType indexType;
-    private int dim;
-    private final VectorSimilarityFunction similarityFunction;
-    private final VectorEncoding vectorEncoding;
+    int dim;
+    final VectorSimilarityFunction similarityFunction;
+    final VectorEncoding vectorEncoding;
     private final boolean doPrecondition;
 
     KnnSearcher(Path indexPath, TestConfiguration testConfiguration) {
@@ -323,112 +321,9 @@ class KnnSearcher {
 
     /**
      * Bundles query vectors, filter provider, and results consumer for a search run.
-     * Created via the factory method which handles all branching between
-     * partition-generated and file-based search strategies.
+     * Created via {@link DataGenerator#createSearchSetup}.
      */
-    record SearchSetup(float[][] floatQueries, byte[][] byteQueries, FilterQueryProvider provider, ResultsConsumer consumer) {
-
-        static SearchSetup create(KnnSearcher searcher, SearchParameters searchParameters, @Nullable PartitionDataGenerator generator)
-            throws IOException {
-            float[][] floatQueries = null;
-            byte[][] byteQueries = null;
-            int offsetByteSize = 0;
-
-            if (generator != null) {
-                if (searcher.vectorEncoding.equals(VectorEncoding.BYTE)) {
-                    byteQueries = generator.generateQueryByteVectors(searcher.numQueryVectors);
-                } else {
-                    floatQueries = generator.generateQueryVectors(searcher.numQueryVectors);
-                }
-            } else {
-                try (FileChannel input = FileChannel.open(searcher.queryPath)) {
-                    long queryPathSizeInBytes = input.size();
-                    if (searcher.dim == -1) {
-                        offsetByteSize = 4;
-                        ByteBuffer preamble = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
-                        int bytesRead = Channels.readFromFileChannel(input, 0, preamble);
-                        if (bytesRead < 4) {
-                            throw new IllegalArgumentException("queryPath \"" + searcher.queryPath + "\" does not contain a valid dims?");
-                        }
-                        searcher.dim = preamble.getInt(0);
-                        if (searcher.dim <= 0) {
-                            throw new IllegalArgumentException(
-                                "queryPath \"" + searcher.queryPath + "\" has invalid dimension: " + searcher.dim
-                            );
-                        }
-                    }
-                    if (queryPathSizeInBytes % (((long) searcher.dim * searcher.vectorEncoding.byteSize + offsetByteSize)) != 0) {
-                        throw new IllegalArgumentException(
-                            "docsPath \""
-                                + searcher.queryPath
-                                + "\" does not contain a whole number of vectors?  size="
-                                + queryPathSizeInBytes
-                        );
-                    }
-                    logger.info(
-                        "queryPath size: "
-                            + queryPathSizeInBytes
-                            + " bytes, assuming vector count is "
-                            + (queryPathSizeInBytes / ((long) searcher.dim * searcher.vectorEncoding.byteSize + offsetByteSize))
-                    );
-                    KnnIndexer.VectorReader targetReader = KnnIndexer.VectorReader.create(
-                        input,
-                        searcher.dim,
-                        searcher.vectorEncoding,
-                        offsetByteSize
-                    );
-                    if (searcher.vectorEncoding.equals(VectorEncoding.BYTE)) {
-                        byteQueries = new byte[searcher.numQueryVectors][searcher.dim];
-                        for (int i = 0; i < searcher.numQueryVectors; i++) {
-                            targetReader.next(byteQueries[i]);
-                        }
-                    } else {
-                        floatQueries = new float[searcher.numQueryVectors][searcher.dim];
-                        for (int i = 0; i < searcher.numQueryVectors; i++) {
-                            targetReader.next(floatQueries[i]);
-                        }
-                    }
-                }
-            }
-
-            Query selectivityFilter = searchParameters.filterSelectivity() < 1f
-                ? generateRandomQuery(
-                    new Random(searchParameters.seed()),
-                    searcher.indexPath,
-                    searcher.numDocs,
-                    searchParameters.filterSelectivity(),
-                    searchParameters.filterCached()
-                )
-                : null;
-
-            if (generator != null) {
-                List<String> partitionIds = new ArrayList<>(generator.getPartitionAssignments().keySet());
-                Random queryRandom = new Random(searchParameters.seed());
-                int numSampledPartitions = Math.min(partitionIds.size(), 10);
-                List<String> sampledPartitions = new ArrayList<>(partitionIds);
-                Collections.shuffle(sampledPartitions, queryRandom);
-                sampledPartitions = sampledPartitions.subList(0, numSampledPartitions);
-                logger.info("Sampled {} of {} partitions for search", numSampledPartitions, partitionIds.size());
-
-                var provider = new PartitionFilterQueryProvider(sampledPartitions, searcher.numQueryVectors, selectivityFilter);
-                var consumer = new PartitionResultsConsumer(
-                    searcher.indexPath,
-                    searcher.vectorEncoding,
-                    searcher.similarityFunction,
-                    searcher.numQueryVectors,
-                    provider,
-                    selectivityFilter,
-                    floatQueries,
-                    byteQueries
-                );
-                return new SearchSetup(floatQueries, byteQueries, provider, consumer);
-            } else {
-                var provider = new SimpleFilterQueryProvider(searcher.numQueryVectors, selectivityFilter);
-                var consumer = new FileBasedResultsConsumer(searcher, offsetByteSize, selectivityFilter);
-                return new SearchSetup(floatQueries, byteQueries, provider, consumer);
-            }
-        }
-    }
+    record SearchSetup(float[][] floatQueries, byte[][] byteQueries, FilterQueryProvider provider, ResultsConsumer consumer) {}
 
     /** Executes searches using the pre-built setup and populates result metrics. */
     void search(KnnIndexTester.Results finalResults, SearchParameters searchParameters, Directory dir, SearchSetup setup)
@@ -612,8 +507,7 @@ class KnnSearcher {
         return new BooleanQuery.Builder().add(primary, BooleanClause.Occur.FILTER).add(secondary, BooleanClause.Occur.FILTER).build();
     }
 
-    private static Query generateRandomQuery(Random random, Path indexPath, int size, float selectivity, boolean filterCached)
-        throws IOException {
+    static Query generateRandomQuery(Random random, Path indexPath, int size, float selectivity, boolean filterCached) throws IOException {
         FixedBitSet bitSet = new FixedBitSet(size);
         for (int i = 0; i < size; i++) {
             if (random.nextFloat() < selectivity) {

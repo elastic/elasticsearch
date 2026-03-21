@@ -34,13 +34,13 @@ public final class PercentileFloatAggregatorFunctionSupplier implements Aggregat
   @Override
   public PercentileFloatAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return PercentileFloatAggregatorFunction.create(driverContext, channels, percentile);
+    return new PercentileFloatAggregatorFunction(driverContext, channels, percentile);
   }
 
   @Override
   public PercentileFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return PercentileFloatGroupingAggregatorFunction.create(channels, driverContext, percentile);
+    return new PercentileFloatGroupingAggregatorFunction(channels, driverContext, percentile);
   }
 
   @Override

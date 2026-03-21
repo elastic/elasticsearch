@@ -47,6 +47,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             false,
             new Mapper.IgnoreAbove(ignoreAbove),
             true,
+            false,
             null,
             false
         );
@@ -77,6 +78,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             false,
             IGNORE_ABOVE,
             true,
+            randomBoolean(),
             null,
             false
         );
@@ -85,7 +87,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testExistsQuery() {
-        RootFlattenedFieldType ft = new RootFlattenedFieldType(
+        RootFlattenedFieldType noDv = new RootFlattenedFieldType(
             "field",
             IndexType.terms(true, false),
             Collections.emptyMap(),
@@ -93,10 +95,11 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             false,
             IGNORE_ABOVE,
             true,
+            randomBoolean(),
             null,
             false
         );
-        assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))), ft.existsQuery(null));
+        assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))), noDv.existsQuery(null));
 
         RootFlattenedFieldType withDv = new RootFlattenedFieldType(
             "field",
@@ -106,10 +109,11 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             false,
             IGNORE_ABOVE,
             true,
+            randomBoolean(),
             null,
             false
         );
-        assertEquals(new FieldExistsQuery("field"), withDv.existsQuery(null));
+        assertEquals(new FieldExistsQuery("field._keyed"), withDv.existsQuery(null));
     }
 
     public void testFuzzyQuery() {

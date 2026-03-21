@@ -51,4 +51,16 @@ FROM sample_data
 | 0.0 | 2023-10-23T12:00:00.000Z |
 | 0.6 | 2023-10-23T13:00:00.000Z |
 
+Extract error messages and count distinct ones using a column expression:
+
+```esql
+FROM sample_data
+| EVAL error_message = CASE(message LIKE "*error*", message, null)
+| STATS distinct_error_messages = COUNT_DISTINCT(error_message)
+```
+
+| distinct_error_messages:long |
+| --- |
+| 1 |
+
 

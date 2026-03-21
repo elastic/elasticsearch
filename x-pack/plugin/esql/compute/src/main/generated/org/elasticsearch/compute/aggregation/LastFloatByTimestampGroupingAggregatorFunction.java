@@ -36,16 +36,11 @@ public final class LastFloatByTimestampGroupingAggregatorFunction implements Gro
 
   private final DriverContext driverContext;
 
-  public LastFloatByTimestampGroupingAggregatorFunction(List<Integer> channels,
-      LastFloatByTimestampAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static LastFloatByTimestampGroupingAggregatorFunction create(List<Integer> channels,
+  LastFloatByTimestampGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new LastFloatByTimestampGroupingAggregatorFunction(channels, LastFloatByTimestampAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = LastFloatByTimestampAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

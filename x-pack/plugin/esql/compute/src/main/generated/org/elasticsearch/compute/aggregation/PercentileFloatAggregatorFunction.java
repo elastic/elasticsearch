@@ -36,17 +36,12 @@ public final class PercentileFloatAggregatorFunction implements AggregatorFuncti
 
   private final double percentile;
 
-  public PercentileFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      QuantileStates.SingleState state, double percentile) {
+  PercentileFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      double percentile) {
+    this.percentile = percentile;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-    this.percentile = percentile;
-  }
-
-  public static PercentileFloatAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels, double percentile) {
-    return new PercentileFloatAggregatorFunction(driverContext, channels, PercentileFloatAggregator.initSingle(driverContext, percentile), percentile);
+    this.state = PercentileFloatAggregator.initSingle(driverContext, percentile);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

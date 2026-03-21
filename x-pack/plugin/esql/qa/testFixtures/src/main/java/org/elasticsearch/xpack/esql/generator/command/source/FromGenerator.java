@@ -29,13 +29,6 @@ public class FromGenerator implements CommandGenerator {
      */
     public static final String UNMAPPED_FIELDS_ENABLED = "unmappedFieldsEnabled";
 
-    /**
-     * Context key for the set of field names that come from the actual index mapping.
-     * Populated by the executor after the FROM command runs.
-     * Full-text functions that require FieldAttribute arguments use this to avoid computed columns.
-     */
-    public static final String INDEX_FIELD_NAMES = "indexFieldNames";
-
     public static final String SET_UNMAPPED_FIELDS_PREFIX = "SET unmapped_fields=\"nullify\";";
 
     /**

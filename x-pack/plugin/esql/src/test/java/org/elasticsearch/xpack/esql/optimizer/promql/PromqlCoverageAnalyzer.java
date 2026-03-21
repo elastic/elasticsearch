@@ -22,10 +22,8 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -52,6 +50,8 @@ import static java.util.function.Predicate.not;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.summingInt;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 
 /**
@@ -71,12 +71,11 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
  */
 public class PromqlCoverageAnalyzer implements Closeable {
 
-    private final EsqlParser parser = EsqlParser.INSTANCE;
     private final PromqlFakeResolver resolver = new PromqlFakeResolver();
     private final Analyzer analyzer = new Analyzer(
         new MutableAnalyzerContext(
             EsqlTestUtils.TEST_CFG,
-            new EsqlFunctionRegistry(),
+            TEST_FUNCTION_REGISTRY,
             Map.of(),
             AnalyzerTestUtils.defaultLookupResolution(),
             new EnrichResolution(),
@@ -160,7 +159,7 @@ public class PromqlCoverageAnalyzer implements Closeable {
         String query = split[1];
         String adjustedQuery = query.replaceAll("\\[\\$\\w+\\]", "[1m]").replaceAll("\\$(\\w+)", "$1").replaceAll("\\$\\{(\\w+)\\}", "$1");
         try {
-            LogicalPlan plan = parser.parseQuery("PROMQL step=10s (" + adjustedQuery + ")");
+            LogicalPlan plan = TEST_PARSER.parseQuery("PROMQL step=10s (" + adjustedQuery + ")");
             try {
                 plan = analyzer.analyze(resolver.apply(plan));
                 try {

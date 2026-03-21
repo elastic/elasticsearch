@@ -36,16 +36,10 @@ public final class AllFirstBytesRefByLongAggregatorFunction implements Aggregato
 
   private final List<Integer> channels;
 
-  public AllFirstBytesRefByLongAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, AllLongBytesRefState state) {
+  AllFirstBytesRefByLongAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static AllFirstBytesRefByLongAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new AllFirstBytesRefByLongAggregatorFunction(driverContext, channels, AllFirstBytesRefByLongAggregator.initSingle(driverContext));
+    this.state = AllFirstBytesRefByLongAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

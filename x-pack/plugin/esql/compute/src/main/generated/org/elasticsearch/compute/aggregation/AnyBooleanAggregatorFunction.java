@@ -31,16 +31,10 @@ public final class AnyBooleanAggregatorFunction implements AggregatorFunction {
 
   private final List<Integer> channels;
 
-  public AnyBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      AnyBooleanAggregator.SingleState state) {
+  AnyBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static AnyBooleanAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new AnyBooleanAggregatorFunction(driverContext, channels, AnyBooleanAggregator.initSingle(driverContext));
+    this.state = AnyBooleanAggregator.initSingle(driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

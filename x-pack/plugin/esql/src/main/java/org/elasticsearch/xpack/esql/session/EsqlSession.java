@@ -53,10 +53,10 @@ import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.approximation.Approximation;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
@@ -85,7 +85,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -159,6 +158,7 @@ public class EsqlSession {
     private final ViewResolver viewResolver;
     private final ExternalSourceResolver externalSourceResolver;
 
+    private final EsqlParser parser;
     private final PreAnalyzer preAnalyzer;
     private final Verifier verifier;
     private final Metrics metrics;
@@ -189,6 +189,7 @@ public class EsqlSession {
         EnrichPolicyResolver enrichPolicyResolver,
         ViewResolver viewResolver,
         ExternalSourceResolver externalSourceResolver,
+        EsqlParser parser,
         PreAnalyzer preAnalyzer,
         EsqlFunctionRegistry functionRegistry,
         Mapper mapper,
@@ -207,6 +208,7 @@ public class EsqlSession {
         this.enrichPolicyResolver = enrichPolicyResolver;
         this.viewResolver = viewResolver;
         this.externalSourceResolver = externalSourceResolver;
+        this.parser = parser;
         this.preAnalyzer = preAnalyzer;
         this.verifier = verifier;
         this.metrics = metrics;
@@ -249,7 +251,7 @@ public class EsqlSession {
         parsingProfile.stop();
         viewResolver.replaceViews(
             statement.plan(),
-            (query, viewName) -> EsqlParser.INSTANCE.parseView(
+            (query, viewName) -> parser.parseView(
                 query,
                 request.params(),
                 SettingsValidationContext.from(remoteClusterService),
@@ -296,7 +298,7 @@ public class EsqlSession {
             analyzerSettings.timeseriesResultTruncationMaxSize(),
             analyzerSettings.timeseriesResultTruncationDefaultSize(),
             projectRouting(request, statement),
-            statement.setting(QuerySettings.APPROXIMATION),
+            approximationSettings(request, statement),
             viewResolution.viewQueries()
         );
 
@@ -308,16 +310,6 @@ public class EsqlSession {
             parsedPlanString = plan.toString();
             // For EXPLAIN mode, enable profile to capture plans from all nodes
             configurationToUse = configuration.withExplainOnly();
-        } else if (plan instanceof PromqlCommand promqlCommand && promqlCommand.isRangeQuery() && promqlCommand.hasTimeRange() == false) {
-            // infer start/end from filter if not explicitly set
-            QueryDslTimestampBoundsExtractor.TimestampBounds bounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
-                request.filter()
-            );
-            if (bounds != null) {
-                Literal startLiteral = Literal.dateTime(promqlCommand.source(), bounds.start());
-                Literal endLiteral = Literal.dateTime(promqlCommand.source(), bounds.end());
-                plan = promqlCommand.withStartEnd(startLiteral, endLiteral);
-            }
         }
         final Configuration finalConfiguration = configurationToUse;
         final FoldContext foldContext = finalConfiguration.newFoldContext();
@@ -362,9 +354,7 @@ public class EsqlSession {
                                 p,
                                 finalConfiguration,
                                 foldContext,
-                                configuration.approximationSettings() != null
-                                    ? new Approximation(p, configuration.approximationSettings())
-                                    : null,
+                                Approximation.create(p, configuration.approximationSettings()),
                                 minimumVersion,
                                 planTimeProfile,
                                 l
@@ -387,6 +377,13 @@ public class EsqlSession {
             throw new VerificationException("[project_routing] is only allowed when cross-project search is enabled");
         }
         return projectRouting;
+    }
+
+    public static ApproximationSettings approximationSettings(EsqlQueryRequest request, EsqlStatement statement) {
+        // The precedence for settings is: SET in the statement > request parameter > default (=disabled).
+        return new ApproximationSettings.Builder(false).merge(request.approximation())
+            .merge(statement.setting(QuerySettings.APPROXIMATION))
+            .build();
     }
 
     /**
@@ -707,7 +704,7 @@ public class EsqlSession {
     }
 
     private EsqlStatement parse(EsqlQueryRequest request) {
-        return EsqlParser.INSTANCE.parse(
+        return parser.parse(
             request.query(),
             request.params(),
             SettingsValidationContext.from(remoteClusterService),
@@ -800,8 +797,11 @@ public class EsqlSession {
         // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also in
         // case of ROW queries. ROW queries can still require inter-node communication (for ENRICH and LOOKUP JOIN execution) with an older
         // node in the same cluster; so assuming that all nodes are on the same version as this node will be wrong and may cause bugs.
-        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(parsed, preAnalysis.enriches().isEmpty() == false)
-            .withMinimumTransportVersion(localClusterMinimumVersion);
+        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(
+            parsed,
+            preAnalysis.enriches().isEmpty() == false,
+            unmappedResolution == UnmappedResolution.LOAD
+        ).withMinimumTransportVersion(localClusterMinimumVersion);
         String description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
 
         resolveIndicesAndAnalyze(
@@ -1256,6 +1256,7 @@ public class EsqlSession {
                 indicesExpressionGrouper,
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+                    EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
                     l.onResponse(
                         result.withIndices(indexPattern, indexResolution.inner())
                             .withMinimumTransportVersion(indexResolution.minimumVersion())
@@ -1290,6 +1291,7 @@ public class EsqlSession {
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+                EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
                 EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
                 planTelemetry.linkedProjectsCount(executionInfo.clusterInfo.size());
                 l.onResponse(
@@ -1334,7 +1336,7 @@ public class EsqlSession {
             }
             TimeSpanMarker analysisProfile = executionInfo.queryProfile().analysis();
             analysisProfile.start();
-            LogicalPlan plan = analyzedPlan(parsed, unmappedResolution, configuration, result, executionInfo);
+            LogicalPlan plan = analyzedPlan(parsed, unmappedResolution, configuration, result, executionInfo, requestFilter);
             analysisProfile.stop();
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
             // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
@@ -1380,10 +1382,19 @@ public class EsqlSession {
         UnmappedResolution unmappedResolution,
         Configuration configuration,
         PreAnalysisResult r,
-        EsqlExecutionInfo executionInfo
+        EsqlExecutionInfo executionInfo,
+        QueryBuilder requestFilter
     ) throws Exception {
         handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, r.indexResolution());
-        AnalyzerContext analyzerContext = new AnalyzerContext(configuration, functionRegistry, unmappedResolution, projectMetadata, r);
+        var timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(requestFilter);
+        AnalyzerContext analyzerContext = new AnalyzerContext(
+            configuration,
+            functionRegistry,
+            unmappedResolution,
+            projectMetadata,
+            r,
+            timestampBounds
+        );
         Analyzer analyzer = new Analyzer(analyzerContext, verifier);
         LogicalPlan plan = analyzer.analyze(parsed);
         plan.setAnalyzed();

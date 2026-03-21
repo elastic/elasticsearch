@@ -32,12 +32,13 @@ public class StGeometryTypeTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        String evaluatorName = "StGeometryTypeFromWKBEvaluator[wkbBlock=Attribute[channel=0]]";
+        String pointEvaluatorName = "StGeometryTypeConstantPointEvaluator[field=Attribute[channel=0]]";
+        String shapeEvaluatorName = "StGeometryTypeFromWKBEvaluator[wkbBlock=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
-        TestCaseSupplier.forUnaryGeoPoint(suppliers, evaluatorName, KEYWORD, StGeometryTypeTests::valueOf, List.of());
-        TestCaseSupplier.forUnaryCartesianPoint(suppliers, evaluatorName, KEYWORD, StGeometryTypeTests::valueOf, List.of());
-        TestCaseSupplier.forUnaryGeoShape(suppliers, evaluatorName, KEYWORD, StGeometryTypeTests::valueOf, List.of());
-        TestCaseSupplier.forUnaryCartesianShape(suppliers, evaluatorName, KEYWORD, StGeometryTypeTests::valueOf, List.of());
+        TestCaseSupplier.forUnaryGeoPoint(suppliers, pointEvaluatorName, KEYWORD, StGeometryTypeTests::valueOf, List.of());
+        TestCaseSupplier.forUnaryCartesianPoint(suppliers, pointEvaluatorName, KEYWORD, StGeometryTypeTests::valueOf, List.of());
+        TestCaseSupplier.forUnaryGeoShape(suppliers, shapeEvaluatorName, KEYWORD, StGeometryTypeTests::valueOf, List.of());
+        TestCaseSupplier.forUnaryCartesianShape(suppliers, shapeEvaluatorName, KEYWORD, StGeometryTypeTests::valueOf, List.of());
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 

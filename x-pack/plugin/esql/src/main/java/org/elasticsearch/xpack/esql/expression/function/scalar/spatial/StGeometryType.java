@@ -12,9 +12,12 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Position;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -52,7 +55,7 @@ public class StGeometryType extends SpatialUnaryDocValuesFunction {
     @FunctionInfo(
         returnType = "keyword",
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.1.0") },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
         description = "Returns the geometry type of the supplied geometry, as a string.\n"
             + "For example: `ST_Point`, `ST_LineString`, `ST_Polygon`, `ST_MultiPoint`, `ST_MultiLineString`, "
             + "`ST_MultiPolygon`, or `ST_GeometryCollection`.",
@@ -86,11 +89,11 @@ public class StGeometryType extends SpatialUnaryDocValuesFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (spatialDocValues) {
-            return new StGeometryTypeFromPointDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
-        } else {
-            return new StGeometryTypeFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
+        if (spatialField().dataType() == DataType.GEO_POINT || spatialField().dataType() == DataType.CARTESIAN_POINT) {
+            // Points always have type "ST_Point", so return a constant
+            return new ConstantPointTypeEvaluator.Factory(toEvaluator.apply(spatialField()));
         }
+        return new StGeometryTypeFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
     }
 
     @Override
@@ -128,18 +131,6 @@ public class StGeometryType extends SpatialUnaryDocValuesFunction {
         };
     }
 
-    @Evaluator(extraName = "FromPointDocValues", warnExceptions = { IllegalArgumentException.class })
-    static void fromPointDocValues(BytesRefBlock.Builder results, @Position int p, LongBlock encoded) {
-        // Doc values are only used for points, so we always return "ST_Point"
-        int valueCount = encoded.getValueCount(p);
-        if (valueCount == 1) {
-            results.appendBytesRef(ST_POINT);
-        } else {
-            // Multi-valued points are still points
-            results.appendBytesRef(ST_POINT);
-        }
-    }
-
     @Evaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
     static void fromWellKnownBinary(BytesRefBlock.Builder results, @Position int p, BytesRefBlock wkbBlock) {
         BytesRef scratch = new BytesRef();
@@ -152,6 +143,70 @@ public class StGeometryType extends SpatialUnaryDocValuesFunction {
         } else {
             // For multi-valued fields, return "ST_GeometryCollection"
             results.appendBytesRef(new BytesRef("ST_GeometryCollection"));
+        }
+    }
+
+    /**
+     * Evaluator that returns a constant "ST_Point" for every non-null position.
+     * Used for point types where the geometry type is always "ST_Point".
+     */
+    static class ConstantPointTypeEvaluator implements ExpressionEvaluator {
+        private final DriverContext context;
+        private final ExpressionEvaluator field;
+
+        ConstantPointTypeEvaluator(DriverContext context, ExpressionEvaluator field) {
+            this.context = context;
+            this.field = field;
+        }
+
+        @Override
+        public Block eval(Page page) {
+            try (Block fieldBlock = field.eval(page)) {
+                int positionCount = page.getPositionCount();
+                if (fieldBlock.areAllValuesNull()) {
+                    return context.blockFactory().newConstantNullBlock(positionCount);
+                }
+                if (fieldBlock.asVector() != null) {
+                    return context.blockFactory().newConstantBytesRefBlockWith(ST_POINT, positionCount);
+                }
+                try (BytesRefBlock.Builder result = context.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+                    for (int p = 0; p < positionCount; p++) {
+                        if (fieldBlock.isNull(p)) {
+                            result.appendNull();
+                        } else {
+                            result.appendBytesRef(ST_POINT);
+                        }
+                    }
+                    return result.build();
+                }
+            }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return field.baseRamBytesUsed();
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(field);
+        }
+
+        @Override
+        public String toString() {
+            return "StGeometryTypeConstantPointEvaluator[field=" + field + "]";
+        }
+
+        record Factory(ExpressionEvaluator.Factory field) implements ExpressionEvaluator.Factory {
+            @Override
+            public ExpressionEvaluator get(DriverContext context) {
+                return new ConstantPointTypeEvaluator(context, field.get(context));
+            }
+
+            @Override
+            public String toString() {
+                return "StGeometryTypeConstantPointEvaluator[field=" + field + "]";
+            }
         }
     }
 }

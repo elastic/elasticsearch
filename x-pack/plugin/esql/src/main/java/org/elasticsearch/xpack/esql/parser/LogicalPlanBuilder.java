@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -71,6 +70,7 @@ import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
@@ -84,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -114,7 +115,6 @@ import java.util.Set;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
-import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
@@ -359,9 +359,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public LogicalPlan visitRowCommand(EsqlBaseParser.RowCommandContext ctx) {
-        return new Row(source(ctx), (List<Alias>) (List) mergeOutputExpressions(visitFields(ctx.fields()), List.of()));
+        return new Row(source(ctx), visitFields(ctx.fields()));
     }
 
     private LogicalPlan visitRelation(Source source, SourceCommand command, EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx) {
@@ -510,7 +509,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             boolean hasAggregate = input.anyMatch(p -> p instanceof Aggregate);
             boolean hasPromqlCommand = input.anyMatch(p -> p instanceof PromqlCommand);
             boolean hasTimeSeries = input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES);
-            boolean hasInfoCommand = input.anyMatch(p -> p instanceof MetricsInfo);
+            boolean hasInfoCommand = input.anyMatch(p -> p instanceof MetricsInfo || p instanceof TsInfo);
 
             if (hasAggregate == false && hasPromqlCommand == false && hasTimeSeries && hasInfoCommand == false) {
                 return new TimeSeriesAggregate(
@@ -595,7 +594,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx) {
         Source source = source(ctx);
         Object val = expression(ctx.constant()).fold(FoldContext.small() /* TODO remove me */);
+
         if (val instanceof Integer i && i >= 0) {
+            List<Expression> groupings;
+
+            var limitByGroupKey = ctx.limitByGroupKey();
+            if (limitByGroupKey != null) {
+                var booleanExpressions = limitByGroupKey.booleanExpression();
+                groupings = new ArrayList<>(booleanExpressions.size());
+                for (var boolExpr : booleanExpressions) {
+                    groupings.add(expression(boolExpr));
+                }
+                return input -> new LimitBy(source, new Literal(source, i, DataType.INTEGER), input, groupings);
+            }
+
             return input -> new Limit(source, new Literal(source, i, DataType.INTEGER), input);
         }
 
@@ -1014,28 +1026,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public List<PlanFactory> visitForkSubQueries(EsqlBaseParser.ForkSubQueriesContext ctx) {
-        ArrayList<PlanFactory> list = new ArrayList<>();
+        ArrayList<PlanFactory> list = new ArrayList<>(ctx.forkSubQuery().size());
         int count = 1; // automatic fork branch ids start at 1
-        NameId firstForkNameId = null;  // stores the id of the first _fork
 
         for (var subQueryCtx : ctx.forkSubQuery()) {
             var subQuery = visitForkSubQuery(subQueryCtx);
             var literal = Literal.keyword(source(ctx), "fork" + count++);
-
-            // align _fork id across all fork branches
-            Alias alias = null;
-            if (firstForkNameId == null) {
-                alias = new Alias(source(ctx), Fork.FORK_FIELD, literal);
-                firstForkNameId = alias.id();
-            } else {
-                alias = new Alias(source(ctx), Fork.FORK_FIELD, literal, firstForkNameId);
-            }
-
-            var finalAlias = alias;
-            PlanFactory eval = p -> new Eval(source(ctx), subQuery.apply(p), List.of(finalAlias));
+            PlanFactory eval = p -> new Eval(source(ctx), subQuery.apply(p), List.of(new Alias(source(ctx), Fork.FORK_FIELD, literal)));
             list.add(eval);
         }
-        return List.copyOf(list);
+        return list;
     }
 
     @Override
@@ -1298,21 +1298,47 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         );
 
         // TODO: Perform type and value validation
-        var queryCtx = ctx.promqlQueryPart();
-        if (queryCtx == null || queryCtx.isEmpty()) {
-            throw new ParsingException(source, "PromQL expression cannot be empty");
-        }
+        final String promqlQuery;
+        final int promqlStartLine;
+        final int promqlStartColumn;
+        if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
+            // PromQL expression supplied as a query parameter, e.g. value=(?query)
+            QueryParam param = paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_PARAM());
+            if (param == null) {
+                throw new ParsingException(source, "No value found for parameter [{}]", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
+            }
+            if (param.value() instanceof String s) {
+                promqlQuery = s;
+            } else {
+                throw new ParsingException(
+                    source,
+                    "Parameter [{}] in PromQL expression must be a string",
+                    ctx.NAMED_OR_POSITIONAL_PARAM().getText()
+                );
+            }
+            if (promqlQuery.isBlank()) {
+                throw new ParsingException(source, "PromQL expression cannot be empty");
+            }
+            Token paramToken = ctx.NAMED_OR_POSITIONAL_PARAM().getSymbol();
+            promqlStartLine = paramToken.getLine();
+            promqlStartColumn = paramToken.getCharPositionInLine();
+        } else {
+            var queryCtx = ctx.promqlQueryPart();
+            if (queryCtx == null || queryCtx.isEmpty()) {
+                throw new ParsingException(source, "PromQL expression cannot be empty");
+            }
 
-        Token startToken = queryCtx.getFirst().start;
-        Token stopToken = queryCtx.getLast().stop;
-        // copy the query verbatim to avoid missing tokens interpreted by the enclosing lexer
-        String promqlQuery = source(startToken, stopToken).text();
-        if (promqlQuery.isBlank()) {
-            throw new ParsingException(source, "PromQL expression cannot be empty");
-        }
+            Token startToken = queryCtx.getFirst().start;
+            Token stopToken = queryCtx.getLast().stop;
+            // copy the query verbatim to avoid missing tokens interpreted by the enclosing lexer
+            promqlQuery = source(startToken, stopToken).text();
+            if (promqlQuery.isBlank()) {
+                throw new ParsingException(source, "PromQL expression cannot be empty");
+            }
 
-        int promqlStartLine = startToken.getLine();
-        int promqlStartColumn = startToken.getCharPositionInLine();
+            promqlStartLine = startToken.getLine();
+            promqlStartColumn = startToken.getCharPositionInLine();
+        }
 
         PromqlParser promqlParser = new PromqlParser();
         LogicalPlan promqlPlan;
@@ -1349,6 +1375,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitMetricsInfoCommand(EsqlBaseParser.MetricsInfoCommandContext ctx) {
         return input -> new MetricsInfo(source(ctx), input);
+    }
+
+    @Override
+    public PlanFactory visitTsInfoCommand(EsqlBaseParser.TsInfoCommandContext ctx) {
+        return input -> new TsInfo(source(ctx), input);
     }
 
     private String getValueColumnName(EsqlBaseParser.ValueNameContext ctx, String promqlQuery) {
@@ -1496,7 +1527,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     private IndexPattern parseIndexPattern(EsqlBaseParser.PromqlParamValueContext ctx) {
-        if (ctx.promqlIndexPattern().isEmpty()) {
+        if (ctx.NAMED_OR_POSITIONAL_PARAM() != null) {
+            QueryParam param = paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_PARAM());
+            if (param == null) {
+                throw new ParsingException(source(ctx), "No value found for parameter [{}]", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
+            }
+            if (param.value() instanceof String s) {
+                return new IndexPattern(source(ctx), s);
+            }
+            throw new ParsingException(source(ctx), "Parameter [{}] for index must be a string", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
+        } else if (ctx.promqlIndexPattern().isEmpty()) {
             // Default to all indices if no index pattern is provided
             return new IndexPattern(source(ctx), "*");
         } else {

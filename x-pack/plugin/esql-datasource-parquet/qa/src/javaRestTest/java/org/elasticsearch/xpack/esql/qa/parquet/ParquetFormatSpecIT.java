@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.parquet;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
@@ -22,7 +23,7 @@ import java.util.List;
  * Parameterized integration tests for standalone Parquet files.
  * Each csv-spec test is run against every configured storage backend (S3, HTTP, LOCAL).
  */
-@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
+@ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class ParquetFormatSpecIT extends AbstractExternalSourceSpecTestCase {
 
     @ClassRule
@@ -43,6 +44,11 @@ public class ParquetFormatSpecIT extends AbstractExternalSourceSpecTestCase {
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    @Override
+    protected boolean enableRoundingDoubleValuesOnAsserting() {
+        return true;
     }
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")

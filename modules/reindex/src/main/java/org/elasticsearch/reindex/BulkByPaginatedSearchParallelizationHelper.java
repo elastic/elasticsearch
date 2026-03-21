@@ -9,6 +9,7 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
@@ -17,6 +18,7 @@ import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShard
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
@@ -35,6 +37,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.AUTO_SLICES;
@@ -73,7 +76,9 @@ class BulkByPaginatedSearchParallelizationHelper {
             task,
             request,
             client,
-            listener.delegateFailure((l, v) -> executeSlicedAction(task, request, action, l, client, node, workerAction))
+            listener.delegateFailure(
+                (l, v) -> executeSlicedAction(task, request, action, l, client, node, null, version -> workerAction.run())
+            )
         );
     }
 
@@ -81,11 +86,14 @@ class BulkByPaginatedSearchParallelizationHelper {
      * Takes an action and a {@link BulkByScrollTask} and runs it with regard to whether this task is a
      * leader or worker.
      *
-     * If this task is a worker, the worker action in the given {@link Runnable} will be started on the local
-     * node. If the task is a leader (i.e. the number of slices is more than 1), then a subrequest will be
-     * created for each slice and sent.
+     * If this task is a worker, the worker action is invoked with the given {@code remoteVersion} (may be null
+     * for local reindex). If the task is a leader (i.e. the number of slices is more than 1), then a subrequest
+     * will be created for each slice and sent.
      *
      * This method can only be called after the task state is initialized {@link #initTaskState}.
+     *
+     * @param remoteVersion the version of the remote cluster when reindexing from remote, or null for local reindex
+     * @param workerAction  invoked when this task is a worker, with the remote version (or null)
      */
     static <Request extends AbstractBulkByScrollRequest<Request>> void executeSlicedAction(
         BulkByScrollTask task,
@@ -94,12 +102,13 @@ class BulkByPaginatedSearchParallelizationHelper {
         ActionListener<BulkByScrollResponse> listener,
         Client client,
         DiscoveryNode node,
-        Runnable workerAction
+        @Nullable Version remoteVersion,
+        Consumer<Version> workerAction
     ) {
         if (task.isLeader()) {
             sendSubRequests(client, action, node.getId(), task, request, listener);
         } else if (task.isWorker()) {
-            workerAction.run();
+            workerAction.accept(remoteVersion);
         } else {
             throw new AssertionError("Task should have been initialized at this point.");
         }

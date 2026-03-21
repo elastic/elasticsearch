@@ -18,6 +18,7 @@ public final class SearchFeatures implements FeatureSpecification {
 
     public static final NodeFeature LUCENE_10_0_0_UPGRADE = new NodeFeature("lucene_10_upgrade");
     public static final NodeFeature LUCENE_10_1_0_UPGRADE = new NodeFeature("lucene_10_1_upgrade");
+    public static final NodeFeature LUCENE_10_4_0_UPGRADE_TEST = new NodeFeature("lucene_10_4_upgrade");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -33,11 +34,13 @@ public final class SearchFeatures implements FeatureSpecification {
     static final NodeFeature MULTI_MATCH_CHECKS_POSITIONS = new NodeFeature("search.multi.match.checks.positions");
     public static final NodeFeature BBQ_HNSW_DEFAULT_INDEXING = new NodeFeature("search.vectors.mappers.default_bbq_hnsw");
     public static final NodeFeature SEARCH_WITH_NO_DIMENSIONS_BUGFIX = new NodeFeature("search.vectors.no_dimensions_bugfix");
+    public static final NodeFeature HNSW_FLAT_INDEX_THRESHOLD = new NodeFeature("search.vectors.flat_index_threshold");
     public static final NodeFeature SEARCH_RESCORE_SCRIPT = new NodeFeature("search.rescore.script");
     public static final NodeFeature NEGATIVE_FUNCTION_SCORE_BAD_REQUEST = new NodeFeature("search.negative.function.score.bad.request");
     public static final NodeFeature INDICES_BOOST_REMOTE_INDEX_FIX = new NodeFeature("search.indices_boost_remote_index_fix");
     public static final NodeFeature NESTED_AGG_TOP_HITS_WITH_INNER_HITS = new NodeFeature("nested_agg_top_hits_with_inner_hits");
     public static final NodeFeature DATE_FORMAT_MISSING_AS_NULL = new NodeFeature("search.sort.date_format_missing_as_null");
+    public static final NodeFeature QUERY_VECTOR_LOOKUP_BUILDER = new NodeFeature("search.vectors.lookup_query_vector_builder");
     public static final NodeFeature LIMIT_MAX_IDS_FEATURE = new NodeFeature("ids_query_limit_max_ids");
     public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_MIN_MAX = new NodeFeature(
         "search.exponential_histogram_querydsl_min_max"
@@ -49,7 +52,14 @@ public final class SearchFeatures implements FeatureSpecification {
     public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILE_RANKS = new NodeFeature(
         "search.exponential_histogram_querydsl_percentile_ranks"
     );
+    public static final NodeFeature EXPONENTIAL_HISTOGRAM_UPSCALING_REMOVED = new NodeFeature(
+        "search.exponential_histogram_upscaling_removed"
+    );
     public static final NodeFeature CLOSING_INVALID_PIT_ID = new NodeFeature("closing_invalid_pit_id");
+    public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_BOXPLOT = new NodeFeature(
+        "search.exponential_histogram_querydsl_boxplot"
+    );
+    public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE = new NodeFeature("search.exponential_histogram_querydsl_range");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -61,17 +71,23 @@ public final class SearchFeatures implements FeatureSpecification {
             MULTI_MATCH_CHECKS_POSITIONS,
             BBQ_HNSW_DEFAULT_INDEXING,
             SEARCH_WITH_NO_DIMENSIONS_BUGFIX,
+            HNSW_FLAT_INDEX_THRESHOLD,
             SEARCH_RESCORE_SCRIPT,
             NEGATIVE_FUNCTION_SCORE_BAD_REQUEST,
             INDICES_BOOST_REMOTE_INDEX_FIX,
             NESTED_AGG_TOP_HITS_WITH_INNER_HITS,
             DATE_FORMAT_MISSING_AS_NULL,
+            QUERY_VECTOR_LOOKUP_BUILDER,
             LIMIT_MAX_IDS_FEATURE,
             EXPONENTIAL_HISTOGRAM_QUERYDSL_MIN_MAX,
             EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILES,
             EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILE_RANKS,
             CLOSING_INVALID_PIT_ID,
-            FUNCTION_SCORE_NAMED_QUERIES
+            FUNCTION_SCORE_NAMED_QUERIES,
+            LUCENE_10_4_0_UPGRADE_TEST,
+            EXPONENTIAL_HISTOGRAM_QUERYDSL_BOXPLOT,
+            EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE,
+            EXPONENTIAL_HISTOGRAM_UPSCALING_REMOVED
         );
     }
 }

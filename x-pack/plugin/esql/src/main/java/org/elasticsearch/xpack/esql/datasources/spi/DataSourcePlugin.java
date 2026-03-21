@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutorService;
  *   <li>Table catalog connectors (Iceberg, Delta Lake) for table metadata - keyed by catalog type</li>
  *   <li>Custom operator factories for complex datasources - keyed by source type</li>
  *   <li>Filter pushdown support for predicate pushdown optimization - keyed by source type</li>
+ *   <li>Decompression codecs for compound extensions (e.g. .csv.gz) - via {@link #decompressionCodecs(Settings)}</li>
  * </ul>
  *
  * <p>All methods have default implementations returning empty maps/lists, allowing
@@ -55,17 +56,11 @@ public interface DataSourcePlugin {
     }
 
     /**
-     * Format names this plugin provides (e.g. "csv", "parquet").
-     * Keys must match {@link #formatReaders(Settings)} keys.
+     * Format descriptors this plugin provides. Each {@link FormatSpec} pairs a logical
+     * format name with the file extensions that select it. Format names must match
+     * the keys returned by {@link #formatReaders(Settings)}.
      */
-    default Set<String> supportedFormats() {
-        return Set.of();
-    }
-
-    /**
-     * File extensions this plugin's format readers handle (with leading dot, e.g. ".csv", ".parquet").
-     */
-    default Set<String> supportedExtensions() {
+    default Set<FormatSpec> formatSpecs() {
         return Set.of();
     }
 
@@ -87,6 +82,14 @@ public interface DataSourcePlugin {
 
     default Map<String, FormatReaderFactory> formatReaders(Settings settings) {
         return Map.of();
+    }
+
+    /**
+     * Decompression codecs this plugin provides (e.g. gzip for .gz, .gzip).
+     * Used for compound extensions like .csv.gz or .ndjson.gz.
+     */
+    default List<DecompressionCodec> decompressionCodecs(Settings settings) {
+        return List.of();
     }
 
     // Complete external source factories

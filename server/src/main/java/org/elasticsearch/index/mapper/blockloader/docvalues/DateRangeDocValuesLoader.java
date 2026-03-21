@@ -9,13 +9,13 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BinaryRangeUtil;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
 
 import java.io.IOException;
 
@@ -32,29 +32,20 @@ public class DateRangeDocValuesLoader extends BlockDocValuesReader.DocValuesBloc
     }
 
     @Override
-    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        breaker.addEstimateBytesAndMaybeBreak(BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE, "load blocks");
-        boolean release = true;
-        try {
-            var docValues = context.reader().getBinaryDocValues(fieldName);
-            if (docValues == null) {
-                return ConstantNull.READER;
-            }
-            release = false;
-            return new DateRangeDocValuesReader(breaker, docValues);
-        } finally {
-            if (release) {
-                breaker.addWithoutBreaking(-BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE);
-            }
+    public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        TrackingBinaryDocValues dv = TrackingBinaryDocValues.get(breaker, context, fieldName);
+        if (dv == null) {
+            return ConstantNull.COLUMN_READER;
         }
+        return new DateRangeDocValuesReader(dv);
     }
 
     private class DateRangeDocValuesReader extends BlockDocValuesReader {
-        private final BinaryDocValues numericDocValues;
+        private final TrackingBinaryDocValues docValues;
 
-        DateRangeDocValuesReader(CircuitBreaker breaker, BinaryDocValues numericDocValues) {
-            super(breaker);
-            this.numericDocValues = numericDocValues;
+        DateRangeDocValuesReader(TrackingBinaryDocValues docValues) {
+            super(null);
+            this.docValues = docValues;
         }
 
         private int docId = -1;
@@ -79,10 +70,10 @@ public class DateRangeDocValuesLoader extends BlockDocValuesReader.DocValuesBloc
                     if (doc < lastDoc) {
                         throw new IllegalStateException("docs within same block must be in order");
                     }
-                    if (false == numericDocValues.advanceExact(doc)) {
+                    if (false == docValues.docValues().advanceExact(doc)) {
                         builder.appendNull();
                     } else {
-                        BytesRef ref = numericDocValues.binaryValue();
+                        BytesRef ref = docValues.docValues().binaryValue();
                         var ranges = BinaryRangeUtil.decodeLongRanges(ref);
                         for (var range : ranges) {
                             lastDoc = doc;
@@ -97,22 +88,8 @@ public class DateRangeDocValuesLoader extends BlockDocValuesReader.DocValuesBloc
         }
 
         @Override
-        public void read(int doc, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
-            var blockBuilder = (BlockLoader.LongRangeBuilder) builder;
-            this.docId = doc;
-            if (false == numericDocValues.advanceExact(doc)) {
-                blockBuilder.appendNull();
-            } else {
-                var range = BinaryRangeUtil.decodeLongRanges(numericDocValues.binaryValue());
-                assert range.size() == 1 : "stored fields should only have a single range";
-                blockBuilder.from().appendLong((long) range.getFirst().getFrom());
-                blockBuilder.to().appendLong((long) range.getFirst().getTo());
-            }
-        }
-
-        @Override
         public void close() {
-            breaker.addWithoutBreaking(-BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE);
+            docValues.close();
         }
     }
 }

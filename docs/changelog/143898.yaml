@@ -1,0 +1,5 @@
+area: Codec
+issues: []
+pr: 143898
+summary: Push contains binary doc values query down to es819 codec
+type: enhancement

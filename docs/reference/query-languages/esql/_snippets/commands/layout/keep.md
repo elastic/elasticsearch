@@ -6,20 +6,20 @@ stack: ga
 The `KEEP` processing command enables you to specify what columns are returned
 and the order in which they are returned.
 
-**Syntax**
+## Syntax
 
 ```esql
 KEEP columns
 ```
 
-**Parameters**
+## Parameters
 
 `columns`
 :   A comma-separated list of columns to keep. Supports wildcards.
     See below for the behavior in case an existing column matches multiple
     given wildcards or column names.
 
-**Description**
+## Description
 
 The `KEEP` processing command enables you to specify what columns are returned
 and the order in which they are returned.
@@ -33,14 +33,18 @@ Fields are added in the order they appear. If one field matches multiple express
 
 If a field matches two expressions with the same precedence, the rightmost expression wins.
 
-Refer to the examples for illustrations of these precedence rules.
+## Examples
 
-**Examples**
+The following examples show how to select columns and illustrate the wildcard precedence rules.
 
-The columns are returned in the specified order:
+### Specify column order
+
+Columns are returned in the order they are listed:
 
 :::{include} ../examples/docs.csv-spec/keep.md
 :::
+
+### Use wildcards to select columns
 
 Rather than specify each column by name, you can use wildcards to return all
 columns with a name that matches a pattern:
@@ -48,26 +52,30 @@ columns with a name that matches a pattern:
 :::{include} ../examples/docs.csv-spec/keepWildcard.md
 :::
 
-The asterisk wildcard (`*`) by itself translates to all columns that do not
-match the other arguments.
+### Control ordering with wildcard and specific columns
 
-This query will first return all columns with a name
+The asterisk wildcard (`*`) by itself translates to all columns that do not
+match the other arguments. This query returns all columns with a name
 that starts with `h`, followed by all other columns:
 
 :::{include} ../examples/docs.csv-spec/keepDoubleWildcard.md
 :::
 
-The following examples show how precedence rules work when a field name matches multiple expressions.
+### Exact name takes precedence over wildcards
 
 Complete field name has precedence over wildcard expressions:
 
 :::{include} ../examples/docs.csv-spec/keepCompleteName.md
 :::
 
-Wildcard expressions have the same priority, but last one wins (despite being less specific):
+### Rightmost wildcard wins when priority is equal
+
+Wildcard expressions have the same priority, but the rightmost one wins (despite being less specific):
 
 :::{include} ../examples/docs.csv-spec/keepWildcardPrecedence.md
 :::
+
+### Bare wildcard has lowest priority
 
 A simple wildcard expression `*` has the lowest precedence.
 Output order is determined by the other arguments:

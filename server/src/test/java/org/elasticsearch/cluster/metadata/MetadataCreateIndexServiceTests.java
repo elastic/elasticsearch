@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -60,9 +61,11 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
+import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndexLimitExceededException;
@@ -120,6 +123,7 @@ import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.reso
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
+import static org.elasticsearch.indices.SystemIndicesTests.newFeature;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
@@ -134,9 +138,14 @@ import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class MetadataCreateIndexServiceTests extends ESTestCase {
 
@@ -326,6 +335,16 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 .metadata(Metadata.builder().put(tuple.v1()))
                 .build();
 
+            List<String> patterns = new ArrayList<>();
+            for (int i = 0; i < randomIntBetween(10, 20); i++) {
+                patterns.add(randomIdentifier("."));
+            }
+
+            List<SystemIndices.Feature> features = patterns.stream()
+                .map(pattern -> newFeature(List.of(new AssociatedIndexDescriptor(pattern + "*", "Description"))))
+                .toList();
+            SystemIndices systemIndices = new SystemIndices(features);
+
             IndicesService indicesService = mock(IndicesService.class);
             MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
                 Settings.EMPTY,
@@ -337,7 +356,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
                 threadPool,
                 null,
-                EmptySystemIndices.INSTANCE,
+                systemIndices,
                 false,
                 new IndexSettingProviders(Set.of())
             );
@@ -365,6 +384,22 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 checkerService.validateIndexLimit(clusterState.getMetadata().getProject(projectId), systemIndexCreateRequest);
             } catch (Exception ex) {
                 fail(ex, "System indices creation should not be limited by indices total.");
+            }
+
+            // Feature associated indices are exempt from the limit
+            for (int i = 0; i < patterns.size(); i++) {
+                var index = randomFrom(patterns) + randomIndexName();
+                CreateIndexClusterStateUpdateRequest featureIndexCreateRequest = new CreateIndexClusterStateUpdateRequest(
+                    "test",
+                    projectId,
+                    index,
+                    index
+                );
+                try {
+                    checkerService.validateIndexLimit(clusterState.getMetadata().getProject(projectId), featureIndexCreateRequest);
+                } catch (Exception ex) {
+                    fail(ex, "Feature associated indices creation should not be limited by indices total.");
+                }
             }
         }, nodeSettings, Set.of(CLUSTER_MAX_INDICES_PER_PROJECT_SETTING));
     }
@@ -665,42 +700,28 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         return DiscoveryNodeUtils.builder(nodeId).roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE)).build();
     }
 
-    public void testValidateIndexName() throws Exception {
+    public void testValidateIndexName() {
         withTemporaryClusterService(((clusterService, threadPool) -> {
-            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
-                Settings.EMPTY,
-                clusterService,
-                null,
-                null,
-                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
-                null,
-                null,
-                threadPool,
-                null,
-                EmptySystemIndices.INSTANCE,
-                false,
-                new IndexSettingProviders(Set.of())
-            );
-            validateIndexName(checkerService, "index?name", "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+            validateIndexName("index?name", "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
 
-            validateIndexName(checkerService, "index#name", "must not contain '#'");
+            validateIndexName("index#name", "must not contain '#'");
 
-            validateIndexName(checkerService, "_indexname", "must not start with '_', '-', or '+'");
-            validateIndexName(checkerService, "-indexname", "must not start with '_', '-', or '+'");
-            validateIndexName(checkerService, "+indexname", "must not start with '_', '-', or '+'");
+            validateIndexName("_indexname", "must not start with '_', '-', or '+'");
+            validateIndexName("-indexname", "must not start with '_', '-', or '+'");
+            validateIndexName("+indexname", "must not start with '_', '-', or '+'");
 
-            validateIndexName(checkerService, "INDEXNAME", "must be lowercase");
+            validateIndexName("INDEXNAME", "must be lowercase");
 
-            validateIndexName(checkerService, "..", "must not be '.' or '..'");
+            validateIndexName("..", "must not be '.' or '..'");
 
-            validateIndexName(checkerService, "foo:bar", "must not contain ':'");
+            validateIndexName("foo:bar", "must not contain ':'");
 
-            validateIndexName(checkerService, "", "must not be empty");
-            validateIndexName(checkerService, null, "must not be empty");
+            validateIndexName("", "must not be empty");
+            validateIndexName(null, "must not be empty");
         }));
     }
 
-    private static void validateIndexName(MetadataCreateIndexService metadataCreateIndexService, String indexName, String errorMessage) {
+    private static void validateIndexName(String indexName, String errorMessage) {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
         InvalidIndexNameException e = expectThrows(
             InvalidIndexNameException.class,
@@ -1789,7 +1810,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     public void testCreateClusterBlocksTransformerForIndexCreation() {
         boolean isStateless = randomBoolean();
         boolean useRefreshBlock = randomBoolean();
-        var minTransportVersion = TransportVersionUtils.randomCompatibleVersion();
 
         var applier = MetadataCreateIndexService.createClusterBlocksTransformerForIndexCreation(
             Settings.builder()
@@ -1834,7 +1854,13 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
             IndexCreationException exception = assertThrows(
                 IndexCreationException.class,
-                () -> service.applyCreateIndexRequest(clusterService.state(), request, false, ActionListener.wrap(r -> {}, e -> {}))
+                () -> service.applyCreateIndexRequest(
+                    clusterService.state(),
+                    request,
+                    false,
+                    RerouteBehavior.PERFORM_REROUTE,
+                    ActionListener.noop()
+                )
             );
             assertThat(
                 exception.getCause().getMessage(),
@@ -1867,7 +1893,13 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             );
 
             try {
-                service.applyCreateIndexRequest(clusterService.state(), request, false, ActionListener.wrap(r -> {}, e -> {}));
+                service.applyCreateIndexRequest(
+                    clusterService.state(),
+                    request,
+                    false,
+                    RerouteBehavior.PERFORM_REROUTE,
+                    ActionListener.noop()
+                );
             } catch (Exception e) {
                 fail(e, "did not expect private setting to be rejected when system provided");
             }
@@ -1900,7 +1932,13 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             );
 
             try {
-                service.applyCreateIndexRequest(clusterService.state(), request, false, ActionListener.wrap(r -> {}, e -> {}));
+                service.applyCreateIndexRequest(
+                    clusterService.state(),
+                    request,
+                    false,
+                    RerouteBehavior.PERFORM_REROUTE,
+                    ActionListener.noop()
+                );
             } catch (Exception e) {
                 fail(e, "did not expect private setting to be rejected when added via IndexSettingProvider");
             }
@@ -1910,6 +1948,81 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         verify(indicesService).withTempIndexService(captor.capture(), any());
         IndexMetadata indexMetadata = captor.getValue();
         assertThat(indexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()), equalTo("private_setting"));
+    }
+
+    public void testBatchedIndexCreationAndReroute() {
+        withTemporaryClusterService((clusterService, threadPool) -> {
+            final var allocationService = mock(AllocationService.class);
+            when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).thenAnswer(returnsFirstArg());
+            when(allocationService.getShardRoutingRoleStrategy()).thenReturn(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
+            MetadataCreateIndexService service = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                mockIndicesService(),
+                allocationService,
+                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                newEnvironment(),
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
+                threadPool,
+                null,
+                EmptySystemIndices.INSTANCE,
+                false,
+                IndexSettingProviders.EMPTY
+            );
+
+            final int taskCount = randomIntBetween(2, 5);
+            final var validIndexNames = new ArrayList<String>();
+            final var tasks = new ArrayList<MetadataCreateIndexService.CreateIndexClusterStateUpdateTask>(taskCount);
+            for (int i = 0; i < taskCount; i++) {
+                final String indexName;
+                if (randomBoolean()) {
+                    indexName = randomIndexName();
+                    validIndexNames.add(indexName);
+                } else {
+                    // invalid index name
+                    indexName = randomIdentifier("INVALID_BECAUSE_UPPER_CASE_");
+                }
+                tasks.add(
+                    new MetadataCreateIndexService.CreateIndexClusterStateUpdateTask(
+                        new CreateIndexClusterStateUpdateRequest("test", projectId, indexName, indexName),
+                        TimeValue.THIRTY_SECONDS,
+                        ActionListener.noop()
+                    )
+                );
+            }
+            final ClusterState initialState = clusterService.state();
+            final ClusterState resultState;
+            try {
+                resultState = ClusterStateTaskExecutorUtils.executeHandlingResults(
+                    clusterService.state(),
+                    service.createIndexTaskExecutor,
+                    tasks,
+                    task -> {},
+                    (task, e) -> assertThat(e, instanceOf(InvalidIndexNameException.class))
+                );
+            } catch (Exception e) {
+                throw new AssertionError("Failed to test run cluster state update for batch index creation request", e);
+            }
+            if (validIndexNames.isEmpty()) {
+                assertSame("cluster state should not change when all requests are invalid", resultState, initialState);
+                verify(allocationService, never()).reroute(any(), any(), any());
+            } else {
+                final var stateIndices = resultState.metadata().getProject(projectId).indices().keySet();
+                assertTrue(
+                    "expected cluster state indices [" + stateIndices + "] to contain all [" + validIndexNames + "]",
+                    stateIndices.containsAll(validIndexNames)
+                );
+                verify(allocationService, times(1)).reroute(any(), eq("create-index"), any());
+            }
+        });
+    }
+
+    private IndicesService mockIndicesService() {
+        try {
+            return DataStreamTestHelper.mockIndicesServices(MappingLookup.EMPTY);
+        } catch (Exception e) {
+            throw new AssertionError("failed to setup indicesService", e);
+        }
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {

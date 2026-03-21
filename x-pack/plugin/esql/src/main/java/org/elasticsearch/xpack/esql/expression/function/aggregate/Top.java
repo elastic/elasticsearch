@@ -66,7 +66,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPostOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
@@ -189,7 +188,7 @@ public class Top extends AggregateFunction
         ).and(isNotNull(limitField(), sourceText(), SECOND))
             .and(isType(limitField(), dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer"))
             .and(isNotNull(orderField(), sourceText(), THIRD))
-            .and(isString(orderField(), sourceText(), THIRD));
+            .and(isType(orderField(), dt -> dt == DataType.KEYWORD, sourceText(), THIRD, "keyword"));
         if (outputField() != null) {
             typeResolution = typeResolution.and(
                 isType(

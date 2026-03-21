@@ -12,23 +12,23 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StDistance}.
+ * {@link ExpressionEvaluator} implementation for {@link StDistance}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StDistanceGeoSourceAndConstantEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class StDistanceGeoSourceAndConstantEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StDistanceGeoSourceAndConstantEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator left;
+  private final ExpressionEvaluator left;
 
   private final Point right;
 
@@ -36,8 +36,8 @@ public final class StDistanceGeoSourceAndConstantEvaluator implements EvalOperat
 
   private Warnings warnings;
 
-  public StDistanceGeoSourceAndConstantEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator left, Point right, DriverContext driverContext) {
+  public StDistanceGeoSourceAndConstantEvaluator(Source source, ExpressionEvaluator left,
+      Point right, DriverContext driverContext) {
     this.source = source;
     this.left = left;
     this.right = right;
@@ -97,14 +97,14 @@ public final class StDistanceGeoSourceAndConstantEvaluator implements EvalOperat
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory left;
+    private final ExpressionEvaluator.Factory left;
 
     private final Point right;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory left, Point right) {
+    public Factory(Source source, ExpressionEvaluator.Factory left, Point right) {
       this.source = source;
       this.left = left;
       this.right = right;

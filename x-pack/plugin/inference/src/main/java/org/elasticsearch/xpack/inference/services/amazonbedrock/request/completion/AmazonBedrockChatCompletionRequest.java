@@ -22,7 +22,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
+import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
@@ -95,8 +96,8 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
     }
 
     private static ToolChoice buildToolChoice(
-        @Nullable List<UnifiedCompletionRequest.Tool> tools,
-        @Nullable UnifiedCompletionRequest.ToolChoice toolChoice
+        @Nullable List<org.elasticsearch.inference.completion.Tool> tools,
+        @Nullable org.elasticsearch.inference.completion.ToolChoice toolChoice
     ) {
         if (tools == null || tools.isEmpty()) {
             return null;
@@ -112,14 +113,14 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
     }
 
     // default for testing
-    static ToolChoice.Builder determineToolChoice(@Nullable UnifiedCompletionRequest.ToolChoice toolChoice) {
+    static ToolChoice.Builder determineToolChoice(@Nullable org.elasticsearch.inference.completion.ToolChoice toolChoice) {
         // If a specific tool choice isn't provided, the chat completion schema (openai) defaults to "auto"
         if (toolChoice == null) {
             return ToolChoice.builder().auto(AutoToolChoice.builder().build());
         }
 
         return switch (toolChoice) {
-            case UnifiedCompletionRequest.ToolChoiceString toolChoiceString -> switch (toolChoiceString.value()) {
+            case ToolChoiceString toolChoiceString -> switch (toolChoiceString.value()) {
                 case AUTO_TOOL_CHOICE -> ToolChoice.builder().auto(AutoToolChoice.builder().build());
                 case REQUIRED_TOOL_CHOICE -> ToolChoice.builder().any(AnyToolChoice.builder().build());
                 case NONE_TOOL_CHOICE -> null;
@@ -127,13 +128,13 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
                     Strings.format("Invalid tool choice [%s], must be one of %s", toolChoiceString.value(), VALID_TOOL_CHOICES)
                 );
             };
-            case UnifiedCompletionRequest.ToolChoiceObject toolChoiceObject -> ToolChoice.builder()
+            case ToolChoiceObject toolChoiceObject -> ToolChoice.builder()
                 .tool(SpecificToolChoice.builder().name(toolChoiceObject.function().name()).build());
         };
     }
 
     // default for testing
-    static List<Tool> convertTools(@Nullable List<UnifiedCompletionRequest.Tool> tools) {
+    static List<Tool> convertTools(@Nullable List<org.elasticsearch.inference.completion.Tool> tools) {
         if (tools == null || tools.isEmpty()) {
             return List.of();
         }
@@ -165,7 +166,7 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
     }
 
     // default for testing
-    static Map<String, Document> paramToDocumentMap(UnifiedCompletionRequest.Tool tool) {
+    static Map<String, Document> paramToDocumentMap(org.elasticsearch.inference.completion.Tool tool) {
         if (tool.function().parameters() == null) {
             return Map.of();
         }

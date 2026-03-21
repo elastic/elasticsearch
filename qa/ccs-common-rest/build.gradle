@@ -39,7 +39,8 @@ tasks.named("yamlRestTest") {
     'search.aggregation/220_filters_bucket/cache hits', // node_selector?
     'search.aggregation/50_filter/Standard queries get cached',
     'search.aggregation/50_filter/Terms lookup gets cached', // terms lookup by "index" doesn't seem to work correctly
-    'search.aggregation/70_adjacency_matrix/Terms lookup' // terms lookup by "index" doesn't seem to work correctly
+    'search.aggregation/70_adjacency_matrix/Terms lookup', // terms lookup by "index" doesn't seem to work correctly
+    '^search.vectors/260_knn_lookup_query_builder/*' // vector lookup by index doesn't work correctly
   ]
   systemProperty 'tests.rest.blacklist', blacklist.join(',')
 }

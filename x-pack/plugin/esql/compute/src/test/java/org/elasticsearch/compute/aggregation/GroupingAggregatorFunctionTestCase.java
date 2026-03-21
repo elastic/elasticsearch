@@ -32,6 +32,7 @@ import org.elasticsearch.compute.operator.AddGarbageRowsSourceOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.ForkingOperatorTestCase;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
+import org.elasticsearch.compute.operator.HashAggregationOperatorTests;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PositionMergingSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -42,16 +43,15 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -60,6 +60,7 @@ import java.util.stream.Stream;
 import static java.util.stream.IntStream.range;
 import static org.elasticsearch.compute.test.BlockTestUtils.append;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 
@@ -126,24 +127,20 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         }
 
         if (options.requiresDeterministicFactory()) {
-            return new HashAggregationOperator.HashAggregationOperatorFactory(
-                List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
-                mode,
-                List.of(supplier.groupingAggregatorFactory(mode, channels(mode))),
-                randomPageSize(),
-                between(1, 1000),
-                randomDoubleBetween(0.1, 1.0, true),
-                null
-            );
+            return HashAggregationOperatorTests.randomBuilder()
+                .groups(List.of(new BlockHash.GroupSpec(0, ElementType.LONG)))
+                .mode(mode)
+                .aggregators(List.of(supplier.groupingAggregatorFactory(mode, channels(mode))))
+                .build();
         } else {
+
             return new RandomizingHashAggregationOperatorFactory(
-                List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
-                mode,
-                List.of(supplier.groupingAggregatorFactory(mode, channels(mode))),
-                randomPageSize(),
-                between(1, 1000),
-                randomDoubleBetween(0.1, 1.0, true),
-                null
+                new HashAggregationOperator.Builder().groups(List.of(new BlockHash.GroupSpec(0, ElementType.LONG)))
+                    .mode(mode)
+                    .aggregators(List.of(supplier.groupingAggregatorFactory(mode, channels(mode))))
+                    .partialEmit(between(1, 1000), randomDoubleBetween(0.1, 1.0, true))
+                    .maxPageSize(randomPageSize())
+                    .aggregationBatchSize(randomPageSize())
             );
         }
     }
@@ -190,11 +187,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         return new SeenGroups(seenGroups, seenNullGroup);
     }
 
-    private record SeenGroups(SortedSet<Long> nonNull, boolean seenNull) {
-        int size() {
-            return nonNull.size() + (seenNull ? 1 : 0);
-        }
-    }
+    private record SeenGroups(SortedSet<Long> nonNull, boolean seenNull) {}
 
     protected long randomGroupId(int pageSize) {
         int maxGroupId = pageSize < 10 && randomBoolean() ? 4 : 100;
@@ -206,25 +199,49 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         assertSimpleOutput(input, results, true);
     }
 
-    private void assertSimpleOutput(List<Page> input, List<Page> results, boolean assertGroupCount) {
+    private void assertSimpleOutput(List<Page> input, List<Page> results, boolean expectExactGroups) {
         SeenGroups seenGroups = seenGroups(input);
 
-        assertThat(results, hasSize(1));
-        assertThat(results.get(0).getBlockCount(), equalTo(2));
-        if (assertGroupCount) {
-            assertThat(results.get(0).getPositionCount(), equalTo(seenGroups.size()));
+        for (Page page : results) {
+            assertThat(page.getBlockCount(), equalTo(2));
         }
 
-        Block groups = results.get(0).getBlock(0);
-        Block result = results.get(0).getBlock(1);
-        for (int i = 0; i < seenGroups.size(); i++) {
-            final Long group;
-            if (groups.isNull(i)) {
-                group = null;
-            } else {
-                group = ((LongBlock) groups).getLong(i);
+        boolean actualSeenNull = false;
+        List<Long> actualGroups = new ArrayList<>();
+        for (Page page : results) {
+            LongBlock groups = page.getBlock(0);
+            for (int p = 0; p < groups.getPositionCount(); p++) {
+                if (groups.isNull(p)) {
+                    actualSeenNull = true;
+                } else {
+                    actualGroups.add(groups.getLong(p));
+                }
             }
-            assertSimpleGroup(input, result, i, group);
+        }
+        Collections.sort(actualGroups);
+        if (expectExactGroups) {
+            assertThat(actualSeenNull, equalTo(seenGroups.seenNull));
+            assertThat(actualGroups, equalTo(seenGroups.nonNull.stream().toList()));
+        } else {
+            // Sometimes we might get *more* groups than we were bargaining for. That's ok.
+            if (seenGroups.seenNull) {
+                assertThat(actualSeenNull, equalTo(true));
+            }
+            assertThat(actualGroups, hasItems(seenGroups.nonNull.toArray(Long[]::new)));
+        }
+
+        for (Page page : results) {
+            LongBlock groups = page.getBlock(0);
+            Block result = page.getBlock(1);
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                final Long group;
+                if (groups.isNull(p)) {
+                    group = null;
+                } else {
+                    group = groups.getLong(p);
+                }
+                assertSimpleGroup(input, result, p, group);
+            }
         }
     }
 
@@ -286,25 +303,34 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     super.appendNull(elementType, builder, blockId);
                 } else {
                     // Append a small random value to make sure we don't overflow on things like sums
-                    append(builder, switch (elementType) {
-                        case BOOLEAN -> randomBoolean();
-                        case BYTES_REF -> {
-                            if (acceptedDataFormat() == DataFormat.IP) {
-                                yield new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
-                            }
-                            yield new BytesRef(randomAlphaOfLength(3));
-                        }
-                        case FLOAT -> randomFloat();
-                        case DOUBLE -> randomDouble();
-                        case INT -> 1;
-                        case LONG -> 1L;
-                        case EXPONENTIAL_HISTOGRAM -> BlockTestUtils.randomExponentialHistogram();
-                        case TDIGEST -> BlockTestUtils.randomTDigest();
-                        default -> throw new UnsupportedOperationException();
-                    });
+                    appendNullGroupValue(elementType, builder, blockId);
                 }
             }
         };
+    }
+
+    /**
+     * Appends a value for the given element type and block when inserting rows with null group keys.
+     * Override this to customize the values appended for aggregators that require specific
+     * multi-valued formats (e.g., dense vectors which need multi-valued float positions).
+     */
+    protected void appendNullGroupValue(ElementType elementType, Block.Builder builder, int blockId) {
+        append(builder, switch (elementType) {
+            case BOOLEAN -> randomBoolean();
+            case BYTES_REF -> {
+                if (acceptedDataFormat() == DataFormat.IP) {
+                    yield new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
+                }
+                yield new BytesRef(randomAlphaOfLength(3));
+            }
+            case FLOAT -> randomFloat();
+            case DOUBLE -> randomDouble();
+            case INT -> 1;
+            case LONG -> 1L;
+            case EXPONENTIAL_HISTOGRAM -> BlockTestUtils.randomExponentialHistogram();
+            case TDIGEST -> BlockTestUtils.randomTDigest();
+            default -> throw new UnsupportedOperationException();
+        });
     }
 
     public final void testNullValues() {
@@ -417,8 +443,9 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         var runner = new TestDriverRunner().builder(driverContext());
         runner.input(simpleInput(runner.blockFactory(), 10));
         List<Page> results = runner.run(factory);
-        assertThat(results, hasSize(1));
-        assertOutputFromAllFiltered(results.get(0).getBlock(1));
+        for (Page page : results) {
+            assertOutputFromAllFiltered(page.getBlock(1));
+        }
     }
 
     public final void testNoneFiltered() {
@@ -430,7 +457,6 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         var runner = new TestDriverRunner().builder(driverContext()).collectDeepCopy();
         runner.input(simpleInput(runner.blockFactory(), 10));
         List<Page> results = runner.run(factory);
-        assertThat(results, hasSize(1));
         assertSimpleOutput(runner.deepCopy(), results);
     }
 
@@ -449,7 +475,6 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         // Feed it to the aggregator
         List<Page> results = runner.input(input).run(factory);
         // Check the results
-        assertThat(results, hasSize(1));
         assertSimpleOutput(origInput, results, false);
     }
 
@@ -548,14 +573,15 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
         List<Page> results = new TestDriverRunner().builder(driverContext).input(source).run(operators);
 
-        assertThat(results, hasSize(1));
-        LongVector groups = results.get(0).<LongBlock>getBlock(0).asVector();
-        Block resultBlock = results.get(0).getBlock(1);
         boolean foundNullPosition = false;
-        for (int p = 0; p < groups.getPositionCount(); p++) {
-            if (groups.getLong(p) == nullGroup) {
-                foundNullPosition = true;
-                assertOutputFromNullOnly(resultBlock, p);
+        for (Page page : results) {
+            LongVector groups = page.<LongBlock>getBlock(0).asVector();
+            Block resultBlock = page.getBlock(1);
+            for (int p = 0; p < groups.getPositionCount(); p++) {
+                if (groups.getLong(p) == nullGroup) {
+                    foundNullPosition = true;
+                    assertOutputFromNullOnly(resultBlock, p);
+                }
             }
         }
         assertTrue("didn't find the null position. bad position range?", foundNullPosition);
@@ -658,6 +684,26 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     protected static LongStream allLongs(Page page, Long group) {
         LongBlock b = page.getBlock(1);
         return allValueOffsets(page, group).mapToLong(i -> b.getLong(i));
+    }
+
+    protected static List<float[]> allVectors(List<Page> input, Long group) {
+        List<float[]> result = new ArrayList<>();
+        for (Page page : input) {
+            FloatBlock values = page.getBlock(1);
+            matchingGroups(page, group).forEach(p -> {
+                if (values.isNull(p)) {
+                    return;
+                }
+                int valueCount = values.getValueCount(p);
+                float[] vector = new float[valueCount];
+                int start = values.getFirstValueIndex(p);
+                for (int i = 0; i < valueCount; i++) {
+                    vector[i] = values.getFloat(start + i);
+                }
+                result.add(vector);
+            });
+        }
+        return result;
     }
 
     /**
@@ -858,96 +904,57 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     /**
-     * Custom {@link HashAggregationOperator.HashAggregationOperatorFactory} implementation that
+     * Custom {@link HashAggregationOperator.Factory} implementation that
      * randomizes the GroupIds block type passed to AddInput.
      * <p>
      *     This helps testing the different overloads of
      *     {@link org.elasticsearch.compute.aggregation.GroupingAggregatorFunction.AddInput#add}
      * </p>
      */
-    private record RandomizingHashAggregationOperatorFactory(
-        List<BlockHash.GroupSpec> groups,
-        AggregatorMode aggregatorMode,
-        List<GroupingAggregator.Factory> aggregators,
-        int maxPageSize,
-        int partialEmitKeysThreshold,
-        double partialEmitUniquenessThreshold,
-        AnalysisRegistry analysisRegistry
-    ) implements Operator.OperatorFactory {
-
-        @Override
-        public Operator get(DriverContext driverContext) {
-            Supplier<BlockHash> blockHashSupplier = () -> {
-                BlockHash blockHash = groups.stream().anyMatch(BlockHash.GroupSpec::isCategorize)
-                    ? BlockHash.buildCategorizeBlockHash(
-                        groups,
-                        aggregatorMode,
-                        driverContext.blockFactory(),
-                        analysisRegistry,
-                        maxPageSize
-                    )
-                    : BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, false);
-
-                return new BlockHashWrapper(driverContext.blockFactory(), blockHash) {
-                    @Override
-                    public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-                        blockHash.add(page, new GroupingAggregatorFunction.AddInput() {
-                            @Override
-                            public void add(int positionOffset, IntBlock groupIds) {
-                                IntBlock newGroupIds = BlockTypeRandomizer.randomizeBlockType(groupIds);
-                                addInput.add(positionOffset, newGroupIds);
-                            }
-
-                            @Override
-                            public void add(int positionOffset, IntArrayBlock groupIds) {
-                                add(positionOffset, (IntBlock) groupIds);
-                            }
-
-                            @Override
-                            public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                                add(positionOffset, (IntBlock) groupIds);
-                            }
-
-                            @Override
-                            public void add(int positionOffset, IntVector groupIds) {
-                                add(positionOffset, groupIds.asBlock());
-                            }
-
-                            @Override
-                            public void close() {
-                                addInput.close();
-                            }
-                        });
-                    }
-
-                    @Override
-                    public int numKeys() {
-                        return blockHash.numKeys();
-                    }
-                };
-            };
-
-            return new HashAggregationOperator(
-                aggregatorMode,
-                aggregators,
-                blockHashSupplier,
-                partialEmitKeysThreshold,
-                partialEmitUniquenessThreshold,
-                driverContext
-            );
+    private class RandomizingHashAggregationOperatorFactory extends HashAggregationOperator.Factory {
+        RandomizingHashAggregationOperatorFactory(HashAggregationOperator.Builder builder) {
+            super(builder);
         }
 
         @Override
-        public String describe() {
-            return new HashAggregationOperator.HashAggregationOperatorFactory(
-                groups,
-                aggregatorMode,
-                aggregators,
-                maxPageSize,
-                partialEmitKeysThreshold,
-                partialEmitUniquenessThreshold,
-                analysisRegistry
-            ).describe();
+        protected BlockHash wrapBlockHash(DriverContext driverContext, BlockHash hash) {
+            return new BlockHashWrapper(driverContext.blockFactory(), hash) {
+                @Override
+                public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
+                    blockHash.add(page, new GroupingAggregatorFunction.AddInput() {
+                        @Override
+                        public void add(int positionOffset, IntBlock groupIds) {
+                            IntBlock newGroupIds = BlockTypeRandomizer.randomizeBlockType(groupIds);
+                            addInput.add(positionOffset, newGroupIds);
+                        }
+
+                        @Override
+                        public void add(int positionOffset, IntArrayBlock groupIds) {
+                            add(positionOffset, (IntBlock) groupIds);
+                        }
+
+                        @Override
+                        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                            add(positionOffset, (IntBlock) groupIds);
+                        }
+
+                        @Override
+                        public void add(int positionOffset, IntVector groupIds) {
+                            add(positionOffset, groupIds.asBlock());
+                        }
+
+                        @Override
+                        public void close() {
+                            addInput.close();
+                        }
+                    });
+                }
+
+                @Override
+                public int numKeys() {
+                    return blockHash.numKeys();
+                }
+            };
         }
     }
 

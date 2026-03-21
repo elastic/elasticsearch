@@ -71,4 +71,13 @@ public class QuantEncodingTests extends ESTestCase {
         assertEquals(8, encoding.getQueryPackedLength(16));
         assertEquals(8, encoding.getQueryPackedLength(16));
     }
+
+    public void testSevenBitPackSize() {
+        ESNextDiskBBQVectorsFormat.QuantEncoding encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC;
+        assertEquals(3, encoding.getDocPackedLength(3));
+        assertEquals(3, encoding.getQueryPackedLength(3));
+        assertEquals(8, encoding.getDocPackedLength(8));
+        assertEquals(8, encoding.getQueryPackedLength(8));
+    }
+
 }

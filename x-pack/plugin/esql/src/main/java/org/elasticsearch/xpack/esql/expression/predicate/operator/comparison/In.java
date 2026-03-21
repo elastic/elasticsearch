@@ -14,7 +14,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Vector;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -308,17 +309,17 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        EvalOperator.ExpressionEvaluator.Factory lhs;
-        EvalOperator.ExpressionEvaluator.Factory[] factories;
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        ExpressionEvaluator.Factory lhs;
+        ExpressionEvaluator.Factory[] factories;
         if (value.dataType() == DATE_NANOS && list.getFirst().dataType() == DATETIME) {
             lhs = toEvaluator.apply(value);
-            factories = list.stream().map(toEvaluator::apply).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
+            factories = list.stream().map(toEvaluator::apply).toArray(ExpressionEvaluator.Factory[]::new);
             return new InNanosMillisEvaluator.Factory(source(), lhs, factories);
         }
         if (value.dataType() == DATETIME && list.getFirst().dataType() == DATE_NANOS) {
             lhs = toEvaluator.apply(value);
-            factories = list.stream().map(toEvaluator::apply).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
+            factories = list.stream().map(toEvaluator::apply).toArray(ExpressionEvaluator.Factory[]::new);
             return new InMillisNanosEvaluator.Factory(source(), lhs, factories);
         }
         var commonType = commonType();
@@ -338,10 +339,10 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             lhs = Cast.cast(source(), value.dataType(), commonType, toEvaluator.apply(value));
             factories = list.stream()
                 .map(e -> Cast.cast(source(), e.dataType(), commonType, toEvaluator.apply(e)))
-                .toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
+                .toArray(ExpressionEvaluator.Factory[]::new);
         } else {
             lhs = toEvaluator.apply(value);
-            factories = list.stream().map(toEvaluator::apply).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
+            factories = list.stream().map(toEvaluator::apply).toArray(ExpressionEvaluator.Factory[]::new);
         }
 
         if (commonType == BOOLEAN) {
@@ -369,7 +370,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             return new InBytesRefEvaluator.Factory(source(), toEvaluator.apply(value), factories);
         }
         if (commonType == NULL) {
-            return EvalOperator.CONSTANT_NULL_FACTORY;
+            return ConstantEvaluators.CONSTANT_NULL_FACTORY;
         }
         throw EsqlIllegalArgumentException.illegalDataType(commonType);
     }

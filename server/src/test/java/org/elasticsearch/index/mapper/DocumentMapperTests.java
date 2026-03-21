@@ -194,14 +194,10 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 for (int i = 0; i < 200 && stopped.get() == false; i++) {
                     final String fieldName = Integer.toString(i);
                     ParsedDocument doc = documentMapper.parse(source(b -> b.field(fieldName, "test")));
-                    Mapping update = doc.dynamicMappingsUpdate();
+                    CompressedXContent update = doc.dynamicMappingsUpdate();
                     assert update != null;
                     lastIntroducedFieldName.set(fieldName);
-                    mapperService.merge(
-                        "_doc",
-                        new CompressedXContent(update.toString()),
-                        randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.MAPPING_AUTO_UPDATE)
-                    );
+                    mapperService.merge("_doc", update, randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.MAPPING_AUTO_UPDATE));
                 }
             } catch (Exception e) {
                 error.set(e);

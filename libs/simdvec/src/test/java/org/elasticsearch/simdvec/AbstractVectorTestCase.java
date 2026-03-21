@@ -16,18 +16,31 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 import java.util.Optional;
+import java.util.function.IntFunction;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractVectorTestCase extends ESTestCase {
 
-    static Optional<VectorScorerFactory> factory;
+    static Optional<org.elasticsearch.simdvec.VectorScorerFactory> factory;
+
+    protected static final float DELTA = 1e-6f;
+
+    /**
+     * Use a slightly larger delta for bulk scoring to account for floating point precision
+     * issues: applying the corrections in even a slightly different order can impact the score.
+     */
+    protected static final float BULK_DELTA = 2e-5f;
+
+    // Support for passing on-heap arrays/segments to native
+    protected static boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
 
     @BeforeClass
     public static void getVectorScorerFactory() {
-        factory = VectorScorerFactory.instance();
+        factory = org.elasticsearch.simdvec.VectorScorerFactory.instance();
     }
 
     protected AbstractVectorTestCase() {
@@ -61,11 +74,6 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
         return "JDK=" + jdkVersion + ", os=" + osName + ", arch=" + arch;
     }
 
-    // Support for passing on-heap arrays/segments to native
-    protected static boolean supportsHeapSegments() {
-        return Runtime.version().feature() >= 22;
-    }
-
     /** Converts a float value to a byte array. */
     public static byte[] floatToByteArray(float value) {
         return ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putFloat(value).array();
@@ -80,4 +88,18 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
             return baos.toByteArray();
         }
     }
+
+    static IntFunction<float[]> FLOAT_ARRAY_RANDOM_FUNC = size -> {
+        float[] fa = new float[size];
+        for (int i = 0; i < size; i++) {
+            fa[i] = randomFloat();
+        }
+        return fa;
+    };
+
+    static IntFunction<float[]> FLOAT_ARRAY_MAX_FUNC = size -> {
+        float[] fa = new float[size];
+        Arrays.fill(fa, Float.MAX_VALUE);
+        return fa;
+    };
 }

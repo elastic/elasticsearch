@@ -9,14 +9,14 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 
 public class FilterOperator extends AbstractPageMappingOperator {
 
-    private final EvalOperator.ExpressionEvaluator evaluator;
+    private final ExpressionEvaluator evaluator;
 
     public record FilterOperatorFactory(ExpressionEvaluator.Factory evaluatorSupplier) implements OperatorFactory {
 
@@ -31,7 +31,7 @@ public class FilterOperator extends AbstractPageMappingOperator {
         }
     }
 
-    public FilterOperator(EvalOperator.ExpressionEvaluator evaluator) {
+    public FilterOperator(ExpressionEvaluator evaluator) {
         this.evaluator = evaluator;
     }
 

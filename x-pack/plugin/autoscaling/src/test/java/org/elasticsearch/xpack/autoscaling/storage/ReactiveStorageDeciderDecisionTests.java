@@ -17,10 +17,13 @@ import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -43,6 +46,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -77,6 +81,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_WARM_NODE_RO
 import static org.elasticsearch.cluster.routing.ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
 import static org.elasticsearch.common.util.set.Sets.haveNonEmptyIntersection;
 import static org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageDeciderService.AllocationState.MAX_AMOUNT_OF_SHARD_DECISIONS;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -386,15 +391,21 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private Set<IndexMetadata> allIndices() {
-        return new HashSet<>(state.metadata().getProject().indices().values());
+        final ProjectMetadata project = projectMetadata();
+        return new HashSet<>(project.indices().values());
     }
 
     private ClusterState moveToCold(Set<IndexMetadata> candidates) {
-        ClusterState.Builder stateBuilder = ClusterState.builder(state);
-        Metadata.Builder builder = Metadata.builder(state.metadata());
-        candidates.forEach(imd -> builder.put(moveToCold(imd), true));
-        stateBuilder.metadata(builder);
-        return stateBuilder.build();
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectMetadata());
+        candidates.forEach(imd -> projectBuilder.put(moveToCold(imd), true));
+        Metadata metadata = Metadata.builder(state.metadata()).put(projectBuilder).build();
+        return ClusterState.builder(state).metadata(metadata).build();
+    }
+
+    private ProjectMetadata projectMetadata() {
+        final Metadata metadata = state.metadata();
+        assertThat("Test assumes a single project", metadata.projects(), aMapWithSize(1));
+        return metadata.projects().values().iterator().next();
     }
 
     private IndexMetadata moveToCold(IndexMetadata imd) {
@@ -814,9 +825,11 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private static ClusterState addRandomIndices(int minShards, int maxShardCopies, ClusterState state) {
+        @NotMultiProjectCapable(description = "ReactiveStorageDeciderDecision tests use default project for indices")
+        final ProjectId projectId = ProjectId.DEFAULT;
         String[] tierSettingNames = new String[] { DataTier.TIER_PREFERENCE };
         int shards = randomIntBetween(minShards, 20);
-        Metadata.Builder builder = Metadata.builder();
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         while (shards > 0) {
             IndexMetadata indexMetadata = IndexMetadata.builder("test" + "-" + shards)
@@ -825,12 +838,14 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 .numberOfReplicas(randomIntBetween(0, maxShardCopies - 1))
                 .build();
 
-            builder.put(indexMetadata, false);
+            projectBuilder.put(indexMetadata, false);
             routingTableBuilder.addAsNew(indexMetadata);
             shards -= indexMetadata.getNumberOfShards() * (indexMetadata.getNumberOfReplicas() + 1);
         }
 
-        return ClusterState.builder(state).metadata(builder).routingTable(routingTableBuilder.build()).build();
+        Metadata metadata = Metadata.builder().put(projectBuilder).build();
+        GlobalRoutingTable globalRoutingTable = GlobalRoutingTable.builder().put(projectId, routingTableBuilder.build()).build();
+        return ClusterState.builder(state).metadata(metadata).routingTable(globalRoutingTable).build();
     }
 
     static ClusterState addDataNodes(DiscoveryNodeRole role, String prefix, ClusterState state, int nodes) {

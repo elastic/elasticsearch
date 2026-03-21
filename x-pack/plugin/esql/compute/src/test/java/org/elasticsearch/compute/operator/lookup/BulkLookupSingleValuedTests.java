@@ -18,6 +18,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.WarningsTests;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.operator.blocksource.ListRowsBlockSourceOperator;
 import org.hamcrest.Matcher;
@@ -70,7 +72,7 @@ public class BulkLookupSingleValuedTests extends OperatorTestCase {
 
             @Override
             public ExpressionEvaluator get(DriverContext context) {
-                return new BulkLookupSingleValued(context, 0, null);
+                return new BulkLookupSingleValued(context, 0, warnings());
             }
 
             @Override
@@ -88,5 +90,9 @@ public class BulkLookupSingleValuedTests extends OperatorTestCase {
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
         return expectedDescriptionOfSimple();
+    }
+
+    private static Warnings warnings() {
+        return Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new WarningsTests.TestWarningsSource("test"));
     }
 }

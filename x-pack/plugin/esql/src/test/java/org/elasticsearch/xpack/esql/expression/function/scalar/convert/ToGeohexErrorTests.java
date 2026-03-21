@@ -19,7 +19,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ToGeohexhErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+public class ToGeohexErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
         return paramsToSuppliers(ToGeohexTests.parameters());

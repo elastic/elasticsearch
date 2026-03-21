@@ -381,6 +381,9 @@ tests:
 - class: org.elasticsearch.index.mapper.TsidExtractingIdFieldMapperTests
   method: testParsedDescriptionWithIndexDimensions
   issue: https://github.com/elastic/elasticsearch/issues/144678
+- class: org.elasticsearch.index.store.StoreDirectoryMetricsIT
+  method: testDirectoryMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/144702
 
 # Examples:
 #

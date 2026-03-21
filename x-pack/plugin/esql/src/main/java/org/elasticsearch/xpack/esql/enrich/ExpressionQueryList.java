@@ -119,6 +119,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         @Nullable QueryBuilder pushedQuery,
         ClusterService clusterService,
         List<MatchConfig> matchFields,
+        List<String> extractFieldNames,
         Expression joinOnConditions,
         AliasFilter aliasFilter,
         Warnings warnings
@@ -141,7 +142,15 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             SearchContextStats.from(List.of(context)),
             new EsqlFlags(clusterService.getClusterSettings())
         );
-        expressionQueryList.buildJoinOnForExpressionJoin(joinOnConditions, matchFields, context, lucenePushdownPredicates, warnings);
+
+        expressionQueryList.buildJoinOnForExpressionJoin(
+            joinOnConditions,
+            matchFields,
+            extractFieldNames,
+            context,
+            lucenePushdownPredicates,
+            warnings
+        );
         return expressionQueryList;
     }
 
@@ -153,12 +162,13 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     private void buildJoinOnForExpressionJoin(
         Expression joinOnConditions,
         List<MatchConfig> matchFields,
+        List<String> extractFieldNames,
         SearchExecutionContext context,
         LucenePushdownPredicates lucenePushdownPredicates,
         Warnings warnings
     ) {
         List<Expression> expressions = Predicates.splitAnd(joinOnConditions);
-        if (applyAsFastKeywordFilter(expressions, matchFields, context, clusterService, warnings)) {
+        if (applyAsFastKeywordFilter(expressions, matchFields, extractFieldNames, context, clusterService, warnings)) {
             // we managed to apply the whole condition as a fast keyword filter
             return;
         }
@@ -176,6 +186,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
     private boolean applyAsFastKeywordFilter(
         List<Expression> expressions,
         List<MatchConfig> matchFields,
+        List<String> extractFieldNames,
         SearchExecutionContext context,
         ClusterService clusterService,
         Warnings warnings
@@ -185,21 +196,35 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             if (expr instanceof EsqlBinaryComparison binaryComparison
                 && binaryComparison.left() instanceof Attribute leftAttribute
                 && binaryComparison.right() instanceof Attribute rightAttribute) {
+
                 // the left side comes from the page that was sent to the lookup node
                 // the right side is the field from the lookup index
                 // check if the left side is in the matchFields
-                int channelOffset = -1;
+                int matchChannelOffset = -1;
                 DataType dataType = null;
                 for (int i = 0; i < matchFields.size(); i++) {
                     if (matchFields.get(i).fieldName().equals(leftAttribute.name())) {
-                        channelOffset = i;
+                        matchChannelOffset = i;
                         dataType = matchFields.get(i).type();
                         break;
                     }
                 }
-                if (channelOffset != -1 && dataType == DataType.KEYWORD) {
+
+                if (matchChannelOffset != -1 && dataType == DataType.KEYWORD) {
+
+                    // BulkLookupMvFilterOperator needs the extractChannelOffset later
+                    // when filtering out false-positive multivalue matches
+                    //
+                    int extractChannelOffset = -1;
+                    for (int i = 0; i < extractFieldNames.size(); i++) {
+                        if (extractFieldNames.get(i).equals(rightAttribute.name())) {
+                            extractChannelOffset = i;
+                            break;
+                        }
+                    }
                     MappedFieldType rightFieldType = context.getFieldType(rightAttribute.name());
-                    if (rightFieldType != null) {
+
+                    if (extractChannelOffset != -1 && rightFieldType != null) {
                         // special handle Equals operator on keyword fields
                         // we can apply as a BulkKeywordLookup for better performance
                         if (binaryComparison instanceof Equals) {
@@ -208,7 +233,8 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                                 rightFieldType,
                                 leftElementType,
                                 context,
-                                channelOffset,
+                                matchChannelOffset,
+                                extractChannelOffset,
                                 clusterService,
                                 aliasFilter,
                                 warnings

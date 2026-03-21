@@ -77,7 +77,7 @@ public class LocalMapper {
         }
 
         if (leaf instanceof ParameterizedQuery pq) {
-            return new ParameterizedQueryExec(pq.source(), pq.output(), pq.matchFields(), pq.joinOnConditions(), null);
+            return new ParameterizedQueryExec(pq.source(), pq.output(), pq.matchFields(), pq.joinOnConditions(), null, pq.emptyResult());
         }
 
         if (leaf instanceof ExternalRelation external) {

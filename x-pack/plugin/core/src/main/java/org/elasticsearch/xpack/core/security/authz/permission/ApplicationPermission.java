@@ -84,7 +84,7 @@ public final class ApplicationPermission {
     public boolean grants(ApplicationPrivilege other, String resource) {
         final boolean matched;
         if (Automatons.isLiteralPattern(resource)) {
-            matched = permissions.stream().anyMatch(e -> e.matchesPrivilege(other) && e.grantsResource(resource));
+            matched = permissions.stream().anyMatch(e -> e.grantsResourceLiteral(other, resource));
         } else {
             Automaton resourceAutomaton = Automatons.patterns(resource);
             matched = permissions.stream().anyMatch(e -> e.grants(other, resourceAutomaton));
@@ -197,8 +197,8 @@ public final class ApplicationPermission {
             return matchesPrivilege(other) && Automatons.subsetOf(resource, this.resourceAutomaton);
         }
 
-        private boolean grantsResource(String resource) {
-            return resourcePredicate.test(resource);
+        private boolean grantsResourceLiteral(ApplicationPrivilege other, String resource) {
+            return matchesPrivilege(other) && resourcePredicate.test(resource);
         }
 
         private boolean matchesPrivilege(ApplicationPrivilege other) {

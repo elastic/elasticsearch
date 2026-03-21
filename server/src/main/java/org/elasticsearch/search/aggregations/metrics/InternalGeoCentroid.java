@@ -13,7 +13,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.lucene.spatial.DimensionalShapeType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -30,17 +29,8 @@ public class InternalGeoCentroid extends InternalCentroid implements GeoCentroid
     /**
      * Constructor for shape centroid results that carry raw weighted sums for correct cross-shard reduction.
      */
-    public InternalGeoCentroid(
-        String name,
-        SpatialPoint centroid,
-        long count,
-        double latWeightedSum,
-        double lonWeightedSum,
-        double totalWeight,
-        DimensionalShapeType shapeType,
-        Map<String, Object> metadata
-    ) {
-        super(name, centroid, count, latWeightedSum, lonWeightedSum, totalWeight, shapeType, metadata);
+    public InternalGeoCentroid(String name, SpatialPoint centroid, long count, ShapeData shapeData, Map<String, Object> metadata) {
+        super(name, centroid, count, shapeData, metadata);
     }
 
     /**
@@ -91,17 +81,11 @@ public class InternalGeoCentroid extends InternalCentroid implements GeoCentroid
     }
 
     @Override
-    protected InternalGeoCentroid copyWithShapeFields(
-        double firstWeightedSum,
-        double secondWeightedSum,
-        double totalWeight,
-        long count,
-        DimensionalShapeType shapeType
-    ) {
-        final GeoPoint result = totalWeight > 0
-            ? new GeoPoint(firstWeightedSum / totalWeight, secondWeightedSum / totalWeight)
+    protected InternalGeoCentroid copyWithShapeFields(ShapeData shapeData, long count) {
+        final GeoPoint result = shapeData.totalWeight() > 0
+            ? new GeoPoint(shapeData.firstWeightedSum() / shapeData.totalWeight(), shapeData.secondWeightedSum() / shapeData.totalWeight())
             : null;
-        return new InternalGeoCentroid(name, result, count, firstWeightedSum, secondWeightedSum, totalWeight, shapeType, getMetadata());
+        return new InternalGeoCentroid(name, result, count, shapeData, getMetadata());
     }
 
     @Override

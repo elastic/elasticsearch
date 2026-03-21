@@ -33,40 +33,28 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
 
     private static final TransportVersion SHAPE_CENTROID_SUPPORT = TransportVersion.fromName("geo_centroid_shape_weighted_sums");
 
+    /**
+     * Holds the raw weighted sums and dimensional shape type needed for correct cross-shard reduction
+     * of shape centroids. This is {@code null} for geo_point centroids and for results from old nodes,
+     * avoiding any memory overhead in the common geo_point case.
+     */
+    public record ShapeData(double firstWeightedSum, double secondWeightedSum, double totalWeight, DimensionalShapeType shapeType) {}
+
     protected final SpatialPoint centroid;
     protected final long count;
-
-    // Optional shape centroid fields for correct cross-shard reduction of shape centroids.
-    // When shapeType is non-null, the area-weighted reduction path is used.
-    // When null (geo_point or old nodes), the classic count-weighted path is used.
-    protected final double firstWeightedSum;
-    protected final double secondWeightedSum;
-    protected final double totalWeight;
-    protected final DimensionalShapeType shapeType;
+    protected final ShapeData shapeData;
 
     public InternalCentroid(String name, SpatialPoint centroid, long count, Map<String, Object> metadata) {
-        this(name, centroid, count, Double.NaN, Double.NaN, 0, null, metadata);
+        this(name, centroid, count, null, metadata);
     }
 
-    public InternalCentroid(
-        String name,
-        SpatialPoint centroid,
-        long count,
-        double firstWeightedSum,
-        double secondWeightedSum,
-        double totalWeight,
-        DimensionalShapeType shapeType,
-        Map<String, Object> metadata
-    ) {
+    public InternalCentroid(String name, SpatialPoint centroid, long count, ShapeData shapeData, Map<String, Object> metadata) {
         super(name, metadata);
         assert (centroid == null) == (count == 0);
         this.centroid = centroid;
         assert count >= 0;
         this.count = count;
-        this.firstWeightedSum = firstWeightedSum;
-        this.secondWeightedSum = secondWeightedSum;
-        this.totalWeight = totalWeight;
-        this.shapeType = shapeType;
+        this.shapeData = shapeData;
     }
 
     protected abstract SpatialPoint centroidFromStream(StreamInput in) throws IOException;
@@ -87,21 +75,17 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
         }
         if (in.getTransportVersion().supports(SHAPE_CENTROID_SUPPORT)) {
             if (in.readBoolean()) {
-                firstWeightedSum = in.readDouble();
-                secondWeightedSum = in.readDouble();
-                totalWeight = in.readDouble();
-                shapeType = DimensionalShapeType.fromOrdinalByte(in.readByte());
+                shapeData = new ShapeData(
+                    in.readDouble(),
+                    in.readDouble(),
+                    in.readDouble(),
+                    DimensionalShapeType.fromOrdinalByte(in.readByte())
+                );
             } else {
-                firstWeightedSum = Double.NaN;
-                secondWeightedSum = Double.NaN;
-                totalWeight = 0;
-                shapeType = null;
+                shapeData = null;
             }
         } else {
-            firstWeightedSum = Double.NaN;
-            secondWeightedSum = Double.NaN;
-            totalWeight = 0;
-            shapeType = null;
+            shapeData = null;
         }
     }
 
@@ -115,12 +99,12 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
             out.writeBoolean(false);
         }
         if (out.getTransportVersion().supports(SHAPE_CENTROID_SUPPORT)) {
-            if (shapeType != null) {
+            if (shapeData != null) {
                 out.writeBoolean(true);
-                out.writeDouble(firstWeightedSum);
-                out.writeDouble(secondWeightedSum);
-                out.writeDouble(totalWeight);
-                out.writeByte((byte) shapeType.ordinal());
+                out.writeDouble(shapeData.firstWeightedSum);
+                out.writeDouble(shapeData.secondWeightedSum);
+                out.writeDouble(shapeData.totalWeight);
+                out.writeByte((byte) shapeData.shapeType.ordinal());
             } else {
                 out.writeBoolean(false);
             }
@@ -143,13 +127,7 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
     protected abstract InternalCentroid copyWith(double firstSum, double secondSum, long totalCount);
 
     /** Create a new centroid from shape-aware weighted sums (area-weighted path for geo_shape). */
-    protected abstract InternalCentroid copyWithShapeFields(
-        double firstWeightedSum,
-        double secondWeightedSum,
-        double totalWeight,
-        long count,
-        DimensionalShapeType shapeType
-    );
+    protected abstract InternalCentroid copyWithShapeFields(ShapeData shapeData, long count);
 
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
@@ -171,22 +149,22 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
             public void accept(InternalAggregation aggregation) {
                 InternalCentroid centroidAgg = (InternalCentroid) aggregation;
                 if (centroidAgg.count > 0) {
-                    if (centroidAgg.shapeType != null && centroidAgg.totalWeight > 0) {
+                    if (centroidAgg.shapeData != null && centroidAgg.shapeData.totalWeight > 0) {
                         // Shape-aware path: respect dimensional type priority
-                        int cmp = centroidAgg.shapeType.compareTo(combinedShapeType);
+                        int cmp = centroidAgg.shapeData.shapeType.compareTo(combinedShapeType);
                         if (hasShapeValues == false || cmp > 0) {
                             // First shape value or higher dimension — reset
-                            combinedFirstWeighted = centroidAgg.firstWeightedSum;
-                            combinedSecondWeighted = centroidAgg.secondWeightedSum;
-                            combinedWeight = centroidAgg.totalWeight;
+                            combinedFirstWeighted = centroidAgg.shapeData.firstWeightedSum;
+                            combinedSecondWeighted = centroidAgg.shapeData.secondWeightedSum;
+                            combinedWeight = centroidAgg.shapeData.totalWeight;
                             shapeCount = centroidAgg.count;
-                            combinedShapeType = centroidAgg.shapeType;
+                            combinedShapeType = centroidAgg.shapeData.shapeType;
                             hasShapeValues = true;
                         } else if (cmp == 0) {
                             // Same dimension — accumulate
-                            combinedFirstWeighted += centroidAgg.firstWeightedSum;
-                            combinedSecondWeighted += centroidAgg.secondWeightedSum;
-                            combinedWeight += centroidAgg.totalWeight;
+                            combinedFirstWeighted += centroidAgg.shapeData.firstWeightedSum;
+                            combinedSecondWeighted += centroidAgg.shapeData.secondWeightedSum;
+                            combinedWeight += centroidAgg.shapeData.totalWeight;
                             shapeCount += centroidAgg.count;
                         }
                         // cmp < 0: lower dimension — ignore
@@ -215,7 +193,10 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
             @Override
             public InternalAggregation get() {
                 if (hasShapeValues) {
-                    return copyWithShapeFields(combinedFirstWeighted, combinedSecondWeighted, combinedWeight, shapeCount, combinedShapeType);
+                    return copyWithShapeFields(
+                        new ShapeData(combinedFirstWeighted, combinedSecondWeighted, combinedWeight, combinedShapeType),
+                        shapeCount
+                    );
                 }
                 return copyWith(firstSum, secondSum, totalCount);
             }

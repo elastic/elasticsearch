@@ -19,9 +19,9 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
-import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianShapeValuesSource;
 
@@ -133,16 +133,8 @@ public final class CartesianShapeCentroidAggregator extends MetricsAggregator {
         final CartesianPoint bucketCentroid = bucketWeight > 0
             ? new CartesianPoint(bucketXSum / bucketWeight, bucketYSum / bucketWeight)
             : null;
-        return new InternalCartesianCentroid(
-            name,
-            bucketCentroid,
-            bucketCount,
-            bucketXSum,
-            bucketYSum,
-            bucketWeight,
-            bucketShapeType,
-            metadata()
-        );
+        var shapeData = new InternalCartesianCentroid.ShapeData(bucketXSum, bucketYSum, bucketWeight, bucketShapeType);
+        return new InternalCartesianCentroid(name, bucketCentroid, bucketCount, shapeData, metadata());
     }
 
     @Override

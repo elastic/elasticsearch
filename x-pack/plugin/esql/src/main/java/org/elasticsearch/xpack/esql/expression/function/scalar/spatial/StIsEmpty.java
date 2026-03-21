@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSP
 
 /**
  * Returns true if the given geometry is empty.
- * The function {@code st_is_empty} is defined in the
+ * The function {@code st_isempty} is defined in the
  * <a href="https://www.ogc.org/standard/sfs/">OGC Simple Feature Access</a> standard.
  * Alternatively, it is well described in PostGIS documentation at
  * <a href="https://postgis.net/docs/ST_IsEmpty.html">PostGIS:ST_IsEmpty</a>.
@@ -85,9 +85,8 @@ public class StIsEmpty extends SpatialUnaryDocValuesFunction {
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (spatialDocValues) {
             return new StIsEmptyFromPointDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
-        } else {
-            return new StIsEmptyFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
         }
+        return new StIsEmptyFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
     }
 
     @Override
@@ -112,7 +111,9 @@ public class StIsEmpty extends SpatialUnaryDocValuesFunction {
 
     @Evaluator(extraName = "FromPointDocValues", warnExceptions = { IllegalArgumentException.class })
     static void fromPointDocValues(BooleanBlock.Builder results, @Position int p, LongBlock encoded) {
-        // Points stored in doc values are never empty
+        // Points in doc values are encoded as longs (packed coordinates) and are never empty.
+        // If the field is missing, the generated evaluator handles the null.
+        // For multi-valued points, each value is a non-empty encoded point.
         results.appendBoolean(false);
     }
 

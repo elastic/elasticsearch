@@ -202,7 +202,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.names;
@@ -8978,8 +8977,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | RENAME languages AS int
             | LOOKUP_🐔 int_number_names ON int""";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
+            analyzer().addEmployees("test")
+                .error(query, ParsingException.class, containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         PhysicalPlan plan = physicalPlan(query);
@@ -9028,8 +9027,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | RENAME int AS languages, name AS lang_name
             | KEEP emp_no, languages, lang_name""";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 5:3: mismatched input 'LOOKUP_🐔' expecting {"));
+            analyzer().addEmployees("employees")
+                .error(query, ParsingException.class, containsString("line 5:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         PhysicalPlan plan = optimizedPlan(physicalPlan(query));
@@ -9086,8 +9085,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | KEEP languages, emp_no
             | SORT languages ASC, emp_no ASC""";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP_🐔' expecting {"));
+            analyzer().addEmployees("employees")
+                .error(query, ParsingException.class, containsString("line 3:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
 

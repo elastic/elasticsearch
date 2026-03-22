@@ -377,6 +377,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
         PlannerSettings plannerSettings = new PlannerSettings(
             DataPartitioning.AUTO,
+            PlannerSettings.DEFAULTS.docsThresholdForAutoPartitioning(),
             ByteSizeValue.ofMb(1),
             10_000,
             ByteSizeValue.ofMb(1),

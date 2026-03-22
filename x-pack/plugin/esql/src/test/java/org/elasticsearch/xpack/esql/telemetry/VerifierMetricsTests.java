@@ -949,10 +949,10 @@ public class VerifierMetricsTests extends ESTestCase {
             verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         }
         analyzer().addIndex("metrics", "mapping-basic.json", IndexMode.TIME_SERIES)
-            .addIndex("k8s", "k8s-mappings.json", IndexMode.TIME_SERIES)
+            .addK8s()
             .addEmployees()
             .addAnalysisTestsEnrichResolution()
-            .addAnalysisTestsLookupResolutions()
+            .addLanguagesLookup()
             .buildAnalyzer(verifier)
             .analyze(TEST_PARSER.parseQuery(esql));
 

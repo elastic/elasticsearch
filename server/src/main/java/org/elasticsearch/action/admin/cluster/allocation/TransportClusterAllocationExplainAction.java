@@ -126,7 +126,7 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
         if (shardRouting.initializing() || shardRouting.relocating()) {
             shardDecision = ShardAllocationDecision.NOT_TAKEN;
         } else {
-            shardDecision = allocationService.explainShardAllocation(shardRouting, clusterState, System.nanoTime(), debugMode);
+            shardDecision = allocationService.explainShardAllocation(shardRouting, clusterState, debugMode);
         }
 
         return new ClusterAllocationExplanation(

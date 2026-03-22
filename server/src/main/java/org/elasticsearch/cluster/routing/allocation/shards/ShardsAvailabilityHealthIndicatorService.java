@@ -516,7 +516,6 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         ShardAllocationDecision shardAllocationDecision = allocationService.explainShardAllocation(
             shardRouting,
             state,
-            System.nanoTime(),
             RoutingAllocation.DebugMode.ON
         );
         AllocateUnassignedDecision allocateDecision = shardAllocationDecision.getAllocateDecision();

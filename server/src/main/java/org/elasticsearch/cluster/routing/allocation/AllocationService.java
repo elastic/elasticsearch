@@ -798,10 +798,9 @@ public class AllocationService {
     public ShardAllocationDecision explainShardAllocation(
         ShardRouting shardRouting,
         ClusterState clusterState,
-        long currentNanoTime,
         RoutingAllocation.DebugMode debugMode
     ) {
-        RoutingAllocation immutableRoutingAllocation = createImmutableRoutingAllocation(clusterState, currentNanoTime);
+        RoutingAllocation immutableRoutingAllocation = createImmutableRoutingAllocation(clusterState, System.nanoTime());
         immutableRoutingAllocation.setDebugMode(debugMode);
         return explainShardAllocation(shardRouting, immutableRoutingAllocation);
     }

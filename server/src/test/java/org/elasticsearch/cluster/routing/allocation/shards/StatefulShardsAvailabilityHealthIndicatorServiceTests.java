@@ -136,7 +136,6 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -2837,7 +2836,6 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             allocationService.explainShardAllocation(
                 any(ShardRouting.class),
                 any(ClusterState.class),
-                anyLong(),
                 any(RoutingAllocation.DebugMode.class)
             )
         ).thenAnswer((Answer<ShardAllocationDecision>) invocation -> {

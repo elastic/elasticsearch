@@ -206,7 +206,6 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             ShardAllocationDecision decision = allocationService.explainShardAllocation(
                 shardRouting,
                 currentState,
-                System.nanoTime(),
                 RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS
             );
 

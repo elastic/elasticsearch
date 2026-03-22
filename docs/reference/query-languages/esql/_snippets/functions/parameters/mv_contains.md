@@ -3,8 +3,8 @@
 ## Parameters
 
 `superset`
-:   Multivalue expression.
+:   Expression that can be null, a single value, or multiple values.
 
 `subset`
-:   Multivalue expression.
+:   Expression that can be null, a single value, or multiple values.
 

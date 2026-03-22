@@ -1968,6 +1968,11 @@ public class EsqlCapabilities {
         PROMQL_IMPLICIT_RANGE_SELECTOR,
 
         /**
+         * Support for PromQL {@code without} grouping.
+         */
+        PROMQL_WITHOUT_GROUPING(false),
+
+        /**
          * Support for {@code TIME_SERIES_WITHOUT_GROUPING} capability for the
          * grouping function that excludes specific dimensions from time-series grouping.
          */
@@ -2120,7 +2125,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation.
          */
-        APPROXIMATION_V3(Build.current().isSnapshot()),
+        APPROXIMATION_V4(Build.current().isSnapshot()),
 
         /**
          * Create a ScoreOperator only when shard contexts are available
@@ -2152,6 +2157,11 @@ public class EsqlCapabilities {
          * Support for the {@code TO_EXPONENTIAL_HISTOGRAM} conversion function.
          */
         TO_EXPONENTIAL_HISTOGRAM,
+
+        /**
+         * Support for converting {@code exponential_histogram} fields via {@code TO_TDIGEST}.
+         */
+        TO_TDIGEST_FROM_EXPONENTIAL_HISTOGRAM,
 
         /**
          * Support for {@code MEDIAN} aggregation on {@code tdigest} type fields.
@@ -2219,6 +2229,11 @@ public class EsqlCapabilities {
          * Support for the EXTERNAL command (datasource access).
          */
         EXTERNAL_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * Support for the EXTERNAL command (datasource access).
+         */
+        EXTERNAL_CSV_IP_SUPPORT(Build.current().isSnapshot()),
 
         /**
          * https://github.com/elastic/elasticsearch/issues/142219
@@ -2321,13 +2336,34 @@ public class EsqlCapabilities {
 
         /**
          * LIMIT n BY expr1, expr2 support for retaining at most n docs per group.
+         * Enables the feature without a preceding SORT.
+         *
          */
-        LIMIT_BY(Build.current().isSnapshot()),
+        ESQL_LIMIT_BY(Build.current().isSnapshot()),
 
         /**
          * Fix window validation in time-series aggregations when TBUCKET uses a numeric target bucket count.
          */
         FIX_TBUCKET_TARGET_COUNT_WINDOW_VALIDATION,
+
+        /**
+         * Support the null column type for the CHANGE_POINT command
+         * <a href="https://github.com/elastic/elasticsearch/pull/144388"></a>
+         */
+        CHANGE_POINT_SUPPORT_NULL_COLUMN,
+
+        /**
+         * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}
+         * See https://github.com/elastic/elasticsearch/issues/143494
+         */
+        REJECT_LOADING_FLATTENED_SUBFIELDS,
+
+        FIX_DIV_ERROR_MESSAGE,
+
+        /**
+         * Added {@link org.elasticsearch.xpack.esql.planner.PlannerSettings#DOC_THRESHOLD_AUTO_PARTITIONING}
+         */
+        AUTO_PARTITION_DOCS_THRESHOLD,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

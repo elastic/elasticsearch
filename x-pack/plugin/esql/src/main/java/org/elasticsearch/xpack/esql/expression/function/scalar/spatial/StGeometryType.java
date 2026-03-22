@@ -89,7 +89,7 @@ public class StGeometryType extends SpatialUnaryDocValuesFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (spatialField().dataType() == DataType.GEO_POINT || spatialField().dataType() == DataType.CARTESIAN_POINT) {
+        if (DataType.isSpatialPoint(spatialField().dataType())) {
             // Points always have type "ST_Point", so return a constant
             return new ConstantPointTypeEvaluator.Factory(toEvaluator.apply(spatialField()));
         }

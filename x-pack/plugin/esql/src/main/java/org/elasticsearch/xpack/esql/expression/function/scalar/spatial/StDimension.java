@@ -103,7 +103,7 @@ public class StDimension extends SpatialUnaryDocValuesFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (spatialField().dataType() == DataType.GEO_POINT || spatialField().dataType() == DataType.CARTESIAN_POINT) {
+        if (DataType.isSpatialPoint(spatialField().dataType())) {
             // Points always have dimension 0, so return a constant
             return new ConstantPointDimensionEvaluator.Factory(toEvaluator.apply(spatialField()));
         }

@@ -383,6 +383,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/144702
 - class: org.elasticsearch.index.mapper.TsidExtractingIdFieldMapperTests
   issue: https://github.com/elastic/elasticsearch/issues/144678
+- class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
+  issue: https://github.com/elastic/elasticsearch/issues/144709
 
 
 # Examples:

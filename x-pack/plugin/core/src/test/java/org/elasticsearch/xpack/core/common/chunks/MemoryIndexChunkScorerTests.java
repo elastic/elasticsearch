@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.common.chunks;
 
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -15,6 +17,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class MemoryIndexChunkScorerTests extends ESTestCase {
 
@@ -122,6 +125,23 @@ public class MemoryIndexChunkScorerTests extends ESTestCase {
             assertNotNull(session.analyzer());
             assertThat(session.reader().numDocs(), equalTo(CHUNKS.size()));
         }
+    }
+
+    public void testDefaultConstructorUsesStandardAnalyzer() throws IOException {
+        try (var session = new MemoryIndexChunkScorer().openSession(CHUNKS)) {
+            assertThat(session.analyzer(), instanceOf(StandardAnalyzer.class));
+        }
+    }
+
+    public void testConstructorAcceptsCustomAnalyzer() throws IOException {
+        var whitespace = new WhitespaceAnalyzer();
+        try (var session = new MemoryIndexChunkScorer(whitespace).openSession(CHUNKS)) {
+            assertSame(whitespace, session.analyzer());
+        }
+    }
+
+    public void testConstructorRejectsNullAnalyzer() {
+        expectThrows(NullPointerException.class, () -> new MemoryIndexChunkScorer(null));
     }
 
 }

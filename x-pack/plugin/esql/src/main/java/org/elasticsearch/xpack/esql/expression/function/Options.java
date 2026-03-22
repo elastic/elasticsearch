@@ -18,8 +18,10 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -134,20 +136,37 @@ public class Options {
                 );
             }
 
-            Object valueExprLiteral = ((Literal) valueExpr).value();
-            String optionValue = BytesRefs.toString(valueExprLiteral);
             // validate the optionExpr is supported
             if (dataType == null) {
                 throw new InvalidArgumentException(
                     format(null, "Invalid option [{}] in [{}], expected one of {}", optionName, source.text(), allowedOptions.keySet())
                 );
             }
-            try {
-                optionsMap.put(optionName, DataTypeConverter.convert(optionValue, dataType));
-            } catch (InvalidArgumentException e) {
-                throw new InvalidArgumentException(
-                    format(null, "Invalid option [{}] in [{}], {}", optionName, source.text(), e.getMessage())
-                );
+
+            Object valueExprLiteral = ((Literal) valueExpr).value();
+            if (valueExprLiteral instanceof List<?> listValue) {
+                // Array literal (e.g. ["a", "b"]) — convert each element individually
+                List<Object> convertedList = new ArrayList<>(listValue.size());
+                for (Object element : listValue) {
+                    String elementStr = BytesRefs.toString(element);
+                    try {
+                        convertedList.add(DataTypeConverter.convert(elementStr, dataType));
+                    } catch (InvalidArgumentException e) {
+                        throw new InvalidArgumentException(
+                            format(null, "Invalid option [{}] in [{}], {}", optionName, source.text(), e.getMessage())
+                        );
+                    }
+                }
+                optionsMap.put(optionName, convertedList);
+            } else {
+                String optionValue = BytesRefs.toString(valueExprLiteral);
+                try {
+                    optionsMap.put(optionName, DataTypeConverter.convert(optionValue, dataType));
+                } catch (InvalidArgumentException e) {
+                    throw new InvalidArgumentException(
+                        format(null, "Invalid option [{}] in [{}], {}", optionName, source.text(), e.getMessage())
+                    );
+                }
             }
         }
     }

@@ -361,6 +361,25 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         assertThat(result.get(0), containsString("<em>Ring</em>"));
     }
 
+    /**
+     * TOP_SNIPPETS uses StandardAnalyzer (no stemming), so query "return" matches only the exact token "return",
+     * not "returns". The search highlight API instead uses the field's index analyzer from the mapping
+     * (see DefaultHighlighter.buildHighlighter / getIndexAnalyzer), so when a field is mapped with e.g. the
+     * english analyzer, the highlight API will highlight "returns" for query "return". Parity would require
+     * passing the field's analyzer when the input is from an indexed field.
+     */
+    public void testHighlightNoStemmingUsesExactTermOnly() {
+        String text = "The API returns results. Use the return value to continue.";
+        List<String> result = processWithHighlight(text, "return", 5, 300, true, null, null, null);
+        assertNotNull(result);
+        assertThat(result, hasSize(1));
+        // Exact term "return" is highlighted
+        assertThat(result.get(0), containsString("<em>return</em>"));
+        // "returns" is not highlighted (StandardAnalyzer does not stem)
+        assertThat(result.get(0), containsString("returns"));
+        assertFalse(result.get(0).contains("<em>returns</em>"));
+    }
+
     private List<String> process(String str, String query, int numSnippets, int numWords) {
         return processWithHighlight(str, query, numSnippets, numWords, null, null, null, null);
     }

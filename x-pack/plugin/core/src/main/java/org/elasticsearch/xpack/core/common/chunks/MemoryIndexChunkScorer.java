@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.common.chunks;
 
-import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -27,6 +27,7 @@ import org.elasticsearch.ElasticsearchException;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Objects;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -41,11 +42,24 @@ public class MemoryIndexChunkScorer {
 
     public static final String CONTENT_FIELD = "content";
 
-    private final StandardAnalyzer analyzer;
+    private final Analyzer analyzer;
 
+    /**
+     * Builds a scorer that indexes and queries chunks with Lucene's {@link StandardAnalyzer}.
+     */
     public MemoryIndexChunkScorer() {
-        // TODO: Allow analyzer to be customizable and/or read from the field mapping
-        this.analyzer = new StandardAnalyzer();
+        this(new StandardAnalyzer());
+    }
+
+    /**
+     * Builds a scorer that indexes and queries chunks with the given analyzer. Callers that need
+     * snippet scoring and highlighting to align with a mapped field should pass the same
+     * {@link Analyzer} used for that field at index/search time when it is available.
+     *
+     * @param analyzer non-null; used for {@link org.apache.lucene.index.IndexWriterConfig} and query parsing
+     */
+    public MemoryIndexChunkScorer(Analyzer analyzer) {
+        this.analyzer = Objects.requireNonNull(analyzer, "analyzer");
     }
 
     /**
@@ -85,7 +99,7 @@ public class MemoryIndexChunkScorer {
     /**
      * Keeps an in-memory Lucene index alive across multiple operations so the index is built
      * once and reused. Exposes the underlying {@link IndexSearcher}, {@link DirectoryReader},
-     * and {@link StandardAnalyzer} for consumers that need direct access (e.g. highlighting).
+     * and {@link Analyzer} for consumers that need direct access (e.g. highlighting).
      * Implements {@link Closeable} to manage the directory and reader lifecycle.
      */
     public static class Session implements Closeable {
@@ -93,10 +107,10 @@ public class MemoryIndexChunkScorer {
         private final Directory directory;
         private final DirectoryReader reader;
         private final IndexSearcher searcher;
-        private final StandardAnalyzer analyzer;
+        private final Analyzer analyzer;
         private final List<String> chunks;
 
-        Session(List<String> chunks, StandardAnalyzer analyzer) {
+        Session(List<String> chunks, Analyzer analyzer) {
             this.analyzer = analyzer;
             this.chunks = chunks;
             try {
@@ -155,7 +169,7 @@ public class MemoryIndexChunkScorer {
             return reader;
         }
 
-        public StandardAnalyzer analyzer() {
+        public Analyzer analyzer() {
             return analyzer;
         }
 

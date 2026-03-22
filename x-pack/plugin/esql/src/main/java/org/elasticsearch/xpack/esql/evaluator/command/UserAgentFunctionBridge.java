@@ -98,7 +98,8 @@ public final class UserAgentFunctionBridge {
             if (details.device() != null) {
                 deviceName.accept(rowOutput, details.device().name());
             }
-            deviceType.accept(rowOutput, details.deviceType());
+            boolean parsed = details.name() != null || details.os() != null || details.device() != null;
+            deviceType.accept(rowOutput, parsed ? details.deviceType() : null);
         }
     }
 }

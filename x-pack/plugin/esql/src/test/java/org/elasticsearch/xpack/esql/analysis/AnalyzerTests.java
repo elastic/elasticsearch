@@ -6301,7 +6301,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testUserAgent() {
         assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
-        LogicalPlan plan = analyze("ROW ua=\"Mozilla/5.0\" | user_agent p = ua WITH { \"extract_device_type\": true }");
+        LogicalPlan plan = basic().query("ROW ua=\"Mozilla/5.0\" | user_agent p = ua WITH { \"extract_device_type\": true }");
 
         Limit limit = as(plan, Limit.class);
         UserAgent userAgent = as(limit.child(), UserAgent.class);
@@ -6319,11 +6319,10 @@ public class AnalyzerTests extends ESTestCase {
         assertContainsAttribute(attributes, "p.device.type", DataType.KEYWORD);
         assertEquals(7, attributes.size());
 
-        VerificationException e = expectThrows(
-            VerificationException.class,
-            () -> analyze("ROW ua=123 | user_agent p = ua WITH { \"extract_device_type\": true }")
+        basic().error(
+            "ROW ua=123 | user_agent p = ua WITH { \"extract_device_type\": true }",
+            containsString("Input for USER_AGENT must be of type [string] but is [integer]")
         );
-        assertThat(e.getMessage(), containsString("Input for USER_AGENT must be of type [string] but is [integer]"));
     }
 
     private void assertContainsAttribute(List<Attribute> attributes, String expectedName, DataType expectedType) {

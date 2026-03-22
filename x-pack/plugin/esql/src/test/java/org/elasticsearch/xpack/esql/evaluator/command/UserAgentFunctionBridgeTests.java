@@ -157,6 +157,14 @@ public class UserAgentFunctionBridgeTests extends AbstractCompoundOutputEvaluato
         evaluateAndCompare(input, requestedFields, expected);
     }
 
+    public void testUnknownInputWithDeviceType() {
+        extractDeviceType = true;
+        List<String> requestedFields = List.of(NAME, VERSION, OS_NAME, OS_VERSION, OS_FULL, DEVICE_NAME, DEVICE_TYPE);
+        List<String> input = List.of("completely unknown agent string");
+        List<?> expected = Arrays.asList(null, null, null, null, null, null, null);
+        evaluateAndCompare(input, requestedFields, expected);
+    }
+
     public void testMultiValue() {
         extractDeviceType = false;
         List<String> requestedFields = List.of(NAME, VERSION, OS_NAME, OS_VERSION, OS_FULL, DEVICE_NAME);

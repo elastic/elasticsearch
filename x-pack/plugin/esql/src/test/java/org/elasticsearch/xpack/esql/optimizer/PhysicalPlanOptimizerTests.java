@@ -4520,17 +4520,26 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      * The query pattern is: FROM index | EVAL result = FUNCTION(location) | STATS count = COUNT(*) BY result
      */
     public void testSpatialTypesAndStatsGeometryIntrospectionUseDocValues() {
-        record TestCase(String functionName, String index, TestDataSource withDocValues, TestDataSource withoutDocValues, DataType locType) {}
+        record TestCase(
+            String functionName,
+            String index,
+            TestDataSource withDocValues,
+            TestDataSource withoutDocValues,
+            DataType locType
+        ) {}
         var testCases = new TestCase[] {
             new TestCase("ST_GEOMETRYTYPE", "airports", airports, airportsNoDocValues, GEO_POINT),
             new TestCase("ST_GEOMETRYTYPE", "airports_web", airportsWeb, null, CARTESIAN_POINT),
             new TestCase("ST_DIMENSION", "airports", airports, airportsNoDocValues, GEO_POINT),
             new TestCase("ST_DIMENSION", "airports_web", airportsWeb, null, CARTESIAN_POINT),
             new TestCase("ST_ISEMPTY", "airports", airports, airportsNoDocValues, GEO_POINT),
-            new TestCase("ST_ISEMPTY", "airports_web", airportsWeb, null, CARTESIAN_POINT),
-        };
+            new TestCase("ST_ISEMPTY", "airports_web", airportsWeb, null, CARTESIAN_POINT), };
         for (var testCase : testCases) {
-            var query = "FROM " + testCase.index + " | EVAL result = " + testCase.functionName + "(location) | STATS count=COUNT() BY result";
+            var query = "FROM "
+                + testCase.index
+                + " | EVAL result = "
+                + testCase.functionName
+                + "(location) | STATS count=COUNT() BY result";
             for (boolean withDocValues : new boolean[] { true, false }) {
                 if (!withDocValues && testCase.withoutDocValues == null) {
                     continue; // No no-doc-values variant for this index

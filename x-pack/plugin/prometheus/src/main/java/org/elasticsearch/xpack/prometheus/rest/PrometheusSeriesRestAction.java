@@ -14,7 +14,7 @@ import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
@@ -81,7 +81,7 @@ public class PrometheusSeriesRestAction extends BaseRestHandler {
 
         LogicalPlan plan = PrometheusSeriesPlanBuilder.buildPlan("*", matchSelectors, start, end, limit);
         EsqlStatement statement = new EsqlStatement(plan, List.of());
-        EsqlQueryRequest esqlRequest = EsqlQueryRequest.syncEsqlQueryRequestWithPlan(statement);
+        PreparedEsqlQueryRequest esqlRequest = PreparedEsqlQueryRequest.sync(statement);
 
         return channel -> client.execute(EsqlQueryAction.INSTANCE, esqlRequest, new PrometheusSeriesResponseListener(channel));
     }

@@ -31,8 +31,8 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocationQueryContext;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.AllocationSimulation;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -678,7 +678,10 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)
         );
 
-        return allocationState.canRemainOnlyHighestTierPreference(shardRouting, allocationService.createAllocationSimulation(clusterState));
+        return allocationState.canRemainOnlyHighestTierPreference(
+            shardRouting,
+            allocationService.createAllocationQueryContext(clusterState)
+        );
     }
 
     public void testNeedsThisTier() {
@@ -784,7 +787,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)
         );
 
-        assertThat(allocationState.needsThisTier(shardRouting, allocationService.createAllocationSimulation(clusterState)), is(expected));
+        assertThat(allocationState.needsThisTier(shardRouting, allocationService.createAllocationQueryContext(clusterState)), is(expected));
     }
 
     public void testMessage() {
@@ -813,23 +816,23 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     /**
-     * Returns a mock AllocationService, with a functioning {@link AllocationService#createAllocationSimulation(ClusterState)}
+     * Returns a mock AllocationService, with a functioning {@link AllocationService#createAllocationQueryContext(ClusterState)}
      * method.
      *
-     * @param allocationDeciders The allocation deciders to be effective in the {@link AllocationSimulation}
+     * @param allocationDeciders The allocation deciders to be effective in the {@link AllocationQueryContext}
      * @return the mocked AllocationService
      */
     public static AllocationService mockAllocationService(AllocationDeciders allocationDeciders) {
         AllocationService allocationService = mock(AllocationService.class);
-        when(allocationService.createAllocationSimulation(any(ClusterState.class))).thenAnswer(
-            iom -> new MockAllocationSimulation(iom.getArgument(0), allocationDeciders)
+        when(allocationService.createAllocationQueryContext(any(ClusterState.class))).thenAnswer(
+            iom -> new MockAllocationQueryContext(iom.getArgument(0), allocationDeciders)
         );
         return allocationService;
     }
 
-    private static class MockAllocationSimulation extends AllocationSimulation {
+    private static class MockAllocationQueryContext extends AllocationQueryContext {
 
-        MockAllocationSimulation(ClusterState clusterState, AllocationDeciders allocationDeciders) {
+        MockAllocationQueryContext(ClusterState clusterState, AllocationDeciders allocationDeciders) {
             super(
                 TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(allocationDeciders).build(),
                 allocationDeciders,

@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.AllocationSimulation;
+import org.elasticsearch.cluster.routing.allocation.AllocationQueryContext;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -80,16 +80,16 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         IndexMetadata indexMd,
         DiscoveryNode node,
         PreferredTierFunction preferredTierFunction,
-        AllocationSimulation allocationSimulation
+        AllocationQueryContext allocationQueryContext
     ) {
         return shouldFilter(
             indexMd,
             node,
             preferredTierFunction,
-            allocationSimulation.state(),
-            allocationSimulation.desiredNodes(),
-            allocationSimulation.debugDecision(),
-            allocationSimulation::decision
+            allocationQueryContext.state(),
+            allocationQueryContext.desiredNodes(),
+            allocationQueryContext.debugDecision(),
+            allocationQueryContext::decision
         );
     }
 

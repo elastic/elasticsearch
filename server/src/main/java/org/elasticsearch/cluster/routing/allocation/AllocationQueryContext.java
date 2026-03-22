@@ -25,13 +25,13 @@ import java.util.function.Function;
  * A read-only view of the allocation infrastructure for a given context. An efficient way
  * to make multiple queries to the allocator.
  */
-public class AllocationSimulation {
+public class AllocationQueryContext {
 
     private final AllocationDeciders allocationDeciders;
     private final RoutingAllocation routingAllocation;
     private final Function<ShardRouting, ShardAllocationDecision> explainShardAllocationFunction;
 
-    public AllocationSimulation(
+    public AllocationQueryContext(
         RoutingAllocation routingAllocation,
         AllocationDeciders allocationDeciders,
         ShardsAllocator shardAllocator

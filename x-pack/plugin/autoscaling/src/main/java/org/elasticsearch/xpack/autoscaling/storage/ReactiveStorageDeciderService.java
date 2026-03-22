@@ -30,8 +30,8 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
+import org.elasticsearch.cluster.routing.allocation.AllocationQueryContext;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.AllocationSimulation;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -318,7 +318,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         public ShardsAllocationResults storagePreventsAllocation() {
-            AllocationSimulation allocation = allocationService.createAllocationSimulation(state);
+            AllocationQueryContext allocation = allocationService.createAllocationQueryContext(state);
             List<ShardNodeAllocationDecision> unassignedShards = state.getRoutingNodes()
                 .unassigned()
                 .stream()
@@ -339,7 +339,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         public ShardsAllocationResults storagePreventsRemainOrMove() {
-            AllocationSimulation allocation = allocationService.createAllocationSimulation(state);
+            AllocationQueryContext allocation = allocationService.createAllocationQueryContext(state);
 
             List<ShardRouting> candidates = new LinkedList<>();
             for (RoutingNode routingNode : state.getRoutingNodes()) {
@@ -412,7 +412,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             );
         }
 
-        private List<NodeDecision> canAllocateDecisions(AllocationSimulation allocation, ShardRouting shardRouting) {
+        private List<NodeDecision> canAllocateDecisions(AllocationQueryContext allocation, ShardRouting shardRouting) {
             return state.getRoutingNodes()
                 .stream()
                 .filter(n -> nodeTierPredicate.test(n.node()))
@@ -421,7 +421,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .toList();
         }
 
-        private NodeDecision canRemainDecision(AllocationSimulation allocation, ShardRouting shard) {
+        private NodeDecision canRemainDecision(AllocationQueryContext allocation, ShardRouting shard) {
             return new NodeDecision(
                 allocation.routingNodes().node(shard.currentNodeId()).node(),
                 withAllocationDebugEnabled(
@@ -431,7 +431,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             );
         }
 
-        private static <T extends Decision> T withAllocationDebugEnabled(AllocationSimulation allocation, Supplier<T> supplier) {
+        private static <T extends Decision> T withAllocationDebugEnabled(AllocationQueryContext allocation, Supplier<T> supplier) {
             assert allocation.debugDecision() == false;
             allocation.debugDecision(true);
             try {
@@ -452,7 +452,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
          * Check if shard can remain where it is, with the additional check that the DataTierAllocationDecider did not allow it to stay
          * on a node in a lower preference tier.
          */
-        public boolean canRemainOnlyHighestTierPreference(ShardRouting shard, AllocationSimulation allocation) {
+        public boolean canRemainOnlyHighestTierPreference(ShardRouting shard, AllocationQueryContext allocation) {
             boolean result = allocation.canRemain(shard, allocation.routingNodes().node(shard.currentNodeId())) != Decision.NO;
             if (result
                 && nodes.isEmpty()
@@ -467,7 +467,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return result;
         }
 
-        private boolean allocatedToTier(ShardRouting s, AllocationSimulation allocation) {
+        private boolean allocatedToTier(ShardRouting s, AllocationQueryContext allocation) {
             return nodeTierPredicate.test(allocation.routingNodes().node(s.currentNodeId()).node());
         }
 
@@ -476,7 +476,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
          * @return Non-empty {@link ShardNodeAllocationDecision} if and only if a node exists in the tier
          *         where only disk decider prevents allocation
          */
-        private Optional<ShardNodeAllocationDecision> cannotAllocateDueToStorage(ShardRouting shard, AllocationSimulation allocation) {
+        private Optional<ShardNodeAllocationDecision> cannotAllocateDueToStorage(ShardRouting shard, AllocationQueryContext allocation) {
             if (nodeIds.isEmpty() && needsThisTier(shard, allocation)) {
                 return Optional.of(new ShardNodeAllocationDecision(shard, List.of()));
             }
@@ -509,7 +509,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
          * Check that the disk decider is only decider that says NO to let shard remain on current node.
          * @return Non-empty {@link ShardNodeAllocationDecision} if and only if disk decider is only decider that says NO to canRemain.
          */
-        private Optional<ShardNodeRemainDecision> cannotRemainDueToStorage(ShardRouting shard, AllocationSimulation allocation) {
+        private Optional<ShardNodeRemainDecision> cannotRemainDueToStorage(ShardRouting shard, AllocationQueryContext allocation) {
             assert allocation.debugDecision() == false;
             // enable debug decisions to see all decisions and preserve the allocation decision label
             allocation.debugDecision(true);
@@ -524,11 +524,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             }
         }
 
-        private boolean canAllocate(ShardRouting shard, AllocationSimulation allocation) {
+        private boolean canAllocate(ShardRouting shard, AllocationQueryContext allocation) {
             return nodesInTier(allocation.routingNodes()).anyMatch(node -> allocation.canAllocate(shard, node) != Decision.NO);
         }
 
-        boolean needsThisTier(ShardRouting shard, AllocationSimulation allocation) {
+        boolean needsThisTier(ShardRouting shard, AllocationQueryContext allocation) {
             if (isAssignedToTier(shard, allocation) == false) {
                 return false;
             }
@@ -567,7 +567,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             }
         }
 
-        private boolean isAssignedToTier(ShardRouting shard, AllocationSimulation allocation) {
+        private boolean isAssignedToTier(ShardRouting shard, AllocationQueryContext allocation) {
             IndexMetadata indexMetadata = indexMetadata(shard, allocation);
             return isAssignedToTier(indexMetadata, roles);
         }
@@ -577,7 +577,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return tierPreference.isEmpty() || DataTierAllocationDecider.allocationAllowed(highestPreferenceTier(tierPreference), roles);
         }
 
-        private static IndexMetadata indexMetadata(ShardRouting shard, AllocationSimulation allocation) {
+        private static IndexMetadata indexMetadata(ShardRouting shard, AllocationQueryContext allocation) {
             return allocation.metadata().getProject().getIndexSafe(shard.index());
         }
 

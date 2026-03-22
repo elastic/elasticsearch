@@ -25,8 +25,8 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.AllocationQueryContext;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.AllocationSimulation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -262,8 +262,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         }
 
         // Get all shard explanations -- create the AllocationSimulation lazily
-        final LazyInitializable<AllocationSimulation, RuntimeException> allocationSimulator = new LazyInitializable<>(
-            () -> allocationService.createAllocationSimulation(currentState)
+        final LazyInitializable<AllocationQueryContext, RuntimeException> allocationSimulator = new LazyInitializable<>(
+            () -> allocationService.createAllocationQueryContext(currentState)
         );
 
         var unmovableShards = currentState.getRoutingNodes()

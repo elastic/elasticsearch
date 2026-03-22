@@ -754,9 +754,15 @@ public class AllocationService {
         }
     }
 
-    public AllocationSimulation createAllocationSimulation(ClusterState clusterState) {
+    /**
+     * Create a query context useful for making multiple allocation queries for a particular cluster state
+     *
+     * @param clusterState The cluster state to use as the basis for the queries
+     * @return An {@link AllocationQueryContext}
+     */
+    public AllocationQueryContext createAllocationQueryContext(ClusterState clusterState) {
         final RoutingAllocation allocation = createImmutableRoutingAllocation(clusterState, currentNanoTime());
-        return new AllocationSimulation(allocation, allocationDeciders, shardsAllocator);
+        return new AllocationQueryContext(allocation, allocationDeciders, shardsAllocator);
     }
 
     private RoutingAllocation createImmutableRoutingAllocation(ClusterState clusterState, long currentNanoTime) {

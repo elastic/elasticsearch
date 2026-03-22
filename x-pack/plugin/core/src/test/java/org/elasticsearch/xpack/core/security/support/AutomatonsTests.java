@@ -115,14 +115,16 @@ public class AutomatonsTests extends ESTestCase {
     }
 
     public void testSubsetOfDataDriven() {
-        List<SubsetCase> cases = new ArrayList<>(List.of(
-            new SubsetCase(List.of(), List.of("*"), true),
-            new SubsetCase(List.of("logs-prod-*"), List.of("logs-*"), true),
-            new SubsetCase(List.of("logs-*"), List.of("logs-prod-*"), false),
-            new SubsetCase(List.of("metrics-*"), List.of("logs-*"), false),
-            new SubsetCase(List.of("logs-prod-*", "metrics-*"), List.of("logs-*", "metrics-*"), true),
-            new SubsetCase(List.of("logs-*", "traces-*"), List.of("logs-*", "metrics-*"), false)
-        ));
+        List<SubsetCase> cases = new ArrayList<>(
+            List.of(
+                new SubsetCase(List.of(), List.of("*"), true),
+                new SubsetCase(List.of("logs-prod-*"), List.of("logs-*"), true),
+                new SubsetCase(List.of("logs-*"), List.of("logs-prod-*"), false),
+                new SubsetCase(List.of("metrics-*"), List.of("logs-*"), false),
+                new SubsetCase(List.of("logs-prod-*", "metrics-*"), List.of("logs-*", "metrics-*"), true),
+                new SubsetCase(List.of("logs-*", "traces-*"), List.of("logs-*", "metrics-*"), false)
+            )
+        );
 
         // Large DFA cases to force growth of visited-pair hash table and BFS worklist.
         List<String> largePatterns = generateLiteralPatterns("logs", 256);

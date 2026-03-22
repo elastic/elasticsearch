@@ -101,7 +101,7 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
     }
 
     @Override
-    public BytesRefBlock filter(int... positions) {
+    public BytesRefBlock filter(boolean mayContainDuplicates, int... positions) {
         final BytesRef scratch = new BytesRef();
         try (var builder = blockFactory().newBytesRefBlockBuilder(positions.length)) {
             for (int pos : positions) {

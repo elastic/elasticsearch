@@ -31,13 +31,13 @@ public final class FirstDoubleByTimestampAggregatorFunctionSupplier implements A
   @Override
   public FirstDoubleByTimestampAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return FirstDoubleByTimestampAggregatorFunction.create(driverContext, channels);
+    return new FirstDoubleByTimestampAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public FirstDoubleByTimestampGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return FirstDoubleByTimestampGroupingAggregatorFunction.create(channels, driverContext);
+    return new FirstDoubleByTimestampGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

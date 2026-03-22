@@ -18,13 +18,14 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.SyntheticIdField;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Objects;
 
 /*
@@ -42,10 +43,7 @@ public class TSDBSyntheticIdStoredFieldsReader extends StoredFieldsReader {
         Closeable closeable = null;
         boolean success = false;
         try {
-            var fieldInfo = fn.fieldInfo(IdFieldMapper.NAME);
-            if (fieldInfo == null || SyntheticIdField.hasSyntheticIdAttributes(fieldInfo.attributes()) == false) {
-                throw new IllegalArgumentException("Field [" + IdFieldMapper.NAME + "] is not synthetic");
-            }
+            var fieldInfo = fieldInfo(fn);
             var docValuesProducer = si.getCodec().docValuesFormat().fieldsProducer(new SegmentReadState(directory, si, fn, context));
             closeable = docValuesProducer;
             var storedFieldsReader = new TSDBSyntheticIdStoredFieldsReader(directory, si, fn, context, docValuesProducer, fieldInfo);
@@ -86,6 +84,7 @@ public class TSDBSyntheticIdStoredFieldsReader extends StoredFieldsReader {
     @Override
     public void document(int docID, StoredFieldVisitor visitor) throws IOException {
         if (visitor.needsField(fieldInfo) == StoredFieldVisitor.Status.YES) {
+            assert assertNotMergeThread("synthetic id should not be materialized during merges");
             var uid = docValuesHolder.docSyntheticId(docID);
             visitor.binaryField(fieldInfo, uid.bytes);
         }
@@ -93,21 +92,26 @@ public class TSDBSyntheticIdStoredFieldsReader extends StoredFieldsReader {
 
     @Override
     public StoredFieldsReader getMergeInstance() {
-        try {
-            // Synthetic id stored fields are never merged, but some APIs use the merge instance for other purposes
-            return open(directory, segmentInfo, fieldInfos, context);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        return new TSDBSyntheticIdStoredFieldsReader(
+            directory,
+            segmentInfo,
+            fieldInfos,
+            context,
+            docValuesProducer.getMergeInstance(),
+            fieldInfo(fieldInfos)
+        );
     }
 
     @Override
     public StoredFieldsReader clone() {
-        try {
-            return open(directory, segmentInfo, fieldInfos, context);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        return new TSDBSyntheticIdStoredFieldsReader(
+            directory,
+            segmentInfo,
+            fieldInfos,
+            context,
+            docValuesProducer.getMergeInstance(),
+            fieldInfo(fieldInfos)
+        );
     }
 
     @Override
@@ -116,5 +120,22 @@ public class TSDBSyntheticIdStoredFieldsReader extends StoredFieldsReader {
     @Override
     public void close() throws IOException {
         IOUtils.close(docValuesProducer);
+    }
+
+    private static FieldInfo fieldInfo(FieldInfos fn) {
+        var fieldInfo = fn.fieldInfo(IdFieldMapper.NAME);
+        if (fieldInfo == null || SyntheticIdField.hasSyntheticIdAttributes(fieldInfo.attributes()) == false) {
+            throw new IllegalArgumentException("Field [" + IdFieldMapper.NAME + "] is not synthetic");
+        }
+        return fieldInfo;
+    }
+
+    private static boolean assertNotMergeThread(String message) {
+        var thread = Thread.currentThread();
+        var threadName = thread.getName();
+        assert threadName.startsWith("Lucene Merge Thread") == false : message + ": " + threadName;
+        var executorName = EsExecutors.executorName(thread);
+        assert ThreadPool.Names.MERGE.equals(executorName) == false : message + ": " + threadName;
+        return true;
     }
 }

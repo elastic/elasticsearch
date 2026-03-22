@@ -296,7 +296,7 @@ public final class SchemaUtil {
             .indexFilter(sourceConfig.getQueryConfig().getQuery())
             .fields(fields)
             .runtimeFields(sourceConfig.getRuntimeMappings())
-            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+            .indicesOptions(sourceConfig.indicesOptions());
         ClientHelper.executeWithHeadersAsync(
             headers,
             ClientHelper.TRANSFORM_ORIGIN,

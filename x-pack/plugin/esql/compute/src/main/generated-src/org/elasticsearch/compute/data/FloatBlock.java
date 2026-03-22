@@ -20,7 +20,8 @@ import java.io.IOException;
  * Block that stores float values.
  * This class is generated. Edit {@code X-Block.java.st} instead.
  */
-public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatVectorBlock, ConstantNullBlock, FloatBigArrayBlock {
+public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatVectorBlock, ConstantNullBlock, FloatBigArrayBlock,
+    org.elasticsearch.compute.data.arrow.FloatArrowBufBlock {
 
     /**
      * Retrieves the float value stored at the given value index.
@@ -84,7 +85,7 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
     FloatVector asVector();
 
     @Override
-    FloatBlock filter(int... positions);
+    FloatBlock filter(boolean mayContainDuplicates, int... positions);
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},

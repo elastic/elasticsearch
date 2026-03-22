@@ -292,6 +292,11 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public FieldMapper build(MapperBuilderContext context) {
 
             BinaryFieldMapper countFieldMapper = new BinaryFieldMapper.Builder(

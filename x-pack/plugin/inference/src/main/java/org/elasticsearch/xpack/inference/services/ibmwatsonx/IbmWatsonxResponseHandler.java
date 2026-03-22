@@ -14,8 +14,6 @@ import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.response.IbmWatsonxErrorResponseEntity;
 
-import static org.elasticsearch.core.Strings.format;
-
 public class IbmWatsonxResponseHandler extends BaseResponseHandler {
     public IbmWatsonxResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, IbmWatsonxErrorResponseEntity::fromResponse);
@@ -52,9 +50,5 @@ public class IbmWatsonxResponseHandler extends BaseResponseHandler {
         } else {
             throw new RetryException(false, buildError(UNSUCCESSFUL, request, result));
         }
-    }
-
-    private static String resourceNotFoundError(Request request) {
-        return format("Resource not found at [%s]", request.getURI());
     }
 }

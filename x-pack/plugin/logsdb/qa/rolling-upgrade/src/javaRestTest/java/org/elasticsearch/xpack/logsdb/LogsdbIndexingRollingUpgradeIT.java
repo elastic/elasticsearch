@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -82,14 +83,13 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
             search(dataStreamName);
             query(dataStreamName);
         }
-        int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
-        for (int i = 0; i < numNodes; i++) {
-            upgradeNode(i);
-            time = time.plusNanos(60 * 30);
-            bulkIndex(dataStreamName, 4, 1024, time, LogsdbIndexingRollingUpgradeIT::docSupplier);
+        AtomicReference<Instant> timeRef = new AtomicReference<>(time);
+        clusterRollingUpgrade(index -> {
+            timeRef.set(timeRef.get().plusNanos(60 * 30));
+            bulkIndex(dataStreamName, 4, 1024, timeRef.get(), LogsdbIndexingRollingUpgradeIT::docSupplier);
             search(dataStreamName);
             query(dataStreamName);
-        }
+        });
         {
             var forceMergeRequest = new Request("POST", "/" + dataStreamName + "/_forcemerge");
             forceMergeRequest.addParameter("max_num_segments", "1");

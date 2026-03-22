@@ -7,27 +7,49 @@
 
 package org.elasticsearch.xpack.prometheus.rest;
 
+import com.google.protobuf.InvalidProtocolBufferException;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
+import org.elasticsearch.xpack.prometheus.proto.RemoteWrite.Label;
+import org.elasticsearch.xpack.prometheus.proto.RemoteWrite.Sample;
+import org.elasticsearch.xpack.prometheus.proto.RemoteWrite.TimeSeries;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Transport action for handling Prometheus Remote Write requests.
@@ -44,39 +66,227 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
 
     private static final Logger logger = LogManager.getLogger(PrometheusRemoteWriteTransportAction.class);
 
+    private static final String METRIC_NAME_LABEL = "__name__";
+    private static final String METRICS_DATA_STREAM_PREFIX = "metrics-";
+
+    private final Client client;
+
     @Inject
-    public PrometheusRemoteWriteTransportAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool) {
-        super(NAME, transportService, actionFilters, RemoteWriteRequest::new, threadPool.executor(ThreadPool.Names.WRITE));
+    public PrometheusRemoteWriteTransportAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ThreadPool threadPool,
+        Client client
+    ) {
+        super(NAME, transportService, actionFilters, in -> TransportAction.localOnly(), threadPool.executor(ThreadPool.Names.WRITE));
+        this.client = client;
     }
 
     @Override
     protected void doExecute(Task task, RemoteWriteRequest request, ActionListener<RemoteWriteResponse> listener) {
-        try {
+        try (request) {
             RemoteWrite.WriteRequest writeRequest = RemoteWrite.WriteRequest.parseFrom(request.remoteWriteRequest.streamInput());
+            request.releaseBody();
 
-            // Log the received data for debugging (skeleton implementation)
-            logger.debug("Received Prometheus remote write request with {} timeseries", writeRequest.getTimeseriesCount());
+            int totalSamples = countTotalSamples(writeRequest);
+            if (totalSamples == 0) {
+                listener.onResponse(new RemoteWriteResponse());
+                return;
+            }
 
-            // TODO: Process and store the timeseries data
-            // For now, just acknowledge receipt with success
+            logger.debug(
+                "Received Prometheus remote write request with {} timeseries, {} samples",
+                writeRequest.getTimeseriesCount(),
+                totalSamples
+            );
 
-            listener.onResponse(new RemoteWriteResponse(RestStatus.NO_CONTENT));
+            BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+
+            int droppedMissingName = 0;
+            for (TimeSeries timeSeries : writeRequest.getTimeseriesList()) {
+                String metricName = extractMetricName(timeSeries.getLabelsList());
+                if (metricName == null) {
+                    droppedMissingName += timeSeries.getSamplesCount();
+                    continue;
+                }
+
+                for (Sample sample : timeSeries.getSamplesList()) {
+                    if (Double.isFinite(sample.getValue()) == false) {
+                        continue;
+                    }
+                    IndexRequest indexRequest = buildIndexRequest(timeSeries, sample, metricName, request.dataset, request.namespace);
+                    bulkRequestBuilder.add(indexRequest);
+                }
+            }
+
+            if (bulkRequestBuilder.numberOfActions() == 0) {
+                if (droppedMissingName > 0) {
+                    String message = buildFailureSummary(totalSamples, droppedMissingName, droppedMissingName, Map.of());
+                    listener.onFailure(new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST));
+                } else {
+                    // All samples were non-finite (NaN/Infinity) and silently dropped — not a client error
+                    listener.onResponse(new RemoteWriteResponse());
+                }
+                return;
+            }
+
+            final int finalDroppedMissingName = droppedMissingName;
+            bulkRequestBuilder.execute(listener.delegateFailure((delegate, bulkResponse) -> {
+                if (bulkResponse.hasFailures() || finalDroppedMissingName > 0) {
+                    delegate.onFailure(buildPartialFailureException(bulkResponse, totalSamples, finalDroppedMissingName));
+                } else {
+                    delegate.onResponse(new RemoteWriteResponse());
+                }
+            }));
+
+        } catch (InvalidProtocolBufferException e) {
+            listener.onFailure(
+                new ElasticsearchStatusException("Invalid Prometheus remote write payload: " + e.getMessage(), RestStatus.BAD_REQUEST, e)
+            );
         } catch (Exception e) {
-            logger.error("Failed to process Prometheus remote write request", e);
             listener.onFailure(e);
         }
     }
 
-    public static class RemoteWriteRequest extends ActionRequest implements CompositeIndicesRequest {
-        private final BytesReference remoteWriteRequest;
+    private static int countTotalSamples(RemoteWrite.WriteRequest writeRequest) {
+        int count = 0;
+        for (TimeSeries ts : writeRequest.getTimeseriesList()) {
+            count += ts.getSamplesCount();
+        }
+        return count;
+    }
 
-        public RemoteWriteRequest(StreamInput in) throws IOException {
-            super(in);
-            remoteWriteRequest = in.readBytesReference();
+    private static String extractMetricName(List<Label> labels) {
+        for (Label label : labels) {
+            if (METRIC_NAME_LABEL.equals(label.getName())) {
+                return label.getValue();
+            }
+        }
+        return null;
+    }
+
+    private IndexRequest buildIndexRequest(TimeSeries timeSeries, Sample sample, String metricName, String dataset, String namespace)
+        throws IOException {
+        try (XContentBuilder builder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
+            builder.startObject();
+
+            // @timestamp - Prometheus timestamps are in milliseconds
+            builder.field("@timestamp", sample.getTimestamp());
+
+            // data_stream fields
+            String fullDataset = dataset + ".prometheus";
+            builder.startObject("data_stream");
+            builder.field("type", "metrics");
+            builder.field("dataset", fullDataset);
+            builder.field("namespace", namespace);
+            builder.endObject();
+
+            // labels - all labels including __name__
+            builder.startObject("labels");
+            for (Label label : timeSeries.getLabelsList()) {
+                builder.field(label.getName(), label.getValue());
+            }
+            builder.endObject();
+            builder.startObject("metrics");
+
+            // metric value - field named after the metric
+            builder.field(metricName, sample.getValue());
+
+            builder.endObject();
+            builder.endObject();
+
+            String targetIndex = METRICS_DATA_STREAM_PREFIX + fullDataset + "-" + namespace;
+            return new IndexRequest(targetIndex).opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(builder);
+        }
+    }
+
+    private static ElasticsearchStatusException buildPartialFailureException(
+        BulkResponse bulkResponse,
+        int totalSamples,
+        int droppedMissingName
+    ) {
+        Map<String, Map<RestStatus, FailureGroup>> failureGroups = null;
+        // Default to 400 per the remote write spec for requests that should not be retried.
+        RestStatus responseStatus = RestStatus.BAD_REQUEST;
+        int failures = droppedMissingName;
+
+        for (BulkItemResponse item : bulkResponse.getItems()) {
+            BulkItemResponse.Failure failure = item.getFailure();
+            if (failure != null) {
+                failures++;
+                if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
+                    // 429 takes priority so clients retry (valid samples that were rate-limited may succeed on retry).
+                    responseStatus = RestStatus.TOO_MANY_REQUESTS;
+                }
+                if (failureGroups == null) {
+                    failureGroups = new HashMap<>();
+                }
+                failureGroups.computeIfAbsent(failure.getIndex(), k -> new HashMap<>())
+                    .computeIfAbsent(failure.getStatus(), k -> new FailureGroup(new AtomicInteger(0), failure.getMessage()))
+                    .failureCount()
+                    .incrementAndGet();
+            }
         }
 
-        public RemoteWriteRequest(BytesReference remoteWriteRequest) {
+        String message = buildFailureSummary(totalSamples, droppedMissingName, failures, failureGroups);
+        return new ElasticsearchStatusException(message, responseStatus);
+    }
+
+    private static String buildFailureSummary(
+        int totalSamples,
+        int droppedMissingName,
+        int failures,
+        @Nullable Map<String, Map<RestStatus, FailureGroup>> failureGroups
+    ) {
+        StringBuilder failureMessage = new StringBuilder();
+        failureMessage.append("Prometheus remote write request partially failed: ")
+            .append(failures)
+            .append(" of ")
+            .append(totalSamples)
+            .append(" samples failed.\n");
+        if (droppedMissingName > 0) {
+            failureMessage.append(droppedMissingName).append(" sample(s) dropped due to missing __name__ label\n");
+        }
+        if (failureGroups != null) {
+            for (Map.Entry<String, Map<RestStatus, FailureGroup>> indexEntry : failureGroups.entrySet()) {
+                for (Map.Entry<RestStatus, FailureGroup> statusEntry : indexEntry.getValue().entrySet()) {
+                    FailureGroup group = statusEntry.getValue();
+                    failureMessage.append("Index [")
+                        .append(indexEntry.getKey())
+                        .append("] returned status [")
+                        .append(statusEntry.getKey())
+                        .append("] for ")
+                        .append(group.failureCount())
+                        .append(" documents. Sample error: ")
+                        .append(group.failureMessageSample())
+                        .append("\n");
+                }
+            }
+        }
+
+        return failureMessage.toString();
+    }
+
+    record FailureGroup(AtomicInteger failureCount, String failureMessageSample) {}
+
+    public static class RemoteWriteRequest extends ActionRequest implements CompositeIndicesRequest, Releasable {
+        final ReleasableBytesReference remoteWriteRequest;
+        final String dataset;
+        final String namespace;
+        private final Releasable releaseBody;
+        private final Releasable releasePressure;
+
+        public RemoteWriteRequest(
+            ReleasableBytesReference remoteWriteRequest,
+            String dataset,
+            String namespace,
+            Releasable indexingPressureRelease
+        ) {
             this.remoteWriteRequest = remoteWriteRequest;
+            this.dataset = dataset;
+            this.namespace = namespace;
+            this.releaseBody = Releasables.releaseOnce(remoteWriteRequest);
+            this.releasePressure = Releasables.releaseOnce(indexingPressureRelease);
         }
 
         @Override
@@ -84,27 +294,26 @@ public class PrometheusRemoteWriteTransportAction extends HandledTransportAction
             return null;
         }
 
+        void releaseBody() {
+            releaseBody.close();
+        }
+
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeBytesReference(remoteWriteRequest);
+        public void writeTo(StreamOutput out) {
+            TransportAction.localOnly();
+        }
+
+        @Override
+        public void close() {
+            releaseBody.close();
+            releasePressure.close();
         }
     }
 
     public static class RemoteWriteResponse extends ActionResponse {
-        private final RestStatus status;
-
-        public RemoteWriteResponse(RestStatus status) {
-            this.status = status;
-        }
-
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeEnum(status);
-        }
-
-        public RestStatus getStatus() {
-            return status;
+        public void writeTo(StreamOutput out) {
+            TransportAction.localOnly();
         }
     }
 }

@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator.lookup;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -30,8 +29,7 @@ public class MergePositionsOperatorTests extends ESTestCase {
 
     public void testSimple() throws Exception {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        BlockFactory blockFactory = new BlockFactory(breaker, bigArrays);
+        BlockFactory blockFactory = BlockFactory.builder(bigArrays).build();
         // Create a simple input page for the operator (7 positions)
         BytesRefBlock inputBlock;
         try (var builder = blockFactory.newBytesRefBlockBuilder(7)) {

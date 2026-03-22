@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.jdk.JarHell;
 
 import java.io.IOException;
@@ -31,6 +32,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -210,13 +212,14 @@ public class PluginsUtils {
     }
 
     /** Get bundles for plugins installed in the given modules directory. */
-    public static Set<PluginBundle> getModuleBundles(Path modulesDirectory) throws IOException {
-        return findBundles(modulesDirectory, "module");
+    public static Set<PluginBundle> getModuleBundles(Path modulesDirectory, Predicate<PluginDescriptor> predicate) throws IOException {
+        return findBundles(modulesDirectory, "module", predicate);
     }
 
     /** Get bundles for plugins installed in the given plugins directory. */
-    public static Set<PluginBundle> getPluginBundles(final Path pluginsDirectory) throws IOException {
-        return findBundles(pluginsDirectory, "plugin");
+    public static Set<PluginBundle> getPluginBundles(final Path pluginsDirectory, Predicate<PluginDescriptor> predicate)
+        throws IOException {
+        return findBundles(pluginsDirectory, "plugin", predicate);
     }
 
     /**
@@ -226,17 +229,21 @@ public class PluginsUtils {
      * @throws IOException if there is an error reading the plugins
      */
     public static Map<String, List<String>> getDependencyMapView(final Path pluginsDirectory) throws IOException {
-        return getPluginBundles(pluginsDirectory).stream()
+        return getPluginBundles(pluginsDirectory, Predicates.always()).stream()
             .collect(Collectors.toMap(b -> b.plugin.getName(), b -> b.plugin.getExtendedPlugins()));
     }
 
     // searches subdirectories under the given directory for plugin directories
-    private static Set<PluginBundle> findBundles(final Path directory, String type) throws IOException {
+    private static Set<PluginBundle> findBundles(final Path directory, String type, Predicate<PluginDescriptor> predicate)
+        throws IOException {
         final Set<PluginBundle> bundles = new HashSet<>();
+        final List<String> excludedBundles = new ArrayList<>();
         for (final Path plugin : findPluginDirs(directory)) {
             final PluginBundle bundle = readPluginBundle(plugin, type);
-            // PluginInfo hashes on plugin name, so this will catch name clashes
-            if (bundles.add(bundle) == false) {
+            if (predicate.test(bundle.pluginDescriptor()) == false) {
+                excludedBundles.add(bundle.plugin.getName());
+            } else if (bundles.add(bundle) == false) {
+                // PluginInfo hashes on plugin name, so this will catch name clashes
                 throw new IllegalStateException("duplicate " + type + ": " + bundle.plugin);
             }
             if (type.equals("module") && bundle.plugin.getName().startsWith("test-") && Build.current().isSnapshot() == false) {
@@ -245,6 +252,9 @@ public class PluginsUtils {
         }
 
         logger.trace(() -> "findBundles(" + type + ") returning: " + bundles.stream().map(b -> b.plugin.getName()).sorted().toList());
+        if (excludedBundles.size() > 0) {
+            logger.info(() -> Strings.format("Excluded incompatible %s bundles: %s", type, excludedBundles.stream().sorted().toList()));
+        }
 
         return bundles;
     }
@@ -285,8 +295,8 @@ public class PluginsUtils {
         // create list of current jars in classpath
 
         // read existing bundles. this does some checks on the installation too.
-        Set<PluginBundle> bundles = new HashSet<>(getPluginBundles(pluginsDir));
-        bundles.addAll(getModuleBundles(modulesDir));
+        Set<PluginBundle> bundles = new HashSet<>(getPluginBundles(pluginsDir, Predicates.always()));
+        bundles.addAll(getModuleBundles(modulesDir, Predicates.always()));
         bundles.add(new PluginBundle(candidateInfo, candidateDir));
         List<PluginBundle> sortedBundles = sortBundles(bundles);
 

@@ -490,7 +490,7 @@ public abstract class TransportReplicationAction<
                 primaryRequest.getRequest(),
                 ActionListener.wrap(releasable -> runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable)), e -> {
                     if (e instanceof ShardNotInPrimaryModeException) {
-                        onFailure(new ReplicationOperation.RetryOnPrimaryException(shardId, "shard is not in primary mode", e));
+                        onFailure(new ReplicationOperation.RetryOnPrimaryException(shardId, "shard is not in primary mode", e, false));
                     } else {
                         onFailure(e);
                     }
@@ -1077,7 +1077,11 @@ public abstract class TransportReplicationAction<
                                 ),
                                 exp
                             );
-                            retry(exp);
+                            boolean possiblyExecuted = true;
+                            if (cause instanceof ReplicationOperation.RetryOnPrimaryException retryOnPrimaryException) {
+                                possiblyExecuted = retryOnPrimaryException.possiblyExecutedOnPrimary();
+                            }
+                            retry(exp, possiblyExecuted);
                         } else {
                             finishAsFailed(exp);
                         }
@@ -1090,6 +1094,10 @@ public abstract class TransportReplicationAction<
         }
 
         void retry(Exception failure) {
+            retry(failure, true);
+        }
+
+        void retry(Exception failure, boolean possiblyExecuted) {
             assert failure != null;
             if (observer.isTimedOut()) {
                 // we running as a last attempt after a timeout has happened. don't retry
@@ -1097,7 +1105,7 @@ public abstract class TransportReplicationAction<
                 return;
             }
             setPhase(task, "waiting_for_retry");
-            request.onRetry();
+            request.onRetry(possiblyExecuted);
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {

@@ -74,9 +74,21 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
                 if (fieldName.startsWith(RESERVED_FIELD_NAME_PREFIX)) {
                     continue;
                 }
+                if (containsSurrogates(fieldName)) {
+                    continue;
+                }
 
                 return fieldName;
             }
+        }
+
+        private boolean containsSurrogates(String str) {
+            for (int i = 0; i < str.length(); i++) {
+                if (Character.isSurrogate(str.charAt(i))) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 
@@ -92,7 +104,7 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
         FieldType.PASSTHROUGH,
         FieldType.FLATTENED
     );
-    private static final Set<FieldType> ALLOWED_FIELD_TYPES = Arrays.stream(FieldType.values())
+    public static final Set<FieldType> ALLOWED_FIELD_TYPES = Arrays.stream(FieldType.values())
         .filter(fieldType -> EXCLUDED_FROM_DYNAMIC_MAPPING.contains(fieldType) == false)
         .collect(Collectors.toSet());
 

@@ -284,6 +284,8 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
     public record TestServiceSettings(String model, String hiddenField, boolean shouldReturnHiddenField) implements ServiceSettings {
 
         static final String NAME = "test_service_settings";
+        public static final String HIDDEN_FIELD_KEY = "hidden_field";
+        public static final String SHOULD_RETURN_HIDDEN_FIELD_KEY = "should_return_hidden_field";
 
         public static TestServiceSettings fromMap(Map<String, Object> map) {
             ValidationException validationException = new ValidationException();
@@ -297,8 +299,8 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
                 }
             }
 
-            String hiddenField = (String) map.remove("hidden_field");
-            Boolean shouldReturnHiddenField = (Boolean) map.remove("should_return_hidden_field");
+            String hiddenField = (String) map.remove(HIDDEN_FIELD_KEY);
+            Boolean shouldReturnHiddenField = (Boolean) map.remove(SHOULD_RETURN_HIDDEN_FIELD_KEY);
 
             if (shouldReturnHiddenField == null) {
                 shouldReturnHiddenField = false;

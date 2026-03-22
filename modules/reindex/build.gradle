@@ -31,7 +31,7 @@ testClusters.configureEach {
   module ':modules:lang-painless'
   module ':modules:rest-root'
   // Whitelist reindexing from the local node so we can test reindex-from-remote.
-  setting 'reindex.remote.whitelist', '127.0.0.1:*'
+  setting 'reindex.remote.whitelist', '127.0.0.1:*,[::1]:*'
 }
 
 dependencies {
@@ -40,6 +40,8 @@ dependencies {
   // for parent/child testing
   testImplementation project(':modules:parent-join')
   testImplementation project(':modules:rest-root')
+  // for data stream integration tests
+  internalClusterTestImplementation project(':modules:data-streams')
 
   clusterModules project(':modules:lang-painless')
   clusterModules project(':modules:parent-join')

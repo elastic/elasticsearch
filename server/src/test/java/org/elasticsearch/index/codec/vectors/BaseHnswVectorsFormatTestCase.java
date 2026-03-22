@@ -50,6 +50,11 @@ public abstract class BaseHnswVectorsFormatTestCase extends BaseKnnVectorsFormat
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
+    @Override
+    protected boolean supportsFloatVectorFallback() {
+        return false;
+    }
+
     protected abstract KnnVectorsFormat createFormat();
 
     protected abstract KnnVectorsFormat createFormat(int maxConn, int beamWidth);

@@ -9,13 +9,18 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
 import org.junit.AfterClass;
+import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
 
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.util.List;
 import java.util.function.ToIntBiFunction;
 
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
@@ -29,6 +34,14 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
 
     public JDKVectorLibraryInt7uTests(VectorSimilarityFunctions.Function function, int size) {
         super(function, size);
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parametersFactory() {
+        List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(VectorSimilarityFunctionsTests.parametersFactory());
+        // cosine is not used on float vectors, and quantization is only used on floats
+        baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.Function.COSINE);
+        return baseParams;
     }
 
     @BeforeClass
@@ -123,6 +136,61 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         var nativeQuerySeg = vectorsSegment.asSlice((long) queryOrd * dims, dims);
         var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
 
+        similarityBulkWithOffsets(vectorsSegment, nativeQuerySeg, dims, dims, offsetsSegment, numVecs, bulkScoresSeg);
+        assertScoresEquals(expectedScores, bulkScoresSeg);
+    }
+
+    // All offsets point to the same vector; every score in the result should be identical.
+    public void testInt7uBulkWithDuplicateOffsets() {
+        assumeTrue(notSupportedMsg(), supported());
+        final int dims = size;
+        final int numVecs = randomIntBetween(4, 101);
+        var vectors = new byte[numVecs][dims];
+        var vectorsSegment = arena.allocate((long) dims * numVecs);
+        for (int i = 0; i < numVecs; i++) {
+            randomBytesBetween(vectors[i], MIN_INT7_VALUE, MAX_INT7_VALUE);
+            MemorySegment.copy(vectors[i], 0, vectorsSegment, ValueLayout.JAVA_BYTE, (long) i * dims, dims);
+        }
+        int target = randomInt(numVecs - 1);
+        var offsets = new int[numVecs];
+        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
+        for (int i = 0; i < numVecs; i++) {
+            offsets[i] = target;
+            offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, i, target);
+        }
+        int queryOrd = randomInt(numVecs - 1);
+        float[] expectedScores = new float[numVecs];
+        scalarSimilarityBulkWithOffsets(vectors[queryOrd], vectors, offsets, expectedScores);
+
+        var nativeQuerySeg = vectorsSegment.asSlice((long) queryOrd * dims, dims);
+        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
+        similarityBulkWithOffsets(vectorsSegment, nativeQuerySeg, dims, dims, offsetsSegment, numVecs, bulkScoresSeg);
+        assertScoresEquals(expectedScores, bulkScoresSeg);
+
+        for (int i = 1; i < numVecs; i++) {
+            assertEquals(bulkScoresSeg.get(JAVA_FLOAT_UNALIGNED, 0L), bulkScoresSeg.get(JAVA_FLOAT_UNALIGNED, (long) i * Float.BYTES), 0f);
+        }
+    }
+
+    // Identity offsets (offsets[i] == i) should produce the same results as the non-offset bulk path.
+    public void testInt7uBulkWithIdentityOffsets() {
+        assumeTrue(notSupportedMsg(), supported());
+        final int dims = size;
+        final int numVecs = randomIntBetween(2, 101);
+        var vectors = new byte[numVecs][dims];
+        var vectorsSegment = arena.allocate((long) dims * numVecs);
+        var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
+        for (int i = 0; i < numVecs; i++) {
+            randomBytesBetween(vectors[i], MIN_INT7_VALUE, MAX_INT7_VALUE);
+            MemorySegment.copy(vectors[i], 0, vectorsSegment, ValueLayout.JAVA_BYTE, (long) i * dims, dims);
+            offsetsSegment.setAtIndex(ValueLayout.JAVA_INT, i, i);
+        }
+        int queryOrd = randomInt(numVecs - 1);
+        float[] expectedScores = new float[numVecs];
+        scalarSimilarityBulk(vectors[queryOrd], vectors, expectedScores);
+
+        var nativeQuerySeg = vectorsSegment.asSlice((long) queryOrd * dims, dims);
+        var bulkScoresSeg = arena.allocate((long) numVecs * Float.BYTES);
         similarityBulkWithOffsets(vectorsSegment, nativeQuerySeg, dims, dims, offsetsSegment, numVecs, bulkScoresSeg);
         assertScoresEquals(expectedScores, bulkScoresSeg);
     }
@@ -266,6 +334,7 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         return switch (function) {
             case DOT_PRODUCT -> dotProductScalar(a, b);
             case SQUARE_DISTANCE -> squareDistanceScalar(a, b);
+            case COSINE -> throw new AssumptionViolatedException("cosine not supported");
         };
     }
 

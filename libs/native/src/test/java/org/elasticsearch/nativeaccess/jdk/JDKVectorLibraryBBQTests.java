@@ -47,10 +47,11 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(VectorSimilarityFunctionsTests.parametersFactory());
         // BBQ only with dimensions a multiple of 8
         baseParams.removeIf(os -> (Integer) os[1] % 8 != 0);
+        // cosine is not a thing on BBQ
+        baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.Function.COSINE);
         // remove all square distance (not implemented yet)
         baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.Function.SQUARE_DISTANCE);
 
-        // duplicate for int1 & int2
         return () -> Stream.of(VectorSimilarityFunctions.BBQType.values())
             .flatMap(bbq -> baseParams.stream().map(os -> CollectionUtils.concatLists(List.of(bbq), Arrays.asList(os))))
             .map(List::toArray)
@@ -379,6 +380,7 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         return switch (function) {
             case DOT_PRODUCT -> dotProductScalar(a, b);
             case SQUARE_DISTANCE -> throw new AssumptionViolatedException("square distance not implemented");
+            case COSINE -> throw new AssumptionViolatedException("cosine not supported");
         };
     }
 

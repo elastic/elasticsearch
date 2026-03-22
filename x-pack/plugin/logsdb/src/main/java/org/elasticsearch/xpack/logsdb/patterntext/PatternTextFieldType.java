@@ -29,9 +29,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -46,12 +44,10 @@ import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 public class PatternTextFieldType extends TextFamilyFieldType {
 
@@ -130,7 +126,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
             @Override
             public void setNextReader(LeafReaderContext context) {
                 try {
-                    this.docValues = PatternTextFallbackDocValues.from(context.reader(), PatternTextFieldType.this);
+                    this.docValues = PatternTextFallbackDocValues.from(context, PatternTextFieldType.this);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -138,7 +134,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
 
             @Override
             public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
-                if (false == docValues.advanceExact(doc)) {
+                if (docValues == null || false == docValues.advanceExact(doc)) {
                     return List.of();
                 }
                 return List.of(docValues.binaryValue().utf8ToString());
@@ -146,53 +142,20 @@ public class PatternTextFieldType extends TextFamilyFieldType {
 
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
-                // PatternedTextCompositeValues may require a stored field, but it handles loading this field internally.
+                // Pattern Text may require a stored field, but it handles loading this field internally.
                 return StoredFieldsSpec.NO_REQUIREMENTS;
             }
         };
     }
 
-    private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider(
-        SearchExecutionContext searchExecutionContext
-    ) {
-        if (disableTemplating) {
-            return useBinaryDocValuesRawText ? binaryDocValuesFetcher(storedNamed()) : storedFieldFetcher(storedNamed());
-        }
-
+    private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider() {
         return context -> {
-            ValueFetcher valueFetcher = valueFetcher(searchExecutionContext, null);
-            valueFetcher.setNextReader(context);
-            return docID -> {
-                try {
-                    return valueFetcher.fetchValues(null, docID, new ArrayList<>());
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            };
-        };
-    }
-
-    private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> binaryDocValuesFetcher(String name) {
-        return context -> {
-            var docValues = context.reader().getBinaryDocValues(name);
+            var docValues = PatternTextFallbackDocValues.from(context, PatternTextFieldType.this);
             return docId -> {
                 if (docValues != null && docValues.advanceExact(docId)) {
-                    return List.of(docValues.binaryValue());
+                    return List.of(docValues.binaryValue().utf8ToString());
                 }
                 return List.of();
-            };
-        };
-    }
-
-    private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> storedFieldFetcher(String name) {
-        var loader = StoredFieldLoader.create(false, Set.of(name));
-        return context -> {
-            var leafLoader = loader.getLoader(context, null);
-            return docId -> {
-                leafLoader.advanceTo(docId);
-                var storedFields = leafLoader.storedFields();
-                var values = storedFields.get(name);
-                return values != null ? values : List.of();
             };
         };
     }
@@ -202,12 +165,12 @@ public class PatternTextFieldType extends TextFamilyFieldType {
         if (hasPositions) {
             return new ConstantScoreQuery(query);
         } else {
-            return new ConstantScoreQuery(new SourceConfirmedTextQuery(query, getValueFetcherProvider(context), indexAnalyzer));
+            return new ConstantScoreQuery(new SourceConfirmedTextQuery(query, getValueFetcherProvider(), indexAnalyzer));
         }
     }
 
     private IntervalsSource toIntervalsSource(IntervalsSource source, Query approximation, SearchExecutionContext searchExecutionContext) {
-        return new SourceIntervalsSource(source, approximation, getValueFetcherProvider(searchExecutionContext), indexAnalyzer);
+        return new SourceIntervalsSource(source, approximation, getValueFetcherProvider(), indexAnalyzer);
     }
 
     @Override
@@ -327,16 +290,6 @@ public class PatternTextFieldType extends TextFamilyFieldType {
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
-        if (disableTemplating) {
-            if (useBinaryDocValuesRawText) {
-                // for newer indices, raw pattern text values are stored in binary doc values
-                return new BytesRefsFromBinaryBlockLoader(storedNamed());
-            } else {
-                // for older indices (bwc), raw pattern text values are stored in stored fields
-                return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(storedNamed());
-            }
-        }
-
         return new BytesRefsFromBinaryBlockLoader(leafReader -> PatternTextFallbackDocValues.from(leafReader, this));
     }
 
@@ -378,6 +331,10 @@ public class PatternTextFieldType extends TextFamilyFieldType {
 
     boolean useBinaryDocValuesArgs() {
         return useBinaryDocValuesArgs;
+    }
+
+    boolean useBinaryDocValuesRawText() {
+        return useBinaryDocValuesRawText;
     }
 
 }

@@ -14,8 +14,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.compute.lucene.LuceneSliceQueue;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
@@ -574,7 +574,6 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1)
                 .build()
         );
-        // The rate aggregation is executed with one shard at a time
         {
             EsqlQueryRequest request = new EsqlQueryRequest();
             request.profile(true);
@@ -593,7 +592,6 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 }
             }
         }
-        // non-rate aggregation is executed with multiple shards at a time
         {
             EsqlQueryRequest request = new EsqlQueryRequest();
             request.profile(true);

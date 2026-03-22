@@ -47,6 +47,7 @@ public class VectorScorerInt8OperationBenchmarkTests extends ESTestCase {
             bench.init();
             try {
                 float expected = switch (function) {
+                    case COSINE -> ScalarOperations.cosine(bench.bytesA, bench.bytesB);
                     case DOT_PRODUCT -> ScalarOperations.dotProduct(bench.bytesA, bench.bytesB);
                     case EUCLIDEAN -> ScalarOperations.squareDistance(bench.bytesA, bench.bytesB);
                     default -> throw new AssumptionViolatedException("Not tested");

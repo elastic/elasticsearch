@@ -1442,7 +1442,6 @@ setup:
                 type: int8_hnsw
                 m: 32
                 ef_construction: 200
-                confidence_interval: 0.3
 
   - do:
       indices.get_mapping:
@@ -1452,7 +1451,6 @@ setup:
   - match: { test_index.mappings.properties.embedding.index_options.type: int8_hnsw }
   - match: { test_index.mappings.properties.embedding.index_options.m: 32 }
   - match: { test_index.mappings.properties.embedding.index_options.ef_construction: 200 }
-  - match: { test_index.mappings.properties.embedding.index_options.confidence_interval: 0.3 }
 
   - do:
       catch: /illegal_argument_exception/ # fails because m = 10 is less than the current value of 20
@@ -1467,7 +1465,6 @@ setup:
                 type: int8_hnsw
                 ef_construction: 200
                 m: 10
-                confidence_interval: 0.3
 
   - do:
       catch: /illegal_argument_exception/ # fails because m = 16 by default, which is less than the current value of 20
@@ -1481,7 +1478,6 @@ setup:
               index_options:
                 type: int8_hnsw
                 ef_construction: 200
-                confidence_interval: 0.3
 
 ---
 "Allowed dense vector updates on same type but different other index_options, int4_hnsw":
@@ -1614,7 +1610,6 @@ setup:
               dims: 4
               index_options:
                 type: int8_flat
-                confidence_interval: 0.3
 
   - do:
       indices.get_mapping:
@@ -1622,7 +1617,6 @@ setup:
 
   - match: { test_index.mappings.properties.embedding.type: dense_vector }
   - match: { test_index.mappings.properties.embedding.index_options.type: int8_flat }
-  - match: { test_index.mappings.properties.embedding.index_options.confidence_interval: 0.3 }
 
 ---
 "Allowed dense vector updates on same type but different other index_options, int4_flat":
@@ -1663,7 +1657,6 @@ setup:
               dims: 4
               index_options:
                 type: int4_flat
-                confidence_interval: 0.3
 
   - do:
       indices.get_mapping:
@@ -1671,7 +1664,6 @@ setup:
 
   - match: { test_index.mappings.properties.embedding.type: dense_vector }
   - match: { test_index.mappings.properties.embedding.index_options.type: int4_flat }
-  - match: { test_index.mappings.properties.embedding.index_options.confidence_interval: 0.3 }
 
 ---
 "Test create and update dense vector mapping to int4 with per-doc indexing and flush":

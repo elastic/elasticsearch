@@ -24,6 +24,8 @@ import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -32,16 +34,19 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.tasks.RawTaskStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -75,6 +80,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
     private final Map<Long, Consumer<AsyncSearchResponse>> completionListeners = new HashMap<>();
 
     private volatile long expirationTimeMillis;
+    private volatile TimeValue keepAlive;
     private final AtomicBoolean isCancelling = new AtomicBoolean(false);
 
     private final MutableSearchResponse searchResponse;
@@ -112,6 +118,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
     ) {
         super(id, type, action, () -> "async_search{" + descriptionSupplier.get() + "}", parentTaskId, taskHeaders);
         this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();
+        this.keepAlive = keepAlive;
         this.originHeaders = originHeaders;
         this.searchId = searchId;
         this.client = client;
@@ -147,8 +154,27 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
      * Update the expiration time of the (partial) response.
      */
     @Override
-    public void setExpirationTime(long expirationTime) {
+    public void setExpirationTime(long expirationTime, TimeValue keepAlive) {
         this.expirationTimeMillis = expirationTime;
+        this.keepAlive = keepAlive;
+    }
+
+    @Override
+    public TimeValue getKeepAlive() {
+        return keepAlive;
+    }
+
+    @Override
+    public Status getStatus() {
+        try (XContentBuilder builder = XContentBuilder.builder(Requests.INDEX_CONTENT_TYPE.xContent())) {
+            builder.startObject();
+            builder.field("request_id", searchId.getEncoded());
+            builder.field("keep_alive", keepAlive.getStringRep());
+            builder.endObject();
+            return new RawTaskStatus(BytesReference.bytes(builder));
+        } catch (IOException e) {
+            throw new IllegalStateException("failed to build async search task status", e);
+        }
     }
 
     @Override
@@ -189,9 +215,16 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
     /**
      * Creates a listener that listens for an {@link AsyncSearchResponse} and notifies the
      * listener when the task is finished or when the provided <code>waitForCompletion</code>
-     * timeout occurs. In such case the consumed {@link AsyncSearchResponse} will contain partial results.
+     * timeout occurs.
+     * In the case of a timeout and a still running query, the results are considered intermediate results and the consumed
+     * {@link AsyncSearchResponse} will contain partial results (hits and aggs) if <code>returnIntermediateResultsInResponse</code> is set
+     * to true, otherwise the partial results are  not included.
      */
-    public boolean addCompletionListener(ActionListener<AsyncSearchResponse> listener, TimeValue waitForCompletion) {
+    public boolean addCompletionListener(
+        ActionListener<AsyncSearchResponse> listener,
+        TimeValue waitForCompletion,
+        boolean returnIntermediateResultsInResponse
+    ) {
         boolean executeImmediately = false;
         long startTime = threadPool.relativeTimeInMillis();
         synchronized (this) {
@@ -207,12 +240,12 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                     } else {
                         remainingWaitForCompletion = TimeValue.ZERO;
                     }
-                    internalAddCompletionListener(listener, remainingWaitForCompletion);
+                    internalAddCompletionListener(listener, remainingWaitForCompletion, returnIntermediateResultsInResponse);
                 });
             }
         }
         if (executeImmediately) {
-            getResponseWithHeaders(listener);
+            getResponseWithHeaders(listener, returnIntermediateResultsInResponse);
         }
         return true; // unused
     }
@@ -262,11 +295,15 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                 } finally {
                     failureResponse.decRef();
                 }
-            }));
+            }), true);
         }
     }
 
-    private void internalAddCompletionListener(ActionListener<AsyncSearchResponse> listener, TimeValue waitForCompletion) {
+    private void internalAddCompletionListener(
+        ActionListener<AsyncSearchResponse> listener,
+        TimeValue waitForCompletion,
+        boolean returnIntermediateResultsInResponse
+    ) {
         boolean executeImmediately = false;
         synchronized (this) {
             if (hasCompleted || waitForCompletion.getMillis() == 0) {
@@ -281,7 +318,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                         if (hasRun.compareAndSet(false, true)) {
                             // timeout occurred before completion
                             removeCompletionListener(id);
-                            getResponseWithHeaders(listener);
+                            getResponseWithHeaders(listener, returnIntermediateResultsInResponse);
                         }
                     }, waitForCompletion, threadPool.generic());
                 } catch (Exception exc) {
@@ -298,7 +335,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             }
         }
         if (executeImmediately) {
-            getResponseWithHeaders(listener);
+            getResponseWithHeaders(listener, returnIntermediateResultsInResponse);
         }
     }
 
@@ -396,18 +433,22 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
      * Visible for testing
      */
     void getResponse(ActionListener<AsyncSearchResponse> listener) {
-        getResponse(false, listener);
+        getResponse(false, true, listener);
     }
 
     /**
      * Invokes the listener with the current {@link AsyncSearchResponse},
      * restoring response headers into the calling thread context.
      */
-    private void getResponseWithHeaders(ActionListener<AsyncSearchResponse> listener) {
-        getResponse(true, listener);
+    private void getResponseWithHeaders(ActionListener<AsyncSearchResponse> listener, boolean returnPartialResultsInResponse) {
+        getResponse(true, returnPartialResultsInResponse, listener);
     }
 
-    private void getResponse(boolean restoreResponseHeaders, ActionListener<AsyncSearchResponse> listener) {
+    private void getResponse(
+        boolean restoreResponseHeaders,
+        boolean returnIntermediateResultsInResponse,
+        ActionListener<AsyncSearchResponse> listener
+    ) {
         final MutableSearchResponse mutableSearchResponse = searchResponse;
         assert mutableSearchResponse != null;
         checkCancellation();
@@ -435,7 +476,12 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         try {
             AsyncSearchResponse asyncSearchResponse;
             try {
-                asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(this, expirationTimeMillis, restoreResponseHeaders);
+                asyncSearchResponse = mutableSearchResponse.toAsyncSearchResponse(
+                    this,
+                    expirationTimeMillis,
+                    restoreResponseHeaders,
+                    returnIntermediateResultsInResponse
+                );
             } catch (Exception e) {
                 final ElasticsearchException ex = new ElasticsearchStatusException(
                     "Async search: error while reducing partial results",

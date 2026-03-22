@@ -16,13 +16,12 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
+import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
@@ -71,7 +70,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
         long startTime = System.nanoTime();
-        BulkByScrollParallelizationHelper.startSlicedAction(
+        BulkByPaginatedSearchParallelizationHelper.startSlicedAction(
             request,
             bulkByScrollTask,
             UpdateByQueryAction.INSTANCE,
@@ -79,7 +78,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             client,
             clusterService.localNode(),
             () -> {
-                ClusterState state = clusterService.state();
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(
                     client,
                     clusterService.localNode(),
@@ -92,7 +90,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                     threadPool,
                     scriptService,
                     request,
-                    state,
                     ActionListener.runAfter(listener, () -> {
                         long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
                         if (updateByQueryMetrics != null) {
@@ -116,7 +113,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             ThreadPool threadPool,
             ScriptService scriptService,
             UpdateByQueryRequest request,
-            ClusterState clusterState,
             ActionListener<BulkByScrollResponse> listener
         ) {
             super(
@@ -136,7 +132,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         }
 
         @Override
-        public BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
+        public BiFunction<RequestWrapper<?>, PaginatedHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
             Script script = mainRequest.getScript();
             if (script != null) {
                 return new UpdateByQueryScriptApplier(worker, scriptService, script, script.getParams(), threadPool::absoluteTimeInMillis);
@@ -145,7 +141,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         }
 
         @Override
-        protected RequestWrapper<IndexRequest> buildRequest(ScrollableHitSource.Hit doc) {
+        protected RequestWrapper<IndexRequest> buildRequest(PaginatedHitSource.Hit doc) {
             IndexRequest index = new IndexRequest();
             index.index(doc.getIndex());
             index.id(doc.getId());
@@ -170,7 +166,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             }
 
             @Override
-            protected CtxMap<UpdateByQueryMetadata> execute(ScrollableHitSource.Hit doc, Map<String, Object> source) {
+            protected CtxMap<UpdateByQueryMetadata> execute(PaginatedHitSource.Hit doc, Map<String, Object> source) {
                 if (update == null) {
                     update = scriptService.compile(script, UpdateByQueryScript.CONTEXT);
                 }

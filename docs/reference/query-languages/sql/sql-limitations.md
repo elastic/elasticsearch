@@ -102,7 +102,7 @@ It is possible to run the same queries without a `LIMIT` however in that case if
 an exception will be returned as {{es-sql}} is unable to track (and sort) all the results returned.
 
 Moreover, the aggregation(s) used in the `ORDER BY` must be only plain aggregate functions. No scalar
-functions or operators can be used, and therefore no complex columns that combine two ore more aggregate
+functions or operators can be used, and therefore no complex columns that combine two or more aggregate
 functions can be used for ordering. Here are some examples of queries that are *not allowed*:
 
 ```sql

@@ -156,7 +156,7 @@ public class DenseVectorStats implements Writeable, ToXContentFragment {
                 builder.startObject(key);
                 for (var eKey : entry.keySet().stream().sorted().toList()) {
                     long value = entry.get(eKey);
-                    assert value > 0L;
+                    assert value >= 0L;
                     builder.humanReadableField(eKey + "_size_bytes", eKey + "_size", ofBytes(value));
                 }
                 builder.endObject();

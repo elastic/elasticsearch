@@ -26,7 +26,10 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
     public void testLongVector() throws IOException {
         int maxPrimitiveElements = randomIntBetween(100, 1000);
         var maxPrimitiveSize = estimateArraySize(Long.BYTES, maxPrimitiveElements);
-        blockFactory = new BlockFactory(blockFactory.breaker(), blockFactory.bigArrays(), maxPrimitiveSize);
+        blockFactory = BlockFactory.builder(blockFactory.bigArrays())
+            .breaker(blockFactory.breaker())
+            .maxPrimitiveArraySize(maxPrimitiveSize)
+            .build();
         int numElements = between(2, maxPrimitiveElements / 2);
         try (var builder = blockFactory.newLongBlockBuilder(between(1, maxPrimitiveElements / 2))) {
             long[] elements = new long[numElements];
@@ -84,7 +87,10 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
     public void testLongBlock() throws IOException {
         int maxPrimitiveElements = randomIntBetween(1000, 5000);
         var maxPrimitiveSize = estimateArraySize(Long.BYTES, maxPrimitiveElements);
-        blockFactory = new BlockFactory(blockFactory.breaker(), blockFactory.bigArrays(), maxPrimitiveSize);
+        blockFactory = BlockFactory.builder(blockFactory.bigArrays())
+            .breaker(blockFactory.breaker())
+            .maxPrimitiveArraySize(maxPrimitiveSize)
+            .build();
         int numElements = between(2, maxPrimitiveElements / 2);
         try (var builder = blockFactory.newLongBlockBuilder(between(1, maxPrimitiveElements / 2))) {
             long[] elements = new long[numElements];
@@ -148,7 +154,10 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
     public void testBooleanVector() throws IOException {
         int maxPrimitiveElements = randomIntBetween(100, 1000);
         var maxPrimitiveSize = estimateArraySize(Byte.BYTES, maxPrimitiveElements);
-        blockFactory = new BlockFactory(blockFactory.breaker(), blockFactory.bigArrays(), maxPrimitiveSize);
+        blockFactory = BlockFactory.builder(blockFactory.bigArrays())
+            .breaker(blockFactory.breaker())
+            .maxPrimitiveArraySize(maxPrimitiveSize)
+            .build();
         int numElements = between(2, maxPrimitiveElements / 2);
         try (var builder = blockFactory.newBooleanBlockBuilder(between(1, maxPrimitiveElements / 2))) {
             boolean[] elements = new boolean[numElements];
@@ -212,7 +221,10 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
     public void testBooleanBlock() throws IOException {
         int maxPrimitiveElements = randomIntBetween(1000, 5000);
         var maxPrimitiveSize = estimateArraySize(Byte.BYTES, maxPrimitiveElements);
-        blockFactory = new BlockFactory(blockFactory.breaker(), blockFactory.bigArrays(), maxPrimitiveSize);
+        blockFactory = BlockFactory.builder(blockFactory.bigArrays())
+            .breaker(blockFactory.breaker())
+            .maxPrimitiveArraySize(maxPrimitiveSize)
+            .build();
         int numElements = between(2, maxPrimitiveElements / 2);
         try (var builder = blockFactory.newBooleanBlockBuilder(between(1, maxPrimitiveElements / 2))) {
             boolean[] elements = new boolean[numElements];
@@ -291,7 +303,7 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
     public void testBooleanBlockOneMv() {
         int mvCount = between(2, 10);
         int positionCount = randomIntBetween(1000, 5000);
-        blockFactory = new BlockFactory(blockFactory.breaker(), blockFactory.bigArrays(), ByteSizeValue.ofBytes(1));
+        blockFactory = BlockFactory.builder(blockFactory.bigArrays()).breaker(blockFactory.breaker()).maxPrimitiveArraySize(1).build();
         try (var builder = blockFactory.newBooleanBlockBuilder(between(1, mvCount + positionCount))) {
             boolean[] elements = new boolean[positionCount + mvCount];
             builder.beginPositionEntry();

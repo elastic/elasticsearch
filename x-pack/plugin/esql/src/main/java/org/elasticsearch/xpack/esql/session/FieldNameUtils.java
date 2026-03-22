@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -47,14 +48,13 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 
 public class FieldNameUtils {
@@ -64,7 +64,7 @@ public class FieldNameUtils {
         TRange.NAME.toLowerCase(Locale.ROOT)
     );
 
-    public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches) {
+    public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
 
         // get the field names from the parsed plan combined with the ENRICH match fields from the ENRICH policy
         List<LogicalPlan> inlinestats = parsed.collect(InlineStats.class::isInstance);
@@ -185,6 +185,9 @@ public class FieldNameUtils {
             } else if (p instanceof RegexExtract re) { // for Grok and Dissect
                 // keep the inputs needed by Grok/Dissect
                 referencesBuilder.get().addAll(re.input().references());
+            } else if (p instanceof CompoundOutputEval<?> coe) {
+                // keep the input field needed by the CompoundOutputEval
+                referencesBuilder.get().addAll(coe.getInput().references());
             } else if (p instanceof Enrich enrich) {
                 AttributeSet enrichFieldRefs = Expressions.references(enrich.enrichFields());
                 AttributeSet.Builder enrichRefs = enrichFieldRefs.combine(enrich.matchField().references()).asBuilder();
@@ -293,14 +296,50 @@ public class FieldNameUtils {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
             return new PreAnalysisResult(IndexResolver.INDEX_METADATA_FIELD, wildcardJoinIndices);
         } else {
-            HashSet<String> allFields = new HashSet<>(fieldNames.stream().flatMap(FieldNameUtils::withSubfields).collect(toSet()));
+            Set<String> allFields = new HashSet<>();
+            for (String name : fieldNames) {
+                addRelatedFields(includePrefixFields, allFields, name);
+            }
             allFields.add(MetadataAttribute.INDEX);
             return new PreAnalysisResult(allFields, wildcardJoinIndices);
         }
     }
 
-    private static Stream<String> withSubfields(String name) {
-        return name.endsWith(WILDCARD) ? Stream.of(name) : Stream.of(name, name + ".*");
+    /**
+     * Expands a field name into a set of names to request from field caps. For example, "a.b.c" will be expanded to:
+     * <ul>
+     * <li>The field itself: "a.b.c"</li>
+     * <li>Its multi-fields: "a.b.c.*". A sample case where this is required is TEXT fields that may have a ".keyword" subfield that's
+     * implicitly used in some queries.</li>
+     * <li>(Only when {@code unmapped_fields="load"}) All dot-delimited parent prefixes: ["a", "a.b"]. This is needed to get back flattened
+     * parents, so the verifier can detect subfields of flattened.</li>
+     * </ul>
+     */
+    private static void addRelatedFields(boolean includeFieldParentPrefixes, Set<String> allFields, String name) {
+        allFields.add(name);
+
+        if (name.endsWith(WILDCARD) == false) {
+            allFields.add(name + ".*");
+        }
+
+        if (includeFieldParentPrefixes) {
+            allFields.addAll(parentPrefixes(name));
+        }
+    }
+
+    /**
+     * Returns the dot-delimited parent prefixes of a field name. For example, "a.b.c" will return ["a", "a.b"].
+     */
+    public static List<String> parentPrefixes(String name) {
+        List<String> prefixes = new ArrayList<>();
+        int pos = name.indexOf('.');
+
+        while (pos != -1) {
+            prefixes.add(name.substring(0, pos));
+            pos = name.indexOf('.', pos + 1);
+        }
+
+        return prefixes;
     }
 
     /**
@@ -332,6 +371,7 @@ public class FieldNameUtils {
             || p instanceof OrderBy
             || p instanceof Project
             || p instanceof RegexExtract
+            || p instanceof CompoundOutputEval<?>
             || p instanceof Rename
             || p instanceof TopN
             || p instanceof UnresolvedRelation) == false;

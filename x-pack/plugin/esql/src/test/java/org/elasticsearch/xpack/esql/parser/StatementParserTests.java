@@ -4696,11 +4696,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testUserAgentCommand() {
         assumeTrue("requires user_agent command capability", EsqlCapabilities.Cap.USER_AGENT_COMMAND.isEnabled());
-        LogicalPlan cmd = processingCommand("user_agent ua = a WITH { \"regex_file\": \"default\" }");
+        LogicalPlan cmd = processingCommand("user_agent ua = a ");
         UserAgent ua = as(cmd, UserAgent.class);
         assertEqualsIgnoringIds(attribute("a"), ua.getInput());
         assertFalse(ua.extractDeviceType());
-        assertEquals("default", ua.regexFile());
+        assertEquals("_default_", ua.regexFile());
 
         List<String> expectedFieldNames = UserAgentFunctionBridge.getAllOutputFields()
             .keySet()

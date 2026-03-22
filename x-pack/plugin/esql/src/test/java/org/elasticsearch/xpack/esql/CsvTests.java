@@ -1167,10 +1167,10 @@ public class CsvTests extends ESTestCase {
     }
 
     /**
-     * Creates a {@link org.elasticsearch.useragent.api.UserAgentParserRegistry} with a config directory
+     * Creates a {@link UserAgentParserRegistry} with a config directory
      * containing the custom-regexes.yml test resource, so csv-spec tests can exercise the {@code regex_file} option.
      */
-    private static org.elasticsearch.useragent.api.UserAgentParserRegistry createUserAgentRegistry() throws IOException {
+    private static UserAgentParserRegistry createUserAgentRegistry() throws IOException {
         Path homeDir = createTempDir();
         Path userAgentConfigDir = homeDir.resolve("config").resolve("user-agent");
         Files.createDirectories(userAgentConfigDir);

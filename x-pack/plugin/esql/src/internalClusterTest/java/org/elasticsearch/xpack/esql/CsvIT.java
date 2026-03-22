@@ -161,7 +161,7 @@ public class CsvIT extends ESTestCase {
 
     @BeforeClass
     public static void setupCluster() throws Exception {
-        nodeConfigDir = createCustomRegexConfigDir();
+        nodeConfigDir = createConfigDir();
         long start = System.currentTimeMillis();
         logger.info("Creating test cluster");
         cluster = new InternalTestCluster(
@@ -538,18 +538,17 @@ public class CsvIT extends ESTestCase {
         }
     }
 
-    /**
-     * Creates a config directory containing the custom-regexes.yml test resource under user-agent/,
-     * so csv-spec tests can exercise the USER_AGENT command's {@code regex_file} option.
-     */
-    private static Path createCustomRegexConfigDir() throws IOException {
+    private static Path createConfigDir() throws IOException {
         Path configDir = createTempDir();
+
+        // create a subdir for the user-agent with custom regex files so we can test the USER_AGENT with the regex_file option
         Path userAgentDir = configDir.resolve("user-agent");
         Files.createDirectories(userAgentDir);
         try (InputStream is = CsvIT.class.getResourceAsStream("/custom-regexes.yml")) {
             assert is != null : "custom-regexes.yml not found on classpath";
             Files.copy(is, userAgentDir.resolve("custom-regexes.yml"));
         }
+
         return configDir;
     }
 

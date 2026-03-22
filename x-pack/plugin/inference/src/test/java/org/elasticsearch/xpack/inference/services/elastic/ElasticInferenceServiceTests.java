@@ -1152,7 +1152,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 null,
                 null,
                 null,
-                new Reasoning(Reasoning.ReasoningEffort.MEDIUM, null, Reasoning.ReasoningSummary.DETAILED, false, false)
+                new Reasoning(Reasoning.ReasoningEffort.MEDIUM, Reasoning.ReasoningSummary.DETAILED, false, false)
             );
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();

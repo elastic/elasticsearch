@@ -199,7 +199,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
             matchFields.add(new MatchConfig(matchField, i, inputDataType));
         }
         Expression joinOnExpression = null;
-        FragmentExec rightPlanWithOptionalPreJoinFilter = LookupFromIndexOperatorTests.buildLessThanFilter(LESS_THAN_VALUE);
+        FragmentExec rightPlanWithOptionalPreJoinFilter = LookupFromIndexOperatorTests.buildLessThanFilter(LESS_THAN_VALUE, loadFields);
         if (operation != null) {
             List<Expression> conditions = new ArrayList<>();
             for (int i = 0; i < numberOfJoinColumns; i++) {

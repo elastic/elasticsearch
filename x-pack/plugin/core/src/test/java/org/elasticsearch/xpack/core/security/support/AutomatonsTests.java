@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 
 import static org.elasticsearch.xpack.core.security.support.Automatons.pattern;
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
@@ -111,6 +112,47 @@ public class AutomatonsTests extends ESTestCase {
         final Automaton automaton = Automatons.patterns(patterns);
         assertTrue(Operations.isTotal(automaton));
         assertTrue(automaton.isDeterministic());
+    }
+
+    public void testSubsetOfDataDriven() {
+        List<SubsetCase> cases = new ArrayList<>(List.of(
+            new SubsetCase(List.of(), List.of("*"), true),
+            new SubsetCase(List.of("logs-prod-*"), List.of("logs-*"), true),
+            new SubsetCase(List.of("logs-*"), List.of("logs-prod-*"), false),
+            new SubsetCase(List.of("metrics-*"), List.of("logs-*"), false),
+            new SubsetCase(List.of("logs-prod-*", "metrics-*"), List.of("logs-*", "metrics-*"), true),
+            new SubsetCase(List.of("logs-*", "traces-*"), List.of("logs-*", "metrics-*"), false)
+        ));
+
+        // Large DFA cases to force growth of visited-pair hash table and BFS worklist.
+        List<String> largePatterns = generateLiteralPatterns("logs", 256);
+        List<String> largeSupersetMissingTail = new ArrayList<>(largePatterns);
+        largeSupersetMissingTail.remove(largeSupersetMissingTail.size() - 1);
+        cases.add(new SubsetCase(largePatterns, largePatterns, true));
+        cases.add(new SubsetCase(largePatterns, largeSupersetMissingTail, false));
+
+        for (SubsetCase subsetCase : cases) {
+            Automaton candidate = Automatons.patterns(subsetCase.candidatePatterns());
+            Automaton superset = Automatons.patterns(subsetCase.supersetPatterns());
+            assertThat(
+                "candidate=" + subsetCase.candidatePatterns() + " superset=" + subsetCase.supersetPatterns(),
+                Automatons.subsetOf(candidate, superset),
+                equalTo(subsetCase.expected())
+            );
+        }
+    }
+
+    private static List<String> generateLiteralPatterns(String prefix, int count) {
+        List<String> patterns = new ArrayList<>(count);
+        Random random = new Random(0L);
+        for (int i = 0; i < count; i++) {
+            StringBuilder sb = new StringBuilder(prefix).append('-').append(i).append('-');
+            for (int j = 0; j < 18; j++) {
+                sb.append((char) ('a' + random.nextInt(26)));
+            }
+            patterns.add(sb.toString());
+        }
+        return patterns;
     }
 
     private void assertMatch(Automaton automaton, String text) {
@@ -235,4 +277,6 @@ public class AutomatonsTests extends ESTestCase {
         }
         return out;
     }
+
+    private record SubsetCase(List<String> candidatePatterns, List<String> supersetPatterns, boolean expected) {}
 }

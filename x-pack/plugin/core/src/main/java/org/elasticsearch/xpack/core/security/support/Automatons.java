@@ -11,7 +11,6 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
-import org.apache.lucene.util.automaton.StatePair;
 import org.apache.lucene.util.automaton.Transition;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
@@ -22,7 +21,6 @@ import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -393,47 +391,82 @@ public final class Automatons {
         assert Operations.hasDeadStatesFromInitial(a1) == false;
         assert Operations.hasDeadStatesFromInitial(a2) == false;
         if (a1.getNumStates() == 0) {
-            // Empty language is alwyas a subset of any other language
+            // Empty language is always a subset of any other language
             return true;
         } else if (a2.getNumStates() == 0) {
             return Operations.isEmpty(a1);
         }
 
-        // TODO: cutover to iterators instead
-        Transition[][] transitions1 = a1.getSortedTransitions();
-        Transition[][] transitions2 = a2.getSortedTransitions();
-        ArrayDeque<StatePair> worklist = new ArrayDeque<>();
-        HashSet<StatePair> visited = new HashSet<>();
-        StatePair p = new StatePair(0, 0);
-        worklist.add(p);
-        visited.add(p);
-        while (worklist.size() > 0) {
-            p = worklist.removeFirst();
-            if (a1.isAccept(p.s1) && a2.isAccept(p.s2) == false) {
+        // Open-addressing hash set for visited state pairs, packed as longs.
+        // Sentinel -1L is safe: state indices are non-negative, so the packed
+        // long ((s1 << 32) | s2) is always >= 0.
+        long[] visitedTable = new long[32];
+        Arrays.fill(visitedTable, -1L);
+        int visitedMask = visitedTable.length - 1;
+        int visitedSize = 0;
+
+        // BFS worklist storing packed state pairs.
+        long[] worklist = new long[32];
+        int head = 0, tail = 0;
+
+        long initial = packStates(0, 0);
+        insertIntoTable(visitedTable, visitedMask, initial);
+        visitedSize++;
+        worklist[tail++] = initial;
+
+        Transition t1 = new Transition();
+        Transition t2 = new Transition();
+
+        while (head < tail) {
+            long pair = worklist[head++];
+            int s1 = (int) (pair >>> 32);
+            int s2 = (int) pair;
+
+            if (a1.isAccept(s1) && a2.isAccept(s2) == false) {
                 return false;
             }
-            Transition[] t1 = transitions1[p.s1];
-            Transition[] t2 = transitions2[p.s2];
-            for (int n1 = 0, b2 = 0; n1 < t1.length; n1++) {
-                while (b2 < t2.length && t2[b2].max < t1[n1].min) {
+
+            int count1 = a1.getNumTransitions(s1);
+            int count2 = a2.getNumTransitions(s2);
+
+            for (int n1 = 0, b2 = 0; n1 < count1; n1++) {
+                a1.getTransition(s1, n1, t1);
+                int t1Min = t1.min, t1Max = t1.max, t1Dest = t1.dest;
+
+                while (b2 < count2) {
+                    a2.getTransition(s2, b2, t2);
+                    if (t2.max >= t1Min) break;
                     b2++;
                 }
-                int min1 = t1[n1].min, max1 = t1[n1].max;
+                int min1 = t1Min, max1 = t1Max;
 
-                for (int n2 = b2; n2 < t2.length && t1[n1].max >= t2[n2].min; n2++) {
-                    if (t2[n2].min > min1) {
+                for (int n2 = b2; n2 < count2; n2++) {
+                    if (n2 > b2) {
+                        a2.getTransition(s2, n2, t2);
+                    }
+                    if (t1Max < t2.min) break;
+
+                    if (t2.min > min1) {
                         return false;
                     }
-                    if (t2[n2].max < Character.MAX_CODE_POINT) {
-                        min1 = t2[n2].max + 1;
+                    if (t2.max < Character.MAX_CODE_POINT) {
+                        min1 = t2.max + 1;
                     } else {
                         min1 = Character.MAX_CODE_POINT;
                         max1 = Character.MIN_CODE_POINT;
                     }
-                    StatePair q = new StatePair(t1[n1].dest, t2[n2].dest);
-                    if (visited.contains(q) == false) {
-                        worklist.add(q);
-                        visited.add(q);
+
+                    long key = packStates(t1Dest, t2.dest);
+                    if (probeAndAdd(visitedTable, visitedMask, key)) {
+                        visitedSize++;
+                        if (visitedSize * 2 > visitedTable.length) {
+                            visitedTable = rehashVisited(visitedTable);
+                            visitedMask = visitedTable.length - 1;
+                        }
+                        if (tail >= worklist.length) {
+                            worklist = Arrays.copyOf(worklist, worklist.length * 2);
+                        }
+                        worklist[tail++] = key;
                     }
                 }
                 if (min1 <= max1) {
@@ -443,4 +476,57 @@ public final class Automatons {
         }
         return true;
     }
+
+    private static long packStates(int s1, int s2) {
+        return ((long) s1 << 32) | (s2 & 0xFFFFFFFFL);
+    }
+
+    /**
+     * Hashes a packed state pair. Uses a multiplicative mix so that diagonal
+     * pairs (s1 == s2) do not all collide — {@code Long.hashCode} XORs the
+     * two halves, producing 0 for every diagonal pair.
+     */
+    private static int hashStatePair(long key) {
+        int s1 = (int) (key >>> 32);
+        int s2 = (int) key;
+        return s1 * 0x9E3779B9 + s2;
+    }
+
+    /** Adds a key known to be absent. Used during rehash. */
+    private static void insertIntoTable(long[] table, int mask, long key) {
+        int slot = hashStatePair(key) & mask;
+        while (table[slot] != -1L) {
+            slot = (slot + 1) & mask;
+        }
+        table[slot] = key;
+    }
+
+    /** Probes for {@code key}; inserts and returns true if absent. */
+    private static boolean probeAndAdd(long[] table, int mask, long key) {
+        int slot = hashStatePair(key) & mask;
+        while (true) {
+            long existing = table[slot];
+            if (existing == -1L) {
+                table[slot] = key;
+                return true;
+            }
+            if (existing == key) {
+                return false;
+            }
+            slot = (slot + 1) & mask;
+        }
+    }
+
+    private static long[] rehashVisited(long[] oldTable) {
+        long[] newTable = new long[oldTable.length * 2];
+        Arrays.fill(newTable, -1L);
+        int newMask = newTable.length - 1;
+        for (long key : oldTable) {
+            if (key != -1L) {
+                insertIntoTable(newTable, newMask, key);
+            }
+        }
+        return newTable;
+    }
+
 }

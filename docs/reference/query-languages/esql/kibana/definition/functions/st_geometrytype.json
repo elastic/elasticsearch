@@ -54,7 +54,7 @@
     }
   ],
   "examples" : [
-    "ROW wkt = [\"POINT(1.0 2.0)\", \"LINESTRING (30 10, 10 30, 40 40)\", \"POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))\"]\n| MV_EXPAND wkt\n| EVAL geometry = TO_GEOSHAPE(wkt),\n       type = ST_GEOMETRYTYPE(geometry),\n       points = ST_NPOINTS(geometry)\n| KEEP type, points"
+    "ROW wkt = [\n    \"POINT(1.0 2.0)\",\n    \"LINESTRING (30 10, 10 30, 40 40)\",\n    \"POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))\"]\n| MV_EXPAND wkt\n| EVAL geometry = TO_GEOSHAPE(wkt),\n       type = ST_GEOMETRYTYPE(geometry),\n       points = ST_NPOINTS(geometry)\n| KEEP type, points"
   ],
   "preview" : true,
   "snapshot_only" : false

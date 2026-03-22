@@ -3,8 +3,12 @@
 ## Example
 
 ```esql
-ROW point = TO_GEOPOINT("POINT(1.0 2.0)"), empty_line = TO_GEOSHAPE("LINESTRING EMPTY"), empty_polygon = TO_GEOSHAPE("POLYGON EMPTY")
-| EVAL pt_empty = ST_ISEMPTY(point), line_empty = ST_ISEMPTY(empty_line), polygon_empty = ST_ISEMPTY(empty_polygon)
+ROW point = TO_GEOPOINT("POINT(1.0 2.0)"),
+    empty_line = TO_GEOSHAPE("LINESTRING EMPTY"),
+    empty_polygon = TO_GEOSHAPE("POLYGON EMPTY")
+| EVAL pt_empty = ST_ISEMPTY(point),
+       line_empty = ST_ISEMPTY(empty_line),
+       polygon_empty = ST_ISEMPTY(empty_polygon)
 | KEEP pt_empty, line_empty, polygon_empty
 ```
 

@@ -54,7 +54,7 @@
     }
   ],
   "examples" : [
-    "ROW point = TO_GEOPOINT(\"POINT(1.0 2.0)\"), empty_line = TO_GEOSHAPE(\"LINESTRING EMPTY\"), empty_polygon = TO_GEOSHAPE(\"POLYGON EMPTY\")\n| EVAL pt_empty = ST_ISEMPTY(point), line_empty = ST_ISEMPTY(empty_line), polygon_empty = ST_ISEMPTY(empty_polygon)\n| KEEP pt_empty, line_empty, polygon_empty"
+    "ROW point = TO_GEOPOINT(\"POINT(1.0 2.0)\"),\n    empty_line = TO_GEOSHAPE(\"LINESTRING EMPTY\"),\n    empty_polygon = TO_GEOSHAPE(\"POLYGON EMPTY\")\n| EVAL pt_empty = ST_ISEMPTY(point),\n       line_empty = ST_ISEMPTY(empty_line),\n       polygon_empty = ST_ISEMPTY(empty_polygon)\n| KEEP pt_empty, line_empty, polygon_empty"
   ],
   "preview" : true,
   "snapshot_only" : false

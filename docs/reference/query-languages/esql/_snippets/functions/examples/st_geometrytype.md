@@ -3,7 +3,10 @@
 ## Example
 
 ```esql
-ROW wkt = ["POINT(1.0 2.0)", "LINESTRING (30 10, 10 30, 40 40)", "POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))"]
+ROW wkt = [
+    "POINT(1.0 2.0)",
+    "LINESTRING (30 10, 10 30, 40 40)",
+    "POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))"]
 | MV_EXPAND wkt
 | EVAL geometry = TO_GEOSHAPE(wkt),
        type = ST_GEOMETRYTYPE(geometry),

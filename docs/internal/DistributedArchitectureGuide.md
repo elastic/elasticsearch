@@ -2619,23 +2619,95 @@ Tasks are integrated with the ElasticSearch APM infrastructure. They implement t
 
 # Indexing / CRUD
 
-(Explain that the Distributed team is responsible for the write path, while the Search team owns the read path.)
+[RestBulkAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/action/document/RestBulkAction.java
+[RestIndexAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/action/document/RestIndexAction.java
+[RestDeleteAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/action/document/RestDeleteAction.java
+[RestUpdateAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/action/document/RestUpdateAction.java
+[TransportBulkAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/TransportBulkAction.java
+[BulkOperation]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/BulkOperation.java
+[TransportShardBulkAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/TransportShardBulkAction.java
+[TransportIndexAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/index/TransportIndexAction.java
+[TransportDeleteAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/delete/TransportDeleteAction.java
+[TransportUpdateAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/update/TransportUpdateAction.java
+[TransportReplicationAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java
+[TransportWriteAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportWriteAction.java
+[IndexRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/index/IndexRequest.java
+[DeleteRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/delete/DeleteRequest.java
+[UpdateRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/update/UpdateRequest.java
+[BulkRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/BulkRequest.java
+[IndexShardOperationPermits]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexShardOperationPermits.java
+[SequenceNumbers]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/seqno/SequenceNumbers.java
+[ReplicationTracker]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/seqno/ReplicationTracker.java
+[SeqNoFieldMapper]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/mapper/SeqNoFieldMapper.java
 
-(Generating document IDs. Same across shard replicas, \_id field)
+The Distributed team owns Elasticsearch's write path. A typical write begins as an HTTP/REST request,
+is routed to the appropriate shard copy, is applied to the shard's engine and translog, and is finally replicated
+across replicas before an ack is sent back to the client.
 
-(Sequence number: different than ID)
+The Distributed team also owns select parts of the read path (e.g. real-time `GET` requests targeting the translog),
+but broader search capabilities like query execution, scoring, and aggregations fall under the Search team.
 
-### Reindex
+This section follows a single **index** request end to end, using [RestIndexAction] as the starting point.
 
-### Locking
+## The Write Path
 
-(what limits write concurrency, and how do we minimize)
+### Coordinator node: REST handler to Transport
 
-### Soft Deletes
+A user sends a `PUT` or `POST` to `/{index}/_doc/{id}` (or `POST /{index}/_doc` with no id for auto-generated ids) to
+Elasticsearch. The HTTP stack (described in [HTTP Server](#http-server)) hands the request to `RestIndexAction`, which
+parses path parameters (`index`, optional `id`, optional `routing`, etc.) and the body as the document source.
+It [builds](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/action/document/RestIndexAction.java#L131)
+an [IndexRequest] and [prepares](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/action/document/RestIndexAction.java#L156)
+the next action, `AbstractClient::index`, which will execute [TransportIndexAction] on the receiving node (see the
+[Transport](#transport) section).
 
-### Refresh
+The node that received the request is the coordinating node for this request. On that node, `TransportIndexAction` wraps
+the `IndexRequest` in a one-item [BulkRequest] and delegates to [TransportBulkAction], which eventually runs
+a [BulkOperation] on the coordinator. `BulkOperation` is the class that resolves each item to a concrete index
+and shard before sending work to primaries.
 
-(explain visibility of writes, and reference the Lucene section for more details (whatever makes more sense explained there))
+If the client did not supply `_id`, one is
+[generated](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/BulkOperation.java#L333)
+before routing. The latest applied [ClusterState](#cluster-state) supplies routing for the chosen index (`routingTable`,
+[ShardRouting](#cluster-state)). A routing key is chosen (by default the document `_id` but the request may
+[set](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-index) `routing` explicitly).
+The routing key is hashed to a shard number within the index by `IndexRouting.hashToShardId`.
+
+The coordinator now knows which shard holds the document; it still needs the current primary node for that shard.
+
+### Primary routing & execution
+
+Elasticsearch uses primary–backup replication: the primary shard copy defines the ordered write history and replicas 
+apply the same operations.
+
+
+### Replication
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant CN as Coordinating node
+    participant P as Primary shard copy
+    participant R as Replica shard copy
+
+    C->>CN: REST index (RestIndexAction → IndexRequest)
+    CN->>CN: Bulk coordinator: route to shard
+    CN->>P: Shard bulk on primary (TransportShardBulkAction)
+    P->>P: IndexShard / engine (translog + Lucene)
+    P->>R: Replicate op (seq_no + primary_term)
+    R->>R: Engine apply
+    R-->>P: replica response
+    P-->>CN: primary response
+    CN-->>C: ack
+```
+
+### Sequence Numbers
+
+### Checkpoints, gaps, and out-of-order replication
+
+### Refresh, visibility, and "real-time GET"
+
+### Locking and write concurrency
 
 # Server Startup
 

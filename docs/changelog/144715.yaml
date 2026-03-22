@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 144715
+summary: Speed up Automatons.subsetOf with primitive pair traversal
+type: enhancement

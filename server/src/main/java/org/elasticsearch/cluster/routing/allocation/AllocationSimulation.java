@@ -19,6 +19,8 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 
+import java.util.function.Function;
+
 /**
  * A read-only view of the allocation infrastructure for a given context. An efficient way
  * to make multiple queries to the allocator.
@@ -27,16 +29,16 @@ public class AllocationSimulation {
 
     private final AllocationDeciders allocationDeciders;
     private final RoutingAllocation routingAllocation;
-    private final ShardsAllocator shardsAllocator;
+    private final Function<ShardRouting, ShardAllocationDecision> explainShardAllocationFunction;
 
     public AllocationSimulation(
         RoutingAllocation routingAllocation,
         AllocationDeciders allocationDeciders,
-        ShardsAllocator shardsAllocator
+        ShardsAllocator shardAllocator
     ) {
         this.allocationDeciders = allocationDeciders;
         this.routingAllocation = routingAllocation;
-        this.shardsAllocator = shardsAllocator;
+        this.explainShardAllocationFunction = shardAllocator.explainShardAllocationFunction(routingAllocation);
     }
 
     public ClusterState state() {
@@ -80,7 +82,7 @@ public class AllocationSimulation {
         final var originalDebugMode = routingAllocation.getDebugMode();
         routingAllocation.setDebugMode(debugMode);
         try {
-            return shardsAllocator.explainShardAllocation(shardRouting, routingAllocation);
+            return explainShardAllocationFunction.apply(shardRouting);
         } finally {
             routingAllocation.setDebugMode(originalDebugMode);
         }

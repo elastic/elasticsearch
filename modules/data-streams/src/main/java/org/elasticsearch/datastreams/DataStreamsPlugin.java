@@ -27,14 +27,10 @@ import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleActi
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.action.TransportCreateDataStreamAction;
@@ -64,9 +60,6 @@ import org.elasticsearch.datastreams.lifecycle.rest.RestDeleteDataStreamLifecycl
 import org.elasticsearch.datastreams.lifecycle.rest.RestExplainDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestGetDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestPutDataStreamLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.transitions.DlmAction;
-import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
-import org.elasticsearch.datastreams.lifecycle.transitions.steps.ForceMergeStep;
 import org.elasticsearch.datastreams.lifecycle.transitions.steps.MarkIndexForDLMForceMergeAction;
 import org.elasticsearch.datastreams.lifecycle.transitions.steps.TransportMarkIndexForDLMForceMergeAction;
 import org.elasticsearch.datastreams.options.action.DeleteDataStreamOptionsAction;
@@ -94,7 +87,6 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 
 import java.io.IOException;
@@ -151,8 +143,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         Setting.Property.Dynamic,
         Setting.Property.ServerlessPublic
     );
-    // The dependency of index.look_ahead_time is a cluster setting and currently there is no clean validation approach for this:
-    private final SetOnce<UpdateTimeSeriesRangeService> updateTimeSeriesRangeService = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleErrorStore> errorStoreInitialisationService = new SetOnce<>();
 
     private final SetOnce<DataStreamLifecycleService> dataLifecycleInitialisationService = new SetOnce<>();
@@ -168,6 +158,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         return Clock.systemUTC();
     }
 
+    // The dependency of index.look_ahead_time is a cluster setting and currently there is no clean validation approach for this:
     static void additionalLookAheadTimeValidation(TimeValue lookAhead, TimeValue timeSeriesPollInterval) {
         if (lookAhead.compareTo(timeSeriesPollInterval) < 0) {
             final String message = String.format(
@@ -192,9 +183,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING);
-        if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
-            pluginSettings.add(ForceMergeStep.DLM_FORCE_MERGE_COMPLETE_SETTING);
-        }
         return pluginSettings;
     }
 
@@ -207,8 +195,12 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
             services.threadPool(),
             services.clusterService()
         );
-        this.updateTimeSeriesRangeService.set(updateTimeSeriesRangeService);
-        components.add(this.updateTimeSeriesRangeService.get());
+        IndexScopedSettings indexScopedSettings = services.indicesService().getIndexScopedSettings();
+        indexScopedSettings.addSettingsUpdateConsumer(LOOK_AHEAD_TIME, value -> {
+            TimeValue timeSeriesPollInterval = updateTimeSeriesRangeService.pollInterval;
+            additionalLookAheadTimeValidation(value, timeSeriesPollInterval);
+        });
+        components.add(updateTimeSeriesRangeService);
         errorStoreInitialisationService.set(new DataStreamLifecycleErrorStore(services.threadPool()::absoluteTimeInMillis));
         dataStreamLifecycleErrorsPublisher.set(
             new DataStreamLifecycleHealthInfoPublisher(
@@ -218,11 +210,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
                 errorStoreInitialisationService.get()
             )
         );
-
-        // Register DLM actions here. Order matters - they will be executed in the order they are listed for a given index.
-        List<DlmAction> dlmActions = List.of();
-
-        verifyActions(dlmActions);
 
         dataLifecycleInitialisationService.set(
             new DataStreamLifecycleService(
@@ -235,8 +222,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
                 errorStoreInitialisationService.get(),
                 services.allocationService(),
                 dataStreamLifecycleErrorsPublisher.get(),
-                services.dataStreamGlobalRetentionSettings(),
-                dlmActions
+                services.dataStreamGlobalRetentionSettings()
             )
         );
         dataLifecycleInitialisationService.get().init();
@@ -246,26 +232,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         components.add(dataLifecycleInitialisationService.get());
         components.add(dataStreamLifecycleErrorsPublisher.get());
         return components;
-    }
-
-    // visible for testing
-    static void verifyActions(List<DlmAction> dlmActions) {
-        for (DlmAction action : dlmActions) {
-            if (action.steps().isEmpty()) {
-                throw new IllegalStateException("DLM action [" + action.name() + "] must have at least one step");
-            }
-            for (DlmStep step : action.steps()) {
-                if (step.possibleOutputIndexNamePatterns("dummy-index").isEmpty()) {
-                    throw new IllegalStateException(
-                        "DLM step ["
-                            + step.stepName()
-                            + "] in action ["
-                            + action.name()
-                            + "] must have at least one possible output index name pattern"
-                    );
-                }
-            }
-        }
     }
 
     @Override
@@ -298,20 +264,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        indexScopedSettings.addSettingsUpdateConsumer(LOOK_AHEAD_TIME, value -> {
-            TimeValue timeSeriesPollInterval = updateTimeSeriesRangeService.get().pollInterval;
-            additionalLookAheadTimeValidation(value, timeSeriesPollInterval);
-        });
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new RestCreateDataStreamAction());
         handlers.add(new RestDeleteDataStreamAction());

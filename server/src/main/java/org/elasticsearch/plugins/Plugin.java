@@ -37,6 +37,7 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -212,6 +213,9 @@ public abstract class Plugin implements Closeable {
 
         /** A utility for executing transport actions on remote nodes */
         RemoteTransportClient remoteTransportClient();
+
+        /** A service to determine whether Cross-Project Search applies to a request */
+        CrossProjectModeDecider crossProjectModeDecider();
     }
 
     /**

@@ -24,6 +24,8 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConjunctionUtils;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FullPrecisionFloatVectorSimilarityValuesSource;
@@ -39,7 +41,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
+import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
@@ -340,7 +342,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 randomBoolean()
             )
         );
-        iwc.setCodec(new Elasticsearch92Lucene103Codec(randomFrom(Zstd814StoredFieldsFormat.Mode.values())) {
+        iwc.setCodec(new Elasticsearch93Lucene104Codec(randomFrom(Zstd814StoredFieldsFormat.Mode.values())) {
             @Override
             public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
                 return format;
@@ -390,7 +392,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                             if (values == null) {
                                 return null;
                             }
-                            return new RegularFloatVectorValues(values);
+                            return new SingleFloatVectorValues(values);
                         }
                     };
                 }
@@ -408,17 +410,26 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         }
     }
 
-    private static final class RegularFloatVectorValues extends FloatVectorValues {
+    /**
+     * A wrapper around FloatVectorValues that ensures that the bulk scoring path uses the single scoring method.
+     * Used to test that the single and bulk scoring paths return the same scores.
+     */
+    private static final class SingleFloatVectorValues extends FloatVectorValues {
 
         private final FloatVectorValues in;
 
-        RegularFloatVectorValues(FloatVectorValues in) {
+        SingleFloatVectorValues(FloatVectorValues in) {
             this.in = in;
         }
 
         @Override
         public VectorScorer scorer(float[] target) throws IOException {
-            return in.scorer(target);
+            return new SingleVectorScorer(in.scorer(target));
+        }
+
+        @Override
+        public VectorScorer rescorer(float[] target) throws IOException {
+            return new SingleVectorScorer(in.rescorer(target));
         }
 
         @Override
@@ -443,7 +454,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
 
         @Override
         public FloatVectorValues copy() throws IOException {
-            return new RegularFloatVectorValues(in.copy());
+            return new SingleFloatVectorValues(in.copy());
         }
 
         @Override
@@ -454,6 +465,50 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         @Override
         public int size() {
             return in.size();
+        }
+    }
+
+    private static final class SingleVectorScorer implements VectorScorer {
+        private final VectorScorer in;
+
+        SingleVectorScorer(VectorScorer in) {
+            this.in = in;
+        }
+
+        @Override
+        public float score() throws IOException {
+            return in.score();
+        }
+
+        @Override
+        public DocIdSetIterator iterator() {
+            return in.iterator();
+        }
+
+        @Override
+        public VectorScorer.Bulk bulk(DocIdSetIterator matchingDocs) throws IOException {
+            final DocIdSetIterator iterator = matchingDocs == null
+                ? iterator()
+                : ConjunctionUtils.createConjunction(List.of(matchingDocs, iterator()), List.of());
+            if (iterator.docID() == -1) {
+                iterator.nextDoc();
+            }
+            return (upTo, liveDocs, buffer) -> {
+                assert upTo > 0;
+                buffer.growNoCopy(VectorScorer.DEFAULT_BULK_BATCH_SIZE);
+                int size = 0;
+                float maxScore = Float.NEGATIVE_INFINITY;
+                for (int doc = iterator.docID(); doc < upTo && size < VectorScorer.DEFAULT_BULK_BATCH_SIZE; doc = iterator.nextDoc()) {
+                    if (liveDocs == null || liveDocs.get(doc)) {
+                        buffer.docs[size] = doc;
+                        buffer.features[size] = score();
+                        maxScore = Math.max(maxScore, buffer.features[size]);
+                        ++size;
+                    }
+                }
+                buffer.size = size;
+                return maxScore;
+            };
         }
     }
 }

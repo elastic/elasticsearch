@@ -16,7 +16,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.suggest.document.Completion101PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion104PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionAnalyzer;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
@@ -125,10 +125,11 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         });
 
         checker.registerUpdateCheck(
+            "search_analyzer",
             b -> b.field("search_analyzer", "standard"),
             m -> assertEquals("standard", m.fieldType().getTextSearchInfo().searchAnalyzer().name())
         );
-        checker.registerUpdateCheck(b -> b.field("max_input_length", 30), m -> {
+        checker.registerUpdateCheck("max_input_length", b -> b.field("max_input_length", 30), m -> {
             CompletionFieldMapper cfm = (CompletionFieldMapper) m;
             assertEquals(30, cfm.getMaxInputLength());
         });
@@ -149,7 +150,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
     }
 
     public void testPostingsFormat() throws IOException {
-        final Class<?> latestLuceneCPClass = Completion101PostingsFormat.class;
+        final Class<?> latestLuceneCPClass = Completion104PostingsFormat.class;
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");

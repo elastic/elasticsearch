@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -39,6 +40,7 @@ import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
@@ -74,6 +76,8 @@ import static org.apache.lucene.tests.util.LuceneTestCase.createTempDir;
 import static org.elasticsearch.compute.aggregation.spatial.SpatialAggregationUtils.encodeLongitude;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS;
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS_AND_CENTROID;
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_CENTROID;
 
 public class TestPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
     private final List<IndexPage> indexPages;
@@ -132,7 +136,8 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregatorFactories,
         List<BlockHash.GroupSpec> groupSpecs,
-        LocalExecutionPlannerContext context
+        LocalExecutionPlannerContext context,
+        int maxPageSize
     ) {
         return new TimeSeriesAggregationOperator.Factory(
             ts.timeBucketRounding(context.foldCtx()),
@@ -140,7 +145,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             groupSpecs,
             aggregatorMode,
             aggregatorFactories,
-            context.pageSize(ts, ts.estimatedRowSize())
+            maxPageSize
         );
     }
 
@@ -289,6 +294,10 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                     case BlockResultMissing unused -> getNullsBlock(doc);
                     case BlockResultSuccess success -> success.block;
                 };
+            }
+            // For NULL-typed fields (unmapped fields with NULLIFY mode), return nulls
+            if (fa.dataType() == DataType.NULL) {
+                return (doc, copier) -> getNullsBlock(doc);
             }
         }
         return (indexDoc, blockCopier) -> switch (extractBlockForSingleDoc(indexDoc, attribute.name(), blockCopier)) {
@@ -484,7 +493,47 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
      * geo_shape and cartesian_shape are normally loaded as WKT from source, but for ST_EXTENT_AGG we can load them from doc-values
      * extracting the spatial Extent information. This class is used to convert the test loaded WKB into the int[6] used in the aggregators.
      */
-    private abstract static class TestSpatialShapeExtentBlockCopier extends TestBlockCopier {
+    private abstract static class TestSpatialShapeAbstractBlockCopier<T extends Block.Builder> extends TestBlockCopier {
+
+        private TestSpatialShapeAbstractBlockCopier(IntVector docIndices) {
+            super(docIndices);
+        }
+
+        protected abstract T blockBuilder(BytesRefBlock bytesRefBlock);
+
+        protected abstract void initData();
+
+        protected abstract void visitGeometry(Geometry geometry);
+
+        protected abstract void encodeData(T builder);
+
+        @Override
+        protected Block copyBlock(Block originalData) {
+            BytesRef scratch = new BytesRef(100);
+            BytesRefBlock bytesRefBlock = (BytesRefBlock) originalData;
+            try (T builder = blockBuilder(bytesRefBlock)) {
+                for (int c = 0; c < docIndices.getPositionCount(); c++) {
+                    int doc = docIndices.getInt(c);
+                    int count = bytesRefBlock.getValueCount(doc);
+                    if (count == 0) {
+                        builder.appendNull();
+                    } else {
+                        initData();
+                        int firstValueIndex = bytesRefBlock.getFirstValueIndex(doc);
+                        for (int i = firstValueIndex; i < firstValueIndex + count; i++) {
+                            BytesRef wkb = bytesRefBlock.getBytesRef(i, scratch);
+                            Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
+                            visitGeometry(geometry);
+                        }
+                        encodeData(builder);
+                    }
+                }
+                return builder.build();
+            }
+        }
+    }
+
+    private abstract static class TestSpatialShapeExtentBlockCopier extends TestSpatialShapeAbstractBlockCopier<IntBlock.Builder> {
         protected final SpatialEnvelopeVisitor.PointVisitor pointVisitor;
         private final SpatialEnvelopeVisitor visitor;
 
@@ -495,31 +544,19 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         }
 
         @Override
-        protected Block copyBlock(Block originalData) {
-            BytesRef scratch = new BytesRef(100);
-            BytesRefBlock bytesRefBlock = (BytesRefBlock) originalData;
-            try (IntBlock.Builder builder = bytesRefBlock.blockFactory().newIntBlockBuilder(docIndices.getPositionCount())) {
-                for (int c = 0; c < docIndices.getPositionCount(); c++) {
-                    int doc = docIndices.getInt(c);
-                    int count = bytesRefBlock.getValueCount(doc);
-                    if (count == 0) {
-                        builder.appendNull();
-                    } else {
-                        pointVisitor.reset();
-                        int firstValueIndex = bytesRefBlock.getFirstValueIndex(doc);
-                        for (int i = firstValueIndex; i < firstValueIndex + count; i++) {
-                            BytesRef wkb = bytesRefBlock.getBytesRef(i, scratch);
-                            Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
-                            geometry.visit(visitor);
-                        }
-                        encodeExtent(builder);
-                    }
-                }
-                return builder.build();
-            }
+        protected IntBlock.Builder blockBuilder(BytesRefBlock bytesRefBlock) {
+            return bytesRefBlock.blockFactory().newIntBlockBuilder(docIndices.getPositionCount());
         }
 
-        protected abstract void encodeExtent(IntBlock.Builder builder);
+        @Override
+        protected void initData() {
+            pointVisitor.reset();
+        }
+
+        @Override
+        protected void visitGeometry(Geometry geometry) {
+            geometry.visit(visitor);
+        }
 
         private static TestSpatialShapeExtentBlockCopier create(IntVector docIndices, DataType dataType) {
             return switch (dataType) {
@@ -535,7 +572,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             }
 
             @Override
-            protected void encodeExtent(IntBlock.Builder builder) {
+            protected void encodeData(IntBlock.Builder builder) {
                 // We store the 6 values as a single multi-valued field, in the same order as the fields in the Extent class
                 // This requires that consumers also know the meaning of the values, which they can learn from the Extent class
                 SpatialEnvelopeVisitor.GeoPointVisitor visitor = (SpatialEnvelopeVisitor.GeoPointVisitor) pointVisitor;
@@ -556,7 +593,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             }
 
             @Override
-            protected void encodeExtent(IntBlock.Builder builder) {
+            protected void encodeData(IntBlock.Builder builder) {
                 // We store the 4 values as a single multi-valued field, in the same order as the fields in the Rectangle class
                 // This requires that consumers also know the meaning of the values, which they can learn from the Rectangle class
                 SpatialEnvelopeVisitor.CartesianPointVisitor visitor = (SpatialEnvelopeVisitor.CartesianPointVisitor) pointVisitor;
@@ -566,6 +603,155 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 builder.appendInt(CoordinateEncoder.CARTESIAN.encodeY(visitor.getMaxY()));
                 builder.appendInt(CoordinateEncoder.CARTESIAN.encodeY(visitor.getMinY()));
                 builder.endPositionEntry();
+            }
+        }
+    }
+
+    /**
+     * geo_shape and cartesian_shape are normally loaded as WKT from source, but for ST_CENTROID_AGG we can load them from doc-values
+     * extracting the centroid information. This class converts the test loaded WKB into the double[4] used in the aggregators.
+     */
+    private static class TestSpatialShapeCentroidBlockCopier extends TestSpatialShapeAbstractBlockCopier<DoubleBlock.Builder> {
+        private final CoordinateEncoder encoder;
+        private CentroidCalculator calculator;
+
+        private TestSpatialShapeCentroidBlockCopier(IntVector docIndices, CoordinateEncoder encoder) {
+            super(docIndices);
+            this.encoder = encoder;
+        }
+
+        @Override
+        protected DoubleBlock.Builder blockBuilder(BytesRefBlock bytesRefBlock) {
+            return bytesRefBlock.blockFactory().newDoubleBlockBuilder(docIndices.getPositionCount());
+        }
+
+        @Override
+        protected void initData() {
+            calculator = new CentroidCalculator();
+        }
+
+        @Override
+        protected void visitGeometry(Geometry geometry) {
+            calculator.add(geometry);
+        }
+
+        @Override
+        protected void encodeData(DoubleBlock.Builder builder) {
+            builder.beginPositionEntry();
+            builder.appendDouble(encoder.decodeX(encoder.encodeX(encoder.normalizeX(calculator.getX()))));
+            builder.appendDouble(encoder.decodeY(encoder.encodeY(encoder.normalizeY(calculator.getY()))));
+            builder.appendDouble(calculator.sumWeight());
+            builder.appendDouble(calculator.getDimensionalShapeType().ordinal());
+            builder.endPositionEntry();
+        }
+
+        private static TestSpatialShapeCentroidBlockCopier create(IntVector docIndices, DataType dataType) {
+            return switch (dataType) {
+                case GEO_SHAPE -> new TestSpatialShapeCentroidBlockCopier(docIndices, CoordinateEncoder.GEO);
+                case CARTESIAN_SHAPE -> new TestSpatialShapeCentroidBlockCopier(docIndices, CoordinateEncoder.CARTESIAN);
+                default -> throw new IllegalArgumentException("Unsupported spatial data type: " + dataType);
+            };
+        }
+    }
+
+    /**
+     * geo_shape and cartesian_shape are normally loaded as WKT from source, but when both ST_EXTENT_AGG and ST_CENTROID_AGG are used
+     * on the same field, we load combined bounds and centroid data from doc-values. This class converts the test loaded WKB into the
+     * double[10] (geo) or double[8] (cartesian) used in the aggregators.
+     */
+    private abstract static class TestSpatialShapeBoundsAndCentroidBlockCopier extends TestSpatialShapeAbstractBlockCopier<
+        DoubleBlock.Builder> {
+        protected final SpatialEnvelopeVisitor.PointVisitor pointVisitor;
+        private final SpatialEnvelopeVisitor visitor;
+        private final CoordinateEncoder encoder;
+        private CentroidCalculator calculator;
+
+        private TestSpatialShapeBoundsAndCentroidBlockCopier(
+            IntVector docIndices,
+            SpatialEnvelopeVisitor.PointVisitor pointVisitor,
+            CoordinateEncoder encoder
+        ) {
+            super(docIndices);
+            this.pointVisitor = pointVisitor;
+            this.visitor = new SpatialEnvelopeVisitor(pointVisitor);
+            this.encoder = encoder;
+        }
+
+        @Override
+        protected DoubleBlock.Builder blockBuilder(BytesRefBlock bytesRefBlock) {
+            return bytesRefBlock.blockFactory().newDoubleBlockBuilder(docIndices.getPositionCount());
+        }
+
+        @Override
+        protected void initData() {
+            pointVisitor.reset();
+            calculator = new CentroidCalculator();
+        }
+
+        @Override
+        protected void visitGeometry(Geometry geometry) {
+            geometry.visit(visitor);
+            calculator.add(geometry);
+        }
+
+        @Override
+        protected void encodeData(DoubleBlock.Builder builder) {
+            builder.beginPositionEntry();
+            encodeBounds(builder);
+            encodeCentroid(builder, calculator);
+            builder.endPositionEntry();
+        }
+
+        protected abstract void encodeBounds(DoubleBlock.Builder builder);
+
+        private void encodeCentroid(DoubleBlock.Builder builder, CentroidCalculator calculator) {
+            builder.appendDouble(encoder.decodeX(encoder.encodeX(encoder.normalizeX(calculator.getX()))));
+            builder.appendDouble(encoder.decodeY(encoder.encodeY(encoder.normalizeY(calculator.getY()))));
+            builder.appendDouble(calculator.sumWeight());
+            builder.appendDouble(calculator.getDimensionalShapeType().ordinal());
+        }
+
+        private static TestSpatialShapeBoundsAndCentroidBlockCopier create(IntVector docIndices, DataType dataType) {
+            return switch (dataType) {
+                case GEO_SHAPE -> new TestGeoCopier(docIndices);
+                case CARTESIAN_SHAPE -> new TestCartesianCopier(docIndices);
+                default -> throw new IllegalArgumentException("Unsupported spatial data type: " + dataType);
+            };
+        }
+
+        private static class TestGeoCopier extends TestSpatialShapeBoundsAndCentroidBlockCopier {
+            private TestGeoCopier(IntVector docIndices) {
+                super(
+                    docIndices,
+                    new SpatialEnvelopeVisitor.GeoPointVisitor(SpatialEnvelopeVisitor.WrapLongitude.WRAP),
+                    CoordinateEncoder.GEO
+                );
+            }
+
+            @Override
+            protected void encodeBounds(DoubleBlock.Builder builder) {
+                SpatialEnvelopeVisitor.GeoPointVisitor visitor = (SpatialEnvelopeVisitor.GeoPointVisitor) pointVisitor;
+                builder.appendDouble(CoordinateEncoder.GEO.encodeY(visitor.getTop()));
+                builder.appendDouble(CoordinateEncoder.GEO.encodeY(visitor.getBottom()));
+                builder.appendDouble(encodeLongitude(visitor.getNegLeft()));
+                builder.appendDouble(encodeLongitude(visitor.getNegRight()));
+                builder.appendDouble(encodeLongitude(visitor.getPosLeft()));
+                builder.appendDouble(encodeLongitude(visitor.getPosRight()));
+            }
+        }
+
+        private static class TestCartesianCopier extends TestSpatialShapeBoundsAndCentroidBlockCopier {
+            private TestCartesianCopier(IntVector docIndices) {
+                super(docIndices, new SpatialEnvelopeVisitor.CartesianPointVisitor(), CoordinateEncoder.CARTESIAN);
+            }
+
+            @Override
+            protected void encodeBounds(DoubleBlock.Builder builder) {
+                SpatialEnvelopeVisitor.CartesianPointVisitor visitor = (SpatialEnvelopeVisitor.CartesianPointVisitor) pointVisitor;
+                builder.appendDouble(CoordinateEncoder.CARTESIAN.encodeX(visitor.getMinX()));
+                builder.appendDouble(CoordinateEncoder.CARTESIAN.encodeX(visitor.getMaxX()));
+                builder.appendDouble(CoordinateEncoder.CARTESIAN.encodeY(visitor.getMaxY()));
+                builder.appendDouble(CoordinateEncoder.CARTESIAN.encodeY(visitor.getMinY()));
             }
         }
     }
@@ -585,9 +771,12 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             return blockFactory.newLongBlockBuilder(estimatedSize);
         } else if (extractPreference == EXTRACT_SPATIAL_BOUNDS && DataType.isSpatial(dataType)) {
             return blockFactory.newIntBlockBuilder(estimatedSize);
-        } else {
-            return elementType.newBlockBuilder(estimatedSize, blockFactory);
-        }
+        } else if ((extractPreference == EXTRACT_SPATIAL_CENTROID || extractPreference == EXTRACT_SPATIAL_BOUNDS_AND_CENTROID)
+            && isShapeType(dataType)) {
+                return blockFactory.newDoubleBlockBuilder(estimatedSize);
+            } else {
+                return elementType.newBlockBuilder(estimatedSize, blockFactory);
+            }
     }
 
     private static TestBlockCopier blockCopier(DataType dataType, FieldExtractPreference extractPreference, IntVector docIndices) {
@@ -595,8 +784,16 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             return TestSpatialPointStatsBlockCopier.create(docIndices, dataType);
         } else if (extractPreference == EXTRACT_SPATIAL_BOUNDS && DataType.isSpatial(dataType)) {
             return TestSpatialShapeExtentBlockCopier.create(docIndices, dataType);
+        } else if (extractPreference == EXTRACT_SPATIAL_CENTROID && isShapeType(dataType)) {
+            return TestSpatialShapeCentroidBlockCopier.create(docIndices, dataType);
+        } else if (extractPreference == EXTRACT_SPATIAL_BOUNDS_AND_CENTROID && isShapeType(dataType)) {
+            return TestSpatialShapeBoundsAndCentroidBlockCopier.create(docIndices, dataType);
         } else {
             return new TestBlockCopier(docIndices);
         }
+    }
+
+    private static boolean isShapeType(DataType dataType) {
+        return dataType == DataType.GEO_SHAPE || dataType == DataType.CARTESIAN_SHAPE;
     }
 }

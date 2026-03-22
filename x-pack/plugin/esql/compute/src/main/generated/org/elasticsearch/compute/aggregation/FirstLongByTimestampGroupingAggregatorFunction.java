@@ -34,16 +34,11 @@ public final class FirstLongByTimestampGroupingAggregatorFunction implements Gro
 
   private final DriverContext driverContext;
 
-  public FirstLongByTimestampGroupingAggregatorFunction(List<Integer> channels,
-      FirstLongByTimestampAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static FirstLongByTimestampGroupingAggregatorFunction create(List<Integer> channels,
+  FirstLongByTimestampGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new FirstLongByTimestampGroupingAggregatorFunction(channels, FirstLongByTimestampAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = FirstLongByTimestampAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

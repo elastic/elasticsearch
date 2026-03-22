@@ -12,6 +12,47 @@ FROM tdigest_standard_index
 2025-01-01T00:00:00Z | hand-rolled-empty | "{""centroids"":[], ""counts"":[]}"
 ;
 
+// -------------------------------------------------------------------------------
+
+to_tdigest from exponential histogram
+required_capability: to_tdigest_from_exponential_histogram
+
+FROM exp_histo_sample
+ | WHERE instance == "dummy-full"
+ | STATS min = MIN(to_tdigest(responseTime)),
+         max = MAX(to_tdigest(responseTime)),
+         p10 = PERCENTILE(to_tdigest(responseTime), 10),
+         p50 = PERCENTILE(to_tdigest(responseTime), 50),
+         p90 = PERCENTILE(to_tdigest(responseTime), 90),
+         sum = SUM(to_tdigest(responseTime)),
+         cnt = COUNT(to_tdigest(responseTime))
+;
+
+min:double | max:double | p10:double | p50:double | p90:double | sum:double | cnt:long
+-100.0     | 50.0       | -100..-90  | -30..-20    | 35..40    | -3775.0    | 151
+;
+
+// -------------------------------------------------------------------------------
+
+timeseries to_tdigest from exponential histogram
+required_capability: to_tdigest_from_exponential_histogram
+required_capability: ts_command_v0
+
+TS exp_histo_sample
+ | WHERE instance == "dummy-full"
+ | STATS min = MIN(to_tdigest(responseTime)),
+         max = MAX(to_tdigest(responseTime)),
+         p10 = PERCENTILE(to_tdigest(responseTime), 10),
+         p50 = PERCENTILE(to_tdigest(responseTime), 50),
+         p90 = PERCENTILE(to_tdigest(responseTime), 90),
+         sum = SUM(to_tdigest(responseTime)),
+         cnt = COUNT(to_tdigest(responseTime))
+;
+
+min:double | max:double | p10:double | p50:double | p90:double | sum:double | cnt:long
+-100.0     | 50.0       | -100..-90  | -30..-20    | 35..40    | -3775.0    | 151
+;
+
 
 allAggsUngrouped
 required_capability: tdigest_time_series_metric
@@ -659,4 +700,23 @@ time:datetime            | count:long
 2025-09-25T00:40:00.000Z | 1484
 2025-09-25T00:50:00.000Z | 1451
 2025-09-25T01:00:00.000Z | 147
+;
+
+// -------------------------------------------------------------------------------
+
+timeseriesLastAndFirstOverTimeDirectTDigest
+required_capability: ts_command_v0
+required_capability: tdigest_first_last_over_time
+
+TS tdigest_timeseries_index
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | STATS first_count = COUNT(first_over_time(responseTime)),
+         last_count = COUNT(last_over_time(responseTime))
+         BY time = TBUCKET(1d)
+ | KEEP time, first_count, last_count
+ | SORT time
+;
+
+time:datetime            | first_count:long | last_count:long
+2025-09-25T00:00:00.000Z | 135              | 142
 ;

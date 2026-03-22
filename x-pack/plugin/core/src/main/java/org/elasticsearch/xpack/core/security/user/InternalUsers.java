@@ -26,6 +26,8 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.index.TransportIndexAction;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.index.reindex.ReindexAction;
@@ -181,8 +183,8 @@ public class InternalUsers {
                         ".fleet-actions-results",
                         // System data streams for storing uploaded file data for Agent diagnostics and Endpoint response actions
                         ".fleet-fileds*",
-                        // System data stream for kibana workflows logs
-                        ".workflows-execution-data-stream-logs"
+                        // System data stream for kibana workflows
+                        ".workflows*"
                     )
                     .privileges(
                         filterNonNull(
@@ -217,6 +219,7 @@ public class InternalUsers {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("*")
                     .privileges(
+                        "read",
                         GetDataStreamAction.NAME,
                         RolloverAction.NAME,
                         IndicesStatsAction.NAME,
@@ -233,6 +236,8 @@ public class InternalUsers {
                         TransportUpdateSettingsAction.TYPE.name(),
                         RefreshAction.NAME,
                         ReindexAction.NAME,
+                        TransportClosePointInTimeAction.TYPE.name(),
+                        TransportOpenPointInTimeAction.TYPE.name(),
                         TransportSearchAction.NAME,
                         TransportBulkAction.NAME,
                         TransportIndexAction.NAME,

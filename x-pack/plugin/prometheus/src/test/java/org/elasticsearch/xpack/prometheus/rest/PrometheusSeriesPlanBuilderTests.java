@@ -166,7 +166,7 @@ public class PrometheusSeriesPlanBuilderTests extends ESTestCase {
         // A bare metric name like "up" carries only an EQ __name__ matcher; the resulting
         // condition should be IsNotNull(series), not null.
         InstantSelector selector = parseInstantSelector("up");
-        Expression cond = PrometheusSeriesPlanBuilder.buildSelectorCondition(selector);
+        Expression cond = PrometheusPlanBuilderUtils.buildSelectorCondition(selector);
         // "up" has an EQ __name__ matcher, so result is not null
         assertThat(cond, notNullValue());
         assertThat(cond, instanceOf(IsNotNull.class));
@@ -174,7 +174,7 @@ public class PrometheusSeriesPlanBuilderTests extends ESTestCase {
 
     public void testBuildSelectorConditionForSingleLabelMatcher() {
         InstantSelector selector = parseInstantSelector("{job=\"myjob\"}");
-        Expression cond = PrometheusSeriesPlanBuilder.buildSelectorCondition(selector);
+        Expression cond = PrometheusPlanBuilderUtils.buildSelectorCondition(selector);
         assertThat(cond, notNullValue());
         // Should contain an Equals on job
         assertThat(containsExpressionOfType(cond, Equals.class), is(true));
@@ -183,7 +183,7 @@ public class PrometheusSeriesPlanBuilderTests extends ESTestCase {
 
     public void testBuildSelectorConditionForMultipleLabelMatchers() {
         InstantSelector selector = parseInstantSelector("{job=\"myjob\",env=\"prod\"}");
-        Expression cond = PrometheusSeriesPlanBuilder.buildSelectorCondition(selector);
+        Expression cond = PrometheusPlanBuilderUtils.buildSelectorCondition(selector);
         assertThat(cond, notNullValue());
         assertThat(cond, instanceOf(And.class));
         assertThat(containsAttribute(cond, "job"), is(true));
@@ -192,13 +192,13 @@ public class PrometheusSeriesPlanBuilderTests extends ESTestCase {
 
     public void testBuildSelectorConditionForNameEqMatcherUsesIsNotNull() {
         InstantSelector selector = parseInstantSelector("{__name__=\"up\"}");
-        Expression cond = PrometheusSeriesPlanBuilder.buildSelectorCondition(selector);
+        Expression cond = PrometheusPlanBuilderUtils.buildSelectorCondition(selector);
         assertThat(cond, instanceOf(IsNotNull.class));
     }
 
     public void testBuildSelectorConditionForNameRegexMatcherUsesLabelsName() {
         InstantSelector selector = parseInstantSelector("{__name__=~\"http.*\"}");
-        Expression cond = PrometheusSeriesPlanBuilder.buildSelectorCondition(selector);
+        Expression cond = PrometheusPlanBuilderUtils.buildSelectorCondition(selector);
         assertThat(cond, notNullValue());
         assertThat(containsAttribute(cond, "__name__"), is(true));
     }
@@ -206,7 +206,7 @@ public class PrometheusSeriesPlanBuilderTests extends ESTestCase {
     public void testBuildSelectorConditionForNameRegexMatcherAlsoAddsIsNotNull() {
         // NEQ/REG/NREG on __name__ must also verify the field exists (IsNotNull)
         InstantSelector selector = parseInstantSelector("{__name__=~\"http.*\"}");
-        Expression cond = PrometheusSeriesPlanBuilder.buildSelectorCondition(selector);
+        Expression cond = PrometheusPlanBuilderUtils.buildSelectorCondition(selector);
         assertThat(containsExpressionOfType(cond, IsNotNull.class), is(true));
     }
 
@@ -214,7 +214,7 @@ public class PrometheusSeriesPlanBuilderTests extends ESTestCase {
         // A selector with no label matchers (catch-all) returns null.
         // {} is rejected by the PromQL parser, so construct the selector directly.
         InstantSelector selector = new InstantSelector(Source.EMPTY, null, List.of(), LabelMatchers.EMPTY, Evaluation.NONE);
-        Expression cond = PrometheusSeriesPlanBuilder.buildSelectorCondition(selector);
+        Expression cond = PrometheusPlanBuilderUtils.buildSelectorCondition(selector);
         assertThat(cond, nullValue());
     }
 

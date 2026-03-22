@@ -71,7 +71,7 @@ public class PrefixPartitionTests extends ESTestCase {
                 SortedDocValues dv = leaf.getSortedDocValues("first");
                 assertThat(dv, instanceOf(PartitionedDocValues.class));
                 PartitionedDocValues partitionedDV = (PartitionedDocValues) dv;
-                assertFalse(partitionedDV.hasPrefixPartitions());
+                assertThat(partitionedDV.prefixPartitionBits(), equalTo(0));
             }
         }
         config = new IndexWriterConfig().setCodec(getCodec(true))
@@ -91,7 +91,7 @@ public class PrefixPartitionTests extends ESTestCase {
                 SortedDocValues dv = leaf.getSortedDocValues("first");
                 assertThat(dv, instanceOf(PartitionedDocValues.class));
                 PartitionedDocValues partitionedDV = (PartitionedDocValues) dv;
-                assertTrue(partitionedDV.hasPrefixPartitions());
+                assertThat(partitionedDV.prefixPartitionBits(), equalTo(18));
                 var partitions = partitionedDV.prefixPartitions(null);
                 assertNotNull(partitions);
                 return partitions;
@@ -108,23 +108,23 @@ public class PrefixPartitionTests extends ESTestCase {
         }
         PartitionedDocValues.PrefixPartitions partitions = runTest(terms);
         assertThat(partitions.numPartitions(), equalTo(1));
-        assertThat(partitions.prefixes(), equalTo(new int[] { 0x0805 }));
+        assertThat(partitions.prefixes(), equalTo(new int[] { 0x2014 }));
         assertThat(partitions.startDocs(), equalTo(new int[] { 0 }));
     }
 
     public void testSomeTerms() throws Exception {
         Map<BytesRef, Integer> docsPerTerm = Map.of(
-            new BytesRef(new byte[] { 1, 2, 1 }),
+            new BytesRef(new byte[] { 1, 2, 1, 3 }),
             3,
-            new BytesRef(new byte[] { 1, 2, 2 }),
+            new BytesRef(new byte[] { 1, 2, 2, 5 }),
             4,
-            new BytesRef(new byte[] { 1, 2, 3 }),
+            new BytesRef(new byte[] { 1, 2, 3, 7 }),
             1,
-            new BytesRef(new byte[] { 3, 4, 1 }),
+            new BytesRef(new byte[] { 3, 4, 1, 9 }),
             5,
-            new BytesRef(new byte[] { 3, 4, 2 }),
+            new BytesRef(new byte[] { 3, 4, 2, 11 }),
             6,
-            new BytesRef(new byte[] { (byte) 255, 0, 0 }),
+            new BytesRef(new byte[] { (byte) 255, 0, 0, 13 }),
             9
         );
         List<BytesRef> terms = new ArrayList<>();
@@ -136,7 +136,7 @@ public class PrefixPartitionTests extends ESTestCase {
         Randomness.shuffle(terms);
         PartitionedDocValues.PrefixPartitions partitions = runTest(terms);
         assertThat(partitions.numPartitions(), equalTo(3));
-        assertThat(partitions.prefixes(), equalTo(new int[] { 0x0102, 0x0304, 0xFF00 }));
+        assertThat(partitions.prefixes(), equalTo(new int[] { 0x408, 0xC10, 0x3FC00 }));
         assertThat(partitions.startDocs(), equalTo(new int[] { 0, 8, 19 }));
     }
 
@@ -157,7 +157,8 @@ public class PrefixPartitionTests extends ESTestCase {
         Map<Integer, Integer> prefixToStartDocs = new TreeMap<>();
         int docId = 0;
         for (BytesRef term : dict) {
-            int prefix = ((term.bytes[term.offset] & 0xFF) << 8) | (term.bytes[term.offset + 1] & 0xFF);
+            int prefix = (int) PrefixedPartitionsWriter.BE_INT.get(term.bytes, term.offset) >>> (Integer.SIZE
+                - PrefixedPartitionsWriter.PARTITION_PREFIX_BITS);
             prefixToStartDocs.putIfAbsent(prefix, docId);
             int numDocs = between(1, 5);
             for (int d = 0; d < numDocs; d++) {

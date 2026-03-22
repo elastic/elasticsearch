@@ -40,9 +40,9 @@ public interface PartitionedDocValues {
     PrefixPartitions prefixPartitions(PrefixPartitions reused) throws IOException;
 
     /**
-     * Whether this doc-values has prefix partition.
+     * The number of bits used in prefix partitions
      */
-    boolean hasPrefixPartitions();
+    int prefixPartitionBits();
 
     /**
      * Check if the given index searcher can be partitioned by tsid prefix.
@@ -56,7 +56,7 @@ public interface PartitionedDocValues {
             if (sortedDV == null) {
                 continue;
             }
-            if (sortedDV instanceof PartitionedDocValues partition && partition.hasPrefixPartitions()) {
+            if (sortedDV instanceof PartitionedDocValues partition && partition.prefixPartitionBits() > 0) {
                 continue;
             }
             return false;

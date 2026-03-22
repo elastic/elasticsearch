@@ -1349,8 +1349,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
 
         @Override
-        public boolean hasPrefixPartitions() {
-            return entry instanceof PrefixPartitionedEntry;
+        public int prefixPartitionBits() {
+            if (entry instanceof PrefixPartitionedEntry partition) {
+                return partition.partitionNumBits;
+            }
+            return 0;
         }
 
         @Override
@@ -2108,6 +2111,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 PrefixPartitionedEntry partitioned = new PrefixPartitionedEntry();
                 partitioned.ordsEntry = entry.ordsEntry;
                 partitioned.termsDictEntry = entry.termsDictEntry;
+                partitioned.partitionNumBits = meta.readByte();
                 partitioned.partitionStartPointer = meta.readLong();
                 partitioned.partitionDataLength = meta.readVLong();
                 return partitioned;
@@ -2812,6 +2816,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     }
 
     static class PrefixPartitionedEntry extends SortedEntry {
+        int partitionNumBits;
         long partitionStartPointer;
         long partitionDataLength;
     }

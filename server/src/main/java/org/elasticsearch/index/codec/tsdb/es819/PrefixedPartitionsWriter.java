@@ -47,62 +47,94 @@ import java.util.Arrays;
  * @see PrefixedPartitionsReader
  */
 final class PrefixedPartitionsWriter {
-    static final int PARTITION_PREFIX_BITS = 16;
-    static final VarHandle BE_SHORT = MethodHandles.byteArrayViewVarHandle(short[].class, ByteOrder.BIG_ENDIAN);
+    static final int PARTITION_PREFIX_BITS = 18; // the first byte is the metric type; the remaining 10 bits provide up to 1024 partitions
+                                                 // per metric
+    static final int PAGE_SHIFT = PARTITION_PREFIX_BITS - Byte.SIZE;
+    static final int PAGE_MASK = (1 << PAGE_SHIFT) - 1;
+    static final VarHandle BE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
 
-    private int nextOrd = -1;
+    private int currentOrd = -1;
 
-    private final int[] ords = new int[1 << PARTITION_PREFIX_BITS];
+    private final int[][] ordPages;
 
     private int numPrefixes;
     private int idx = 0;
-    private int[] prefixes;
     private int[] startDocs;
 
+    // iteration state for nextOrd()
+    private int pageIter = 0;
+    private int offsetIter = -1;
+
     PrefixedPartitionsWriter() {
-        Arrays.fill(ords, -1);
+        ordPages = new int[1 << (PARTITION_PREFIX_BITS - PAGE_SHIFT)][];
+    }
+
+    private static int smallPrefix(BytesRef term) {
+        int length = term.length;
+        if (length == 0) {
+            return 0;
+        }
+        int b0 = term.bytes[term.offset] & 0xFF;
+        if (length == 1) {
+            return b0 << PAGE_SHIFT;
+        }
+        int b1 = term.bytes[term.offset + 1] & 0xFF;
+        if (length == 2) {
+            return ((b0 << 8) | b1) << (PAGE_SHIFT - Byte.SIZE);
+        }
+        int b2 = term.bytes[term.offset + 2] & 0xFF;
+        return ((b0 << 16) | (b1 << 8) | b2) >>> (2 * Byte.SIZE - PAGE_SHIFT);
     }
 
     private static int prefix(BytesRef term) {
-        if (term.length < 2) {
-            return 0;
+        if (term.length < 4) {
+            return smallPrefix(term);
         }
-        return ((short) BE_SHORT.get(term.bytes, term.offset) & 0xFFFF) >>> (Short.SIZE - PARTITION_PREFIX_BITS);
+        return (int) BE_INT.get(term.bytes, term.offset) >>> (Integer.SIZE - PARTITION_PREFIX_BITS);
     }
 
     void trackTerm(BytesRef term, long ord) {
         final int prefix = prefix(term);
-        if (ords[prefix] < 0) {
-            ords[prefix] = Math.toIntExact(ord);
+        final int pageIndex = prefix >>> PAGE_SHIFT;
+        final int offsetInPage = prefix & PAGE_MASK;
+        int[] page = ordPages[pageIndex];
+        if (page == null) {
+            page = ordPages[pageIndex] = new int[1 << PAGE_SHIFT];
+            Arrays.fill(page, -1);
+            page[offsetInPage] = (int) ord;
+            numPrefixes++;
+        } else if (page[offsetInPage] == -1) {
+            page[offsetInPage] = (int) ord;
             numPrefixes++;
         }
     }
 
-    void prepareForTrackingDocs() {
-        prefixes = new int[numPrefixes];
-        int dst = 0;
-        for (int i = 0; i < ords.length; i++) {
-            final int ord = ords[i];
-            if (ord >= 0) {
-                prefixes[dst] = i;
-                ords[dst++] = ords[i];
+    private int nextOrd() {
+        while (pageIter < ordPages.length) {
+            int[] page = ordPages[pageIter];
+            if (page != null) {
+                while (++offsetIter < page.length) {
+                    int ord = page[offsetIter];
+                    if (ord != -1) {
+                        return ord;
+                    }
+                }
             }
+            ++pageIter;
+            offsetIter = -1;
         }
-        assert dst == numPrefixes : dst + " != " + numPrefixes;
+        return Integer.MAX_VALUE;
+    }
+
+    void prepareForTrackingDocs() {
         startDocs = new int[numPrefixes];
-        if (idx < numPrefixes) {
-            nextOrd = ords[idx];
-        }
+        currentOrd = nextOrd();
     }
 
     void trackDoc(int docId, long ord) {
-        if (nextOrd == ord) {
-            startDocs[idx] = docId;
-            if (++idx < numPrefixes) {
-                nextOrd = ords[idx];
-            } else {
-                nextOrd = Integer.MAX_VALUE;
-            }
+        while (currentOrd <= ord) {
+            startDocs[idx++] = docId;
+            currentOrd = nextOrd();
         }
     }
 
@@ -110,9 +142,18 @@ final class PrefixedPartitionsWriter {
         final long startPointer = data.getFilePointer();
         data.writeVInt(numPrefixes);
         int last = 0;
-        for (int prefix : prefixes) {
-            data.writeVInt(prefix - last);
-            last = prefix;
+        for (int i = 0; i < ordPages.length; i++) {
+            final int[] page = ordPages[i];
+            if (page != null) {
+                for (int j = 0; j < page.length; j++) {
+                    int ord = page[j];
+                    if (ord != -1) {
+                        int prefix = i << PAGE_SHIFT | j;
+                        data.writeVInt(prefix - last);
+                        last = prefix;
+                    }
+                }
+            }
         }
         last = 0;
         for (int startDoc : startDocs) {
@@ -120,6 +161,7 @@ final class PrefixedPartitionsWriter {
             last = startDoc;
         }
         final long length = data.getFilePointer() - startPointer;
+        meta.writeByte((byte) PARTITION_PREFIX_BITS);
         meta.writeLong(startPointer);
         meta.writeVLong(length);
     }

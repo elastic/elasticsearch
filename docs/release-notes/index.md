@@ -150,8 +150,6 @@ Snapshot/Restore:
 Transform:
 * [ML]Fix latest transforms disregarding updates when sort and sync fields are non-monotonic [#142856](https://github.com/elastic/elasticsearch/pull/142856) (issue: [#90643](https://github.com/elastic/elasticsearch/issues/90643))
 
-
-
 ## 9.2.6 [elasticsearch-9.2.6-release-notes]
 
 ### Features and enhancements [elasticsearch-9.2.6-features-enhancements]
@@ -209,7 +207,6 @@ Snapshot/Restore:
 Transform:
 * Fix transform producing empty dest index when source query references runtime fields [#142450](https://github.com/elastic/elasticsearch/pull/142450) (issue: [#113156](https://github.com/elastic/elasticsearch/issues/113156))
 * Fix transform validation to reject PUT and `_start` when user lacks remote index permissions [#142403](https://github.com/elastic/elasticsearch/pull/142403) (issue: [#95367](https://github.com/elastic/elasticsearch/issues/95367))
-
 
 
 ## 9.3.1 [elasticsearch-9.3.1-release-notes]
@@ -292,7 +289,6 @@ Transform:
 
 Vector Search:
 * [GPU] Handle segments too big for MSAI segment access [#141872](https://github.com/elastic/elasticsearch/pull/141872) (issue: [#141746](https://github.com/elastic/elasticsearch/issues/141746))
-
 
 
 ## 9.3.0 [elasticsearch-9.3.0-release-notes]

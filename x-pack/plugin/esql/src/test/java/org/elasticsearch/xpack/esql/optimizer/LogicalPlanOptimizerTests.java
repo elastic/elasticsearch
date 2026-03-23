@@ -110,6 +110,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
@@ -161,6 +162,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -175,6 +177,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.containsIgnoringIds;
@@ -190,8 +193,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultAnalyzer;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -5466,8 +5467,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public static boolean releaseBuildForInlineStats(@Nullable String query) {
         if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled() == false) {
             if (query != null) {
-                var e = expectThrows(ParsingException.class, () -> analyze(query));
-                assertThat(e.getMessage(), containsString("mismatched input 'INLINE' expecting"));
+                analyzer().addEmployees("test").error(query, ParsingException.class, containsString("mismatched input 'INLINE' expecting"));
             }
             return true;
         }
@@ -6287,8 +6287,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | RENAME languages AS int
             | LOOKUP_?? int_number_names ON int""";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
+            defaultAnalyzer().error(query, ParsingException.class, containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         var plan = optimizedPlan(query);
@@ -6368,8 +6367,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | LOOKUP_?? int_number_names ON int
             | STATS MIN(emp_no) BY name""";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
+            defaultAnalyzer().error(query, ParsingException.class, containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         var plan = optimizedPlan(query);
@@ -10485,5 +10483,73 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             e.getMessage(),
             containsString("second argument of [TOP_SNIPPETS(first_name, last_name)] must be a constant, received [last_name]")
         );
+    }
+
+    public void testTsStatsWithNonMetricField() {
+        var plan = planMetrics("TS k8s | STATS count(events_received)");
+        Limit limit = as(plan, Limit.class);
+        Aggregate finalAggs = as(limit.child(), Aggregate.class);
+        assertThat(finalAggs, not(instanceOf(TimeSeriesAggregate.class)));
+        TimeSeriesAggregate aggsByTsid = as(finalAggs.child(), TimeSeriesAggregate.class);
+        assertNull(aggsByTsid.timeBucket());
+        as(aggsByTsid.child(), EsRelation.class);
+    }
+
+    public void testTsStatsWithNonMetricFieldAndGrouping() {
+        var plan = planMetrics("TS k8s | STATS count(events_received) BY cluster");
+        assertNotNull(plan);
+    }
+
+    public void testTsWildcardStatsWithOptionalIndex() {
+        var testAnalyzer = EsqlTestUtils.analyzer().addIndex("*", "k8s-mappings.json", IndexMode.TIME_SERIES);
+        var plan = logicalOptimizerWithLatestVersion.optimize(testAnalyzer.query("TS * | STATS count(events_received)"));
+        Limit limit = as(plan, Limit.class);
+        Aggregate finalAggs = as(limit.child(), Aggregate.class);
+        assertThat(finalAggs, not(instanceOf(TimeSeriesAggregate.class)));
+        TimeSeriesAggregate aggsByTsid = as(finalAggs.child(), TimeSeriesAggregate.class);
+        as(aggsByTsid.child(), EsRelation.class);
+    }
+
+    public void testTsWildcardStatsWithMixedIndexModes() {
+        var mapping = EsqlTestUtils.loadMapping("k8s-mappings.json");
+        var mixedIndex = new EsIndex(
+            "*",
+            mapping,
+            Map.of("ts_index", IndexMode.TIME_SERIES, "standard_index", IndexMode.STANDARD),
+            Map.of(),
+            Map.of(),
+            Set.of()
+        );
+        var testAnalyzer = EsqlTestUtils.analyzer().addIndex(IndexResolution.valid(mixedIndex));
+        var plan = logicalOptimizerWithLatestVersion.optimize(testAnalyzer.query("TS * | STATS count(events_received)"));
+        assertNotNull(plan);
+    }
+
+    public void testTsWildcardWithRateAggregate() {
+        var testAnalyzer = EsqlTestUtils.analyzer().addIndex("*", "k8s-mappings.json", IndexMode.TIME_SERIES);
+        var plan = logicalOptimizerWithLatestVersion.optimize(testAnalyzer.query("TS * | STATS max(rate(network.total_bytes_in))"));
+        assertNotNull(plan);
+    }
+
+    public void testTsWildcardWithRateAndGrouping() {
+        var testAnalyzer = EsqlTestUtils.analyzer().addIndex("*", "k8s-mappings.json", IndexMode.TIME_SERIES);
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            testAnalyzer.query("TS * | STATS max(rate(network.total_bytes_in)) BY cluster")
+        );
+        assertNotNull(plan);
+    }
+
+    public void testPromqlWithoutExplicitIndex() {
+        var testAnalyzer = EsqlTestUtils.analyzer().addIndex("*", "k8s-mappings.json", IndexMode.TIME_SERIES);
+        var plan = logicalOptimizerWithLatestVersion.optimize(testAnalyzer.query("PROMQL step=5m avg(rate(network.total_bytes_in[5m]))"));
+        assertNotNull(plan);
+    }
+
+    public void testPromqlWithoutExplicitIndexAndGrouping() {
+        var testAnalyzer = EsqlTestUtils.analyzer().addIndex("*", "k8s-mappings.json", IndexMode.TIME_SERIES);
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            testAnalyzer.query("PROMQL step=5m avg(rate(network.total_bytes_in[5m])) by (cluster)")
+        );
+        assertNotNull(plan);
     }
 }

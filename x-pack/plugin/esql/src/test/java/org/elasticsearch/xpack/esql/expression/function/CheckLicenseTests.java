@@ -14,10 +14,8 @@ import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -34,10 +32,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.hamcrest.Matchers.containsString;
 
 public class CheckLicenseTests extends ESTestCase {
@@ -86,20 +81,10 @@ public class CheckLicenseTests extends ESTestCase {
                 ? new LicensedLimit(l.source(), l.limit(), l.child(), functionLicenseFeature)
                 : l
         );
-        return analyzer(registry, operationMode).analyze(plan);
-    }
-
-    private static Analyzer analyzer(EsqlFunctionRegistry registry, License.OperationMode operationMode) {
-        return new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                registry,
-                analyzerDefaultMapping(),
-                defaultEnrichResolution(),
-                emptyInferenceResolution()
-            ),
-            new Verifier(new Metrics(TEST_FUNCTION_REGISTRY, true, true), getLicenseState(operationMode))
-        );
+        return analyzer().functionRegistry(registry)
+            .addEmployees("test")
+            .buildAnalyzer(new Verifier(new Metrics(TEST_FUNCTION_REGISTRY, true, true), getLicenseState(operationMode)))
+            .analyze(plan);
     }
 
     private static XPackLicenseState getLicenseState(License.OperationMode operationMode) {

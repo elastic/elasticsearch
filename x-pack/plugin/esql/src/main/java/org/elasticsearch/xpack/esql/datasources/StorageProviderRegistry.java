@@ -57,12 +57,14 @@ public class StorageProviderRegistry implements Closeable {
     private final Settings settings;
     private volatile int maxConcurrentRequests;
     private volatile int throttleRetryLimit;
+    private volatile int throttleMaxRetryDurationSeconds;
     private volatile boolean adaptiveBackoffEnabled;
 
     public StorageProviderRegistry(Settings settings) {
         this.settings = settings != null ? settings : Settings.EMPTY;
         this.maxConcurrentRequests = ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(this.settings);
         this.throttleRetryLimit = ExternalSourceSettings.THROTTLE_RETRY_LIMIT.get(this.settings);
+        this.throttleMaxRetryDurationSeconds = ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(this.settings);
         this.adaptiveBackoffEnabled = ExternalSourceSettings.ADAPTIVE_BACKOFF_ENABLED.get(this.settings);
     }
 
@@ -161,11 +163,15 @@ public class StorageProviderRegistry implements Closeable {
     }
 
     private RetryPolicy buildRetryPolicy(AdaptiveBackoff backoff) {
-        return RetryPolicy.DEFAULT.withThrottleConfig(
+        RetryPolicy policy = RetryPolicy.DEFAULT.withThrottleConfig(
             throttleRetryLimit,
             RetryPolicy.DEFAULT_THROTTLE_INITIAL_DELAY_MS,
             RetryPolicy.DEFAULT_THROTTLE_MAX_DELAY_MS
         ).withAdaptiveBackoff(backoff);
+        if (throttleMaxRetryDurationSeconds > 0) {
+            policy = policy.withTotalDurationBudget(throttleMaxRetryDurationSeconds * 1000L);
+        }
+        return policy;
     }
 
     @Override

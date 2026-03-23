@@ -57,6 +57,22 @@ public final class ExternalSourceSettings {
     );
 
     /**
+     * Maximum total time (in seconds) to spend retrying throttled cloud API requests
+     * before giving up. Bounds the cumulative retry duration regardless of the retry count,
+     * ensuring queries fail cleanly when throttling is persistent rather than blocking
+     * until the HTTP request timeout fires.
+     * Default: 30 seconds. Set to 0 to disable the duration budget (retry count only).
+     */
+    public static final Setting<Integer> THROTTLE_MAX_RETRY_DURATION = Setting.intSetting(
+        "esql.external.throttle_max_retry_duration",
+        30,
+        0,
+        300,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Enables adaptive backoff for cloud API throttling. When enabled, throttle retry
      * delays are scaled by a shared multiplier that increases when throttling is detected
      * and decays over time during sustained success. This prevents thundering herd
@@ -71,6 +87,6 @@ public final class ExternalSourceSettings {
     );
 
     public static List<Setting<?>> settings() {
-        return List.of(MAX_CONCURRENT_REQUESTS, THROTTLE_RETRY_LIMIT, ADAPTIVE_BACKOFF_ENABLED);
+        return List.of(MAX_CONCURRENT_REQUESTS, THROTTLE_RETRY_LIMIT, THROTTLE_MAX_RETRY_DURATION, ADAPTIVE_BACKOFF_ENABLED);
     }
 }

@@ -16,6 +16,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         Settings settings = Settings.EMPTY;
         assertEquals(50, (int) ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(settings));
         assertEquals(10, (int) ExternalSourceSettings.THROTTLE_RETRY_LIMIT.get(settings));
+        assertEquals(30, (int) ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(settings));
         assertTrue(ExternalSourceSettings.ADAPTIVE_BACKOFF_ENABLED.get(settings));
     }
 
@@ -23,11 +24,13 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("esql.external.max_concurrent_requests", 100)
             .put("esql.external.throttle_retry_limit", 20)
+            .put("esql.external.throttle_max_retry_duration", 60)
             .put("esql.external.adaptive_backoff_enabled", false)
             .build();
 
         assertEquals(100, (int) ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(settings));
         assertEquals(20, (int) ExternalSourceSettings.THROTTLE_RETRY_LIMIT.get(settings));
+        assertEquals(60, (int) ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(settings));
         assertFalse(ExternalSourceSettings.ADAPTIVE_BACKOFF_ENABLED.get(settings));
     }
 
@@ -50,8 +53,20 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         });
     }
 
+    public void testThrottleMaxRetryDurationZeroDisablesBudget() {
+        Settings settings = Settings.builder().put("esql.external.throttle_max_retry_duration", 0).build();
+        assertEquals(0, (int) ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(settings));
+    }
+
+    public void testThrottleMaxRetryDurationUpperBound() {
+        expectThrows(IllegalArgumentException.class, () -> {
+            Settings settings = Settings.builder().put("esql.external.throttle_max_retry_duration", 301).build();
+            ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(settings);
+        });
+    }
+
     public void testSettingsListNotEmpty() {
         assertFalse(ExternalSourceSettings.settings().isEmpty());
-        assertEquals(3, ExternalSourceSettings.settings().size());
+        assertEquals(4, ExternalSourceSettings.settings().size());
     }
 }

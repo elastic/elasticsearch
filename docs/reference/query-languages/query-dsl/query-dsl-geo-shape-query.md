@@ -218,7 +218,7 @@ Each relation compares the **indexed** geometry in the document to the **query**
 
 `INTERSECTS` is true when the two geometries share at least one point in the plane, including points in their interiors or on their boundaries (the same idea as [`ST_INTERSECTS`](/reference/query-languages/esql/functions-operators/spatial-functions/st_intersects.md) for geo types). `DISJOINT` is the negation of `INTERSECTS`.
 
-`WITHIN` and `CONTAINS` express **topological containment in two-dimensional longitude–latitude space**. They use the same naming as common GIS APIs but are **not** guaranteed to match every detail of the OGC Simple Features model or the **DE-9IM** predicate matrix. If you rely on strict standard semantics, validate behavior in your environment.
+`WITHIN` and `CONTAINS` express **topological containment in two-dimensional longitude–latitude space**. They use the same naming as common GIS APIs but are **not** guaranteed to match every detail of the [OGC Simple Features model](https://www.ogc.org/standard/sfa/) or the **[DE-9IM](https://en.wikipedia.org/wiki/DE-9IM)** predicate matrix. If you rely on strict standard semantics, validate behavior in your environment.
 
 Coordinates are expressed as [WGS-84](/reference/elasticsearch/mapping-reference/geo-shape.md) longitude and latitude, but these predicates are evaluated using Apache Lucene’s **2D** geo implementation over those coordinates. They are **not** great-circle or geodesic tests on the ellipsoid. At high latitudes or over very large areas, results can differ from what you would get from geodesic geometry; use the [`geo_distance`](/reference/query-languages/query-dsl/query-dsl-geo-distance-query.md) query when you need distance on the Earth’s surface.
 

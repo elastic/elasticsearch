@@ -1,0 +1,5 @@
+pr: 144596
+summary: Route external source I/O through esql_worker thread pool
+area: ES|QL
+type: enhancement
+issues: []

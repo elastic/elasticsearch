@@ -66,6 +66,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
 
 import static java.util.stream.IntStream.range;
@@ -646,57 +647,65 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
 
         updateClusterSettings(
             Settings.builder()
-                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_MAX_SINGLE_SHARD_THRESHOLD_SETTING.getKey(), "0%")
+                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_RATIO_THRESHOLD_SETTING.getKey(), "0%")
         );
 
         updateClusterSettings(
             Settings.builder()
-                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_MAX_SINGLE_SHARD_THRESHOLD_SETTING.getKey(), "90%")
+                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_RATIO_THRESHOLD_SETTING.getKey(), "90%")
         );
 
         updateClusterSettings(
             Settings.builder()
-                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_MAX_SINGLE_SHARD_THRESHOLD_SETTING.getKey(), "100%")
+                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_RATIO_THRESHOLD_SETTING.getKey(), "100%")
         );
 
         updateClusterSettings(
             Settings.builder()
-                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_MAX_SINGLE_SHARD_THRESHOLD_SETTING.getKey(), "51%")
+                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_RATIO_THRESHOLD_SETTING.getKey(), "51%")
         );
 
-        expectThrows(
-            IllegalArgumentException.class,
-            equalTo(
-                "cluster.routing.allocation.write_load_decider.hotspot_utilization_max_single_shard_threshold may be between "
-                    + "50% and 100%, or 0% to disable"
-            ),
-            () -> {
-                updateClusterSettings(
-                    Settings.builder()
-                        .put(
-                            WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_MAX_SINGLE_SHARD_THRESHOLD_SETTING.getKey(),
-                            "50%"
-                        )
-                );
-            }
-        );
+        Consumer<String> testUnderFiftyRatio = (setting) -> {
+            expectThrows(
+                IllegalArgumentException.class,
+                equalTo(
+                    "cluster.routing.allocation.write_load_decider.hotspot_utilization_max_single_shard_threshold may be between "
+                        + "50% and 100%, or 0% to disable"
+                ),
+                () -> {
+                    updateClusterSettings(
+                        Settings.builder()
+                            .put(
+                                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_RATIO_THRESHOLD_SETTING.getKey(),
+                                setting
+                            )
+                    );
+                }
+            );
+        };
 
-        expectThrows(
-            IllegalArgumentException.class,
-            equalTo(
-                "cluster.routing.allocation.write_load_decider.hotspot_utilization_max_single_shard_threshold may be between "
-                    + "50% and 100%, or 0% to disable"
-            ),
-            () -> {
-                updateClusterSettings(
-                    Settings.builder()
-                        .put(
-                            WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_MAX_SINGLE_SHARD_THRESHOLD_SETTING.getKey(),
-                            "1%"
-                        )
-                );
-            }
-        );
+        testUnderFiftyRatio.accept("1%");
+        testUnderFiftyRatio.accept("50%");
+        testUnderFiftyRatio.accept(randomIntBetween(1, 50) + "%");
+
+        Consumer<Integer> testAboveOneHundredRatio = (setting) -> {
+            expectThrows(
+                IllegalArgumentException.class,
+                equalTo(Strings.format("Percentage should be in [0-100], got [%d]", setting)),
+                () -> {
+                    updateClusterSettings(
+                        Settings.builder()
+                            .put(
+                                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_RATIO_THRESHOLD_SETTING.getKey(),
+                                setting + "%"
+                            )
+                    );
+                }
+            );
+        };
+
+        testAboveOneHundredRatio.accept(101);
+        testAboveOneHundredRatio.accept(randomIntBetween(101, 1000));
     }
 
     private static Map<String, Long> getMostRecentQueueLatencyMetrics(List<String> dataNodes) {

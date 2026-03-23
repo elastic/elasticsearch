@@ -55,6 +55,20 @@ sparkline:long
 [0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 3, 0, 0]
 ;
 
+sparklineInInlineStats
+required_capability: fn_sparkline
+FROM employees
+| INLINE STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+| KEEP sparkline, emp_no
+| LIMIT 3
+;
+
+sparkline:long | emp_no:integer
+[0, 2, 0, 0, 1, 0, 1, 0, 1, 2, 4, 0] | 10001
+[0, 2, 0, 0, 1, 0, 1, 0, 1, 2, 4, 0] | 10002
+[0, 2, 0, 0, 1, 0, 1, 0, 1, 2, 4, 0] | 10003
+;
+
 sparklineWithMultipleSparklines
 required_capability: fn_sparkline
 FROM employees

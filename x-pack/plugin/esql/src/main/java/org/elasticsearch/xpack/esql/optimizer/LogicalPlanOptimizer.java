@@ -165,7 +165,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceAggregateNestedExpressionWithEval(),
             // then extract nested aggs top-level
             new ReplaceAggregateAggExpressionWithEval(),
-            new ReplaceSparklineAggregate(),
             // lastly replace surrogate functions
             new SubstituteSurrogateAggregations(),
             // re-executing the next two rules is a relic of when time series aggregates were translated after surrogate substitution
@@ -175,6 +174,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // this one needs to be placed before ReplaceAliasingEvalWithProject, so that any potential aliasing eval (eval x = y)
             // is not replaced with a Project before the eval to be copied on the left hand side of an InlineJoin
             new PropagateInlineEvals(),
+            new ReplaceSparklineAggregate(),
             new ReplaceRegexMatch(),
             new ReplaceTrivialTypeConversions(),
             new ReplaceAliasingEvalWithProject(),

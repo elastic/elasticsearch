@@ -29,9 +29,9 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
-import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -84,11 +84,6 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
         ExtractedAggregates extracted = extractSparklineAggregates(plan);
         if (extracted.sparklineAggregates().isEmpty()) {
             return plan;
-        }
-
-        // SPARKLINE currently can't be used with INLINE STATS but this should be removed in the future when the functionality is added.
-        if (plan.child() instanceof StubRelation) {
-            throw new IllegalArgumentException("SPARKLINE is not supported in INLINE STATS commands");
         }
 
         Source source = plan.source();
@@ -198,19 +193,16 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
             firstPhaseAggregates.add(toPartialAlias);
         }
 
-        List<Expression> firstPhaseGroupings = new ArrayList<>(plan.groupings());
         Alias dateBucketAlias = new Alias(source, "$$timestamp", dateBucket);
-        firstPhaseGroupings.add(dateBucketAlias);
+        Eval dateBucketEval = new Eval(source, plan.child(), List.of(dateBucketAlias));
+        Attribute dateBucketAttr = dateBucketAlias.toAttribute();
+
+        List<Expression> firstPhaseGroupings = new ArrayList<>(plan.groupings());
+        firstPhaseGroupings.add(dateBucketAttr);
 
         ParserUtils.Stats firstPhaseStats = ParserUtils.buildStats(source, firstPhaseGroupings, firstPhaseAggregates);
-        Aggregate aggregate = new Aggregate(plan.source(), plan.child(), firstPhaseStats.groupings(), firstPhaseStats.aggregates());
-        return new FirstPhaseAggregateData(
-            aggregate,
-            sparklineValueAliases,
-            toPartialAliases,
-            originalAggFuncs,
-            dateBucketAlias.toAttribute()
-        );
+        Aggregate aggregate = new Aggregate(plan.source(), dateBucketEval, firstPhaseStats.groupings(), firstPhaseStats.aggregates());
+        return new FirstPhaseAggregateData(aggregate, sparklineValueAliases, toPartialAliases, originalAggFuncs, dateBucketAttr);
     }
 
     // Builds the second phase aggregate STATS sparklineTops..., topKeys, fromPartials... BY groupings

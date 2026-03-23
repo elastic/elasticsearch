@@ -14,14 +14,20 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -172,13 +178,6 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
         assertThat(e.getMessage(), containsString("All SPARKLINE functions in a single STATS command must share the same"));
     }
 
-    public void testSparklineInInlineStats() {
-        var e = expectThrows(IllegalArgumentException.class, () -> plan("""
-            from test | inline stats s = sparkline(count(*), hire_date, 10, "2024-01-01", "2024-12-31")
-            """));
-        assertThat(e.getMessage(), containsString("SPARKLINE is not supported in INLINE STATS"));
-    }
-
     public void testMultipleSparklinesDifferentTo() {
         var e = expectThrows(IllegalArgumentException.class, () -> plan("""
             from test
@@ -307,15 +306,45 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
     }
 
     public void testSparklineWithCommandAfterStats() {
-        plan("from test | stats s = " + SPARKLINE_EXPR + ", c = count(*) by last_name | sort c desc");
+        TopN plan = as(plan("from test | stats s = " + SPARKLINE_EXPR + ", c = count(*) by last_name | sort c desc"), TopN.class);
+        List<String> sparklineAggregateNames = List.of("s");
+        SparklineGenerateEmptyBuckets sparkline = as(plan.child(), SparklineGenerateEmptyBuckets.class);
+        validateSparklineGenerateEmptyBuckets(sparkline, sparklineAggregateNames);
+
+        Aggregate secondPhase = as(sparkline.child(), Aggregate.class);
+        Aggregate firstPhase = as(secondPhase.child(), Aggregate.class);
+        validateAggregates(secondPhase, firstPhase, sparklineAggregateNames, List.of("c"), List.of("last_name"));
     }
 
     public void testSparklineWithCommandBeforeStats() {
-        plan("from test | sort last_name desc | stats s = " + SPARKLINE_EXPR + ", c = count(*) by last_name");
+        UnaryPlan plan = as(plan("from test | sample 0.5 | stats s = " + SPARKLINE_EXPR + ", c = count(*) by last_name"), UnaryPlan.class);
+        List<String> sparklineAggregateNames = List.of("s");
+        SparklineGenerateEmptyBuckets sparkline = as(plan.child(), SparklineGenerateEmptyBuckets.class);
+        validateSparklineGenerateEmptyBuckets(sparkline, sparklineAggregateNames);
+
+        Aggregate secondPhase = as(sparkline.child(), Aggregate.class);
+        Aggregate firstPhase = as(secondPhase.child(), Aggregate.class);
+        validateAggregates(secondPhase, firstPhase, sparklineAggregateNames, List.of("c"), List.of("last_name"));
+
+        Eval timestampEval = as(firstPhase.child(), Eval.class);
+        as(timestampEval.child(), Sample.class);
     }
 
     public void testSparklineWithCommandBeforeAndAfterStats() {
-        plan("from test | sort last_name desc | stats s = " + SPARKLINE_EXPR + ", c = count(*) by last_name | sort c desc");
+        TopN plan = as(
+            plan("from test | sample 0.5 | stats s = " + SPARKLINE_EXPR + ", c = count(*) by last_name | sort c desc"),
+            TopN.class
+        );
+        List<String> sparklineAggregateNames = List.of("s");
+        SparklineGenerateEmptyBuckets sparkline = as(plan.child(), SparklineGenerateEmptyBuckets.class);
+        validateSparklineGenerateEmptyBuckets(sparkline, sparklineAggregateNames);
+
+        Aggregate secondPhase = as(sparkline.child(), Aggregate.class);
+        Aggregate firstPhase = as(secondPhase.child(), Aggregate.class);
+        validateAggregates(secondPhase, firstPhase, sparklineAggregateNames, List.of("c"), List.of("last_name"));
+
+        Eval timestampEval = as(firstPhase.child(), Eval.class);
+        as(timestampEval.child(), Sample.class);
     }
 
     public void testSparklineWithCompoundAggregate() {
@@ -323,6 +352,35 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
     }
 
     public void testSparklineWithInlineWhere() {
-        plan("from test | stats s = " + SPARKLINE_EXPR + "where salary > 1000, c = count(*) by last_name | sort c desc");
+        UnaryPlan plan = as(
+            plan("from test | stats s = " + SPARKLINE_EXPR + "where salary > 1000, c = count(*) by last_name"),
+            UnaryPlan.class
+        );
+        List<String> sparklineAggregateNames = List.of("s");
+        SparklineGenerateEmptyBuckets sparkline = as(plan.child(), SparklineGenerateEmptyBuckets.class);
+        validateSparklineGenerateEmptyBuckets(sparkline, sparklineAggregateNames);
+
+        Aggregate secondPhase = as(sparkline.child(), Aggregate.class);
+        Aggregate firstPhase = as(secondPhase.child(), Aggregate.class);
+        validateAggregates(secondPhase, firstPhase, sparklineAggregateNames, List.of("c"), List.of("last_name"));
+
+        firstPhase.aggregates().stream().filter(agg -> agg.name().equals("s")).forEach(agg -> {
+            assertThat(agg.children(), hasSize(1));
+            assertThat(agg.children().get(0), instanceOf(Count.class));
+            Count count = as(agg.children().get(0), Count.class);
+            assertThat(count.filter(), instanceOf(GreaterThan.class));
+        });
+    }
+
+    public void testSparklineInInlineStats() {
+        UnaryPlan plan = as(plan("from test | inline stats s = " + SPARKLINE_EXPR + " by last_name"), UnaryPlan.class);
+        InlineJoin inlineJoin = as(plan.child(), InlineJoin.class);
+        List<String> sparklineAggregateNames = List.of("s");
+        SparklineGenerateEmptyBuckets sparkline = as(inlineJoin.right(), SparklineGenerateEmptyBuckets.class);
+        validateSparklineGenerateEmptyBuckets(sparkline, sparklineAggregateNames);
+
+        Aggregate secondPhase = as(sparkline.child(), Aggregate.class);
+        Aggregate firstPhase = as(secondPhase.child(), Aggregate.class);
+        validateAggregates(secondPhase, firstPhase, sparklineAggregateNames, List.of(), List.of("last_name"));
     }
 }

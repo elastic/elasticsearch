@@ -88,10 +88,7 @@ public final class GcsStorageObject implements StorageObject {
             ReadChannel reader = storage.reader(blobId);
             return Channels.newInputStream(reader);
         } catch (StorageException e) {
-            if (e.getCode() == 404) {
-                throw new IOException("Object not found: " + path, e);
-            }
-            throw new IOException("Failed to read object from " + path, e);
+            throw wrapException(e, "Failed to read object from");
         }
     }
 
@@ -111,10 +108,7 @@ public final class GcsStorageObject implements StorageObject {
             reader.limit(position + length);
             return Channels.newInputStream(reader);
         } catch (StorageException e) {
-            if (e.getCode() == 404) {
-                throw new IOException("Object not found: " + path, e);
-            }
-            throw new IOException("Range request failed for " + path, e);
+            throw wrapException(e, "Range request failed for");
         }
     }
 
@@ -171,10 +165,7 @@ public final class GcsStorageObject implements StorageObject {
                 return totalRead == 0 ? -1 : totalRead;
             }
         } catch (StorageException e) {
-            if (e.getCode() == 404) {
-                throw new IOException("Object not found: " + path, e);
-            }
-            throw new IOException("Failed to read bytes from " + path, e);
+            throw wrapException(e, "Failed to read bytes from");
         }
     }
 
@@ -206,11 +197,7 @@ public final class GcsStorageObject implements StorageObject {
                     listener.onResponse(buffer);
                 }
             } catch (StorageException e) {
-                if (e.getCode() == 404) {
-                    listener.onFailure(new IOException("Object not found: " + path, e));
-                } else {
-                    listener.onFailure(new IOException("Failed to read bytes from " + path, e));
-                }
+                listener.onFailure(wrapException(e, "Failed to read bytes from"));
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -225,6 +212,11 @@ public final class GcsStorageObject implements StorageObject {
     @SuppressForbidden(reason = "GCS ReadChannel is not a FileChannel; Channels.* helpers do not apply")
     private static int readFromChannel(ReadChannel reader, ByteBuffer target) throws IOException {
         return reader.read(target);
+    }
+
+    private IOException wrapException(StorageException e, String operation) {
+        String message = e.getCode() == 404 ? "Object not found: " + path : operation + " " + path;
+        return new IOException(message, e);
     }
 
     private void fetchMetadata() throws IOException {

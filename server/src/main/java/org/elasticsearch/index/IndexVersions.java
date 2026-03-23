@@ -241,6 +241,7 @@ public class IndexVersions {
     public static final IndexVersion TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG = def(9_080_00_0, Version.LUCENE_10_4_0);
     public static final IndexVersion SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB = def(9_081_0_00, Version.LUCENE_10_4_0);
     public static final IndexVersion STORE_IGNORED_WILDCARD_FIELDS_IN_BINARY_DOC_VALUES = def(9_082_0_00, Version.LUCENE_10_4_0);
+    public static final IndexVersion MULTIPLE_SYNONYM_SETS_PER_FILTER = def(9_083_0_00, Version.LUCENE_10_4_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

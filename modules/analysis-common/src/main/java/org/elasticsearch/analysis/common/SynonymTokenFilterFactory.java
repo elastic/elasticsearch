@@ -71,6 +71,15 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                     );
                 }
                 List<String> synonymsSets = factory.settings.getAsList(SynonymsSource.INDEX.getSettingName());
+                if (synonymsSets.size() > 1 && factory.multipleSynonymSetsSupported == false) {
+                    throw new IllegalArgumentException(
+                        "Multiple synonym sets in ["
+                            + SynonymsSource.INDEX.getSettingName()
+                            + "] are not supported for indices created before version ["
+                            + IndexVersions.MULTIPLE_SYNONYM_SETS_PER_FILTER.toReleaseVersion()
+                            + "]"
+                    );
+                }
                 if (synonymsSets.size() > 100) {
                     throw new IllegalArgumentException(
                         "At most 100 synonym sets may be specified in [" + SynonymsSource.INDEX.getSettingName() + "]"
@@ -153,6 +162,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     private final SynonymsManagementAPIService synonymsManagementAPIService;
     protected final SynonymsSource synonymsSource;
     protected final CircuitBreaker circuitBreaker;
+    protected final boolean multipleSynonymSetsSupported;
 
     SynonymTokenFilterFactory(
         IndexSettings indexSettings,
@@ -177,6 +187,8 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         this.environment = env;
         this.synonymsManagementAPIService = synonymsManagementAPIService;
         this.circuitBreaker = circuitBreaker;
+        this.multipleSynonymSetsSupported = indexSettings.getIndexVersionCreated()
+            .onOrAfter(IndexVersions.MULTIPLE_SYNONYM_SETS_PER_FILTER);
     }
 
     @Override

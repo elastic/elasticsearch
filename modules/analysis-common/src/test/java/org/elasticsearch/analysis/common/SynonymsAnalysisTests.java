@@ -449,6 +449,49 @@ public class SynonymsAnalysisTests extends ESTestCase {
         }
     }
 
+    public void testMultipleSynonymSetsRejectedOnOldIndexVersion() {
+        IndexVersion oldVersion = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexVersions.STORE_IGNORED_WILDCARD_FIELDS_IN_BINARY_DOC_VALUES
+        );
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, oldVersion)
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.my_synonyms.type", "synonym_graph")
+            .putList("index.analysis.filter.my_synonyms.synonyms_set", "set-a", "set-b")
+            .put("index.analysis.filter.my_synonyms.updateable", true)
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase", "my_synonyms")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
+        });
+        assertThat(e.getMessage(), containsString("Multiple synonym sets"));
+        assertThat(e.getMessage(), containsString("not supported for indices created before"));
+    }
+
+    public void testSingleSynonymSetAllowedOnOldIndexVersion() throws IOException {
+        IndexVersion oldVersion = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexVersions.STORE_IGNORED_WILDCARD_FIELDS_IN_BINARY_DOC_VALUES
+        );
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, oldVersion)
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.my_synonyms.type", "synonym_graph")
+            .putList("index.analysis.filter.my_synonyms.synonyms_set", "set-a")
+            .put("index.analysis.filter.my_synonyms.updateable", true)
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase", "my_synonyms")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+
+        // Should not throw - single synonym set is allowed on old index versions
+        indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
+    }
+
     public void testShingleFilters() {
 
         Settings settings = Settings.builder()

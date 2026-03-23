@@ -185,7 +185,23 @@ public class AzureAiStudioService extends SenderService<AzureAiStudioModel> impl
                 );
             }
 
-            AzureAiStudioModel model = createModel(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, chunkingSettings);
+            var model = retrieveModelCreatorFromMapOrThrow(
+                MODEL_CREATORS,
+                inferenceEntityId,
+                taskType,
+                NAME,
+                ConfigurationParseContext.REQUEST
+            ).createFromMaps(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettingsMap,
+                taskSettingsMap,
+                chunkingSettings,
+                serviceSettingsMap,
+                ConfigurationParseContext.REQUEST
+            );
+            checkProviderAndEndpointTypeForTask(taskType, model.provider(), model.endpointType());
 
             throwIfNotEmptyMap(config, NAME);
             throwIfNotEmptyMap(serviceSettingsMap, NAME);
@@ -233,28 +249,6 @@ public class AzureAiStudioService extends SenderService<AzureAiStudioModel> impl
     @Override
     public Set<TaskType> supportedStreamingTasks() {
         return COMPLETION_ONLY;
-    }
-
-    private static AzureAiStudioModel createModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings
-    ) {
-        var model = retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, ConfigurationParseContext.REQUEST)
-            .createFromMaps(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                chunkingSettings,
-                serviceSettings,
-                ConfigurationParseContext.REQUEST
-            );
-        checkProviderAndEndpointTypeForTask(taskType, model.provider(), model.endpointType());
-        return model;
     }
 
     private static void checkProviderAndEndpointTypeForTask(

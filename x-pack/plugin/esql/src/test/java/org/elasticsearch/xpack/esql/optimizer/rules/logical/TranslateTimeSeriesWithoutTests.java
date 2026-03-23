@@ -43,7 +43,7 @@ public class TranslateTimeSeriesWithoutTests extends AbstractLogicalPlanOptimize
             new EsField("cluster", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION)
         );
         EsRelation relation = EsqlTestUtils.relation(IndexMode.TIME_SERIES).withAttributes(List.of(cluster));
-        Alias timeSeriesGrouping = new TimeSeriesWithout(Source.EMPTY, List.of(cluster)).asTimeSeriesAttribute();
+        Alias timeSeriesGrouping = new TimeSeriesWithout(Source.EMPTY, List.of(cluster)).toAttribute();
         TimeSeriesAggregate aggregate = new TimeSeriesAggregate(
             Source.EMPTY,
             relation,

@@ -190,7 +190,7 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
     @Override
     public AmazonBedrockEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
-        var updatedBaseSettings = updateBaseAmazonBedrockCommonSettings(serviceSettings);
+        var updatedCommonSettings = updateCommonSettings(serviceSettings);
 
         var extractedMaxTokens = extractOptionalPositiveInteger(
             serviceSettings,
@@ -201,16 +201,15 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
 
         validationException.throwIfValidationErrorsExist();
         return new AmazonBedrockEmbeddingsServiceSettings(
-            updatedBaseSettings.region(),
-            updatedBaseSettings.model(),
-            updatedBaseSettings.provider(),
+            updatedCommonSettings.region(),
+            updatedCommonSettings.model(),
+            updatedCommonSettings.provider(),
             this.dimensions,
             this.dimensionsSetByUser,
             extractedMaxTokens != null ? extractedMaxTokens : this.maxInputTokens,
             this.similarity,
-            updatedBaseSettings.rateLimitSettings()
+            updatedCommonSettings.rateLimitSettings()
         );
-
     }
 
     @Override
@@ -233,5 +232,4 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
     public int hashCode() {
         return Objects.hash(region, model, provider, dimensions, dimensionsSetByUser, maxInputTokens, similarity, rateLimitSettings);
     }
-
 }

@@ -178,29 +178,6 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
         );
     }
 
-    private static HashMap<String, Object> createEmbeddingsRequestSettingsMap(
-        String region,
-        String model,
-        String provider,
-        @Nullable Integer dimensions,
-        @Nullable Boolean dimensionsSetByUser,
-        @Nullable Integer maxTokens,
-        @Nullable SimilarityMeasure similarityMeasure,
-        int rateLimit
-    ) {
-        var settingsMap = createEmbeddingsRequestSettingsMap(
-            region,
-            model,
-            provider,
-            dimensions,
-            dimensionsSetByUser,
-            maxTokens,
-            similarityMeasure
-        );
-        settingsMap.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
-        return settingsMap;
-    }
-
     public void testFromMap_Request_DimensionsSetByUser_IsFalse_WhenDimensionsAreNotPresent() {
         var settingsMap = createEmbeddingsRequestSettingsMap(
             TEST_REGION,
@@ -493,6 +470,29 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
                 )
             )
         );
+    }
+
+    private static HashMap<String, Object> createEmbeddingsRequestSettingsMap(
+        String region,
+        String model,
+        String provider,
+        @Nullable Integer dimensions,
+        @Nullable Boolean dimensionsSetByUser,
+        @Nullable Integer maxTokens,
+        @Nullable SimilarityMeasure similarityMeasure,
+        int rateLimit
+    ) {
+        var settingsMap = createEmbeddingsRequestSettingsMap(
+            region,
+            model,
+            provider,
+            dimensions,
+            dimensionsSetByUser,
+            maxTokens,
+            similarityMeasure
+        );
+        settingsMap.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));
+        return settingsMap;
     }
 
     public static HashMap<String, Object> createEmbeddingsRequestSettingsMap(

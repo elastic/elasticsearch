@@ -28,15 +28,15 @@ public class AmazonBedrockChatCompletionServiceSettings extends AmazonBedrockSer
     ) {
         var validationException = new ValidationException();
 
-        var baseSettings = AmazonBedrockServiceSettings.fromMap(serviceSettings, validationException, context);
+        var commonSettings = AmazonBedrockServiceSettings.fromMap(serviceSettings, validationException, context);
 
         validationException.throwIfValidationErrorsExist();
 
         return new AmazonBedrockChatCompletionServiceSettings(
-            baseSettings.region(),
-            baseSettings.model(),
-            baseSettings.provider(),
-            baseSettings.rateLimitSettings()
+            commonSettings.region(),
+            commonSettings.model(),
+            commonSettings.provider(),
+            commonSettings.rateLimitSettings()
         );
     }
 
@@ -91,12 +91,12 @@ public class AmazonBedrockChatCompletionServiceSettings extends AmazonBedrockSer
 
     @Override
     public AmazonBedrockChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var updatedBaseAmazonBedrockCommonSettings = updateBaseAmazonBedrockCommonSettings(serviceSettings);
+        var updatedCommonSettings = updateCommonSettings(serviceSettings);
         return new AmazonBedrockChatCompletionServiceSettings(
-            updatedBaseAmazonBedrockCommonSettings.region(),
-            updatedBaseAmazonBedrockCommonSettings.model(),
-            updatedBaseAmazonBedrockCommonSettings.provider(),
-            updatedBaseAmazonBedrockCommonSettings.rateLimitSettings()
+            updatedCommonSettings.region(),
+            updatedCommonSettings.model(),
+            updatedCommonSettings.provider(),
+            updatedCommonSettings.rateLimitSettings()
         );
     }
 }

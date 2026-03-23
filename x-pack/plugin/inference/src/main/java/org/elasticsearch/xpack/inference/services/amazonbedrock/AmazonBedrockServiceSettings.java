@@ -46,7 +46,7 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
     // the table above if using a model that might have a lesser limit (e.g. Anthropic Claude 3.5)
     protected static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(240);
 
-    protected static AmazonBedrockServiceSettings.BaseAmazonBedrockCommonSettings fromMap(
+    protected static AmazonBedrockCommonSettings fromMap(
         Map<String, Object> map,
         ValidationException validationException,
         ConfigurationParseContext context
@@ -69,10 +69,10 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
             context
         );
 
-        return new BaseAmazonBedrockCommonSettings(region, model, provider, rateLimitSettings);
+        return new AmazonBedrockCommonSettings(region, model, provider, rateLimitSettings);
     }
 
-    protected BaseAmazonBedrockCommonSettings updateBaseAmazonBedrockCommonSettings(Map<String, Object> serviceSettings) {
+    protected AmazonBedrockCommonSettings updateCommonSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
 
         var extractedRateLimitSettings = RateLimitSettings.of(
@@ -83,12 +83,10 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
             ConfigurationParseContext.REQUEST
         );
 
-        validationException.throwIfValidationErrorsExist();
-
-        return new BaseAmazonBedrockCommonSettings(this.region, this.model, this.provider, extractedRateLimitSettings);
+        return new AmazonBedrockCommonSettings(this.region, this.model, this.provider, extractedRateLimitSettings);
     }
 
-    protected record BaseAmazonBedrockCommonSettings(
+    protected record AmazonBedrockCommonSettings(
         String region,
         String model,
         AmazonBedrockProvider provider,

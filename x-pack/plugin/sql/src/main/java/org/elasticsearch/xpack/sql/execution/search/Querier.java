@@ -158,6 +158,7 @@ public class Querier {
             options = IndicesOptions.builder(options).crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true)).build();
         }
         final OpenPointInTimeRequest openPitRequest = new OpenPointInTimeRequest(search.indices()).indicesOptions(options)
+            .allowPartialSearchResults(cfg.allowPartialSearchResults())
             .keepAlive(cfg.pageTimeout());
         if (cfg.crossProject() && cfg.projectRouting() != null) {
             openPitRequest.projectRouting(cfg.projectRouting());
@@ -188,6 +189,13 @@ public class Querier {
             e.addSuppressed(closeError);
             listener.onFailure(e);
         }));
+    }
+
+    /**
+     * Refreshes the PIT ID on the search source with the new value returned in the response.
+     */
+    public static void refreshPointInTime(SearchResponse response, SearchSourceBuilder source) {
+        source.pointInTimeBuilder(new PointInTimeBuilder(response.pointInTimeId()));
     }
 
     public static void closePointInTime(Client client, BytesReference pointInTimeId, ActionListener<Boolean> listener) {

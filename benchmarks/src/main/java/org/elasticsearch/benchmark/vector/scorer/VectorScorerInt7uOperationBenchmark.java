@@ -9,8 +9,7 @@
 package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.logging.NodeNamePatternConverter;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.simdvec.VectorSimilarityType;
@@ -45,9 +44,7 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
 public class VectorScorerInt7uOperationBenchmark {
 
     static {
-        NodeNamePatternConverter.setGlobalNodeName("foo");
-        LogConfigurator.loadLog4jPlugins();
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        Utils.configureBenchmarkLogging();
     }
 
     byte[] byteArrayA;
@@ -97,7 +94,7 @@ public class VectorScorerInt7uOperationBenchmark {
             case DOT_PRODUCT -> VectorSimilarityFunctions.Function.DOT_PRODUCT;
             case EUCLIDEAN -> VectorSimilarityFunctions.Function.SQUARE_DISTANCE;
             default -> throw new IllegalArgumentException(function.toString());
-        }, VectorSimilarityFunctions.DataType.INT7, VectorSimilarityFunctions.Operation.SINGLE);
+        }, VectorSimilarityFunctions.DataType.INT7U, VectorSimilarityFunctions.Operation.SINGLE);
     }
 
     @TearDown

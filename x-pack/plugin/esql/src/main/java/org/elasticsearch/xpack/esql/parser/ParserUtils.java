@@ -140,15 +140,26 @@ public final class ParserUtils {
     }
 
     /**
-     * Extract the name or the position of a parameter.
+     * Extract the name or the position of an ES|QL parameter.
      */
     public static String nameOrPosition(Token token) {
         int tokenType = token.getType();
-        // Retrieve text from the token only when necessary, when the token type is known.
         return switch (tokenType) {
-            case EsqlBaseLexer.NAMED_OR_POSITIONAL_PARAM, PromqlBaseLexer.NAMED_OR_POSITIONAL_PARAM -> token.getText()
-                .substring(SINGLE_PARAM);
+            case EsqlBaseLexer.NAMED_OR_POSITIONAL_PARAM -> token.getText().substring(SINGLE_PARAM);
             case EsqlBaseLexer.NAMED_OR_POSITIONAL_DOUBLE_PARAMS -> token.getText().substring(DOUBLE_PARAM);
+            default -> EMPTY;
+        };
+    }
+
+    /**
+     * Extract the name or the position of a PromQL parameter.
+     * Kept separate from {@link #nameOrPosition} since the two lexers assign independent token type IDs
+     * that can collide after grammar changes.
+     */
+    public static String promqlNameOrPosition(Token token) {
+        int tokenType = token.getType();
+        return switch (tokenType) {
+            case PromqlBaseLexer.NAMED_OR_POSITIONAL_PARAM -> token.getText().substring(SINGLE_PARAM);
             default -> EMPTY;
         };
     }

@@ -9,14 +9,19 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
 import org.junit.AfterClass;
+import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
 
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
+import java.util.List;
 import java.util.function.IntFunction;
 
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
@@ -31,6 +36,14 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
     public JDKVectorLibraryFloat32Tests(VectorSimilarityFunctions.Function function, int size) {
         super(function, size);
         this.delta = 1e-5f * size; // scale the delta with the size
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parametersFactory() {
+        List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(VectorSimilarityFunctionsTests.parametersFactory());
+        // cosine is not used on floats
+        baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.Function.COSINE);
+        return baseParams;
     }
 
     @BeforeClass
@@ -198,7 +211,7 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
         float[] expectedScores = new float[numVecs];
         scalarSimilarityBulkWithOffsets(values[queryOrd], values, offsets, expectedScores);
 
-        var nativeQuerySeg = segment.asSlice((long) queryOrd * dims * Float.BYTES, dims);
+        var nativeQuerySeg = segment.asSlice((long) queryOrd * dims * Float.BYTES, (long) dims * Float.BYTES);
 
         float[] bulkScores = new float[numVecs];
         similarityBulkWithOffsets(
@@ -211,6 +224,26 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
             MemorySegment.ofArray(bulkScores)
         );
         assertArrayEquals(expectedScores, bulkScores, delta);
+    }
+
+    public void testBulkIllegalDims() {
+        assumeTrue(notSupportedMsg(), supported());
+        var segA = arena.allocate((long) size * 3 * Float.BYTES);
+        var segB = arena.allocate((long) size * 3 * Float.BYTES);
+        var segS = arena.allocate((long) size * Float.BYTES);
+
+        Exception ex = expectThrows(IOOBE, () -> similarityBulk(segA, segB, size, 4, segS));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        ex = expectThrows(IOOBE, () -> similarityBulk(segA, segB, size, -1, segS));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        ex = expectThrows(IOOBE, () -> similarityBulk(segA, segB, -1, 3, segS));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
+
+        var tooSmall = arena.allocate((long) 3 * Float.BYTES - 1);
+        ex = expectThrows(IOOBE, () -> similarityBulk(segA, segB, size, 3, tooSmall));
+        assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
 
     public void testIllegalDims() {
@@ -280,6 +313,7 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
         return switch (function) {
             case DOT_PRODUCT -> dotProductScalar(a, b);
             case SQUARE_DISTANCE -> squareDistanceScalar(a, b);
+            case COSINE -> throw new AssumptionViolatedException("cosine not supported");
         };
     }
 

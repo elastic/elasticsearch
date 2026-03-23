@@ -88,7 +88,7 @@ final class DoubleArrayVector extends AbstractVector implements DoubleVector {
     }
 
     @Override
-    public DoubleVector filter(int... positions) {
+    public DoubleVector filter(boolean mayContainDuplicates, int... positions) {
         try (DoubleVector.Builder builder = blockFactory().newDoubleVectorBuilder(positions.length)) {
             for (int pos : positions) {
                 builder.appendDouble(values[pos]);
@@ -130,6 +130,20 @@ final class DoubleArrayVector extends AbstractVector implements DoubleVector {
 
     public static long ramBytesEstimated(double[] values) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+    @Override
+    public DoubleVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (DoubleVector.FixedBuilder builder = blockFactory().newDoubleVectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendDouble(getDouble(i));
+            }
+            return builder.build();
+        }
     }
 
     @Override

@@ -21,6 +21,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.unary;
+
 public class FloorTests extends AbstractScalarFunctionTestCase {
     public FloorTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -28,28 +30,19 @@ public class FloorTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        String read = "Attribute[channel=0]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        TestCaseSupplier.forUnaryInt(suppliers, read, DataType.INTEGER, i -> i, Integer.MIN_VALUE, Integer.MAX_VALUE, List.of());
-        TestCaseSupplier.forUnaryLong(suppliers, read, DataType.LONG, l -> l, Long.MIN_VALUE, Long.MAX_VALUE, List.of());
-        TestCaseSupplier.forUnaryUnsignedLong(
-            suppliers,
-            read,
-            DataType.UNSIGNED_LONG,
-            ul -> ul,
-            BigInteger.ZERO,
-            UNSIGNED_LONG_MAX,
-            List.of()
-        );
-        TestCaseSupplier.forUnaryDouble(
-            suppliers,
-            "FloorDoubleEvaluator[val=" + read + "]",
-            DataType.DOUBLE,
-            Math::floor,
-            Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY,
-            List.of()
-        );
+        unary().expectedOutputType(DataType.INTEGER).ints().expectedFromInt(i -> i).evaluatorToString("%0").build(suppliers);
+        unary().expectedOutputType(DataType.LONG).longs().expectedFromLong(l -> l).evaluatorToString("%0").build(suppliers);
+        unary().expectedOutputType(DataType.UNSIGNED_LONG)
+            .unsignedLongs(BigInteger.ZERO, UNSIGNED_LONG_MAX)
+            .expectedFromBigInteger(ul -> ul)
+            .evaluatorToString("%0")
+            .build(suppliers);
+        unary().expectedOutputType(DataType.DOUBLE)
+            .doubles()
+            .expectedFromDouble(Math::floor)
+            .evaluatorToString("FloorDoubleEvaluator[val=%0]")
+            .build(suppliers);
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
     }
 

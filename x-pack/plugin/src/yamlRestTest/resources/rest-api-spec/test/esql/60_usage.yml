@@ -59,12 +59,15 @@ setup:
             - cosine_vector_similarity_function
             - inline_stats
             - promql_command_v0
+            - uri_parts_command
+            - registered_domain_command
+            - fn_json_extract
       reason: "Test that should only be executed on snapshot versions"
 
   - do: { xpack.usage: { } }
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - length: { esql.features: 31 }
+  - set: { esql.features.explain: explain_counter }
   - set: { esql.features.dissect: dissect_counter }
   - set: { esql.features.drop: drop_counter }
   - set: { esql.features.eval: eval_counter }
@@ -94,6 +97,8 @@ setup:
   - set: { esql.features.completion: completion_counter }
   - set: { esql.features.sample: sample_counter }
   - set: { esql.features.subquery: subquery_counter }
+  - set: { esql.features.uri_parts: uri_parts_counter }
+  - set: { esql.features.registered_domain: registered_domain_counter }
   - set: { esql.features.mmr: mmr_counter }
   - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
@@ -122,9 +127,12 @@ setup:
   - do: { xpack.usage: { } }
   - match: { esql.available: true }
   - match: { esql.enabled: true }
+  - match: { esql.features.explain: $explain_counter }
   - match: { esql.features.dissect: $dissect_counter }
   - match: { esql.features.eval: $eval_counter }
   - match: { esql.features.grok: $grok_counter }
+  - match: { esql.features.uri_parts: $uri_parts_counter }
+  - match: { esql.features.registered_domain: $registered_domain_counter }
   - gt: { esql.features.limit: $limit_counter }
   - gt: { esql.features.sort: $sort_counter }
   - gt: { esql.features.stats: $stats_counter }
@@ -141,6 +149,7 @@ setup:
   - match: { esql.features.completion: $completion_counter }
   - match: { esql.features.sample: $sample_counter }
   - match: { esql.features.ts: $ts_counter }
+  - match: { esql.features.mmr: $mmr_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
   - match: { esql.queries.kibana.total: $kibana_total_counter }
@@ -177,6 +186,8 @@ setup:
   - match: { esql.features.dissect: $dissect_counter }
   - match: { esql.features.eval: $eval_counter }
   - match: { esql.features.grok: $grok_counter }
+  - match: { esql.features.uri_parts: $uri_parts_counter }
+  - match: { esql.features.registered_domain: $registered_domain_counter }
   - match: { esql.features.limit: $limit_counter }
   - match: { esql.features.sort: $sort_counter }
   - gt: { esql.features.stats: $stats_counter }
@@ -192,6 +203,7 @@ setup:
   - match: { esql.features.fuse: $fuse_counter }
   - match: { esql.features.completion: $completion_counter }
   - match: { esql.features.sample: $sample_counter }
+  - match: { esql.features.mmr: $mmr_counter }
   - gt: { esql.features.ts: $ts_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
@@ -222,7 +234,6 @@ setup:
   - do: { xpack.usage: { } }
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - length: { esql.features: 31 }
   - set: { esql.features.dissect: dissect_counter }
   - set: { esql.features.drop: drop_counter }
   - set: { esql.features.eval: eval_counter }
@@ -252,6 +263,9 @@ setup:
   - set: { esql.features.completion: completion_counter }
   - set: { esql.features.sample: sample_counter }
   - set: { esql.features.subquery: subquery_counter }
+  - set: { esql.features.uri_parts: uri_parts_counter }
+  - set: { esql.features.registered_domain: registered_domain_counter }
+  - set: { esql.features.mmr: mmr_counter }
   - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries.rest.failed: rest_failed_counter }
@@ -265,7 +279,7 @@ setup:
   - set: { esql.functions.to_long: functions_to_long }
   - set: { esql.functions.coalesce: functions_coalesce }
   - set: { esql.functions.categorize: functions_categorize }
-  - set: {esql.functions.text_embedding: functions_text_embedding}
+  - set: { esql.functions.text_embedding: functions_text_embedding }
 
   - do:
       esql.query:
@@ -282,6 +296,8 @@ setup:
   - match: { esql.features.dissect: $dissect_counter }
   - match: { esql.features.eval: $eval_counter }
   - match: { esql.features.grok: $grok_counter }
+  - match: { esql.features.uri_parts: $uri_parts_counter }
+  - match: { esql.features.registered_domain: $registered_domain_counter }
   - gt: { esql.features.limit: $limit_counter }
   - gt: { esql.features.sort: $sort_counter }
   - gt: { esql.features.stats: $stats_counter }
@@ -298,6 +314,7 @@ setup:
   - match: { esql.features.fuse: $fuse_counter }
   - match: { esql.features.completion: $completion_counter }
   - match: { esql.features.ts: $ts_counter }
+  - match: { esql.features.mmr: $mmr_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
   - match: { esql.queries.kibana.total: $kibana_total_counter }
@@ -334,6 +351,8 @@ setup:
   - match: { esql.features.dissect: $dissect_counter }
   - match: { esql.features.eval: $eval_counter }
   - match: { esql.features.grok: $grok_counter }
+  - match: { esql.features.uri_parts: $uri_parts_counter }
+  - match: { esql.features.registered_domain: $registered_domain_counter }
   - match: { esql.features.limit: $limit_counter }
   - match: { esql.features.sort: $sort_counter }
   - gt: { esql.features.stats: $stats_counter }
@@ -349,6 +368,7 @@ setup:
   - match: { esql.features.fuse: $fuse_counter }
   - match: { esql.features.completion: $completion_counter }
   - match: { esql.features.sample: $sample_counter }
+  - match: { esql.features.mmr: $mmr_counter }
   - gt: { esql.features.ts: $ts_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
@@ -361,6 +381,7 @@ setup:
 
   # There's one of these per function but that's a ton of things to check. So we just spot check that a few exist.
   - not_exists: esql.functions.delay
+  - exists: esql.functions.json_extract
   - exists: esql.functions.idelta
   - exists: esql.functions.mv_sum
   - exists: esql.functions.to_dateperiod

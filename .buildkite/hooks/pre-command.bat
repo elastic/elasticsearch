@@ -28,7 +28,70 @@ for /f "delims=" %%i in ('vault read -field^=token secret/ci/elastic-elasticsear
 
 bash.exe -c "nohup bash .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/null 2>&1 &"
 
-REM Smart retries implementation
+REM =============================================================================
+REM PART 1: Test seed retrieval for ANY retry
+REM =============================================================================
+REM When a job is retried (regardless of SMART_RETRIES setting), retrieve and use
+REM the same test seed from the original job to ensure reproducible test failures.
+REM =============================================================================
+set ORIGIN_JOB_ID=
+set BUILD_SCAN_ID=
+set BUILD_SCAN_URL=
+set TESTS_SEED=
+
+if defined BUILDKITE_RETRY_COUNT (
+  if %BUILDKITE_RETRY_COUNT% GTR 0 (
+    echo --- Retrieving test seed from original job
+
+    REM Fetch build information from Buildkite API
+    curl --max-time 30 -H "Authorization: Bearer %BUILDKITE_API_TOKEN%" -X GET "https://api.buildkite.com/v2/organizations/elastic/pipelines/%BUILDKITE_PIPELINE_SLUG%/builds/%BUILDKITE_BUILD_NUMBER%?include_retried_jobs=true" -o .build-info.json 2>nul
+
+    if exist .build-info.json (
+      REM Extract origin job ID
+      for /f "delims=" %%i in ('jq -r --arg jobId "%BUILDKITE_JOB_ID%" ".jobs[] | select(.id == $jobId) | .retry_source.job_id" .build-info.json 2^>nul') do set ORIGIN_JOB_ID=%%i
+
+      if defined ORIGIN_JOB_ID (
+        if not "!ORIGIN_JOB_ID!"=="null" (
+          REM Retrieve test seed directly from Buildkite metadata
+          for /f "delims=" %%i in ('jq -r --arg job_id "!ORIGIN_JOB_ID!" ".meta_data[\"tests-seed-\" + $job_id]" .build-info.json 2^>nul') do set TESTS_SEED=%%i
+
+          REM Retrieve build scan URL and ID for smart retry (reused in Part 2)
+          for /f "delims=" %%i in ('jq -r --arg job_id "!ORIGIN_JOB_ID!" ".meta_data[\"build-scan-\" + $job_id]" .build-info.json 2^>nul') do set BUILD_SCAN_URL=%%i
+          for /f "delims=" %%i in ('jq -r --arg job_id "!ORIGIN_JOB_ID!" ".meta_data[\"build-scan-id-\" + $job_id]" .build-info.json 2^>nul') do set BUILD_SCAN_ID=%%i
+
+          if defined TESTS_SEED (
+            if not "!TESTS_SEED!"=="null" (
+              echo Using test seed !TESTS_SEED! from original job !ORIGIN_JOB_ID!
+            ) else (
+              echo Warning: Could not find test seed in metadata for original job.
+              echo Tests will use a new random seed.
+              set TESTS_SEED=
+            )
+          ) else (
+            echo Warning: Could not find test seed in metadata for original job.
+            echo Tests will use a new random seed.
+          )
+        ) else (
+          echo Warning: Could not find origin job ID for retry.
+          echo Tests will use a new random seed.
+        )
+      ) else (
+        echo Warning: Could not find origin job ID for retry.
+        echo Tests will use a new random seed.
+      )
+    ) else (
+      echo Warning: Failed to fetch build information from Buildkite API
+      echo Tests will use a new random seed.
+    )
+  )
+)
+
+REM =============================================================================
+REM PART 2: Smart retry test filtering (only when SMART_RETRIES=true)
+REM =============================================================================
+REM When smart retries are enabled, fetch the list of failed tests from the
+REM original job and filter this retry to only run those tests.
+REM =============================================================================
 if "%SMART_RETRIES%"=="true" (
   if defined BUILDKITE_RETRY_COUNT (
     if %BUILDKITE_RETRY_COUNT% GTR 0 (
@@ -36,20 +99,24 @@ if "%SMART_RETRIES%"=="true" (
       set SMART_RETRY_STATUS=disabled
       set SMART_RETRY_DETAILS=
 
-      REM Fetch build information from Buildkite API
-      curl --max-time 30 -H "Authorization: Bearer %BUILDKITE_API_TOKEN%" -X GET "https://api.buildkite.com/v2/organizations/elastic/pipelines/%BUILDKITE_PIPELINE_SLUG%/builds/%BUILDKITE_BUILD_NUMBER%?include_retried_jobs=true" -o .build-info.json 2>nul
+      REM Check if we need to fetch build info (should already exist from Part 1)
+      if not exist .build-info.json (
+        curl --max-time 30 -H "Authorization: Bearer %BUILDKITE_API_TOKEN%" -X GET "https://api.buildkite.com/v2/organizations/elastic/pipelines/%BUILDKITE_PIPELINE_SLUG%/builds/%BUILDKITE_BUILD_NUMBER%?include_retried_jobs=true" -o .build-info.json 2>nul
+      )
 
       if exist .build-info.json (
-        REM Extract origin job ID
-        for /f "delims=" %%i in ('jq -r --arg jobId "%BUILDKITE_JOB_ID%" ".jobs[] | select(.id == $jobId) | .retry_source.job_id" .build-info.json 2^>nul') do set ORIGIN_JOB_ID=%%i
+        REM Get origin job ID if not already set
+        if not defined ORIGIN_JOB_ID (
+          for /f "delims=" %%i in ('jq -r --arg jobId "%BUILDKITE_JOB_ID%" ".jobs[] | select(.id == $jobId) | .retry_source.job_id" .build-info.json 2^>nul') do set ORIGIN_JOB_ID=%%i
+        )
 
         if defined ORIGIN_JOB_ID (
           if not "!ORIGIN_JOB_ID!"=="null" (
-            REM Extract build scan ID directly (new way)
-            for /f "delims=" %%i in ('jq -r --arg job_id "!ORIGIN_JOB_ID!" ".meta_data[\"build-scan-id-\" + $job_id]" .build-info.json 2^>nul') do set BUILD_SCAN_ID=%%i
-
-            REM Retrieve build scan URL for annotation
-            for /f "delims=" %%i in ('jq -r --arg job_id "!ORIGIN_JOB_ID!" ".meta_data[\"build-scan-\" + $job_id]" .build-info.json 2^>nul') do set BUILD_SCAN_URL=%%i
+            REM Get build scan ID if not already set
+            if not defined BUILD_SCAN_ID (
+              for /f "delims=" %%i in ('jq -r --arg job_id "!ORIGIN_JOB_ID!" ".meta_data[\"build-scan-id-\" + $job_id]" .build-info.json 2^>nul') do set BUILD_SCAN_ID=%%i
+              for /f "delims=" %%i in ('jq -r --arg job_id "!ORIGIN_JOB_ID!" ".meta_data[\"build-scan-\" + $job_id]" .build-info.json 2^>nul') do set BUILD_SCAN_URL=%%i
+            )
 
             if defined BUILD_SCAN_ID (
               if not "!BUILD_SCAN_ID!"=="null" (
@@ -66,64 +133,6 @@ if "%SMART_RETRIES%"=="true" (
                   REM Set Develocity API URL
                   if not defined DEVELOCITY_BASE_URL set DEVELOCITY_BASE_URL=https://gradle-enterprise.elastic.co
                   set DEVELOCITY_FAILED_TEST_API_URL=!DEVELOCITY_BASE_URL!/api/tests/build/!BUILD_SCAN_ID!?testOutcomes=failed
-
-                  REM Fetch test seed from build scan custom values
-                  REM Support both DEVELOCITY_API_KEY and DEVELOCITY_API_ACCESS_KEY
-                  set API_KEY=
-                  if defined DEVELOCITY_API_KEY (
-                    set API_KEY=%DEVELOCITY_API_KEY%
-                  ) else if defined DEVELOCITY_API_ACCESS_KEY (
-                    set API_KEY=%DEVELOCITY_API_ACCESS_KEY%
-                  )
-
-                  if not defined API_KEY (
-                    echo Warning: No Develocity API key available ^(DEVELOCITY_API_KEY or DEVELOCITY_API_ACCESS_KEY^)
-                    echo Test seed retrieval will be skipped
-                    set TESTS_SEED=
-                  ) else (
-                    set DEVELOCITY_BUILD_SCAN_API_URL=!DEVELOCITY_BASE_URL!/api/builds/!BUILD_SCAN_ID!?models=gradle-attributes
-                    set TESTS_SEED=
-
-                    echo Fetching test seed from build scan: !BUILD_SCAN_ID!
-                    echo API URL: !DEVELOCITY_BUILD_SCAN_API_URL!
-
-                    REM Fetch build scan data
-                    curl --silent --show-error --compressed --request GET --url "!DEVELOCITY_BUILD_SCAN_API_URL!" --max-time 30 --header "accept: application/json" --header "authorization: Bearer !API_KEY!" --header "content-type: application/json" 2>nul | jq "." > .build-scan-data.json 2>nul
-
-                    if exist .build-scan-data.json (
-                      REM Validate JSON
-                      jq empty .build-scan-data.json 2>nul
-                      if !errorlevel! equ 0 (
-                        REM Extract test seed from gradle attributes
-                        for /f "delims=" %%i in ('jq -r ".models.gradleAttributes.model.values[]? | select(.name == \"tests.seed\") | .value" .build-scan-data.json 2^>nul') do set TESTS_SEED=%%i
-
-                        if defined TESTS_SEED (
-                          if not "!TESTS_SEED!"=="null" (
-                            echo Retrieved test seed: !TESTS_SEED!
-                          ) else (
-                            echo Could not retrieve test seed from build scan
-                            echo Debug: Checking available gradle attributes...
-                            jq -r ".models.gradleAttributes.model.values[]? | .name" .build-scan-data.json 2>nul
-                            set TESTS_SEED=
-                          )
-                        ) else (
-                          echo Could not retrieve test seed from build scan
-                          echo Debug: Checking available gradle attributes...
-                          jq -r ".models.gradleAttributes.model.values[]? | .name" .build-scan-data.json 2>nul
-                          set TESTS_SEED=
-                        )
-                      ) else (
-                        echo Error: Invalid JSON response from Develocity API
-                        type .build-scan-data.json 2>nul | findstr /C:"^" | more +0 +10
-                        set TESTS_SEED=
-                      )
-
-                      del .build-scan-data.json 2>nul
-                    ) else (
-                      echo Error: Failed to fetch build scan data from Develocity API
-                      set TESTS_SEED=
-                    )
-                  )
 
                   REM Add random delay to prevent API rate limiting (0-4 seconds)
                   set /a "delay=%RANDOM% %% 5"

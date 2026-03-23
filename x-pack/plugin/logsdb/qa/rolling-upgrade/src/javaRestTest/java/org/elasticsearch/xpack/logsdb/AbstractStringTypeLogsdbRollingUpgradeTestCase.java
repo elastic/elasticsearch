@@ -120,12 +120,11 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
         verifyIndexMode(IndexMode.LOGSDB, templates.get(0).dataStreamName());
 
         // during upgrade
-        for (int i = 0; i < numNodes; i++) {
-            upgradeNode(i);
+        clusterRollingUpgrade(index -> {
             for (TemplateConfig config : templates) {
                 indexDocumentsAndVerifyResults(config);
             }
-        }
+        });
 
         // after everything is upgraded
         for (TemplateConfig config : templates) {
@@ -320,11 +319,12 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
             queryMessages.add(message);
         }
 
-        // verify that every message in the messages list is present in the query response
+        // STATS BY message returns one row per distinct message, so compare against distinct messages
+        List<String> distinctMessages = messages.stream().distinct().toList();
         assertThat(
-            "Expected messages: " + messages + "\nActual messages: " + queryMessages,
+            "Expected messages: " + distinctMessages + "\nActual messages: " + queryMessages,
             queryMessages,
-            containsInAnyOrder(messages.toArray())
+            containsInAnyOrder(distinctMessages.toArray())
         );
     }
 

@@ -1,0 +1,5 @@
+pr: 142664
+summary: Add FireworksAI chat completion support
+area: Inference
+type: enhancement
+issues: []

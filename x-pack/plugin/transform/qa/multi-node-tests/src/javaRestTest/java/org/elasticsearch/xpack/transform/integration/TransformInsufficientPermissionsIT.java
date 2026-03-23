@@ -572,7 +572,7 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
 
         TransformConfig config = TransformConfig.builder()
             .setId(transformId)
-            .setSource(new SourceConfig(new String[] { sourceIndexName }, QueryConfig.matchAll(), Collections.emptyMap()))
+            .setSource(new SourceConfig(new String[] { sourceIndexName }, QueryConfig.matchAll(), Collections.emptyMap(), null))
             .setDest(new DestConfig(destIndexName, aliases, null))
             .setFrequency(TimeValue.timeValueSeconds(10))
             .setDescription("Test transform config id: " + transformId)

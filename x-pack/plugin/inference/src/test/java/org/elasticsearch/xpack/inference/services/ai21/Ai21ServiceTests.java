@@ -28,6 +28,8 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -44,7 +46,6 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
-import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModelTests;
@@ -95,7 +96,7 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
             new CommonConfig(TaskType.COMPLETION, TaskType.TEXT_EMBEDDING, EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)) {
 
                 @Override
-                protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+                protected Ai21Service createService(ThreadPool threadPool, HttpClientManager clientManager) {
                     return Ai21ServiceTests.createService(threadPool, clientManager);
                 }
 
@@ -193,7 +194,7 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
         assertThat(customModel.getTaskType(), Matchers.is(TaskType.CHAT_COMPLETION));
     }
 
-    public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+    public static Ai21Service createService(ThreadPool threadPool, HttpClientManager clientManager) {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         return new Ai21Service(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }
@@ -241,7 +242,7 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
             service.parseRequestConfig(
                 "id",
                 TaskType.CHAT_COMPLETION,
-                getRequestConfigMap(getServiceSettingsMap(model), getSecretSettingsMap(secret)),
+                getRequestConfigMap(getServiceSettingsMap(model, null), getSecretSettingsMap(secret)),
                 modelVerificationListener
             );
         }
@@ -272,7 +273,7 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
             service.parseRequestConfig(
                 "id",
                 TaskType.CHAT_COMPLETION,
-                getRequestConfigMap(getServiceSettingsMap(null), getSecretSettingsMap(secret)),
+                getRequestConfigMap(getServiceSettingsMap(null, null), getSecretSettingsMap(secret)),
                 modelVerificationListener
             );
         }
@@ -304,9 +305,7 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -344,9 +343,7 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
             var latch = new CountDownLatch(1);
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 ActionListener.runAfter(ActionTestUtils.assertNoSuccessListener(e -> {
                     try (var builder = XContentFactory.jsonBuilder()) {
@@ -424,9 +421,7 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );

@@ -93,6 +93,7 @@ public abstract class AbstractInferenceServiceTests extends AbstractInferenceSer
 
     public void testParseRequestConfig_CreatesACompletionModel() throws Exception {
         var parseRequestConfigTestConfig = testConfiguration.commonConfig();
+        Assume.assumeTrue(testConfiguration.commonConfig().supportedTaskTypes().contains(TaskType.COMPLETION));
 
         try (var service = parseRequestConfigTestConfig.createService(threadPool, clientManager)) {
             var config = getRequestConfigMap(

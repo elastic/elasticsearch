@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 143154
+summary: Add local parallelism and partition detection for external sources
+type: enhancement

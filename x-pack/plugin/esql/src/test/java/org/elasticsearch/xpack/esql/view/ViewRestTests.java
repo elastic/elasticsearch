@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.core.TimeValue;
 
-import static org.elasticsearch.xpack.esql.plugin.EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG;
+import static org.elasticsearch.xpack.core.esql.EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG;
 
 public class ViewRestTests extends AbstractViewTestCase {
 

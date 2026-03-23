@@ -530,15 +530,41 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
 
     public void testCreateTask_notEligibleForRelocationOnShutdown() throws IOException {
         ReindexRequest request = parseRequestWithSourceIndices("source");
-        Task task = request.createTask(randomLong(), "transport", ReindexAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
+        Task task = request.createTask(randomTaskId(), "transport", ReindexAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
         assertThat(asInstanceOf(BulkByScrollTask.class, task).isEligibleForRelocationOnShutdown(), is(false));
     }
 
     public void testCreateTask_eligibleForRelocationOnShutdown() throws IOException {
         ReindexRequest request = parseRequestWithSourceIndices("source");
         request.setEligibleForRelocationOnShutdown(true);
-        Task task = request.createTask(randomLong(), "transport", ReindexAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
+        Task task = request.createTask(randomTaskId(), "transport", ReindexAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
         assertThat(asInstanceOf(BulkByScrollTask.class, task).isEligibleForRelocationOnShutdown(), is(true));
+    }
+
+    public void testProjectRoutingParsing() throws IOException {
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
+                    b.field("index", "source");
+                    b.field("project_routing", "_alias:_origin");
+                }
+                b.endObject();
+                b.startObject("dest");
+                {
+                    b.field("index", "dest");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            ReindexRequest r = ReindexRequest.fromXContent(p, Predicates.never());
+            assertEquals("_alias:_origin", r.getSearchRequest().getProjectRouting());
+        }
     }
 
     private ReindexRequest parseRequestWithSourceIndices(Object sourceIndices) throws IOException {
@@ -563,5 +589,9 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
             return ReindexRequest.fromXContent(p, Predicates.never());
         }
+    }
+
+    private static TaskId randomTaskId() {
+        return randomBoolean() ? TaskId.EMPTY_TASK_ID : new TaskId(randomAlphaOfLength(10), randomNonNegativeLong());
     }
 }

@@ -134,7 +134,7 @@ $endif$
     }
 
     @Override
-    public $Type$Block filter(int... positions) {
+    public $Type$Block filter(boolean mayContainDuplicates, int... positions) {
 $if(BytesRef)$
         final BytesRef scratch = new BytesRef();
 $endif$

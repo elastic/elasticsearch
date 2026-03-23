@@ -50,6 +50,24 @@
         },
         {
           "name" : "sortField",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
           "type" : "long",
           "optional" : false,
           "description" : "The sort field"
@@ -62,6 +80,150 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "date",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "date",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "double",
           "optional" : false,
           "description" : "The search field"
@@ -87,6 +249,24 @@
         {
           "name" : "sortField",
           "type" : "date_nanos",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "integer",
           "optional" : false,
           "description" : "The sort field"
         }
@@ -141,6 +321,24 @@
         {
           "name" : "sortField",
           "type" : "date_nanos",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "integer"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "integer",
           "optional" : false,
           "description" : "The sort field"
         }
@@ -195,6 +393,24 @@
         {
           "name" : "sortField",
           "type" : "date_nanos",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "ip"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "integer",
           "optional" : false,
           "description" : "The sort field"
         }
@@ -249,6 +465,24 @@
         {
           "name" : "sortField",
           "type" : "date_nanos",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "integer",
           "optional" : false,
           "description" : "The sort field"
         }
@@ -303,6 +537,24 @@
         {
           "name" : "sortField",
           "type" : "date_nanos",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "integer",
           "optional" : false,
           "description" : "The sort field"
         }
@@ -357,6 +609,24 @@
         {
           "name" : "sortField",
           "type" : "date_nanos",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "integer",
           "optional" : false,
           "description" : "The sort field"
         }

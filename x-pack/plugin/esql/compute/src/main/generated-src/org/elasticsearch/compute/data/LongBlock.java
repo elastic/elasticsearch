@@ -20,7 +20,8 @@ import java.io.IOException;
  * Block that stores long values.
  * This class is generated. Edit {@code X-Block.java.st} instead.
  */
-public sealed interface LongBlock extends Block permits LongArrayBlock, LongVectorBlock, ConstantNullBlock, LongBigArrayBlock {
+public sealed interface LongBlock extends Block permits LongArrayBlock, LongVectorBlock, ConstantNullBlock, LongBigArrayBlock,
+    org.elasticsearch.compute.data.arrow.LongArrowBufBlock {
 
     /**
      * Retrieves the long value stored at the given value index.
@@ -84,7 +85,19 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
     LongVector asVector();
 
     @Override
-    LongBlock filter(int... positions);
+    default LongBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (LongBlock.Builder builder = blockFactory().newLongBlockBuilder(endExclusive - beginInclusive)) {
+            builder.copyFrom(this, beginInclusive, endExclusive);
+            return builder.build();
+        }
+    }
+
+    @Override
+    LongBlock filter(boolean mayContainDuplicates, int... positions);
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},

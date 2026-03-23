@@ -316,8 +316,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
 
     private ReleasableBytesStreamOutput allocateBuffer(boolean limitToMaxResponseSize) {
         return limitToMaxResponseSize
-            ? new ReleasableBytesStreamOutputWithLimit(0, bigArrays.withCircuitBreaking(), maxResponseSize)
-            : new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
+            ? new ReleasableBytesStreamOutputWithLimit(bigArrays.withCircuitBreaking(), maxResponseSize)
+            : new ReleasableBytesStreamOutput(bigArrays.withCircuitBreaking());
     }
 
     private void addResultFieldAndFinish(Writeable response, XContentBuilder source) throws IOException {
@@ -602,8 +602,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private static class ReleasableBytesStreamOutputWithLimit extends ReleasableBytesStreamOutput {
         private final long limit;
 
-        ReleasableBytesStreamOutputWithLimit(int expectedSize, BigArrays bigArrays, long limit) {
-            super(expectedSize, bigArrays);
+        ReleasableBytesStreamOutputWithLimit(BigArrays bigArrays, long limit) {
+            super(bigArrays);
             this.limit = limit;
         }
 

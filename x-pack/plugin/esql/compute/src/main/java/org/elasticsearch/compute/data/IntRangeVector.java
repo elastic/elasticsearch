@@ -46,7 +46,7 @@ final class IntRangeVector extends AbstractVector implements IntVector {
     }
 
     @Override
-    public IntVector filter(int... positions) {
+    public IntVector filter(boolean mayContainDuplicates, int... positions) {
         try (var builder = blockFactory().newIntVectorFixedBuilder(positions.length)) {
             for (int i = 0; i < positions.length; i++) {
                 int p = positions[i];
@@ -85,6 +85,15 @@ final class IntRangeVector extends AbstractVector implements IntVector {
     @Override
     public ReleasableIterator<? extends IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         return new IntLookup(asBlock(), positions, targetBlockSize);
+    }
+
+    @Override
+    public IntVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newIntRangeVector(startInclusive + beginInclusive, startInclusive + endExclusive);
     }
 
     @Override

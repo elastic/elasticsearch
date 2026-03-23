@@ -42,10 +42,11 @@ public interface Vector extends Accountable, RefCounted, Releasable {
 
     /**
      * Creates a new vector that only exposes the positions provided. Materialization of the selected positions is avoided.
+     * @param mayContainDuplicates may the positions array contain duplicate positions?
      * @param positions the positions to retain
      * @return a filtered vector
      */
-    Vector filter(int... positions);
+    Vector filter(boolean mayContainDuplicates, int... positions);
 
     /**
      * Build a {@link Block} the same values as this {@link Vector}, but replacing
@@ -103,6 +104,18 @@ public interface Vector extends Accountable, RefCounted, Releasable {
      * not thread safe and doesn't support simultaneous access by more than one thread.
      */
     void allowPassingToDifferentDriver();
+
+    /**
+     * Return a subset of this {@link Vector} from position {@code beginInclusive} to
+     * position {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     * <p>
+     *     NOTE: Implementations will not try to optimize zero length slices
+     *     as we expect them to be rare.
+     * </p>
+     */
+    Vector slice(int beginInclusive, int endExclusive);
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},

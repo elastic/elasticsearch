@@ -12,13 +12,12 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 
 import java.io.IOException;
-import java.lang.foreign.MemorySegment;
 
 /** Panamized scorer for 7-bit quantized vectors stored as an {@link IndexInput}. **/
 public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92PanamaInt7VectorsScorer {
 
-    public MemorySegmentES92Int7VectorsScorer(IndexInput in, int dimensions, int bulkSize, MemorySegment memorySegment) {
-        super(in, dimensions, bulkSize, memorySegment);
+    public MemorySegmentES92Int7VectorsScorer(IndexInput in, int dimensions, int bulkSize) {
+        super(in, dimensions, bulkSize);
     }
 
     @Override

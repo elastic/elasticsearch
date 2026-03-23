@@ -3362,14 +3362,18 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testEmbeddingFunctionInvalidQuery() {
+        assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
+
         assertInvalidEmbeddingFirstArgument("EMBEDDING", EMBEDDING_INFERENCE_ID, TaskType.EMBEDDING);
     }
 
     public void testEmbeddingFunctionInvalidInferenceId() {
+        assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
+
         assertInvalidEmbeddingSecondArgument("EMBEDDING");
     }
 
-    private void assertInvalidEmbeddingFirstArgument(String functionName, String inferenceId, TaskType taskType) {
+    private static void assertInvalidEmbeddingFirstArgument(String functionName, String inferenceId, TaskType taskType) {
         defaultAnalyzer().addInferenceResolution(inferenceId, taskType)
             .error(
                 "from test | EVAL embedding = " + functionName + "(null, ?)",
@@ -3384,7 +3388,7 @@ public class VerifierTests extends ESTestCase {
             );
     }
 
-    private void assertInvalidEmbeddingSecondArgument(String functionName) {
+    private static void assertInvalidEmbeddingSecondArgument(String functionName) {
         defaultAnalyzer().error(
             "from test | EVAL embedding = " + functionName + "(?, null)",
             equalTo("1:30: second argument of [" + functionName + "(?, null)] cannot be null, received [null]"),
@@ -3399,6 +3403,8 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testEmbeddingFunctionOptions() {
+        assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
+
         // invalid type value
         TestAnalyzer analyzer = defaultAnalyzer().addInferenceResolution(EMBEDDING_INFERENCE_ID, TaskType.EMBEDDING);
         analyzer.error(

@@ -1531,7 +1531,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var project = as(exchange.child(), ProjectExec.class);
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         var filterLimit = as(fieldExtract.child(), LimitExec.class);
-        var filter = as(filterLimit.child(), FilterExec.class);
+        var pushProject = as(filterLimit.child(), ProjectExec.class);
+        var filter = as(pushProject.child(), FilterExec.class);
         assertThat(filter.condition(), instanceOf(GreaterThan.class));
         var fieldFilterExtract = as(filter.child(), FieldExtractExec.class);
         var esQuery = as(fieldFilterExtract.child(), EsQueryExec.class);
@@ -1568,7 +1569,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
         var filterLimit = as(field.child(), LimitExec.class);
-        var filter = as(filterLimit.child(), FilterExec.class);
+        var pushProject = as(filterLimit.child(), ProjectExec.class);
+        var filter = as(pushProject.child(), FilterExec.class);
         Or or = as(filter.condition(), Or.class);
         assertThat(or.left(), instanceOf(testCase.fullTextFunction()));
         assertThat(or.right(), instanceOf(GreaterThan.class));
@@ -1669,7 +1671,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         var secondTopNExec = as(fieldExtract.child(), TopNExec.class);
         var secondFieldExtract = as(secondTopNExec.child(), FieldExtractExec.class);
-        var filterExec = as(secondFieldExtract.child(), FilterExec.class);
+        var pushProject = as(secondFieldExtract.child(), ProjectExec.class);
+        var filterExec = as(pushProject.child(), FilterExec.class);
         var thirdFilterExtract = as(filterExec.child(), FieldExtractExec.class);
         var actualLuceneQuery = as(thirdFilterExtract.child(), EsQueryExec.class).query();
         var expectedLuceneQuery = new BoolQueryBuilder().should(testCase.queryBuilder()).should(second.queryBuilder());
@@ -1703,7 +1706,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var agg = as(limit.child(), AggregateExec.class);
         var exchange = as(agg.child(), ExchangeExec.class);
         var aggExec = as(exchange.child(), AggregateExec.class);
-        var filter = as(aggExec.child(), FilterExec.class);
+        var pushProject = as(aggExec.child(), ProjectExec.class);
+        var filter = as(pushProject.child(), FilterExec.class);
         assertTrue(filter.condition() instanceof GreaterThan);
         var fieldExtract = as(filter.child(), FieldExtractExec.class);
         var esQuery = as(fieldExtract.child(), EsQueryExec.class);
@@ -1943,7 +1947,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
         var secondLimit = as(field.child(), LimitExec.class);
-        var filter = as(secondLimit.child(), FilterExec.class);
+        var pushProject = as(secondLimit.child(), ProjectExec.class);
+        var filter = as(pushProject.child(), FilterExec.class);
         var and = as(filter.condition(), And.class);
         var knn = as(and.left(), Knn.class);
         assertEquals("(keyword == \"test\") or length(text) > 10", knn.filterExpressions().get(0).toString());
@@ -2244,7 +2249,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var agg = as(limit.child(), AggregateExec.class);
         var exchange = as(agg.child(), ExchangeExec.class);
         var aggExec = as(exchange.child(), AggregateExec.class);
-        var filter = as(aggExec.child(), FilterExec.class);
+        var pushProject = as(aggExec.child(), ProjectExec.class);
+        var filter = as(pushProject.child(), FilterExec.class);
         assertTrue(filter.condition() instanceof GreaterThan);
         var fieldExtract = as(filter.child(), FieldExtractExec.class);
         var esQuery = as(fieldExtract.child(), EsQueryExec.class);

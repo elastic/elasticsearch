@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -320,6 +322,60 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(2, page.getPositionCount());
             assertEquals(epochMillis, ((LongBlock) page.getBlock(1)).getLong(0));
             assertEquals(Instant.parse("1953-09-02T00:00:00.000Z").toEpochMilli(), ((LongBlock) page.getBlock(1)).getLong(1));
+        }
+    }
+
+    public void testSchemaWithIpType() throws IOException {
+        String csv = """
+            domain:keyword,public_ip:ip
+            www.elastic.co,8.8.8.8
+            discuss.elastic.co,2001:4860:4860::8888
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        List<Attribute> schema = reader.schema(object);
+
+        assertEquals(2, schema.size());
+        assertEquals("domain", schema.get(0).name());
+        assertEquals(DataType.KEYWORD, schema.get(0).dataType());
+        assertEquals("public_ip", schema.get(1).name());
+        assertEquals(DataType.IP, schema.get(1).dataType());
+    }
+
+    public void testReadIpType() throws IOException {
+        String csv = """
+            domain:keyword,public_ip:ip
+            www.elastic.co,8.8.8.8
+            discuss.elastic.co,2001:4860:4860::8888
+            files.internal,10.0.0.5
+            """;
+
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(3, page.getPositionCount());
+            assertEquals(2, page.getBlockCount());
+
+            BytesRef expected8 = new BytesRef(InetAddressPoint.encode(InetAddresses.forString("8.8.8.8")));
+            BytesRef expectedIpv6 = new BytesRef(InetAddressPoint.encode(InetAddresses.forString("2001:4860:4860::8888")));
+            BytesRef expected10 = new BytesRef(InetAddressPoint.encode(InetAddresses.forString("10.0.0.5")));
+
+            assertEquals(new BytesRef("www.elastic.co"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
+            assertEquals(expected8, ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+
+            assertEquals(new BytesRef("discuss.elastic.co"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(1, new BytesRef()));
+            assertEquals(expectedIpv6, ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+
+            assertEquals(new BytesRef("files.internal"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(2, new BytesRef()));
+            assertEquals(expected10, ((BytesRefBlock) page.getBlock(1)).getBytesRef(2, new BytesRef()));
+
+            assertFalse(iterator.hasNext());
         }
     }
 

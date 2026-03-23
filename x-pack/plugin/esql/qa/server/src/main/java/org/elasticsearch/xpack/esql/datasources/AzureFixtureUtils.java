@@ -80,7 +80,7 @@ public final class AzureFixtureUtils {
     public static void loadFixturesFromResources(String fixtureAddress) {
         try {
             int[] count = { 0 };
-            S3FixtureUtils.forEachFixtureEntry(AzureFixtureUtils.class, (relativePath, content) -> {
+            FixtureUtils.forEachFixtureEntry(AzureFixtureUtils.class, (relativePath, content) -> {
                 String key = S3FixtureUtils.WAREHOUSE + "/" + relativePath;
                 addBlobToFixture(fixtureAddress, key, content);
                 count[0]++;
@@ -115,6 +115,37 @@ public final class AzureFixtureUtils {
          */
         public void loadFixturesFromResources() {
             AzureFixtureUtils.loadFixturesFromResources(getAddress());
+        }
+
+        /**
+         * Inject Azure endpoint and credentials into the query.
+         *
+         * @param query the ESQL query containing an EXTERNAL command
+         * @return the query with Azure parameters injected
+         */
+        public String injectParams(String query) {
+            String trimmed = query.trim();
+            int pipeIndex = FixtureUtils.findFirstPipeAfterExternal(trimmed);
+
+            String externalPart;
+            String restOfQuery;
+
+            if (pipeIndex == -1) {
+                externalPart = trimmed;
+                restOfQuery = "";
+            } else {
+                externalPart = trimmed.substring(0, pipeIndex).trim();
+                restOfQuery = " " + trimmed.substring(pipeIndex);
+            }
+
+            StringBuilder params = new StringBuilder();
+            params.append(" WITH { ");
+            params.append("\"endpoint\": \"").append(getAddress()).append("\", ");
+            params.append("\"account\": \"").append(ACCOUNT).append("\", ");
+            params.append("\"key\": \"").append(KEY).append("\"");
+            params.append(" }");
+
+            return externalPart + params + restOfQuery;
         }
     }
 }

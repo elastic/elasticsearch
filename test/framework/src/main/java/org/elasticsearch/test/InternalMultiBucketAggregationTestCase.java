@@ -150,8 +150,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
                     }
                 }
             },
-            PipelineTree.EMPTY,
-            null
+            PipelineTree.EMPTY
         );
         Exception e = expectThrows(IllegalArgumentException.class, () -> InternalAggregationTestCase.reduce(List.of(agg), reduceContext));
         assertThat(e.getMessage(), equalTo("too big!"));
@@ -178,8 +177,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
             () -> false,
             mock(AggregationBuilder.class),
             v -> breaker.getBreaker("request").addEstimateBytesAndMaybeBreak(0, "test"),
-            PipelineTree.EMPTY,
-            null
+            PipelineTree.EMPTY
         );
         Exception e = expectThrows(CircuitBreakingException.class, () -> InternalAggregationTestCase.reduce(List.of(agg), reduceContext));
         assertThat(e.getMessage(), startsWith("[parent] Data too large, data for [test] "));

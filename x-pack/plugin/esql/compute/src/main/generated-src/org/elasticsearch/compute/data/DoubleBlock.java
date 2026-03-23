@@ -85,6 +85,18 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
     DoubleVector asVector();
 
     @Override
+    default DoubleBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (DoubleBlock.Builder builder = blockFactory().newDoubleBlockBuilder(endExclusive - beginInclusive)) {
+            builder.copyFrom(this, beginInclusive, endExclusive);
+            return builder.build();
+        }
+    }
+
+    @Override
     DoubleBlock filter(boolean mayContainDuplicates, int... positions);
 
     /**

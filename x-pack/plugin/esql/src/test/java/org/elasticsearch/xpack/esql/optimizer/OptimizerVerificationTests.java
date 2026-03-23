@@ -472,6 +472,8 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     public void testEmbeddingFunctionInvalidQuery() {
+        assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
+
         var testAnalyzer = analyzer().addIndex("test", "mapping-default.json")
             .addAnalysisTestsLookupResolutions()
             .addAnalysisTestsInferenceResolution();
@@ -481,6 +483,8 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     public void testEmbeddingFunctionInvalidInferenceId() {
+        assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
+
         var testAnalyzer = analyzer().addIndex("test", "mapping-default.json")
             .addAnalysisTestsLookupResolutions()
             .addAnalysisTestsInferenceResolution();

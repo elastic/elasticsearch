@@ -13,6 +13,7 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
@@ -288,9 +289,16 @@ public class XContentMapValues {
         if (patterns == null || patterns.length == 0) {
             return defaultValue;
         }
-        var aut = Regex.simpleMatchToAutomaton(patterns);
-        aut = Operations.determinize(makeMatchDotsInFieldNames(aut), MAX_DETERMINIZED_STATES);
-        return new CharacterRunAutomaton(aut);
+        try {
+            var aut = Regex.simpleMatchToAutomaton(patterns);
+            aut = Operations.determinize(makeMatchDotsInFieldNames(aut), MAX_DETERMINIZED_STATES);
+            return new CharacterRunAutomaton(aut);
+        } catch (TooComplexToDeterminizeException e) {
+            throw new IllegalArgumentException(
+                "The source filter patterns are too complex to process: " + e.getMessage(),
+                e
+            );
+        }
     }
 
     /** Make matches on objects also match dots in field names.

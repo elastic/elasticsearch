@@ -206,4 +206,15 @@ public class SourceFilterTests extends ESTestCase {
         assertFalse(filter.isPathFiltered("nested.field", false));
         assertTrue(filter.isPathFiltered("nested.another", false));
     }
+
+    public void testTooComplexPatternThrowsIllegalArgument() {
+        // Generate patterns of the form *<10 random chars>* — unions of many such patterns
+        // overwhelm Lucene's determinization work limit (DEFAULT_DETERMINIZE_WORK_LIMIT = 10_000)
+        String[] complexPatterns = new String[50];
+        for (int i = 0; i < complexPatterns.length; i++) {
+            complexPatterns[i] = "*" + randomAlphaOfLength(10) + "*";
+        }
+        expectThrows(IllegalArgumentException.class, () -> new SourceFilter(complexPatterns, null).isPathFiltered("foo", false));
+        expectThrows(IllegalArgumentException.class, () -> new SourceFilter(null, complexPatterns).isPathFiltered("foo", false));
+    }
 }

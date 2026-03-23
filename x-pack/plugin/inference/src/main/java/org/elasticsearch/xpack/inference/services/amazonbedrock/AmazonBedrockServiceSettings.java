@@ -76,7 +76,6 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
         Map<String, Object> serviceSettings,
         ValidationException validationException
     ) {
-
         var extractedRateLimitSettings = RateLimitSettings.of(
             serviceSettings,
             this.rateLimitSettings,

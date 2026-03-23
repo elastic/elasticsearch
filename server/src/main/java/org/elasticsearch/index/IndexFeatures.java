@@ -17,11 +17,6 @@ import java.util.Set;
 
 public class IndexFeatures implements FeatureSpecification {
 
-    @Override
-    public Set<NodeFeature> getFeatures() {
-        return Set.of();
-    }
-
     public static final NodeFeature LOGSDB_NO_HOST_NAME_FIELD = new NodeFeature("index.logsdb_no_host_name_field");
 
     public static final NodeFeature TIME_SERIES_SYNTHETIC_ID = new NodeFeature("index.time_series_synthetic_id");
@@ -47,6 +42,8 @@ public class IndexFeatures implements FeatureSpecification {
         "constant_field_type.normalized_wildcard_query_support"
     );
 
+    public static final NodeFeature DENSE_VECTOR_CONFIDENCE_INTERVAL_DEPRECATED = new NodeFeature("index.confidence_interval_deprecated");
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
         return Set.of(
@@ -61,5 +58,10 @@ public class IndexFeatures implements FeatureSpecification {
             InferenceMetadataFieldsMapper.INFERENCE_FIELDS_GET_VIA_SOURCE_INCLUDES,
             CONSTANT_FIELD_TYPE_NORMALIZED_WILDCARD_QUERY_SUPPORT
         );
+    }
+
+    @Override
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(DENSE_VECTOR_CONFIDENCE_INTERVAL_DEPRECATED);
     }
 }

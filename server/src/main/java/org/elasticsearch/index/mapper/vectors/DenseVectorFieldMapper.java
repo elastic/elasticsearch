@@ -46,6 +46,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexFeatures;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -120,6 +121,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
@@ -3537,11 +3539,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
         return parsedType.parseIndexOptions(fieldName, indexOptionsMap, indexVersion, experimentalFeaturesEnabled);
     }
 
-    private static Float parseConfidenceInterval(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
+    private static Float parseConfidenceInterval(
+        String fieldName,
+        Map<String, ?> indexOptionsMap,
+        IndexVersion indexVersion,
+        Predicate<NodeFeature> featurePredicate
+    ) {
         Object confidenceIntervalNode = indexOptionsMap.remove("confidence_interval");
         if (confidenceIntervalNode == null) {
-            return null;
+            if (featurePredicate.test(IndexFeatures.DENSE_VECTOR_CONFIDENCE_INTERVAL_DEPRECATED)) {
+                return null;
+            } else {
+                return Float.valueOf(0.0f);
+            }
         }
+
         float confidenceInterval = (float) XContentMapValues.nodeDoubleValue(confidenceIntervalNode);
         boolean shouldWarn = indexVersion.onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_4_0);
         if (shouldWarn) {

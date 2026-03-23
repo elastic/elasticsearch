@@ -155,7 +155,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         try {
             allSelected = blockHash.nonEmpty();
 
-            Block[] fullKeys = blockHash.getKeys();
+            Block[] fullKeys = blockHash.getKeys(allSelected);
             Block[] outputKeys = new Block[fullKeys.length];
             boolean keysFiltered = false;
             try {

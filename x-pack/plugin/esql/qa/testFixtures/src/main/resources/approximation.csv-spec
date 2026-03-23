@@ -410,6 +410,19 @@ count:long     | _approximation_confidence_interval(count):long | _approximation
 ;
 
 
+Rename stats group key
+required_capability: approximation_v5
+
+SET approximation={"rows":10000}\;
+FROM many_numbers | RENAME sv AS key | STATS count = COUNT(key) BY key | SORT key DESC | LIMIT 2
+;
+
+count:long | key:integer | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
+100..1000  | 500         | [100..1000,100..1000]                          | {any}
+100..1000  | 499         | [100..1000,100..1000]                          | {any}
+;
+
+
 Warn on no stats
 required_capability: approximation_v5
 

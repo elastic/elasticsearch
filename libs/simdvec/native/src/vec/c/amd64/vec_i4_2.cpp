@@ -94,7 +94,7 @@ EXPORT int32_t vec_doti4_2(const int8_t* query, const int8_t* doc, int32_t packe
 // batches=2 rather than 4: most CPUs have only 1 port for 512-bit integer
 // multiply (vpmaddubsw zmm), so batches>2 saturates that port without
 // increasing per-doc throughput, while adding instruction overhead.
-template <int64_t(*mapper)(const int32_t, const int32_t*), int batches = 2>
+template <const int8_t*(*mapper)(const int8_t*, const int32_t, const int32_t*, const int32_t), int batches = 2>
 static inline void doti4_bulk_impl_avx512(
     const int8_t* docs,
     const int8_t* query,
@@ -117,12 +117,12 @@ static inline void doti4_bulk_impl_avx512(
     int c = 0;
 
     const int8_t* current_doc_ptrs[batches];
-    init_offsets<batches, int8_t, mapper>(current_doc_ptrs, docs, pitch, offsets, count);
+    init_pointers<batches, int8_t, int8_t, mapper>(current_doc_ptrs, docs, pitch, offsets, 0, count);
 
     for (; c + 2 * batches - 1 < count; c += batches) {
         const int8_t* next_doc_ptrs[batches];
         apply_indexed<batches>([&](auto I) {
-            next_doc_ptrs[I] = docs + mapper(c + batches + I, offsets) * pitch;
+            next_doc_ptrs[I] = mapper(docs, c + batches + I, offsets, pitch);
             prefetch(next_doc_ptrs[I], lines_to_fetch);
         });
 
@@ -194,13 +194,13 @@ static inline void doti4_bulk_impl_avx512(
     }
 
     for (; c < count; c++) {
-        const int8_t* doc = docs + mapper(c, offsets) * pitch;
+        const int8_t* doc = mapper(docs, c, offsets, pitch);
         results[c] = (f32_t)doti4_inner_avx512(query, doc, packed_len);
     }
 }
 
 EXPORT void vec_doti4_bulk_2(const int8_t* docs, const int8_t* query, int32_t packed_len, int32_t count, f32_t* results) {
-    doti4_bulk_impl_avx512<identity_mapper>(docs, query, packed_len, packed_len, NULL, count, results);
+    doti4_bulk_impl_avx512<sequential_mapper>(docs, query, packed_len, packed_len, NULL, count, results);
 }
 
 EXPORT void vec_doti4_bulk_offsets_2(
@@ -212,7 +212,7 @@ EXPORT void vec_doti4_bulk_offsets_2(
     int32_t count,
     f32_t* results
 ) {
-    doti4_bulk_impl_avx512<array_mapper>(docs, query, packed_len, pitch, offsets, count, results);
+    doti4_bulk_impl_avx512<offsets_mapper>(docs, query, packed_len, pitch, offsets, count, results);
 }
 
 #ifdef __clang__

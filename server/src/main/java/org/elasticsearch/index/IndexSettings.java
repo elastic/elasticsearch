@@ -809,8 +809,7 @@ public final class IndexSettings {
     public static final Setting<SourceFieldMapper.Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(
         SourceFieldMapper.Mode.class,
         settings -> {
-            final IndexMode indexMode = IndexSettings.MODE.get(settings);
-            return indexMode.defaultSourceMode().name();
+            return SourceFieldMapper.Mode.STORED.name();
         },
         "index.mapping.source.mode",
         value -> {},
@@ -876,11 +875,7 @@ public final class IndexSettings {
     public static final Setting<Boolean> USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING = Setting.boolSetting(
         "index.use_time_series_doc_values_format",
         settings -> {
-            if (settings == null) {
-                return Boolean.FALSE.toString();
-            }
-            var indexMode = IndexSettings.MODE.get(settings);
-            return Boolean.toString(indexMode.useTimeSeriesDocValuesCodec());
+            return Boolean.FALSE.toString();
         },
         Property.IndexScope,
         Property.Final

@@ -29,7 +29,6 @@ import static org.elasticsearch.inference.completion.Reasoning.ReasoningSummary;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.EFFORT_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ENABLED_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.EXCLUDE_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MAX_TOKENS_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.SUMMARY_FIELD;
 import static org.hamcrest.Matchers.is;
 
@@ -47,7 +46,7 @@ public class ReasoningTests extends AbstractBWCSerializationTestCase<Reasoning> 
 
         try (var parser = createParser(JsonXContent.jsonXContent, reasoningJson)) {
             var reasoning = Reasoning.PARSER.apply(parser, null);
-            var expected = new Reasoning(ReasoningEffort.MEDIUM, null, ReasoningSummary.DETAILED, false, false);
+            var expected = new Reasoning(ReasoningEffort.MEDIUM, ReasoningSummary.DETAILED, false, false);
 
             assertThat(reasoning, is(expected));
         }
@@ -62,26 +61,17 @@ public class ReasoningTests extends AbstractBWCSerializationTestCase<Reasoning> 
 
         try (var parser = createParser(JsonXContent.jsonXContent, reasoningJson)) {
             var reasoning = Reasoning.PARSER.apply(parser, null);
-            var expected = new Reasoning(ReasoningEffort.MEDIUM, null, null, null, null);
+            var expected = new Reasoning(ReasoningEffort.MEDIUM, null, null, null);
 
             assertThat(reasoning, is(expected));
         }
     }
 
-    public void testParsingReasoning_OnlyMaxTokens() throws IOException {
-        String reasoningJson = """
-            {
-                "max_tokens": 25
-            }
-            """;
-
-        try (var parser = createParser(JsonXContent.jsonXContent, reasoningJson)) {
-            var reasoning = Reasoning.PARSER.apply(parser, null);
-            var expected = new Reasoning(null, 25L, null, null, null);
-
-            assertThat(reasoning, is(expected));
-        }
-    }
+    /**
+     * `max_tokens` previously was supported field and this test was not throwing exception.
+     * We need to explicitly validate unknown field exception is being thrown now.
+     * @throws IOException if there are errors creating the parser
+     */
 
     public void testParsingReasoning_OnlyEnabled() throws IOException {
         String reasoningJson = """
@@ -92,23 +82,9 @@ public class ReasoningTests extends AbstractBWCSerializationTestCase<Reasoning> 
 
         try (var parser = createParser(JsonXContent.jsonXContent, reasoningJson)) {
             var reasoning = Reasoning.PARSER.apply(parser, null);
-            var expected = new Reasoning(null, null, null, null, true);
+            var expected = new Reasoning(null, null, null, true);
 
             assertThat(reasoning, is(expected));
-        }
-    }
-
-    public void testParsingReasoning_BothEffortAndMaxTokens_ThrowsException() throws IOException {
-        String reasoningJson = """
-            {
-                "effort": "medium",
-                "max_tokens": 25
-            }
-            """;
-
-        try (var parser = createParser(JsonXContent.jsonXContent, reasoningJson)) {
-            var exception = assertThrows(IllegalArgumentException.class, () -> Reasoning.PARSER.apply(parser, null));
-            assertThat(exception.getMessage(), is("The following fields are not allowed together: [effort, max_tokens] "));
         }
     }
 
@@ -125,7 +101,7 @@ public class ReasoningTests extends AbstractBWCSerializationTestCase<Reasoning> 
                 exception,
                 ElasticsearchStatusException.class
             );
-            assertThat(rootCause.getMessage(), is("When [enabled] is false, either [effort] or [max_tokens] must be specified."));
+            assertThat(rootCause.getMessage(), is("When [enabled] is false, [effort] must be specified."));
             assertThat(rootCause.status(), is(RestStatus.BAD_REQUEST));
         }
     }
@@ -135,7 +111,7 @@ public class ReasoningTests extends AbstractBWCSerializationTestCase<Reasoning> 
 
         try (var parser = createParser(JsonXContent.jsonXContent, reasoningJson)) {
             var exception = assertThrows(IllegalArgumentException.class, () -> Reasoning.PARSER.apply(parser, null));
-            assertThat(exception.getMessage(), is("Required one of fields [effort, max_tokens, enabled], but none were specified."));
+            assertThat(exception.getMessage(), is("Required one of fields [effort, enabled], but none were specified."));
         }
     }
 
@@ -182,24 +158,6 @@ public class ReasoningTests extends AbstractBWCSerializationTestCase<Reasoning> 
         }
     }
 
-    public void testParsingReasoning_MaxTokensLessThanZero_ThrowsException() throws IOException {
-        String reasoningJson = """
-            {
-                "max_tokens": -1
-            }
-            """;
-
-        try (var parser = createParser(JsonXContent.jsonXContent, reasoningJson)) {
-            var exception = assertThrows(XContentParseException.class, () -> Reasoning.PARSER.apply(parser, null));
-            ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
-                exception,
-                ElasticsearchStatusException.class
-            );
-            assertThat(rootCause.getMessage(), is("Field [max_tokens] must be non-negative, but was [-1]"));
-            assertThat(rootCause.status(), is(RestStatus.BAD_REQUEST));
-        }
-    }
-
     public void testParsingReasoning_UnknownField_ThrowsException() throws IOException {
         String reasoningJson = """
             {
@@ -238,19 +196,17 @@ public class ReasoningTests extends AbstractBWCSerializationTestCase<Reasoning> 
     @Override
     protected Reasoning mutateInstance(Reasoning instance) throws IOException {
         ReasoningEffort effort = instance.effort();
-        Long maxTokens = instance.maxTokens();
         ReasoningSummary summary = instance.summary();
         Boolean exclude = instance.exclude();
         Boolean enabled = instance.enabled();
 
         // Build eligible fields for mutation following the validation rules of Reasoning class.
         // This prevents mutation of fields that would lead to an invalid Reasoning instance.
-        var eligibleFields = buildEligibleFields(effort, maxTokens);
+        var eligibleFields = buildEligibleFields(effort);
 
         // Randomly select one eligible field to mutate.
         switch (randomFrom(eligibleFields)) {
             case EFFORT_FIELD -> effort = randomValueOtherThan(effort, () -> randomFrom(ReasoningEffort.values()));
-            case MAX_TOKENS_FIELD -> maxTokens = randomValueOtherThan(maxTokens, ESTestCase::randomNonNegativeLong);
             case SUMMARY_FIELD -> summary = randomValueOtherThan(
                 summary,
                 () -> randomBoolean() ? randomFrom(ReasoningSummary.values()) : null
@@ -260,11 +216,11 @@ public class ReasoningTests extends AbstractBWCSerializationTestCase<Reasoning> 
             default -> throw new AssertionError("Illegal mutation branch");
         }
         // Return new Reasoning instance. Business rules are enforced by eligible field selection.
-        return new Reasoning(effort, maxTokens, summary, exclude, enabled);
+        return new Reasoning(effort, summary, exclude, enabled);
     }
 
-    private static Set<String> buildEligibleFields(ReasoningEffort effort, Long maxTokens) {
-        var eligibleFields = new HashSet<String>(5);
+    private static Set<String> buildEligibleFields(ReasoningEffort effort) {
+        var eligibleFields = new HashSet<String>(4);
         // Summary and exclude are always eligible for mutation
         eligibleFields.add(SUMMARY_FIELD);
         eligibleFields.add(EXCLUDE_FIELD);
@@ -272,12 +228,8 @@ public class ReasoningTests extends AbstractBWCSerializationTestCase<Reasoning> 
         if (effort != null) {
             eligibleFields.add(EFFORT_FIELD);
         }
-        // Only mutate maxTokens if present
-        if (maxTokens != null) {
-            eligibleFields.add(MAX_TOKENS_FIELD);
-        }
-        // Only mutate enabled if effort or maxTokens is present
-        if (effort != null || maxTokens != null) {
+        // Only mutate enabled if effort is present
+        if (effort != null) {
             eligibleFields.add(ENABLED_FIELD);
         }
         return eligibleFields;
@@ -285,20 +237,13 @@ public class ReasoningTests extends AbstractBWCSerializationTestCase<Reasoning> 
 
     public static Reasoning randomReasoning() {
         var effort = randomBoolean() ? randomFrom(ReasoningEffort.values()) : null;
-        var maxTokens = (effort == null && randomBoolean()) ? randomNonNegativeLong() : null;
         Boolean enabled;
-        if (effort == null && maxTokens == null) {
+        if (effort == null) {
             enabled = true;
         } else {
             enabled = randomOptionalBoolean();
         }
-        return new Reasoning(
-            effort,
-            maxTokens,
-            randomBoolean() ? randomFrom(ReasoningSummary.values()) : null,
-            randomOptionalBoolean(),
-            enabled
-        );
+        return new Reasoning(effort, randomBoolean() ? randomFrom(ReasoningSummary.values()) : null, randomOptionalBoolean(), enabled);
     }
 
     @Override

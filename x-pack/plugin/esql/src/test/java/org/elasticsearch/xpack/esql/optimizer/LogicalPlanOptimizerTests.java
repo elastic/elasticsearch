@@ -175,6 +175,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.containsIgnoringIds;
@@ -190,8 +191,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultAnalyzer;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -5466,8 +5465,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public static boolean releaseBuildForInlineStats(@Nullable String query) {
         if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled() == false) {
             if (query != null) {
-                var e = expectThrows(ParsingException.class, () -> analyze(query));
-                assertThat(e.getMessage(), containsString("mismatched input 'INLINE' expecting"));
+                analyzer().addEmployees("test").error(query, ParsingException.class, containsString("mismatched input 'INLINE' expecting"));
             }
             return true;
         }
@@ -6287,8 +6285,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | RENAME languages AS int
             | LOOKUP_?? int_number_names ON int""";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
+            defaultAnalyzer().error(query, ParsingException.class, containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         var plan = optimizedPlan(query);
@@ -6368,8 +6365,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | LOOKUP_?? int_number_names ON int
             | STATS MIN(emp_no) BY name""";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
+            defaultAnalyzer().error(query, ParsingException.class, containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         var plan = optimizedPlan(query);
@@ -10454,6 +10450,25 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(orderNames(topN), contains("rd.registered_domain"));
         var registeredDomain = as(topN.child(), RegisteredDomain.class);
         as(registeredDomain.child(), EsRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_LocalRelation[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13, lang
+     * uages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9],EMPTY]
+     * }</pre>
+     */
+    public void testLimitByZero() {
+        assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
+        var plan = plan("""
+            FROM test
+            | LIMIT 0 BY emp_no
+            """);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
+        as(defaultLimit.child(), LocalRelation.class);
     }
 
     public void testTopSnippetsQueryMustBeFoldable() {

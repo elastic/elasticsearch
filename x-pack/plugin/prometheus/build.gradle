@@ -21,6 +21,8 @@ dependencies {
   compileOnly project(path: xpackModule('esql-core'))
   compileOnly project(':x-pack:plugin:esql:compute')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: xpackModule('esql'))
+  testImplementation project(path: xpackModule('esql-core'))
   // stack is needed as we import the metrics@custom template
   clusterModules project(xpackModule('stack'))
   // transitive dependencies of stack

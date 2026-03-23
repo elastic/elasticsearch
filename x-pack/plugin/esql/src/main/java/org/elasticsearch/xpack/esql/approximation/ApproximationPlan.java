@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumns;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteApproximationPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -742,20 +743,23 @@ public class ApproximationPlan {
             prob -> Literal.fromDouble(Source.EMPTY, sampleProbability)
         );
         if (sampleProbability == 1.0) {
-            logicalPlan = logicalPlan.transformDown(SampledAggregate.class, agg -> {
-                List<Alias> nullBuckets = new ArrayList<>();
-                Set<String> originalAggs = agg.originalAggregates().stream().map(NamedExpression::name).collect(Collectors.toSet());
-                for (Attribute attr : agg.outputSet()) {
-                    if (originalAggs.contains(attr.name()) == false) {
-                        nullBuckets.add(new Alias(Source.EMPTY, attr.name(), Literal.NULL, attr.id()));
-                    }
-                }
-                LogicalPlan plan = new Aggregate(agg.source(), agg.child(), agg.groupings(), agg.originalAggregates());
-                // All buckets being NULL indicates that the query was executed exactly,
-                // leading to trivial confidence intervals.
-                plan = new Eval(Source.EMPTY, plan, nullBuckets);
-                return plan;
-            });
+            // When there's no sampling: execute a normal Aggregate, and replace
+            // the confidence intervals by trivial ones (lower bound and upper
+            // bound of the actual value, and confidence of 1.0), and then prune
+            // all bucket-related fields.
+            logicalPlan = logicalPlan.transformDown(
+                SampledAggregate.class,
+                agg -> new Aggregate(agg.source(), agg.child(), agg.groupings(), agg.originalAggregates())
+            );
+            logicalPlan = logicalPlan.transformExpressionsDown(
+                ConfidenceInterval.class,
+                ci -> new MvAppend(
+                    Source.EMPTY,
+                    new MvAppend(Source.EMPTY, ci.arguments().getFirst(), ci.arguments().getFirst()),
+                    Literal.fromDouble(Source.EMPTY, 1.0)
+                )
+            );
+            logicalPlan = new PruneColumns().apply(logicalPlan);
         }
         logicalPlan.setOptimized();
         return logicalPlan;

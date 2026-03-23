@@ -2335,11 +2335,11 @@ public class EsqlCapabilities {
         FIX_PASSTHROUGH_FIELD_CAPS_OBJECT_PARENT,
 
         /**
-<<<<<<< highlighting_in_top_snippets
          * Support for highlight markup in {@code TOP_SNIPPETS} via the {@code highlight} option.
          */
-        TOP_SNIPPETS_HIGHLIGHT
-=======
+        TOP_SNIPPETS_HIGHLIGHT,
+
+        /**
          * LIMIT n BY expr1, expr2 support for retaining at most n docs per group.
          * Enables the feature without a preceding SORT.
          *
@@ -2369,7 +2369,6 @@ public class EsqlCapabilities {
          * Added {@link org.elasticsearch.xpack.esql.planner.PlannerSettings#DOC_THRESHOLD_AUTO_PARTITIONING}
          */
         AUTO_PARTITION_DOCS_THRESHOLD,
->>>>>>> main
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

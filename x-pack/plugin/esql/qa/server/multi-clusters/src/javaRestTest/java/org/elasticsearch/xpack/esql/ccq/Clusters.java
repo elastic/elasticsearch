@@ -94,7 +94,6 @@ public class Clusters {
             .version(version)
             .nodes(2)
             .setting("xpack.security.enabled", "false")
-            .setting("xpack.ml.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("node.roles", "[data,ingest,master,remote_cluster_client]")
             .setting("cluster.remote.remote_cluster.seeds", () -> "\"" + remoteCluster.getTransportEndpoint(0) + "\"")

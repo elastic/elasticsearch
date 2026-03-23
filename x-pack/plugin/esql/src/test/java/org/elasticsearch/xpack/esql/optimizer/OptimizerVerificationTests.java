@@ -434,6 +434,22 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         );
     }
 
+    public void testDanglingOrderByMvExpand() {
+        var testAnalyzer = analyzer().addDefaultIndex().addLanguagesLookup().addTestLookup().addAnalysisTestsEnrichResolution();
+
+        var err = error(testAnalyzer.query("""
+            FROM test
+            | SORT languages
+            | MV_EXPAND languages
+            | WHERE languages == 1
+            """));
+
+        assertThat(err, is("""
+            2:3: Unbounded SORT not supported yet [SORT languages] please add a LIMIT
+            line 3:3: MV_EXPAND [MV_EXPAND languages] cannot yet have an unbounded SORT [SORT languages] before it: either move the SORT \
+            after it, or add a LIMIT after the SORT"""));
+    }
+
     public void testDanglingOrderByInInlineStats() {
         assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
         var testAnalyzer = analyzer().addDefaultIndex().addLanguagesLookup().addTestLookup().addAnalysisTestsEnrichResolution();
@@ -448,9 +464,11 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
         assertThat(err, is("""
             2:3: Unbounded SORT not supported yet [SORT languages] please add a LIMIT
-            line 4:3: INLINE STATS [INLINE STATS count(*) BY languages] cannot yet have an unbounded SORT [SORT languages] before\
-             it : either move the SORT after it, or add a LIMIT before the SORT
-            line 5:3: INLINE STATS [INLINE STATS s = sum(salary) BY first_name] cannot yet have an unbounded SORT [SORT languages]\
-             before it : either move the SORT after it, or add a LIMIT before the SORT"""));
+            line 3:3: MV_EXPAND [MV_EXPAND languages] cannot yet have an unbounded SORT [SORT languages] before it: either move the \
+            SORT after it, or add a LIMIT after the SORT
+            line 4:3: INLINE STATS [INLINE STATS count(*) BY languages] cannot yet have an unbounded SORT [SORT languages] before it: \
+            either move the SORT after it, or add a LIMIT after the SORT
+            line 5:3: INLINE STATS [INLINE STATS s = sum(salary) BY first_name] cannot yet have an unbounded SORT [SORT languages] before \
+            it: either move the SORT after it, or add a LIMIT after the SORT"""));
     }
 }

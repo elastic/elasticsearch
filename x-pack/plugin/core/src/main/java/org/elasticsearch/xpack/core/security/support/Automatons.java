@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.support;
 
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -71,10 +72,6 @@ public final class Automatons {
     // these values are not final since we allow them to be set at runtime
     private static int maxDeterminizedStates = 100000;
     private static Cache<Object, Automaton> cache = buildCache(Settings.EMPTY);
-
-    static final char WILDCARD_STRING = '*';     // String equality with support for wildcards
-    static final char WILDCARD_CHAR = '?';       // Char equality with support for wildcards
-    static final char WILDCARD_ESCAPE = '\\';    // Escape character
 
     // for testing only -Dtests.jvm.argline="-Dtests.automaton.record.patterns=true"
     public static final boolean recordPatterns = System.getProperty("tests.automaton.record.patterns", "false").equals("true");
@@ -225,7 +222,7 @@ public final class Automatons {
         }
         for (int i = pattern.length() - 1; i >= 0; i--) {
             char c = pattern.charAt(i);
-            if (c == WILDCARD_STRING || c == WILDCARD_CHAR || c == WILDCARD_ESCAPE) {
+            if (c == WildcardQuery.WILDCARD_STRING || c == WildcardQuery.WILDCARD_CHAR || c == WildcardQuery.WILDCARD_ESCAPE) {
                 return false;
             }
         }
@@ -274,13 +271,13 @@ public final class Automatons {
             final char c = text.charAt(i);
             int length = 1;
             switch (c) {
-                case WILDCARD_STRING:
+                case WildcardQuery.WILDCARD_STRING:
                     automata.add(Automata.makeAnyString());
                     break;
-                case WILDCARD_CHAR:
+                case WildcardQuery.WILDCARD_CHAR:
                     automata.add(Automata.makeAnyChar());
                     break;
-                case WILDCARD_ESCAPE:
+                case WildcardQuery.WILDCARD_ESCAPE:
                     // add the next codepoint instead, if it exists
                     if (i + length < text.length()) {
                         final char nextChar = text.charAt(i + length);

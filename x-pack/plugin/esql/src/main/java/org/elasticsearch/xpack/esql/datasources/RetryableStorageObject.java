@@ -84,10 +84,17 @@ class RetryableStorageObject implements StorageObject {
 
     @Override
     public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
-        readBytesAsyncWithRetry(position, length, executor, listener, 0);
+        readBytesAsyncWithRetry(position, length, executor, listener, 0, System.nanoTime());
     }
 
-    private void readBytesAsyncWithRetry(long position, long length, Executor executor, ActionListener<ByteBuffer> listener, int attempt) {
+    private void readBytesAsyncWithRetry(
+        long position,
+        long length,
+        Executor executor,
+        ActionListener<ByteBuffer> listener,
+        int attempt,
+        long startNanos
+    ) {
         delegate.readBytesAsync(position, length, executor, ActionListener.wrap(result -> {
             retryPolicy.notifySuccess();
             listener.onResponse(result);
@@ -101,6 +108,21 @@ class RetryableStorageObject implements StorageObject {
 
             if (retryPolicy.isRetryable(e) && attempt < effectiveMaxRetries) {
                 long delay = retryPolicy.delayMillis(attempt, isThrottle);
+                long budgetMs = retryPolicy.maxTotalDurationMs();
+                if (budgetMs > 0) {
+                    long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+                    if (elapsedMs + delay > budgetMs) {
+                        logger.debug(
+                            "aborting async retry for [{}]: elapsed [{}]ms + delay [{}]ms exceeds budget [{}]ms",
+                            delegate.path(),
+                            elapsedMs,
+                            delay,
+                            budgetMs
+                        );
+                        listener.onFailure(e);
+                        return;
+                    }
+                }
                 logger.debug(
                     "retrying async read for [{}] after {} failure (attempt [{}]/[{}], delay [{}]ms): [{}]",
                     delegate.path(),
@@ -118,7 +140,7 @@ class RetryableStorageObject implements StorageObject {
                         listener.onFailure(new IOException("Retry interrupted", ie));
                         return;
                     }
-                    readBytesAsyncWithRetry(position, length, executor, listener, attempt + 1);
+                    readBytesAsyncWithRetry(position, length, executor, listener, attempt + 1, startNanos);
                 });
             } else {
                 listener.onFailure(e);

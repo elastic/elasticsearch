@@ -393,9 +393,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         var documentMapper = mapperService.documentMapper();
         ParsedDocument doc = documentMapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
         List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        assertEquals(DocValuesType.SORTED_SET, fields.get(0).fieldType().docValuesType());
-
+        assertEquals(0, fields.size());
         List<IndexableField> keyedFields = doc.rootDoc().getFields("field._keyed");
         assertEquals(1, keyedFields.size());
         assertEquals(DocValuesType.SORTED_SET, keyedFields.get(0).fieldType().docValuesType());

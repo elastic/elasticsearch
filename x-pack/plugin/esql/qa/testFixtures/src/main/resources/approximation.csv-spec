@@ -436,6 +436,34 @@ median:double | _approximation_confidence_interval(median):double | _approximati
 ;
 
 
+Duplicate aggs
+required_capability: approximation_v5
+
+SET approximation={"rows":10000}\;
+ROW x = [1, 2, 3] 
+| STATS a = COUNT(*), b = COUNT(*), c = SUM(x) 
+| EVAL x = a + c + b
+;
+
+b:long    | c:long    | x:long
+3         | 3         | 9
+;
+
+
+Duplicate aggs with grouping
+required_capability: approximation_v5
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+  | EVAL key = "key"
+  | STATS median = MEDIAN(sv), p50 = PERCENTILE(sv, 50) BY key
+;
+
+median:double | p50:double | key:keyword | _approximation_confidence_interval(median):double | _approximation_certified(median):boolean | _approximation_confidence_interval(p50):double | _approximation_certified(p50):boolean
+330..370      | 330..370   | "key"       | [330..370,330..370]                               | {any}                                    | [330..370,330..370]                            | {any}
+;
+
+
 Warn on no stats
 required_capability: approximation_v5
 

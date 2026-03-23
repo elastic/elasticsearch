@@ -246,18 +246,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
   method: testTransform {class org.elasticsearch.xpack.esql.plan.logical.MMR}
   issue: https://github.com/elastic/elasticsearch/issues/142674
-- class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
-  method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
-  issue: https://github.com/elastic/elasticsearch/issues/142079
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
   issue: https://github.com/elastic/elasticsearch/issues/143407
-- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
-  method: testWriteLargeBlob
-  issue: https://github.com/elastic/elasticsearch/issues/143551
 - class: org.elasticsearch.xpack.security.support.MetadataFlattenedMigrationIntegTests
   method: testMigrationWithConcurrentUpdates
   issue: https://github.com/elastic/elasticsearch/issues/143674
@@ -312,9 +306,6 @@ tests:
 - class: org.elasticsearch.entitlement.qa.EntitlementsAllowedNonModularIT
   method: "testAction {actionName=createLDAPCertStore}"
   issue: https://github.com/elastic/elasticsearch/issues/144376
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/172_knn_query_base64_vectors/kNN query with ambiguous hex/base64 byte string prefers hex}
-  issue: https://github.com/elastic/elasticsearch/issues/144379
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:approximation.Approximate stats by on large single-valued data}
   issue: https://github.com/elastic/elasticsearch/issues/144382
@@ -327,9 +318,6 @@ tests:
 - class: org.elasticsearch.indices.IndicesRequestCacheIT
   method: testCanCache
   issue: https://github.com/elastic/elasticsearch/issues/144526
-- class: org.elasticsearch.xpack.downsample.DownsampleRateIT
-  method: testTimeSeriesQuerying_RandomDocuments
-  issue: https://github.com/elastic/elasticsearch/issues/144532
 - class: org.elasticsearch.http.netty4.Netty4IncrementalRequestHandlingIT
   method: testBulkIndexingRequestSplitting
   issue: https://github.com/elastic/elasticsearch/issues/144579
@@ -354,6 +342,52 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT
   method: testForceSleepsProfile {SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/144619
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  method: testCreatesEisChatCompletionEndpoint
+  issue: https://github.com/elastic/elasticsearch/issues/144671
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:spatial_shapes.convertFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/144672
+- class: org.elasticsearch.index.mapper.flattened.RootFlattenedFromKeyedFieldDataTests
+  method: testRandomized
+  issue: https://github.com/elastic/elasticsearch/issues/144691
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests
+  method: testCopy
+  issue: https://github.com/elastic/elasticsearch/issues/144692
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testLookupMatchTypeWrong
+  issue: https://github.com/elastic/elasticsearch/issues/144694
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testLookupMissingTable
+  issue: https://github.com/elastic/elasticsearch/issues/144695
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testLookup
+  issue: https://github.com/elastic/elasticsearch/issues/144696
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testLookupMissingField
+  issue: https://github.com/elastic/elasticsearch/issues/144697
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
+  issue: https://github.com/elastic/elasticsearch/issues/144699
+- class: org.elasticsearch.index.store.StoreDirectoryMetricsIT
+  method: testDirectoryMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/144702
+- class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
+  issue: https://github.com/elastic/elasticsearch/issues/144709
+- class: org.elasticsearch.index.mapper.TsidExtractingIdFieldMapperTests
+  issue: https://github.com/elastic/elasticsearch/issues/144678
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-avg-over-time.avg_over_time_of_integer}
+  issue: https://github.com/elastic/elasticsearch/issues/144719
+- class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceTests
+  method: testBatchedIndexCreationAndReroute
+  issue: https://github.com/elastic/elasticsearch/issues/144723
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  method: testEndpointGetsUpdated_GivenFingerprintChanges_FromNonNull
+  issue: https://github.com/elastic/elasticsearch/issues/144731
+- class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
+  method: testProcessOnceOnPrimary
+  issue: https://github.com/elastic/elasticsearch/issues/144743
 
 # Examples:
 #

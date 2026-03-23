@@ -97,7 +97,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Base class for function tests.
  */
-@ESTestCase.EntitledTestPackages({ "sun.font", "sun.awt", "java.desktop", "java.awt" }) // For renderDocs
+@ESTestCase.EntitledTestPackages({ "sun.font", "sun.awt" }) // For renderDocs
 public abstract class AbstractFunctionTestCase extends ESTestCase {
     protected TestCaseSupplier.TestCase testCase;
 

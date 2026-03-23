@@ -24,12 +24,8 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.esql.EsqlFeatureFlags;
-import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 
@@ -38,8 +34,6 @@ import java.util.Map;
 import java.util.Set;
 
 public class ViewService {
-    private static final Logger logger = LogManager.getLogger(ViewService.class);
-    private static final InferenceSettings EMPTY_INFERENCE_SETTINGS = new InferenceSettings(Settings.EMPTY);
 
     private final EsqlParser parser;
     protected final ClusterService clusterService;

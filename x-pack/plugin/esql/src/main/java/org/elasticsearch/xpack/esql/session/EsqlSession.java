@@ -714,33 +714,25 @@ public class EsqlSession {
     }
 
     /**
-     * Populates {@code planTelemetry} from a logical plan tree. Called on the view-resolved plan in
-     * {@link #analyseAndExecute}, so it captures all nodes: the original statement plus any commands
-     * and functions introduced by view expansion.
-     * <p>
-     * A single {@code forEachDown} pass collects both {@link TelemetryAware} command labels and
-     * {@link Function} names. Named function calls (e.g. {@code TO_LONG(x)}) produce
-     * {@link UnresolvedFunction} nodes from the parser; the {@code else} branch covers concrete
-     * {@link Function} instances that arise from inline cast expressions (e.g. {@code x::long}) or
-     * programmatically-built plans (e.g. Prometheus plan builders).
-     * <p>
-     * Not all {@link TelemetryAware} nodes have a label (e.g. lookup-table {@link
-     * org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation} nodes introduced by
-     * {@code LOOKUP JOIN} have a {@code null} command name); those are skipped.
-     * Similarly, not all {@link Function} subclasses are user-callable functions registered in the
-     * function registry (e.g. binary operators and predicates like {@code Add} or {@code GreaterThan}
-     * are {@link Function} subclasses but are never in the registry); those are also skipped.
+     * Populates {@code planTelemetry} from the view-resolved plan, capturing commands and functions
+     * from the original statement plus any nodes introduced by view expansion.
      */
     static void gatherPlanTelemetry(LogicalPlan plan, PlanTelemetry planTelemetry) {
         EsqlFunctionRegistry registry = planTelemetry.functionRegistry().snapshotRegistry();
         plan.forEachDown(node -> {
             if (node instanceof TelemetryAware ta && ta.telemetryLabel() != null) {
+                // Not all TelemetryAware nodes have a label — e.g. lookup index UnresolvedRelation
+                // nodes introduced by LOOKUP JOIN have a null command name; those are skipped.
                 planTelemetry.command(ta);
             }
             node.forEachExpression(Function.class, f -> {
                 if (f instanceof UnresolvedFunction uf) {
                     planTelemetry.function(uf.name());
                 } else if (registry.functionExists(f.getClass())) {
+                    // Concrete Function instances arise from inline cast expressions (e.g. x::long)
+                    // or programmatically-built plans (e.g. Prometheus plan builders).
+                    // Not all Function subclasses are user-callable (e.g. Add, GreaterThan are
+                    // Function subclasses but are never in the registry); those are skipped.
                     planTelemetry.function(f.getClass());
                 }
             });

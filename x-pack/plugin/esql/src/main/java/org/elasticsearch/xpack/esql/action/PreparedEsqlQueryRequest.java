@@ -42,7 +42,6 @@ public final class PreparedEsqlQueryRequest extends EsqlQueryRequest {
 
     private PreparedEsqlQueryRequest(EsqlQueryRequest source, EsqlStatement statement) {
         super(source);
-        query(null);
         this.statement = statement;
         this.queryDescription = PREPARED_QUERY_PREFIX + statement.plan();
     }
@@ -79,6 +78,11 @@ public final class PreparedEsqlQueryRequest extends EsqlQueryRequest {
     @Nullable
     public String query() {
         return null;
+    }
+
+    @Override
+    public EsqlQueryRequest query(String query) {
+        throw new UnsupportedOperationException("PreparedEsqlQueryRequest is backed by a pre-built statement, not a query string");
     }
 
     @Override

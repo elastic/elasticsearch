@@ -54,6 +54,22 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Predicate;
 
+/**
+ * ESQL "features" returned by the usage API. This <strong>mostly</strong> tracks
+ * new commands. If you add something here you <strong>must</strong> add it to the
+ * tests in {@code 60_usage.yml} then run them with:
+ * {@snippet lang=shell :
+ * ./gradlew -p x-pack/plugin/esql/qa/server/single-node/ yamlRestTest \
+ *     -Dtests.method='*60*'
+ * }
+ * and
+ * {@snippet lang=shell :
+ * ./gradlew -p x-pack/plugin/esql/qa/server/single-node/ yamlRestTest \
+ *     -Dbuild.snapshot=false -Dtests.jvm.argline=-Dbuild.snapshot=false \
+ *     -Dlicense.key="x-pack/license-tools/src/test/resources/public.key" \
+ *     -Dtests.method='*60*'
+ * }
+ */
 public enum FeatureMetric {
     DISSECT(Dissect.class::isInstance),
     EVAL(Eval.class::isInstance),

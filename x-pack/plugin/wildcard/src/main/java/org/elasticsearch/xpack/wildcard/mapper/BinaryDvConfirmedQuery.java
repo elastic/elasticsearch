@@ -122,7 +122,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
         return new BinaryDvConfirmedTermsQuery(approximation, field, terms);
     }
 
-    protected abstract BinaryDVMatcher createBinaryDVMatcher();
+    protected abstract BinaryDVMatcher getBinaryDVMatcher();
 
     protected abstract Query rewrite(Query approxRewrite) throws IOException;
 
@@ -141,16 +141,8 @@ abstract class BinaryDvConfirmedQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         final Weight approxWeight = approxQuery.createWeight(searcher, scoreMode, boost);
+        final BinaryDVMatcher matcher = getBinaryDVMatcher();
         return new ConstantScoreWeight(this, boost) {
-            private BinaryDVMatcher lazyMatcher = null; // no volatile - it's okay to create more than one instance
-
-            BinaryDVMatcher getOrCreateMatcher() {
-                var matcher = this.lazyMatcher;
-                if (matcher == null) {
-                    this.lazyMatcher = matcher = createBinaryDVMatcher();
-                }
-                return matcher;
-            }
 
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
@@ -167,7 +159,6 @@ abstract class BinaryDvConfirmedQuery extends Query {
                     public Scorer get(long leadCost) throws IOException {
                         final Scorer approxScorer = approxScorerSupplier.get(leadCost);
                         final DocIdSetIterator approxDisi = approxScorer.iterator();
-                        final BinaryDVMatcher matcher = getOrCreateMatcher();
                         final TwoPhaseIterator twoPhase = new TwoPhaseIterator(approxDisi) {
                             @Override
                             public boolean matches() throws IOException {
@@ -243,7 +234,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
         }
 
         @Override
-        protected BinaryDVMatcher createBinaryDVMatcher() {
+        protected BinaryDVMatcher getBinaryDVMatcher() {
             final ByteRunAutomaton byteRunAutomaton = new ByteRunAutomaton(automatonProvider.getAutomaton(field));
             return (bytes, bytesRef, scratch) -> {
                 final int size = bytes.readVInt();
@@ -293,7 +284,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
         }
 
         @Override
-        protected BinaryDVMatcher createBinaryDVMatcher() {
+        protected BinaryDVMatcher getBinaryDVMatcher() {
             return (bytes, bytesRef, scratch) -> {
                 scratch.bytes = bytesRef.bytes;
                 final int size = bytes.readVInt();

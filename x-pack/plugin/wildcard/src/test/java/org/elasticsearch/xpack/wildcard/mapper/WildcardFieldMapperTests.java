@@ -15,7 +15,6 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
@@ -31,13 +30,11 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -708,17 +705,6 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         Query csQ2 = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", new BytesRef("termA"));
         assertEquals(csQ, csQ2);
         assertEquals(csQ.hashCode(), csQ2.hashCode());
-    }
-
-    public void testCreateBinaryMatcherLazily() throws IOException {
-        Query approx = new TermQuery(new Term(WILDCARD_FIELD_NAME, "no_such_term"));
-        Query query = BinaryDvConfirmedQuery.fromRegexpQuery(approx, WILDCARD_FIELD_NAME, "(a|b){1000x}", RegExp.ALL, 0, 1);
-        IndexSearcher searcher = new IndexSearcher(rewriteReader);
-        Query rewritten = searcher.rewrite(query);
-        Weight weight = rewritten.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
-        for (LeafReaderContext leaf : searcher.getLeafContexts()) {
-            assertNull(weight.scorerSupplier(leaf));
-        }
     }
 
     public void testVisit() {

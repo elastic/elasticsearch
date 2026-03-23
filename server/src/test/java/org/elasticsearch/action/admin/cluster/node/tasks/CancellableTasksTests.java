@@ -634,9 +634,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
                 assertThat(
                     "toString should consistently render status and reason",
                     task.toString(),
-                    anyOf(
-                        endsWith("reason='null', isCancelled=false}"),
-                        endsWith("reason='test-reason', isCancelled=true}"))
+                    anyOf(endsWith("reason='null', isCancelled=false}"), endsWith("reason='test-reason', isCancelled=true}"))
                 );
             }
             assertThat(

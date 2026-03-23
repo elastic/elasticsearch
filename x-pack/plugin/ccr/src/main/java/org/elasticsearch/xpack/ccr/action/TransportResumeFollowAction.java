@@ -468,6 +468,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,
         IndexSettings.MAX_RESCORE_WINDOW_SETTING,
         IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING,
+        IndexSettings.MAX_NESTED_KNN_CANDIDATES_SETTING,
         IndexSettings.DEFAULT_FIELD_SETTING,
         IndexSettings.QUERY_STRING_LENIENT_SETTING,
         IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,

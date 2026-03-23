@@ -58,6 +58,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -90,6 +91,7 @@ public class EsqlCursorIndexService {
     static final String ZONE_ID_FIELD = "zone_id";
     static final String COLUMNAR_FIELD = "columnar";
     static final String TASK_ID_FIELD = "task_id";
+    static final String HEADERS_FIELD = "headers";
     static final String PAGE_INDEX_FIELD = "page_index";
     static final String DATA_FIELD = "data";
 
@@ -172,6 +174,10 @@ public class EsqlCursorIndexService {
                 .startObject(TASK_ID_FIELD)
                 .field("type", "keyword")
                 .endObject()
+                .startObject(HEADERS_FIELD)
+                .field("type", "object")
+                .field("enabled", "false")
+                .endObject()
                 .startObject(PAGE_INDEX_FIELD)
                 .field("type", "integer")
                 .endObject()
@@ -202,6 +208,7 @@ public class EsqlCursorIndexService {
         ZoneId zoneId,
         boolean columnar,
         @Nullable TaskId taskId,
+        Map<String, String> securityHeaders,
         ActionListener<String> listener
     ) {
         try {
@@ -218,6 +225,7 @@ public class EsqlCursorIndexService {
                         zoneId,
                         columnar,
                         taskId,
+                        securityHeaders,
                         minNodeVersion
                     )
                 );
@@ -244,6 +252,7 @@ public class EsqlCursorIndexService {
         ZoneId zoneId,
         boolean columnar,
         TaskId taskId,
+        Map<String, String> securityHeaders,
         ActionListener<String> listener
     ) {
         storeMetadataWithId(
@@ -255,6 +264,7 @@ public class EsqlCursorIndexService {
             zoneId,
             columnar,
             taskId,
+            securityHeaders,
             listener
         );
     }
@@ -338,6 +348,7 @@ public class EsqlCursorIndexService {
         ZoneId zoneId,
         boolean columnar,
         @Nullable TaskId taskId,
+        Map<String, String> securityHeaders,
         TransportVersion minNodeVersion
     ) throws IOException {
         XContentBuilder metaSource = jsonBuilder().startObject()
@@ -350,6 +361,9 @@ public class EsqlCursorIndexService {
             .field(COLUMNAR_FIELD, columnar);
         if (taskId != null) {
             metaSource.field(TASK_ID_FIELD, taskId.toString());
+        }
+        if (securityHeaders != null && securityHeaders.isEmpty() == false) {
+            metaSource.field(HEADERS_FIELD, securityHeaders);
         }
         metaSource.directFieldAsBase64(COLUMNS_FIELD, os -> {
             os = Streams.noCloseStream(os);
@@ -424,6 +438,7 @@ public class EsqlCursorIndexService {
             String zoneIdStr = null;
             boolean columnar = false;
             TaskId taskId = null;
+            Map<String, String> headers = Map.of();
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
                 parser.nextToken();
@@ -435,6 +450,11 @@ public class EsqlCursorIndexService {
                     case ZONE_ID_FIELD -> zoneIdStr = parser.text();
                     case COLUMNAR_FIELD -> columnar = parser.booleanValue();
                     case TASK_ID_FIELD -> taskId = new TaskId(parser.text());
+                    case HEADERS_FIELD -> {
+                        @SuppressWarnings("unchecked")
+                        Map<String, String> h = (Map<String, String>) XContentParserUtils.parseFieldsValue(parser);
+                        headers = h != null ? h : Map.of();
+                    }
                     default -> XContentParserUtils.parseFieldsValue(parser);
                 }
             }
@@ -442,7 +462,7 @@ public class EsqlCursorIndexService {
                 throw new IllegalStateException("Cursor metadata missing [" + COLUMNS_FIELD + "] field");
             }
             ZoneId zoneId = zoneIdStr != null ? ZoneId.of(zoneIdStr) : ZoneOffset.UTC;
-            return new CursorMetadata(columns, totalRows, totalPages, expirationTime, zoneId, columnar, taskId);
+            return new CursorMetadata(columns, totalRows, totalPages, expirationTime, zoneId, columnar, taskId, headers);
         } catch (IOException e) {
             throw new org.elasticsearch.ElasticsearchParseException("Failed to parse cursor metadata", e);
         }
@@ -604,7 +624,8 @@ public class EsqlCursorIndexService {
         long expirationTimeMillis,
         ZoneId zoneId,
         boolean columnar,
-        @Nullable TaskId taskId
+        @Nullable TaskId taskId,
+        Map<String, String> headers
     ) {
         /** The query is still running and producing pages. */
         public boolean isInProgress() {

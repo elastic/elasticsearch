@@ -46,6 +46,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -309,12 +310,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         if (request.pageSize() != null) {
             long expirationMillis = threadPool.absoluteTimeInMillis() + EsqlCursorIndexService.DEFAULT_CURSOR_KEEP_ALIVE.getMillis();
             ZoneId zoneId = request.timeZone() != null ? request.timeZone() : ZoneOffset.UTC;
+            Map<String, String> securityHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
             PaginationContext paginationContext = new PaginationContext(
                 UUIDs.randomBase64UUID(),
                 request.pageSize(),
                 expirationMillis,
                 zoneId,
-                request.columnar()
+                request.columnar(),
+                securityHeaders
             );
             paginationStoreProvider = new PaginationStoreProvider(cursorIndexService, paginationContext);
         } else {

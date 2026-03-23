@@ -13,6 +13,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.MapMatcher;
@@ -95,16 +96,34 @@ public class EsqlAsyncSecurityIT extends EsqlSecurityIT {
         }
     }
 
-    // Keep_on_complete is always true, so we will always get an id
+    @Override
+    protected Response runPaginatedESQLCommand(String user, String command, int pageSize) throws IOException {
+        var response = runAsync(user, command, pageSize);
+        assertOK(response);
+        var respMap = entityAsMap(response.getEntity());
+        String id = (String) respMap.get("id");
+        assertThat((boolean) respMap.get("is_running"), either(is(true)).or(is(false)));
+        Response getResponse = runAsyncGet(user, id);
+        assertOK(getResponse);
+        runAsyncDelete(user, id);
+        return getResponse;
+    }
+
     private Response runAsync(String user, String command) throws IOException {
+        return runAsync(user, command, null);
+    }
+
+    private Response runAsync(String user, String command, @Nullable Integer pageSize) throws IOException {
         if (command.toLowerCase(Locale.ROOT).contains("limit") == false) {
-            // add a (high) limit to avoid warnings on default limit
             command += " | limit 10000000";
         }
         XContentBuilder json = JsonXContent.contentBuilder();
         json.startObject();
         json.field("query", command);
         addRandomPragmas(json);
+        if (pageSize != null) {
+            json.field("page_size", pageSize);
+        }
         json.field("wait_for_completion_timeout", timeValueNanos(randomIntBetween(1, 1000)));
         json.field("keep_on_completion", "true");
         json.endObject();

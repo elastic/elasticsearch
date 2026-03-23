@@ -242,6 +242,7 @@ public class StorePageOperator extends SinkOperator {
             paginationContext.zoneId(),
             paginationContext.columnar(),
             provider.backgroundTaskId(),
+            paginationContext.securityHeaders(),
             ActionListener.wrap(cursorId -> {
                 storePage(pageIndex, outputPage, needsDeepCopy);
             }, e -> {

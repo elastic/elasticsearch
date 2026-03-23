@@ -1314,6 +1314,58 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertMap(entityAsMap(runESQLCommand("logs_foo_after_2021_alias", "FROM alias-* | STATS COUNT(*)")), oneResult);
     }
 
+    public void testCursorSecurity() throws Exception {
+        Response response = runPaginatedESQLCommand("user1", "FROM index-user1 | SORT value | LIMIT 10", 1);
+        Map<String, Object> result = entityAsMap(response);
+        String cursor = (String) result.get("cursor");
+        assertNotNull("paginated query should return a cursor", cursor);
+
+        // user2 cannot fetch user1's cursor
+        ResponseException error;
+        error = expectThrows(ResponseException.class, () -> {
+            Request req = new Request("POST", "_query/cursor");
+            req.setJsonEntity("{\"cursor\": \"" + cursor + "\"}");
+            setUser(req, "user2");
+            client().performRequest(req);
+        });
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+
+        // user2 cannot delete user1's cursor
+        error = expectThrows(ResponseException.class, () -> {
+            Request req = new Request("DELETE", "_query/cursor/" + cursor);
+            req.addParameter("wait_for_completion", "true");
+            setUser(req, "user2");
+            client().performRequest(req);
+        });
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+
+        // user1 can fetch their own cursor
+        Request fetchRequest = new Request("POST", "_query/cursor");
+        fetchRequest.setJsonEntity("{\"cursor\": \"" + cursor + "\"}");
+        setUser(fetchRequest, "user1");
+        assertOK(client().performRequest(fetchRequest));
+
+        // user1 can delete their own cursor
+        Request deleteRequest = new Request("DELETE", "_query/cursor/" + cursor);
+        deleteRequest.addParameter("wait_for_completion", "true");
+        setUser(deleteRequest, "user1");
+        assertOK(client().performRequest(deleteRequest));
+    }
+
+    protected Response runPaginatedESQLCommand(String user, String command, int pageSize) throws IOException {
+        XContentBuilder json = JsonXContent.contentBuilder();
+        json.startObject();
+        json.field("query", command);
+        json.field("page_size", pageSize);
+        addRandomPragmas(json);
+        json.endObject();
+        Request request = new Request("POST", "_query");
+        request.setJsonEntity(Strings.toString(json));
+        setUser(request, user);
+        request.addParameter("error_trace", "true");
+        return client().performRequest(request);
+    }
+
     protected Response runESQLCommand(String user, String command) throws IOException {
         if (command.toLowerCase(Locale.ROOT).contains("limit") == false) {
             // add a (high) limit to avoid warnings on default limit

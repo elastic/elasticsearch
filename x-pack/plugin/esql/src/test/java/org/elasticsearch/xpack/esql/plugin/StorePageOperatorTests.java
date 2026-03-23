@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.AnyOperatorTestCase;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -245,7 +246,7 @@ public class StorePageOperatorTests extends AnyOperatorTestCase {
     public void testMapperIsApplied() {
         var recorder = new StorageRecorder();
         var provider = createTestProvider(10, recorder);
-        var tbf = org.elasticsearch.compute.test.TestBlockFactory.getNonBreakingInstance();
+        var tbf = TestBlockFactory.getNonBreakingInstance();
         try (var op = new StorePageOperator(provider, page -> {
             IntBlock block = page.getBlock(0);
             try (IntBlock.Builder builder = tbf.newIntBlockBuilder(page.getPositionCount())) {
@@ -419,7 +420,7 @@ public class StorePageOperatorTests extends AnyOperatorTestCase {
     }
 
     private static PaginationStoreProvider createTestProvider(int pageSize, StorageRecorder recorder) {
-        PaginationContext ctx = new PaginationContext("test-cursor-id", pageSize, Long.MAX_VALUE, ZoneOffset.UTC, false);
+        PaginationContext ctx = new PaginationContext("test-cursor-id", pageSize, Long.MAX_VALUE, ZoneOffset.UTC, false, Map.of());
         FakeCursorIndexService fakeService = new FakeCursorIndexService(recorder);
         PaginationStoreProvider provider = new PaginationStoreProvider(fakeService, ctx);
         provider.setColumns(List.of(new ColumnInfoImpl("val", "integer", null)));
@@ -427,9 +428,7 @@ public class StorePageOperatorTests extends AnyOperatorTestCase {
     }
 
     private static Page buildPage(int startValue, int count) {
-        try (
-            IntBlock.Builder builder = org.elasticsearch.compute.test.TestBlockFactory.getNonBreakingInstance().newIntBlockBuilder(count)
-        ) {
+        try (IntBlock.Builder builder = TestBlockFactory.getNonBreakingInstance().newIntBlockBuilder(count)) {
             for (int i = 0; i < count; i++) {
                 builder.appendInt(startValue + i);
             }
@@ -537,6 +536,7 @@ public class StorePageOperatorTests extends AnyOperatorTestCase {
             java.time.ZoneId zoneId,
             boolean columnar,
             TaskId taskId,
+            java.util.Map<String, String> securityHeaders,
             ActionListener<String> listener
         ) {
             recorder.metadataCreated = true;

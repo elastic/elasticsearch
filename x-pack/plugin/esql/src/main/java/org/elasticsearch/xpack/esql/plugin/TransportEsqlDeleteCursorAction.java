@@ -28,10 +28,12 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.esql.action.EsqlCursor;
 import org.elasticsearch.xpack.esql.action.EsqlDeleteCursorAction;
 import org.elasticsearch.xpack.esql.action.EsqlDeleteCursorRequest;
 
+import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TransportEsqlDeleteCursorAction extends HandledTransportAction<EsqlDeleteCursorRequest, AcknowledgedResponse> {
@@ -51,6 +53,7 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final TaskManager taskManager;
+    private final SecurityContext securityContext;
 
     @Inject
     public TransportEsqlDeleteCursorAction(
@@ -75,6 +78,7 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.taskManager = transportService.getTaskManager();
+        this.securityContext = new SecurityContext(clusterService.getSettings(), threadPool.getThreadContext());
     }
 
     @Override
@@ -109,6 +113,10 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
     private void cancelThenDelete(String cursorId, long deadlineMillis, ActionListener<AcknowledgedResponse> listener) {
         logger.info("cancelThenDelete cursor [{}]: fetching metadata", cursorId);
         cursorIndexService.getMetadata(cursorId, ActionListener.wrap(metadata -> {
+            if (canAccessCursor(metadata) == false) {
+                listener.onFailure(new ResourceNotFoundException("cursor not found or expired"));
+                return;
+            }
             logger.info(
                 "cancelThenDelete cursor [{}]: metadata fetched, totalPages=[{}], isInProgress=[{}], taskId=[{}]",
                 cursorId,
@@ -245,5 +253,13 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
 
     static boolean isRetryable(Exception e) {
         return e instanceof IndexNotFoundException || e instanceof NoShardAvailableActionException;
+    }
+
+    private boolean canAccessCursor(EsqlCursorIndexService.CursorMetadata metadata) {
+        try {
+            return securityContext.canIAccessResourcesCreatedWithHeaders(metadata.headers());
+        } catch (IOException e) {
+            return false;
+        }
     }
 }

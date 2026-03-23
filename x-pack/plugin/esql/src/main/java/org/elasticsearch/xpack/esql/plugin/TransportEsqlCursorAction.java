@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
@@ -22,11 +23,13 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.esql.action.EsqlCursor;
 import org.elasticsearch.xpack.esql.action.EsqlCursorAction;
 import org.elasticsearch.xpack.esql.action.EsqlCursorRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
+import java.io.IOException;
 import java.util.List;
 
 public class TransportEsqlCursorAction extends HandledTransportAction<EsqlCursorRequest, EsqlQueryResponse> {
@@ -38,16 +41,19 @@ public class TransportEsqlCursorAction extends HandledTransportAction<EsqlCursor
 
     private final EsqlCursorIndexService cursorIndexService;
     private final ThreadPool threadPool;
+    private final SecurityContext securityContext;
 
     @Inject
     public TransportEsqlCursorAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        EsqlCursorIndexService cursorIndexService
+        EsqlCursorIndexService cursorIndexService,
+        ClusterService clusterService
     ) {
         super(EsqlCursorAction.NAME, transportService, actionFilters, EsqlCursorRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.cursorIndexService = cursorIndexService;
         this.threadPool = transportService.getThreadPool();
+        this.securityContext = new SecurityContext(clusterService.getSettings(), threadPool.getThreadContext());
     }
 
     @Override
@@ -68,6 +74,10 @@ public class TransportEsqlCursorAction extends HandledTransportAction<EsqlCursor
 
     private void getMetadataWithRetry(EsqlCursor cursor, int attempt, ActionListener<EsqlQueryResponse> listener) {
         cursorIndexService.getMetadata(cursor.cursorId(), ActionListener.wrap(metadata -> {
+            if (canAccessCursor(metadata) == false) {
+                listener.onFailure(new ResourceNotFoundException("cursor not found or expired"));
+                return;
+            }
             if (metadata.isFailed()) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
@@ -225,5 +235,13 @@ public class TransportEsqlCursorAction extends HandledTransportAction<EsqlCursor
 
     static boolean isRetryable(Exception e) {
         return e instanceof ResourceNotFoundException || e instanceof NoShardAvailableActionException;
+    }
+
+    private boolean canAccessCursor(EsqlCursorIndexService.CursorMetadata metadata) {
+        try {
+            return securityContext.canIAccessResourcesCreatedWithHeaders(metadata.headers());
+        } catch (IOException e) {
+            return false;
+        }
     }
 }

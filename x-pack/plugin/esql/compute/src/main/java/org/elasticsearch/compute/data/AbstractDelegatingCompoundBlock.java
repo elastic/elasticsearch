@@ -57,6 +57,11 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
     }
 
     @Override
+    public T slice(int beginInclusive, int endExclusive) {
+        return applyOperationToSubBlocks(block -> block.slice(beginInclusive, endExclusive));
+    }
+
+    @Override
     public int getPositionCount() {
         return getSubBlocks().get(0).getPositionCount();
     }

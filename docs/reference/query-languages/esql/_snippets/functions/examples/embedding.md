@@ -8,6 +8,8 @@ Generate embeddings using the 'test_dense_inference' inference endpoint, using d
 FROM dense_vector_text METADATA _score
 | EVAL query_embedding = EMBEDDING("be excellent to each other", "test_embedding_inference")
 | WHERE KNN(text_embedding_field, query_embedding)
+| SORT _score DESC
+| LIMIT 10
 ```
 
 Generate embeddings using an inference endpoint, specifying the data type and format:

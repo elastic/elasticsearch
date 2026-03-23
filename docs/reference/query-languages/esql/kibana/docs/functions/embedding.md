@@ -7,4 +7,6 @@ Generates dense vector embeddings from multimodal input using a specified [infer
 FROM dense_vector_text METADATA _score
 | EVAL query_embedding = EMBEDDING("be excellent to each other", "test_embedding_inference")
 | WHERE KNN(text_embedding_field, query_embedding)
+| SORT _score DESC
+| LIMIT 10
 ```

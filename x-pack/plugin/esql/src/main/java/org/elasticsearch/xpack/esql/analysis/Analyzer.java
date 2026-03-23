@@ -154,6 +154,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
@@ -1368,6 +1369,36 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolvePromql(PromqlCommand promql, List<Attribute> childrenOutput) {
+            // When the index pattern resolves to no concrete indices (e.g. the data stream hasn't been created yet),
+            // the EsRelation has an empty mapping. Trying to resolve the metric field name would leave it as an
+            // UnresolvedAttribute, causing a VerificationException. Short-circuit to an empty local relation instead
+            // — Prometheus expects empty results (not errors) when the queried data does not exist.
+            if (promql.child() instanceof EsRelation esRelation && esRelation.concreteQualifiedIndices().isEmpty()) {
+                return new LocalRelation(
+                    promql.source(),
+                    List.of(
+                        new ReferenceAttribute(
+                            promql.source(),
+                            null,
+                            promql.valueColumnName(),
+                            DOUBLE,
+                            Nullability.FALSE,
+                            promql.valueId(),
+                            false
+                        ),
+                        new ReferenceAttribute(
+                            promql.source(),
+                            null,
+                            PromqlCommand.STEP_COLUMN_NAME,
+                            DATETIME,
+                            Nullability.FALSE,
+                            promql.stepId(),
+                            false
+                        )
+                    ),
+                    EmptyLocalSupplier.EMPTY
+                );
+            }
             LogicalPlan promqlPlan = promql.promqlPlan();
             Function<UnresolvedAttribute, Expression> lambda = ua -> maybeResolveAttribute(ua, childrenOutput);
             // resolve the nested plan

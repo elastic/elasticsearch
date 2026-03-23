@@ -19,7 +19,6 @@ package org.elasticsearch.xpack.stateless;
 
 import co.elastic.elasticsearch.serverless.multiproject.ServerlessMultiProjectPlugin;
 import co.elastic.elasticsearch.serverless.multiproject.action.TransportGetProjectStatusAction;
-import co.elastic.elasticsearch.settings.secure.ServerlessSecureSettingsPlugin;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -122,6 +121,7 @@ import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.multiproject.ProjectLease;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils;
+import org.elasticsearch.xpack.stateless.settings.secure.SecureSettingsPlugin;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -278,7 +278,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             plugins.add(ConcurrentMultiPartUploadsMockFsRepository.Plugin.class);
         }
         if (multiProjectIntegrationTest) {
-            plugins.add(ServerlessSecureSettingsPlugin.class);
+            plugins.add(SecureSettingsPlugin.class);
             plugins.add(ServerlessMultiProjectPlugin.class);
         }
         return List.copyOf(plugins);

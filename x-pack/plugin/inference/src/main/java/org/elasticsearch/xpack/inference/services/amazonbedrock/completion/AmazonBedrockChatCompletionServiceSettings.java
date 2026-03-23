@@ -91,7 +91,9 @@ public class AmazonBedrockChatCompletionServiceSettings extends AmazonBedrockSer
 
     @Override
     public AmazonBedrockChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var updatedCommonSettings = updateCommonSettings(serviceSettings);
+        var validationException = new ValidationException();
+        var updatedCommonSettings = updateCommonSettings(serviceSettings, validationException);
+        validationException.throwIfValidationErrorsExist();
         return new AmazonBedrockChatCompletionServiceSettings(
             updatedCommonSettings.region(),
             updatedCommonSettings.model(),

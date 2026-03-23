@@ -190,7 +190,7 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
     @Override
     public AmazonBedrockEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
-        var updatedCommonSettings = updateCommonSettings(serviceSettings);
+        var updatedCommonSettings = updateCommonSettings(serviceSettings, validationException);
 
         var extractedMaxTokens = extractOptionalPositiveInteger(
             serviceSettings,

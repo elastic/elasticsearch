@@ -72,8 +72,10 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
         return new AmazonBedrockCommonSettings(region, model, provider, rateLimitSettings);
     }
 
-    protected AmazonBedrockCommonSettings updateCommonSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
+    protected AmazonBedrockCommonSettings updateCommonSettings(
+        Map<String, Object> serviceSettings,
+        ValidationException validationException
+    ) {
 
         var extractedRateLimitSettings = RateLimitSettings.of(
             serviceSettings,

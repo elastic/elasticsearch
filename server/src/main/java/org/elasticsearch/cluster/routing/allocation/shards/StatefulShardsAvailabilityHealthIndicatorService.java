@@ -349,11 +349,10 @@ public class StatefulShardsAvailabilityHealthIndicatorService extends ShardsAvai
         public HealthStatus getStatus() {
             if (primaries.areAllAvailable() == false || primaries.searchableSnapshotsState.getRedSearchableSnapshots().isEmpty() == false) {
                 return RED;
-            } else if (replicas.areAllAvailable() == false) {
+            } else if (replicas.areAllAvailableOrProvisionallyUnavailable() == false) {
                 return YELLOW;
-            } else {
-                return GREEN;
             }
+            return GREEN;
         }
     }
 }

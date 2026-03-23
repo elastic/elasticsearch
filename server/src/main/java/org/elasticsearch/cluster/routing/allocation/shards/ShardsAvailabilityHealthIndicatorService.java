@@ -367,11 +367,12 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
             if (allUnavailable && isProvisionallyUnassigned == false) {
                 indicesWithAllShardsUnavailable.add(projectIndex);
             }
+            if (isRestarting || isProvisionallyUnassigned) {
+                indicesWithProvisionallyUnavailableOrRestartingShards.add(projectIndex);
+            }
             if (routing.active() == false && isNew == false) {
                 if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings)) {
                     searchableSnapshotsState.addSearchableSnapshotWithUnavailableShard(projectIndex);
-                } else if (isRestarting || isProvisionallyUnassigned) {
-                    indicesWithProvisionallyUnavailableOrRestartingShards.add(projectIndex);
                 } else {
                     indicesWithUnavailableShards.add(projectIndex);
                 }
@@ -379,12 +380,14 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
 
             switch (routing.state()) {
                 case UNASSIGNED -> {
-                    if (isProvisionallyUnassigned) {
-                        unassigned_provisional++;
-                    } else if (isRestarting) {
+                    if (isRestarting) {
                         unassigned_restarting++;
                     } else {
-                        unassigned++;
+                        if (isProvisionallyUnassigned) {
+                            unassigned_provisional++;
+                        } else {
+                            unassigned++;
+                        }
                         // Computing the diagnosis can be very expensive in large clusters, so we limit the number of
                         // computations to the maxAffectedResourcesCount. The main negative side effect of this is that
                         // we might miss some diagnoses. We are willing to take this risk, and users can always
@@ -393,7 +396,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
                         // do 2 * maxAffectedResourcesCount computations, but the added complexity of accurately
                         // limiting the number of calls doesn't outweigh the benefits, as the main goal is to limit
                         // the number of computations to a constant rather than a number that grows with the cluster size.
-                        if (verbose && unassigned <= maxAffectedResourcesCount) {
+                        if (verbose && unassigned + unassigned_provisional <= maxAffectedResourcesCount) {
                             diagnoseUnassignedShardRouting(routing, state).forEach(definition -> addDefinition(definition, projectIndex));
                         }
                     }
@@ -411,6 +414,10 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
 
         public boolean areAllAvailable() {
             return indicesWithUnavailableShards.isEmpty();
+        }
+
+        public boolean areAllAvailableOrProvisionallyUnavailable() {
+            return indicesWithProvisionallyUnavailableOrRestartingShards.containsAll(indicesWithAllShardsUnavailable);
         }
 
         public boolean doAnyIndicesHaveAllUnavailable() {

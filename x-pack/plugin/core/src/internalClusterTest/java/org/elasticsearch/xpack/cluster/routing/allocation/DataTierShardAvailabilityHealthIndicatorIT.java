@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService;
 import org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -41,6 +42,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.oneOf;
 
 /**
  * Contains all integration tests for the {@link ShardsAvailabilityHealthIndicatorService}
@@ -75,7 +78,8 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
             new GetHealthAction.Request(ShardsAvailabilityHealthIndicatorService.NAME, true, 1000)
         ).get();
         HealthIndicatorResult indicatorResult = healthResponse.findIndicator(ShardsAvailabilityHealthIndicatorService.NAME);
-        assertThat(indicatorResult.status(), equalTo(HealthStatus.YELLOW));
+        // Newly created shards get a grace period before switching the health status to yellow
+        assertThat(indicatorResult.status(), oneOf(HealthStatus.YELLOW, HealthStatus.GREEN));
         assertThat(
             indicatorResult.diagnosisList(),
             hasItem(

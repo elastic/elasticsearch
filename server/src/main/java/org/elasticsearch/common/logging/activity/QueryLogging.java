@@ -43,15 +43,15 @@ public interface QueryLogging {
      */
     String QUERY_FIELD_IS_REMOTE = ES_QUERY_FIELDS_PREFIX + "is_remote";
     /**
-     * How many remote clusters were involved in this query?
-     */
-    String QUERY_FIELD_REMOTE_COUNT = ES_QUERY_FIELDS_PREFIX + "remote_count";
-    /**
-     * List of remote clusters involved in this query.
-     */
-    String QUERY_FIELD_REMOTES = ES_QUERY_FIELDS_PREFIX + "remotes";
-    /**
      * Counts of the statuses of the clusters - successful, skipped, failed, etc.
      */
     String QUERY_FIELD_REMOTE_STATUS = ES_QUERY_FIELDS_PREFIX + "clusters.";
+    /**
+     * How many remote clusters were involved in this query?
+     */
+    String QUERY_FIELD_REMOTE_COUNT = QUERY_FIELD_REMOTE_STATUS + "remote_count";
+    /**
+     * List of remote clusters involved in this query.
+     */
+    String QUERY_FIELD_REMOTES = QUERY_FIELD_REMOTE_STATUS + "remotes";
 }

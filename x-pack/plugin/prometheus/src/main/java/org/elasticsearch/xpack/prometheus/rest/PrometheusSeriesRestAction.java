@@ -74,7 +74,9 @@ public class PrometheusSeriesRestAction extends BaseRestHandler {
         String endParam = request.param(END_PARAM);
         String startParam = request.param(START_PARAM);
         Instant end = endParam != null ? PromqlParserUtils.parseDate(Source.EMPTY, endParam) : Instant.now();
-        Instant start = startParam != null ? PromqlParserUtils.parseDate(Source.EMPTY, startParam) : end.minus(DEFAULT_LOOKBACK_HOURS, HOURS);
+        Instant start = startParam != null
+            ? PromqlParserUtils.parseDate(Source.EMPTY, startParam)
+            : end.minus(DEFAULT_LOOKBACK_HOURS, HOURS);
 
         // Optional limit; default to DEFAULT_LIMIT to avoid unbounded ESQL scans
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);

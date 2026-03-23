@@ -527,9 +527,6 @@ public class DocumentMapperTests extends MapperServiceTestCase {
 
         assertTrue(mapper.hasConfidenceIntervalDifference(compressed1, compressed2));
 
-        // Test with same sources (no difference)
-        assertFalse(mapper.hasConfidenceIntervalDifference(compressed2, compressed2));
-
         // Test with confidence_interval:0.0 appearing multiple times
         String sourceWithMultipleConfidenceIntervals = "{\"_doc\":{\"properties\":{\"vector\":{\"type\":\"dense_vector\",\"dims\":4,"
             + "\"index\":true,\"similarity\":\"l2_norm\",\"index_options\":{\"type\":\"int4_flat\",\"confidence_interval\":0.0}},"

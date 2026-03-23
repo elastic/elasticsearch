@@ -85,14 +85,14 @@ public class PrometheusSeriesRestIT extends ESRestTestCase {
 
     public void testInvalidSelectorSyntaxReturnsBadRequest() throws Exception {
         // {not valid!!!} is not valid PromQL
-        Request request = seriesRequest("GET", "/_prometheus/api/v1/series", "{not valid!!!}");
+        Request request = seriesRequest("{not valid!!!}");
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
     public void testRangeSelectorReturnsBadRequest() throws Exception {
         // up[5m] is a range vector, not an instant vector
-        Request request = seriesRequest("GET", "/_prometheus/api/v1/series", "up[5m]");
+        Request request = seriesRequest("up[5m]");
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
@@ -104,7 +104,7 @@ public class PrometheusSeriesRestIT extends ESRestTestCase {
     public void testGetResponseIsJsonWithSuccessEnvelope() throws Exception {
         writeMetric("test_gauge", Map.of());
 
-        Response response = querySeries("/_prometheus/api/v1/series", "test_gauge");
+        Response response = querySeries("test_gauge");
 
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(response.getEntity().getContentType().getValue(), containsString("application/json"));
@@ -121,7 +121,7 @@ public class PrometheusSeriesRestIT extends ESRestTestCase {
     public void testGetReturnsIndexedSeries() throws Exception {
         writeMetric("test_gauge", Map.of("job", "series_test", "instance", "localhost:9090"), 42.0);
 
-        List<Map<String, Object>> data = querySeriesData("/_prometheus/api/v1/series", "test_gauge");
+        List<Map<String, Object>> data = querySeriesData("test_gauge");
 
         assertThat(data, hasSize(1));
         Map<String, Object> series = data.getFirst();
@@ -135,11 +135,20 @@ public class PrometheusSeriesRestIT extends ESRestTestCase {
         writeMetric("other_metric", Map.of("job", "other_job"));
 
         // Query by exact metric name — should only return the matched metric
-        List<Map<String, Object>> data = querySeriesData("/_prometheus/api/v1/series", "matched_metric");
+        List<Map<String, Object>> data = querySeriesData("matched_metric");
 
         assertThat(data, hasSize(1));
         assertThat(data.getFirst().get("__name__"), equalTo("matched_metric"));
         assertThat(data.getFirst().get("job"), equalTo("target_job"));
+    }
+
+    public void testSeriesWithIndexPattern() throws Exception {
+        writeMetric("test_gauge_idx", Map.of("job", "index_test"));
+
+        List<Map<String, Object>> data = querySeriesData("metrics-generic.prometheus-*", "test_gauge_idx");
+
+        assertThat(data, hasSize(1));
+        assertThat(data.getFirst().get("__name__"), equalTo("test_gauge_idx"));
     }
 
     // -------------------------------------------------------------------------
@@ -147,21 +156,35 @@ public class PrometheusSeriesRestIT extends ESRestTestCase {
     // -------------------------------------------------------------------------
 
     /** Builds a series request with {@code match[]} parameters added via the API (no manual URL encoding needed). */
-    private static Request seriesRequest(String method, String path, String... matchers) {
-        Request request = new Request(method, path);
+    private static Request seriesRequest(String... matchers) {
+        return seriesRequest(matchers);
+    }
+
+    private static Request seriesRequest(String index, String... matchers) {
+        String path = index == null ? "/_prometheus/api/v1/series" : "/_prometheus/" + index + "/api/v1/series";
+        Request request = new Request("GET", path);
         for (String matcher : matchers) {
             request.addParameter("match[]", matcher);
         }
         return request;
     }
 
-    private Response querySeries(String path, String... matchers) throws IOException {
-        return client().performRequest(seriesRequest("GET", path, matchers));
+    private Response querySeries(String... matchers) throws IOException {
+        return querySeries(matchers);
+    }
+
+    private Response querySeries(String index, String... matchers) throws IOException {
+        return client().performRequest(seriesRequest(index, matchers));
     }
 
     @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> querySeriesData(String path, String... matchers) throws IOException {
-        return seriesData(querySeries(path, matchers));
+    private List<Map<String, Object>> querySeriesData(String... matchers) throws IOException {
+        return querySeriesData(matchers);
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> querySeriesData(String index, String... matchers) throws IOException {
+        return seriesData(querySeries(index, matchers));
     }
 
     @SuppressWarnings("unchecked")

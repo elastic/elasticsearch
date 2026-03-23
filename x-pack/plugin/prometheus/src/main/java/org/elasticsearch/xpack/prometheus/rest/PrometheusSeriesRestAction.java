@@ -42,6 +42,7 @@ public class PrometheusSeriesRestAction extends BaseRestHandler {
     private static final String START_PARAM = "start";
     private static final String END_PARAM = "end";
     private static final String LIMIT_PARAM = "limit";
+    private static final String INDEX_PARAM = "index";
 
     private static final int DEFAULT_LIMIT = 10_000;
     private static final long DEFAULT_LOOKBACK_HOURS = 24;
@@ -60,7 +61,7 @@ public class PrometheusSeriesRestAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_prometheus/api/v1/series"));
+        return List.of(new Route(GET, "/_prometheus/api/v1/series"), new Route(GET, "/_prometheus/{index}/api/v1/series"));
     }
 
     @Override
@@ -81,7 +82,8 @@ public class PrometheusSeriesRestAction extends BaseRestHandler {
         // Optional limit; default to DEFAULT_LIMIT to avoid unbounded ESQL scans
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
 
-        LogicalPlan plan = PrometheusSeriesPlanBuilder.buildPlan("*", matchSelectors, start, end, limit);
+        String index = request.param(INDEX_PARAM, "*");
+        LogicalPlan plan = PrometheusSeriesPlanBuilder.buildPlan(index, matchSelectors, start, end, limit);
         EsqlStatement statement = new EsqlStatement(plan, List.of());
         PreparedEsqlQueryRequest esqlRequest = PreparedEsqlQueryRequest.sync(statement);
 

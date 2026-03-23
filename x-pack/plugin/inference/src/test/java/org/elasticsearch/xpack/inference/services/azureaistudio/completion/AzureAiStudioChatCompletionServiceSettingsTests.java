@@ -79,7 +79,7 @@ public class AzureAiStudioChatCompletionServiceSettingsTests extends AbstractBWC
         assertThat(updatedServiceSettings, is(originalServiceSettings));
     }
 
-    public void testFromMap_OnlyMandatoryFields_CreatesSettingsCorrectly() {
+    public void testFromMap_Request_OnlyMandatoryFields_CreatesSettingsCorrectly() {
         var serviceSettings = AzureAiStudioChatCompletionServiceSettings.fromMap(
             createRequestSettingsMap(TEST_TARGET, TEST_PROVIDER.toString(), TEST_ENDPOINT_TYPE.toString(), null),
             ConfigurationParseContext.REQUEST
@@ -98,9 +98,8 @@ public class AzureAiStudioChatCompletionServiceSettingsTests extends AbstractBWC
         );
     }
 
-    public void testFromMap_AllFields_CreatesSettingsCorrectly() {
+    public void testFromMap_Request_AllFields_CreatesSettingsCorrectly() {
         var settingsMap = createRequestSettingsMap(TEST_TARGET, TEST_PROVIDER.toString(), TEST_ENDPOINT_TYPE.toString(), TEST_RATE_LIMIT);
-        settingsMap.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT)));
 
         var serviceSettings = AzureAiStudioChatCompletionServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
 

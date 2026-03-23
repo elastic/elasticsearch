@@ -77,8 +77,8 @@ public class AzureAiStudioRerankServiceSettingsTests extends AbstractBWCWireSeri
         assertThat(updatedServiceSettings, is(originalServiceSettings));
     }
 
-    public void testFromMap_OnlyMandatoryFields_CreatesSettingsCorrectly() {
-        final var serviceSettings = AzureAiStudioRerankServiceSettings.fromMap(
+    public void testFromMap_Request_OnlyMandatoryFields_CreatesSettingsCorrectly() {
+        var serviceSettings = AzureAiStudioRerankServiceSettings.fromMap(
             createRequestSettingsMap(TEST_TARGET, TEST_PROVIDER.toString(), TEST_ENDPOINT_TYPE.toString(), null),
             ConfigurationParseContext.REQUEST
         );
@@ -96,15 +96,10 @@ public class AzureAiStudioRerankServiceSettingsTests extends AbstractBWCWireSeri
         );
     }
 
-    public void testFromMap_AllFields_CreatesSettingsCorrectly() {
-        final var settingsMap = createRequestSettingsMap(
-            TEST_TARGET,
-            TEST_PROVIDER.toString(),
-            TEST_ENDPOINT_TYPE.toString(),
-            TEST_RATE_LIMIT
-        );
+    public void testFromMap_Request_AllFields_CreatesSettingsCorrectly() {
+        var settingsMap = createRequestSettingsMap(TEST_TARGET, TEST_PROVIDER.toString(), TEST_ENDPOINT_TYPE.toString(), TEST_RATE_LIMIT);
 
-        final var serviceSettings = AzureAiStudioRerankServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
+        var serviceSettings = AzureAiStudioRerankServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
 
         assertThat(
             serviceSettings,
@@ -120,15 +115,15 @@ public class AzureAiStudioRerankServiceSettingsTests extends AbstractBWCWireSeri
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        final var settings = new AzureAiStudioRerankServiceSettings(
+        var settings = new AzureAiStudioRerankServiceSettings(
             TEST_TARGET,
             TEST_PROVIDER,
             TEST_ENDPOINT_TYPE,
             new RateLimitSettings(TEST_RATE_LIMIT)
         );
-        final XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         settings.toXContent(builder, null);
-        final String xContentResult = Strings.toString(builder);
+        String xContentResult = Strings.toString(builder);
 
         assertThat(
             xContentResult,
@@ -146,16 +141,16 @@ public class AzureAiStudioRerankServiceSettingsTests extends AbstractBWCWireSeri
     }
 
     public void testToFilteredXContent_WritesAllValues() throws IOException {
-        final var settings = new AzureAiStudioRerankServiceSettings(
+        var settings = new AzureAiStudioRerankServiceSettings(
             TEST_TARGET,
             TEST_PROVIDER,
             TEST_ENDPOINT_TYPE,
             new RateLimitSettings(TEST_RATE_LIMIT)
         );
-        final XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        final var filteredXContent = settings.getFilteredXContentObject();
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        var filteredXContent = settings.getFilteredXContentObject();
         filteredXContent.toXContent(builder, null);
-        final String xContentResult = Strings.toString(builder);
+        String xContentResult = Strings.toString(builder);
 
         assertThat(
             xContentResult,

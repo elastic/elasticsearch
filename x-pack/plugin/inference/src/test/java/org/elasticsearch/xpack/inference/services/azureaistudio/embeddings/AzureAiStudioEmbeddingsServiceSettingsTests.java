@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEnd
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProvider;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
-import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -57,7 +56,7 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
     private static final int DEFAULT_RATE_LIMIT = 240;
 
     public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
-        var originalServicSettings = new AzureAiStudioEmbeddingsServiceSettings(
+        var originalServiceSettings = new AzureAiStudioEmbeddingsServiceSettings(
             INITIAL_TEST_TARGET,
             INITIAL_TEST_PROVIDER,
             INITIAL_TEST_ENDPOINT_TYPE,
@@ -67,7 +66,7 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
             INITIAL_SIMILARITY_MEASURE,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
-        var updatedServiceSettings = originalServicSettings.updateServiceSettings(
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
             createRequestSettingsMap(
                 TEST_TARGET,
                 TEST_PROVIDER.toString(),
@@ -80,7 +79,7 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
             )
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             updatedServiceSettings,
             is(
                 new AzureAiStudioEmbeddingsServiceSettings(
@@ -97,7 +96,7 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
         );
     }
 
-    private static void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
+    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
         var originalServiceSettings = new AzureAiStudioEmbeddingsServiceSettings(
             INITIAL_TEST_TARGET,
             INITIAL_TEST_PROVIDER,
@@ -110,7 +109,7 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
         );
         var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
 
-        MatcherAssert.assertThat(updatedServiceSettings, is(originalServiceSettings));
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
     }
 
     public void testFromMap_Request_AllFields_CreatesSettingsCorrectly() {
@@ -191,7 +190,7 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
             () -> AzureAiStudioEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             thrownException.getMessage(),
             containsString(
                 Strings.format(
@@ -232,7 +231,7 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
         );
     }
 
-    public void testFromMap_ThrowsException_WhenDimensionsAreZero() {
+    public void testFromMap_Request_ThrowsException_WhenDimensionsAreZero() {
         var dimensions = 0;
 
         var settingsMap = createRequestSettingsMap(
@@ -257,7 +256,7 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
         );
     }
 
-    public void testFromMap_ThrowsException_WhenDimensionsAreNegative() {
+    public void testFromMap_Request_ThrowsException_WhenDimensionsAreNegative() {
         var dimensions = randomNegativeInt();
 
         var settingsMap = createRequestSettingsMap(
@@ -287,7 +286,7 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
         );
     }
 
-    public void testFromMap_ThrowsException_WhenMaxInputTokensAreZero() {
+    public void testFromMap_Request_ThrowsException_WhenMaxInputTokensAreZero() {
         var maxInputTokens = 0;
 
         var settingsMap = createRequestSettingsMap(
@@ -312,7 +311,7 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
         );
     }
 
-    public void testFromMap_ThrowsException_WhenMaxInputTokensAreNegative() {
+    public void testFromMap_Request_ThrowsException_WhenMaxInputTokensAreNegative() {
         var maxInputTokens = randomNegativeInt();
 
         var settingsMap = createRequestSettingsMap(
@@ -342,7 +341,7 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
         );
     }
 
-    public void testFromMap_PersistentContext_DoesNotThrowException_WhenDimensionsIsNull() {
+    public void testFromMap_Persistent_DoesNotThrowException_WhenDimensionsIsNull() {
         var settingsMap = createRequestSettingsMap(
             TEST_TARGET,
             TEST_PROVIDER.toString(),
@@ -361,7 +360,7 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
         );
     }
 
-    public void testFromMap_PersistentContext_DoesNotThrowException_WhenSimilarityIsPresent() {
+    public void testFromMap_Persistent_DoesNotThrowException_WhenSimilarityIsPresent() {
         var settingsMap = createRequestSettingsMap(
             TEST_TARGET,
             TEST_PROVIDER.toString(),
@@ -391,7 +390,7 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
         );
     }
 
-    public void testFromMap_PersistentContext_ThrowsException_WhenDimensionsSetByUserIsNull() {
+    public void testFromMap_Persistent_ThrowsException_WhenDimensionsSetByUserIsNull() {
         var settingsMap = createRequestSettingsMap(
             TEST_TARGET,
             TEST_PROVIDER.toString(),

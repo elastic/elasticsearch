@@ -1,0 +1,25 @@
+﻿entries:
+- file:
+    name: 138723.yaml
+    checksum: d1437290683d021a9490fc545cc9ebfa4a56af13
+  type: feature
+  title: Enable doc_values skippers
+  products:
+  - product: elasticsearch
+    target: 9.3.0
+    lifecycle: ga
+  description: Doc_values skippers add a sparse index to doc_values fields, allowing efficient querying and filtering on a field without having to build a separate BKD or terms index.  These are now enabled automatically on any field configured with `index=false` and `doc_values=true` if the index setting `index.mapping.use_doc_values_skipper` is set to `true` (default `false`, or `true` for TSDB indexes). TSDB indexes now default to using skippers in place of indexes for their `@timestamp`, `dimension`, and  `_tsid` fields, greatly reducing their on-disk footprint.  To disable skippers in TSDB indexes, set `index.mapping.use_doc_values_skipper` to `false`.
+  highlight: true
+  prs:
+  - "138723"
+- file:
+    name: 1770424335-new-cloud-connect-ui-for-self-managed-installation.yaml
+    checksum: 17a700f291055b227551cc8d3e9d0066b0d19985
+  type: feature
+  title: New Cloud Connect UI for self-managed installations
+  products:
+  - product: elasticsearch
+    target: 9.3.0
+    lifecycle: ga
+  description: Adds Cloud Connect functionality to Kibana, which allows you to use cloud solutions like AutoOps and Elastic Inference Service in your self-managed Elasticsearch clusters.
+  highlight: true

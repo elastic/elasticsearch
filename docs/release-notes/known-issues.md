@@ -8,7 +8,7 @@ mapped_pages:
 
 Known issues are significant defects or limitations that may impact your implementation. These issues are actively being worked on and will be addressed in a future release. Review the Elasticsearch known issues to help you make informed decisions, such as upgrading to a new version.
 
-:::{changelog} /changelog/new/bundles
+:::{changelog} /release-notes/changelog-bundles/new
 :subsections:
 :type: known-issue
 :config: /changelog.yml

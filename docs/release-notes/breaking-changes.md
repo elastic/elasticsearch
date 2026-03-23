@@ -13,7 +13,7 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
 
-:::{changelog} /changelog/new/bundles
+:::{changelog} /release-notes/changelog-bundles/new
 :subsections:
 :type: breaking-change
 :config: /changelog.yml

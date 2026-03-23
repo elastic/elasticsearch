@@ -20,7 +20,7 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
-:::{changelog} /changelog/new/bundles
+:::{changelog} /release-notes/changelog-bundles/new
 :subsections:
 :config: /changelog.yml
 :type: all

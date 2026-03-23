@@ -16,7 +16,7 @@ To give you insight into what deprecated features you’re using, {{es}}:
 
 % ## Next version [elasticsearch-nextversion-deprecations]
 
-:::{changelog} /changelog/new/bundles
+:::{changelog} /release-notes/changelog-bundles/new
 :subsections:
 :type: deprecation
 :config: /changelog.yml

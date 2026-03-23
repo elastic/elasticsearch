@@ -7,9 +7,8 @@ navigation_title: "Highlights"
 <!-- :::{include} _snippets/9.3.0/highlights.md
 ::: -->
 
-:::{changelog} /changelog/new/bundles
+:::{changelog} /release-notes/changelog-bundles/new
 :subsections:
 :config: /changelog.yml
-:product: elasticsearch
 :type: highlight
 :::

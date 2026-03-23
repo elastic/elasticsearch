@@ -54,7 +54,9 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -599,6 +601,48 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             expectThrows(TaskCancelledException.class, task::ensureNotCancelled).getMessage(),
             equalTo("task cancelled [simulated]")
         );
+    }
+
+    /**
+     * Regression test: previously isCancelled and reason were separate fields set non-atomically,
+     * so a reader could observe `isCancelled() == true` while `getReasonCancelled() == null`.
+     */
+    public void testReasonVisibleWhenCancelled() throws Exception {
+        final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", TaskId.EMPTY_TASK_ID, emptyMap());
+        final CountDownLatch start = new CountDownLatch(1);
+
+        final Thread reader = new Thread(() -> {
+            safeAwait(start);
+            while (task.isCancelled() == false) {
+                Thread.onSpinWait();
+            }
+            assertNotNull("getReasonCancelled() returned null after isCancelled() returned true", task.getReasonCancelled());
+        });
+        reader.start();
+        start.countDown();
+        TaskCancelHelper.cancel(task, "test-reason");
+        reader.join();
+    }
+
+    public void testToStringReturnsConsistentCancellationStateAndReason() throws Exception {
+        final CancellableTask task = new CancellableTask(randomLong(), "transport", "action", "", TaskId.EMPTY_TASK_ID, emptyMap());
+        final CountDownLatch start = new CountDownLatch(1);
+
+        final Thread reader = new Thread(() -> {
+            safeAwait(start);
+            while (task.isCancelled() == false) {
+                Thread.onSpinWait();
+            }
+            assertThat(
+                "toString should consistently render status and reason",
+                task.toString(),
+                anyOf(endsWith("reason='null', isCancelled=false}"), endsWith("reason='test-reason', isCancelled=true}"))
+            );
+        });
+        reader.start();
+        start.countDown();
+        TaskCancelHelper.cancel(task, "test-reason");
+        reader.join();
     }
 
     public void testNotifyIfCancelled() throws Exception {

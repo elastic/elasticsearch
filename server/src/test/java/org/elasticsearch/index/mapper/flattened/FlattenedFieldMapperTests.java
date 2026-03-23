@@ -14,6 +14,9 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -26,6 +29,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -54,6 +58,7 @@ import java.util.Set;
 import java.util.TreeMap;
 
 import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -85,16 +90,66 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("similarity", b -> b.field("similarity", "boolean"));
         checker.registerConflictCheck("time_series_dimensions", b -> b.field("time_series_dimensions", List.of("one", "two")));
 
-        checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", true), m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
         checker.registerUpdateCheck(
+            "eager_global_ordinals",
+            b -> b.field("eager_global_ordinals", true),
+            m -> assertTrue(m.fieldType().eagerGlobalOrdinals())
+        );
+        checker.registerUpdateCheck(
+            "ignore_above",
             b -> b.field("ignore_above", 256),
             m -> assertEquals(256, ((FlattenedFieldMapper) m).fieldType().ignoreAbove().get())
         );
         checker.registerUpdateCheck(
+            "split_queries_on_whitespace",
             b -> b.field("split_queries_on_whitespace", true),
             m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().searchAnalyzer().name())
         );
-        checker.registerUpdateCheck(b -> b.field("depth_limit", 10), m -> assertEquals(10, ((FlattenedFieldMapper) m).depthLimit()));
+        checker.registerUpdateCheck(
+            "depth_limit",
+            b -> b.field("depth_limit", 10),
+            m -> assertEquals(10, ((FlattenedFieldMapper) m).depthLimit())
+        );
+    }
+
+    @Override
+    protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
+        if (fieldType.hasDocValues()) {
+            assertThat(query, instanceOf(FieldExistsQuery.class));
+            FieldExistsQuery fieldExistsQuery = (FieldExistsQuery) query;
+            assertEquals("field._keyed", fieldExistsQuery.getField());
+        } else {
+            super.assertExistsQuery(fieldType, query, fields);
+        }
+    }
+
+    public void testExistsQueryDocValuesDisabled() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        }));
+        assertExistsQuery(mapperService);
+    }
+
+    public void testExistsQueryMatchesDocuments() throws IOException {
+        boolean indexed = randomBoolean();
+        boolean docValues = indexed ? randomBoolean() : true;
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("index", indexed);
+            b.field("doc_values", docValues);
+        }));
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(
+                mapperService.documentMapper().parse(source(b -> b.startObject("field").field("key", "value").endObject())).rootDoc()
+            );
+            iw.addDocument(mapperService.documentMapper().parse(source(b -> b.nullField("field"))).rootDoc());
+        }, reader -> {
+            IndexSearcher searcher = newSearcher(reader);
+            MappedFieldType ft = mapperService.fieldType("field");
+            Query existsQuery = ft.existsQuery(null);
+            assertEquals(1, searcher.count(existsQuery));
+        });
     }
 
     @Override
@@ -151,16 +206,17 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         ).documentMapper();
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
 
+        // Check the root fields.
         List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
         assertEquals(2, fields.size());
-
-        // Check the keyed fields.
-        List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
-        assertEquals(2, keyedFields.size());
 
         assertEquals("field", fields.get(1).name());
         assertEquals(new BytesRef("value"), fields.get(1).binaryValue());
         assertEquals(DocValuesType.BINARY, fields.get(1).fieldType().docValuesType());
+
+        // Check the keyed fields.
+        List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
+        assertEquals(2, keyedFields.size());
 
         assertEquals("field._keyed", keyedFields.get(1).name());
         assertEquals(new BytesRef("key\0value"), keyedFields.get(1).binaryValue());
@@ -261,9 +317,9 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         }));
         ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
 
+        // No root fields: index=false and no root doc values on new indices.
         List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        assertEquals(DocValuesType.SORTED_SET, fields.get(0).fieldType().docValuesType());
+        assertEquals(0, fields.size());
 
         List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
         assertEquals(1, keyedFields.size());
@@ -273,6 +329,48 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     public void testDisableIndexBinary() throws Exception {
         DocumentMapper mapper = createMapperService(
             Settings.builder().put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true).build(),
+            fieldMapping(b -> {
+                b.field("type", "flattened");
+                b.field("index", false);
+            })
+        ).documentMapper();
+        ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
+
+        // No root fields: index=false and no root doc values on new indices.
+        List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(0, fields.size());
+
+        List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
+        assertEquals(1, keyedFields.size());
+        assertEquals(DocValuesType.BINARY, keyedFields.get(0).fieldType().docValuesType());
+    }
+
+    public void testDisableIndexWithStoreRootDocValuesSetting() throws Exception {
+        DocumentMapper mapper = createMapperService(
+            Settings.builder().put(IndexSettings.STORE_FLATTENED_ROOT_DOC_VALUES.getKey(), true).build(),
+            fieldMapping(b -> {
+                b.field("type", "flattened");
+                b.field("index", false);
+            })
+        ).documentMapper();
+        ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
+
+        // Has root field: index=false, but store_root_doc_values=true
+        List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertEquals(DocValuesType.SORTED_SET, fields.get(0).fieldType().docValuesType());
+
+        List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
+        assertEquals(1, keyedFields.size());
+        assertEquals(DocValuesType.SORTED_SET, keyedFields.get(0).fieldType().docValuesType());
+    }
+
+    public void testDisableIndexWithStoreRootDocValuesSettingBinary() throws Exception {
+        DocumentMapper mapper = createMapperService(
+            Settings.builder()
+                .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
+                .put(IndexSettings.STORE_FLATTENED_ROOT_DOC_VALUES.getKey(), true)
+                .build(),
             fieldMapping(b -> {
                 b.field("type", "flattened");
                 b.field("index", false);
@@ -623,7 +721,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.endArray();
         }));
         newFields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(2, fields.size());
+        assertEquals(2, newFields.size());
     }
 
     /**

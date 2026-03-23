@@ -423,7 +423,6 @@ public class MetadataRolloverService {
                 projectState.cluster(),
                 createIndexClusterStateRequest,
                 silent,
-                RerouteBehavior.SKIP_REROUTE,
                 (builder, indexMetadata) -> {
                     downgradeBrokenTsdbBackingIndices(dataStream, builder);
                     builder.put(
@@ -435,6 +434,7 @@ public class MetadataRolloverService {
                         )
                     );
                 },
+                RerouteBehavior.SKIP_REROUTE,
                 rerouteCompletionIsNotRequired()
             );
         }

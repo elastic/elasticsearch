@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
@@ -138,6 +139,7 @@ public class PlanWritables {
             FragmentExec.ENTRY,
             GrokExec.ENTRY,
             HashJoinExec.ENTRY,
+            LimitByExec.ENTRY,
             LimitExec.ENTRY,
             LocalSourceExec.ENTRY,
             MvExpandExec.ENTRY,

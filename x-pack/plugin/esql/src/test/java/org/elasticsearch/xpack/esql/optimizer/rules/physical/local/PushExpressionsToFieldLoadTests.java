@@ -22,11 +22,13 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLocalPhysicalPlanOptimizerTests;
@@ -72,19 +74,19 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
 
     @Before
     public void initPushTests() {
-        var allTypesMapping = loadMapping("mapping-all-types.json");
-        var allTypesIndex = EsIndexGenerator.esIndex("test_all", allTypesMapping, Map.of("test_all", IndexMode.STANDARD));
+        Map<String, EsField> allTypesMapping = loadMapping("mapping-all-types.json");
+        EsIndex allTypesIndex = EsIndexGenerator.esIndex("test_all", allTypesMapping, Map.of("test_all", IndexMode.STANDARD));
         allTypesPlannerOptimizer = new TestPlannerOptimizer(config, makeAnalyzer(IndexResolution.valid(allTypesIndex)));
 
-        var tsMapping = loadMapping("k8s-mappings.json");
-        var tsIndex = EsIndexGenerator.esIndex("k8s", tsMapping, Map.of("k8s", IndexMode.TIME_SERIES));
-        var tsDownsampledMapping = loadMapping("k8s-downsampled-mappings.json");
-        var tsDownsampledIndex = EsIndexGenerator.esIndex(
+        Map<String, EsField> tsMapping = loadMapping("k8s-mappings.json");
+        EsIndex tsIndex = EsIndexGenerator.esIndex("k8s", tsMapping, Map.of("k8s", IndexMode.TIME_SERIES));
+        Map<String, EsField> tsDownsampledMapping = loadMapping("k8s-downsampled-mappings.json");
+        EsIndex tsDownsampledIndex = EsIndexGenerator.esIndex(
             "k8s-downsampled",
             tsDownsampledMapping,
             Map.of("k8s-downsampled", IndexMode.TIME_SERIES)
         );
-        var tsAnalyzer = new Analyzer(
+        Analyzer tsAnalyzer = new Analyzer(
             testAnalyzerContext(
                 config,
                 TEST_FUNCTION_REGISTRY,
@@ -107,7 +109,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
     public void testLengthInEval() {
         // The SORT ensures the EVAL is below the exchange boundary (inside the
         // data-node fragment) so the local physical optimizer can push it.
-        var plan = plannerOptimizer.plan("""
+        PhysicalPlan plan = plannerOptimizer.plan("""
             FROM test
             | EVAL l = LENGTH(last_name)
             | SORT emp_no
@@ -115,35 +117,35 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             | KEEP l
             """);
 
-        var pushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.LENGTH);
+        List<FieldAttribute> pushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.LENGTH);
         assertThat(pushed, hasSize(greaterThanOrEqualTo(1)));
     }
 
     public void testLengthInWhere() {
-        var plan = plannerOptimizer.plan("""
+        PhysicalPlan plan = plannerOptimizer.plan("""
             FROM test
             | WHERE LENGTH(last_name) > 1
             """);
 
-        var pushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.LENGTH);
+        List<FieldAttribute> pushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.LENGTH);
         assertThat(pushed, hasSize(greaterThanOrEqualTo(1)));
 
-        var filterExec = findFirst(plan, FilterExec.class);
+        FilterExec filterExec = findFirst(plan, FilterExec.class);
         assertNotNull("Should find FilterExec", filterExec);
-        var gt = as(filterExec.condition(), GreaterThan.class);
+        GreaterThan gt = as(filterExec.condition(), GreaterThan.class);
         assertLengthPushdown(gt.left(), "last_name");
     }
 
     public void testLengthInStats() {
-        var plan = plannerOptimizer.plan("""
+        PhysicalPlan plan = plannerOptimizer.plan("""
             FROM test
             | STATS l = SUM(LENGTH(last_name))
             """);
 
-        var pushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.LENGTH);
+        List<FieldAttribute> pushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.LENGTH);
         assertThat(pushed, hasSize(greaterThanOrEqualTo(1)));
 
-        var evalExec = findFirst(plan, EvalExec.class, e -> e.fields().stream().anyMatch(f -> {
+        EvalExec evalExec = findFirst(plan, EvalExec.class, e -> e.fields().stream().anyMatch(f -> {
             if (f.child() instanceof FieldAttribute fa) {
                 return fa.field() instanceof FunctionEsField fef
                     && fef.functionConfig().function() == BlockLoaderFunctionConfig.Function.LENGTH;
@@ -154,7 +156,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testLengthInEvalAfterManyRenames() {
-        var plan = plannerOptimizer.plan("""
+        PhysicalPlan plan = plannerOptimizer.plan("""
             FROM test
             | EVAL l1 = last_name
             | EVAL l2 = l1
@@ -165,23 +167,23 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             | KEEP l
             """);
 
-        var pushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.LENGTH);
+        List<FieldAttribute> pushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.LENGTH);
         assertThat(pushed, hasSize(greaterThanOrEqualTo(1)));
     }
 
     public void testLengthInWhereAndEval() {
-        var plan = plannerOptimizer.plan("""
+        PhysicalPlan plan = plannerOptimizer.plan("""
             FROM test
             | WHERE LENGTH(last_name) > 1
             | EVAL l = LENGTH(last_name)
             """);
 
-        var pushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.LENGTH);
+        List<FieldAttribute> pushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.LENGTH);
         assertThat("Duplicate LENGTH(last_name) should be deduplicated to one pushed field", pushed, hasSize(1));
     }
 
     public void testLengthPushdownZoo() {
-        var plan = plannerOptimizer.plan("""
+        PhysicalPlan plan = plannerOptimizer.plan("""
             FROM test
             | EVAL a1 = LENGTH(last_name), a2 = LENGTH(last_name), a3 = LENGTH(last_name),
                    a4 = abs(LENGTH(last_name)) + a1 + LENGTH(first_name) * 3
@@ -189,31 +191,31 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             | STATS l = SUM(LENGTH(last_name)) + AVG(a3) + SUM(LENGTH(first_name))
             """);
 
-        var lastNamePushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.LENGTH);
-        var firstNamePushed = findPushedFields(plan, "first_name", BlockLoaderFunctionConfig.Function.LENGTH);
+        List<FieldAttribute> lastNamePushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.LENGTH);
+        List<FieldAttribute> firstNamePushed = findPushedFields(plan, "first_name", BlockLoaderFunctionConfig.Function.LENGTH);
 
         assertThat("All LENGTH(last_name) should share one pushed field", lastNamePushed, hasSize(1));
         assertThat("LENGTH(first_name) should have its own pushed field", firstNamePushed, hasSize(1));
     }
 
     public void testLengthInStatsTwice() {
-        var plan = plannerOptimizer.plan("""
+        PhysicalPlan plan = plannerOptimizer.plan("""
             FROM test
             | STATS l = SUM(LENGTH(last_name)) + AVG(LENGTH(last_name))
             """);
 
-        var pushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.LENGTH);
+        List<FieldAttribute> pushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.LENGTH);
         assertThat("Duplicate LENGTH(last_name) should share one pushed field", pushed, hasSize(1));
     }
 
     public void testLengthTwoFields() {
-        var plan = plannerOptimizer.plan("""
+        PhysicalPlan plan = plannerOptimizer.plan("""
             FROM test
             | STATS last_name = SUM(LENGTH(last_name)), first_name = SUM(LENGTH(first_name))
             """);
 
-        var lastNamePushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.LENGTH);
-        var firstNamePushed = findPushedFields(plan, "first_name", BlockLoaderFunctionConfig.Function.LENGTH);
+        List<FieldAttribute> lastNamePushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.LENGTH);
+        List<FieldAttribute> firstNamePushed = findPushedFields(plan, "first_name", BlockLoaderFunctionConfig.Function.LENGTH);
 
         assertThat(lastNamePushed, hasSize(1));
         assertThat(firstNamePushed, hasSize(1));
@@ -223,26 +225,26 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
 
     public void testVectorFunctionsReplaced() {
         SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
-        var plan = allTypesPlannerOptimizer.plan(String.format(Locale.ROOT, """
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan(String.format(Locale.ROOT, """
             from test_all
             | eval s = %s
             | sort s desc
             | limit 1
             """, testCase.toQuery()));
 
-        var evalExec = findFirst(plan, EvalExec.class, e -> e.fields().stream().anyMatch(f -> f.name().equals("s")));
+        EvalExec evalExec = findFirst(plan, EvalExec.class, e -> e.fields().stream().anyMatch(f -> f.name().equals("s")));
         assertNotNull("Should find EvalExec with field 's'", evalExec);
-        var sAlias = evalExec.fields().stream().filter(f -> f.name().equals("s")).findFirst().orElseThrow();
-        var fieldAttr = as(sAlias.child(), FieldAttribute.class);
+        Alias sAlias = evalExec.fields().stream().filter(f -> f.name().equals("s")).findFirst().orElseThrow();
+        FieldAttribute fieldAttr = as(sAlias.child(), FieldAttribute.class);
         assertThat(fieldAttr.fieldName().string(), equalTo("dense_vector"));
         assertThat(fieldAttr.name(), startsWith(testCase.toFieldAttrName()));
-        var field = as(fieldAttr.field(), FunctionEsField.class);
+        FunctionEsField field = as(fieldAttr.field(), FunctionEsField.class);
         as(field.functionConfig(), DenseVectorFieldMapper.VectorSimilarityFunctionConfig.class);
     }
 
     public void testVectorFunctionsReplacedWithTopN() {
         SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
-        var plan = allTypesPlannerOptimizer.plan(String.format(Locale.ROOT, """
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan(String.format(Locale.ROOT, """
             from test_all
             | eval s = %s
             | sort s desc
@@ -250,7 +252,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             | keep s
             """, testCase.toQuery()));
 
-        var evalExec = findFirst(plan, EvalExec.class, e -> e.fields().stream().anyMatch(f -> {
+        EvalExec evalExec = findFirst(plan, EvalExec.class, e -> e.fields().stream().anyMatch(f -> {
             if (f.name().equals("s") && f.child() instanceof FieldAttribute fa) {
                 return fa.name().startsWith(testCase.toFieldAttrName());
             }
@@ -261,16 +263,16 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
 
     public void testVectorFunctionsInWhere() {
         SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
-        var plan = allTypesPlannerOptimizer.plan(String.format(Locale.ROOT, """
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan(String.format(Locale.ROOT, """
             from test_all
             | where %s > 0.5
             | keep dense_vector
             """, testCase.toQuery()));
 
-        var filterExec = findFirst(plan, FilterExec.class);
+        FilterExec filterExec = findFirst(plan, FilterExec.class);
         assertNotNull("Should find FilterExec", filterExec);
-        var gt = as(filterExec.condition(), GreaterThan.class);
-        var fieldAttr = as(gt.left(), FieldAttribute.class);
+        GreaterThan gt = as(filterExec.condition(), GreaterThan.class);
+        FieldAttribute fieldAttr = as(gt.left(), FieldAttribute.class);
         assertThat(fieldAttr.fieldName().string(), equalTo("dense_vector"));
         assertThat(fieldAttr.name(), startsWith(testCase.toFieldAttrName()));
         as(fieldAttr.field(), FunctionEsField.class);
@@ -278,22 +280,22 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
 
     public void testVectorFunctionsInStats() {
         SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
-        var plan = allTypesPlannerOptimizer.plan(String.format(Locale.ROOT, """
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan(String.format(Locale.ROOT, """
             from test_all
             | stats count(*) where %s > 0.5
             """, testCase.toQuery()));
 
-        var filterExec = findFirst(plan, FilterExec.class);
+        FilterExec filterExec = findFirst(plan, FilterExec.class);
         assertNotNull("Should find FilterExec with pushed vector function", filterExec);
-        var gt = as(filterExec.condition(), GreaterThan.class);
-        var fieldAttr = as(gt.left(), FieldAttribute.class);
+        GreaterThan gt = as(filterExec.condition(), GreaterThan.class);
+        FieldAttribute fieldAttr = as(gt.left(), FieldAttribute.class);
         assertThat(fieldAttr.fieldName().string(), equalTo("dense_vector"));
         assertThat(fieldAttr.name(), startsWith(testCase.toFieldAttrName()));
     }
 
     public void testVectorFunctionsUpdateIntermediateProjections() {
         SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
-        var plan = allTypesPlannerOptimizer.plan(String.format(Locale.ROOT, """
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan(String.format(Locale.ROOT, """
             from test_all
             | keep *
             | mv_expand keyword
@@ -302,7 +304,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             | limit 1
             """, testCase.toQuery()));
 
-        var evalExec = findFirst(plan, EvalExec.class, e -> e.fields().stream().anyMatch(f -> {
+        EvalExec evalExec = findFirst(plan, EvalExec.class, e -> e.fields().stream().anyMatch(f -> {
             if (f.name().equals("similarity") && f.child() instanceof FieldAttribute fa) {
                 return fa.name().startsWith(testCase.toFieldAttrName());
             }
@@ -310,7 +312,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         }));
         assertNotNull("Should find EvalExec with pushed vector function for 'similarity'", evalExec);
 
-        var fieldExtract = findFirst(
+        FieldExtractExec fieldExtract = findFirst(
             plan,
             FieldExtractExec.class,
             fe -> fe.attributesToExtract()
@@ -329,7 +331,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         );
 
         // The SORT ensures all EVALs end up inside the data-node fragment.
-        var plan = allTypesPlannerOptimizer.plan(
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan(
             String.format(
                 Locale.ROOT,
                 """
@@ -350,33 +352,36 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             )
         );
 
-        var allPushed = findAllPushedFields(plan);
+        List<FieldAttribute> allPushed = findAllPushedFields(plan);
         assertThat("Three distinct vector functions should produce three pushed fields", allPushed, hasSize(3));
     }
 
     // ---- Aggregate Metric Double tests ----
 
     public void testAggregateMetricDouble() {
-        var plan = tsPlannerOptimizer.plan("FROM k8s-downsampled | STATS m = min(network.eth0.tx)", new EsqlTestUtils.TestSearchStats());
+        PhysicalPlan plan = tsPlannerOptimizer.plan(
+            "FROM k8s-downsampled | STATS m = min(network.eth0.tx)",
+            new EsqlTestUtils.TestSearchStats()
+        );
 
-        var pushed = findPushedFields(plan, "network.eth0.tx", BlockLoaderFunctionConfig.Function.AMD_MIN);
+        List<FieldAttribute> pushed = findPushedFields(plan, "network.eth0.tx", BlockLoaderFunctionConfig.Function.AMD_MIN);
         assertThat(pushed, hasSize(greaterThanOrEqualTo(1)));
     }
 
     public void testAggregateMetricDoubleWithAvgAndOtherFunctions() {
-        var plan = tsPlannerOptimizer.plan("""
+        PhysicalPlan plan = tsPlannerOptimizer.plan("""
             from k8s-downsampled
             | STATS s = sum(network.eth0.tx), a = avg(network.eth0.tx)
             """, new EsqlTestUtils.TestSearchStats());
 
-        var sumPushed = findPushedFields(plan, "network.eth0.tx", BlockLoaderFunctionConfig.Function.AMD_SUM);
-        var countPushed = findPushedFields(plan, "network.eth0.tx", BlockLoaderFunctionConfig.Function.AMD_COUNT);
+        List<FieldAttribute> sumPushed = findPushedFields(plan, "network.eth0.tx", BlockLoaderFunctionConfig.Function.AMD_SUM);
+        List<FieldAttribute> countPushed = findPushedFields(plan, "network.eth0.tx", BlockLoaderFunctionConfig.Function.AMD_COUNT);
         assertThat(sumPushed, hasSize(greaterThanOrEqualTo(1)));
         assertThat(countPushed, hasSize(greaterThanOrEqualTo(1)));
     }
 
     public void testAggregateMetricDoubleTSCommand() {
-        var plan = tsPlannerOptimizer.plan("""
+        PhysicalPlan plan = tsPlannerOptimizer.plan("""
             TS k8s-downsampled |
             STATS m = max(max_over_time(network.eth0.tx)),
                   c = count(count_over_time(network.eth0.tx)),
@@ -384,9 +389,9 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             BY pod, time_bucket = BUCKET(@timestamp,5minute)
             """, new EsqlTestUtils.TestSearchStats());
 
-        var maxPushed = findPushedFields(plan, "network.eth0.tx", BlockLoaderFunctionConfig.Function.AMD_MAX);
-        var countPushed = findPushedFields(plan, "network.eth0.tx", BlockLoaderFunctionConfig.Function.AMD_COUNT);
-        var sumPushed = findPushedFields(plan, "network.eth0.tx", BlockLoaderFunctionConfig.Function.AMD_SUM);
+        List<FieldAttribute> maxPushed = findPushedFields(plan, "network.eth0.tx", BlockLoaderFunctionConfig.Function.AMD_MAX);
+        List<FieldAttribute> countPushed = findPushedFields(plan, "network.eth0.tx", BlockLoaderFunctionConfig.Function.AMD_COUNT);
+        List<FieldAttribute> sumPushed = findPushedFields(plan, "network.eth0.tx", BlockLoaderFunctionConfig.Function.AMD_SUM);
         assertThat(maxPushed, hasSize(greaterThanOrEqualTo(1)));
         assertThat(countPushed, hasSize(greaterThanOrEqualTo(1)));
         assertThat(sumPushed, hasSize(greaterThanOrEqualTo(1)));
@@ -396,7 +401,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
 
     public void testReductionPlanForTopNWithPushedDownFunctions() {
         assumeTrue("Node reduction must be enabled", EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION.isEnabled());
-        var plan = allTypesPlannerOptimizer.plan("""
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan("""
             FROM test_all
             | EVAL score = V_DOT_PRODUCT(dense_vector, [1.0, 2.0, 3.0])
             | SORT integer DESC
@@ -404,7 +409,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             | KEEP text, score
             """);
 
-        var evalExec = findFirst(plan, EvalExec.class, e -> e.fields().stream().anyMatch(f -> {
+        EvalExec evalExec = findFirst(plan, EvalExec.class, e -> e.fields().stream().anyMatch(f -> {
             if (f.name().equals("score") && f.child() instanceof FieldAttribute fa) {
                 return fa.name().startsWith("$$dense_vector$V_DOT_PRODUCT$");
             }
@@ -415,7 +420,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
 
     public void testReductionPlanForTopNWithPushedDownFunctionsInOrder() {
         assumeTrue("Node reduction must be enabled", EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION.isEnabled());
-        var plan = allTypesPlannerOptimizer.plan("""
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan("""
             FROM test_all
             | EVAL fieldLength = LENGTH(text)
             | SORT fieldLength DESC
@@ -423,7 +428,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             | KEEP text, fieldLength
             """);
 
-        var evalExec = findFirst(plan, EvalExec.class, e -> e.fields().stream().anyMatch(f -> {
+        EvalExec evalExec = findFirst(plan, EvalExec.class, e -> e.fields().stream().anyMatch(f -> {
             if (f.name().equals("fieldLength") && f.child() instanceof FieldAttribute fa) {
                 return fa.name().startsWith("$$text$LENGTH$");
             }
@@ -440,7 +445,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         // not see them and cannot push. The data node fragment only contains
         // the raw field extraction. This verifies the plan still builds
         // correctly and the un-pushed expressions are preserved.
-        var plan = allTypesPlannerOptimizer.plan("""
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan("""
             from test_all
             | eval u = v_cosine(dense_vector, [4, 5, 6])
             | fork
@@ -450,12 +455,12 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             """);
 
         // The LENGTH(keyword) eval above the fork stays as a raw Length function.
-        var topEval = findFirst(plan, EvalExec.class, e -> e.fields().stream().anyMatch(f -> {
+        EvalExec topEval = findFirst(plan, EvalExec.class, e -> e.fields().stream().anyMatch(f -> {
             return f.name().equals("x") && f.child() instanceof Length;
         }));
         assertNotNull("LENGTH(keyword) above fork should remain as Length", topEval);
 
-        var mergeExec = findFirst(plan, MergeExec.class);
+        MergeExec mergeExec = findFirst(plan, MergeExec.class);
         assertNotNull("Plan should contain a MergeExec for fork", mergeExec);
     }
 
@@ -465,14 +470,14 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         assumeTrue("Subqueries are allowed", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         assumeTrue("Subqueries are allowed", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled());
 
-        var plan = allTypesPlannerOptimizer.plan("""
+        PhysicalPlan plan = allTypesPlannerOptimizer.plan("""
             from test_all, (from test_all | eval s = length(text) | keep s)
             | eval t = v_dot_product(dense_vector, [1, 2, 3])
             | keep s, t
             """);
 
         boolean foundDotProductAboveUnion = false;
-        for (var node : collectNodes(plan, EvalExec.class)) {
+        for (EvalExec node : collectNodes(plan, EvalExec.class)) {
             for (Alias field : node.fields()) {
                 if (field.name().equals("t") && field.child() instanceof DotProduct) {
                     foundDotProductAboveUnion = true;
@@ -481,7 +486,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         }
         assertTrue("v_dot_product above union should NOT be pushed (multiple sources)", foundDotProductAboveUnion);
 
-        var textLengthPushed = findPushedFields(plan, "text", BlockLoaderFunctionConfig.Function.LENGTH);
+        List<FieldAttribute> textLengthPushed = findPushedFields(plan, "text", BlockLoaderFunctionConfig.Function.LENGTH);
         assertThat("LENGTH(text) in subquery should be pushed", textLengthPushed, hasSize(greaterThanOrEqualTo(1)));
     }
 
@@ -489,7 +494,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
 
     public void testPushDownFunctionsLookupJoin() {
         // The SORT ensures the evals below are in the data-node fragment.
-        var plan = plannerOptimizer.plan("""
+        PhysicalPlan plan = plannerOptimizer.plan("""
             from test
             | eval s = length(first_name)
             | rename languages AS language_code
@@ -502,18 +507,18 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             """);
 
         // "s" (LENGTH(first_name)) is below the join — SHOULD be pushed
-        var firstNamePushed = findPushedFields(plan, "first_name", BlockLoaderFunctionConfig.Function.LENGTH);
+        List<FieldAttribute> firstNamePushed = findPushedFields(plan, "first_name", BlockLoaderFunctionConfig.Function.LENGTH);
         assertThat("LENGTH(first_name) below join should be pushed", firstNamePushed, hasSize(greaterThanOrEqualTo(1)));
 
         // "t" (LENGTH(last_name)) and "u" (LENGTH(language_name)) are above
         // the join. Because the Primaries check detects multiple sources above
         // the join (main + lookup), these should NOT be pushed.
-        var lookupJoin = findFirst(plan, LookupJoinExec.class);
+        LookupJoinExec lookupJoin = findFirst(plan, LookupJoinExec.class);
         assertNotNull("Plan should contain a LookupJoinExec", lookupJoin);
 
         // Verify that LENGTH expressions above the join are not pushed
         boolean foundUnpushedAboveJoin = false;
-        for (var node : collectNodes(plan, EvalExec.class)) {
+        for (EvalExec node : collectNodes(plan, EvalExec.class)) {
             for (Alias field : node.fields()) {
                 if ((field.name().equals("t") || field.name().equals("u")) && field.child() instanceof Length) {
                     foundUnpushedAboveJoin = true;
@@ -552,7 +557,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
     private Attribute assertLengthPushdown(Expression e, String fieldName) {
         FieldAttribute attr = as(e, FieldAttribute.class);
         assertThat(attr.name(), startsWith("$$" + fieldName + "$LENGTH$"));
-        var field = as(attr.field(), FunctionEsField.class);
+        FunctionEsField field = as(attr.field(), FunctionEsField.class);
         assertThat(field.functionConfig().function(), is(BlockLoaderFunctionConfig.Function.LENGTH));
         assertThat(field.getName(), equalTo(fieldName));
         return attr;

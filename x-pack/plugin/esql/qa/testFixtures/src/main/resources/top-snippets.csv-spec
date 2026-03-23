@@ -115,7 +115,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | snippets:keyword
 ;
 
 topSnippetsWithMultivaluedFieldMultipleMatches
-required_capability: top_snippets_mv
+required_capability: top_snippets_highlight
 
 ROW positions = ["Senior Team Lead", "Lead Architect"]
 | EVAL snippets = TOP_SNIPPETS(positions, "lead")
@@ -295,6 +295,20 @@ ROW content = "Use <b>bold</b> tags & special chars with the Ring."
 
 snippets:keyword
 Use &lt;b&gt;bold&lt;&#x2F;b&gt; tags &amp; special chars with the <em>Ring</em>.
+;
+
+topSnippetsNumWordsZeroSkipsChunking
+required_capability: top_snippets_highlight
+
+// num_words=0 returns the whole value as a single chunk; num_words=20 splits it into pieces.
+ROW chunks = ["The answer to the ultimate question of life the universe and everything is 42. Deep Thought computed this answer over seven and a half million years. The mice who commissioned Deep Thought were rather disappointed by the result.", "The ships hung in the sky in much the same way that bricks dont."]
+| EVAL whole_snippets = TOP_SNIPPETS(chunks, "deep thought answer", {"num_words": 0})
+| EVAL chunked_snippets = TOP_SNIPPETS(chunks, "deep thought answer", {"num_words": 20})
+| KEEP whole_snippets, chunked_snippets
+;
+
+whole_snippets:keyword | chunked_snippets:keyword
+The answer to the ultimate question of life the universe and everything is 42. Deep Thought computed this answer over seven and a half million years. The mice who commissioned Deep Thought were rather disappointed by the result. | [Deep Thought computed this answer over seven and a half million years., The mice who commissioned Deep Thought were rather disappointed by the result., The answer to the ultimate question of life the universe and everything is 42.]
 ;
 
 topSnippetsWithFoldableConcatQuery

@@ -16,6 +16,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.datasources.FixtureUtils.FIXTURES_RESOURCE_PATH;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.ACCESS_KEY;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.SECRET_KEY;
 
@@ -52,7 +53,7 @@ public class Clusters {
     }
 
     private static String fixturesPath() {
-        URL resourceUrl = Clusters.class.getResource("/iceberg-fixtures");
+        URL resourceUrl = Clusters.class.getResource(FIXTURES_RESOURCE_PATH);
         if (resourceUrl != null && resourceUrl.getProtocol().equals("file")) {
             try {
                 return PathUtils.get(resourceUrl.toURI()).toAbsolutePath().toString();

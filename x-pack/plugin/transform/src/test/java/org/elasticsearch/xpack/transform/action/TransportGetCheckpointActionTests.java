@@ -14,7 +14,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -52,7 +51,6 @@ public class TransportGetCheckpointActionTests extends ESTestCase {
                 new SearchShardsGroup(SHARD_B_0, List.of(NODE_1, NODE_2), false, SplitShardCountSummary.UNSET),
                 new SearchShardsGroup(SHARD_B_1, List.of(NODE_0, NODE_2), true, SplitShardCountSummary.UNSET)
             ),
-            0,
             Set.of(),
             Map.of()
         );
@@ -64,23 +62,22 @@ public class TransportGetCheckpointActionTests extends ESTestCase {
     }
 
     public void testFilterOutSkippedShards_EmptySearchShardsResponse() {
-        SearchShardsResponse searchShardsResponse = new SearchShardsResponse(Set.of(), 0, Set.of(), Map.of());
+        SearchShardsResponse searchShardsResponse = new SearchShardsResponse(Set.of(), Set.of(), Map.of());
         Map<String, Set<ShardId>> filteredNodesAndShards = TransportGetCheckpointAction.filterOutSkippedShards(
             NODES_AND_SHARDS,
             searchShardsResponse
         );
-        assertThat(filteredNodesAndShards, is(equalTo(Collections.emptyMap())));
+        assertThat(filteredNodesAndShards, is(equalTo(NODES_AND_SHARDS)));
     }
 
     public void testFilterOutSkippedShards_SomeNodesEmptyAfterFiltering() {
         SearchShardsResponse searchShardsResponse = new SearchShardsResponse(
             Set.of(
-                new SearchShardsGroup(SHARD_A_0, List.of(NODE_0, NODE_2), false, SplitShardCountSummary.UNSET),
-                new SearchShardsGroup(SHARD_A_1, List.of(NODE_0, NODE_2), false, SplitShardCountSummary.UNSET),
-                new SearchShardsGroup(SHARD_B_0, List.of(NODE_0, NODE_2), false, SplitShardCountSummary.UNSET),
-                new SearchShardsGroup(SHARD_B_1, List.of(NODE_0, NODE_2), false, SplitShardCountSummary.UNSET)
+                new SearchShardsGroup(SHARD_A_0, List.of(NODE_0, NODE_2), true, SplitShardCountSummary.UNSET),
+                new SearchShardsGroup(SHARD_A_1, List.of(NODE_0, NODE_2), true, SplitShardCountSummary.UNSET),
+                new SearchShardsGroup(SHARD_B_0, List.of(NODE_0, NODE_2), true, SplitShardCountSummary.UNSET),
+                new SearchShardsGroup(SHARD_B_1, List.of(NODE_0, NODE_2), true, SplitShardCountSummary.UNSET)
             ),
-            0,
             Set.of(),
             Map.of()
         );
@@ -88,17 +85,21 @@ public class TransportGetCheckpointActionTests extends ESTestCase {
             NODES_AND_SHARDS,
             searchShardsResponse
         );
-        Map<String, Set<ShardId>> expectedFilteredNodesAndShards = Map.of(
-            NODE_0,
-            Set.of(SHARD_A_0, SHARD_A_1, SHARD_B_0, SHARD_B_1),
-            NODE_2,
-            Set.of(SHARD_A_0, SHARD_A_1, SHARD_B_0, SHARD_B_1)
-        );
+        Map<String, Set<ShardId>> expectedFilteredNodesAndShards = Map.of(NODE_1, Set.of(SHARD_A_0, SHARD_A_1, SHARD_B_0, SHARD_B_1));
         assertThat(filteredNodesAndShards, is(equalTo(expectedFilteredNodesAndShards)));
     }
 
     public void testFilterOutSkippedShards_AllNodesEmptyAfterFiltering() {
-        SearchShardsResponse searchShardsResponse = new SearchShardsResponse(Set.of(), 0, Set.of(), Map.of());
+        SearchShardsResponse searchShardsResponse = new SearchShardsResponse(
+            Set.of(
+                new SearchShardsGroup(SHARD_A_0, List.of(NODE_0, NODE_1, NODE_2), true, SplitShardCountSummary.UNSET),
+                new SearchShardsGroup(SHARD_A_1, List.of(NODE_0, NODE_1, NODE_2), true, SplitShardCountSummary.UNSET),
+                new SearchShardsGroup(SHARD_B_0, List.of(NODE_0, NODE_1, NODE_2), true, SplitShardCountSummary.UNSET),
+                new SearchShardsGroup(SHARD_B_1, List.of(NODE_0, NODE_1, NODE_2), true, SplitShardCountSummary.UNSET)
+            ),
+            Set.of(),
+            Map.of()
+        );
         Map<String, Set<ShardId>> filteredNodesAndShards = TransportGetCheckpointAction.filterOutSkippedShards(
             NODES_AND_SHARDS,
             searchShardsResponse
@@ -109,10 +110,11 @@ public class TransportGetCheckpointActionTests extends ESTestCase {
     public void testFilterOutSkippedShards() {
         SearchShardsResponse searchShardsResponse = new SearchShardsResponse(
             Set.of(
-                new SearchShardsGroup(SHARD_A_0, List.of(NODE_0, NODE_1), false, SplitShardCountSummary.UNSET),
-                new SearchShardsGroup(SHARD_B_0, List.of(NODE_1, NODE_2), false, SplitShardCountSummary.UNSET)
+                new SearchShardsGroup(SHARD_A_0, List.of(NODE_0, NODE_1), true, SplitShardCountSummary.UNSET),
+                new SearchShardsGroup(SHARD_B_0, List.of(NODE_1, NODE_2), false, SplitShardCountSummary.UNSET),
+                new SearchShardsGroup(SHARD_B_1, List.of(NODE_0, NODE_2), true, SplitShardCountSummary.UNSET),
+                new SearchShardsGroup(new ShardId(INDEX_C, 0), List.of(NODE_0, NODE_1, NODE_2), true, SplitShardCountSummary.UNSET)
             ),
-            3,
             Set.of(),
             Map.of()
         );
@@ -122,11 +124,11 @@ public class TransportGetCheckpointActionTests extends ESTestCase {
         );
         Map<String, Set<ShardId>> expectedFilteredNodesAndShards = Map.of(
             NODE_0,
-            Set.of(SHARD_A_0),
+            Set.of(SHARD_A_1, SHARD_B_0),
             NODE_1,
-            Set.of(SHARD_A_0, SHARD_B_0),
+            Set.of(SHARD_A_1, SHARD_B_0, SHARD_B_1),
             NODE_2,
-            Set.of(SHARD_B_0)
+            Set.of(SHARD_A_0, SHARD_A_1, SHARD_B_0)
         );
         assertThat(filteredNodesAndShards, is(equalTo(expectedFilteredNodesAndShards)));
     }

@@ -26,7 +26,8 @@ import org.openjdk.jmh.annotations.Warmup;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.packNibbles;
+import static org.elasticsearch.nativeaccess.Int4TestUtils.dotProductI4SinglePacked;
+import static org.elasticsearch.nativeaccess.Int4TestUtils.packNibbles;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.randomInt4Bytes;
 
 /**
@@ -61,7 +62,7 @@ public class VectorScorerInt4OperationBenchmark {
 
     @Benchmark
     public int scalar() {
-        return ScalarOperations.dotProductI4SinglePacked(unpacked, packed);
+        return dotProductI4SinglePacked(unpacked, packed);
     }
 
     @Benchmark

@@ -527,6 +527,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.mapper.blockloader.script;
     exports org.elasticsearch.readiness to org.elasticsearch.xpack.stateless.sigterm;
     exports org.elasticsearch.inference.metadata;
+    exports org.elasticsearch.search.diversification;
     exports org.elasticsearch.search.diversification.mmr;
     exports org.elasticsearch.inference.completion;
 }

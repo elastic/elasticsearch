@@ -1,6 +1,6 @@
 flattened root fields
 required_capability: load_flattened_field
-required_capability: optional_fields_v2
+required_capability: optional_fields_v3
 
 SET unmapped_fields="load"\;
 FROM flattened_otel_logs
@@ -16,7 +16,7 @@ FROM flattened_otel_logs
 // ----------------------------------------------------
 flattened KEEP subfield
 required_capability: load_flattened_field
-required_capability: optional_fields_v2
+required_capability: optional_fields_v3
 
 SET unmapped_fields="load"\;
 FROM flattened_otel_logs
@@ -40,7 +40,7 @@ FROM flattened_otel_logs
 // ----------------------------------------------------
 flattened DROP subfield
 required_capability: load_flattened_field
-required_capability: optional_fields_v2
+required_capability: optional_fields_v3
 
 SET unmapped_fields="load"\;
 FROM flattened_otel_logs
@@ -65,7 +65,7 @@ FROM flattened_otel_logs
 // ----------------------------------------------------
 flattened DROP subfield after KEEP
 required_capability: load_flattened_field
-required_capability: optional_fields_v2
+required_capability: optional_fields_v3
 
 SET unmapped_fields="load"\;
 FROM flattened_otel_logs
@@ -90,7 +90,7 @@ FROM flattened_otel_logs
 // ----------------------------------------------------
 flattened subfield with WHERE
 required_capability: load_flattened_field
-required_capability: optional_fields_v2
+required_capability: optional_fields_v3
 
 SET unmapped_fields="load"\;
 FROM flattened_otel_logs
@@ -106,7 +106,7 @@ FROM flattened_otel_logs
 // ----------------------------------------------------
 flattened subfield with WHERE and KEEP *
 required_capability: load_flattened_field
-required_capability: optional_fields_v2
+required_capability: optional_fields_v3
 
 SET unmapped_fields="load"\;
 FROM flattened_otel_logs
@@ -123,7 +123,7 @@ FROM flattened_otel_logs
 // ----------------------------------------------------
 flattened subfield with WHERE and KEEP specific subfields
 required_capability: load_flattened_field
-required_capability: optional_fields_v2
+required_capability: optional_fields_v3
 
 SET unmapped_fields="load"\;
 FROM flattened_otel_logs
@@ -140,7 +140,7 @@ FROM flattened_otel_logs
 // ----------------------------------------------------
 flattened subfield with EVAL TO_UPPER
 required_capability: load_flattened_field
-required_capability: optional_fields_v2
+required_capability: optional_fields_v3
 
 SET unmapped_fields="load"\;
 FROM flattened_otel_logs
@@ -165,7 +165,7 @@ FROM flattened_otel_logs
 // ----------------------------------------------------
 flattened subfield with EVAL LENGTH
 required_capability: load_flattened_field
-required_capability: optional_fields_v2
+required_capability: optional_fields_v3
 
 SET unmapped_fields="load"\;
 FROM flattened_otel_logs
@@ -190,7 +190,7 @@ FROM flattened_otel_logs
 // ----------------------------------------------------
 SORT on flattened subfield
 required_capability: load_flattened_field
-required_capability: optional_fields_v2
+required_capability: optional_fields_v3
 
 SET unmapped_fields="load"\;
 FROM flattened_otel_logs
@@ -214,7 +214,7 @@ FROM flattened_otel_logs
 // ----------------------------------------------------
 RENAME flattened subfield
 required_capability: load_flattened_field
-required_capability: optional_fields_v2
+required_capability: optional_fields_v3
 
 SET unmapped_fields="load"\;
 FROM flattened_otel_logs
@@ -239,7 +239,7 @@ FROM flattened_otel_logs
 // ----------------------------------------------------
 flattened subfield with STATS count
 required_capability: load_flattened_field
-required_capability: optional_fields_v2
+required_capability: optional_fields_v3
 
 SET unmapped_fields="load"\;
 FROM flattened_otel_logs
@@ -253,7 +253,7 @@ count(*):long | resource.attributes.agent.type:keyword
 // ----------------------------------------------------
 flattened subfield with STATS count_distinct
 required_capability: load_flattened_field
-required_capability: optional_fields_v2
+required_capability: optional_fields_v3
 
 SET unmapped_fields="load"\;
 FROM flattened_otel_logs
@@ -267,7 +267,7 @@ count_distinct(resource.attributes.host.name):long
 // ----------------------------------------------------
 flattened subfield with INLINE STATS
 required_capability: load_flattened_field
-required_capability: optional_fields_v2
+required_capability: optional_fields_v3
 
 SET unmapped_fields="load"\;
 FROM flattened_otel_logs
@@ -288,7 +288,7 @@ FROM flattened_otel_logs
 // ----------------------------------------------------
 flattened subfield with MV_EXPAND
 required_capability: load_flattened_field
-required_capability: optional_fields_v2
+required_capability: optional_fields_v3
 
 SET unmapped_fields="load"\;
 FROM flattened_otel_logs

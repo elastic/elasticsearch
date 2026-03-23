@@ -323,12 +323,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return superResult == null && name.equals(unmappedEsField.getName()) ? createUnmappedFieldType(name, this) : superResult;
         }
 
-        @Override
-        protected Set<String> resolveSourcePaths(String name) {
-            var result = super.resolveSourcePaths(name);
-            return result.isEmpty() && name.equals(unmappedEsField.getName()) ? Set.of(name) : result;
-        }
-
         static MappedFieldType createUnmappedFieldType(String name, DefaultShardContext context) {
             var builder = new KeywordFieldMapper.Builder(name, context.ctx.getIndexSettings());
             builder.docValues(false);
@@ -662,10 +656,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public double storedFieldsSequentialProportion() {
             return EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.get(ctx.getIndexSettings().getSettings());
-        }
-
-        protected Set<String> resolveSourcePaths(String name) {
-            return ctx.sourcePath(name);
         }
 
         @Override

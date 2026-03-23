@@ -221,7 +221,7 @@ public class EsqlCapabilities {
 
         /**
          * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY only.
-         * Compared to {@link #OPTIONAL_FIELDS_V2}, this does not enable support for LOAD.
+         * Compared to {@link #OPTIONAL_FIELDS_V3}, this does not enable support for LOAD.
          */
         OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
 
@@ -245,8 +245,9 @@ public class EsqlCapabilities {
         /**
          * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY/LOAD.
          * V2:  prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
+         * V3:  Support for union type like resolution for load.
          */
-        OPTIONAL_FIELDS_V2(Build.current().isSnapshot()),
+        OPTIONAL_FIELDS_V3(Build.current().isSnapshot()),
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently

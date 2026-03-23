@@ -277,7 +277,7 @@ public final class AnalyzerTestUtils {
     }
 
     public static LogicalPlan analyzeStatement(String query, Map<IndexPattern, IndexResolution> indexResolutions) {
-        return analyzeStatement(query, indexResolutions, false);
+        return analyzeStatement(query, indexResolutions, true);
     }
 
     public static LogicalPlan analyzeStatement(String query, Map<IndexPattern, IndexResolution> indexResolutions, boolean checkPlan) {

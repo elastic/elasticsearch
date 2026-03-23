@@ -180,7 +180,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -1209,7 +1208,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Field is partially unmapped.
             // TODO: Should the check for partially unmapped fields be done specific to each sub-query in a fork?
             if (resolvedCol instanceof FieldAttribute fa && indices.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
-                return fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, indices);
+                // NOTE: We use indices.getFirst() here as a temporary solution. INSIST will be removed after load is in GA anyway.
+                return fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, indices.getFirst());
             }
 
             // Either the field is mapped everywhere and we can just use the resolved column, or the INSIST clause isn't on top of a FROM
@@ -1217,27 +1217,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolvedCol;
         }
 
-        private static FieldAttribute invalidInsistAttribute(FieldAttribute fa, List<IndexResolution> indexResolutions) {
-            String name = fa.name();
-            List<EsIndex> unmappedIndices = indexResolutions.stream()
-                .map(IndexResolution::get)
-                .filter(r -> r.isPartiallyUnmappedField(name))
-                .toList();
-            if (unmappedIndices.isEmpty()) {
-                throw new IllegalStateException(Strings.format("No index with unmapped '%s' found", name));
-            }
-            if (unmappedIndices.size() > 1) {
-                throw new IllegalStateException(
-                    Strings.format(
-                        "Multiple indices with unmapped '%s' found: %s; Unexpected since we forks/subqueries/etc. are currently disabled!",
-                        name,
-                        unmappedIndices.stream().map(EsIndex::name).toList()
-                    )
-                );
-            }
-            EsIndex esIndex = unmappedIndices.getFirst();
-            InvalidMappedField field = InvalidMappedField.potentiallyUnmapped(name, getTypesToIndices(fa, esIndex));
-            return new FieldAttribute(fa.source(), null, fa.qualifier(), name, field);
+        private static FieldAttribute invalidInsistAttribute(FieldAttribute fa, IndexResolution indexResolutions) {
+            InvalidMappedField field = InvalidMappedField.potentiallyUnmapped(fa.name(), getTypesToIndices(fa, indexResolutions.get()));
+            return new FieldAttribute(fa.source(), null, fa.qualifier(), fa.name(), field);
         }
 
         private static Map<String, Set<String>> getTypesToIndices(FieldAttribute fa, EsIndex esIndex) {
@@ -1247,7 +1229,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Field isn't currently invalid, meaning it's mapped to a single type in all the indices where it's actually mapped.
             TreeSet<String> indicesWithField = new TreeSet<>(esIndex.concreteQualifiedIndices());
             indicesWithField.removeAll(esIndex.getUnmappedIndices(fa.name()));
-            return new TreeMap<>(Map.of(fa.dataType().typeName(), indicesWithField));
+            return Map.of(fa.dataType().typeName(), indicesWithField);
         }
 
         public static FieldAttribute insistKeyword(Attribute attribute) {
@@ -1266,11 +1248,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          */
         private static LogicalPlan resolvePartiallyMapped(LogicalPlan plan, AnalyzerContext context) {
             var indexResolutions = collectIndexResolutions(plan, context);
+            if (indexResolutions.isEmpty()) {
+                throw new IllegalStateException("Unmapped fields with empty index resolutions.");
+            }
+            if (indexResolutions.size() > 1) {
+                throw new IllegalStateException(
+                    Strings.format("Multiple index patterns should be disabled with unmapped fields", indexResolutions)
+                );
+            }
             Map<FieldAttribute, FieldAttribute> insistedMap = new HashMap<>();
             var transformed = plan.transformExpressionsOnly(FieldAttribute.class, fa -> {
                 var esField = fa.field();
                 if (esField instanceof PotentiallyUnmappedKeywordEsField
-                    || (esField instanceof InvalidMappedField imf && imf.isPotentiallyUnmapped())) {
+                    || esField instanceof InvalidMappedField imf && imf.isPotentiallyUnmapped()) {
                     return fa;
                 }
                 var existing = insistedMap.get(fa);
@@ -1278,7 +1268,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return existing;
                 }
                 if (indexResolutions.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
-                    FieldAttribute newFA = fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, indexResolutions);
+                    FieldAttribute newFA = fa.dataType() == KEYWORD
+                        ? insistKeyword(fa)
+                        : invalidInsistAttribute(fa, indexResolutions.getFirst());
                     insistedMap.put(fa, newFA);
                     return newFA;
                 }
@@ -2495,7 +2487,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             false,
                             indexToConversionExpressions,
                             fa.field().getTimeSeriesFieldType(),
-                            null
+                            null // FIXME(gal, NOCOMMIT) This basically a copy constructor, shouldn't be null; write a test to flush it out.
                         );
                         return createIfDoesNotAlreadyExist(fa, multiTypeEsField, unionFieldAttributes);
                     }
@@ -2538,7 +2530,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static MultiTypeEsField resolvedMultiTypeEsField(
             FieldAttribute fa,
-            HashMap<TypeResolutionKey, Expression> typeResolutions,
+            Map<TypeResolutionKey, Expression> typeResolutions,
             @Nullable Expression potentiallyUnmappedConversion
         ) {
             Map<String, Expression> typesToConversionExpressions = new HashMap<>();

@@ -60,17 +60,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
     private static final int INITIAL_TEST_RATE_LIMIT = 30;
 
     public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
-        var newSettingsMap = createEmbeddingsRequestSettingsMap(
-            TEST_REGION,
-            TEST_MODEL_ID,
-            TEST_PROVIDER.toString(),
-            TEST_DIMENSIONS,
-            TEST_DIMENSIONS_SET_BY_USER,
-            TEST_MAX_INPUT_TOKENS,
-            TEST_SIMILARITY,
-            TEST_RATE_LIMIT
-        );
-        var serviceSettings = new AmazonBedrockEmbeddingsServiceSettings(
+        var originalServiceSettings = new AmazonBedrockEmbeddingsServiceSettings(
             INITIAL_TEST_REGION,
             INITIAL_TEST_MODEL_ID,
             INITIAL_TEST_PROVIDER,
@@ -79,10 +69,22 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
             INITIAL_TEST_MAX_INPUT_TOKENS,
             INITIAL_TEST_SIMILARITY,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        ).updateServiceSettings(newSettingsMap);
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            createEmbeddingsRequestSettingsMap(
+                TEST_REGION,
+                TEST_MODEL_ID,
+                TEST_PROVIDER.toString(),
+                TEST_DIMENSIONS,
+                TEST_DIMENSIONS_SET_BY_USER,
+                TEST_MAX_INPUT_TOKENS,
+                TEST_SIMILARITY,
+                TEST_RATE_LIMIT
+            )
+        );
 
         assertThat(
-            serviceSettings,
+            updatedServiceSettings,
             is(
                 new AmazonBedrockEmbeddingsServiceSettings(
                     INITIAL_TEST_REGION,
@@ -99,7 +101,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
     }
 
     public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
-        var serviceSettings = new AmazonBedrockEmbeddingsServiceSettings(
+        var originalServiceSettings = new AmazonBedrockEmbeddingsServiceSettings(
             INITIAL_TEST_REGION,
             INITIAL_TEST_MODEL_ID,
             INITIAL_TEST_PROVIDER,
@@ -108,23 +110,10 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
             INITIAL_TEST_MAX_INPUT_TOKENS,
             INITIAL_TEST_SIMILARITY,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        ).updateServiceSettings(new HashMap<>());
-
-        assertThat(
-            serviceSettings,
-            is(
-                new AmazonBedrockEmbeddingsServiceSettings(
-                    INITIAL_TEST_REGION,
-                    INITIAL_TEST_MODEL_ID,
-                    INITIAL_TEST_PROVIDER,
-                    INITIAL_TEST_DIMENSIONS,
-                    INITIAL_TEST_DIMENSIONS_SET_BY_USER,
-                    INITIAL_TEST_MAX_INPUT_TOKENS,
-                    INITIAL_TEST_SIMILARITY,
-                    new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-                )
-            )
         );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
+
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
     }
 
     public void testFromMap_Request_CreatesSettingsCorrectly() {

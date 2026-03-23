@@ -40,16 +40,18 @@ public class AmazonBedrockChatCompletionServiceSettingsTests extends AbstractBWC
     private static final int INITIAL_TEST_RATE_LIMIT = 30;
 
     public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
-        var newSettingsMap = createChatCompletionRequestSettingsMap(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER.toString(), TEST_RATE_LIMIT);
-        var serviceSettings = new AmazonBedrockChatCompletionServiceSettings(
+        var originalServiceSettings = new AmazonBedrockChatCompletionServiceSettings(
             INITIAL_TEST_REGION,
             INITIAL_TEST_MODEL_ID,
             INITIAL_TEST_PROVIDER,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        ).updateServiceSettings(newSettingsMap);
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            createChatCompletionRequestSettingsMap(TEST_REGION, TEST_MODEL_ID, TEST_PROVIDER.toString(), TEST_RATE_LIMIT)
+        );
 
         assertThat(
-            serviceSettings,
+            updatedServiceSettings,
             is(
                 new AmazonBedrockChatCompletionServiceSettings(
                     INITIAL_TEST_REGION,
@@ -62,24 +64,15 @@ public class AmazonBedrockChatCompletionServiceSettingsTests extends AbstractBWC
     }
 
     public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
-        var serviceSettings = new AmazonBedrockChatCompletionServiceSettings(
+        var originalServiceSettings = new AmazonBedrockChatCompletionServiceSettings(
             INITIAL_TEST_REGION,
             INITIAL_TEST_MODEL_ID,
             INITIAL_TEST_PROVIDER,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        ).updateServiceSettings(new HashMap<>());
-
-        assertThat(
-            serviceSettings,
-            is(
-                new AmazonBedrockChatCompletionServiceSettings(
-                    INITIAL_TEST_REGION,
-                    INITIAL_TEST_MODEL_ID,
-                    INITIAL_TEST_PROVIDER,
-                    new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-                )
-            )
         );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
+
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
     }
 
     private static HashMap<String, Object> createChatCompletionRequestSettingsMap(

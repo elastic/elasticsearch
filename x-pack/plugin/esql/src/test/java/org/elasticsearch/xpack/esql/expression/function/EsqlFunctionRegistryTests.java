@@ -293,7 +293,6 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTimeErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvgErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhraseErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatchErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.fulltext.ScoreErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.grouping.BucketErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.grouping.TBucketErrorTests is missing")

@@ -34,37 +34,37 @@ public final class PreparedEsqlQueryRequest extends EsqlQueryRequest {
     private final EsqlStatement statement;
     private final String queryDescription;
 
-    private PreparedEsqlQueryRequest(boolean async, EsqlStatement statement) {
+    private PreparedEsqlQueryRequest(boolean async, EsqlStatement statement, String queryDescription) {
         super(async, null);
         this.statement = statement;
-        this.queryDescription = PREPARED_QUERY_PREFIX + statement.plan();
+        this.queryDescription = PREPARED_QUERY_PREFIX + queryDescription;
     }
 
-    private PreparedEsqlQueryRequest(EsqlQueryRequest source, EsqlStatement statement) {
+    private PreparedEsqlQueryRequest(EsqlQueryRequest source, EsqlStatement statement, String queryDescription) {
         super(source);
         this.statement = statement;
-        this.queryDescription = PREPARED_QUERY_PREFIX + statement.plan();
+        this.queryDescription = PREPARED_QUERY_PREFIX + queryDescription;
     }
 
     /**
      * Creates a synchronous request backed by the given pre-built statement.
      */
-    public static PreparedEsqlQueryRequest sync(EsqlStatement statement) {
-        return new PreparedEsqlQueryRequest(false, statement);
+    public static PreparedEsqlQueryRequest sync(EsqlStatement statement, String queryDescription) {
+        return new PreparedEsqlQueryRequest(false, statement, queryDescription);
     }
 
     /**
      * Creates an asynchronous request backed by the given pre-built statement.
      */
-    public static PreparedEsqlQueryRequest async(EsqlStatement statement) {
-        return new PreparedEsqlQueryRequest(true, statement);
+    public static PreparedEsqlQueryRequest async(EsqlStatement statement, String queryDescription) {
+        return new PreparedEsqlQueryRequest(true, statement, queryDescription);
     }
 
     /**
      * Creates a request backed by {@code statement} with all other properties copied from {@code source}.
      */
-    public static PreparedEsqlQueryRequest from(EsqlQueryRequest source, EsqlStatement statement) {
-        return new PreparedEsqlQueryRequest(source, statement);
+    public static PreparedEsqlQueryRequest from(EsqlQueryRequest source, EsqlStatement statement, String queryDescription) {
+        return new PreparedEsqlQueryRequest(source, statement, queryDescription);
     }
 
     /**

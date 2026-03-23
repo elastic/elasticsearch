@@ -195,7 +195,7 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         }
         var parser = new EsqlParser(new EsqlConfig(new EsqlFunctionRegistry()));
         var statement = parser.createStatement(request.query(), request.params());
-        return PreparedEsqlQueryRequest.from(request, statement);
+        return PreparedEsqlQueryRequest.from(request, statement, "pre-built statement for testing");
     }
 
     protected static QueryPragmas randomPragmas() {

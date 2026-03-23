@@ -52,7 +52,7 @@ public class EsqlAsyncActionIT extends EsqlActionIT {
     public EsqlQueryResponse run(EsqlQueryRequest original) {
         EsqlQueryRequest request;
         if (original instanceof PreparedEsqlQueryRequest prepared) {
-            request = PreparedEsqlQueryRequest.async(prepared.statement());
+            request = PreparedEsqlQueryRequest.async(prepared.statement(), "pre-built async statement for testing");
         } else {
             request = EsqlQueryRequest.asyncEsqlQueryRequest(original.query());
         }

@@ -60,6 +60,11 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     }
 
     @Override
+    public BytesRefBlock slice(int beginInclusive, int endExclusive) {
+        return vector.slice(beginInclusive, endExclusive).asBlock();
+    }
+
+    @Override
     public BytesRefBlock filter(boolean mayContainDuplicates, int... positions) {
         return vector.filter(mayContainDuplicates, positions).asBlock();
     }

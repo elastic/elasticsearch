@@ -120,6 +120,17 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public BytesRefVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        IntVector slicedOrdinals = ordinals.slice(beginInclusive, endExclusive);
+        bytes.incRef();
+        return new OrdinalBytesRefVector(slicedOrdinals, bytes);
+    }
+
+    @Override
     public OrdinalBytesRefVector deepCopy(BlockFactory blockFactory) {
         IntVector copiedOrdinals = null;
         BytesRefVector copiedBytes = null;

@@ -85,6 +85,18 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
     IntVector asVector();
 
     @Override
+    default IntBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(endExclusive - beginInclusive)) {
+            builder.copyFrom(this, beginInclusive, endExclusive);
+            return builder.build();
+        }
+    }
+
+    @Override
     IntBlock filter(boolean mayContainDuplicates, int... positions);
 
     /**

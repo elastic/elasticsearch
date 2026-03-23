@@ -249,6 +249,8 @@ keyword with normalizer and skip store original value:
                     - lowercase
             index:
               mapping.source.mode: synthetic
+              # needed to enable binary doc values
+              use_time_series_doc_values_format: true
           mappings:
             properties:
               keyword:
@@ -333,6 +335,8 @@ keyword with built-in normalizer:
           settings:
             index:
               mapping.source.mode: synthetic
+              # needed to enable binary doc values
+              use_time_series_doc_values_format: true
           mappings:
             properties:
               keyword:

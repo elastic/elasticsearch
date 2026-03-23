@@ -29,10 +29,10 @@ public class AzureAiStudioChatCompletionServiceSettings extends AzureAiStudioSer
     public static AzureAiStudioChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var validationException = new ValidationException();
 
-        var baseSettings = AzureAiStudioServiceSettings.fromMap(map, validationException, context);
+        var commonSettings = AzureAiStudioServiceSettings.fromMap(map, validationException, context);
 
         validationException.throwIfValidationErrorsExist();
-        return new AzureAiStudioChatCompletionServiceSettings(new AzureAiStudioCompletionCommonFields(baseSettings));
+        return new AzureAiStudioChatCompletionServiceSettings(new AzureAiStudioCompletionCommonFields(commonSettings));
     }
 
     @Override
@@ -45,7 +45,7 @@ public class AzureAiStudioChatCompletionServiceSettings extends AzureAiStudioSer
         return new AzureAiStudioChatCompletionServiceSettings(new AzureAiStudioCompletionCommonFields(updatedCommonSettings));
     }
 
-    private record AzureAiStudioCompletionCommonFields(AzureAiStudioCommonSettings baseCommonFields) {}
+    private record AzureAiStudioCompletionCommonFields(AzureAiStudioCommonSettings commonSettings) {}
 
     public AzureAiStudioChatCompletionServiceSettings(
         String target,
@@ -62,10 +62,10 @@ public class AzureAiStudioChatCompletionServiceSettings extends AzureAiStudioSer
 
     private AzureAiStudioChatCompletionServiceSettings(AzureAiStudioCompletionCommonFields fields) {
         this(
-            fields.baseCommonFields.target(),
-            fields.baseCommonFields.provider(),
-            fields.baseCommonFields.endpointType(),
-            fields.baseCommonFields.rateLimitSettings()
+            fields.commonSettings.target(),
+            fields.commonSettings.provider(),
+            fields.commonSettings.endpointType(),
+            fields.commonSettings.rateLimitSettings()
         );
     }
 

@@ -9084,7 +9084,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         as(first.child(), ExchangeExec.class);
     }
 
-    public void testVectorFunctionsAbsorbedIntoFragment() {
+    public void testVectorFunctionsNotPushedInCoordinator() {
         String query = """
             from test_all
             | sort long
@@ -9096,23 +9096,26 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         PhysicalPlan plan = physicalPlan(query, testAllMapping);
         PhysicalPlan optimized = testData.physicalOptimizer().optimize(plan);
 
+        // ProjectExec[[s{r}#6]]
         var project = as(optimized, ProjectExec.class);
         assertThat(Expressions.names(project.projections()), contains("s"));
 
-        // The Mapper absorbs the Eval into the data-node fragment because
-        // DotProduct is a BlockLoaderExpression, so no EvalExec on the coordinator.
-        var topN = as(project.child(), TopNExec.class);
+        // Eval uses DotProduct for calculating the value, not pushed down as a field extraction
+        var eval = as(project.child(), EvalExec.class);
+        assertThat(eval.fields(), hasSize(1));
+        var alias = eval.fields().get(0);
+        assertThat(alias.name(), equalTo("s"));
+        assertThat(alias.child(), instanceOf(DotProduct.class));
+
+        var topN = as(eval.child(), TopNExec.class);
+        // ExchangeExec has dense_vector instead of pushed down field extraction
         var exchange = asRemoteExchange(topN.child());
-        // Exchange carries 's' (computed in fragment) and 'long' (for coordinator TopN sort)
-        assertThat(Expressions.names(exchange.output()), containsInAnyOrder("s", "long"));
+        assertThat(Expressions.names(exchange.output()), containsInAnyOrder("dense_vector", "long"));
 
         var fragment = as(exchange.child(), FragmentExec.class);
         var fragmentPlan = fragment.fragment();
-        // Fragment contains the Eval with DotProduct inside its logical plan
-        assertTrue(
-            "Fragment should contain an Eval with DotProduct",
-            fragmentPlan.anyMatch(p -> p instanceof Eval eval && eval.fields().stream().anyMatch(f -> f.child() instanceof DotProduct))
-        );
+        var fragmentProject = as(fragmentPlan, Project.class);
+        assertThat(Expressions.names(fragmentProject.projections()), containsInAnyOrder("dense_vector", "long"));
     }
 
     private void assertLookupJoinFieldNames(String query, TestDataSource data, List<Set<String>> expectedFieldNames) {

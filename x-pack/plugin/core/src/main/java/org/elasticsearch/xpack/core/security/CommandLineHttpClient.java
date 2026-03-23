@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -131,6 +132,7 @@ public class CommandLineHttpClient {
         return execute(method, url, authorizationHeaderValue, requestBodySupplier, responseHandler);
     }
 
+    @SuppressForbidden(reason = "connect() and getInputStream() on URLConnection are needed for command-line HTTP client")
     private HttpResponse execute(
         String method,
         URL url,

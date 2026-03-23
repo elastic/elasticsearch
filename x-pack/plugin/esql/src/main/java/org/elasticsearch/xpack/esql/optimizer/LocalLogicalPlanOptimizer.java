@@ -77,7 +77,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
     }
 
     @SuppressWarnings("unchecked")
-    private static Batch<LogicalPlan> localBatch(Batch<LogicalPlan> batch, Rule<?, LogicalPlan>... additionalRules) {
+    static Batch<LogicalPlan> localBatch(Batch<LogicalPlan> batch, Rule<?, LogicalPlan>... additionalRules) {
         Rule<?, LogicalPlan>[] rules = batch.rules();
 
         List<Rule<?, LogicalPlan>> newRules = new ArrayList<>(rules.length);

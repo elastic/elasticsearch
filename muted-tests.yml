@@ -369,17 +369,17 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
   issue: https://github.com/elastic/elasticsearch/issues/144699
-- class: org.elasticsearch.index.mapper.TsidExtractingIdFieldMapperTests
-  method: testParsedDescriptionWithIndexDimensions
-  issue: https://github.com/elastic/elasticsearch/issues/144678
 - class: org.elasticsearch.index.store.StoreDirectoryMetricsIT
   method: testDirectoryMetrics
   issue: https://github.com/elastic/elasticsearch/issues/144702
-- class: org.elasticsearch.index.mapper.TsidExtractingIdFieldMapperTests
-  issue: https://github.com/elastic/elasticsearch/issues/144678
 - class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
   issue: https://github.com/elastic/elasticsearch/issues/144709
-
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-avg-over-time.avg_over_time_of_integer}
+  issue: https://github.com/elastic/elasticsearch/issues/144719
+- class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceTests
+  method: testBatchedIndexCreationAndReroute
+  issue: https://github.com/elastic/elasticsearch/issues/144723
 
 # Examples:
 #

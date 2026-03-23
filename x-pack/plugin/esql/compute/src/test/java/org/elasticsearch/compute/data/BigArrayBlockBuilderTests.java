@@ -12,7 +12,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 
+import static org.elasticsearch.compute.data.BasicBlockTests.assertFilter;
 import static org.elasticsearch.compute.data.BasicBlockTests.assertKeepMask;
+import static org.elasticsearch.compute.data.BasicBlockTests.assertSlice;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -45,6 +47,8 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                     assertThat(block.getLong(i), equalTo(elements[i]));
                 }
                 assertKeepMask(block);
+                assertFilter(block);
+                assertSlice(block);
                 try (LongBlock copy = serializeDeserializeBlock(block)) {
                     assertThat(copy, instanceOf(LongVectorBlock.class));
                     assertThat(block.asVector(), instanceOf(LongArrayVector.class));
@@ -71,6 +75,8 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                     assertThat(block.getLong(i), equalTo(elements[i]));
                 }
                 assertKeepMask(block);
+                assertFilter(block);
+                assertSlice(block);
                 try (LongBlock copy = serializeDeserializeBlock(block)) {
                     assertThat(copy, instanceOf(LongVectorBlock.class));
                     assertThat(block.asVector(), instanceOf(LongBigArrayVector.class));
@@ -108,6 +114,8 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                     assertThat(block.getLong(i), equalTo(elements[i]));
                 }
                 assertKeepMask(block);
+                assertFilter(block);
+                assertSlice(block);
                 try (LongBlock copy = serializeDeserializeBlock(block)) {
                     assertThat(copy, instanceOf(LongArrayBlock.class));
                     assertNull(copy.asVector());
@@ -137,6 +145,8 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                     assertThat(block.getLong(i), equalTo(elements[i]));
                 }
                 assertKeepMask(block);
+                assertFilter(block);
+                assertSlice(block);
                 try (LongBlock copy = serializeDeserializeBlock(block)) {
                     assertThat(copy, instanceOf(LongBigArrayBlock.class));
                     assertNull(block.asVector());
@@ -173,6 +183,8 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                     assertThat(block.getBoolean(i), equalTo(elements[i]));
                 }
                 assertKeepMask(block);
+                assertFilter(block);
+                assertSlice(block);
                 try (ToMask mask = block.toMask()) {
                     assertThat(mask.hadMultivaluedFields(), equalTo(false));
                     for (int p = 0; p < elements.length; p++) {
@@ -205,6 +217,8 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                     assertThat(block.getBoolean(i), equalTo(elements[i]));
                 }
                 assertKeepMask(block);
+                assertFilter(block);
+                assertSlice(block);
                 try (var copy = serializeDeserializeBlock(block)) {
                     assertThat(copy, instanceOf(BooleanVectorBlock.class));
                     assertThat(block.asVector(), instanceOf(BooleanBigArrayVector.class));
@@ -242,6 +256,8 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                     assertThat(block.getBoolean(i), equalTo(elements[i]));
                 }
                 assertKeepMask(block);
+                assertFilter(block);
+                assertSlice(block);
                 try (ToMask mask = block.toMask()) {
                     assertThat(mask.hadMultivaluedFields(), equalTo(true));
                     for (int p = 0; p < elements.length; p++) {
@@ -277,6 +293,8 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                     assertThat(block.getBoolean(i), equalTo(elements[i]));
                 }
                 assertKeepMask(block);
+                assertFilter(block);
+                assertSlice(block);
                 try (ToMask mask = block.toMask()) {
                     assertThat(mask.hadMultivaluedFields(), equalTo(true));
                     for (int p = 0; p < elements.length; p++) {
@@ -329,6 +347,8 @@ public class BigArrayBlockBuilderTests extends SerializationTestCase {
                     assertThat(block.getBoolean(block.getFirstValueIndex(p)), equalTo(elements[mvCount + p]));
                 }
                 assertKeepMask(block);
+                assertFilter(block);
+                assertSlice(block);
                 try (ToMask mask = block.toMask()) {
                     /*
                      * NOTE: this test is customized to the layout above where we don't make

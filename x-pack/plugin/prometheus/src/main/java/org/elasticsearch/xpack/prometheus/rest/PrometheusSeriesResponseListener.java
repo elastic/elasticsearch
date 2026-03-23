@@ -29,26 +29,13 @@ import java.util.Map;
 /**
  * Converts an {@link EsqlQueryResponse} from a {@link org.elasticsearch.xpack.esql.plan.logical.TsInfo} plan into the
  * Prometheus {@code /api/v1/series} JSON response format.
- *
- * <p>TsInfo column layout (indices 0–6):
- * <ol start="0">
- *   <li>metric_name</li>
- *   <li>data_stream</li>
- *   <li>unit</li>
- *   <li>metric_type</li>
- *   <li>field_type</li>
- *   <li>dimension_fields</li>
- *   <li>dimensions – JSON object, e.g. {@code {"labels.job":"prometheus","labels.__name__":"up"}}</li>
- * </ol>
  */
 public class PrometheusSeriesResponseListener implements ActionListener<EsqlQueryResponse> {
 
     private static final Logger logger = LogManager.getLogger(PrometheusSeriesResponseListener.class);
 
-    /** Column index of the {@code metric_name} field in TsInfo output. */
-    private static final int METRIC_NAME_COL = 0;
-    /** Column index of the {@code dimensions} field in TsInfo output. */
-    private static final int DIMENSIONS_COL = 6;
+    static final String COL_METRIC_NAME = "metric_name";
+    static final String COL_DIMENSIONS = "dimensions";
     private static final String LABELS_PREFIX = "labels.";
     private static final String CONTENT_TYPE = "application/json";
 
@@ -90,17 +77,34 @@ public class PrometheusSeriesResponseListener implements ActionListener<EsqlQuer
     // -------------------------------------------------------------------------
 
     private static List<Map<String, String>> extractSeries(EsqlQueryResponse response) {
+        var columns = response.columns();
+        int metricNameCol = -1;
+        int dimensionsCol = -1;
+        for (int i = 0; i < columns.size(); i++) {
+            String name = columns.get(i).name();
+            if (COL_METRIC_NAME.equals(name)) {
+                metricNameCol = i;
+            } else if (COL_DIMENSIONS.equals(name)) {
+                dimensionsCol = i;
+            }
+        }
+        if (metricNameCol == -1 || dimensionsCol == -1) {
+            throw new IllegalArgumentException(
+                "TsInfo response is missing required columns [" + COL_METRIC_NAME + ", " + COL_DIMENSIONS + "]"
+            );
+        }
+        final int metricNameIdx = metricNameCol;
+        final int dimensionsIdx = dimensionsCol;
         List<Map<String, String>> result = new ArrayList<>();
         for (Iterable<Object> row : response.rows()) {
             String metricName = null;
             String dimensionsJson = null;
             int col = 0;
             for (Object value : row) {
-                if (col == METRIC_NAME_COL) {
+                if (col == metricNameIdx) {
                     metricName = value != null ? value.toString() : null;
-                } else if (col == DIMENSIONS_COL) {
+                } else if (col == dimensionsIdx) {
                     dimensionsJson = value != null ? value.toString() : null;
-                    break; // DIMENSIONS_COL is the last column we need
                 }
                 col++;
             }
@@ -123,6 +127,7 @@ public class PrometheusSeriesResponseListener implements ActionListener<EsqlQuer
         if (labels.containsKey("__name__") == false && metricName != null) {
             labels.put("__name__", metricName);
         }
+        assert labels.isEmpty() == false : "label map must not be empty for metric_name=[" + metricName + "] dimensions=[" + dimensionsJson + "]";
         return labels;
     }
 

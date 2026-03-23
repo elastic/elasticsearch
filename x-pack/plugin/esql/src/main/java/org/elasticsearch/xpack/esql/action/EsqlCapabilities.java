@@ -2356,7 +2356,7 @@ public class EsqlCapabilities {
          * Reject loading sub-fields of flattened fields when {@code unmapped_fields="load"}
          * See https://github.com/elastic/elasticsearch/issues/143494
          */
-        REJECT_LOADING_FLATTENED_SUBFIELDS,
+        REJECT_LOADING_FLATTENED_SUBFIELDS(Build.current().isSnapshot()),
 
         FIX_DIV_ERROR_MESSAGE,
 

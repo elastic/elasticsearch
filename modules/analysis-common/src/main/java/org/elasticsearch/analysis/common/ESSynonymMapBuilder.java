@@ -47,7 +47,7 @@ class ESSynonymMapBuilder {
 
     private static class MapEntry {
         boolean includeOrig;
-        //can't use Lucene's IntArrayList
+        // can't use Lucene's IntArrayList
         final List<Integer> ords = new ArrayList<>();
     }
 
@@ -73,7 +73,7 @@ class ESSynonymMapBuilder {
             throw new IllegalArgumentException("output.length must be > 0 (got " + output.length + ")");
         }
 
-        //Lucene asserts no holes here. We're skipping that.
+        // Lucene asserts no holes here. We're skipping that.
 
         utf8Scratch.copyChars(output.chars, output.offset, output.length);
         int ord = words.add(utf8Scratch.get());
@@ -100,7 +100,7 @@ class ESSynonymMapBuilder {
         BytesRefBuilder scratch = new BytesRefBuilder();
         ByteArrayDataOutput scratchOutput = new ByteArrayDataOutput();
 
-        //can't use Lucene's IntHashSet
+        // can't use Lucene's IntHashSet
         final Set<Integer> dedupSet;
         if (dedup) {
             dedupSet = new HashSet<>();

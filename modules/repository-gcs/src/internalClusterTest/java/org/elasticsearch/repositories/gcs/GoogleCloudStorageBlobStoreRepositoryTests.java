@@ -25,6 +25,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -257,6 +258,26 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         }
     }
 
+    public void testCopy() throws Exception {
+        final var sourceBlobName = randomIdentifier();
+        final var repoName = createRepository(randomRepositoryName(), false);
+        final var destinationBlobName = randomIdentifier();
+        final var repositoriesService = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class);
+        final var repository = (BlobStoreRepository) repositoriesService.repository(ProjectId.DEFAULT, repoName);
+        final var blobStore = repository.blobStore();
+        final var sourceBlobContainer = blobStore.blobContainer(repository.basePath());
+        final var blobBytes = randomBytesReference(randomIntBetween(100, 2_000_000));
+        sourceBlobContainer.writeBlob(randomPurpose(), sourceBlobName, blobBytes, true);
+        assertBusy(() -> assertTrue(sourceBlobContainer.blobExists(randomPurpose(), sourceBlobName)));
+
+        final var destinationBlobContainer = repository.blobStore().blobContainer(repository.basePath().add("target"));
+        destinationBlobContainer.copyBlob(randomPurpose(), sourceBlobContainer, sourceBlobName, destinationBlobName, blobBytes.length());
+        assertThat(readFully(destinationBlobContainer.readBlob(randomPurpose(), destinationBlobName)), equalBytes(blobBytes));
+
+        sourceBlobContainer.delete(randomPurpose());
+        destinationBlobContainer.delete(randomPurpose());
+    }
+
     @Override
     public void testRequestStats() throws Exception {
         super.testRequestStats();
@@ -447,6 +468,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 trackRequest(StorageOperation.INSERT.key());
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/*uploadType=multipart*", request)) {
                 trackRequest(StorageOperation.INSERT.key());
+            } else if (Regex.simpleMatch("POST /storage/v1/b/*/o/*/rewriteTo/b/*/o/*", request)) {
+                trackRequest(StorageOperation.COPY.key());
             }
         }
     }

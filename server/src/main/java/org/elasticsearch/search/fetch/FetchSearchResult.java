@@ -28,7 +28,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     private SearchHits hits;
 
-    private transient long searchHitsSizeBytes = 0L;
+    private long searchHitsSizeBytes = 0L;
 
     // client side counter
     private transient int counter;

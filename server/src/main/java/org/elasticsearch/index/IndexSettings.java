@@ -876,11 +876,7 @@ public final class IndexSettings {
     public static final Setting<Boolean> USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING = Setting.boolSetting(
         "index.use_time_series_doc_values_format",
         settings -> {
-            if (settings == null) {
-                return Boolean.FALSE.toString();
-            }
-            var indexMode = IndexSettings.MODE.get(settings);
-            return Boolean.toString(indexMode.useTimeSeriesDocValuesCodec());
+            return Boolean.FALSE.toString();
         },
         Property.IndexScope,
         Property.Final

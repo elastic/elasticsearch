@@ -2641,8 +2641,8 @@ Tasks are integrated with the ElasticSearch APM infrastructure. They implement t
 [SeqNoFieldMapper]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/mapper/SeqNoFieldMapper.java
 
 The Distributed team owns Elasticsearch's write path. A typical write begins as an HTTP/REST request,
-is routed to the appropriate shard copy, is applied to the shard's engine and translog, and is finally replicated
-across replicas before an ack is sent back to the client.
+and is then routed to the appropriate primary shard, gets applied to the shard's engine and translog, and is 
+finally replicated across replicas before an ack is sent back to the client.
 
 The Distributed team also owns select parts of the read path (e.g. real-time `GET` requests targeting the translog),
 but broader search capabilities like query execution, scoring, and aggregations fall under the Search team.

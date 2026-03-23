@@ -141,8 +141,8 @@ public class WriteLoadConstraintSettings {
      * hotspot by relocating shards is not taken. This is phrased as a ratio. The production values should always
      * be in (0.50, 1.0]. 0.0 turns this off
      */
-    public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_MAX_SINGLE_SHARD_THRESHOLD_SETTING = new Setting<>(
-        SETTING_PREFIX + "hotspot_utilization_max_single_shard_threshold",
+    public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_RATIO_THRESHOLD_SETTING = new Setting<>(
+        SETTING_PREFIX + "hotspot_max_shard_write_load_ratio_threshold",
         "0%",
         WriteLoadConstraintSettings::parseMaxSingleShardRatio,
         Setting.Property.Dynamic,
@@ -175,7 +175,7 @@ public class WriteLoadConstraintSettings {
     private volatile TimeValue queueLatencyThreshold;
     private volatile double hotspotUtilizationThreshold;
     private volatile String hotspotUtilizationThresholdString;
-    private volatile double hotspotUtilizationMaxSingleShardThreshold;
+    private volatile double hotspotMaxShardWriteLoadRatioThreshold;
 
     public WriteLoadConstraintSettings(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, status -> this.writeLoadDeciderStatus = status);
@@ -193,8 +193,8 @@ public class WriteLoadConstraintSettings {
             hotspotUtilizationThreshold = value.getAsRatio();
             hotspotUtilizationThresholdString = value.formatNoTrailingZerosPercent();
         });
-        clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_MAX_SINGLE_SHARD_THRESHOLD_SETTING, value -> {
-            hotspotUtilizationMaxSingleShardThreshold = value.getAsRatio();
+        clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_RATIO_THRESHOLD_SETTING, value -> {
+            hotspotMaxShardWriteLoadRatioThreshold = value.getAsRatio();
         });
     }
 
@@ -230,8 +230,8 @@ public class WriteLoadConstraintSettings {
      * @return The utilization threshold as a ratio in [0, 1] for use in checking whether a hotspot
      * is too focused on a single shard for correction with shard movement
      */
-    public double getHotspotUtilizationMaxSingleShardThreshold() {
-        return this.hotspotUtilizationMaxSingleShardThreshold;
+    public double getHotspotMaxShardWriteLoadRatioThreshold() {
+        return this.hotspotMaxShardWriteLoadRatioThreshold;
     }
 
     /**

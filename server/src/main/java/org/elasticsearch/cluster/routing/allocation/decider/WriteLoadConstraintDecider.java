@@ -211,7 +211,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
              *
              * The maxShardWriteLoadAsRatio is computed only for hotspotting nodes, and cached within cluster info so it
              * is only computed once per balancing round */
-            final double maxShardWriteLoadThreshold = writeLoadConstraintSettings.getHotspotUtilizationMaxSingleShardThreshold();
+            final double maxShardWriteLoadThreshold = writeLoadConstraintSettings.getHotspotMaxShardWriteLoadRatioThreshold();
             final double maxShardWriteLoadAsRatio = allocation.clusterInfo()
                 .nodeMaxShardWriteLoadAsRatio(
                     node.nodeId(),

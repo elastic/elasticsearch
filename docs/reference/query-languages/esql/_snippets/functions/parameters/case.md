@@ -6,7 +6,7 @@
 :   A condition.
 
 `trueValue`
-:   The value that’s returned when the corresponding condition is the first to evaluate to `true`. The default value is returned when no condition matches.
+:   The expression or value that’s returned when the corresponding condition is the first to evaluate to `true`. Can be a column reference or any other expression. The default value is returned when no condition matches.
 
 `elseValue`
 :   The value that’s returned when no condition evaluates to `true`.

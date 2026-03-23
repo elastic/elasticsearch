@@ -64,7 +64,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -72,6 +72,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
@@ -166,6 +167,7 @@ import static org.elasticsearch.search.SearchService.QUERY_PHASE_PARALLEL_COLLEC
 import static org.elasticsearch.search.SearchService.SEARCH_WORKER_THREADS_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -2898,7 +2900,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testSeqNoAndPrimaryTermRejectedWhenSequenceNumbersDisabled() throws IOException {
+    public void testSeqNoAndPrimaryTermReturnsSentinelsWhenSequenceNumbersDisabled() {
         assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         final Settings settings = Settings.builder()
             .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
@@ -2907,37 +2909,11 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("test-no-seqno", settings);
         prepareIndex("test-no-seqno").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
-        final SearchService service = getInstanceFromNode(SearchService.class);
-        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("test-no-seqno"));
-        final IndexShard indexShard = indexService.getShard(0);
-
-        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.seqNoAndPrimaryTerm(true);
-        searchRequest.source(searchSourceBuilder);
-
-        final ShardSearchRequest request = new ShardSearchRequest(
-            OriginalIndices.NONE,
-            searchRequest,
-            indexShard.shardId(),
-            0,
-            1,
-            AliasFilter.EMPTY,
-            1.0f,
-            -1,
-            null
-        );
-        try (ReaderContext reader = createReaderContext(indexService, indexShard)) {
-            IllegalArgumentException ex = expectThrows(
-                IllegalArgumentException.class,
-                () -> service.createContext(reader, request, mock(SearchShardTask.class), ResultsType.NONE, randomBoolean())
-            );
-            assertEquals(
-                "Cannot request seq_no_primary_term on index [test-no-seqno] because [index.disable_sequence_numbers] is [true]",
-                ex.getMessage()
-            );
-        }
+        assertNoFailuresAndResponse(client().prepareSearch("test-no-seqno").seqNoAndPrimaryTerm(true), response -> {
+            assertHitCount(response, 1);
+            assertEquals(SequenceNumbers.UNASSIGNED_SEQ_NO, response.getHits().getAt(0).getSeqNo());
+            assertEquals(SequenceNumbers.UNASSIGNED_PRIMARY_TERM, response.getHits().getAt(0).getPrimaryTerm());
+        });
     }
 
     private static ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {
@@ -2958,7 +2934,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         return fieldValues;
     }
 
-    private static class TestRewriteCounterQueryBuilder extends AbstractQueryBuilder<TestRewriteCounterQueryBuilder> {
+    private static class TestRewriteCounterQueryBuilder extends LeafQueryBuilder<TestRewriteCounterQueryBuilder> {
 
         final int asyncRewriteCount;
         final Supplier<Boolean> fetched;

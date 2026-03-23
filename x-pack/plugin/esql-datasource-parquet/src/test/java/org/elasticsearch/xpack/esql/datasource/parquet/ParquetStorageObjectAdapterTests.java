@@ -50,7 +50,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     public void testSeekableInputStreamRead() throws IOException {
         byte[] data = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
-        StorageObject storageObject = createStorageObject(data);
+        StorageObject storageObject = createRangeReadStorageObject(data);
 
         ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
 
@@ -64,7 +64,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     public void testSeekableInputStreamReadArray() throws IOException {
         byte[] data = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
-        StorageObject storageObject = createStorageObject(data);
+        StorageObject storageObject = createRangeReadStorageObject(data);
 
         ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
 
@@ -79,7 +79,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     public void testSeekableInputStreamSeekForward() throws IOException {
         byte[] data = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
-        StorageObject storageObject = createStorageObject(data);
+        StorageObject storageObject = createRangeReadStorageObject(data);
 
         ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
 
@@ -137,7 +137,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     public void testSeekableInputStreamReadFully() throws IOException {
         byte[] data = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
-        StorageObject storageObject = createStorageObject(data);
+        StorageObject storageObject = createRangeReadStorageObject(data);
 
         ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
 
@@ -151,7 +151,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     public void testSeekableInputStreamReadFullyWithOffset() throws IOException {
         byte[] data = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
-        StorageObject storageObject = createStorageObject(data);
+        StorageObject storageObject = createRangeReadStorageObject(data);
 
         ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
 
@@ -364,7 +364,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
 
     public void testSeekableInputStreamSkip() throws IOException {
         byte[] data = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
-        StorageObject storageObject = createStorageObject(data);
+        StorageObject storageObject = createRangeReadStorageObject(data);
 
         ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
 
@@ -374,6 +374,231 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             assertEquals(3, stream.getPos());
             assertEquals(4, stream.read());
         }
+    }
+
+    /**
+     * Verifies that the adapter never calls {@link StorageObject#newStream()} (full GET).
+     * A stub that throws on newStream() is used; all operations succeed via newStream(pos, len) only.
+     */
+    public void testNoFullGetUsesOnlyRangeReads() throws IOException {
+        byte[] data = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+        StorageObject rangeOnlyStorageObject = new StorageObject() {
+            @Override
+            public InputStream newStream() throws IOException {
+                throw new UnsupportedOperationException("Full GET not supported; use range reads only");
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) throws IOException {
+                int pos = (int) position;
+                int len = (int) Math.min(length, data.length - position);
+                return new ByteArrayInputStream(data, pos, len);
+            }
+
+            @Override
+            public long length() throws IOException {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() throws IOException {
+                return Instant.now();
+            }
+
+            @Override
+            public boolean exists() throws IOException {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://test.parquet");
+            }
+        };
+
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(rangeOnlyStorageObject);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            assertEquals(0, stream.getPos());
+            assertEquals(1, stream.read());
+            assertEquals(2, stream.read());
+            stream.seek(5);
+            assertEquals(6, stream.read());
+            stream.seek(0);
+            byte[] buf = new byte[5];
+            stream.readFully(buf);
+            assertArrayEquals(new byte[] { 1, 2, 3, 4, 5 }, buf);
+        }
+    }
+
+    /**
+     * Verifies that repeated reads within the same window do not trigger additional range requests.
+     * The sliding window should serve multiple reads from the same cached range.
+     */
+    public void testSeekWindowBehaviorReusesCachedRange() throws IOException {
+        byte[] data = new byte[1024];
+        randomBytes(data);
+        final int[] rangeReadCount = { 0 };
+        StorageObject countingStorageObject = new StorageObject() {
+            @Override
+            public InputStream newStream() throws IOException {
+                throw new UnsupportedOperationException("Full GET not supported");
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) throws IOException {
+                rangeReadCount[0]++;
+                int pos = (int) position;
+                int len = (int) Math.min(length, data.length - position);
+                return new ByteArrayInputStream(data, pos, len);
+            }
+
+            @Override
+            public long length() throws IOException {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() throws IOException {
+                return Instant.now();
+            }
+
+            @Override
+            public boolean exists() throws IOException {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://test.parquet");
+            }
+        };
+
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(countingStorageObject);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.read();
+            stream.read();
+            stream.read();
+            stream.seek(0);
+            stream.read();
+            stream.seek(10);
+            stream.read();
+        }
+
+        assertTrue("Expected few range reads (window reuse); got " + rangeReadCount[0], rangeReadCount[0] <= 2);
+    }
+
+    public void testFooterCacheServesTailReadsWithoutExtraRangeRequest() throws IOException {
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+        byte[] data = new byte[1024 * 1024];
+        randomBytes(data);
+        final int[] rangeReadCount = { 0 };
+        Instant lastModified = Instant.ofEpochMilli(123);
+
+        StorageObject countingStorageObject = new StorageObject() {
+            @Override
+            public InputStream newStream() throws IOException {
+                throw new UnsupportedOperationException("Full GET not supported");
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) throws IOException {
+                rangeReadCount[0]++;
+                int pos = (int) position;
+                int len = (int) Math.min(length, data.length - position);
+                return new ByteArrayInputStream(data, pos, len);
+            }
+
+            @Override
+            public long length() throws IOException {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() throws IOException {
+                return lastModified;
+            }
+
+            @Override
+            public boolean exists() throws IOException {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://test.parquet");
+            }
+        };
+
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(countingStorageObject);
+        long tailStart = data.length - 1024;
+
+        byte[] first = new byte[1024];
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(tailStart);
+            stream.readFully(first);
+        }
+        assertEquals(1, rangeReadCount[0]);
+
+        byte[] second = new byte[1024];
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(tailStart);
+            stream.readFully(second);
+        }
+        assertEquals(1, rangeReadCount[0]);
+        assertArrayEquals(first, second);
+    }
+
+    public void testReadFullyCrossesWindowBoundaries() throws IOException {
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+        int size = ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 123;
+        byte[] data = new byte[size];
+        randomBytes(data);
+        final int[] rangeReadCount = { 0 };
+
+        StorageObject rangeOnlyCounting = new StorageObject() {
+            @Override
+            public InputStream newStream() throws IOException {
+                throw new UnsupportedOperationException("Full GET not supported");
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) throws IOException {
+                rangeReadCount[0]++;
+                int pos = (int) position;
+                int len = (int) Math.min(length, data.length - position);
+                return new ByteArrayInputStream(data, pos, len);
+            }
+
+            @Override
+            public long length() throws IOException {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() throws IOException {
+                return Instant.ofEpochMilli(0);
+            }
+
+            @Override
+            public boolean exists() throws IOException {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://test.parquet");
+            }
+        };
+
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(rangeOnlyCounting);
+        byte[] read = new byte[size];
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.readFully(read);
+        }
+        assertArrayEquals(data, read);
+        assertEquals(2, rangeReadCount[0]);
     }
 
     private void randomBytes(byte[] data) {

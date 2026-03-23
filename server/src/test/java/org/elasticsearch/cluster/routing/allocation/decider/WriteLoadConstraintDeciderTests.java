@@ -602,7 +602,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
         // only shard means 1.0
         assertThat(
-            WriteLoadConstraintDecider.maxSingleShardWriteLoad(
+            WriteLoadConstraintDecider.maxShardWriteLoadAsRatio(
                 List.of(testShardId),
                 Map.of(testShardId, randomDoubleBetween(0.001, 20.0, false))
             ),
@@ -610,14 +610,14 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
 
         // inexplicably not in map means 0.0
-        assertThat(WriteLoadConstraintDecider.maxSingleShardWriteLoad(List.of(testShardId), Map.of()), equalTo(0.0));
+        assertThat(WriteLoadConstraintDecider.maxShardWriteLoadAsRatio(List.of(testShardId), Map.of()), equalTo(0.0));
 
         // shard is in map with zero load
-        assertThat(WriteLoadConstraintDecider.maxSingleShardWriteLoad(List.of(testShardId), Map.of(testShardId, 0.0)), equalTo(0.0));
+        assertThat(WriteLoadConstraintDecider.maxShardWriteLoadAsRatio(List.of(testShardId), Map.of(testShardId, 0.0)), equalTo(0.0));
 
         // shard with 0 load
         assertThat(
-            WriteLoadConstraintDecider.maxSingleShardWriteLoad(
+            WriteLoadConstraintDecider.maxShardWriteLoadAsRatio(
                 List.of(testShardId),
                 Map.of(testShardId, 0.0, new ShardId(randomIndexName(), randomUUID(), 0), randomDoubleBetween(0.0001, 20.0, true))
             ),
@@ -634,7 +634,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
         // picks the biggest one
         assertThat(
-            WriteLoadConstraintDecider.maxSingleShardWriteLoad(
+            WriteLoadConstraintDecider.maxShardWriteLoadAsRatio(
                 List.of(testShardId1, testShardId2),
                 Map.of(testShardId1, shard1Load, testShardId2, shard2Load)
             ),
@@ -643,7 +643,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
         // both zero
         assertThat(
-            WriteLoadConstraintDecider.maxSingleShardWriteLoad(
+            WriteLoadConstraintDecider.maxShardWriteLoadAsRatio(
                 List.of(testShardId1, testShardId2),
                 Map.of(testShardId1, 0.0, testShardId2, 0.0)
             ),
@@ -651,17 +651,17 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
 
         // not in map
-        assertThat(WriteLoadConstraintDecider.maxSingleShardWriteLoad(List.of(testShardId1, testShardId2), Map.of()), equalTo(0.0));
+        assertThat(WriteLoadConstraintDecider.maxShardWriteLoadAsRatio(List.of(testShardId1, testShardId2), Map.of()), equalTo(0.0));
 
         // one in map
         assertThat(
-            WriteLoadConstraintDecider.maxSingleShardWriteLoad(List.of(testShardId1, testShardId2), Map.of(testShardId1, 0.0)),
+            WriteLoadConstraintDecider.maxShardWriteLoadAsRatio(List.of(testShardId1, testShardId2), Map.of(testShardId1, 0.0)),
             equalTo(0.0)
         );
 
         // totally random map entry
         assertThat(
-            WriteLoadConstraintDecider.maxSingleShardWriteLoad(
+            WriteLoadConstraintDecider.maxShardWriteLoadAsRatio(
                 List.of(testShardId1, testShardId2),
                 Map.of(new ShardId(randomIndexName(), randomUUID(), 0), randomDoubleBetween(0.0001, 20.0, true))
             ),

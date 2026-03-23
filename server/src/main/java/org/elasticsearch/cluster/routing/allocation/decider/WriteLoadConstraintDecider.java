@@ -70,30 +70,30 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             && nodeWriteThreadPoolStats.averageThreadPoolUtilization() >= hotspotUtilizationThreshold;
     }
 
-    public static double maxSingleShardWriteLoad(List<ShardId> assignedShardIds, Map<ShardId, Double> shardWriteLoads) {
+    public static double maxShardWriteLoadAsRatio(List<ShardId> assignedShardIds, Map<ShardId, Double> shardWriteLoads) {
         double totalWriteLoad = 0.0;
-        double maxSingleShardWriteLoad = 0.0;
+        double maxShardWriteLoad = 0.0;
         for (ShardId shardId : assignedShardIds) {
             double shardWriteLoad = shardWriteLoads.getOrDefault(shardId, 0.0);
             totalWriteLoad += shardWriteLoad;
-            if (shardWriteLoad > maxSingleShardWriteLoad) {
-                maxSingleShardWriteLoad = shardWriteLoad;
+            if (shardWriteLoad > maxShardWriteLoad) {
+                maxShardWriteLoad = shardWriteLoad;
             }
         }
 
         if (totalWriteLoad > 0.0) {
-            return maxSingleShardWriteLoad / totalWriteLoad;
+            return maxShardWriteLoad / totalWriteLoad;
         } else {
             // no shards or some issue -- return 0.0
             return 0.0;
         }
     }
 
-    public static boolean maxSingleShardWriteLoadIsHigh(double maxSingleShardWriteLoadValue, double maxSingleShardWriteLoadThreshold) {
-        if (maxSingleShardWriteLoadThreshold == 0.0) {
+    public static boolean maxShardWriteLoadAsRatioIsHigh(double maxShardWriteLoadAsRatio, double maxShardWriteLoadThreshold) {
+        if (maxShardWriteLoadThreshold == 0.0) {
             return false;
         }
-        return maxSingleShardWriteLoadValue >= maxSingleShardWriteLoadThreshold;
+        return maxShardWriteLoadAsRatio >= maxShardWriteLoadThreshold;
     }
 
     @Override
@@ -211,9 +211,9 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
              *
              * The maxSingleShardWriteLoad is computed only for hotspotting nodes, and cached within cluster info so it
              * is only computed once per balancing round */
-            final double maxSingleShardWriteLoadThreshold = writeLoadConstraintSettings.getHotspotUtilizationMaxSingleShardThreshold();
-            final double maxSingleShardWriteLoadValue = allocation.clusterInfo()
-                .nodeMaxSingleShardWriteLoad(
+            final double maxShardWriteLoadThreshold = writeLoadConstraintSettings.getHotspotUtilizationMaxSingleShardThreshold();
+            final double maxShardWriteLoadAsRatio = allocation.clusterInfo()
+                .nodeMaxShardWriteLoadAsRatio(
                     node.nodeId(),
                     // compute cache entry if absent
                     () -> {
@@ -221,11 +221,11 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                             .map(startedShardRouting -> startedShardRouting.shardId())
                             .collect(Collectors.toList());
 
-                        return maxSingleShardWriteLoad(shardIds, allocation.clusterInfo().getShardWriteLoads());
+                        return maxShardWriteLoadAsRatio(shardIds, allocation.clusterInfo().getShardWriteLoads());
                     }
                 );
 
-            if (maxSingleShardWriteLoadIsHigh(maxSingleShardWriteLoadValue, maxSingleShardWriteLoadThreshold) == false) {
+            if (maxShardWriteLoadAsRatioIsHigh(maxShardWriteLoadAsRatio, maxShardWriteLoadThreshold) == false) {
                 if (logger.isDebugEnabled() || allocation.debugDecision()) {
                     final Double shardWriteLoad = getShardWriteLoad(allocation, shardRouting);
                     final String explain = Strings.format(
@@ -255,8 +255,8 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                         Node [%s] is hot-spotting, but has a single shard max write load ratio of [%.2f] that exceeds the threshold of \
                         [%.2f]. Nothing to do.""",
                     node.getShortNodeDescription(),
-                    maxSingleShardWriteLoadValue,
-                    maxSingleShardWriteLoadThreshold
+                    maxShardWriteLoadAsRatio,
+                    maxShardWriteLoadThreshold
                 );
             }
         }

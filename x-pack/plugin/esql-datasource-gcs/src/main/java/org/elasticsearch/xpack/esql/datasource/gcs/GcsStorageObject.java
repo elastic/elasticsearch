@@ -14,6 +14,7 @@ import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -161,7 +162,7 @@ public final class GcsStorageObject implements StorageObject {
                 reader.limit(position + target.remaining());
                 int totalRead = 0;
                 while (target.hasRemaining()) {
-                    int n = reader.read(target);
+                    int n = readFromChannel(reader, target);
                     if (n < 0) {
                         break;
                     }
@@ -196,7 +197,7 @@ public final class GcsStorageObject implements StorageObject {
                     reader.limit(position + length);
                     ByteBuffer buffer = ByteBuffer.allocate((int) length);
                     while (buffer.hasRemaining()) {
-                        int n = reader.read(buffer);
+                        int n = readFromChannel(reader, buffer);
                         if (n < 0) {
                             break;
                         }
@@ -219,6 +220,11 @@ public final class GcsStorageObject implements StorageObject {
     @Override
     public boolean supportsNativeAsync() {
         return true;
+    }
+
+    @SuppressForbidden(reason = "GCS ReadChannel is not a FileChannel; Channels.* helpers do not apply")
+    private static int readFromChannel(ReadChannel reader, ByteBuffer target) throws IOException {
+        return reader.read(target);
     }
 
     private void fetchMetadata() throws IOException {

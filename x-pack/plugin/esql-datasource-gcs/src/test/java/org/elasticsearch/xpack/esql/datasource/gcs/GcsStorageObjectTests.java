@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -281,7 +282,7 @@ public class GcsStorageObjectTests extends ESTestCase {
         when(mockStorage.reader(any(BlobId.class))).thenReturn(mockReader);
         doAnswer(invocation -> {
             ByteBuffer buf = invocation.getArgument(0);
-            byte[] data = "hello".getBytes();
+            byte[] data = "hello".getBytes(StandardCharsets.UTF_8);
             buf.put(data);
             return data.length;
         }).when(mockReader).read(any(ByteBuffer.class));
@@ -351,7 +352,7 @@ public class GcsStorageObjectTests extends ESTestCase {
         when(mockStorage.reader(any(BlobId.class))).thenReturn(mockReader);
         doAnswer(invocation -> {
             ByteBuffer buf = invocation.getArgument(0);
-            byte[] data = "async".getBytes();
+            byte[] data = "async".getBytes(StandardCharsets.UTF_8);
             buf.put(data);
             return data.length;
         }).when(mockReader).read(any(ByteBuffer.class));

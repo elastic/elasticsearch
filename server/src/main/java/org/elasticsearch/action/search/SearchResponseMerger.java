@@ -209,10 +209,9 @@ public final class SearchResponseMerger implements Releasable {
         try {
             setSuggestShardIndex(shards, groupedSuggestions);
             Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
-            final List<SearchHits> topHitsToRelease = (aggs.isEmpty() || aggReduceContextBuilder == null) ? null : new ArrayList<>();
             InternalAggregations reducedAggs = aggs.isEmpty()
                 ? InternalAggregations.EMPTY
-                : InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction(topHitsToRelease));
+                : InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction());
             ShardSearchFailure[] shardFailures = failures.toArray(ShardSearchFailure.EMPTY_ARRAY);
             SearchProfileResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileResults(profileResults);
             // make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
@@ -233,8 +232,7 @@ public final class SearchResponseMerger implements Releasable {
                 tookInMillis,
                 shardFailures,
                 clusters,
-                null,
-                topHitsToRelease
+                null
             );
         } finally {
             mergedSearchHits.decRef();

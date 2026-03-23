@@ -87,6 +87,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("format", b -> b.field("format", "yyyy-MM-dd"));
         checker.registerConflictCheck("locale", b -> b.field("locale", "es"));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "34500000"));
+        registerScriptChecks(checker);
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {

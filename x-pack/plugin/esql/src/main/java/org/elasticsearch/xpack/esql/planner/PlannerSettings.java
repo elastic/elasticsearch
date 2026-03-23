@@ -13,6 +13,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
+import org.elasticsearch.compute.lucene.query.LuceneOperator;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -31,6 +33,19 @@ public class PlannerSettings {
         DataPartitioning.class,
         "esql.default_data_partitioning",
         DataPartitioning.AUTO,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * The minimum number of documents in a shard before we select the {@link DataPartitioning.AutoStrategy} for
+     * {@link DataPartitioning#AUTO} the default of {@link #DEFAULT_DATA_PARTITIONING}. For shards with documents below
+     * the threshold the {@link DataPartitioning#SHARD} will be used for {@link DataPartitioning#AUTO}.
+     */
+    public static final Setting<Integer> DOC_THRESHOLD_AUTO_PARTITIONING = Setting.intSetting(
+        "esql.docs_threshold_auto_partitioning",
+        LuceneOperator.SMALL_INDEX_BOUNDARY,
+        1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -67,21 +82,16 @@ public class PlannerSettings {
     );
 
     /**
-     * The threshold number of grouping keys for a partial aggregation to start emitting intermediate results early.
-     * While emitting partial results can reduce memory pressure and allow for incremental downstream processing,
-     * it might emit the same keys multiple times, incurring serialization and network overhead. This setting,
-     * in conjunction with {@link #PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD}, helps mitigate these costs by
-     * only triggering early emission when a significant number of keys have been collected and most are unique,
-     * thus lowering the probability of re-emitting the same keys.
-     * <p>
-     * NOTE that the defaults are chosen somewhat arbitrarily but are partially based on other systems.
-     * Other systems sometimes default to a lower threshold (e.g., 10,000) without a uniqueness threshold.
-     * We may lower these defaults after benchmarking more use cases.
+     * Circuit breaker space reserved for each script {@link BlockLoader.Reader}. The default
+     * is pretty poor estimate for the overhead of the script, but it'll do for now. We're
+     * estimating 100kb for loading ordinals from doc values and 2kb for loading numbers from
+     * doc values. This 300kb is sort of a shrug because we don't know what the script will do,
+     * and we don't know how many doc values it'll load. And, we're not sure much memory the
+     * script itself will actually use.
      */
-    public static final Setting<Integer> PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD = Setting.intSetting(
-        "esql.partial_agg_emit_keys_threshold",
-        100_000,
-        1,
+    public static final Setting<ByteSizeValue> BLOCK_LOADER_SIZE_SCRIPT = Setting.byteSizeSetting(
+        "esql.block_loader.size.script",
+        DEFAULT_SCRIPT_BYTE_SIZE,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -98,16 +108,21 @@ public class PlannerSettings {
     );
 
     /**
-     * Circuit breaker space reserved for each script {@link BlockLoader.Reader}. The default
-     * is pretty poor estimate for the overhead of the script, but it'll do for now. We're
-     * estimating 100kb for loading ordinals from doc values and 2kb for loading numbers from
-     * doc values. This 300kb is sort of a shrug because we don't know what the script will do,
-     * and we don't know how many doc values it'll load. And, we're not sure much memory the
-     * script itself will actually use.
+     * The threshold number of grouping keys for a partial aggregation to start emitting intermediate results early.
+     * While emitting partial results can reduce memory pressure and allow for incremental downstream processing,
+     * it might emit the same keys multiple times, incurring serialization and network overhead. This setting,
+     * in conjunction with {@link #PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD}, helps mitigate these costs by
+     * only triggering early emission when a significant number of keys have been collected and most are unique,
+     * thus lowering the probability of re-emitting the same keys.
+     * <p>
+     * NOTE that the defaults are chosen somewhat arbitrarily but are partially based on other systems.
+     * Other systems sometimes default to a lower threshold (e.g., 10,000) without a uniqueness threshold.
+     * We may lower these defaults after benchmarking more use cases.
      */
-    public static final Setting<ByteSizeValue> BLOCK_LOADER_SIZE_SCRIPT = Setting.byteSizeSetting(
-        "esql.block_loader.size.script",
-        DEFAULT_SCRIPT_BYTE_SIZE,
+    public static final Setting<Integer> PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD = Setting.intSetting(
+        "esql.partial_agg_emit_keys_threshold",
+        HashAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+        1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -120,7 +135,7 @@ public class PlannerSettings {
      */
     public static final Setting<Double> PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD = Setting.doubleSetting(
         "esql.partial_agg_emit_unique_threshold",
-        0.1,
+        HashAggregationOperator.DEFAULT_PARTIAL_EMIT_UNIQUENESS_THRESHOLD,
         0.0,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -211,6 +226,7 @@ public class PlannerSettings {
     public static List<Setting<?>> settings() {
         return List.of(
             DEFAULT_DATA_PARTITIONING,
+            DOC_THRESHOLD_AUTO_PARTITIONING,
             VALUES_LOADING_JUMBO_SIZE,
             LUCENE_TOPN_LIMIT,
             INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
@@ -234,6 +250,10 @@ public class PlannerSettings {
         public Holder(ClusterService clusterService) {
             var clusterSettings = clusterService.getClusterSettings();
             clusterSettings.initializeAndWatch(DEFAULT_DATA_PARTITIONING, v -> settings.updateAndGet(s -> s.defaultDataPartitioning(v)));
+            clusterSettings.initializeAndWatch(
+                DOC_THRESHOLD_AUTO_PARTITIONING,
+                v -> settings.updateAndGet(s -> s.docsThresholdForAutoPartitioning(v))
+            );
             clusterSettings.initializeAndWatch(VALUES_LOADING_JUMBO_SIZE, v -> settings.updateAndGet(s -> s.valuesLoadingJumboSize(v)));
             clusterSettings.initializeAndWatch(LUCENE_TOPN_LIMIT, v -> settings.updateAndGet(s -> s.luceneTopNLimit(v)));
             clusterSettings.initializeAndWatch(
@@ -276,6 +296,7 @@ public class PlannerSettings {
     }
 
     private final DataPartitioning defaultDataPartitioning;
+    private final int docsThresholdForAutoPartitioning;
     private final ByteSizeValue valuesLoadingJumboSize;
     private final int luceneTopNLimit;
     private final ByteSizeValue intermediateLocalRelationMaxSize;
@@ -295,6 +316,7 @@ public class PlannerSettings {
      */
     public static final PlannerSettings DEFAULTS = new PlannerSettings(
         DEFAULT_DATA_PARTITIONING.get(Settings.EMPTY),
+        DOC_THRESHOLD_AUTO_PARTITIONING.get(Settings.EMPTY),
         VALUES_LOADING_JUMBO_SIZE.get(Settings.EMPTY),
         LUCENE_TOPN_LIMIT.getDefault(Settings.EMPTY),
         INTERMEDIATE_LOCAL_RELATION_MAX_SIZE.getDefault(Settings.EMPTY),
@@ -315,6 +337,7 @@ public class PlannerSettings {
      */
     public PlannerSettings(
         DataPartitioning defaultDataPartitioning,
+        int docsThresholdForAutoPartitioning,
         ByteSizeValue valuesLoadingJumboSize,
         int luceneTopNLimit,
         ByteSizeValue intermediateLocalRelationMaxSize,
@@ -330,6 +353,7 @@ public class PlannerSettings {
         int docSequenceBytesRefFieldThreshold
     ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
+        this.docsThresholdForAutoPartitioning = docsThresholdForAutoPartitioning;
         this.valuesLoadingJumboSize = valuesLoadingJumboSize;
         this.luceneTopNLimit = luceneTopNLimit;
         this.intermediateLocalRelationMaxSize = intermediateLocalRelationMaxSize;
@@ -348,6 +372,7 @@ public class PlannerSettings {
     public PlannerSettings defaultDataPartitioning(DataPartitioning defaultDataPartitioning) {
         return new PlannerSettings(
             defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
@@ -371,6 +396,7 @@ public class PlannerSettings {
     public PlannerSettings valuesLoadingJumboSize(ByteSizeValue valuesLoadingJumboSize) {
         return new PlannerSettings(
             defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
@@ -394,6 +420,7 @@ public class PlannerSettings {
     public PlannerSettings luceneTopNLimit(int luceneTopNLimit) {
         return new PlannerSettings(
             defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
@@ -431,6 +458,7 @@ public class PlannerSettings {
     public PlannerSettings intermediateLocalRelationMaxSize(ByteSizeValue intermediateLocalRelationMaxSize) {
         return new PlannerSettings(
             defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
@@ -454,6 +482,7 @@ public class PlannerSettings {
     public PlannerSettings partialEmitKeysThreshold(int partialEmitKeysThreshold) {
         return new PlannerSettings(
             defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
@@ -477,6 +506,7 @@ public class PlannerSettings {
     public PlannerSettings partialEmitUniquenessThreshold(double partialEmitUniquenessThreshold) {
         return new PlannerSettings(
             defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
@@ -500,6 +530,7 @@ public class PlannerSettings {
     public PlannerSettings reuseColumnLoadersThreshold(int reuseColumnLoadersThreshold) {
         return new PlannerSettings(
             defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
@@ -530,6 +561,7 @@ public class PlannerSettings {
     public PlannerSettings blockLoaderSizeOrdinals(ByteSizeValue blockLoaderSizeOrdinals) {
         return new PlannerSettings(
             defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
@@ -556,6 +588,7 @@ public class PlannerSettings {
     public PlannerSettings blockLoaderSizeScript(ByteSizeValue blockLoaderSizeScript) {
         return new PlannerSettings(
             defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
@@ -582,6 +615,7 @@ public class PlannerSettings {
     public PlannerSettings maxKeywordSortFields(int maxKeywordSortFields) {
         return new PlannerSettings(
             defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
@@ -605,6 +639,7 @@ public class PlannerSettings {
     public PlannerSettings sourceReservationFactor(double sourceReservationFactor) {
         return new PlannerSettings(
             defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
@@ -628,6 +663,7 @@ public class PlannerSettings {
     public PlannerSettings bytesRefRamOverestimateThreshold(ByteSizeValue bytesRefRamOverestimateThreshold) {
         return new PlannerSettings(
             defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
@@ -651,6 +687,7 @@ public class PlannerSettings {
     public PlannerSettings bytesRefRamOverestimateFactor(double bytesRefRamOverestimateFactor) {
         return new PlannerSettings(
             defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
@@ -674,6 +711,7 @@ public class PlannerSettings {
     public PlannerSettings docSequenceBytesRefFieldThreshold(int docSequenceBytesRefFieldThreshold) {
         return new PlannerSettings(
             defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
@@ -693,4 +731,29 @@ public class PlannerSettings {
     public int docSequenceBytesRefFieldThreshold() {
         return docSequenceBytesRefFieldThreshold;
     }
+
+    public PlannerSettings docsThresholdForAutoPartitioning(int docsThresholdForAutoPartitioning) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold
+        );
+    }
+
+    public int docsThresholdForAutoPartitioning() {
+        return docsThresholdForAutoPartitioning;
+    }
+
 }

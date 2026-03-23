@@ -199,11 +199,18 @@ class ValuesBytesRefAggregator {
          */
         Block toBlock(BlockFactory blockFactory, IntVector selected) {
             try (ValuesNextPreparedForEmitting prepared = nextValues.prepareForEmitting(blockFactory, selected)) {
-                if (OrdinalBytesRefBlock.isDense(firstValues.size() + nextValues.size(), bytes.size())) {
-                    return buildOrdinalOutputBlock(blockFactory, selected, prepared);
-                } else {
-                    return buildOutputBlock(blockFactory, selected, prepared);
-                }
+                // TODO restore ordinals optimization
+                /*
+                 * We can't build ordinals any more because we may be call multiple times and
+                 * building ordinals *takes* the array of values rather than copying it. We
+                 * will soon grow an optimization where we can check if we're only going to
+                 * call `toBlock` one time. Once we have that we can restore this optimization.
+                 */
+                // if (OrdinalBytesRefBlock.isDense(firstValues.size() + nextValues.size(), bytes.size())) {
+                // return buildOrdinalOutputBlock(blockFactory, selected, prepared);
+                // } else {
+                return buildOutputBlock(blockFactory, selected, prepared);
+                // }
             }
         }
 

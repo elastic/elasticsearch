@@ -106,7 +106,7 @@ public class AsyncConnectorFactoryFlightTests extends ESTestCase {
 
             try (Connector connector = factory.open(Map.of("endpoint", endpoint))) {
                 QueryRequest request = new QueryRequest("employees", projectedColumns, attributes, Map.of(), 1000, blockFactory);
-                AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(10);
+                AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
 
                 ResultCursor cursor = connector.execute(request, Split.SINGLE);
                 executor.execute(() -> {
@@ -212,7 +212,7 @@ public class AsyncConnectorFactoryFlightTests extends ESTestCase {
             ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
             try (Connector connector = factory.open(Map.of("endpoint", endpoint))) {
                 QueryRequest request = new QueryRequest("employees", projectedColumns, attributes, Map.of(), 1000, blockFactory);
-                AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(20);
+                AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024 * 1024);
 
                 executor.execute(() -> {
                     try {

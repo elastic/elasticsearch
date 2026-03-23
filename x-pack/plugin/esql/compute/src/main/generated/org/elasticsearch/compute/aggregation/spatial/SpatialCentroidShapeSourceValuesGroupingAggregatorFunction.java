@@ -26,6 +26,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link SpatialCentroidShapeSourceValuesAggregator}.
@@ -46,10 +47,13 @@ public final class SpatialCentroidShapeSourceValuesGroupingAggregatorFunction im
 
   private final DriverContext driverContext;
 
+  private final CoordinateEncoder encoder;
+
   SpatialCentroidShapeSourceValuesGroupingAggregatorFunction(List<Integer> channels,
-      DriverContext driverContext) {
+      DriverContext driverContext, CoordinateEncoder encoder) {
+    this.encoder = encoder;
     this.channels = channels;
-    this.state = SpatialCentroidShapeSourceValuesAggregator.initGrouping(driverContext.bigArrays());
+    this.state = SpatialCentroidShapeSourceValuesAggregator.initGrouping(driverContext.bigArrays(), encoder);
     this.driverContext = driverContext;
   }
 

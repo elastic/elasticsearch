@@ -58,7 +58,7 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
 
                         var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
                         field.add(new BytesRef(entry.getKey().getBytes(StandardCharsets.UTF_8)));
-                        var countField = new NumericDocValuesField("field.counts", 1);
+                        var countField = NumericDocValuesField.indexedField("field.counts", 1);
 
                         if (randomBoolean()) {
                             field.add(new BytesRef("z".getBytes(StandardCharsets.UTF_8)));
@@ -104,7 +104,7 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
 
                 var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
                 field.add(new BytesRef("a".getBytes(StandardCharsets.UTF_8)));
-                var countField = new NumericDocValuesField("field.counts", 1);
+                var countField = NumericDocValuesField.indexedField("field.counts", 1);
                 document.add(field);
                 document.add(countField);
 
@@ -130,7 +130,7 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
 
                     var binaryDVField = new MultiValuedBinaryDocValuesField.SeparateCount("contender_field", false);
                     binaryDVField.add(new BytesRef(randomValue.getBytes(StandardCharsets.UTF_8)));
-                    var countField = new NumericDocValuesField("contender_field.counts", 1);
+                    var countField = NumericDocValuesField.indexedField("contender_field.counts", 1);
                     document.add(binaryDVField);
                     document.add(countField);
 
@@ -271,7 +271,7 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
         for (String value : values) {
             field.add(new BytesRef(value.getBytes(StandardCharsets.UTF_8)));
         }
-        var countField = new NumericDocValuesField(fieldName + ".counts", field.count());
+        var countField = NumericDocValuesField.indexedField(fieldName + ".counts", field.count());
         document.add(field);
         document.add(countField);
         writer.addDocument(document);

@@ -383,6 +383,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testEndpointGetsUpdated_GivenFingerprintChanges_FromNonNull
   issue: https://github.com/elastic/elasticsearch/issues/144731
+- class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
+  method: testProcessOnceOnPrimary
+  issue: https://github.com/elastic/elasticsearch/issues/144743
 
 # Examples:
 #

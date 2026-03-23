@@ -65,7 +65,7 @@ public class ThreadedActionListenerTests extends ESTestCase {
             threadPool.generic().execute(() -> {
                 for (int i = 0; i < listenerCount; i++) {
                     final var pool = randomFrom(pools);
-                    final var forceExecution = (pool.equals("fixed-bounded-queue") || pool.startsWith("scaling")) && rarely();
+                    final var forceExecution = (pool.equals("fixed-bounded-queue") || pool.startsWith("scaling")) && randomBoolean();
                     final var listener = new ThreadedActionListener<Void>(
                         threadPool.executor(pool),
                         forceExecution,

@@ -9,31 +9,20 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
 
 public class NdJsonSchemaInferrerTests extends ESTestCase {
 
     private Attribute field(String name, DataType type, boolean nullable) {
-        return new FieldAttribute(
-            Source.EMPTY,
-            null,
-            null,
-            name,
-            new EsField(name, type, Map.of(), false, null),
-            nullable ? Nullability.TRUE : Nullability.UNKNOWN,
-            null,
-            false
-        );
+        return new ReferenceAttribute(Source.EMPTY, null, name, type, nullable ? Nullability.TRUE : Nullability.UNKNOWN, null, false);
     }
 
     private Attribute field(String name, DataType type) {
@@ -57,7 +46,7 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
         check("""
             {"user": {"name": "John", "age": 30, "long_value": 12345678901234}}
             {"user": {"name": "Jane", "age": 25}}
-            """, field("user.name", DataType.KEYWORD), field("user.age", DataType.INTEGER), field("user.long_value", DataType.LONG));
+            """, field("user.name", DataType.KEYWORD), field("user.age", DataType.INTEGER), field("user.long_value", DataType.LONG, true));
     }
 
     /**
@@ -106,13 +95,14 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
     }
 
     /**
-     * Test case: Ensures correct schema inference when all fields are null.
+     * Test case: Ensures correct schema inference when all values of a field are null.
      */
     public void testInferSchemaForNullFields() throws IOException {
+        // "age" field ignored as it has no non-null value.
         check("""
-            {"name": null, "age": null}
-            {"name": null, "age": null}
-            """, field("name", DataType.NULL, true), field("age", DataType.NULL, true));
+            {"name": "John", "age": null}
+            {"name": "Jane", "age": null}
+            """, field("name", DataType.KEYWORD));
     }
 
     /**
@@ -137,9 +127,22 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
             """, field("mixed", DataType.KEYWORD));
     }
 
+    public void testDateTime() throws Exception {
+        check("""
+            {"timestamp": "2025-03-26T18:12:34Z"}
+            {"timestamp": "2023-03-26"}
+            """, field("timestamp", DataType.DATETIME));
+
+        // Numbers aren't implicitly interpreted as timestamps.
+        check("""
+            {"timestamp": "2025-03-26T18:12:34Z"}
+            {"timestamp": 1679854354000}
+            """, field("timestamp", DataType.KEYWORD));
+    }
+
     private void check(String ndjson, Attribute... expected) throws IOException {
         try (ByteArrayInputStream inputStream = new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8))) {
-            List<Attribute> result = NdJsonSchemaInferrer.inferSchema(inputStream);
+            List<Attribute> result = NdJsonSchemaInferrer.inferSchema(inputStream, 100);
 
             assertEquals(expected.length, result.size());
             for (int i = 0; i < expected.length; i++) {

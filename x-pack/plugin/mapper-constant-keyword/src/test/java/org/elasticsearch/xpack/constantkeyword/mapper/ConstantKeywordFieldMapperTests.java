@@ -190,7 +190,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerUpdateCheck(b -> b.field("value", "foo"), m -> {
+        checker.registerUpdateCheck("value", b -> b.field("value", "foo"), m -> {
             ConstantKeywordFieldType ft = (ConstantKeywordFieldType) m.fieldType();
             assertEquals("foo", ft.value());
         });

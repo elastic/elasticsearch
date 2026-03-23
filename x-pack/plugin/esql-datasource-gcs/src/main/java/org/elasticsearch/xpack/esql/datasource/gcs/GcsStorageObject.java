@@ -195,7 +195,7 @@ public final class GcsStorageObject implements StorageObject {
                 try (ReadChannel reader = storage.reader(blobId)) {
                     reader.seek(position);
                     reader.limit(position + length);
-                    ByteBuffer buffer = ByteBuffer.allocate((int) length);
+                    ByteBuffer buffer = ByteBuffer.allocate(Math.toIntExact(length));
                     while (buffer.hasRemaining()) {
                         int n = readFromChannel(reader, buffer);
                         if (n < 0) {

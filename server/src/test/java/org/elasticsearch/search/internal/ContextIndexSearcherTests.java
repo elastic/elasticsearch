@@ -15,6 +15,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
@@ -48,6 +49,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.search.Weight;
@@ -56,6 +58,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ExceptionsHelper;
@@ -70,6 +73,7 @@ import org.elasticsearch.lucene.util.CombinedBits;
 import org.elasticsearch.lucene.util.MatchAllBitSet;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -79,6 +83,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -421,6 +426,49 @@ public class ContextIndexSearcherTests extends ESTestCase {
         assertFalse(searcher.hasCancellations());
 
         IOUtils.close(reader, w, dir);
+    }
+
+    public void testDfsTermStatistics() throws IOException {
+        try (Directory dir = newDirectory()) {
+            IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
+            Document doc = new Document();
+            doc.add(new Field("field", "foo foo bar", TextField.TYPE_NOT_STORED));
+            w.addDocument(doc);
+            doc = new Document();
+            doc.add(new Field("field", "foo bar baz", TextField.TYPE_NOT_STORED));
+            w.addDocument(doc);
+            w.close();
+
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true
+                );
+
+                Term fooTerm = new Term("field", "foo");
+                // Without DFS stats, the fallback values should be returned
+                assertThat(searcher.docFreq(fooTerm, 42), equalTo(42L));
+                assertThat(searcher.totalTermFreq(fooTerm, 99), equalTo(99L));
+
+                // Set DFS stats with intentionally different docFreq and totalTermFreq
+                long dfsDocFreq = 10;
+                long dfsTotalTermFreq = 25;
+                TermStatistics termStats = new TermStatistics(new BytesRef("foo"), dfsDocFreq, dfsTotalTermFreq);
+                AggregatedDfs aggregatedDfs = new AggregatedDfs(Map.of(fooTerm, termStats), Map.of(), 100);
+                searcher.setAggregatedDfs(aggregatedDfs);
+
+                assertThat(searcher.docFreq(fooTerm, 42), equalTo(dfsDocFreq));
+                assertThat(searcher.totalTermFreq(fooTerm, 99), equalTo(dfsTotalTermFreq));
+
+                Term unknownTerm = new Term("field", "unknown");
+                // Term not present in DFS stats should still return the fallback
+                assertThat(searcher.docFreq(unknownTerm, 42), equalTo(42L));
+                assertThat(searcher.totalTermFreq(unknownTerm, 99), equalTo(99L));
+            }
+        }
     }
 
     public void testExitableTermsMinAndMax() throws IOException {

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.Matcher;
 import org.junit.BeforeClass;
 
 import java.time.Duration;
@@ -666,13 +667,22 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 ),
                 startsWith("DecayIntEvaluator["),
                 DataType.DOUBLE,
-                closeTo(scoreScriptNumericResult, Math.ulp(scoreScriptNumericResult))
+                decayNumericMatcher(scoreScriptNumericResult)
             );
         }));
     }
 
     private static String getRandomType() {
         return randomFrom("linear", "gauss", "exp");
+    }
+
+    /**
+     * Returns a matcher for decay result. Use equalTo for non-finite values (Infinity, NaN)
+     * because closeTo(Infinity, Math.ulp(Infinity)) and closeTo(NaN, Math.ulp(NaN)) do not match correctly.
+     */
+    @SuppressWarnings("unchecked")
+    private static Matcher<Object> decayNumericMatcher(double expected) {
+        return Double.isFinite(expected) ? (Matcher<Object>) (Matcher<?>) closeTo(expected, Math.ulp(expected)) : equalTo(expected);
     }
 
     private static double intDecayWithScoreScript(int value, int origin, int scale, int offset, double decay, String type) {
@@ -810,7 +820,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 ),
                 startsWith("DecayDoubleEvaluator["),
                 DataType.DOUBLE,
-                closeTo(scoreScriptNumericResult, Math.ulp(scoreScriptNumericResult))
+                decayNumericMatcher(scoreScriptNumericResult)
             );
         }));
     }
@@ -908,7 +918,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 ),
                 startsWith("DecayGeoPointEvaluator["),
                 DataType.DOUBLE,
-                closeTo(scoreScriptNumericResult, Math.ulp(scoreScriptNumericResult))
+                decayNumericMatcher(scoreScriptNumericResult)
             );
         }));
     }

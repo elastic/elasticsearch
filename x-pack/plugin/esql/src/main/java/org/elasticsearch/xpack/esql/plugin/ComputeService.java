@@ -602,6 +602,7 @@ public class ComputeService {
                     return new ReinitializingSourceProvider(super::createSourceProvider);
                 }
             };
+            searchContext.addReleasable(searchExecutionContext::releaseQueryConstructionMemory);
             contexts.add(
                 new EsPhysicalOperationProviders.DefaultShardContext(
                     i,

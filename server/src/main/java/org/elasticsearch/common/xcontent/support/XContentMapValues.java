@@ -294,10 +294,7 @@ public class XContentMapValues {
             aut = Operations.determinize(makeMatchDotsInFieldNames(aut), MAX_DETERMINIZED_STATES);
             return new CharacterRunAutomaton(aut);
         } catch (TooComplexToDeterminizeException e) {
-            throw new IllegalArgumentException(
-                "The source filter patterns are too complex to process: " + e.getMessage(),
-                e
-            );
+            throw new IllegalArgumentException("The source filter patterns are too complex to process: " + e.getMessage(), e);
         }
     }
 

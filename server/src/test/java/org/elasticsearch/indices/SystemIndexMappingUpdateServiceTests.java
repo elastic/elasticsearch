@@ -303,7 +303,10 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
             .putAlias(AliasMetadata.builder(SYSTEM_INDEX_NAME).build())
             .putAlias(AliasMetadata.builder(DESCRIPTOR.getAliasName()).build());
 
-        final Metadata metadata = Metadata.builder().generateClusterUuidIfNeeded().put(ProjectMetadata.builder(projectId).put(reindexedIndexMeta)).build();
+        final Metadata metadata = Metadata.builder()
+            .generateClusterUuidIfNeeded()
+            .put(ProjectMetadata.builder(projectId).put(reindexedIndexMeta))
+            .build();
         final DiscoveryNode node = DiscoveryNodeUtils.builder("1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build();
         final DiscoveryNodes nodes = DiscoveryNodes.builder().add(node).masterNodeId(node.getId()).localNodeId(node.getId()).build();
         final ClusterState clusterState = ClusterState.builder(CLUSTER_NAME)

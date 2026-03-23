@@ -109,8 +109,7 @@ public class SystemIndexMappingUpdateServiceIT extends ESIntegTestCase {
         final String reindexedIndexName = PRIMARY_INDEX_NAME + SystemIndices.UPGRADED_INDEX_SUFFIX;
         assertAcked(
             indicesAdmin().create(
-                new CreateIndexRequest(reindexedIndexName)
-                    .cause(SystemIndices.MIGRATE_SYSTEM_INDEX_CAUSE)
+                new CreateIndexRequest(reindexedIndexName).cause(SystemIndices.MIGRATE_SYSTEM_INDEX_CAUSE)
                     .settings(TestSystemIndexDescriptor.SETTINGS)
                     .mapping(TestSystemIndexDescriptor.getOldMappings())
             ).actionGet()

@@ -6,44 +6,24 @@
  */
 package org.elasticsearch.xpack.core.common.socket;
 
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.CheckedRunnable;
 
 import java.io.IOException;
-import java.net.SocketPermission;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 
 /**
- * X-pack uses various libraries that establish socket connections. For these remote calls the plugin requires
- * {@link SocketPermission} 'connect' to establish connections. This class wraps the operations requiring access in
- * {@link AccessController#doPrivileged(PrivilegedAction)} blocks.
+ * X-pack uses various libraries that establish socket connections. This class provides
+ * a consistent calling convention for those operations.
  */
 public final class SocketAccess {
 
     private SocketAccess() {}
 
     public static <R> R doPrivileged(CheckedSupplier<R, IOException> supplier) throws IOException {
-        SpecialPermission.check();
-        try {
-            return AccessController.doPrivileged((PrivilegedExceptionAction<R>) supplier::get);
-        } catch (PrivilegedActionException e) {
-            throw (IOException) e.getCause();
-        }
+        return supplier.get();
     }
 
     public static void doPrivileged(CheckedRunnable<IOException> action) throws IOException {
-        SpecialPermission.check();
-        try {
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                action.run();
-                return null;
-            });
-        } catch (PrivilegedActionException e) {
-            throw (IOException) e.getCause();
-        }
+        action.run();
     }
 }

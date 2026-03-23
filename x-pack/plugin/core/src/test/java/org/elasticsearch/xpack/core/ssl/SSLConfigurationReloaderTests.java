@@ -55,14 +55,11 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.security.AccessControlException;
-import java.security.AccessController;
 import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
@@ -867,13 +864,6 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     }
 
     private static void privilegedConnect(CheckedRunnable<Exception> runnable) throws Exception {
-        try {
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                runnable.run();
-                return null;
-            });
-        } catch (PrivilegedActionException e) {
-            throw (Exception) e.getCause();
-        }
+        runnable.run();
     }
 }

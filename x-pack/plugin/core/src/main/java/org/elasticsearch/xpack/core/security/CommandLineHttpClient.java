@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -37,9 +36,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
-import java.security.AccessController;
 import java.security.MessageDigest;
-import java.security.PrivilegedExceptionAction;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
@@ -135,7 +132,6 @@ public class CommandLineHttpClient {
         return execute(method, url, authorizationHeaderValue, requestBodySupplier, responseHandler);
     }
 
-    @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
     private HttpResponse execute(
         String method,
         URL url,
@@ -148,24 +144,18 @@ public class CommandLineHttpClient {
         if ("https".equalsIgnoreCase(url.getProtocol())) {
             final SSLService sslService = new SSLService(env);
             final HttpsURLConnection httpsConn = (HttpsURLConnection) url.openConnection();
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                if (pinnedCaCertFingerprint != null) {
-                    final SSLContext sslContext = SSLContext.getInstance("TLS");
-                    sslContext.init(null, new TrustManager[] { fingerprintTrustingTrustManager(pinnedCaCertFingerprint) }, null);
-                    httpsConn.setSSLSocketFactory(sslContext.getSocketFactory());
-                } else {
-                    final SslProfile sslProfile = sslService.profile(XPackSettings.HTTP_SSL_PREFIX);
-                    // Requires permission java.lang.RuntimePermission "setFactory";
-                    httpsConn.setSSLSocketFactory(sslProfile.socketFactory());
-                    final boolean isHostnameVerificationEnabled = sslProfile.configuration()
-                        .verificationMode()
-                        .isHostnameVerificationEnabled();
-                    if (isHostnameVerificationEnabled == false) {
-                        httpsConn.setHostnameVerifier((hostname, session) -> true);
-                    }
+            if (pinnedCaCertFingerprint != null) {
+                final SSLContext sslContext = SSLContext.getInstance("TLS");
+                sslContext.init(null, new TrustManager[] { fingerprintTrustingTrustManager(pinnedCaCertFingerprint) }, null);
+                httpsConn.setSSLSocketFactory(sslContext.getSocketFactory());
+            } else {
+                final SslProfile sslProfile = sslService.profile(XPackSettings.HTTP_SSL_PREFIX);
+                httpsConn.setSSLSocketFactory(sslProfile.socketFactory());
+                final boolean isHostnameVerificationEnabled = sslProfile.configuration().verificationMode().isHostnameVerificationEnabled();
+                if (isHostnameVerificationEnabled == false) {
+                    httpsConn.setHostnameVerifier((hostname, session) -> true);
                 }
-                return null;
-            });
+            }
             conn = httpsConn;
         } else {
             conn = (HttpURLConnection) url.openConnection();

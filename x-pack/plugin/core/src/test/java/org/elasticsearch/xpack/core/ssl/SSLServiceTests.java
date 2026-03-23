@@ -39,11 +39,8 @@ import org.elasticsearch.xpack.core.ssl.extension.SslProfileExtension;
 import org.junit.Before;
 
 import java.nio.file.Path;
-import java.security.AccessController;
 import java.security.KeyStore;
 import java.security.Principal;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.security.cert.Certificate;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -1042,26 +1039,11 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     private CloseableHttpAsyncClient getAsyncHttpClient(SSLIOSessionStrategy sslStrategy) throws Exception {
-        try {
-            return AccessController.doPrivileged(
-                (PrivilegedExceptionAction<CloseableHttpAsyncClient>) () -> HttpAsyncClientBuilder.create()
-                    .setSSLStrategy(sslStrategy)
-                    .build()
-            );
-        } catch (PrivilegedActionException e) {
-            throw (Exception) e.getCause();
-        }
+        return HttpAsyncClientBuilder.create().setSSLStrategy(sslStrategy).build();
     }
 
     private static void privilegedConnect(CheckedRunnable<Exception> runnable) throws Exception {
-        try {
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                runnable.run();
-                return null;
-            });
-        } catch (PrivilegedActionException e) {
-            throw (Exception) e.getCause();
-        }
+        runnable.run();
     }
 
     private static final class MockSSLSession implements SSLSession {

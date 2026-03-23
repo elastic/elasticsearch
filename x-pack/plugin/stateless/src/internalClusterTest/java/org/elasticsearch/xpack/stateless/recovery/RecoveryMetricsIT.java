@@ -381,6 +381,8 @@ public class RecoveryMetricsIT extends AbstractStatelessPluginIntegTestCase {
         if (hollowEnabled) {
             // One from the IndexShardCacheWarmer for the non-hollow commit
             assertThat(measurements.size(), equalTo(1));
+            assertThat(measurements.get(0).attributes().get("prewarming_type"), equalTo("INDEXING_EARLY"));
+
         } else {
             // One from IndexShardCacheWarmer and the other from StatelessIndexEventListener (which we may need to wait for it to appear)
             assertBusy(() -> assertThat(measurements.size(), equalTo(2)));

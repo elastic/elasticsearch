@@ -32,7 +32,6 @@ public class Clusters {
             .nodes(2)
             .setting("node.roles", "[data,ingest,master]")
             .setting("xpack.security.enabled", "false")
-            .setting("xpack.ml.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)
             .feature(FeatureFlag.ESQL_VIEWS)

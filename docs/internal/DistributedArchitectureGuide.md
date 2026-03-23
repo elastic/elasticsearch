@@ -2647,11 +2647,11 @@ across replicas before an ack is sent back to the client.
 The Distributed team also owns select parts of the read path (e.g. real-time `GET` requests targeting the translog),
 but broader search capabilities like query execution, scoring, and aggregations fall under the Search team.
 
-This section follows a single **index** request end to end, using [RestIndexAction] as the starting point.
+This section follows a single document index request end to end, using [RestIndexAction] as the starting point.
 
 ## The Write Path
 
-### Coordinator node: REST handler to Transport
+### Coordinator: REST to Transport
 
 A user sends a `PUT` or `POST` to `/{index}/_doc/{id}` (or `POST /{index}/_doc` with no id for auto-generated ids) to
 Elasticsearch. The HTTP stack (described in [HTTP Server](#http-server)) hands the request to `RestIndexAction`, which
@@ -2673,13 +2673,68 @@ before routing. The latest applied [ClusterState](#cluster-state) supplies routi
 [set](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-index) `routing` explicitly).
 The routing key is hashed to a shard number within the index by `IndexRouting.hashToShardId`.
 
-The coordinator now knows which shard holds the document; it still needs the current primary node for that shard.
+The coordinator now knows which shard holds the document. It still needs the current primary node for that shard.
 
-### Primary routing & execution
+Note that for a bulk request 
+([multiple documents in one HTTP call](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk)),
+[BulkOperation] [groups](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/BulkOperation.java#L194)
+items by shard before dispatching each shard’s work to the appropriate primaries.
 
-Elasticsearch uses primary–backup replication: the primary shard copy defines the ordered write history and replicas 
+### Primary Routing & Execution
+
+#### Primary Routing
+
+Elasticsearch uses primary–backup replication: the primary shard copy defines the ordered write history and replicas
 apply the same operations.
 
+After matching each document to a shard, [BulkOperation] will 
+[hand over](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/BulkOperation.java#L485)
+the rest of the execution to a [TransportShardBulkAction]. This is a subclass of [TransportReplicationAction], which 
+holds the core replication framework logic for document writes and deletes.
+
+The coordinator uses the cluster state routing table ([Cluster State](#cluster-state)) to send the shard request to
+the node that currently holds the primary.
+
+In practice, the request can take more than one transport hop before it executes on the primary. The receiving node
+re-samples cluster state, and if the active primary for that shard is assigned elsewhere, [TransportReplicationAction]
+[forwards](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L1043)
+the replication request to that node. That “chase the primary” step can repeat while routing metadata
+converges. To avoid redirect loops between nodes whose cluster state versions differ, the request carries a 
+[routedBasedOnClusterVersion](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L1021)
+field. Each forward updates it to the forwarding node’s cluster state version so the next receiver 
+[is on at least](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L898) 
+that version before it redirects again.
+
+Once the request
+[reaches](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L964)
+the node that actually hosts the primary, it will get
+[wrapped](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L988)
+in a `ConcreteShardRequest` that includes the shard’s primary term and target allocation id. That lets the primary and 
+replicas refuse operations that were built for a superseded primary generation.
+
+#### Primary Execution
+
+On the primary node, `TransportShardBulkAction`
+[applies](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/TransportShardBulkAction.java#L441)
+the shard's bulk items through [IndexShard], the single entry point for shard-level work 
+(see [IndexShard](#indexshard) in [Engine & Store](#engine--store)).
+
+The primary will first try to 
+[acquire](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L484)
+an operation permit via [IndexShardOperationPermits]. Note that recovery and relocation are operations that can grab 
+all available permits and block in-flight writes. If the permit is successfully acquired, it will then validate and 
+[prepare](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexShard.java#L1026)
+the operation: create the mapping (if not already existing), parse the source, etc. `IndexShard` will then hand over the
+request to the engine (typically [InternalEngine], see [Engine](#engine) section for more details) that 
+[generates](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1239)
+the sequence number for the operation, [updates](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1262)
+Lucene via an `IndexWriter`, and then
+[appends](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1276)
+the operation to the [Translog](#translog).
+
+Note that updates and deletes use soft deletes in Lucene (tombstones and retention policies), not physical row removal,
+and are therefore quite similar to writes.
+See [Engine & Store](#engine--store) and [Segment Merges](#segment-merges) for more details.
 
 ### Replication
 
@@ -2689,19 +2744,28 @@ sequenceDiagram
     participant CN as Coordinating node
     participant P as Primary shard copy
     participant R as Replica shard copy
+    participant M as Elected master
 
     C->>CN: REST index (RestIndexAction → IndexRequest)
     CN->>CN: Bulk coordinator: route to shard
     CN->>P: Shard bulk on primary (TransportShardBulkAction)
     P->>P: IndexShard / engine (translog + Lucene)
-    P->>R: Replicate op (seq_no + primary_term)
-    R->>R: Engine apply
-    R-->>P: replica response
-    P-->>CN: primary response
-    CN-->>C: ack
+    Note over P: ReplicationOperation: stale in-sync ids, then replica fan-out
+    P->>R: Replica request (seq_no, primary_term, checkpoints)
+    alt replica applies successfully
+        R->>R: Engine apply (translog + Lucene)
+        R-->>P: ReplicaResponse (checkpoints)
+    else replica fails replication
+        R-->>P: failure
+        P->>M: remoteShardFailed (shard-failed -> update in-sync / routing)
+        M->>M: Cluster state task (drop failed copy from in-sync set, etc.)
+        M-->>P: shard-failed applied (listener completes)
+    end
+    P-->>CN: Primary result + shard info (after all pending replica / master / post steps)
+    CN-->>C: HTTP response (may include shard failures in body)
 ```
 
-### Sequence Numbers
+### Primary Terms & Sequence Numbers
 
 ### Checkpoints, gaps, and out-of-order replication
 

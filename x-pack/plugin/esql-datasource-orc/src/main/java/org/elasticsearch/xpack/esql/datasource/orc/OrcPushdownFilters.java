@@ -56,14 +56,6 @@ final class OrcPushdownFilters {
 
     private OrcPushdownFilters() {}
 
-    /**
-     * Check if an expression can be converted to an ORC SearchArgument predicate.
-     * <p>
-     * For compound expressions (AND/OR/NOT), ALL children must be convertible
-     * for OR and NOT (partial pushdown is unsafe). For AND, at least one child
-     * must be convertible (partial pushdown is safe under AND since the
-     * remaining expressions stay in FilterExec via RECHECK semantics).
-     */
     private static final Predicate<DataType> TYPE_SUPPORTED = dt -> resolveType(dt) != null;
 
     /**

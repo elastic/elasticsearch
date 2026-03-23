@@ -199,7 +199,6 @@ import org.elasticsearch.plugins.internal.LoggingDataProvider;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.plugins.internal.SettingsExtension;
-import org.elasticsearch.plugins.internal.search.crossproject.LinkedProjectAliasesHelper;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.LocalPrimarySnapshotShardContextFactory;
 import org.elasticsearch.repositories.RepositoriesModule;
@@ -1005,10 +1004,6 @@ class NodeConstruction {
             () -> ProjectRoutingResolver.NOOP
         );
 
-        final var linkedProjectAliasesHelper = pluginsService.loadSingletonServiceProvider(
-            LinkedProjectAliasesHelper.class,
-            () -> LinkedProjectAliasesHelper.NOOP
-        );
         AtomicReference<TransportService> transportServiceRef = new AtomicReference<>();
         var remoteTransportClient = new RemoteTransportClient() {
             @Override
@@ -1413,7 +1408,6 @@ class NodeConstruction {
             b.bind(OnlinePrewarmingService.class).toInstance(onlinePrewarmingService);
             b.bind(MergeMetrics.class).toInstance(mergeMetrics);
             b.bind(ProjectRoutingResolver.class).toInstance(projectRoutingResolver);
-            b.bind(LinkedProjectAliasesHelper.class).toInstance(linkedProjectAliasesHelper);
             b.bind(ActionLoggingFieldsProvider.class).toInstance(loggingFieldsProvider);
             b.bind(ActivityLogWriterProvider.class).toInstance(logWriterProvider);
         });

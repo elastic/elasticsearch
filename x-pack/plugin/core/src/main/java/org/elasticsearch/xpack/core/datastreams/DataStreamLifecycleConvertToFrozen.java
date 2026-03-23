@@ -154,7 +154,13 @@ public class DataStreamLifecycleConvertToFrozen implements Runnable {
             }
             throw e instanceof ElasticsearchException
                 ? (ElasticsearchException) e
-                : new ElasticsearchException("DLM failed to clone index [{}]", e, indexName);
+                : new ElasticsearchException(
+                    "DLM failed to clone index [{}] to index [{}]. " + "[{}] has been cleaned up by DLM.",
+                    e,
+                    indexName,
+                    cloneIndexName,
+                    cloneIndexName
+                );
         }
     }
 

@@ -266,7 +266,7 @@ public class AmazonBedrockService extends SenderService<AmazonBedrockModel> {
             config.getInferenceEntityId(),
             config.getTaskType(),
             config.getService(),
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         ).createFromModelConfigurationsAndSecrets(config, secrets);
         checkProviderForTask(config.getTaskType(), model.provider());
         return model;

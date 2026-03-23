@@ -51,9 +51,9 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
         ValidationException validationException,
         ConfigurationParseContext context
     ) {
-        String model = extractRequiredString(map, MODEL_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String region = extractRequiredString(map, REGION_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        AmazonBedrockProvider provider = extractRequiredEnum(
+        var model = extractRequiredString(map, MODEL_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var region = extractRequiredString(map, REGION_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var provider = extractRequiredEnum(
             map,
             PROVIDER_FIELD,
             ModelConfigurations.SERVICE_SETTINGS,
@@ -61,7 +61,7 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
             EnumSet.allOf(AmazonBedrockProvider.class),
             validationException
         );
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+        var rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
             validationException,
@@ -70,6 +70,22 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
         );
 
         return new BaseAmazonBedrockCommonSettings(region, model, provider, rateLimitSettings);
+    }
+
+    protected BaseAmazonBedrockCommonSettings updateBaseAmazonBedrockCommonSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            AMAZON_BEDROCK_BASE_NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new BaseAmazonBedrockCommonSettings(this.region, this.model, this.provider, extractedRateLimitSettings);
     }
 
     protected record BaseAmazonBedrockCommonSettings(

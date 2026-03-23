@@ -139,7 +139,7 @@ public class WriteLoadConstraintSettings {
     /**
      * The threshold over which we consider a single shard as carrying enough of the load, that trying to correct a
      * hotspot by relocating shards is not taken. This is phrased as a ratio. The production values should always
-     * be in [0.75, 1.0]. 0.0 turns this off
+     * be in (0.50, 1.0]. 0.0 turns this off
      */
     public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_MAX_SINGLE_SHARD_THRESHOLD_SETTING = new Setting<>(
         SETTING_PREFIX + "hotspot_utilization_max_single_shard_threshold",

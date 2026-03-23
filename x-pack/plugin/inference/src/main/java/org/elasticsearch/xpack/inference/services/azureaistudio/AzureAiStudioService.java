@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -186,15 +185,7 @@ public class AzureAiStudioService extends SenderService<AzureAiStudioModel> impl
                 );
             }
 
-            AzureAiStudioModel model = createModel(
-                inferenceEntityId,
-                taskType,
-                serviceSettingsMap,
-                taskSettingsMap,
-                chunkingSettings,
-                serviceSettingsMap,
-                ConfigurationParseContext.REQUEST
-            );
+            AzureAiStudioModel model = createModel(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, chunkingSettings);
 
             throwIfNotEmptyMap(config, NAME);
             throwIfNotEmptyMap(serviceSettingsMap, NAME);
@@ -213,7 +204,7 @@ public class AzureAiStudioService extends SenderService<AzureAiStudioModel> impl
             config.getInferenceEntityId(),
             config.getTaskType(),
             config.getService(),
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         ).createFromModelConfigurationsAndSecrets(config, secrets);
         checkProviderAndEndpointTypeForTask(config.getTaskType(), model.provider(), model.endpointType());
         return model;
@@ -249,20 +240,19 @@ public class AzureAiStudioService extends SenderService<AzureAiStudioModel> impl
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings,
-        @Nullable Map<String, Object> secretSettings,
-        ConfigurationParseContext context
+        ChunkingSettings chunkingSettings
     ) {
-        var model = retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
-            inferenceEntityId,
-            taskType,
-            NAME,
-            serviceSettings,
-            taskSettings,
-            chunkingSettings,
-            secretSettings,
-            context
-        );
+        var model = retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, ConfigurationParseContext.REQUEST)
+            .createFromMaps(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                taskSettings,
+                chunkingSettings,
+                serviceSettings,
+                ConfigurationParseContext.REQUEST
+            );
         checkProviderAndEndpointTypeForTask(taskType, model.provider(), model.endpointType());
         return model;
     }

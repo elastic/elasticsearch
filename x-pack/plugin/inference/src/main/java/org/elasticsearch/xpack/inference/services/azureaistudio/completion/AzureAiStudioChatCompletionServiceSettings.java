@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.completion;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,24 +27,22 @@ public class AzureAiStudioChatCompletionServiceSettings extends AzureAiStudioSer
     public static final String NAME = "azure_ai_studio_chat_completion_service_settings";
 
     public static AzureAiStudioChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        var settings = completionSettingsFromMap(map, validationException, context);
+        var baseSettings = AzureAiStudioServiceSettings.fromMap(map, validationException, context);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        return new AzureAiStudioChatCompletionServiceSettings(settings);
+        validationException.throwIfValidationErrorsExist();
+        return new AzureAiStudioChatCompletionServiceSettings(new AzureAiStudioCompletionCommonFields(baseSettings));
     }
 
-    private static AzureAiStudioCompletionCommonFields completionSettingsFromMap(
-        Map<String, Object> map,
-        ValidationException validationException,
-        ConfigurationParseContext context
-    ) {
-        var baseSettings = AzureAiStudioServiceSettings.fromMap(map, validationException, context);
-        return new AzureAiStudioCompletionCommonFields(baseSettings);
+    @Override
+    public AzureAiStudioChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var baseSettings = updateBaseServiceSettings(serviceSettings, validationException);
+
+        validationException.throwIfValidationErrorsExist();
+        return new AzureAiStudioChatCompletionServiceSettings(new AzureAiStudioCompletionCommonFields(baseSettings));
     }
 
     private record AzureAiStudioCompletionCommonFields(BaseAzureAiStudioCommonFields baseCommonFields) {}
@@ -80,11 +77,6 @@ public class AzureAiStudioChatCompletionServiceSettings extends AzureAiStudioSer
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.minimumCompatible();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
     }
 
     @Override

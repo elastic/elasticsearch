@@ -43,15 +43,15 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
         ValidationException validationException,
         ConfigurationParseContext context
     ) {
-        String target = extractRequiredString(map, TARGET_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+        var target = extractRequiredString(map, TARGET_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
             validationException,
             AzureAiStudioService.NAME,
             context
         );
-        AzureAiStudioEndpointType endpointType = extractRequiredEnum(
+        var endpointType = extractRequiredEnum(
             map,
             ENDPOINT_TYPE_FIELD,
             ModelConfigurations.SERVICE_SETTINGS,
@@ -60,7 +60,7 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
             validationException
         );
 
-        AzureAiStudioProvider provider = extractRequiredEnum(
+        var provider = extractRequiredEnum(
             map,
             PROVIDER_FIELD,
             ModelConfigurations.SERVICE_SETTINGS,
@@ -70,6 +70,20 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
         );
 
         return new BaseAzureAiStudioCommonFields(target, provider, endpointType, rateLimitSettings);
+    }
+
+    protected BaseAzureAiStudioCommonFields updateBaseServiceSettings(
+        Map<String, Object> serviceSettings,
+        ValidationException validationException
+    ) {
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            AzureAiStudioService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+        return new BaseAzureAiStudioCommonFields(this.target, this.provider, this.endpointType, extractedRateLimitSettings);
     }
 
     protected AzureAiStudioServiceSettings(StreamInput in) throws IOException {

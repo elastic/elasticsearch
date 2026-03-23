@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.rerank;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -33,22 +32,22 @@ public class AzureAiStudioRerankServiceSettings extends AzureAiStudioServiceSett
     public static AzureAiStudioRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         final var validationException = new ValidationException();
 
-        final var settings = rerankSettingsFromMap(map, validationException, context);
+        final var baseSettings = AzureAiStudioServiceSettings.fromMap(map, validationException, context);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
-        return new AzureAiStudioRerankServiceSettings(settings);
+        return new AzureAiStudioRerankServiceSettings(new AzureAiStudioRerankServiceSettings.AzureAiStudioRerankCommonFields(baseSettings));
     }
 
-    private static AzureAiStudioRerankServiceSettings.AzureAiStudioRerankCommonFields rerankSettingsFromMap(
-        Map<String, Object> map,
-        ValidationException validationException,
-        ConfigurationParseContext context
-    ) {
-        final var baseSettings = AzureAiStudioServiceSettings.fromMap(map, validationException, context);
-        return new AzureAiStudioRerankServiceSettings.AzureAiStudioRerankCommonFields(baseSettings);
+    @Override
+    public AzureAiStudioRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        final var validationException = new ValidationException();
+
+        final var baseSettings = updateBaseServiceSettings(serviceSettings, validationException);
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new AzureAiStudioRerankServiceSettings(new AzureAiStudioRerankServiceSettings.AzureAiStudioRerankCommonFields(baseSettings));
     }
 
     private record AzureAiStudioRerankCommonFields(BaseAzureAiStudioCommonFields baseCommonFields) {}
@@ -83,11 +82,6 @@ public class AzureAiStudioRerankServiceSettings extends AzureAiStudioServiceSett
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return ML_INFERENCE_AZURE_AI_STUDIO_RERANK_ADDED;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
     }
 
     @Override

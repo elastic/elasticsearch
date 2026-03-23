@@ -700,11 +700,6 @@ public class EsqlDataTypeConverter {
         return formatter == null ? nanoTimeToString(dateTime) : formatter.formatNanos(dateTime);
     }
 
-    /**
-     * Parses "from..to" as half-open [from, to): the block stores the exclusive upper bound {@code to} as given.
-     * {@link #dateRangeToString(long, long)} formats both bounds as stored (no further normalization in ESQL;
-     * index-level adjustment happens only when loading doc values into blocks).
-     */
     public static LongRangeBlockBuilder.LongRange parseDateRange(String s, ZoneId zoneId) {
         var ss = s.split("\\.\\.");
         assert ss.length == 2 : "can't parse range: " + s;

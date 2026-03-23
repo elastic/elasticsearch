@@ -248,7 +248,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
     }
 
     @Override
-    public Block[] getKeys() {
+    public Block[] getKeys(IntVector selected) {
         final int positionCount = (int) finalHash.size();
         final Block[] blocks;
         if (OrdinalBytesRefBlock.isDense(positionCount, tsidHash.size())) {

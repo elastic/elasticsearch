@@ -335,7 +335,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * excluding the {@link UnresolvedPattern} and {@link UnresolvedTimestamp} subtypes.
      */
     private static LinkedHashMap<String, List<UnresolvedAttribute>> collectUnresolved(LogicalPlan plan) {
-        Set<String> childOutputNames = new java.util.HashSet<>();
+        Set<String> childOutputNames = new HashSet<>();
         for (LogicalPlan child : plan.children()) {
             for (Attribute attr : child.output()) {
                 childOutputNames.add(attr.name());

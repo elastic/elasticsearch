@@ -12,7 +12,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -35,6 +40,7 @@ import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLife
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -64,6 +70,7 @@ import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
@@ -71,6 +78,7 @@ import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -86,9 +94,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.READ_ONLY;
@@ -117,6 +128,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     private static final Logger logger = LogManager.getLogger(DataStreamLifecycleServiceIT.class);
+    private static final String DEFAULT_REPO = "my-repo";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -895,7 +907,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
     public void testLifecycleAppliedToFailureStore() throws Exception {
         DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.failuresLifecycleBuilder()
-            .dataRetention(TimeValue.timeValueSeconds(20))
+            .dataRetention(TimeValue.timeValueMinutes(20))
             .buildTemplate();
 
         putComposableIndexTemplate("id1", """
@@ -937,17 +949,27 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         ByteSizeValue targetFloor = DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING.get(clusterSettings);
 
         assertBusy(() -> {
-            GetSettingsRequest getSettingsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(firstGenerationIndex)
-                .includeDefaults(true);
-            GetSettingsResponse getSettingsResponse = client().execute(GetSettingsAction.INSTANCE, getSettingsRequest).actionGet();
-            assertThat(
-                getSettingsResponse.getSetting(firstGenerationIndex, MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey()),
-                is(targetFactor.toString())
-            );
-            assertThat(
-                getSettingsResponse.getSetting(firstGenerationIndex, MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey()),
-                is(targetFloor.getStringRep())
-            );
+            try {
+                GetSettingsRequest getSettingsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(firstGenerationIndex)
+                    .includeDefaults(true);
+                GetSettingsResponse getSettingsResponse = client().execute(GetSettingsAction.INSTANCE, getSettingsRequest).actionGet();
+                assertThat(
+                    getSettingsResponse.getSetting(
+                        firstGenerationIndex,
+                        MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey()
+                    ),
+                    is(targetFactor.toString())
+                );
+                assertThat(
+                    getSettingsResponse.getSetting(
+                        firstGenerationIndex,
+                        MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey()
+                    ),
+                    is(targetFloor.getStringRep())
+                );
+            } catch (IndexNotFoundException e) {
+                fail("expected index " + firstGenerationIndex + " to exist but it did not.");
+            }
         });
 
         updateFailureStoreConfiguration(dataStreamName, true, TimeValue.timeValueSeconds(1));
@@ -967,7 +989,84 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             List<Index> retrievedFailureIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices();
             assertThat(retrievedFailureIndices.size(), equalTo(1));
             assertThat(retrievedFailureIndices.get(0).getName(), equalTo(secondGenerationIndex));
-        });
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testCollectAndMarkIndicesForFrozen() throws Exception {
+        assumeTrue("requires feature flag to be enabled", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
+
+        client().execute(
+            TransportPutRepositoryAction.TYPE,
+            new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, DEFAULT_REPO).name(DEFAULT_REPO)
+                .type("fs")
+                .settings(Settings.builder().put("location", DEFAULT_REPO))
+        ).get();
+        updateClusterSettings(Settings.builder().put(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey(), DEFAULT_REPO));
+
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .frozenAfter(TimeValue.timeValueDays(1))
+            .buildTemplate();
+
+        Iterable<DataStreamLifecycleService> dataStreamLifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
+        Clock clock = Clock.systemUTC();
+        AtomicLong now = new AtomicLong(clock.millis());
+        dataStreamLifecycleServices.forEach(dataStreamLifecycleService -> dataStreamLifecycleService.setNowSupplier(now::get));
+
+        putComposableIndexTemplate(
+            "mytemplate",
+            null,
+            List.of("foo*"),
+            Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1").build(),
+            null,
+            lifecycle,
+            null,
+            false
+        );
+
+        String dataStream = "foo-ds";
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            dataStream
+        );
+        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+
+        indexDocs(dataStream, randomIntBetween(10, 50));
+
+        // Let's verify the rollover
+        List<String> backingIndices = waitForDataStreamIndices(dataStream, 2, false);
+        String candidateIndex = backingIndices.get(0);
+
+        AtomicLong twoDaysLater = new AtomicLong(clock.millis() + TimeValue.timeValueDays(2).millis());
+        dataStreamLifecycleServices.forEach(dataStreamLifecycleService -> dataStreamLifecycleService.setNowSupplier(twoDaysLater::get));
+
+        assertBusy(() -> {
+            logger.info("--> checking to see if index has been marked for frozen");
+            ClusterStateResponse resp = client().execute(ClusterStateAction.INSTANCE, new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).get();
+            ClusterState state = resp.getState();
+            String setRepo = Optional.ofNullable(state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID))
+                .map(pm -> pm.index(candidateIndex))
+                .map(peek(im -> logger.info("--> found index {}", candidateIndex)))
+                .map(im -> im.getCustomData(DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY))
+                .map(peek(custom -> logger.info("--> index {} has custom metadata: {}", candidateIndex, custom)))
+                .map(meta -> meta.get(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY))
+                .map(peek(repo -> logger.info("--> index {} has repo {} configured", candidateIndex, repo)))
+                .orElse("_unset_");
+            logger.info("--> repository set to: {}", setRepo);
+            assertThat(setRepo, equalTo(DEFAULT_REPO));
+        }, 30, TimeUnit.SECONDS);
+
+        dataStreamLifecycleServices.forEach(dataStreamLifecycleService -> dataStreamLifecycleService.setNowSupplier(clock::millis));
+    }
+
+    /**
+     * Helper for peeking Optionals
+     */
+    <T> UnaryOperator<T> peek(Consumer<T> c) {
+        return x -> {
+            c.accept(x);
+            return x;
+        };
     }
 
     static void indexDocs(String dataStream, int numDocs) {

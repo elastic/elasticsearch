@@ -31,13 +31,13 @@ public final class AnyBooleanAggregatorFunctionSupplier implements AggregatorFun
   @Override
   public AnyBooleanAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return AnyBooleanAggregatorFunction.create(driverContext, channels);
+    return new AnyBooleanAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public AnyBooleanGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return AnyBooleanGroupingAggregatorFunction.create(channels, driverContext);
+    return new AnyBooleanGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
@@ -53,11 +54,28 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Predicate;
 
+/**
+ * ESQL "features" returned by the usage API. This <strong>mostly</strong> tracks
+ * new commands. If you add something here you <strong>must</strong> add it to the
+ * tests in {@code 60_usage.yml} then run them with:
+ * {@snippet lang=shell :
+ * ./gradlew -p x-pack/plugin/esql/qa/server/single-node/ yamlRestTest \
+ *     -Dtests.method='*60*'
+ * }
+ * and
+ * {@snippet lang=shell :
+ * ./gradlew -p x-pack/plugin/esql/qa/server/single-node/ yamlRestTest \
+ *     -Dbuild.snapshot=false -Dtests.jvm.argline=-Dbuild.snapshot=false \
+ *     -Dlicense.key="x-pack/license-tools/src/test/resources/public.key" \
+ *     -Dtests.method='*60*'
+ * }
+ */
 public enum FeatureMetric {
     DISSECT(Dissect.class::isInstance),
     EVAL(Eval.class::isInstance),
     GROK(Grok.class::isInstance),
     LIMIT(plan -> false), // the limit is checked in Analyzer.gatherPreAnalysisMetrics, because it has a more complex and general check
+    LIMIT_BY(LimitBy.class::isInstance),
     SORT(OrderBy.class::isInstance),
     // the STATS is checked in Analyzer.gatherPreAnalysisMetrics, because it can also be part of an INLINE STATS command
     STATS(plan -> false),

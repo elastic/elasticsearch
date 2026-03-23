@@ -14,6 +14,7 @@ import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -117,7 +118,7 @@ public class HttpClientTests extends ESTestCase {
     }
 
     private static String url(final String path) {
-        String hostname = server.getAddress().getHostString();
+        String hostname = InetAddresses.toUriString(server.getAddress().getAddress());
         int port = server.getAddress().getPort();
         return "http://" + hostname + ":" + port + path;
     }

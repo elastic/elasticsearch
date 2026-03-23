@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -86,5 +87,20 @@ public class EsqlLogContext extends ActivityLoggerContext {
                 .filter(alias -> alias.getKey().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false)
                 .count()
             : 0;
+    }
+
+    public String[] getIndices() {
+        if (response == null) {
+            return null;
+        }
+        return response.getExecutionInfo()
+            .getClusters()
+            .values()
+            .stream()
+            .flatMap(
+                cluster -> Arrays.stream(cluster.getIndexExpression().split(","))
+                    .map(ind -> RemoteClusterAware.buildRemoteIndexName(cluster.getClusterAlias(), ind))
+            )
+            .toArray(String[]::new);
     }
 }

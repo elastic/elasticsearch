@@ -197,6 +197,36 @@ public class GcsConfigurationTests extends ESTestCase {
         assertEquals(config1.hashCode(), config2.hashCode());
     }
 
+    public void testAuthNone() {
+        GcsConfiguration config = GcsConfiguration.fromFields(null, null, "http://endpoint", null, "none");
+        assertNotNull(config);
+        assertTrue(config.isAnonymous());
+        assertFalse(config.hasCredentials());
+    }
+
+    public void testAuthNoneCaseInsensitive() {
+        GcsConfiguration config = GcsConfiguration.fromFields(null, null, "http://endpoint", null, "NONE");
+        assertTrue(config.isAnonymous());
+        assertEquals("none", config.auth());
+    }
+
+    public void testAuthNoneConflictsWithCredentials() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> GcsConfiguration.fromFields("{\"type\":\"service_account\"}", null, null, null, "none")
+        );
+    }
+
+    public void testAuthNoneAllowsProjectIdAndEndpoint() {
+        GcsConfiguration config = GcsConfiguration.fromFields(null, "my-project", "http://ep", null, "none");
+        assertTrue(config.isAnonymous());
+        assertEquals("my-project", config.projectId());
+    }
+
+    public void testUnsupportedAuthValueThrows() {
+        expectThrows(IllegalArgumentException.class, () -> GcsConfiguration.fromFields(null, null, "http://ep", null, "unsupported"));
+    }
+
     private Literal literal(Object value) {
         DataType dataType;
         Object literalValue = value;

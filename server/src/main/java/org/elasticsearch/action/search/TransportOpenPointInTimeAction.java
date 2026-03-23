@@ -60,6 +60,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -83,7 +84,6 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final TransportService transportService;
     private final SearchService searchService;
-    private final ClusterService clusterService;
     private final SearchResponseMetrics searchResponseMetrics;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final TimeValue forceConnectTimeoutSecs;
@@ -97,7 +97,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         SearchTransportService searchTransportService,
         NamedWriteableRegistry namedWriteableRegistry,
         ClusterService clusterService,
-        SearchResponseMetrics searchResponseMetrics
+        SearchResponseMetrics searchResponseMetrics,
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         super(TYPE.name(), transportService, actionFilters, OpenPointInTimeRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
@@ -105,9 +106,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         this.searchService = searchService;
         this.searchTransportService = searchTransportService;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.clusterService = clusterService;
         this.searchResponseMetrics = searchResponseMetrics;
-        this.crossProjectModeDecider = new CrossProjectModeDecider(clusterService.getSettings());
+        this.crossProjectModeDecider = crossProjectModeDecider;
         this.forceConnectTimeoutSecs = clusterService.getSettings()
             .getAsTime("search.ccs.force_connect_timeout", TimeValue.timeValueSeconds(3L));
         transportService.registerRequestHandler(
@@ -168,6 +168,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 originalIndicesOptions,
                 request.getProjectRouting(),
                 localResolvedIndexExpressions,
+                Map.of(),
                 Map.of()
             );
             if (ex != null) {
@@ -182,19 +183,22 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         final int linkedProjectsToQuery = indicesPerCluster.size();
         ActionListener<Collection<Map.Entry<String, SearchPlanningPhaseResolutionResult>>> responsesListener = listener
             .delegateFailureAndWrap((l, responses) -> {
-                Map<String, ResolvedIndexExpressions> resolvedRemoteExpressions = responses.stream()
-                    .filter(e -> e.getValue().response() instanceof ResolveIndexAction.Response)
-                    .collect(
-                        Collectors.toMap(
-                            Map.Entry::getKey,
-                            e -> ((ResolveIndexAction.Response) e.getValue().response()).getResolvedIndexExpressions()
-                        )
-                    );
+                Map<String, ResolvedIndexExpressions> resolvedRemoteExpressions = new HashMap<>();
+                Map<String, Exception> remoteExceptions = new HashMap<>();
+
+                for (var entry : responses) {
+                    if (entry.getValue().response() instanceof ResolveIndexAction.Response response) {
+                        resolvedRemoteExpressions.put(entry.getKey(), response.getResolvedIndexExpressions());
+                    } else {
+                        remoteExceptions.put(entry.getKey(), entry.getValue().error());
+                    }
+                }
                 final Exception ex = CrossProjectIndexResolutionValidator.validate(
                     originalIndicesOptions,
                     request.getProjectRouting(),
                     localResolvedIndexExpressions,
-                    resolvedRemoteExpressions
+                    resolvedRemoteExpressions,
+                    remoteExceptions
                 );
                 if (ex != null) {
                     listener.onFailure(ex);
@@ -244,14 +248,14 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 l.onResponse(Map.entry(clusterAlias, new SearchPlanningPhaseResolutionResult(null, failure)));
             })
                 .delegateFailure(
-                    (ignored, connection) -> transportService.sendRequest(
+                    (delegate, connection) -> transportService.sendRequest(
                         connection,
                         ResolveIndexAction.REMOTE_TYPE.name(),
                         remoteRequest,
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(groupedListener.delegateResponse((l, failure) -> {
                             logger.info("Error occurred on remote cluster [" + clusterAlias + "]", failure);
-                            l.onResponse(Map.entry(clusterAlias, new SearchPlanningPhaseResolutionResult(null, failure)));
+                            delegate.onResponse(Map.entry(clusterAlias, new SearchPlanningPhaseResolutionResult(null, failure)));
                         })
                             .map(
                                 resolveIndexResponse -> Map.entry(

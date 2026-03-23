@@ -29,6 +29,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.plugin;
     requires org.elasticsearch.plugin.analysis;
     requires org.elasticsearch.grok;
+    requires org.elasticsearch.useragent.api;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.exponentialhistogram;
     requires org.elasticsearch.simdvec;
@@ -526,6 +527,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.mapper.blockloader.script;
     exports org.elasticsearch.readiness to org.elasticsearch.xpack.stateless.sigterm;
     exports org.elasticsearch.inference.metadata;
+    exports org.elasticsearch.search.diversification;
     exports org.elasticsearch.search.diversification.mmr;
     exports org.elasticsearch.inference.completion;
 }

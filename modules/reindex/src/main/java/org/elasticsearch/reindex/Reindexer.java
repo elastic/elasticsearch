@@ -25,7 +25,11 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.internal.Client;
@@ -45,6 +49,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -98,6 +103,8 @@ import static java.util.Collections.synchronizedList;
 import static org.elasticsearch.common.BackoffPolicy.exponentialBackoff;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 import static org.elasticsearch.reindex.ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE;
+import static org.elasticsearch.reindex.remote.RemoteReindexingUtils.closePit;
+import static org.elasticsearch.reindex.remote.RemoteReindexingUtils.openPit;
 
 public class Reindexer {
 
@@ -163,7 +170,38 @@ public class Reindexer {
             startTime
         );
 
-        Consumer<Version> workerAction = remoteVersion -> {
+        final boolean isRemote = request.getRemoteInfo() != null;
+        Consumer<Version> workerAction = createWorkerAction(task, request, bulkClient, responseListener);
+
+        // Point-in-time searching is disabled, so default to scroll
+        if (featureService.clusterHasFeature(clusterService.state(), REINDEX_PIT_SEARCH_FEATURE) == false) {
+            executePaginatedSearch(task, request, responseListener, workerAction, null);
+        }
+        /**
+         * Point-in-time searching is enabled
+         * As this is a request to reindex from remote, we need to determine the remote version prior to execution
+         * NB {@link ReindexRequest} forbids remote requests and slices > 1, so we're guaranteed to be running on the only slice
+         */
+        else if (isRemote) {
+            lookupRemoteVersionAndExecute(task, request, bulkClient, responseListener, workerAction);
+        }
+        // Point-in-time searching is enabled, and this is a local request
+        else {
+            openPitAndExecute(task, request, bulkClient, responseListener);
+        }
+    }
+
+    /**
+     * Creates the worker action that runs the reindex.
+     * When PIT is used, the listener should include runAfter logic to close the PIT.
+     */
+    private Consumer<Version> createWorkerAction(
+        BulkByScrollTask task,
+        ReindexRequest request,
+        Client bulkClient,
+        ActionListener<BulkByScrollResponse> listener
+    ) {
+        return remoteVersion -> {
             ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
             ParentTaskAssigningClient assigningBulkClient = new ParentTaskAssigningClient(bulkClient, clusterService.localNode(), task);
             AsyncIndexBySearchAction searchAction = new AsyncIndexBySearchAction(
@@ -176,40 +214,94 @@ public class Reindexer {
                 projectResolver.getProjectState(clusterService.state()),
                 reindexSslConfig,
                 request,
-                responseListener,
+                listener,
                 remoteVersion
             );
             searchAction.start();
         };
-
-        /**
-         * If this is a request to reindex from remote, then we need to determine the remote version prior to execution
-         * NB {@link ReindexRequest} forbids remote requests and slices > 1, so we're guaranteed to be running on the only slice
-         */
-        if (featureService.clusterHasFeature(clusterService.state(), REINDEX_PIT_SEARCH_FEATURE) && request.getRemoteInfo() != null) {
-            lookupRemoteVersionAndExecute(task, request, responseListener, workerAction);
-        } else {
-            BulkByPaginatedSearchParallelizationHelper.executeSlicedAction(
-                task,
-                request,
-                ReindexAction.INSTANCE,
-                responseListener,
-                client,
-                clusterService.localNode(),
-                null,
-                workerAction
-            );
-        }
     }
 
     /**
-     * Looks up the remote cluster version when reindexing from a remote source, then runs the sliced action with that version.
-     * The RestClient used for the lookup is closed after the callback; closing must happen on a thread other than the
-     * RestClient's own thread pool to avoid shutdown failures.
+     * Runs the sliced action
+     */
+    private void executePaginatedSearch(
+        BulkByScrollTask task,
+        ReindexRequest request,
+        ActionListener<BulkByScrollResponse> listener,
+        Consumer<Version> workerAction,
+        @Nullable Version remoteVersion
+    ) {
+        BulkByPaginatedSearchParallelizationHelper.executeSlicedAction(
+            task,
+            request,
+            ReindexAction.INSTANCE,
+            listener,
+            client,
+            clusterService.localNode(),
+            remoteVersion,
+            workerAction
+        );
+    }
+
+    /**
+     * Returns the keep-alive duration for PIT. Uses the request's scroll time when set, otherwise defaults to 5 minutes.
+     * TODO - https://github.com/elastic/elasticsearch-team/issues/2334
+     */
+    private static TimeValue pitKeepAlive(ReindexRequest request) {
+        return request.getScrollTime() != null ? request.getScrollTime() : TimeValue.timeValueMinutes(5);
+    }
+
+    /**
+     * Opens a PIT on the local cluster, runs the sliced action, and closes the PIT when done.
+     */
+    private void openPitAndExecute(
+        BulkByScrollTask task,
+        ReindexRequest request,
+        Client bulkClient,
+        ActionListener<BulkByScrollResponse> listener
+    ) {
+        SearchRequest searchRequest = request.getSearchRequest();
+        String[] indices = searchRequest.indices();
+
+        // The routing and preference parameters can be set for a PIT request. However, scroll currently does not use these,
+        // so for parity we assert here in case that changes
+        assert searchRequest.routing() == null : "Routing is set in the search request, but is not being used when opening the PIT.";
+        assert searchRequest.preference() == null : "Preference is set in the search request, but is not being used when opening the PIT.";
+        assert searchRequest.allowPartialSearchResults() == null || searchRequest.allowPartialSearchResults() == false
+            : "allow_partial_search_results must be false when opening a PIT to match scroll search behavior";
+
+        // TODO - Do we need to set the IndexFilter field here? https://github.com/elastic/elasticsearch-team/issues/2392
+        OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(indices).indicesOptions(searchRequest.indicesOptions())
+            .keepAlive(pitKeepAlive(request))
+            .allowPartialSearchResults(false);
+
+        // NB this is a local request, so we call the TransportAction rather than issuing a REST call
+        client.execute(TransportOpenPointInTimeAction.TYPE, pitRequest, listener.delegateFailureAndWrap((l, pitResponse) -> {
+            BytesReference pitId = pitResponse.getPointInTimeId();
+            ActionListener<BulkByScrollResponse> listenerWithClosePit = ActionListener.runAfter(
+                l,
+                () -> client.execute(
+                    TransportClosePointInTimeAction.TYPE,
+                    new ClosePointInTimeRequest(pitId),
+                    ActionListener.wrap(r -> {}, e -> logger.warn("Failed to close local PIT", e))
+                )
+            );
+            Consumer<Version> workerActionWithClosePit = createWorkerAction(task, request, bulkClient, listenerWithClosePit);
+            // TODO - Pass the point-in-time ID into the BulkByPaginatedSearchParallelizationHelper to be used
+            executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, null);
+        }));
+    }
+
+    /**
+     * Looks up the remote cluster version when reindexing from a remote source.
+     * If the remote supports PIT (7.10.0+), this opens a PIT, runs the sliced action, and closes the PIT when done.
+     * Otherwise, the default search method is scroll.
+     * The RestClient used for lookup (and PIT open/close when applicable) is closed after completion.
      */
     private void lookupRemoteVersionAndExecute(
         BulkByScrollTask task,
         ReindexRequest request,
+        Client bulkClient,
         ActionListener<BulkByScrollResponse> listener,
         Consumer<Version> workerAction
     ) {
@@ -219,19 +311,14 @@ public class Reindexer {
         RejectAwareActionListener<Version> rejectAwareListener = new RejectAwareActionListener<>() {
             @Override
             public void onResponse(Version version) {
-                closeRestClientAndRun(
-                    restClient,
-                    () -> BulkByPaginatedSearchParallelizationHelper.executeSlicedAction(
-                        task,
-                        request,
-                        ReindexAction.INSTANCE,
-                        listener,
-                        client,
-                        clusterService.localNode(),
-                        version,
-                        workerAction
-                    )
-                );
+                boolean canUsePit = version.onOrAfter(Version.V_7_10_0);
+                if (canUsePit) {
+                    openRemotePitAndExecute(task, request, bulkClient, listener, restClient, version);
+                }
+                // Default to scroll-based search
+                else {
+                    closeRestClientAndRun(restClient, () -> executePaginatedSearch(task, request, listener, workerAction, version));
+                }
             }
 
             @Override
@@ -244,6 +331,7 @@ public class Reindexer {
                 closeRestClientAndRun(restClient, () -> listener.onFailure(e));
             }
         };
+
         RemoteReindexingUtils.lookupRemoteVersionWithRetries(
             logger,
             exponentialBackoff(request.getRetryBackoffInitialTime(), request.getMaxRetries()),
@@ -253,6 +341,41 @@ public class Reindexer {
             // https://github.com/elastic/elasticsearch-team/issues/2382
             rejectAwareListener
         );
+    }
+
+    /**
+     * Opens a PIT on the remote cluster, runs the sliced action, and closes the PIT when done.
+     * The RestClient is closed after the PIT is closed.
+     */
+    private void openRemotePitAndExecute(
+        BulkByScrollTask task,
+        ReindexRequest request,
+        Client bulkClient,
+        ActionListener<BulkByScrollResponse> listenerWithRelocations,
+        RestClient restClient,
+        Version remoteVersion
+    ) {
+        SearchRequest searchRequest = request.getSearchRequest();
+        String[] indices = searchRequest.indices();
+        // Sends a REST request to the remote node to open a PIT
+        openPit(searchRequest, indices, pitKeepAlive(request), RejectAwareActionListener.wrap(pitId -> {
+            ActionListener<BulkByScrollResponse> listenerWithClosePit = ActionListener.runAfter(
+                listenerWithRelocations,
+                () -> closePit(pitId, RejectAwareActionListener.wrap(v -> closeRestClientAndRun(restClient, () -> {}), e -> {
+                    logger.warn("Failed to close remote PIT", e);
+                    closeRestClientAndRun(restClient, () -> {});
+                }, e -> {
+                    logger.warn("Failed to close remote PIT (rejected)", e);
+                    closeRestClientAndRun(restClient, () -> {});
+                }), threadPool, restClient)
+            );
+            Consumer<Version> workerActionWithClosePit = createWorkerAction(task, request, bulkClient, listenerWithClosePit);
+            // TODO - Pass the point-in-time ID into the BulkByPaginatedSearchParallelizationHelper to be used
+            executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, remoteVersion);
+        },
+            e -> closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e)),
+            e -> closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e))
+        ), threadPool, restClient);
     }
 
     /**

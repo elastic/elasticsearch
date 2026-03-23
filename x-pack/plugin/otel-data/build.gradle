@@ -56,7 +56,7 @@ dependencies {
   clusterModules project(':modules:data-streams')
   clusterModules project(':modules:ingest-common')
   clusterModules project(':modules:ingest-geoip')
-  clusterModules project(':modules:ingest-user-agent')
+  clusterModules project(':modules:user-agent')
   clusterModules project(':modules:lang-mustache')
   clusterModules project(':modules:mapper-extras')
   clusterModules project(xpackModule('analytics'))
@@ -165,6 +165,7 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named("licenseHeaders").configure {
   excludes << 'io/opentelemetry/proto/**/*'
+  excludes << 'com/google/rpc/**/*'
 }
 
 tasks.named("javaRestTest").configure {

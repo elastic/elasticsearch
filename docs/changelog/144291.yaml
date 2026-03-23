@@ -1,0 +1,6 @@
+area: ES|QL
+issues: []
+pr: 144291
+summary: Fix window validation in time-series aggregations when TBUCKET uses a numeric
+  target count
+type: enhancement

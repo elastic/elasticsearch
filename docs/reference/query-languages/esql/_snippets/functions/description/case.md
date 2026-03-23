@@ -2,5 +2,5 @@
 
 ## Description
 
-Accepts pairs of conditions and values. The function returns the value that belongs to the first condition that evaluates to `true`.  If the number of arguments is odd, the last argument is the default value which is returned when no condition matches. If the number of arguments is even, and no condition matches, the function returns `null`.
+Accepts pairs of conditions and values. The function returns the value that belongs to the first condition that evaluates to `true`. Both the conditions and the returned values can be any expression, including column references.  If the number of arguments is odd, the last argument is the default value which is returned when no condition matches. If the number of arguments is even, and no condition matches, the function returns `null`.
 

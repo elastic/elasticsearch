@@ -24,6 +24,7 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
     public Optional<ESLogMessage> produce(EsqlLogContext context, ActionLoggingFields additionalFields) {
         ESLogMessage msg = produceCommon(context, QueryLogging.ES_QUERY_FIELDS_PREFIX, additionalFields);
         msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery()).field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getHits());
+        msg.field(QueryLogging.QUERY_FIELD_INDICES, context.getIndices());
         context.getQueryProfile().ifPresent(profile -> {
             for (TimeSpanMarker timeSpanMarker : profile.timeSpanMarkers()) {
                 TimeValue timeTook = timeSpanMarker.timeTook();
@@ -33,6 +34,10 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
                 }
             }
         });
+        if (context.isCrossClusterSearch()) {
+            msg.field(QueryLogging.QUERY_FIELD_IS_CCS, true);
+            msg.field(QueryLogging.QUERY_FIELD_REMOTE_COUNT, context.remoteClusterCount());
+        }
         return Optional.of(msg);
     }
 }

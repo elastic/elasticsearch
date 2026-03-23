@@ -20,12 +20,15 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersTo
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToExternalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToSource;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToExternalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceRoundToWithQueryAndTags;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSampledStatsByExactStats;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSampledStatsBySampleAndStats;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialDocValuesExtraction;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeBoundsExtraction;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeDocValuesExtraction;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -68,7 +71,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     }
 
     protected static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
-        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(8);
+        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(10);
         esSourceRules.add(new ReplaceSourceAttributes());
         if (optimizeForEsSource) {
             esSourceRules.add(new PushTopNToSource());
@@ -76,8 +79,16 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             esSourceRules.add(new PushLimitToExternalSource());
             esSourceRules.add(new PushFiltersToSource());
             esSourceRules.add(new PushSampleToSource());
+        }
+        esSourceRules.add(new ReplaceSampledStatsByExactStats());
+        if (optimizeForEsSource) {
             esSourceRules.add(new PushStatsToSource());
+            esSourceRules.add(new PushStatsToExternalSource());
             esSourceRules.add(new EnableSpatialDistancePushdown());
+        }
+        esSourceRules.add(new ReplaceSampledStatsBySampleAndStats());
+        if (optimizeForEsSource) {
+            esSourceRules.add(new PushSampleToSource());
         }
 
         // execute the rules multiple times to improve the chances of things being pushed down
@@ -95,15 +106,16 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         );
 
         // add the field extraction in just one pass
-        // add it at the end after all the other rules have ran
+        // add it at the end after all the other rules have run
         var fieldExtraction = new Batch<>(
             "Field extraction",
             Limiter.ONCE,
             new ExtractDimensionFieldsAfterAggregation(),
             new InsertFieldExtraction(),
             new SpatialDocValuesExtraction(),
-            new SpatialShapeBoundsExtraction()
+            new SpatialShapeDocValuesExtraction()
         );
+
         return optimizeForEsSource ? List.of(pushdown, substitutionRules, fieldExtraction) : List.of(pushdown, fieldExtraction);
     }
 }

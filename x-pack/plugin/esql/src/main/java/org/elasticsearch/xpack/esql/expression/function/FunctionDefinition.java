@@ -30,12 +30,24 @@ public class FunctionDefinition {
     private final List<String> aliases;
     private final Class<? extends Function> clazz;
     private final Builder builder;
+    private final List<String> subCapabilities;
 
     public FunctionDefinition(String name, List<String> aliases, Class<? extends Function> clazz, Builder builder) {
+        this(name, aliases, clazz, builder, List.of());
+    }
+
+    private FunctionDefinition(
+        String name,
+        List<String> aliases,
+        Class<? extends Function> clazz,
+        Builder builder,
+        List<String> subCapabilities
+    ) {
         this.name = name;
         this.aliases = aliases;
         this.clazz = clazz;
         this.builder = builder;
+        this.subCapabilities = subCapabilities;
     }
 
     public String name() {
@@ -52,6 +64,26 @@ public class FunctionDefinition {
 
     public Builder builder() {
         return builder;
+    }
+
+    public List<String> capabilities() {
+        return subCapabilities;
+    }
+
+    /**
+     * Adds capabilities to mark changes or fixes to the function. Use it like:
+     * {@snippet :
+     * public static final FunctionDefinition DEFINITION = EsqlFunctionRegistry.ternary(IpPrefix.class, IpPrefix::new, "ip_prefix")
+     *     .withSubCapabilities(
+     *         List.of(
+     *             // Fix a bug leading to the scratch leaking data to other rows.
+     *             "fix_dirty_scratch_leak"
+     *         )
+     *     );
+     * }
+     */
+    public FunctionDefinition withSubCapabilities(List<String> subCapabilities) {
+        return new FunctionDefinition(name, aliases, clazz, builder, subCapabilities);
     }
 
     @Override

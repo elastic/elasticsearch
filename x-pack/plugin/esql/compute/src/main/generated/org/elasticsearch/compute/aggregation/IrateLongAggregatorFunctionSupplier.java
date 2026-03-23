@@ -42,7 +42,7 @@ public final class IrateLongAggregatorFunctionSupplier implements AggregatorFunc
   @Override
   public IrateLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return IrateLongGroupingAggregatorFunction.create(channels, driverContext, isDelta, isDateNanos);
+    return new IrateLongGroupingAggregatorFunction(channels, driverContext, isDelta, isDateNanos);
   }
 
   @Override

@@ -101,6 +101,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.INFERENCE_CONFIGS;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.greaterThan;
@@ -116,6 +117,8 @@ import static org.hamcrest.Matchers.hasSize;
 public class CsvIT extends ESTestCase {
 
     private static final Logger logger = LogManager.getLogger(CsvIT.class);
+    private static final EsqlCapabilities ENABLED_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, false);
+    private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, true);
 
     private static InternalTestCluster cluster;
     private static String currentGroupName = null;
@@ -218,6 +221,7 @@ public class CsvIT extends ESTestCase {
             "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
             testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
         );
+        checkTestCapabilities();
 
         currentGroupName = groupName;
         // verify no prior failures
@@ -260,6 +264,10 @@ public class CsvIT extends ESTestCase {
         }
     }
 
+    private void checkTestCapabilities() {
+        CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities);
+    }
+
     private StackTraceElement[] prependSpec(StackTraceElement[] original) {
         StackTraceElement[] copy = new StackTraceElement[original.length + 1];
         copy[0] = new StackTraceElement(getClass().getName(), groupName + "." + testName, fileName, lineNumber);
@@ -274,6 +282,11 @@ public class CsvIT extends ESTestCase {
     public static class EsqlTestPlugin extends EsqlPlugin implements NetworkPlugin, AnalysisPlugin {
         protected XPackLicenseState getLicenseState() {
             return new XPackLicenseState(System::currentTimeMillis, new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null));
+        }
+
+        @Override
+        public void loadExtensions(ExtensionLoader loader) {
+            // nothing, else it would clash with super's SPI discoverer, which adds data source plugins
         }
 
         @Override

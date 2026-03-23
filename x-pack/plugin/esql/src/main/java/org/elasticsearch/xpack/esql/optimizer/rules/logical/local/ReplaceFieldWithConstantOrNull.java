@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
@@ -63,28 +65,22 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
             }
             // find constant values only in the main indices
             else if (esRelation.indexMode() == IndexMode.STANDARD) {
-                for (Attribute attribute : esRelation.output()) {
-                    if (attribute instanceof FieldAttribute fa) {
-                        // Do not use the attribute name, this can deviate from the field name for union types; use fieldName() instead.
-                        String val = localLogicalOptimizerContext.searchStats().constantValue(fa.fieldName());
-                        if (val != null) {
-                            attrToConstant.put(attribute, Literal.of(attribute, BytesRefs.toBytesRef(val)));
-                        }
-                    } else if (attribute instanceof MetadataAttribute ma && ma.name().startsWith(PROJECT_METADATA_PREFIX)) {
-                        String val = localLogicalOptimizerContext.searchStats().constantValue(new FieldAttribute.FieldName(ma.name()));
-                        if (val != null) {
-                            attrToConstant.put(attribute, Literal.of(attribute, BytesRefs.toBytesRef(val)));
-                        }
-                    }
-                }
+                collectConstants(esRelation.output(), localLogicalOptimizerContext, attrToConstant);
             }
         });
+        // ParameterizedQuery only appears in the lookup-node plan (via LookupLogicalOptimizer);
+        // this is a no-op when the rule runs inside LocalLogicalPlanOptimizer on a data-node plan.
+        plan.forEachUp(
+            ParameterizedQuery.class,
+            paramQuery -> collectConstants(paramQuery.output(), localLogicalOptimizerContext, attrToConstant)
+        );
         AttributeSet lookupFields = lookupFieldsBuilder.build();
         AttributeSet externalFields = externalFieldsBuilder.build();
 
         // Do not use the attribute name, this can deviate from the field name for union types; use fieldName() instead.
         // Also retain fields from lookup indices and external sources because we do not have stats for these.
-        Predicate<FieldAttribute> shouldBeRetained = f -> f.field() instanceof PotentiallyUnmappedKeywordEsField
+        Predicate<FieldAttribute> shouldBeRetained = f -> f instanceof TimeSeriesMetadataAttribute
+            || f.field() instanceof PotentiallyUnmappedKeywordEsField
             // The source (or doc) field is added to the relation output as a hack to enable late materialization in the reduce driver.
             || EsQueryExec.isDocAttribute(f)
             || localLogicalOptimizerContext.searchStats().exists(f.fieldName())
@@ -99,14 +95,15 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
         Predicate<FieldAttribute> shouldBeRetained,
         Map<Attribute, Expression> attrToConstant
     ) {
-        if (plan instanceof EsRelation relation) {
-            // For any missing field, place an Eval right after the EsRelation to assign null values to that attribute (using the same name
-            // id!), thus avoiding that InsertFieldExtrations inserts a field extraction later.
+        if (plan instanceof EsRelation || plan instanceof ParameterizedQuery) {
+            // For any missing field, place an Eval right after the EsRelation/ParameterizedQuery
+            // to assign null values to that attribute (using the same name id!),
+            // thus avoiding that InsertFieldExtraction inserts a field extraction later.
             // This means that an EsRelation[field1, field2, field3] where field1 and field 3 are missing will be replaced by
             // Project[field1, field2, field3] <- keeps the ordering intact
             // \_Eval[field1 = null, field3 = null]
             // \_EsRelation[field1, field2, field3]
-            List<Attribute> relationOutput = relation.output();
+            List<Attribute> relationOutput = plan.output();
             var aliasedNulls = RuleUtils.aliasedNulls(
                 relationOutput,
                 attr -> attr instanceof FieldAttribute f && shouldBeRetained.test(f) == false
@@ -118,7 +115,7 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
                 return plan;
             }
 
-            Eval eval = new Eval(plan.source(), relation, nullLiterals);
+            Eval eval = new Eval(plan.source(), plan, nullLiterals);
             // This projection is redundant if there's another projection downstream (and no commands depend on the order until we hit it).
             return new Project(plan.source(), eval, newProjections);
         }
@@ -151,5 +148,26 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
         }
 
         return plan;
+    }
+
+    private static void collectConstants(
+        List<Attribute> output,
+        LocalLogicalOptimizerContext context,
+        Map<Attribute, Expression> attrToConstant
+    ) {
+        for (Attribute attribute : output) {
+            if (attribute instanceof FieldAttribute fa) {
+                // Do not use the attribute name, this can deviate from the field name for union types; use fieldName() instead.
+                String val = context.searchStats().constantValue(fa.fieldName());
+                if (val != null) {
+                    attrToConstant.put(attribute, Literal.of(attribute, BytesRefs.toBytesRef(val)));
+                }
+            } else if (attribute instanceof MetadataAttribute ma && ma.name().startsWith(PROJECT_METADATA_PREFIX)) {
+                String val = context.searchStats().constantValue(new FieldAttribute.FieldName(ma.name()));
+                if (val != null) {
+                    attrToConstant.put(attribute, Literal.of(attribute, BytesRefs.toBytesRef(val)));
+                }
+            }
+        }
     }
 }

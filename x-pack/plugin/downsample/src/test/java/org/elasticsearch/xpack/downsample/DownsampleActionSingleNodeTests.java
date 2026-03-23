@@ -112,7 +112,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -1377,38 +1376,36 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                         Map<String, DocumentField> downsampleHitDocumentFields = downsampleHit.getDocumentFields();
                         List<DocumentField> originalFields = originalHitDocumentFields.values().stream().toList();
                         List<DocumentField> downsampleFields = downsampleHitDocumentFields.values().stream().toList();
-                        List<Object> originalFieldsList = originalFields.stream().flatMap(x -> x.getValues().stream()).toList();
-                        List<Object> downsampelFieldsList = downsampleFields.stream().flatMap(x -> x.getValues().stream()).toList();
-                        if (originalFieldsList.isEmpty() == false && downsampelFieldsList.isEmpty() == false) {
-                            // NOTE: here we take advantage of the fact that a label field is indexed also as a metric of type
-                            // `counter`. This way we can actually check that the label value stored in the downsample index
-                            // is the last value (which is what we store for a metric of type counter) by comparing the metric
-                            // field value to the label field value.
-                            originalFieldsList.forEach(
-                                field -> assertTrue(
-                                    "Field [" + field + "] is not included in the downsample fields: " + downsampelFieldsList,
-                                    downsampelFieldsList.contains(field)
-                                )
-                            );
-                            downsampelFieldsList.forEach(
-                                field -> assertTrue(
-                                    "Field [" + field + "] is not included in the source fields: " + originalFieldsList,
-                                    originalFieldsList.contains(field)
-                                )
-                            );
-                            String labelName = originalHit.getDocumentFields().values().stream().findFirst().get().getName();
-                            Object originalLabelValue = originalHit.getDocumentFields().values().stream().findFirst().get().getValue();
-                            Object downsampleLabelValue = downsampleHit.getDocumentFields().values().stream().findFirst().get().getValue();
-                            Optional<InternalAggregation> labelAsMetric = topHitsOriginalAggregations.stream()
-                                .filter(agg -> agg.getName().equals("metric_" + downsampleTopHits.getName()))
-                                .findFirst();
-                            // NOTE: this check is possible only if the label can be indexed as a metric (the label is a numeric field)
-                            if (labelAsMetric.isPresent()) {
-                                double metricValue = ((InternalTopHits) labelAsMetric.get()).getHits().getHits()[0].field(
-                                    "metric_" + labelName
-                                ).getValue();
-                                assertEquals(metricValue, downsampleLabelValue);
-                                assertEquals(metricValue, originalLabelValue);
+                        if (originalFields.isEmpty() == false && downsampleFields.isEmpty() == false) {
+                            assertEquals(originalFields.size(), downsampleFields.size());
+                            for (int fieldIndex = 0; fieldIndex < originalFields.size(); fieldIndex++) {
+                                DocumentField originalField = originalFields.get(fieldIndex);
+                                DocumentField downsampleField = downsampleFields.get(fieldIndex);
+                                assertEquals(originalField.getName(), downsampleField.getName());
+                                originalField.getValues()
+                                    .forEach(
+                                        value -> assertTrue(
+                                            "Field ["
+                                                + originalField.getName()
+                                                + "] does not have the value ["
+                                                + value
+                                                + "] in the downsample field values: "
+                                                + downsampleField.getValues(),
+                                            downsampleField.getValues().contains(value)
+                                        )
+                                    );
+                                downsampleField.getValues()
+                                    .forEach(
+                                        value -> assertTrue(
+                                            "Field ["
+                                                + downsampleField.getName()
+                                                + "] does not have the value ["
+                                                + value
+                                                + "] in the source field values: "
+                                                + originalField.getValues(),
+                                            originalField.getValues().contains(value)
+                                        )
+                                    );
                             }
                         }
                     }
@@ -1573,6 +1570,11 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                             SortBuilders.fieldSort(timestampField).order(SortOrder.DESC)
                         ).size(1).fetchField(fieldName)
                     );
+                    case "first_value" -> dateHistogramAggregation.subAggregation(
+                        new TopHitsAggregationBuilder(fieldName + "_" + supportedAggregation).sort(
+                            SortBuilders.fieldSort(timestampField).order(SortOrder.ASC)
+                        ).size(1).fetchField(fieldName)
+                    );
                     case "sum" -> dateHistogramAggregation.subAggregation(
                         new SumAggregationBuilder(fieldName + "_" + supportedAggregation).field(fieldName)
                     );
@@ -1599,7 +1601,10 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         if (samplingMethod == DownsampleConfig.SamplingMethod.LAST_VALUE) {
             return new String[] { "last_value" };
         } else {
-            return metricType.supportedAggs();
+            if (metricType == TimeSeriesParams.MetricType.GAUGE) {
+                return metricType.supportedAggs();
+            }
+            return new String[] { "first_value" };
         }
     }
 

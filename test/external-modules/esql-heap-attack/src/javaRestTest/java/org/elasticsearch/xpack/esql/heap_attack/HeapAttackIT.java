@@ -33,7 +33,9 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -500,7 +502,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     public void testFetchManyBigFields() throws IOException {
-        initManyBigFieldsIndex(100, "keyword", false);
+        initManyBigFieldsIndex(100, "keyword", false, 1000);
         Map<?, ?> response = fetchManyBigFields(100);
         ListMatcher columns = matchesList();
         for (int f = 0; f < 1000; f++) {
@@ -510,7 +512,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     public void testFetchTooManyBigFields() throws IOException {
-        initManyBigFieldsIndex(500, "keyword", false);
+        initManyBigFieldsIndex(500, "keyword", false, 1000);
         // 500 docs is plenty to circuit break on most nodes
         assertCircuitBreaks(attempt -> fetchManyBigFields(attempt * 500));
     }
@@ -527,7 +529,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     public void testAggManyBigTextFields() throws IOException {
         int docs = 100;
         int fields = 100;
-        initManyBigFieldsIndex(docs, "text", false);
+        initManyBigFieldsIndex(docs, "text", false, 1000);
         Map<?, ?> response = aggManyBigFields(fields);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
         assertMap(
@@ -725,10 +727,9 @@ public class HeapAttackIT extends HeapAttackTestCase {
             """);
     }
 
-    void initManyBigFieldsIndex(int docs, String type, boolean random) throws IOException {
+    void initManyBigFieldsIndex(int docs, String type, boolean random, int fields) throws IOException {
         logger.info("loading many documents with many big fields");
         int docsPerBulk = 5;
-        int fields = 1000;
         int fieldSize = Math.toIntExact(ByteSizeValue.ofKb(1).getBytes());
         boolean numeric = type.equalsIgnoreCase("integer") || type.equalsIgnoreCase("long") || type.equalsIgnoreCase("double");
 
@@ -865,6 +866,117 @@ public class HeapAttackIT extends HeapAttackTestCase {
         assertCircuitBreaks(attempt -> aggregateByIdOnLargeText("LAST"));
     }
 
+    /**
+     * Tests that VALUES(long) agg with a large grouping state just small enough
+     * not to trip the breaker.
+     */
+    public void testValuesAggWithManyLongs() throws IOException {
+        int countPer = 10;
+        int echoFactor = 10;
+        initManyLongs(countPer);
+        Map<String, Object> result = valuesFromMany(false, countPer, echoFactor);
+        ListMatcher columns = matchesList().item(matchesMap().entry("name", "VALUES(vv)").entry("type", "long"));
+        assertMap(result, matchesMap().entry("columns", columns).entry("values", hasSize(1)));
+        List<?> values = (List<?>) result.get("values");
+        values = (List<?>) values.getFirst();
+        values = (List<?>) values.getFirst();
+        long[] sortedValues = values.stream().mapToLong(o -> ((Number) o).longValue()).sorted().toArray();
+        int size = countPer * countPer * countPer * countPer * countPer * (1 + 3 * echoFactor);
+        assertThat(sortedValues.length, equalTo(size));
+        for (int i = 0; i < size; i++) {
+            assertThat(sortedValues[i], equalTo((long) i));
+        }
+    }
+
+    /**
+     * Tests that VALUES(long) agg with a large grouping state trips the circuit breaker.
+     */
+    public void testValuesAggWithTooManyLongs() throws IOException {
+        int countPer = 10;
+        initManyLongs(countPer);
+        assertCircuitBreaks(attempt -> valuesFromMany(false, countPer, attempt * 20));
+    }
+
+    /**
+     * Tests that VALUES(keyword) agg with a large grouping state just small enough
+     * not to trip the breaker.
+     */
+    public void testValuesAggWithManyKeywords() throws IOException {
+        int countPer = 10;
+        int echoFactor = 5;
+        initManyLongs(countPer);
+
+        Map<String, Object> result = valuesFromMany(true, countPer, echoFactor);
+        ListMatcher columns = matchesList().item(matchesMap().entry("name", "VALUES(vv)").entry("type", "keyword"));
+        assertMap(result, matchesMap().entry("columns", columns).entry("values", hasSize(1)));
+        List<?> values = (List<?>) result.get("values");
+        values = (List<?>) values.getFirst();
+        values = (List<?>) values.getFirst();
+        List<String> sortedValues = values.stream().map(o -> (String) o).sorted().toList();
+        int fromCounts = countPer * countPer * countPer * countPer * countPer;
+        int echoMulti = 1 + 3 * echoFactor;
+        int size = fromCounts * echoMulti;
+        assertThat(sortedValues.size(), equalTo(size));
+        List<String> expected = new ArrayList<>(size);
+        for (int a = 0; a < echoMulti; a++) {
+            for (int c = 0; c < fromCounts; c++) {
+                expected.add("a".repeat(a) + c);
+            }
+        }
+        Collections.sort(expected);
+        for (int i = 0; i < size; i++) {
+            assertThat(sortedValues.get(i), equalTo(expected.get(i)));
+        }
+    }
+
+    /**
+     * Tests that VALUES(keyword) agg with a large grouping state trips the circuit breaker.
+     */
+    public void testValuesAggWithTooManyKeywords() throws IOException {
+        int countPer = 10;
+        initManyLongs(countPer);
+        assertCircuitBreaks(attempt -> valuesFromMany(true, countPer, attempt * 10));
+    }
+
+    private Map<String, Object> valuesFromMany(boolean keyword, int countPer, int echoFactor) throws IOException {
+        String query = """
+            FROM manylongs
+            | EVAL v = a + b * $b + c * $c + d * $d + e * $e
+            """;
+        query = query.replace("$b", Integer.toString(countPer));
+        query = query.replace("$c", Integer.toString(countPer * countPer));
+        query = query.replace("$d", Integer.toString(countPer * countPer * countPer));
+        query = query.replace("$e", Integer.toString(countPer * countPer * countPer * countPer));
+        StringBuilder q = new StringBuilder(query);
+        if (keyword) {
+            q.append("| EVAL v = v::KEYWORD\n");
+        }
+        q.append("| EVAL vv = v\n");
+        if (keyword) {
+            String echo = "a";
+            for (int i = 0; i < echoFactor; i++) {
+                q.append("| EVAL vv = MV_UNION(MV_UNION(vv, CONCAT(\\\"").append(echo).append("\\\", v)");
+                echo += "a";
+                q.append("), MV_UNION(CONCAT(\\\"").append(echo).append("\\\", v)");
+                echo += "a";
+                q.append(", CONCAT(\\\"").append(echo).append("\\\", v)))\n");
+                echo += "a";
+            }
+        } else {
+            long echoSize = ((long) countPer) * countPer * countPer * countPer * countPer;
+            long echo = echoSize;
+            for (int i = 0; i < echoFactor; i++) {
+                q.append("| EVAL vv = MV_UNION(MV_UNION(vv, v + ").append(echo);
+                echo += echoSize;
+                q.append("), MV_UNION(v + ").append(echo);
+                echo += echoSize;
+                q.append(", v + ").append(echo).append("))\n");
+                echo += echoSize;
+            }
+        }
+        return responseAsMap(query("{\"query\": \"" + q + "| STATS VALUES(vv)\"}", "columns, values"));
+    }
+
     private Map<String, Object> aggregateByIdOnLargeText(String aggregation) throws IOException {
         StringBuilder query = new StringBuilder("{\"query\": \"FROM bigtext\n");
         // Grouping on the unique id field generates a large number of buckets where each bucket's value contains the
@@ -952,7 +1064,6 @@ public class HeapAttackIT extends HeapAttackTestCase {
                 ExponentialHistogramXContent.serialize(xContentBuilder, builder.build());
                 histoJson = Strings.toString(xContentBuilder);
             }
-            ;
 
             bulk.append(String.format(Locale.ROOT, """
                 {"create":{}}

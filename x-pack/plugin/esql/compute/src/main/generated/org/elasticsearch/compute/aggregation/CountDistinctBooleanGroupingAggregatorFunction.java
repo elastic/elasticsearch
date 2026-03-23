@@ -34,16 +34,11 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
 
   private final DriverContext driverContext;
 
-  public CountDistinctBooleanGroupingAggregatorFunction(List<Integer> channels,
-      CountDistinctBooleanAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static CountDistinctBooleanGroupingAggregatorFunction create(List<Integer> channels,
+  CountDistinctBooleanGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new CountDistinctBooleanGroupingAggregatorFunction(channels, CountDistinctBooleanAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+    this.channels = channels;
+    this.state = CountDistinctBooleanAggregator.initGrouping(driverContext.bigArrays());
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

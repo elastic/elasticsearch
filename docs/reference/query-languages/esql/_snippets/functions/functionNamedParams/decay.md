@@ -5,9 +5,9 @@
 `offset`
 :   (double, integer, long, time_duration, keyword, text) Distance from the origin where no decay occurs.
 
-`type`
-:   (keyword) Decay function to use: linear, exponential or gaussian.
-
 `decay`
 :   (double) Multiplier value returned at the scale distance from the origin.
+
+`type`
+:   (keyword) Decay function to use: linear, exponential or gaussian.
 

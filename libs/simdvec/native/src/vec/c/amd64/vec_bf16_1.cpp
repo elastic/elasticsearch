@@ -108,7 +108,6 @@ static inline void bf16_bulk_inner(
     const int32_t count,
     f32_t* results
 ) {
-    const int vec_size = pitch / sizeof(bf16_t);
     int c = 0;
 
     for (; c + batches - 1 < count; c += batches) {
@@ -117,11 +116,11 @@ static inline void bf16_bulk_inner(
         const bf16_t* as[batches];
         __m256 sums[batches] = {};
         apply_indexed<batches>([&](auto I) {
-            as[I] = mapper(a, c + I, offsets, vec_size);
+            as[I] = mapper(a, c + I, offsets, pitch);
             sums[I] = _mm256_setzero_ps();
         });
 
-        int32_t i = 0;
+        int i = 0;
         // do <batches> vectors at a time, iterating through the dimensions in parallel
         // Each __m128 holds 8 bfloats
         constexpr int stride = sizeof(__m128) / sizeof(bf16_t);
@@ -150,7 +149,7 @@ static inline void bf16_bulk_inner(
 
     // Tail-handling: remaining vectors
     for (; c < count; c++) {
-        const bf16_t* a0 = mapper(a, c, offsets, vec_size);
+        const bf16_t* a0 = mapper(a, c, offsets, pitch);
         results[c] = bulk_tail(a0, b, dims);
     }
 }
@@ -165,12 +164,12 @@ EXPORT f32_t vec_dotDbf16Qbf16(const bf16_t* a, const bf16_t* b, const int32_t e
 
 EXPORT void vec_dotDbf16Qf32_bulk(const bf16_t* a, const f32_t* b, const int32_t dims, const int32_t count, f32_t* results) {
     bf16_bulk_inner<f32_t, sequential_mapper, load_f32, _mm256_fmadd_ps, dot_scalar, vec_dotDbf16Qf32>(
-        a, b, dims, dims * sizeof(bf16_t), NULL, count, results);
+        a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_dotDbf16Qbf16_bulk(const bf16_t* a, const bf16_t* b, const int32_t dims, const int32_t count, f32_t* results) {
     bf16_bulk_inner<bf16_t, sequential_mapper, load_bf16, _mm256_fmadd_ps, dot_scalar, vec_dotDbf16Qbf16>(
-        a, b, dims, dims * sizeof(bf16_t), NULL, count, results);
+        a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_dotDbf16Qf32_bulk_offsets(
@@ -182,7 +181,7 @@ EXPORT void vec_dotDbf16Qf32_bulk_offsets(
     const int32_t count,
     f32_t* results) {
     bf16_bulk_inner<f32_t, offsets_mapper, load_f32, _mm256_fmadd_ps, dot_scalar, vec_dotDbf16Qf32>(
-        a, b, dims, pitch, offsets, count, results);
+        a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
 }
 
 EXPORT void vec_dotDbf16Qbf16_bulk_offsets(
@@ -194,7 +193,7 @@ EXPORT void vec_dotDbf16Qbf16_bulk_offsets(
     const int32_t count,
     f32_t* results) {
     bf16_bulk_inner<bf16_t, offsets_mapper, load_bf16, _mm256_fmadd_ps, dot_scalar, vec_dotDbf16Qbf16>(
-        a, b, dims, pitch, offsets, count, results);
+        a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
 }
 
 static inline __m256 sqrf32_vector(const __m256 a, const __m256 b, const __m256 sum) {
@@ -212,12 +211,12 @@ EXPORT f32_t vec_sqrDbf16Qbf16(const bf16_t* a, const bf16_t* b, const int32_t e
 
 EXPORT void vec_sqrDbf16Qf32_bulk(const bf16_t* a, const f32_t* b, const int32_t dims, const int32_t count, f32_t* results) {
     bf16_bulk_inner<f32_t, sequential_mapper, load_f32, sqrf32_vector, sqr_scalar, vec_sqrDbf16Qf32>(
-        a, b, dims, dims * sizeof(bf16_t), NULL, count, results);
+        a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_sqrDbf16Qbf16_bulk(const bf16_t* a, const bf16_t* b, const int32_t dims, const int32_t count, f32_t* results) {
     bf16_bulk_inner<bf16_t, sequential_mapper, load_bf16, sqrf32_vector, sqr_scalar, vec_sqrDbf16Qbf16>(
-        a, b, dims, dims * sizeof(bf16_t), NULL, count, results);
+        a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_sqrDbf16Qf32_bulk_offsets(
@@ -229,7 +228,7 @@ EXPORT void vec_sqrDbf16Qf32_bulk_offsets(
     const int32_t count,
     f32_t* results) {
     bf16_bulk_inner<f32_t, offsets_mapper, load_f32, sqrf32_vector, sqr_scalar, vec_sqrDbf16Qf32>(
-        a, b, dims, pitch, offsets, count, results);
+        a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
 }
 
 EXPORT void vec_sqrDbf16Qbf16_bulk_offsets(
@@ -241,6 +240,6 @@ EXPORT void vec_sqrDbf16Qbf16_bulk_offsets(
     const int32_t count,
     f32_t* results) {
     bf16_bulk_inner<bf16_t, offsets_mapper, load_bf16, sqrf32_vector, sqr_scalar, vec_sqrDbf16Qbf16>(
-        a, b, dims, pitch, offsets, count, results);
+        a, b, dims, pitch / sizeof(bf16_t), offsets, count, results);
 }
 

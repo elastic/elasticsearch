@@ -79,7 +79,7 @@ public class JDKVectorLibraryBFloat16Tests extends VectorSimilarityFunctionsTest
         assumeTrue(notSupportedMsg(), supported());
         final int dims = size;
         final int numVecs = randomIntBetween(2, 101);
-        var values = new float[numVecs][dims];
+        var values = new float[numVecs][];
         // create both anyway, regardless of query type
         var f32Segment = arena.allocate((long) dims * numVecs * Float.BYTES);
         var bf16Segment = arena.allocate((long) dims * numVecs * BFloat16.BYTES);
@@ -117,7 +117,7 @@ public class JDKVectorLibraryBFloat16Tests extends VectorSimilarityFunctionsTest
         final int dims = size;
         final int numVecs = randomIntBetween(2, 101);
         var f32Values = new float[numVecs][];
-        var bf16Values = new float[numVecs][dims];
+        var bf16Values = new float[numVecs][];
         var f32Segment = arena.allocate((long) dims * numVecs * Float.BYTES);
         var bf16Segment = arena.allocate((long) dims * numVecs * BFloat16.BYTES);
         for (int i = 0; i < numVecs; i++) {
@@ -163,7 +163,7 @@ public class JDKVectorLibraryBFloat16Tests extends VectorSimilarityFunctionsTest
         var offsets = new int[numVecs];
         var offsetsSegment = arena.allocate((long) numVecs * Integer.BYTES);
         var f32Values = new float[numVecs][];
-        var bf16Values = new float[numVecs][dims];
+        var bf16Values = new float[numVecs][];
         var f32Segment = arena.allocate((long) dims * numVecs * Float.BYTES);
         var bf16Segment = arena.allocate((long) dims * numVecs * BFloat16.BYTES);
         for (int i = 0; i < numVecs; i++) {
@@ -215,7 +215,7 @@ public class JDKVectorLibraryBFloat16Tests extends VectorSimilarityFunctionsTest
         // f32 doesn't need to be pitched like this, only used for individual queries
         var bf16Pitch = dims * BFloat16.BYTES + BFloat16.BYTES;
         var f32Values = new float[numVecs][];
-        var bf16Values = new float[numVecs][dims];
+        var bf16Values = new float[numVecs][];
         var f32Segment = arena.allocate((long) numVecs * dims * Float.BYTES);
         var bf16Segment = arena.allocate((long) numVecs * bf16Pitch);
         for (int i = 0; i < numVecs; i++) {

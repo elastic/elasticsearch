@@ -63,7 +63,8 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
         super(state, getFormatReader);
     }
 
-    CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice, int depth) throws IOException {
+    CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice, int depth)
+        throws IOException {
         return new PrefetchingCentroidIterator(centroidIterator, postingListSlice, depth);
     }
 

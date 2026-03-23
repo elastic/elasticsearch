@@ -1142,7 +1142,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         IndexVersion minimumVersion = useSyntheticId
             ? IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94
             : IndexVersions.TSID_CREATED_DURING_ROUTING;
-        IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(minimumVersion);
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            minimumVersion,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)
+        );
         assertThat(
             TsidExtractingIdFieldMapper.INSTANCE.documentDescription(parse(mapperService(true, useSyntheticId, version), testCase.source)),
             equalTo(

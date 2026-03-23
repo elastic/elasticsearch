@@ -56,16 +56,12 @@ public class StorageProviderRegistry implements Closeable {
 
     private final Settings settings;
     private volatile int maxConcurrentRequests;
-    private volatile int throttleRetryLimit;
     private volatile int throttleMaxRetryDurationSeconds;
-    private volatile boolean adaptiveBackoffEnabled;
 
     public StorageProviderRegistry(Settings settings) {
         this.settings = settings != null ? settings : Settings.EMPTY;
         this.maxConcurrentRequests = ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(this.settings);
-        this.throttleRetryLimit = ExternalSourceSettings.THROTTLE_RETRY_LIMIT.get(this.settings);
         this.throttleMaxRetryDurationSeconds = ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(this.settings);
-        this.adaptiveBackoffEnabled = ExternalSourceSettings.ADAPTIVE_BACKOFF_ENABLED.get(this.settings);
     }
 
     public void registerFactory(String scheme, StorageProviderFactory factory) {
@@ -154,20 +150,11 @@ public class StorageProviderRegistry implements Closeable {
     }
 
     private AdaptiveBackoff backoffForScheme(String scheme) {
-        return backoffs.computeIfAbsent(scheme, k -> {
-            if (adaptiveBackoffEnabled) {
-                return new AdaptiveBackoff();
-            }
-            return AdaptiveBackoff.DISABLED;
-        });
+        return backoffs.computeIfAbsent(scheme, k -> new AdaptiveBackoff());
     }
 
     private RetryPolicy buildRetryPolicy(AdaptiveBackoff backoff) {
-        RetryPolicy policy = RetryPolicy.DEFAULT.withThrottleConfig(
-            throttleRetryLimit,
-            RetryPolicy.DEFAULT_THROTTLE_INITIAL_DELAY_MS,
-            RetryPolicy.DEFAULT_THROTTLE_MAX_DELAY_MS
-        ).withAdaptiveBackoff(backoff);
+        RetryPolicy policy = RetryPolicy.DEFAULT.withAdaptiveBackoff(backoff);
         if (throttleMaxRetryDurationSeconds > 0) {
             policy = policy.withTotalDurationBudget(throttleMaxRetryDurationSeconds * 1000L);
         }

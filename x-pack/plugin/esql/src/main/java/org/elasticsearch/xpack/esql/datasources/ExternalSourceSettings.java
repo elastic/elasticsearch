@@ -15,12 +15,11 @@ import java.util.List;
  * Cluster settings for controlling ESQL external source cloud API rate limiting.
  * All settings are dynamic (can be changed without restart) and node-scoped.
  * <p>
- * These settings control three layers of defense against cloud API throttling:
- * <ul>
- *   <li><b>Concurrency limiting</b>: Caps concurrent in-flight cloud API requests per node</li>
- *   <li><b>Throttle retry budget</b>: Higher retry count for 429/503 throttling errors</li>
- *   <li><b>Adaptive backoff</b>: Dynamically increases delays when throttling is detected</li>
- * </ul>
+ * Only two operational knobs are exposed: a concurrency cap to prevent throttling
+ * in the first place, and a total retry duration budget to bound the damage when
+ * throttling is persistent. Internal details (throttle retry count = 10,
+ * adaptive backoff = always enabled, exponential delays) use hardcoded defaults
+ * that match industry practice.
  */
 public final class ExternalSourceSettings {
 
@@ -42,21 +41,6 @@ public final class ExternalSourceSettings {
     );
 
     /**
-     * Maximum retry attempts for throttling errors (HTTP 429, 503, SlowDown).
-     * Throttling is always transient and expected under load — a higher budget than
-     * for other transient errors (connection reset, timeout) prevents unnecessary failures.
-     * Default: 10.
-     */
-    public static final Setting<Integer> THROTTLE_RETRY_LIMIT = Setting.intSetting(
-        "esql.external.throttle_retry_limit",
-        10,
-        1,
-        100,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
      * Maximum total time (in seconds) to spend retrying throttled cloud API requests
      * before giving up. Bounds the cumulative retry duration regardless of the retry count,
      * ensuring queries fail cleanly when throttling is persistent rather than blocking
@@ -72,21 +56,7 @@ public final class ExternalSourceSettings {
         Setting.Property.Dynamic
     );
 
-    /**
-     * Enables adaptive backoff for cloud API throttling. When enabled, throttle retry
-     * delays are scaled by a shared multiplier that increases when throttling is detected
-     * and decays over time during sustained success. This prevents thundering herd
-     * recovery where many retrying threads hit the API simultaneously.
-     * Default: true.
-     */
-    public static final Setting<Boolean> ADAPTIVE_BACKOFF_ENABLED = Setting.boolSetting(
-        "esql.external.adaptive_backoff_enabled",
-        true,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     public static List<Setting<?>> settings() {
-        return List.of(MAX_CONCURRENT_REQUESTS, THROTTLE_RETRY_LIMIT, THROTTLE_MAX_RETRY_DURATION, ADAPTIVE_BACKOFF_ENABLED);
+        return List.of(MAX_CONCURRENT_REQUESTS, THROTTLE_MAX_RETRY_DURATION);
     }
 }

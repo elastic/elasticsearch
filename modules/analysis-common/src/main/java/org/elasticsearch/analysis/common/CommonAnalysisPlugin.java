@@ -101,13 +101,19 @@ import org.apache.lucene.analysis.tr.ApostropheFilter;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.ElisionFilter;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
@@ -130,6 +136,7 @@ import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.tartarus.snowball.ext.DutchStemmer;
 import org.tartarus.snowball.ext.FrenchStemmer;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -153,6 +160,46 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         this.synonymsManagementServiceHolder.set(new SynonymsManagementAPIService(services.client()));
         this.circuitBreakerServiceHolder.set(services.indicesService().getCircuitBreakerService());
         return Collections.emptyList();
+    }
+
+    @Override
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
+        return List.of(new MultipleSynsetFilterValidator(parameters.clusterService()));
+    }
+
+    private static class MultipleSynsetFilterValidator implements IndexSettingProvider {
+        private final ClusterService clusterService;
+
+        MultipleSynsetFilterValidator(ClusterService clusterService) {
+            this.clusterService = clusterService;
+        }
+
+        @Override
+        public void provideAdditionalSettings(
+            String indexName,
+            String dataStreamName,
+            IndexMode templateIndexMode,
+            ProjectMetadata projectMetadata,
+            Instant resolvedAt,
+            Settings indexTemplateAndCreateRequestSettings,
+            List<CompressedXContent> combinedTemplateMappings,
+            IndexVersion indexVersion,
+            Settings.Builder additionalSettings
+        ) {
+            boolean hasMultipleSynsets = indexTemplateAndCreateRequestSettings.keySet()
+                .stream()
+                .anyMatch(k -> k.matches("analysis\\.filter\\.[^.]+\\.synonyms_set\\.\\d+"));
+            if (hasMultipleSynsets
+                && clusterService.state()
+                    .getMinTransportVersion()
+                    .supports(SynonymTokenFilterFactory.MULTIPLE_SYNSETS_PER_FILTER) == false) {
+                throw new IllegalArgumentException(
+                    "Multiple synonym sets per filter require all nodes to be on version ["
+                        + SynonymTokenFilterFactory.MULTIPLE_SYNSETS_PER_FILTER
+                        + "] or later"
+                );
+            }
+        }
     }
 
     @Override

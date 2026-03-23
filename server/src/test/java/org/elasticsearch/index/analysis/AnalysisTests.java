@@ -10,15 +10,21 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.CharArraySet;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.synonyms.PagedResult;
+import org.elasticsearch.synonyms.SynonymRule;
+import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.Reader;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.MalformedInputException;
 import java.nio.charset.StandardCharsets;
@@ -30,6 +36,10 @@ import java.util.List;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 
 public class AnalysisTests extends ESTestCase {
     public void testParseStemExclusion() {
@@ -130,6 +140,28 @@ public class AnalysisTests extends ESTestCase {
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
         List<String> wordList = Analysis.getWordList(env, nodeSettings, "foo.path", "bar.list", "soup.lenient", true, true);
         assertEquals(List.of("最終契約,最終契約,最終契約,カスタム名 詞"), wordList);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetReaderFromIndexMultipleSynsets() throws IOException {
+        SynonymsManagementAPIService service = mock(SynonymsManagementAPIService.class);
+
+        doAnswer(invocation -> {
+            ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(1);
+            listener.onResponse(new PagedResult<>(1, new SynonymRule[] { new SynonymRule("rule-a", "quick, fast") }));
+            return null;
+        }).when(service).getSynonymSetRules(eq("set-a"), any());
+
+        doAnswer(invocation -> {
+            ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(1);
+            listener.onResponse(new PagedResult<>(1, new SynonymRule[] { new SynonymRule("rule-b", "jumps, leaps") }));
+            return null;
+        }).when(service).getSynonymSetRules(eq("set-b"), any());
+
+        Reader reader = Analysis.getReaderFromIndex(List.of("set-a", "set-b"), service, false);
+        String content = new BufferedReader(reader).lines().reduce("", (a, b) -> a + b + "\n");
+        assertThat(content, containsString("quick, fast"));
+        assertThat(content, containsString("jumps, leaps"));
     }
 
     public void testFailOnDuplicates() throws IOException {

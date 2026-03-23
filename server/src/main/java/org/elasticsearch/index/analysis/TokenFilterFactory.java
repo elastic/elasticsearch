@@ -16,6 +16,7 @@ import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 public interface TokenFilterFactory {
@@ -96,6 +97,14 @@ public interface TokenFilterFactory {
      */
     default String getResourceName() {
         return null;
+    }
+
+    /**
+     * Like {@link #getResourceName()} but supports multiple resources. Override for filters backed by multiple synonym sets.
+     */
+    default Set<String> getResourceNames() {
+        String name = getResourceName();
+        return name != null ? Set.of(name) : Set.of();
     }
 
     /**

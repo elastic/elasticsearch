@@ -368,6 +368,29 @@ public class Analysis {
         SynonymsManagementAPIService synonymsManagementAPIService,
         boolean ignoreMissing
     ) {
+        StringBuilder sb = new StringBuilder();
+        appendSynonymRulesFromIndex(synonymsSet, synonymsManagementAPIService, ignoreMissing, sb);
+        return new StringReader(sb.toString());
+    }
+
+    public static Reader getReaderFromIndex(
+        List<String> synonymsSets,
+        SynonymsManagementAPIService synonymsManagementAPIService,
+        boolean ignoreMissing
+    ) {
+        StringBuilder sb = new StringBuilder();
+        for (String synonymsSet : synonymsSets) {
+            appendSynonymRulesFromIndex(synonymsSet, synonymsManagementAPIService, ignoreMissing, sb);
+        }
+        return new StringReader(sb.toString());
+    }
+
+    private static void appendSynonymRulesFromIndex(
+        String synonymsSet,
+        SynonymsManagementAPIService synonymsManagementAPIService,
+        boolean ignoreMissing,
+        StringBuilder sb
+    ) {
         final PlainActionFuture<PagedResult<SynonymRule>> synonymsLoadingFuture = new PlainActionFuture<>();
         synonymsManagementAPIService.getSynonymSetRules(synonymsSet, synonymsLoadingFuture);
 
@@ -397,12 +420,9 @@ public class Analysis {
             results = new PagedResult<>(0, new SynonymRule[0]);
         }
 
-        SynonymRule[] synonymRules = results.pageResults();
-        StringBuilder sb = new StringBuilder();
-        for (SynonymRule synonymRule : synonymRules) {
+        for (SynonymRule synonymRule : results.pageResults()) {
             sb.append(synonymRule.synonyms()).append(System.lineSeparator());
         }
-        return new StringReader(sb.toString());
     }
 
     private static boolean isNotEntitled(IOException ioe) {

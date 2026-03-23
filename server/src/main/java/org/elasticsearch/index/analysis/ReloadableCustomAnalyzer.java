@@ -73,9 +73,7 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
 
         Set<String> resourcesTemp = new HashSet<>();
         for (TokenFilterFactory tokenFilter : components.getTokenFilters()) {
-            if (tokenFilter.getResourceName() != null) {
-                resourcesTemp.add(tokenFilter.getResourceName());
-            }
+            resourcesTemp.addAll(tokenFilter.getResourceNames());
         }
         resources = resourcesTemp.isEmpty() ? null : Set.copyOf(resourcesTemp);
     }

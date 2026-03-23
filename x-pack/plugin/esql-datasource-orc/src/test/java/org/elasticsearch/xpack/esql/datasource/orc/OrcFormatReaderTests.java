@@ -9,13 +9,19 @@ package org.elasticsearch.xpack.esql.datasource.orc;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.RawLocalFileSystem;
+import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hive.ql.exec.vector.BytesColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.DoubleColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.ListColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.LongColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.TimestampColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedRowBatch;
+import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
+import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
+import org.apache.hadoop.hive.ql.io.sarg.SearchArgumentFactory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.orc.CompressionKind;
 import org.apache.orc.OrcFile;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
@@ -39,6 +45,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -662,11 +669,7 @@ public class OrcFormatReaderTests extends ESTestCase {
 
     public void testWithPushedFilterReturnsNewInstance() {
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
-        org.apache.hadoop.hive.ql.io.sarg.SearchArgument sarg = org.apache.hadoop.hive.ql.io.sarg.SearchArgumentFactory.newBuilder()
-            .startAnd()
-            .equals("id", org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf.Type.LONG, 1L)
-            .end()
-            .build();
+        SearchArgument sarg = SearchArgumentFactory.newBuilder().startAnd().equals("id", PredicateLeaf.Type.LONG, 1L).end().build();
         FormatReader withFilter = reader.withPushedFilter(sarg);
         assertNotSame("withPushedFilter must return a new instance", reader, withFilter);
     }
@@ -687,11 +690,7 @@ public class OrcFormatReaderTests extends ESTestCase {
             }
         });
 
-        org.apache.hadoop.hive.ql.io.sarg.SearchArgument sarg = org.apache.hadoop.hive.ql.io.sarg.SearchArgumentFactory.newBuilder()
-            .startNot()
-            .lessThanEquals("id", org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf.Type.LONG, 0L)
-            .end()
-            .build();
+        SearchArgument sarg = SearchArgumentFactory.newBuilder().startNot().lessThanEquals("id", PredicateLeaf.Type.LONG, 0L).end().build();
 
         OrcFormatReader reader = (OrcFormatReader) new OrcFormatReader(blockFactory).withPushedFilter(sarg);
         StorageObject storageObject = createStorageObject(orcData);
@@ -715,9 +714,9 @@ public class OrcFormatReaderTests extends ESTestCase {
         });
 
         // id > 100 → NOT(id <= 100) — file stats have max=5, so entire file is skipped
-        org.apache.hadoop.hive.ql.io.sarg.SearchArgument sarg = org.apache.hadoop.hive.ql.io.sarg.SearchArgumentFactory.newBuilder()
+        SearchArgument sarg = SearchArgumentFactory.newBuilder()
             .startNot()
-            .lessThanEquals("id", org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf.Type.LONG, 100L)
+            .lessThanEquals("id", PredicateLeaf.Type.LONG, 100L)
             .end()
             .build();
 
@@ -747,11 +746,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         });
 
         // Filter id >= 1 (matches all — just testing that filter + projection work together)
-        org.apache.hadoop.hive.ql.io.sarg.SearchArgument sarg = org.apache.hadoop.hive.ql.io.sarg.SearchArgumentFactory.newBuilder()
-            .startNot()
-            .lessThan("id", org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf.Type.LONG, 1L)
-            .end()
-            .build();
+        SearchArgument sarg = SearchArgumentFactory.newBuilder().startNot().lessThan("id", PredicateLeaf.Type.LONG, 1L).end().build();
 
         OrcFormatReader reader = (OrcFormatReader) new OrcFormatReader(blockFactory).withPushedFilter(sarg);
         StorageObject storageObject = createStorageObject(orcData);
@@ -786,7 +781,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         OrcFile.WriterOptions writerOptions = OrcFile.writerOptions(conf)
             .setSchema(schema)
             .fileSystem(localFs)
-            .compress(org.apache.orc.CompressionKind.NONE);
+            .compress(CompressionKind.NONE);
 
         try (Writer writer = OrcFile.createWriter(orcPath, writerOptions)) {
             VectorizedRowBatch batch = schema.createRowBatch();
@@ -809,23 +804,21 @@ public class OrcFormatReaderTests extends ESTestCase {
      *   <li>{@code setPermission} — shells out for {@code chmod}.</li>
      * </ul>
      */
-    private static class NoPermissionLocalFileSystem extends org.apache.hadoop.fs.RawLocalFileSystem {
+    private static class NoPermissionLocalFileSystem extends RawLocalFileSystem {
         @Override
         @SuppressForbidden(reason = "Bypass Hadoop's LocalFSFileOutputStream to avoid Shell.<clinit>")
-        protected OutputStream createOutputStreamWithMode(Path p, boolean append, org.apache.hadoop.fs.permission.FsPermission permission)
-            throws IOException {
+        protected OutputStream createOutputStreamWithMode(Path p, boolean append, FsPermission permission) throws IOException {
             return new FileOutputStream(pathToFile(p), append);
         }
 
         @Override
-        public void setPermission(Path p, org.apache.hadoop.fs.permission.FsPermission permission) {
+        public void setPermission(Path p, FsPermission permission) {
             // no-op: skip chmod calls that would trigger Shell
         }
 
         @Override
         @SuppressForbidden(reason = "Hadoop API requires java.io.File in method signature")
-        protected boolean mkOneDirWithMode(Path p, java.io.File p2f, org.apache.hadoop.fs.permission.FsPermission permission)
-            throws IOException {
+        protected boolean mkOneDirWithMode(Path p, File p2f, FsPermission permission) throws IOException {
             return p2f.mkdir() || p2f.isDirectory();
         }
     }

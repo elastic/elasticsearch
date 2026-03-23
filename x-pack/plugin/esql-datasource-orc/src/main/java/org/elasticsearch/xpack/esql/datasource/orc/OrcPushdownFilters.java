@@ -14,6 +14,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
@@ -62,78 +64,44 @@ final class OrcPushdownFilters {
      * must be convertible (partial pushdown is safe under AND since the
      * remaining expressions stay in FilterExec via RECHECK semantics).
      */
+    private static final Predicate<DataType> TYPE_SUPPORTED = dt -> resolveType(dt) != null;
+
+    /**
+     * Check if an expression can be converted to an ORC SearchArgument predicate.
+     * <p>
+     * For compound expressions (AND/OR/NOT), ALL children must be convertible
+     * for OR and NOT (partial pushdown is unsafe). For AND, at least one child
+     * must be convertible (partial pushdown is safe under AND since the
+     * remaining expressions stay in FilterExec via RECHECK semantics).
+     */
     static boolean canConvert(Expression expr) {
         if (expr instanceof EsqlBinaryComparison bc) {
-            return canConvertComparison(bc);
+            return PushdownPredicates.isComparison(bc, TYPE_SUPPORTED);
         }
         if (expr instanceof In inExpr) {
-            return canConvertIn(inExpr);
+            return PushdownPredicates.isIn(inExpr, TYPE_SUPPORTED);
         }
         if (expr instanceof IsNull isNull) {
-            return isNull.field() instanceof NamedExpression ne && resolveType(ne.dataType()) != null;
+            return PushdownPredicates.isIsNull(isNull, TYPE_SUPPORTED);
         }
         if (expr instanceof IsNotNull isNotNull) {
-            return isNotNull.field() instanceof NamedExpression ne && resolveType(ne.dataType()) != null;
+            return PushdownPredicates.isIsNotNull(isNotNull, TYPE_SUPPORTED);
         }
         if (expr instanceof Range range) {
-            return canConvertRange(range);
+            return PushdownPredicates.isRange(range, TYPE_SUPPORTED);
         }
+        // Boolean connective rules are ORC-specific: AND allows partial pushdown
+        // (safe under RECHECK semantics), while OR/NOT require full convertibility.
         if (expr instanceof And and) {
-            // Under AND: partial pushdown is safe — at least one side must convert
             return canConvert(and.left()) || canConvert(and.right());
         }
         if (expr instanceof Or or) {
-            // Under OR: BOTH sides must convert (dropping one side changes semantics)
             return canConvert(or.left()) && canConvert(or.right());
         }
         if (expr instanceof Not not) {
-            // Under NOT: child MUST fully convert
             return canConvert(not.field());
         }
         return false;
-    }
-
-    private static boolean canConvertComparison(EsqlBinaryComparison bc) {
-        if (bc.left() instanceof NamedExpression == false || bc.right().foldable() == false) {
-            return false;
-        }
-        if (resolveType(bc.left().dataType()) == null) {
-            return false;
-        }
-        return bc instanceof Equals
-            || bc instanceof NotEquals
-            || bc instanceof LessThan
-            || bc instanceof LessThanOrEqual
-            || bc instanceof GreaterThan
-            || bc instanceof GreaterThanOrEqual;
-    }
-
-    private static boolean canConvertIn(In inExpr) {
-        if (inExpr.value() instanceof NamedExpression == false) {
-            return false;
-        }
-        if (resolveType(inExpr.value().dataType()) == null) {
-            return false;
-        }
-        // Need at least one non-null foldable value
-        boolean hasNonNull = false;
-        for (Expression item : inExpr.list()) {
-            if (item.foldable() == false) {
-                return false;
-            }
-            Object val = literalValueOf(item);
-            if (val != null) {
-                hasNonNull = true;
-            }
-        }
-        return hasNonNull;
-    }
-
-    private static boolean canConvertRange(Range range) {
-        return range.value() instanceof NamedExpression ne
-            && resolveType(ne.dataType()) != null
-            && range.lower().foldable()
-            && range.upper().foldable();
     }
 
     /**

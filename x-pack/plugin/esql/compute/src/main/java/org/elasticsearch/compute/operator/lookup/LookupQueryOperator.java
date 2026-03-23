@@ -55,6 +55,7 @@ public final class LookupQueryOperator implements Operator {
     private final IndexSearcher searcher;
     private final Warnings warnings;
     private final int maxPageSize;
+    private final boolean emptyResult;
 
     private Page currentInputPage;
     private int queryPosition = -1;
@@ -77,7 +78,8 @@ public final class LookupQueryOperator implements Operator {
         IndexedByShardId<? extends ShardContext> shardContexts,
         int shardId,
         SearchExecutionContext searchExecutionContext,
-        Warnings warnings
+        Warnings warnings,
+        boolean emptyResult
     ) {
         this.blockFactory = blockFactory;
         this.maxPageSize = maxPageSize;
@@ -86,6 +88,7 @@ public final class LookupQueryOperator implements Operator {
         this.shardContext = shardContexts.get(shardId);
         this.shardContext.incRef();
         this.searchExecutionContext = searchExecutionContext;
+        this.emptyResult = emptyResult;
         try {
             if (shardContext.searcher().getIndexReader() instanceof DirectoryReader directoryReader) {
                 // This optimization is currently disabled for ParallelCompositeReader
@@ -105,10 +108,14 @@ public final class LookupQueryOperator implements Operator {
         if (currentInputPage != null) {
             throw new IllegalStateException("Operator already has input page, must consume it first");
         }
-        currentInputPage = page;
-        queryPosition = -1; // Reset query position for new page
         pagesReceived++;
         rowsReceived += page.getPositionCount();
+        if (emptyResult) {
+            page.releaseBlocks();
+            return;
+        }
+        currentInputPage = page;
+        queryPosition = -1; // Reset query position for new page
     }
 
     @Override

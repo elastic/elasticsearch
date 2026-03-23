@@ -220,12 +220,12 @@ public final class Automatons {
      * The automaton built from such a string accepts exactly the string itself.
      */
     public static boolean isLiteralPattern(String pattern) {
-        for (int i = 0; i < pattern.length(); i++) {
+        if (!pattern.isEmpty() && pattern.charAt(0) == '/') {
+            return false;
+        }
+        for (int i = pattern.length() - 1; i >= 0; i--) {
             char c = pattern.charAt(i);
             if (c == WILDCARD_STRING || c == WILDCARD_CHAR || c == WILDCARD_ESCAPE) {
-                return false;
-            }
-            if (c == '/' && i == 0) {
                 return false;
             }
         }

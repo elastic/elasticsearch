@@ -20,6 +20,7 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
  * Values for cluster level settings used in physical planning.
  */
 public class PlannerSettings {
+    private static final ByteSizeValue INLINE_STATS_MAX_LOCAL_RELATION_SIZE = ByteSizeValue.ofMb(100);
     public static final Setting<DataPartitioning> DEFAULT_DATA_PARTITIONING = Setting.enumSetting(
         DataPartitioning.class,
         "esql.default_data_partitioning",
@@ -47,7 +48,13 @@ public class PlannerSettings {
 
     public static final Setting<ByteSizeValue> INTERMEDIATE_LOCAL_RELATION_MAX_SIZE = Setting.memorySizeSetting(
         "esql.intermediate_local_relation_max_size",
-        "0.1%",
+        settings -> {
+            long twoPercent = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.02);
+            // Cap INLINE STATS local relation sizes to keep per-query memory use conservative.
+            // We can revisit this ceiling after addressing concurrency and request buffering.
+            long maxBytes = INLINE_STATS_MAX_LOCAL_RELATION_SIZE.getBytes();
+            return ByteSizeValue.ofBytes(Math.min(twoPercent, maxBytes)).getStringRep();
+        },
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

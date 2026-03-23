@@ -19,7 +19,6 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.simdvec.internal.BFloat16VectorScorer;
 import org.elasticsearch.simdvec.internal.ByteVectorScorer;
 import org.elasticsearch.simdvec.internal.ByteVectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.FloatVectorScorer;
@@ -63,15 +62,6 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     }
 
     @Override
-    public Optional<RandomVectorScorerSupplier> getBFloat16VectorScorerSupplier(
-        VectorSimilarityType similarityType,
-        IndexInput input,
-        FloatVectorValues values
-    ) {
-        return Optional.empty();
-    }
-
-    @Override
     public Optional<RandomVectorScorerSupplier> getByteVectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
@@ -94,15 +84,6 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     @Override
     public Optional<RandomVectorScorer> getFloatVectorScorer(VectorSimilarityFunction sim, FloatVectorValues values, float[] queryVector) {
         return FloatVectorScorer.create(sim, values, queryVector);
-    }
-
-    @Override
-    public Optional<RandomVectorScorer> getBFloat16VectorScorer(
-        VectorSimilarityFunction sim,
-        FloatVectorValues values,
-        float[] queryVector
-    ) {
-        return BFloat16VectorScorer.create(sim, values, queryVector);
     }
 
     @Override

@@ -39,15 +39,6 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     }
 
     @Override
-    public Optional<RandomVectorScorerSupplier> getBFloat16VectorScorerSupplier(
-        VectorSimilarityType similarityType,
-        IndexInput input,
-        FloatVectorValues values
-    ) {
-        throw new UnsupportedOperationException("should not reach here");
-    }
-
-    @Override
     public Optional<RandomVectorScorerSupplier> getByteVectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
@@ -58,15 +49,6 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
 
     @Override
     public Optional<RandomVectorScorer> getFloatVectorScorer(VectorSimilarityFunction sim, FloatVectorValues values, float[] queryVector) {
-        throw new UnsupportedOperationException("should not reach here");
-    }
-
-    @Override
-    public Optional<RandomVectorScorer> getBFloat16VectorScorer(
-        VectorSimilarityFunction sim,
-        FloatVectorValues values,
-        float[] queryVector
-    ) {
         throw new UnsupportedOperationException("should not reach here");
     }
 

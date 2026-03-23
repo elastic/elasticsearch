@@ -36,7 +36,7 @@ import org.elasticsearch.index.codec.vectors.BFloat16;
 
 import java.io.IOException;
 
-public abstract class OffHeapBFloat16VectorValues extends FloatVectorValues {
+abstract class OffHeapBFloat16VectorValues extends FloatVectorValues {
 
     protected final int dimension;
     protected final int size;
@@ -129,9 +129,9 @@ public abstract class OffHeapBFloat16VectorValues extends FloatVectorValues {
      * Dense vector values that are stored off-heap. This is the most common case when every doc has a
      * vector.
      */
-    public static class DenseOffHeapVectorValues extends OffHeapBFloat16VectorValues {
+    static class DenseOffHeapVectorValues extends OffHeapBFloat16VectorValues {
 
-        public DenseOffHeapVectorValues(
+        DenseOffHeapVectorValues(
             int dimension,
             int size,
             IndexInput slice,

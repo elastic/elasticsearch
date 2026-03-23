@@ -26,8 +26,6 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
-import org.elasticsearch.index.codec.vectors.BFloat16;
-import org.elasticsearch.index.codec.vectors.es93.OffHeapBFloat16VectorValues;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 
 import java.io.IOException;
@@ -67,16 +65,6 @@ class BenchmarkUtils {
         }
     }
 
-    static void writeBFloat16VectorData(Directory dir, float[][] vectors) throws IOException {
-        try (IndexOutput out = dir.createOutput("vector.data", IOContext.DEFAULT)) {
-            ByteBuffer buffer = ByteBuffer.allocate(vectors[0].length * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-            for (float[] vector : vectors) {
-                BFloat16.floatToBFloat16(vector, buffer.asShortBuffer());
-                out.writeBytes(buffer.array(), buffer.capacity());
-            }
-        }
-    }
-
     static void writeByteVectorData(Directory dir, byte[][] vectors) throws IOException {
         try (IndexOutput out = dir.createOutput("vector.data", IOContext.DEFAULT)) {
             for (byte[] vector : vectors) {
@@ -107,11 +95,6 @@ class BenchmarkUtils {
     static FloatVectorValues floatVectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) throws IOException {
         var slice = in.slice("values", 0, in.length());
         return new OffHeapFloatVectorValues.DenseOffHeapVectorValues(dims, size, slice, dims * Float.BYTES, null, sim);
-    }
-
-    static FloatVectorValues bfloat16VectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) throws IOException {
-        var slice = in.slice("values", 0, in.length());
-        return new OffHeapBFloat16VectorValues.DenseOffHeapVectorValues(dims, size, slice, dims * BFloat16.BYTES, null, sim);
     }
 
     static ByteVectorValues byteVectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) throws IOException {

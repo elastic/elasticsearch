@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 @FunctionName("qstr")
-public class QueryStringTests extends NoneFieldFullTextFunctionTestCase {
+public class QueryStringTests extends NoFieldFullTextFunctionTestCase {
 
     public QueryStringTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         super(testCaseSupplier);

@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class KqlTests extends NoneFieldFullTextFunctionTestCase {
+public class KqlTests extends NoFieldFullTextFunctionTestCase {
     public KqlTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         super(testCaseSupplier);
     }

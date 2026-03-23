@@ -163,8 +163,6 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
     }
 
     private static void addUnsignedLongCases(List<TestCaseSupplier> suppliers) {
-        // TODO: These should be integrated into the type cross product above, but are currently broken
-        // see https://github.com/elastic/elasticsearch/issues/102935
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 null,

@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
@@ -50,6 +51,7 @@ public abstract class AbstractExternalDistributedIT extends ESRestTestCase {
         @Override
         public void evaluate() throws Throwable {
             assumeFalse("FIPS mode requires security enabled; this test uses plain HTTP S3 fixtures", inFipsJvm());
+            assumeTrue("EXTERNAL command required; skip in release builds", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
             base.evaluate();
         }
     }).around(s3Fixture).around(clusterInstance);

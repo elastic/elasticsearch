@@ -168,8 +168,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
                 () -> false,
                 mock(AggregationBuilder.class),
                 null,
-                PipelineTree.EMPTY,
-                null
+                PipelineTree.EMPTY
             )
         );
     }

@@ -266,7 +266,16 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) throws IOException {}
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        // These parameters have complex interdependencies (inference endpoints, model types, dense vs sparse)
+        // that cannot be expressed through the simple ParameterChecker mechanism. They are covered by
+        // dedicated update tests (testUpdateInferenceId*, testUpdateModelSettings, testUpdateSearchInferenceId, etc.)
+        checker.registerIgnoredParameter("inference_id");
+        checker.registerIgnoredParameter("model_settings");
+        checker.registerIgnoredParameter("search_inference_id");
+        checker.registerIgnoredParameter("chunking_settings");
+        checker.registerIgnoredParameter("index_options");
+    }
 
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {

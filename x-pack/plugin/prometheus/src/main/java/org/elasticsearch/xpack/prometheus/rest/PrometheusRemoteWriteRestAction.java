@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.prometheus.rest;
 
+import org.apache.http.HttpHeaders;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.logging.LogManager;
@@ -42,10 +45,12 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
 
     private final IndexingPressure indexingPressure;
     private final long maxRequestSizeBytes;
+    private final Recycler<BytesRef> recycler;
 
-    public PrometheusRemoteWriteRestAction(IndexingPressure indexingPressure, long maxRequestSizeBytes) {
+    public PrometheusRemoteWriteRestAction(IndexingPressure indexingPressure, long maxRequestSizeBytes, Recycler<BytesRef> recycler) {
         this.indexingPressure = indexingPressure;
         this.maxRequestSizeBytes = maxRequestSizeBytes;
+        this.recycler = recycler;
     }
 
     @Override
@@ -57,8 +62,8 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(POST, "/_prometheus/api/v1/write"),
-            new Route(POST, "/_prometheus/{dataset}/api/v1/write"),
-            new Route(POST, "/_prometheus/{dataset}/{namespace}/api/v1/write")
+            new Route(POST, "/_prometheus/metrics/{dataset}/api/v1/write"),
+            new Route(POST, "/_prometheus/metrics/{dataset}/{namespace}/api/v1/write")
         );
     }
 
@@ -80,11 +85,14 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
         DataStream.validateDataset(dataset);
         DataStream.validateNamespace(namespace);
 
-        var coordinating = indexingPressure.markCoordinatingOperationStarted(1, maxRequestSizeBytes, false);
+        // while the remote write spec mandates snappy, we intentionally want to allow additional compression formats
+        var bodyPostProcessor = "snappy".equals(request.header(HttpHeaders.CONTENT_ENCODING))
+            ? new SnappyBlockDecoder(recycler)
+            : IndexingPressureAwareContentAggregator.BodyPostProcessor.NOOP;
 
         return new IndexingPressureAwareContentAggregator(
             request,
-            coordinating,
+            indexingPressure,
             maxRequestSizeBytes,
             new IndexingPressureAwareContentAggregator.CompletionHandler() {
                 @Override
@@ -131,7 +139,8 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
                         new RestResponse(ExceptionsHelper.status(e), RestResponse.TEXT_CONTENT_TYPE, new BytesArray(e.getMessage()))
                     );
                 }
-            }
+            },
+            bodyPostProcessor
         );
     }
 }

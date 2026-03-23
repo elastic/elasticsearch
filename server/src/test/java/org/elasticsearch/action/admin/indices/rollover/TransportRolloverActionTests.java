@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.RerouteBehavior;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -382,7 +383,11 @@ public class TransportRolloverActionTests extends ESTestCase {
             .putProjectMetadata(ProjectMetadata.builder(projectId).put(indexMetadata).put(indexMetadata2))
             .build();
 
-        when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean(), any())).thenReturn(stateBefore);
+        when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean(), any(RerouteBehavior.class), any())).thenReturn(
+            stateBefore
+        );
+        when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean(), any(), any(RerouteBehavior.class), any()))
+            .thenReturn(stateBefore);
         when(mdIndexAliasesService.applyAliasActions(any(), any())).thenReturn(stateBefore);
 
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(

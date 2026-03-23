@@ -12,6 +12,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.ql.exec.vector.BytesColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.ColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.DoubleColumnVector;
+import org.apache.hadoop.hive.ql.exec.vector.ListColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.LongColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.TimestampColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedRowBatch;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -173,7 +175,11 @@ public class OrcFormatReader implements FormatReader {
     }
 
     @Override
-    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
+    public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+        List<String> projectedColumns = context.projectedColumns();
+        int batchSize = context.batchSize();
+        int rowLimit = context.rowLimit();
+
         OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
         Path path = new Path(object.path().toString());
         OrcFile.ReaderOptions readerOptions = OrcFile.readerOptions(new Configuration(false)).filesystem(fs);
@@ -206,7 +212,7 @@ public class OrcFormatReader implements FormatReader {
                     Integer idx = nameToIndex.get(columnName);
                     if (idx != null) {
                         TypeDescription child = schema.getChildren().get(idx);
-                        include[child.getId()] = true;
+                        includeColumnForType(include, child);
                     }
                 } else {
                     attr = new ReferenceAttribute(Source.EMPTY, columnName, DataType.NULL);
@@ -221,7 +227,23 @@ public class OrcFormatReader implements FormatReader {
         }
         RecordReader rows = reader.rows(readOptions);
 
-        return new OrcPageIterator(reader, rows, schema, projectedAttributes, batchSize, blockFactory);
+        CloseableIterator<Page> iter = new OrcPageIterator(reader, rows, schema, projectedAttributes, batchSize, blockFactory);
+        return rowLimit != NO_LIMIT ? new RowLimitingIterator(iter, rowLimit) : iter;
+    }
+
+    /**
+     * Include a column and its children in the ORC read mask.
+     * For LIST and MAP types, recurses into children so list/map element data is read.
+     * For scalars and other types, only the type itself is included.
+     */
+    private static void includeColumnForType(boolean[] include, TypeDescription type) {
+        include[type.getId()] = true;
+        var category = type.getCategory();
+        if (category == TypeDescription.Category.LIST || category == TypeDescription.Category.MAP) {
+            for (TypeDescription child : type.getChildren()) {
+                includeColumnForType(include, child);
+            }
+        }
     }
 
     @Override
@@ -261,6 +283,7 @@ public class OrcFormatReader implements FormatReader {
             case BINARY -> DataType.KEYWORD;
             case TIMESTAMP, TIMESTAMP_INSTANT, DATE -> DataType.DATETIME;
             case DECIMAL -> DataType.DOUBLE;
+            case LIST -> convertOrcTypeToEsql(orcType.getChildren().get(0));
             default -> DataType.UNSUPPORTED;
         };
     }
@@ -268,7 +291,6 @@ public class OrcFormatReader implements FormatReader {
     private static class OrcPageIterator implements CloseableIterator<Page> {
         private final Reader reader;
         private final RecordReader rows;
-        private final TypeDescription schema;
         private final List<Attribute> attributes;
         private final BlockFactory blockFactory;
         private final VectorizedRowBatch batch;
@@ -286,7 +308,6 @@ public class OrcFormatReader implements FormatReader {
         ) {
             this.reader = reader;
             this.rows = rows;
-            this.schema = schema;
             this.attributes = attributes;
             this.blockFactory = blockFactory;
             this.batch = schema.createRowBatch(batchSize);
@@ -355,6 +376,9 @@ public class OrcFormatReader implements FormatReader {
         }
 
         private Block createBlock(ColumnVector vector, DataType dataType, int rowCount) {
+            if (vector instanceof ListColumnVector listCol) {
+                return createListBlock(listCol, dataType, rowCount);
+            }
             return switch (dataType) {
                 case BOOLEAN -> ColumnBlockConversions.booleanColumnFromLongs(
                     blockFactory,
@@ -385,6 +409,182 @@ public class OrcFormatReader implements FormatReader {
                 case DATETIME -> createDatetimeBlock(vector, rowCount);
                 default -> blockFactory.newConstantNullBlock(rowCount);
             };
+        }
+
+        private Block createListBlock(ListColumnVector listCol, DataType elementType, int rowCount) {
+            return switch (elementType) {
+                case KEYWORD, TEXT -> createListBytesRefBlock(listCol, rowCount);
+                case INTEGER -> createListIntBlock(listCol, rowCount);
+                case LONG -> createListLongBlock(listCol, rowCount);
+                case DOUBLE -> createListDoubleBlock(listCol, rowCount);
+                case BOOLEAN -> createListBooleanBlock(listCol, rowCount);
+                case DATETIME -> createListDatetimeBlock(listCol, rowCount);
+                default -> blockFactory.newConstantNullBlock(rowCount);
+            };
+        }
+
+        private Block createListBytesRefBlock(ListColumnVector listCol, int rowCount) {
+            BytesColumnVector child = (BytesColumnVector) listCol.child;
+            try (var builder = blockFactory.newBytesRefBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (listCol.noNulls == false && listCol.isNull[i]) {
+                        builder.appendNull();
+                    } else {
+                        int start = (int) listCol.offsets[i];
+                        int len = (int) listCol.lengths[i];
+                        builder.beginPositionEntry();
+                        for (int j = 0; j < len; j++) {
+                            int idx = start + j;
+                            if (child.noNulls == false && child.isNull[idx]) {
+                                builder.appendBytesRef(new org.apache.lucene.util.BytesRef());
+                            } else {
+                                builder.appendBytesRef(
+                                    new org.apache.lucene.util.BytesRef(child.vector[idx], child.start[idx], child.length[idx])
+                                );
+                            }
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private Block createListIntBlock(ListColumnVector listCol, int rowCount) {
+            LongColumnVector child = (LongColumnVector) listCol.child;
+            try (var builder = blockFactory.newIntBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (listCol.noNulls == false && listCol.isNull[i]) {
+                        builder.appendNull();
+                    } else {
+                        int start = (int) listCol.offsets[i];
+                        int len = (int) listCol.lengths[i];
+                        builder.beginPositionEntry();
+                        for (int j = 0; j < len; j++) {
+                            int idx = start + j;
+                            if (child.noNulls == false && child.isNull[idx]) {
+                                builder.appendInt(0);
+                            } else {
+                                builder.appendInt((int) child.vector[idx]);
+                            }
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private Block createListLongBlock(ListColumnVector listCol, int rowCount) {
+            LongColumnVector child = (LongColumnVector) listCol.child;
+            try (var builder = blockFactory.newLongBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (listCol.noNulls == false && listCol.isNull[i]) {
+                        builder.appendNull();
+                    } else {
+                        int start = (int) listCol.offsets[i];
+                        int len = (int) listCol.lengths[i];
+                        builder.beginPositionEntry();
+                        for (int j = 0; j < len; j++) {
+                            int idx = start + j;
+                            if (child.noNulls == false && child.isNull[idx]) {
+                                builder.appendLong(0L);
+                            } else {
+                                builder.appendLong(child.vector[idx]);
+                            }
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private Block createListDoubleBlock(ListColumnVector listCol, int rowCount) {
+            DoubleColumnVector child = (DoubleColumnVector) listCol.child;
+            try (var builder = blockFactory.newDoubleBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (listCol.noNulls == false && listCol.isNull[i]) {
+                        builder.appendNull();
+                    } else {
+                        int start = (int) listCol.offsets[i];
+                        int len = (int) listCol.lengths[i];
+                        builder.beginPositionEntry();
+                        for (int j = 0; j < len; j++) {
+                            int idx = start + j;
+                            if (child.noNulls == false && child.isNull[idx]) {
+                                builder.appendDouble(0.0);
+                            } else {
+                                builder.appendDouble(child.vector[idx]);
+                            }
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private Block createListBooleanBlock(ListColumnVector listCol, int rowCount) {
+            LongColumnVector child = (LongColumnVector) listCol.child;
+            try (var builder = blockFactory.newBooleanBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (listCol.noNulls == false && listCol.isNull[i]) {
+                        builder.appendNull();
+                    } else {
+                        int start = (int) listCol.offsets[i];
+                        int len = (int) listCol.lengths[i];
+                        builder.beginPositionEntry();
+                        for (int j = 0; j < len; j++) {
+                            int idx = start + j;
+                            if (child.noNulls == false && child.isNull[idx]) {
+                                builder.appendBoolean(false);
+                            } else {
+                                builder.appendBoolean(child.vector[idx] != 0);
+                            }
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        private Block createListDatetimeBlock(ListColumnVector listCol, int rowCount) {
+            ColumnVector child = listCol.child;
+            try (var builder = blockFactory.newLongBlockBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    if (listCol.noNulls == false && listCol.isNull[i]) {
+                        builder.appendNull();
+                    } else {
+                        int start = (int) listCol.offsets[i];
+                        int len = (int) listCol.lengths[i];
+                        builder.beginPositionEntry();
+                        for (int j = 0; j < len; j++) {
+                            int idx = start + j;
+                            long millis;
+                            if (child instanceof TimestampColumnVector ts) {
+                                if (ts.noNulls == false && ts.isNull[idx]) {
+                                    millis = 0L;
+                                } else {
+                                    millis = ts.getTime(idx);
+                                }
+                            } else if (child instanceof LongColumnVector lv) {
+                                if (lv.noNulls == false && lv.isNull[idx]) {
+                                    millis = 0L;
+                                } else {
+                                    millis = lv.vector[idx] * MILLIS_PER_DAY;
+                                }
+                            } else {
+                                millis = 0L;
+                            }
+                            builder.appendLong(millis);
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+                return builder.build();
+            }
         }
 
         private Block createDoubleBlock(ColumnVector vector, int rowCount) {
@@ -502,4 +702,56 @@ public class OrcFormatReader implements FormatReader {
             }
         }
     }
+
+    private static class RowLimitingIterator implements CloseableIterator<Page> {
+        private final CloseableIterator<Page> delegate;
+        private int remaining;
+
+        RowLimitingIterator(CloseableIterator<Page> delegate, int rowLimit) {
+            if (rowLimit <= 0) {
+                throw new IllegalArgumentException("rowLimit must be positive, got: " + rowLimit);
+            }
+            this.delegate = delegate;
+            this.remaining = rowLimit;
+        }
+
+        @Override
+        public boolean hasNext() {
+            if (remaining <= 0) {
+                return false;
+            }
+            return delegate.hasNext();
+        }
+
+        @Override
+        public Page next() {
+            if (hasNext() == false) {
+                throw new NoSuchElementException();
+            }
+            Page page = delegate.next();
+            int rows = page.getPositionCount();
+            if (rows > remaining) {
+                int[] positions = new int[remaining];
+                for (int i = 0; i < remaining; i++) {
+                    positions[i] = i;
+                }
+                page = page.filter(false, positions);
+                remaining = 0;
+                try {
+                    delegate.close();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            } else {
+                remaining -= rows;
+            }
+            return page;
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+    }
+
 }

@@ -106,6 +106,15 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
     }
 
     @Override
+    public BytesRefVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstantBytesRefVector(value, endExclusive - beginInclusive);
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.BYTES_REF;
     }
@@ -132,7 +141,7 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
      */
     public static long ramBytesEstimated(BytesRef value, long overestimateThreshold, double overestimateFactor) {
         long valueBytes = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + value.length);
-        if (valueBytes > overestimateThreshold) {
+        if (value.length > overestimateThreshold) {
             valueBytes = Math.round(valueBytes * overestimateFactor);
         }
         return BASE_RAM_BYTES_USED + valueBytes;

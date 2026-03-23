@@ -761,8 +761,14 @@ public class CompletionFieldMapper extends FieldMapper {
 
         @Override
         public XContentLocation getTokenLocation() {
-            // return fixed token location: it's not possible to match the token location while parsing through the object structure,
+            // return fixed location: it's not possible to match the real location while parsing through the object structure,
             // because completion metadata have been rewritten hence they won't match the incoming document
+            return locationOffset;
+        }
+
+        @Override
+        public XContentLocation getCurrentLocation() {
+            // same as getTokenLocation() — real positions are not available for rewritten metadata
             return locationOffset;
         }
     }

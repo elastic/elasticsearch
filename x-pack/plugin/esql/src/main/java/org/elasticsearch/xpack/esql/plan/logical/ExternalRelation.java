@@ -6,29 +6,36 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.FileSet;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
  * Logical plan node for external data source relations (e.g., Iceberg table, Parquet file).
- * This plan node is executed on the coordinator only (no dispatch to data nodes).
  * <p>
- * Unlike EsRelation which wraps into FragmentExec for data node dispatch,
- * ExternalRelation maps directly to physical source operators via LocalMapper,
- * similar to how LocalRelation works.
+ * Like {@link EsRelation}, the Mapper wraps this into a {@link org.elasticsearch.xpack.esql.plan.physical.FragmentExec}
+ * so that pipeline breakers (Aggregate, Limit, TopN) above it are distributed to data nodes
+ * via ExchangeExec. On data nodes, {@code localPlan()} expands the FragmentExec through
+ * LocalMapper into {@link ExternalSourceExec}, enabling local optimizations such as
+ * filter pushdown via FilterPushdownRegistry.
  * <p>
- * This class provides a source-agnostic logical plan node for external data sources.
- * It can represent any external source (Iceberg, Parquet, CSV, etc.) without requiring
- * source-specific subclasses in core ESQL code.
+ * The {@link ExecutesOn.Coordinator} marker is retained for logical plan validation
+ * (e.g., Enrich/Join hoist rules that inspect whether a relation executes on the coordinator).
  * <p>
  * The source-specific metadata is stored in the {@link SourceMetadata} interface, which
  * provides:
@@ -44,6 +51,12 @@ import java.util.Objects;
  * source operator via the SPI.
  */
 public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator {
+
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        LogicalPlan.class,
+        "ExternalRelation",
+        ExternalRelation::readFrom
+    );
 
     private final String sourcePath;
     private final List<Attribute> output;
@@ -71,14 +84,32 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         this(source, sourcePath, metadata, output, FileSet.UNRESOLVED);
     }
 
+    private static ExternalRelation readFrom(StreamInput in) throws IOException {
+        var source = Source.readFrom((PlanStreamInput) in);
+        String sourcePath = in.readString();
+        String sourceType = in.readString();
+        var output = in.readNamedWriteableCollectionAsList(Attribute.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> config = (Map<String, Object>) in.readGenericValue();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> sourceMetadata = (Map<String, Object>) in.readGenericValue();
+        var metadata = new SimpleSourceMetadata(output, sourceType, sourcePath, null, null, sourceMetadata, config);
+        return new ExternalRelation(source, sourcePath, metadata, output, FileSet.UNRESOLVED);
+    }
+
     @Override
-    public void writeTo(StreamOutput out) {
-        throw new UnsupportedOperationException("ExternalRelation is not yet serializable for cross-cluster operations");
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeString(sourcePath);
+        out.writeString(metadata.sourceType());
+        out.writeNamedWriteableCollection(output);
+        out.writeGenericValue(metadata.config());
+        out.writeGenericValue(metadata.sourceMetadata());
     }
 
     @Override
     public String getWriteableName() {
-        throw new UnsupportedOperationException("ExternalRelation is not yet serializable for cross-cluster operations");
+        return ENTRY.name;
     }
 
     @Override
@@ -113,13 +144,16 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     }
 
     public ExternalSourceExec toPhysicalExec() {
+        Map<String, Object> enrichedMetadata = metadata.statistics()
+            .map(stats -> SourceStatisticsSerializer.embedStatistics(metadata.sourceMetadata(), stats))
+            .orElse(metadata.sourceMetadata());
         return new ExternalSourceExec(
             source(),
             sourcePath,
             metadata.sourceType(),
             output,
             metadata.config(),
-            metadata.sourceMetadata(),
+            enrichedMetadata,
             null,
             null,
             fileSet

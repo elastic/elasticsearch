@@ -76,6 +76,14 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
     }
 
     @Override
+    public void quantizeScoreBulkOffsets(byte[] q, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
+        boolean scored = scorer.quantizeScoreBulkOffsets(q, offsets, offsetsCount, scores, count);
+        if (scored == false) {
+            super.quantizeScoreBulkOffsets(q, offsets, offsetsCount, scores, count);
+        }
+    }
+
+    @Override
     public float scoreBulk(
         byte[] q,
         float queryLowerInterval,
@@ -208,6 +216,25 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
             this.bulkSize = bulkSize;
         }
 
+        /**
+         * Re-adjust scores based on the scored offsets positions.
+         * Native code uses {@param offsets} to compute {@param offsetsCount} scores, placing them in the first {@param offsetsCount}
+         * positions of {@param scores}.
+         * This method re-positions them, placing each score at the index indicated in {@param offsets}.
+         * @param offsets scored offsets array
+         * @param offsetsCount number of scored offsets
+         * @param scores scores array
+         */
+        static void repositionScoresMatchingOffsets(int[] offsets, int offsetsCount, float[] scores) {
+            for (int i = offsetsCount - 1; i >= 0; i--) {
+                int finalScoreIndex = offsets[i];
+                if (i < finalScoreIndex) {
+                    scores[finalScoreIndex] = scores[i];
+                    scores[i] = 0;
+                }
+            }
+        }
+
         protected byte[] getScratch(int len) {
             if (scratch == null || scratch.length < len) {
                 scratch = new byte[len];
@@ -218,6 +245,8 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         abstract long quantizeScore(byte[] q) throws IOException;
 
         abstract boolean quantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException;
+
+        abstract boolean quantizeScoreBulkOffsets(byte[] q, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException;
 
         float scoreBulk(
             byte[] q,
@@ -238,7 +267,7 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
                 similarityFunction,
                 centroidDp,
                 scores,
-                BULK_SIZE
+                bulkSize
             );
         }
 
@@ -263,32 +292,28 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
             float[] scores,
             int bulkSize,
             int limit,
-            long offset,
             float ay,
             float ly,
             float y1,
             float maxScore
         ) {
             for (int j = limit; j < bulkSize; j++) {
-                float ax = memorySegment.get(
-                    ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
-                    offset + (long) j * Float.BYTES
-                );
+                float ax = memorySegment.get(ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN), (long) j * Float.BYTES);
 
                 float lx = memorySegment.get(
                     ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
-                    offset + 4L * bulkSize + (long) j * Float.BYTES
+                    4L * bulkSize + (long) j * Float.BYTES
                 );
                 lx = (lx - ax) * indexBitScale;
 
                 int targetComponentSum = memorySegment.get(
                     ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
-                    offset + 8L * bulkSize + (long) j * Integer.BYTES
+                    8L * bulkSize + (long) j * Integer.BYTES
                 );
 
                 float additionalCorrection = memorySegment.get(
                     ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
-                    offset + 12L * bulkSize + (long) j * Float.BYTES
+                    12L * bulkSize + (long) j * Float.BYTES
                 );
 
                 float qcDist = scores[j];

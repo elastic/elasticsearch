@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -77,6 +78,7 @@ public class QueryPlanningBenchmark {
     private Analyzer manyFieldsAnalyzer;
     private LogicalPlanOptimizer defaultOptimizer;
     private Configuration config;
+    private EsqlParser parser;
 
     @Setup
     public void setup() {
@@ -97,6 +99,7 @@ public class QueryPlanningBenchmark {
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.get(Settings.EMPTY),
             null,
+            null,
             Map.of()
         );
 
@@ -110,6 +113,7 @@ public class QueryPlanningBenchmark {
         var esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Set.of());
 
         var functionRegistry = new EsqlFunctionRegistry();
+        parser = new EsqlParser(new EsqlConfig(functionRegistry));
 
         // Assume all nodes are on the current version for the benchmark.
         TransportVersion minimumVersion = TransportVersion.current();
@@ -140,6 +144,6 @@ public class QueryPlanningBenchmark {
 
     @Benchmark
     public void manyFields(Blackhole blackhole) {
-        blackhole.consume(plan(EsqlParser.INSTANCE, manyFieldsAnalyzer, defaultOptimizer, "FROM test | LIMIT 10"));
+        blackhole.consume(plan(parser, manyFieldsAnalyzer, defaultOptimizer, "FROM test | LIMIT 10"));
     }
 }

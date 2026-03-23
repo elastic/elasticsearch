@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 144525
+summary: Don't over-alloc when unpacking dimension values
+type: bug

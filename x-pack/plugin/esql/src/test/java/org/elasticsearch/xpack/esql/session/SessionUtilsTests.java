@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -35,8 +34,6 @@ import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowS
 import static org.elasticsearch.xpack.esql.session.SessionUtils.fromPages;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class SessionUtilsTests extends ESTestCase {
 
@@ -147,9 +144,7 @@ public class SessionUtilsTests extends ESTestCase {
     }
 
     private BlockFactory blockFactory(long maxBytes) {
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker(this.getClass().getName(), ByteSizeValue.ofBytes(maxBytes));
-        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
-        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
+        CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofBytes(maxBytes));
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService);
         return BlockFactory.builder(bigArrays).build();
     }

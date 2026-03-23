@@ -20,7 +20,8 @@ import java.io.IOException;
  * Block that stores int values.
  * This class is generated. Edit {@code X-Block.java.st} instead.
  */
-public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorBlock, ConstantNullBlock, IntBigArrayBlock {
+public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorBlock, ConstantNullBlock, IntBigArrayBlock,
+    org.elasticsearch.compute.data.arrow.IntArrowBufBlock {
 
     /**
      * Retrieves the int value stored at the given value index.
@@ -82,6 +83,18 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
 
     @Override
     IntVector asVector();
+
+    @Override
+    default IntBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(endExclusive - beginInclusive)) {
+            builder.copyFrom(this, beginInclusive, endExclusive);
+            return builder.build();
+        }
+    }
 
     @Override
     IntBlock filter(boolean mayContainDuplicates, int... positions);

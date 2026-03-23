@@ -30,6 +30,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -66,6 +67,7 @@ import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
@@ -76,7 +78,9 @@ import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.ExplainPlanTransformer;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -215,6 +219,10 @@ public class ComputeService {
         return plannerSettings;
     }
 
+    FilterPushdownRegistry filterPushdownRegistry() {
+        return filterPushdownRegistry;
+    }
+
     PhysicalPlan discoverSplits(PhysicalPlan plan) {
         if (operatorFactoryRegistry == null) {
             return plan;
@@ -259,7 +267,7 @@ public class ComputeService {
     ExternalDistributionResult applyExternalDistributionStrategy(PhysicalPlan plan, Configuration configuration) {
         List<ExternalSplit> externalSplits = collectExternalSplits(plan);
         if (externalSplits.isEmpty()) {
-            return new ExternalDistributionResult(plan, null);
+            return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null, List.of());
         }
 
         ExternalDistributionStrategy strategy = resolveExternalDistributionStrategy(configuration.pragmas());
@@ -278,30 +286,64 @@ public class ComputeService {
                 externalSplits.size(),
                 distributionPlan.nodeAssignments().size()
             );
-            return new ExternalDistributionResult(plan, distributionPlan);
+            return new ExternalDistributionResult(plan, distributionPlan, List.of());
         }
 
-        return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null);
+        return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null, externalSplits);
     }
 
-    record ExternalDistributionResult(PhysicalPlan plan, ExternalDistributionPlan distributionPlan) {
+    record ExternalDistributionResult(PhysicalPlan plan, ExternalDistributionPlan distributionPlan, List<ExternalSplit> coordinatorSplits) {
         boolean isDistributed() {
             return distributionPlan != null && distributionPlan.distributed();
         }
     }
 
-    private static List<ExternalSplit> collectExternalSplits(PhysicalPlan plan) {
+    private List<ExternalSplit> collectExternalSplits(PhysicalPlan plan) {
         List<ExternalSplit> splits = new ArrayList<>();
         plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
+        if (splits.isEmpty()) {
+            discoverSplitsFromFragments(plan, splits);
+            if (splits.size() > SplitCoalescer.COALESCING_THRESHOLD) {
+                List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
+                if (coalesced != splits) {
+                    splits.clear();
+                    splits.addAll(coalesced);
+                }
+            }
+        }
         return splits;
     }
 
+    private void discoverSplitsFromFragments(PhysicalPlan plan, List<ExternalSplit> splits) {
+        if (operatorFactoryRegistry == null) {
+            return;
+        }
+        plan.forEachDown(FragmentExec.class, fragment -> {
+            fragment.fragment().forEachDown(ExternalRelation.class, external -> {
+                ExternalSourceExec tempExec = external.toPhysicalExec();
+                PhysicalPlan discovered = SplitDiscoveryPhase.resolveExternalSplits(tempExec, operatorFactoryRegistry.sourceFactories());
+                if (discovered instanceof ExternalSourceExec withSplits) {
+                    splits.addAll(withSplits.splits());
+                }
+            });
+        });
+    }
+
     static PhysicalPlan collapseExternalSourceExchanges(PhysicalPlan plan) {
-        return plan.transformUp(ExchangeExec.class, exchange -> {
+        PhysicalPlan collapsed = plan.transformUp(ExchangeExec.class, exchange -> {
             if (exchange.child() instanceof ExternalSourceExec) {
                 return exchange.child();
             }
+            if (exchange.child() instanceof FragmentExec fragment && fragment.fragment().anyMatch(ExternalRelation.class::isInstance)) {
+                return exchange.child();
+            }
             return exchange;
+        });
+        return collapsed.transformUp(TopNExec.class, topN -> {
+            if (topN.inputOrdering() != InputOrdering.NOT_SORTED && topN.child() instanceof FragmentExec) {
+                return topN.withNonSortedInput();
+            }
+            return topN;
         });
     }
 
@@ -522,6 +564,7 @@ public class ComputeService {
                     coordinatorPlan,
                     plannerSettings.get(),
                     LocalPhysicalOptimization.ENABLED,
+                    distributionResult.coordinatorSplits(),
                     planTimeProfile,
                     computeListener.acquireCompute()
                 );
@@ -758,40 +801,38 @@ public class ComputeService {
                 })
             )
         ) {
-            try (Releasable ignored = exchangeSource.addEmptySink()) {
-                // Run the coordinator plan
-                runCompute(
-                    rootTask,
-                    new ComputeContext(
-                        sessionId,
-                        profileDescription(profileQualifier, "final"),
-                        LOCAL_CLUSTER,
-                        flags,
-                        EmptyIndexedByShardId.instance(),
-                        configuration,
-                        foldContext,
-                        exchangeSource::createExchangeSource,
-                        exchangeSinkSupplier
-                    ),
-                    coordinatorPlan,
-                    plannerSettings.get(),
-                    LocalPhysicalOptimization.ENABLED,
-                    planTimeProfile,
-                    computeListener.acquireCompute()
-                );
-                // Dispatch to each data node with its assigned splits
-                dataNodeComputeHandler.startExternalComputeOnDataNodes(
+            // Run the coordinator plan
+            runCompute(
+                rootTask,
+                new ComputeContext(
                     sessionId,
-                    rootTask,
+                    profileDescription(profileQualifier, "final"),
+                    LOCAL_CLUSTER,
                     flags,
+                    EmptyIndexedByShardId.instance(),
                     configuration,
-                    dataNodePlan,
-                    distributionPlan,
-                    exchangeSource,
-                    cancelQueryOnFailure,
-                    computeListener
-                );
-            }
+                    foldContext,
+                    exchangeSource::createExchangeSource,
+                    exchangeSinkSupplier
+                ),
+                coordinatorPlan,
+                plannerSettings.get(),
+                LocalPhysicalOptimization.ENABLED,
+                planTimeProfile,
+                computeListener.acquireCompute()
+            );
+            // Dispatch to each data node with its assigned splits
+            dataNodeComputeHandler.startExternalComputeOnDataNodes(
+                sessionId,
+                rootTask,
+                flags,
+                configuration,
+                dataNodePlan,
+                distributionPlan,
+                exchangeSource,
+                cancelQueryOnFailure,
+                computeListener
+            );
         }
     }
 
@@ -881,6 +922,19 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile,
         ActionListener<DriverCompletionInfo> listener
     ) {
+        runCompute(task, context, plan, plannerSettings, localPhysicalOptimization, List.of(), planTimeProfile, listener);
+    }
+
+    void runCompute(
+        CancellableTask task,
+        ComputeContext context,
+        PhysicalPlan plan,
+        PlannerSettings plannerSettings,
+        LocalPhysicalOptimization localPhysicalOptimization,
+        List<ExternalSplit> coordinatorExternalSplits,
+        PlanTimeProfile planTimeProfile,
+        ActionListener<DriverCompletionInfo> listener
+    ) {
         var shardContexts = context.searchContexts().map(ComputeSearchContext::shardContext);
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             context.foldCtx(),
@@ -911,10 +965,15 @@ public class ComputeService {
 
             List<SearchExecutionContext> localContexts = new ArrayList<>();
             context.searchExecutionContexts().iterable().forEach(localContexts::add);
-            boolean hasExternalSource = plan.anyMatch(p -> p instanceof ExternalSourceExec);
-            var localPlan = switch (localPhysicalOptimization) {
-                case ENABLED -> hasExternalSource
-                    ? PlannerUtils.localPlan(
+            boolean hasExternalSource = plan.anyMatch(
+                p -> p instanceof ExternalSourceExec
+                    || (p instanceof FragmentExec f && f.fragment().anyMatch(ExternalRelation.class::isInstance))
+            );
+            PhysicalPlan localPlan;
+            final String logicalPlanString;
+            if (localPhysicalOptimization == LocalPhysicalOptimization.ENABLED) {
+                if (hasExternalSource) {
+                    localPlan = PlannerUtils.localPlan(
                         plannerSettings,
                         context.flags(),
                         context.configuration(),
@@ -923,8 +982,10 @@ public class ComputeService {
                         SearchContextStats.from(localContexts),
                         filterPushdownRegistry,
                         planTimeProfile
-                    )
-                    : PlannerUtils.localPlan(
+                    );
+                    logicalPlanString = null;
+                } else {
+                    var localPlanResult = PlannerUtils.localPlanWithLogical(
                         plannerSettings,
                         context.flags(),
                         localContexts,
@@ -933,15 +994,37 @@ public class ComputeService {
                         plan,
                         planTimeProfile
                     );
-                case DISABLED -> plan;
-            };
+                    localPlan = localPlanResult.physicalPlan();
+                    logicalPlanString = localPlanResult.logicalPlanString();
+                }
+            } else {
+                localPlan = plan;
+                logicalPlanString = null;
+            }
+            if (coordinatorExternalSplits.isEmpty() == false) {
+                localPlan = localPlan.transformUp(
+                    ExternalSourceExec.class,
+                    exec -> exec.splits().isEmpty() ? exec.withSplits(coordinatorExternalSplits) : exec
+                );
+            }
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local plan for {}:\n{}", context.description(), localPlan);
             }
+
+            // For EXPLAIN mode, replace data sources with empty sources to make execution cheap.
+            // The original localPlan is immutable and preserved for profiling.
+            PhysicalPlan planToExecute = localPlan;
+            if (context.configuration().explainOnly()) {
+                planToExecute = ExplainPlanTransformer.replaceDataSourcesWithEmpty(localPlan);
+                if (LOGGER.isDebugEnabled()) {
+                    LOGGER.debug("EXPLAIN mode: transformed plan for {}:\n{}", context.description(), planToExecute);
+                }
+            }
+
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation
-            var localExecutionPlan = planner.plan(context.description(), context.foldCtx(), plannerSettings, localPlan, shardContexts);
+            var localExecutionPlan = planner.plan(context.description(), context.foldCtx(), plannerSettings, planToExecute, shardContexts);
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
             }
@@ -959,7 +1042,15 @@ public class ComputeService {
                 throw new IllegalStateException("no drivers created");
             }
             LOGGER.debug("using {} drivers", drivers.size());
-            ActionListener<Void> driverListener = addCompletionInfo(listener, drivers, context, localPlan, planTimeProfile);
+            // Pass the ORIGINAL plan (immutable, not transformed) for profiling
+            ActionListener<Void> driverListener = addCompletionInfo(
+                listener,
+                drivers,
+                context,
+                localPlan,
+                logicalPlanString,
+                planTimeProfile
+            );
             driverRunner.executeDrivers(
                 task,
                 drivers,
@@ -978,6 +1069,7 @@ public class ComputeService {
         List<Driver> drivers,
         ComputeContext context,
         PhysicalPlan localPlan,
+        String logicalPlanString,
         PlanTimeProfile planTimeProfile
     ) {
         /*
@@ -994,6 +1086,7 @@ public class ComputeService {
                     clusterService.getClusterName().value(),
                     transportService.getLocalNode().getName(),
                     planString,
+                    logicalPlanString,
                     planTimeProfile
                 );
                 LOGGER.debug("finished {}", driverCompletionInfo);
@@ -1147,4 +1240,5 @@ public class ComputeService {
         });
         return holder.getOrDefault(Map::of);
     }
+
 }

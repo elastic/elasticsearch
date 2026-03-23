@@ -344,11 +344,15 @@ public class SharedBytes extends AbstractRefCounted {
 
         private final CloseableMappedByteBuffer mappedByteBuffer;
 
+        // Cached reference to the region's ByteBuffer
+        private final ByteBuffer mmapBuffer;
+
         private IO(final int sharedBytesPos, CloseableMappedByteBuffer mappedByteBuffer) {
             long physicalOffset = (long) sharedBytesPos * regionSize;
             assert physicalOffset <= (long) numRegions * regionSize;
             this.pageStart = physicalOffset;
             this.mappedByteBuffer = mappedByteBuffer;
+            this.mmapBuffer = mappedByteBuffer != null ? mappedByteBuffer.buffer() : null;
         }
 
         public boolean prefetch(long offset, long length) {
@@ -367,7 +371,7 @@ public class SharedBytes extends AbstractRefCounted {
             if (mmap) {
                 bytesRead = remaining;
                 int startPosition = dst.position();
-                dst.put(startPosition, mappedByteBuffer.buffer(), position, bytesRead).position(startPosition + bytesRead);
+                dst.put(startPosition, mmapBuffer, position, bytesRead).position(startPosition + bytesRead);
             } else {
                 bytesRead = fileChannel.read(dst, pageStart + position);
             }
@@ -386,7 +390,7 @@ public class SharedBytes extends AbstractRefCounted {
         public ByteBuffer byteBufferSlice(int position, int length) {
             if (mmap) {
                 checkOffsets(position, length);
-                return mappedByteBuffer.buffer().slice(position, length).asReadOnlyBuffer();
+                return mmapBuffer.slice(position, length);
             }
             return null;
         }

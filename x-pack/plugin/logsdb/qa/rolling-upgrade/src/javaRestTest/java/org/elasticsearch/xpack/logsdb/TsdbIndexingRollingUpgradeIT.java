@@ -14,6 +14,10 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexFeatures;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -25,8 +29,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.logsdb.TsdbIT.TEMPLATE;
 import static org.elasticsearch.xpack.logsdb.TsdbIT.formatInstant;
+import static org.elasticsearch.xpack.logsdb.TsdbIT.getTemplate;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -40,16 +44,31 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTe
             """;
 
     public void testIndexing() throws Exception {
+        Boolean useSyntheticId = oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID) ? randomBoolean() : null;
+        Boolean disableSeqNo = oldClusterHasFeature(IndexFeatures.TIME_SERIES_NO_SEQNO) ? randomBoolean() : null;
+
         String dataStreamName = "k9s";
-        createTemplate(dataStreamName, getClass().getSimpleName().toLowerCase(Locale.ROOT), TEMPLATE);
+        createTemplate(dataStreamName, getClass().getSimpleName().toLowerCase(Locale.ROOT), getTemplate(useSyntheticId, disableSeqNo));
 
         Instant startTime = Instant.now().minusSeconds(60 * 60);
         bulkIndex(dataStreamName, 4, 1024, startTime, TsdbIndexingRollingUpgradeIT::docSupplier);
 
         String firstBackingIndex = getDataStreamBackingIndexNames(dataStreamName).getFirst();
         var settings = (Map<?, ?>) getIndexSettings(firstBackingIndex, true).get(firstBackingIndex);
-        assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("time_series"));
-        assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
+        assertThat(((Map<?, ?>) settings.get("settings")).get(IndexSettings.MODE.getKey()), equalTo(IndexMode.TIME_SERIES.getName()));
+        assertThat(
+            ((Map<?, ?>) settings.get("defaults")).get(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey()),
+            equalTo(SourceFieldMapper.Mode.SYNTHETIC.toString())
+        );
+        if (useSyntheticId != null) {
+            assertThat(((Map<?, ?>) settings.get("settings")).get(IndexSettings.SYNTHETIC_ID.getKey()), equalTo(useSyntheticId.toString()));
+        }
+        if (disableSeqNo != null) {
+            assertThat(
+                ((Map<?, ?>) settings.get("settings")).get(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey()),
+                equalTo(disableSeqNo.toString())
+            );
+        }
 
         var mapping = getIndexMappingAsMap(firstBackingIndex);
         assertThat(

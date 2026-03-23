@@ -74,6 +74,7 @@ public class LuceneSourceOperator extends LuceneOperator {
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
             DataPartitioning.AutoStrategy autoStrategy,
+            int docThresholdForAutoStrategy,
             int taskConcurrency,
             int maxPageSize,
             int limit,
@@ -86,6 +87,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                 dataPartitioning == DataPartitioning.AUTO ? autoStrategy.pickStrategy(limit) : q -> {
                     throw new UnsupportedOperationException("locked in " + dataPartitioning);
                 },
+                docThresholdForAutoStrategy,
                 taskConcurrency,
                 limit,
                 needsScore,
@@ -159,7 +161,7 @@ public class LuceneSourceOperator extends LuceneOperator {
          * </ul>
          */
         private static PartitioningStrategy highSpeedAutoStrategy(Query query) {
-            Query unwrapped = unwrap(query);
+            Query unwrapped = unwrapQuery(query);
             log.trace("highSpeedAutoStrategy {} {}", query, unwrapped);
             return switch (unwrapped) {
                 case BooleanQuery bq -> highSpeedAutoStrategyForBoolean(bq);
@@ -182,7 +184,7 @@ public class LuceneSourceOperator extends LuceneOperator {
             return false;
         }
 
-        private static Query unwrap(Query query) {
+        static Query unwrapQuery(Query query) {
             while (true) {
                 switch (query) {
                     case BoostQuery q: {

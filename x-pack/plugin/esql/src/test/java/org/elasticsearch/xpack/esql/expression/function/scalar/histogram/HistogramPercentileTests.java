@@ -15,7 +15,8 @@ import org.elasticsearch.compute.aggregation.TDigestStates;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramQuantile;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
+import org.elasticsearch.tdigest.TDigest;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -101,8 +102,10 @@ public class HistogramPercentileTests extends AbstractScalarFunctionTestCase {
             case ExponentialHistogram expHisto -> ExponentialHistogramQuantile.getQuantile(expHisto, percVal / 100.0);
             case TDigestHolder tdigest -> {
                 NoopCircuitBreaker noopBreaker = new NoopCircuitBreaker("noop-breaker");
-                try (TDigestState scratch = TDigestState.createOfType(noopBreaker, TDigestState.Type.MERGING, TDigestStates.COMPRESSION)) {
-                    tdigest.addTo(scratch);
+                try (
+                    TDigest scratch = TDigest.createMergingDigest(new MemoryTrackingTDigestArrays(noopBreaker), TDigestStates.COMPRESSION)
+                ) {
+                    scratch.add(tdigest);
                     yield scratch.quantile(percVal / 100.0);
                 }
             }
@@ -118,7 +121,7 @@ public class HistogramPercentileTests extends AbstractScalarFunctionTestCase {
                 "HistogramPercentileExponentialHistogramEvaluator[value=Attribute[channel=0], percentile=" + percentileEvaluatorName + "]"
             );
             case TDIGEST -> startsWith(
-                "HistogramPercentileTDigestEvaluator[value=Attribute[channel=0], percentile=" + percentileEvaluatorName + ", breaker="
+                "HistogramPercentileTDigestEvaluator[value=Attribute[channel=0], percentile=" + percentileEvaluatorName + ", tdigestArrays="
             );
             default -> throw new IllegalStateException("Not a histogram type: " + histoType);
         };

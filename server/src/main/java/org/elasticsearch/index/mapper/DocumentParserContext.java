@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
@@ -18,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
@@ -36,6 +36,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+
+import static org.elasticsearch.index.mapper.IdFieldMapper.standardIdField;
 
 /**
  * Context used when parsing incoming documents. Holds everything that is needed to parse a document as well as
@@ -815,14 +817,17 @@ public abstract class DocumentParserContext {
         if (idField != null) {
             // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
             // delete it when the root document is deleted too.
-            doc.add(new StringField(IdFieldMapper.NAME, idField.binaryValue(), Field.Store.NO));
+            doc.add(standardIdField(idField.binaryValue(), Field.Store.NO));
         } else if (indexSettings().getMode() == IndexMode.TIME_SERIES) {
             // For time series indices, the _id is generated from the _tsid, which in turn is generated from the values of the configured
             // routing fields. At this point in document parsing, we can't guarantee that we've parsed all the routing fields yet, so the
             // parent document's _id is not yet available.
             // So we just add the child document without the parent _id, then in TimeSeriesIdFieldMapper#postParse we set the _id on all
             // child documents once we've calculated it.
-            assert getRoutingFields().equals(RoutingFields.Noop.INSTANCE) == false;
+            // Time-series index created at or after TSID_CREATED_DURING_ROUTING with non-empty dimensions use ForIndexDimensions routing,
+            // which causes buildRoutingFields to return Noop.INSTANCE.
+            assert getRoutingFields().equals(RoutingFields.Noop.INSTANCE) == false
+                || indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING);
         } else {
             throw new IllegalStateException("The root document of a nested document should have an _id field");
         }

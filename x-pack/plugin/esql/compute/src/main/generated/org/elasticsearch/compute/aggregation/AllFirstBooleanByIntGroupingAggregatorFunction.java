@@ -36,16 +36,11 @@ public final class AllFirstBooleanByIntGroupingAggregatorFunction implements Gro
 
   private final DriverContext driverContext;
 
-  public AllFirstBooleanByIntGroupingAggregatorFunction(List<Integer> channels,
-      AllFirstBooleanByIntAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static AllFirstBooleanByIntGroupingAggregatorFunction create(List<Integer> channels,
+  AllFirstBooleanByIntGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new AllFirstBooleanByIntGroupingAggregatorFunction(channels, AllFirstBooleanByIntAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = AllFirstBooleanByIntAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

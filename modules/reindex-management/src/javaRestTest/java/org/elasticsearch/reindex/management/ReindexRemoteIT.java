@@ -16,6 +16,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
 
 import java.net.URI;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -46,6 +47,10 @@ public class ReindexRemoteIT extends ESRestTestCase {
     }
 
     public void testGetReindexDescriptionStripsRemoteInfoSensitiveFields() throws Exception {
+        assumeTrue(
+            "reindex resilience endpoints available",
+            clusterHasCapability("GET", "/_reindex/{task_id}", List.of(), List.of("reindex_management_api")).orElse(false)
+        );
         Request indexRequest = new Request("POST", "/remote_src/_doc");
         indexRequest.addParameter("refresh", "true");
         indexRequest.setJsonEntity("{\"field\": \"value\"}");
@@ -93,5 +98,56 @@ public class ReindexRemoteIT extends ESRestTestCase {
             + remoteUri.getPort()
             + "][remote_src] to [dest]";
         assertThat(body.get("description"), equalTo(expectedDescription));
+    }
+
+    public void testTaskDescriptionExcludesSensitiveFields() throws Exception {
+        Request indexRequest = new Request("POST", "/task_api_src/_doc");
+        indexRequest.addParameter("refresh", "true");
+        indexRequest.setJsonEntity("{\"field\": \"value\"}");
+        client().performRequest(indexRequest);
+
+        String remoteHost = getRemoteHost();
+
+        Request reindexRequest = new Request("POST", "/_reindex");
+        reindexRequest.addParameter("wait_for_completion", "false");
+        reindexRequest.setJsonEntity(String.format(java.util.Locale.ROOT, """
+            {
+              "source": {
+                "remote": {
+                  "host": "%s",
+                  "username": "testuser",
+                  "password": "testpass"
+                },
+                "index": "remote_src",
+                "query": {
+                  "match_all": {}
+                }
+              },
+              "dest": {
+                "index": "dest"
+              }
+            }""", remoteHost));
+
+        Response reindexResponse = client().performRequest(reindexRequest);
+        String taskId = (String) entityAsMap(reindexResponse).get("task");
+        assertNotNull("reindex did not return a task id", taskId);
+
+        Request getTaskRequest = new Request("GET", "/_tasks/" + taskId);
+        getTaskRequest.addParameter("wait_for_completion", "true");
+        getTaskRequest.addParameter("timeout", "30s");
+        Response taskResponse = client().performRequest(getTaskRequest);
+        Map<String, Object> body = entityAsMap(taskResponse);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> task = (Map<String, Object>) body.get("task");
+        String description = (String) task.get("description");
+
+        URI remoteUri = URI.create(remoteHost);
+        String expectedDescription = "reindex from [host="
+            + remoteUri.getHost()
+            + " port="
+            + remoteUri.getPort()
+            + "][remote_src] to [dest]";
+        assertThat(description, equalTo(expectedDescription));
     }
 }

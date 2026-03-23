@@ -32,7 +32,7 @@ if (buildParams.inFipsJvm) {
     File fipsPolicy = new File(fipsResourcesDir, javaPolicyFilename)
 
     if (isFips140_3) {
-      // FIPS 140-3 certified BouncyCastle libraries
+      // FIPS 140-3 certified BouncyCastle libraries (default)
       bcFips = dependencies.create('org.bouncycastle:bc-fips:2.0.1')
       bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:2.0.22')
       bcUtilFips = dependencies.create('org.bouncycastle:bcutil-fips:2.0.5')
@@ -46,7 +46,7 @@ if (buildParams.inFipsJvm) {
         }
       }
     } else {
-      // FIPS 140-2 certified BouncyCastle libraries (default)
+      // FIPS 140-2 certified BouncyCastle libraries
       bcFips = dependencies.create('org.bouncycastle:bc-fips:1.0.2.6')
       bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.19')
       bcUtilFips = null

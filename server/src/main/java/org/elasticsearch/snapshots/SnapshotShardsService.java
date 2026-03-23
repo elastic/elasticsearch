@@ -39,7 +39,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus.Stage;
 import org.elasticsearch.indices.IndicesService;
@@ -253,7 +252,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
 
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
-        if (snapshotShardContextFactory.ignoreShardCloseEvent()) {
+        if (snapshotShardContextFactory.supportsRelocationDuringSnapshot()) {
             return;
         }
         // abort any snapshots occurring on the soon-to-be closed shard
@@ -308,20 +307,6 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 result.put(entry.getKey(), entry.getValue().asCopy());
             }
             return result;
-        }
-    }
-
-    public void ensureShardSnapshotNotAborted(Snapshot snapshot, ShardId shardId) {
-        synchronized (shardSnapshots) {
-            final var current = shardSnapshots.get(snapshot);
-            if (current == null) {
-                throw new SnapshotMissingException(snapshot.getRepository(), snapshot.getSnapshotId().getName());
-            }
-            final var indexShardSnapshotStatus = current.get(shardId);
-            if (indexShardSnapshotStatus == null) {
-                throw new IndexShardSnapshotException(shardId, "shard snapshot [" + snapshot.getSnapshotId() + "] does not exist");
-            }
-            indexShardSnapshotStatus.ensureNotAborted();
         }
     }
 
@@ -443,7 +428,10 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
 
         for (final Map.Entry<ShardId, ShardGeneration> shardEntry : shardsToStart.entrySet()) {
             final ShardId shardId = shardEntry.getKey();
-            final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(shardEntry.getValue());
+            final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(
+                shardEntry.getValue(),
+                threadPool.absoluteTimeInMillis()
+            );
             newSnapshotShards.put(shardId, snapshotStatus);
             final IndexId indexId = entry.indices().get(shardId.getIndexName());
             assert indexId != null;

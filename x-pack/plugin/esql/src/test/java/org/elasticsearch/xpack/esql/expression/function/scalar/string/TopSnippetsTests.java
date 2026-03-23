@@ -380,6 +380,25 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         assertFalse(result.get(0).contains("<em>returns</em>"));
     }
 
+    public void testHighlightPreservesWholeChunk() {
+        // A long chunk with many matching terms — highlighting must return the entire chunk as-is
+        // (with markup), not split it into smaller passages.
+        String text = "Elasticsearch is a search engine built on Lucene. "
+            + "Elasticsearch supports distributed search across many nodes. "
+            + "Elasticsearch provides near real-time search capabilities. "
+            + "Elasticsearch scales horizontally for large search workloads.";
+        List<String> result = processWithHighlight(text, "elasticsearch search", 1, 300, true, null, null, null);
+        assertNotNull(result);
+        assertThat(result, hasSize(1));
+        // The single result must contain the full chunk text (all four sentences), not a fragment
+        assertThat(result.get(0), containsString("built on Lucene"));
+        assertThat(result.get(0), containsString("distributed"));
+        assertThat(result.get(0), containsString("near real-time"));
+        assertThat(result.get(0), containsString("scales horizontally"));
+        // And it should have highlighting markup
+        assertThat(result.get(0), containsString("<em>"));
+    }
+
     private List<String> process(String str, String query, int numSnippets, int numWords) {
         return processWithHighlight(str, query, numSnippets, numWords, null, null, null, null);
     }

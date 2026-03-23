@@ -11,8 +11,10 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.BooleanClause;
@@ -27,9 +29,10 @@ import org.elasticsearch.ElasticsearchException;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Objects;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.IntStream;
 
 /**
  * Utility class for scoring pre-determined chunks using an in-memory Lucene index.
@@ -41,6 +44,25 @@ import java.util.List;
 public class MemoryIndexChunkScorer {
 
     public static final String CONTENT_FIELD = "content";
+
+    /**
+     * Lightweight field for scoring only — no stored value, no positions or offsets.
+     */
+    private static final FieldType SCORING_FIELD_TYPE = TextField.TYPE_NOT_STORED;
+
+    /**
+     * Field with positions and offsets in the postings so unified highlighting can use
+     * {@code OffsetSource.POSTINGS} instead of re-analyzing the chunk. Not stored because
+     * callers already hold the original chunk list and can look up content by Lucene doc id.
+     */
+    private static final FieldType HIGHLIGHTING_FIELD_TYPE = highlightingFieldType();
+
+    private static FieldType highlightingFieldType() {
+        FieldType ft = new FieldType(TextField.TYPE_NOT_STORED);
+        ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        ft.freeze();
+        return ft;
+    }
 
     private final Analyzer analyzer;
 
@@ -76,7 +98,7 @@ public class MemoryIndexChunkScorer {
         if (chunks == null || chunks.isEmpty() || inferenceText == null || inferenceText.trim().isEmpty()) {
             return new ArrayList<>();
         }
-        try (Session session = openSession(chunks)) {
+        try (Session session = openSession(chunks, false)) {
             return session.score(inferenceText, maxResults, backfillResults);
         } catch (IOException e) {
             throw new ElasticsearchException("Failed to score chunks", e);
@@ -90,10 +112,17 @@ public class MemoryIndexChunkScorer {
      * {@link Session#analyzer()}) for additional operations such as highlighting.
      *
      * @param chunks the text chunks to index
+     * @param withOffsets if {@code true}, indexes positions and offsets for postings-based highlighting;
+     *                    if {@code false}, uses a lighter index suitable for scoring only
      * @return a closeable session; the caller is responsible for closing it
      */
+    public Session openSession(List<String> chunks, boolean withOffsets) {
+        return new Session(chunks, analyzer, withOffsets ? HIGHLIGHTING_FIELD_TYPE : SCORING_FIELD_TYPE);
+    }
+
+
     public Session openSession(List<String> chunks) {
-        return new Session(chunks, analyzer);
+        return new Session(chunks, analyzer, SCORING_FIELD_TYPE);
     }
 
     /**
@@ -110,7 +139,7 @@ public class MemoryIndexChunkScorer {
         private final Analyzer analyzer;
         private final List<String> chunks;
 
-        Session(List<String> chunks, Analyzer analyzer) {
+        Session(List<String> chunks, Analyzer analyzer, FieldType fieldType) {
             this.analyzer = analyzer;
             this.chunks = chunks;
             try {
@@ -119,7 +148,7 @@ public class MemoryIndexChunkScorer {
                 try (IndexWriter writer = new IndexWriter(directory, config)) {
                     for (String chunk : chunks) {
                         Document doc = new Document();
-                        doc.add(new TextField(CONTENT_FIELD, chunk, Field.Store.YES));
+                        doc.add(new Field(CONTENT_FIELD, chunk, fieldType));
                         writer.addDocument(doc);
                     }
                     writer.commit();
@@ -148,13 +177,13 @@ public class MemoryIndexChunkScorer {
 
                 List<ScoredChunk> scoredChunks = new ArrayList<>();
                 for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
-                    Document doc = reader.storedFields().document(scoreDoc.doc);
-                    String content = doc.get(CONTENT_FIELD);
-                    scoredChunks.add(new ScoredChunk(content, scoreDoc.score));
+                    scoredChunks.add(new ScoredChunk(chunks.get(scoreDoc.doc), scoreDoc.score, scoreDoc.doc));
                 }
 
                 return backfillResults && scoredChunks.isEmpty()
-                    ? chunks.subList(0, Math.min(maxResults, chunks.size())).stream().map(c -> new ScoredChunk(c, 0.0f)).toList()
+                    ? IntStream.range(0, Math.min(maxResults, chunks.size()))
+                        .mapToObj(i -> new ScoredChunk(chunks.get(i), 0.0f, i))
+                        .toList()
                     : scoredChunks;
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to score chunks", e);

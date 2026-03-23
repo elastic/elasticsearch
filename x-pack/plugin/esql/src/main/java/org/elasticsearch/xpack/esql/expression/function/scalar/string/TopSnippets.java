@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.DefaultEncoder;
@@ -85,6 +88,11 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
     static final int DEFAULT_NUM_SNIPPETS = 5;
     static final int DEFAULT_WORD_SIZE = 300;
+
+    /**
+     * Each chunk is highlighted as a single passage — no further splitting.
+     */
+    private static final int MAX_PASSAGES_PER_CHUNK = 1;
 
     private final Expression field, query, options;
 
@@ -251,6 +259,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         validateHighlightOnlyOptions(options);
     }
 
+
     private static void validateOptionValueIsPositiveInteger(Map<String, Object> options, String paramName) {
         Object value = options.get(paramName);
         if (value != null && ((Number) value).intValue() <= 0) {
@@ -381,22 +390,24 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
             allChunks.addAll(chunkText(value.utf8ToString(), chunkingSettings));
         }
 
-        try (var session = scorer.openSession(allChunks)) {
+        try (var session = scorer.openSession(allChunks, highlightFormatter != null)) {
             List<ScoredChunk> scored = session.score(queryString, allChunks.size(), false);
 
-            List<String> snippets = scored.stream()
+            List<ScoredChunk> topChunks = scored.stream()
                 .sorted(Comparator.comparing(ScoredChunk::score).reversed())
-                .map(ScoredChunk::content)
                 .limit(numSnippets)
                 .toList();
 
-            if (snippets.isEmpty()) {
+            if (topChunks.isEmpty()) {
                 builder.appendNull();
                 return;
             }
 
+            List<String> snippets;
             if (highlightFormatter != null) {
-                snippets = highlightSnippets(session, snippets, queryString, highlightFormatter);
+                snippets = highlightSnippets(session, topChunks, queryString, highlightFormatter);
+            } else {
+                snippets = topChunks.stream().map(ScoredChunk::content).toList();
             }
 
             emitChunks(builder, snippets);
@@ -406,21 +417,20 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
     }
 
     /**
-     * Adds highlight markup around matched query terms within each snippet, reusing the session's
-     * in-memory index rather than building a new one. Uses {@code OffsetSource.ANALYSIS} so the
-     * highlighter re-tokenizes the provided text and only needs the index's searcher/reader for
-     * query weight construction.
+     * Adds highlight markup around matched query terms within each snippet. Reuses the session's
+     * in-memory index: chunks are indexed with postings offsets, so we use {@code OffsetSource.POSTINGS}
+     * and the correct Lucene doc id per chunk instead of re-analyzing the full text ({@code ANALYSIS}).
      */
     private static List<String> highlightSnippets(
         MemoryIndexChunkScorer.Session session,
-        List<String> snippets,
+        List<ScoredChunk> topChunks,
         String queryText,
         PassageFormatter formatter
     ) throws IOException {
         QueryBuilder qb = new QueryBuilder(session.analyzer());
         Query query = qb.createBooleanQuery(MemoryIndexChunkScorer.CONTENT_FIELD, queryText, BooleanClause.Occur.SHOULD);
         if (query == null) {
-            return snippets;
+            return topChunks.stream().map(ScoredChunk::content).toList();
         }
 
         UnifiedHighlighter.Builder builder = UnifiedHighlighter.builder(session.searcher(), session.analyzer());
@@ -429,36 +439,58 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         int maxAnalyzedOffset = IndexSettings.MAX_ANALYZED_OFFSET_SETTING.get(Settings.EMPTY);
         CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
             builder,
-            UnifiedHighlighter.OffsetSource.ANALYSIS,
+            UnifiedHighlighter.OffsetSource.POSTINGS,
             null,
             "",
             MemoryIndexChunkScorer.CONTENT_FIELD,
             query,
             0,
-            Integer.MAX_VALUE - 1,
+            MAX_PASSAGES_PER_CHUNK,
             maxAnalyzedOffset,
             QueryMaxAnalyzedOffset.create(-1, maxAnalyzedOffset),
-            // TODO(mromaios): What do we do about max offset. This is an index level setting
             false,
             false
         );
 
-        var leafReader = session.reader().leaves().getFirst().reader();
-        //TODO(mromaios): is there a case where leaves can be empty?
-        List<String> result = new ArrayList<>(snippets.size());
-        for (String snippet : snippets) {
-            Snippet[] highlighted = highlighter.highlightField(leafReader, 0, () -> snippet);
-            if (highlighted == null || highlighted.length == 0) {
-                result.add(snippet);
-            } else {
-                StringBuilder sb = new StringBuilder();
-                for (Snippet s : highlighted) {
-                    sb.append(s.getText());
-                }
-                result.add(sb.toString());
-            }
+        return highlightScoredChunks(highlighter, session.reader(), topChunks);
+    }
+
+    /**
+     * Highlights each chunk using the global doc id from {@link ScoredChunk#docId()}. Lucene's highlighter API is
+     * leaf-scoped; {@link ReaderUtil#subIndex} is the same pattern as {@code FetchPhaseDocsIterator} and
+     * {@code FollowingEngine} for resolving a top-level doc id to a segment.
+     */
+    private static List<String> highlightScoredChunks(
+        CustomUnifiedHighlighter highlighter,
+        IndexReader reader,
+        List<ScoredChunk> topChunks
+    ) throws IOException {
+        List<LeafReaderContext> leaves = reader.leaves();
+        if (leaves.isEmpty()) {
+            return topChunks.stream().map(ScoredChunk::content).toList();
+        }
+        int maxDoc = reader.maxDoc();
+        List<String> result = new ArrayList<>(topChunks.size());
+        for (ScoredChunk chunk : topChunks) {
+            result.add(highlightOneScoredChunk(highlighter, leaves, maxDoc, chunk));
         }
         return result;
+    }
+
+    private static String highlightOneScoredChunk(
+        CustomUnifiedHighlighter highlighter,
+        List<LeafReaderContext> leaves,
+        int maxDoc,
+        ScoredChunk chunk
+    ) throws IOException {
+        String text = chunk.content();
+        int globalDoc = chunk.docId();
+        if (globalDoc < 0 || globalDoc >= maxDoc) {
+            return text;
+        }
+        LeafReaderContext leaf = leaves.get(ReaderUtil.subIndex(globalDoc, leaves));
+        Snippet[] hits = highlighter.highlightField(leaf.reader(), globalDoc - leaf.docBase, () -> text);
+        return (hits != null && hits.length > 0) ? hits[0].getText() : text;
     }
 
     @Override

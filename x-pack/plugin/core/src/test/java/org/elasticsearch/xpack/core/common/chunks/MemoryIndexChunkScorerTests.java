@@ -56,6 +56,10 @@ public class MemoryIndexChunkScorerTests extends ESTestCase {
         for (int i = 1; i < scoredChunks.size(); i++) {
             assertTrue(scoredChunks.get(i - 1).score() >= scoredChunks.get(i).score());
         }
+
+        assertThat(scoredChunks.getFirst().docId(), equalTo(3));
+        assertThat(scoredChunks.get(1).docId(), equalTo(1));
+        assertThat(scoredChunks.get(2).docId(), equalTo(0));
     }
 
     public void testEmptyChunks() throws IOException {
@@ -80,6 +84,7 @@ public class MemoryIndexChunkScorerTests extends ESTestCase {
         chunk = scoredChunks.get(2);
         assertTrue(chunk.content().equalsIgnoreCase("The weather today is very sunny and warm"));
         assertThat(chunk.score(), equalTo(0f));
+        assertThat(chunk.docId(), equalTo(2));
 
         // Zero results with no backfill
         scoredChunks = scorer.scoreChunks(CHUNKS, "puggles", maxResults, false);

@@ -70,6 +70,7 @@ import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
 
 import static java.util.stream.IntStream.range;
+import static org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_RATIO_THRESHOLD_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -645,25 +646,15 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
     public void testMaxSingleShardWriteLoadSetting() {
         internalCluster().startMasterOnlyNode(Settings.EMPTY);
 
-        updateClusterSettings(
-            Settings.builder()
-                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_RATIO_THRESHOLD_SETTING.getKey(), "0%")
-        );
+        String thresholdSettingKey = WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_RATIO_THRESHOLD_SETTING.getKey();
 
-        updateClusterSettings(
-            Settings.builder()
-                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_RATIO_THRESHOLD_SETTING.getKey(), "90%")
-        );
+        updateClusterSettings(Settings.builder().put(thresholdSettingKey, "0%"));
 
-        updateClusterSettings(
-            Settings.builder()
-                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_RATIO_THRESHOLD_SETTING.getKey(), "100%")
-        );
+        updateClusterSettings(Settings.builder().put(thresholdSettingKey, "90%"));
 
-        updateClusterSettings(
-            Settings.builder()
-                .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_RATIO_THRESHOLD_SETTING.getKey(), "51%")
-        );
+        updateClusterSettings(Settings.builder().put(thresholdSettingKey, "100%"));
+
+        updateClusterSettings(Settings.builder().put(thresholdSettingKey, "51%"));
 
         Consumer<String> testUnderFiftyRatio = (setting) -> {
             expectThrows(
@@ -673,13 +664,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                         + "50% and 100%, or 0% to disable"
                 ),
                 () -> {
-                    updateClusterSettings(
-                        Settings.builder()
-                            .put(
-                                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_RATIO_THRESHOLD_SETTING.getKey(),
-                                setting
-                            )
-                    );
+                    updateClusterSettings(Settings.builder().put(thresholdSettingKey, setting));
                 }
             );
         };
@@ -693,13 +678,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                 IllegalArgumentException.class,
                 equalTo(Strings.format("Percentage should be in [0-100], got [%d]", setting)),
                 () -> {
-                    updateClusterSettings(
-                        Settings.builder()
-                            .put(
-                                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_RATIO_THRESHOLD_SETTING.getKey(),
-                                setting + "%"
-                            )
-                    );
+                    updateClusterSettings(Settings.builder().put(thresholdSettingKey, setting + "%"));
                 }
             );
         };

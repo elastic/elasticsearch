@@ -50,34 +50,17 @@ public final class ClusterIndexHealth implements Writeable, ToXContentFragment {
     private final Map<Integer, ClusterShardHealth> shards;
 
     public ClusterIndexHealth(final IndexMetadata indexMetadata, final IndexRoutingTable indexRoutingTable) {
-        this.index = indexMetadata.getIndex().getName();
+        final var indexName = indexMetadata.getIndex().getName();
+        this.index = indexName;
         this.numberOfShards = indexMetadata.getNumberOfShards();
         this.numberOfReplicas = indexMetadata.getNumberOfReplicas();
 
+        assert indexRoutingTable != null : "null index routing table provided for [" + indexName + "]";
         shards = new HashMap<>();
-        if (indexRoutingTable != null) {
-            for (int i = 0; i < indexRoutingTable.size(); i++) {
-                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
-                int shardId = shardRoutingTable.shardId().id();
-                shards.put(shardId, new ClusterShardHealth(shardId, shardRoutingTable));
-            }
-        } else {
-            for (int shardId = 0; shardId < numberOfShards; shardId++) {
-                // Create a shard health representing completely unassigned shard
-                // All replicas for this shard are unassigned, including the primary
-                int replicasCount = numberOfReplicas + 1;
-                ClusterShardHealth clusterShardHealth = new ClusterShardHealth(
-                    shardId,
-                    ClusterHealthStatus.RED,
-                    0,
-                    0,
-                    0,
-                    replicasCount,
-                    1,
-                    false
-                );
-                shards.put(shardId, clusterShardHealth);
-            }
+        for (int i = 0; i < indexRoutingTable.size(); i++) {
+            IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
+            int shardId = shardRoutingTable.shardId().id();
+            shards.put(shardId, new ClusterShardHealth(shardId, shardRoutingTable));
         }
         assert shards.size() == numberOfShards : "expected " + numberOfShards + " shards but got " + shards.size();
 

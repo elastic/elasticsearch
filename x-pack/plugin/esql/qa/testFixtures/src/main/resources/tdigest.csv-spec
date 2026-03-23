@@ -14,6 +14,43 @@ FROM tdigest_standard_index
 
 // -------------------------------------------------------------------------------
 
+suffix cast to_tdigest from histogram
+required_capability: casting_operator_for_histogram_types
+
+FROM histogram_standard_index
+ | WHERE STARTS_WITH(instance, "hand-rolled")
+ | EVAL converted = responseTime::tdigest
+ | SORT instance
+ | KEEP responseTime, converted
+;
+
+responseTime:histogram                                         | converted:tdigest
+"{""values"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}" | "{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"
+"{""values"":[], ""counts"":[]}"                               | "{""centroids"":[], ""counts"":[]}"
+;
+
+// -------------------------------------------------------------------------------
+
+suffix cast to_tdigest from exponential histogram
+required_capability: casting_operator_for_histogram_types
+
+FROM exp_histo_sample
+ | WHERE instance == "dummy-full"
+ | STATS min = MIN(responseTime::tdigest),
+         max = MAX(responseTime::tdigest),
+         p10 = PERCENTILE(responseTime::tdigest, 10),
+         p50 = PERCENTILE(responseTime::tdigest, 50),
+         p90 = PERCENTILE(responseTime::tdigest, 90),
+         sum = SUM(responseTime::tdigest),
+         cnt = COUNT(responseTime::tdigest)
+;
+
+min:double | max:double | p10:double | p50:double | p90:double | sum:double | cnt:long
+-100.0     | 50.0       | -100..-90  | -30..-20   | 35..40     | -3775.0    | 151
+;
+
+// -------------------------------------------------------------------------------
+
 to_tdigest from exponential histogram
 required_capability: to_tdigest_from_exponential_histogram
 
@@ -33,6 +70,50 @@ min:double | max:double | p10:double | p50:double | p90:double | sum:double | cn
 ;
 
 // -------------------------------------------------------------------------------
+
+Union Type support in FROM
+required_capability: casting_operator_for_histogram_types
+
+FROM histogram_standard_index, tdigest_standard_index, exp_histo_sample
+ | EVAL instance = instance::keyword, converted = responseTime::tdigest
+ | WHERE STARTS_WITH(instance, "hand-rolled") OR instance == "dummy-full"
+ | STATS min = MIN(converted),
+         max = MAX(converted),
+         p50 = MEDIAN(converted),
+         p95 = PERCENTILE(converted,95),
+         sum = SUM(converted),
+         cnt = COUNT(converted)
+ | KEEP min, max, p50, p95, sum, cnt
+;
+
+min:double | max:double | p50:double | p95:double | sum:double | cnt:long
+-100.0     | 50.0       | 0.2..0.4   | 42..43     | -3742.2    | 253
+;
+
+// -------------------------------------------------------------------------------
+
+Union Type support in TS
+required_capability: casting_operator_for_histogram_types
+required_capability: ts_command_v0
+
+TS histogram_timeseries_index, tdigest_timeseries_index, exp_histo_sample
+ | EVAL converted = responseTime::tdigest
+ | WHERE STARTS_WITH(instance, "hand-rolled") OR instance == "dummy-full"
+ | STATS min = MIN(converted),
+         max = MAX(converted),
+         p50 = MEDIAN(converted),
+         p95 = PERCENTILE(converted,95),
+         sum = SUM(converted),
+         cnt = COUNT(converted)
+ | KEEP min, max, p50, p95, sum, cnt
+;
+
+min:double | max:double | p50:double | p95:double | sum:double | cnt:long
+-100.0     | 50.0       | 0.2..0.4   | 42..43     | -3742.2    | 253
+;
+
+// -------------------------------------------------------------------------------
+
 
 timeseries to_tdigest from exponential histogram
 required_capability: to_tdigest_from_exponential_histogram

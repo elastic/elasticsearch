@@ -15,7 +15,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -38,7 +37,7 @@ public class RerankTaskSettingsTests extends AbstractWireSerializingTestCase<Rer
             newSettingsMap.put(RerankTaskSettings.RETURN_DOCUMENTS, newSettings.returnDocuments());
         }
         RerankTaskSettings updatedSettings = (RerankTaskSettings) initialSettings.updatedTaskSettings(
-            Collections.unmodifiableMap(newSettingsMap)
+            newSettingsMap
         );
         if (newSettings.returnDocuments() == null) {
             assertEquals(initialSettings.returnDocuments(), updatedSettings.returnDocuments());

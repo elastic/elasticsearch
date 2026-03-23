@@ -41,7 +41,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
         AzureOpenAiSecretSettings initialSettings = createRandom();
         AzureOpenAiSecretSettings newSettings = new AzureOpenAiSecretSettings(randomSecureStringOfLength(15), null);
         AzureOpenAiSecretSettings finalSettings = (AzureOpenAiSecretSettings) initialSettings.newSecretSettings(
-            Map.of(API_KEY, newSettings.apiKey().toString())
+            new HashMap<>(Map.of(API_KEY, newSettings.apiKey().toString()))
         );
 
         assertEquals(newSettings, finalSettings);
@@ -51,7 +51,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
         AzureOpenAiSecretSettings initialSettings = createRandom();
         AzureOpenAiSecretSettings newSettings = new AzureOpenAiSecretSettings(null, randomSecureStringOfLength(15));
         AzureOpenAiSecretSettings finalSettings = (AzureOpenAiSecretSettings) initialSettings.newSecretSettings(
-            Map.of(ENTRA_ID, newSettings.entraId().toString())
+            new HashMap<>(Map.of(ENTRA_ID, newSettings.entraId().toString()))
         );
 
         assertEquals(newSettings, finalSettings);

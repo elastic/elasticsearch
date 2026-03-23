@@ -809,8 +809,7 @@ public final class IndexSettings {
     public static final Setting<SourceFieldMapper.Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(
         SourceFieldMapper.Mode.class,
         settings -> {
-            final IndexMode indexMode = IndexSettings.MODE.get(settings);
-            return indexMode.defaultSourceMode().name();
+            return SourceFieldMapper.Mode.STORED.name();
         },
         "index.mapping.source.mode",
         value -> {},

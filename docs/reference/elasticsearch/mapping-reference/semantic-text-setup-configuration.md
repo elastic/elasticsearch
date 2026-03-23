@@ -49,9 +49,9 @@ PUT my-index-000001
 
 The default {{infer}} endpoint varies by deployment type and version:
 
-- {applies_to}`serverless: ga` {applies_to}`stack: ga 9.4` On {{serverless-short}} and {{ecloud}} 9.4+, the `inference_id` parameter defaults to `.jina-embeddings-v5-text-small` and runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md).
+- {applies_to}`stack: ga 9.4` On {{ecloud}} 9.4+, the `inference_id` parameter defaults to `.jina-embeddings-v5-text-small` and runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md). `.jina-embeddings-v5-text-small` is expected to become the default model for Serverless soon.
 
-- {applies_to}`stack: ga 9.3` In version 9.3, the `inference_id` parameter defaults to `.elser-2-elastic` and runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis).
+- {applies_to}`stack: ga 9.3` {applies_to}`serverless: ga` In version 9.3 and on {{serverless-short}}, the `inference_id` parameter defaults to `.elser-2-elastic` and runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis).
 
 - {applies_to}`stack: ga 9.0-9.2` In versions 9.0-9.2, the `inference_id` parameter defaults to `.elser-2-elasticsearch` and runs on the `elasticsearch` service.
 

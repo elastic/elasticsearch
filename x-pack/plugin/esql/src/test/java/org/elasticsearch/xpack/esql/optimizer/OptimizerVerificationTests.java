@@ -494,9 +494,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     public void testEmbeddingFunctionInvalidQuery() {
         assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
 
-        var testAnalyzer = analyzer().addIndex("test", "mapping-default.json")
-            .addAnalysisTestsLookupResolutions()
-            .addAnalysisTestsInferenceResolution();
+        var testAnalyzer = analyzer().addIndex("test", "mapping-default.json").addAnalysisTestsInferenceResolution();
 
         var err = error(testAnalyzer.query("from test | EVAL embedding = EMBEDDING(last_name, ?)", EMBEDDING_INFERENCE_ID));
         assertThat(err, is("1:30: first argument for [EMBEDDING(last_name, ?)] must be a constant string"));
@@ -505,9 +503,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     public void testEmbeddingFunctionInvalidInferenceId() {
         assumeTrue("Embedding function must be enabled", EsqlCapabilities.Cap.EMBEDDING_FUNCTION.isEnabled());
 
-        var testAnalyzer = analyzer().addIndex("test", "mapping-default.json")
-            .addAnalysisTestsLookupResolutions()
-            .addAnalysisTestsInferenceResolution();
+        var testAnalyzer = analyzer().addIndex("test", "mapping-default.json").addAnalysisTestsInferenceResolution();
 
         var err = error(testAnalyzer.query("from test | EVAL embedding = EMBEDDING(\"query\", last_name)", EMBEDDING_INFERENCE_ID));
         assertThat(err, is("1:30: second argument for [EMBEDDING(\"query\", last_name)] must be a constant string"));

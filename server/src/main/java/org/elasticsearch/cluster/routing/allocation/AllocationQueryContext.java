@@ -15,30 +15,23 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-
-import java.util.function.Function;
 
 /**
  * A read-only view of the allocation infrastructure for a given context. An efficient way
  * to make multiple queries to the allocator.
+ * <p>
+ * TODO: Consider moving users of this into the allocation infrastructure itself
  */
 public class AllocationQueryContext {
 
     private final AllocationDeciders allocationDeciders;
     private final RoutingAllocation routingAllocation;
-    private final Function<ShardRouting, ShardAllocationDecision> explainShardAllocationFunction;
 
-    public AllocationQueryContext(
-        RoutingAllocation routingAllocation,
-        AllocationDeciders allocationDeciders,
-        ShardsAllocator shardAllocator
-    ) {
+    public AllocationQueryContext(RoutingAllocation routingAllocation, AllocationDeciders allocationDeciders) {
         this.allocationDeciders = allocationDeciders;
         this.routingAllocation = routingAllocation;
-        this.explainShardAllocationFunction = shardAllocator.explainShardAllocationFunction(routingAllocation);
     }
 
     public ClusterState state() {
@@ -75,16 +68,5 @@ public class AllocationQueryContext {
 
     public Metadata metadata() {
         return routingAllocation.metadata();
-    }
-
-    public ShardAllocationDecision explainShardAllocation(RoutingAllocation.DebugMode debugMode, ShardRouting shardRouting) {
-        assert debugMode == RoutingAllocation.DebugMode.ON || debugMode == RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS;
-        final var originalDebugMode = routingAllocation.getDebugMode();
-        routingAllocation.setDebugMode(debugMode);
-        try {
-            return explainShardAllocationFunction.apply(shardRouting);
-        } finally {
-            routingAllocation.setDebugMode(originalDebugMode);
-        }
     }
 }

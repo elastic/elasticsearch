@@ -25,13 +25,11 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
-import org.elasticsearch.cluster.routing.allocation.AllocationQueryContext;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasks;
@@ -52,6 +50,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus.NODE_ALLOCATION_DECISION_KEY;
@@ -261,22 +260,27 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             );
         }
 
-        // Get all shard explanations -- create the AllocationSimulation lazily
-        final LazyInitializable<AllocationQueryContext, RuntimeException> allocationSimulator = new LazyInitializable<>(
-            () -> allocationService.createAllocationQueryContext(currentState)
-        );
+        // Get all shard explanations -- create a function that lazily creates an allocationExplainFunction on demand
+        final Function<ShardRouting, ShardAllocationDecision> allocationExplainFunction = new Function<>() {
+            private Function<ShardRouting, ShardAllocationDecision> allocationExplainFunctionInternal = null;
+
+            @Override
+            public ShardAllocationDecision apply(ShardRouting shardRouting) {
+                if (this.allocationExplainFunctionInternal == null) {
+                    this.allocationExplainFunctionInternal = allocationService.explainAssignedShardAllocationFunction(
+                        currentState,
+                        RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS
+                    );
+                }
+                return this.allocationExplainFunctionInternal.apply(shardRouting);
+            }
+        };
 
         var unmovableShards = currentState.getRoutingNodes()
             .node(nodeId)
             .shardsWithState(ShardRoutingState.STARTED)
             .peek(s -> cancellableTask.ensureNotCancelled())
-            .map(
-                shardRouting -> new Tuple<>(
-                    shardRouting,
-                    allocationSimulator.getOrCompute()
-                        .explainShardAllocation(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS, shardRouting)
-                )
-            )
+            .map(shardRouting -> new Tuple<>(shardRouting, allocationExplainFunction.apply(shardRouting)))
             // Given that we're checking the status of a node that's shutting down, no shards should be allowed to remain
             .filter(pair -> {
                 assert pair.v2().getMoveDecision().cannotRemain()

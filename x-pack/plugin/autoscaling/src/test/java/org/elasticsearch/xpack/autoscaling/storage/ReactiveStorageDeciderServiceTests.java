@@ -36,9 +36,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
-import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -835,14 +833,8 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         MockAllocationQueryContext(ClusterState clusterState, AllocationDeciders allocationDeciders) {
             super(
                 TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(allocationDeciders).build(),
-                allocationDeciders,
-                mock(ShardsAllocator.class)
+                allocationDeciders
             );
-        }
-
-        @Override
-        public ShardAllocationDecision explainShardAllocation(RoutingAllocation.DebugMode debugMode, ShardRouting shardRouting) {
-            throw new UnsupportedOperationException("This won't work because we dont have a ShardsAllocator");
         }
     }
 }

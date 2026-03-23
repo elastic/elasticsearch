@@ -48,6 +48,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -762,7 +763,7 @@ public class AllocationService {
      */
     public AllocationQueryContext createAllocationQueryContext(ClusterState clusterState) {
         final RoutingAllocation allocation = createImmutableRoutingAllocation(clusterState, currentNanoTime());
-        return new AllocationQueryContext(allocation, allocationDeciders, shardsAllocator);
+        return new AllocationQueryContext(allocation, allocationDeciders);
     }
 
     private RoutingAllocation createImmutableRoutingAllocation(ClusterState clusterState, long currentNanoTime) {
@@ -820,6 +821,25 @@ public class AllocationService {
             return new ShardAllocationDecision(allocateDecision, MoveDecision.NOT_TAKEN);
         } else {
             return shardsAllocator.explainShardAllocation(shardRouting, allocation);
+        }
+    }
+
+    public Function<ShardRouting, ShardAllocationDecision> explainAssignedShardAllocationFunction(
+        ClusterState clusterState,
+        RoutingAllocation.DebugMode debugMode
+    ) {
+        assert debugMode == RoutingAllocation.DebugMode.ON || debugMode == RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS;
+        RoutingAllocation allocation = createImmutableRoutingAllocation(clusterState, System.nanoTime());
+        allocation.setDebugMode(debugMode);
+        assert allocation.debugDecision();
+        final Function<ShardRouting, ShardAllocationDecision> explainFunction = shardsAllocator.explainShardAllocationFunction(allocation);
+        if (Assertions.ENABLED) {
+            return shard -> {
+                assert shard.unassigned() == false;
+                return explainFunction.apply(shard);
+            };
+        } else {
+            return explainFunction;
         }
     }
 

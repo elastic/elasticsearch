@@ -62,10 +62,7 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_prometheus/api/v1/query_range"),
-            new Route(GET, "/_prometheus/{index}/api/v1/query_range")
-        );
+        return List.of(new Route(GET, "/_prometheus/api/v1/query_range"), new Route(GET, "/_prometheus/{index}/api/v1/query_range"));
     }
 
     @Override

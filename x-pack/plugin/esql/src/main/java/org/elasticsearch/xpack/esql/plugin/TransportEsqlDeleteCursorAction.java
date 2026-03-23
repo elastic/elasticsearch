@@ -92,14 +92,37 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
             if (waitForCompletion) {
                 cancelThenDelete(cursorId, deadlineMillis, listener);
             } else {
-                listener.onResponse(AcknowledgedResponse.TRUE);
-                threadPool.generic().execute(() -> cancelThenDelete(cursorId, deadlineMillis, ActionListener.wrap(v -> {}, e -> {
-                    logger.warn("background cursor cleanup failed for cursor [{}]", cursorId, e);
-                })));
+                checkExistsThenDelete(cursorId, deadlineMillis, listener);
             }
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * Checks that the cursor metadata exists (retrying if the index is still being created),
+     * responds immediately with 200, then runs cleanup in the background. Returns 404 if the
+     * cursor is not found after retries.
+     */
+    private void checkExistsThenDelete(String cursorId, long deadlineMillis, ActionListener<AcknowledgedResponse> listener) {
+        cursorIndexService.getMetadata(cursorId, ActionListener.wrap(metadata -> {
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            threadPool.generic().execute(() -> cancelThenDelete(cursorId, deadlineMillis, ActionListener.wrap(v -> {}, e -> {
+                logger.warn("background cursor cleanup failed for cursor [{}]", cursorId, e);
+            })));
+        }, e -> {
+            if ((e instanceof ResourceNotFoundException || isRetryable(e)) && threadPool.relativeTimeInMillis() < deadlineMillis) {
+                threadPool.schedule(
+                    () -> checkExistsThenDelete(cursorId, deadlineMillis, listener),
+                    METADATA_RETRY_DELAY,
+                    threadPool.generic()
+                );
+            } else if (e instanceof ResourceNotFoundException || isRetryable(e)) {
+                listener.onFailure(new ResourceNotFoundException("cursor not found or expired"));
+            } else {
+                listener.onFailure(e);
+            }
+        }));
     }
 
     /**
@@ -241,7 +264,13 @@ public class TransportEsqlDeleteCursorAction extends HandledTransportAction<Esql
     }
 
     private void deleteWithRetry(String cursorId, int attempt, ActionListener<AcknowledgedResponse> listener) {
-        cursorIndexService.delete(cursorId, ActionListener.wrap(deleted -> listener.onResponse(AcknowledgedResponse.of(deleted)), e -> {
+        cursorIndexService.delete(cursorId, ActionListener.wrap(deleted -> {
+            if (deleted) {
+                listener.onResponse(AcknowledgedResponse.TRUE);
+            } else {
+                listener.onFailure(new ResourceNotFoundException("cursor not found or expired"));
+            }
+        }, e -> {
             if (isRetryable(e) && attempt < MAX_DELETE_RETRIES) {
                 logger.debug("cursor index not yet available for delete of [{}], retrying (attempt [{}])", cursorId, attempt + 1);
                 threadPool.schedule(() -> deleteWithRetry(cursorId, attempt + 1, listener), DELETE_RETRY_DELAY, threadPool.generic());

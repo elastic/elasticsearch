@@ -1,0 +1,925 @@
+---
+setup:
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
+      reason: "ESQL is available in 8.11+"
+  - do:
+      indices.create:
+        index: async_pagination_test
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              value:
+                type: long
+              name:
+                type: keyword
+  - do:
+      bulk:
+        index: async_pagination_test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "value": 1, "name": "a" }
+          - { "index": { } }
+          - { "value": 2, "name": "b" }
+          - { "index": { } }
+          - { "value": 3, "name": "c" }
+          - { "index": { } }
+          - { "value": 4, "name": "d" }
+          - { "index": { } }
+          - { "value": 5, "name": "e" }
+  - do:
+      indices.create:
+        index: async_pagination_test_many
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              value:
+                type: long
+              name:
+                type: keyword
+  - do:
+      bulk:
+        index: async_pagination_test_many
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "value": 1, "name": "a" }
+          - { "index": { } }
+          - { "value": 2, "name": "b" }
+          - { "index": { } }
+          - { "value": 3, "name": "c" }
+          - { "index": { } }
+          - { "value": 4, "name": "d" }
+          - { "index": { } }
+          - { "value": 5, "name": "e" }
+          - { "index": { } }
+          - { "value": 6, "name": "f" }
+          - { "index": { } }
+          - { "value": 7, "name": "g" }
+          - { "index": { } }
+          - { "value": 8, "name": "h" }
+          - { "index": { } }
+          - { "value": 9, "name": "i" }
+          - { "index": { } }
+          - { "value": 10, "name": "j" }
+          - { "index": { } }
+          - { "value": 11, "name": "k" }
+          - { "index": { } }
+          - { "value": 12, "name": "l" }
+          - { "index": { } }
+          - { "value": 13, "name": "m" }
+          - { "index": { } }
+          - { "value": 14, "name": "n" }
+          - { "index": { } }
+          - { "value": 15, "name": "o" }
+          - { "index": { } }
+          - { "value": 16, "name": "p" }
+          - { "index": { } }
+          - { "value": 17, "name": "q" }
+          - { "index": { } }
+          - { "value": 18, "name": "r" }
+          - { "index": { } }
+          - { "value": 19, "name": "s" }
+          - { "index": { } }
+          - { "value": 20, "name": "t" }
+          - { "index": { } }
+          - { "value": 21, "name": "u" }
+          - { "index": { } }
+          - { "value": 22, "name": "v" }
+          - { "index": { } }
+          - { "value": 23, "name": "w" }
+          - { "index": { } }
+          - { "value": 24, "name": "x" }
+          - { "index": { } }
+          - { "value": 25, "name": "y" }
+
+---
+"Async paginated query returns cursor and first page":
+  - do:
+      esql.async_query:
+        body:
+          query: 'from async_pagination_test | sort value | limit 5'
+          page_size: 2
+          wait_for_completion_timeout: "30s"
+          keep_on_completion: true
+
+  - set: { id: async_id }
+
+  - do:
+      esql.async_query_get:
+        id: $async_id
+        wait_for_completion_timeout: "30s"
+
+  - length: {columns: 2}
+  - length: {values: 2}
+  - match: {values.0.1: 1}
+  - match: {values.1.1: 2}
+  - is_true: cursor
+  - set: { cursor: cursor_token }
+
+  - do:
+      esql.delete_cursor:
+        cursor: $cursor_token
+
+  - do:
+      esql.async_query_delete:
+        id: $async_id
+
+---
+"Fetch second page via cursor from async query":
+  - do:
+      esql.async_query:
+        body:
+          query: 'from async_pagination_test | sort value | limit 5'
+          page_size: 2
+          wait_for_completion_timeout: "30s"
+          keep_on_completion: true
+
+  - set: { id: async_id }
+
+  - do:
+      esql.async_query_get:
+        id: $async_id
+        wait_for_completion_timeout: "30s"
+
+  - set: { cursor: cursor_token }
+  - length: {values: 2}
+  - match: {values.0.1: 1}
+  - match: {values.1.1: 2}
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $cursor_token
+
+  - length: {values: 2}
+  - match: {values.0.1: 3}
+  - match: {values.1.1: 4}
+  - is_true: cursor
+  - set: { cursor: cursor_token2 }
+
+  - do:
+      esql.delete_cursor:
+        cursor: $cursor_token2
+
+  - do:
+      esql.async_query_delete:
+        id: $async_id
+
+---
+"Last page returns final row via async":
+  - do:
+      esql.async_query:
+        body:
+          query: 'from async_pagination_test | sort value | limit 5'
+          page_size: 2
+          wait_for_completion_timeout: "30s"
+          keep_on_completion: true
+
+  - set: { id: async_id }
+
+  - do:
+      esql.async_query_get:
+        id: $async_id
+        wait_for_completion_timeout: "30s"
+
+  - set: { cursor: c1 }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c1
+
+  - set: { cursor: c2 }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c2
+
+  - length: {values: 1}
+  - match: {values.0.1: 5}
+
+  - do:
+      esql.delete_cursor:
+        cursor: $c1
+
+  - do:
+      esql.async_query_delete:
+        id: $async_id
+
+---
+"Results fit in one page still returns cursor via async":
+  - do:
+      esql.async_query:
+        body:
+          query: 'from async_pagination_test | sort value | limit 5'
+          page_size: 10
+          wait_for_completion_timeout: "30s"
+          keep_on_completion: true
+
+  - set: { id: async_id }
+
+  - do:
+      esql.async_query_get:
+        id: $async_id
+        wait_for_completion_timeout: "30s"
+
+  - length: {values: 5}
+  - is_true: cursor
+  - set: { cursor: c }
+
+  # Second page should be empty (no more data)
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+
+  - length: {values: 0}
+  - is_false: cursor
+
+  - do:
+      esql.delete_cursor:
+        cursor: $c
+
+  - do:
+      esql.async_query_delete:
+        id: $async_id
+
+---
+"Re-fetch a previous page using an earlier cursor via async":
+  - do:
+      esql.async_query:
+        body:
+          query: 'from async_pagination_test | sort value | limit 5'
+          page_size: 2
+          wait_for_completion_timeout: "30s"
+          keep_on_completion: true
+
+  - set: { id: async_id }
+
+  - do:
+      esql.async_query_get:
+        id: $async_id
+        wait_for_completion_timeout: "30s"
+
+  - set: { cursor: c1 }
+  - length: {values: 2}
+  - match: {values.0.1: 1}
+  - match: {values.1.1: 2}
+
+  # Fetch page 2
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c1
+
+  - set: { cursor: c2 }
+  - length: {values: 2}
+  - match: {values.0.1: 3}
+  - match: {values.1.1: 4}
+
+  # Fetch page 3
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c2
+
+  - length: {values: 1}
+  - match: {values.0.1: 5}
+
+  # Re-fetch page 2 using the earlier cursor c1
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c1
+
+  - length: {values: 2}
+  - match: {values.0.1: 3}
+  - match: {values.1.1: 4}
+  - is_true: cursor
+
+  - do:
+      esql.delete_cursor:
+        cursor: $c1
+
+  - do:
+      esql.async_query_delete:
+        id: $async_id
+
+---
+"More than 10 pages - cursor stores batches correctly via async":
+  - do:
+      esql.async_query:
+        body:
+          query: 'from async_pagination_test_many | sort value | limit 25'
+          page_size: 2
+          wait_for_completion_timeout: "30s"
+          keep_on_completion: true
+
+  - set: { id: async_id }
+
+  - do:
+      esql.async_query_get:
+        id: $async_id
+        wait_for_completion_timeout: "30s"
+
+  # 25 rows, page_size 2 -> 13 pages. First response has page 1.
+  - length: {values: 2}
+  - match: {values.0.1: 1}
+  - match: {values.1.1: 2}
+  - is_true: cursor
+  - set: { cursor: c }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 2}
+  - match: {values.0.1: 3}
+  - match: {values.1.1: 4}
+  - set: { cursor: c }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 2}
+  - match: {values.0.1: 5}
+  - match: {values.1.1: 6}
+  - set: { cursor: c }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 2}
+  - match: {values.0.1: 7}
+  - match: {values.1.1: 8}
+  - set: { cursor: c }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 2}
+  - match: {values.0.1: 9}
+  - match: {values.1.1: 10}
+  - set: { cursor: c }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 2}
+  - match: {values.0.1: 11}
+  - match: {values.1.1: 12}
+  - set: { cursor: c }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 2}
+  - match: {values.0.1: 13}
+  - match: {values.1.1: 14}
+  - set: { cursor: c }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 2}
+  - match: {values.0.1: 15}
+  - match: {values.1.1: 16}
+  - set: { cursor: c }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 2}
+  - match: {values.0.1: 17}
+  - match: {values.1.1: 18}
+  - set: { cursor: c }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 2}
+  - match: {values.0.1: 19}
+  - match: {values.1.1: 20}
+  - set: { cursor: c }
+
+  # Page 11 - past PAGES_PER_BULK (10)
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 2}
+  - match: {values.0.1: 21}
+  - match: {values.1.1: 22}
+  - set: { cursor: c }
+
+  # Page 12
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 2}
+  - match: {values.0.1: 23}
+  - match: {values.1.1: 24}
+  - set: { cursor: c }
+
+  # Last page (13)
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 1}
+  - match: {values.0.1: 25}
+
+  - do:
+      esql.delete_cursor:
+        cursor: $c
+
+  - do:
+      esql.async_query_delete:
+        id: $async_id
+
+---
+"Delete cursor releases resources via async":
+  - do:
+      esql.async_query:
+        body:
+          query: 'from async_pagination_test | sort value | limit 5'
+          page_size: 2
+          wait_for_completion_timeout: "30s"
+          keep_on_completion: true
+
+  - set: { id: async_id }
+
+  - do:
+      esql.async_query_get:
+        id: $async_id
+        wait_for_completion_timeout: "30s"
+
+  - set: { cursor: cursor_token }
+  - is_true: cursor
+
+  - do:
+      esql.delete_cursor:
+        cursor: $cursor_token
+
+  - match: { acknowledged: true }
+
+  - do:
+      esql.async_query_delete:
+        id: $async_id
+
+---
+"Fetch with a deleted cursor returns 404 via async":
+  - do:
+      esql.async_query:
+        body:
+          query: 'from async_pagination_test | sort value | limit 5'
+          page_size: 2
+          wait_for_completion_timeout: "30s"
+          keep_on_completion: true
+
+  - set: { id: async_id }
+
+  - do:
+      esql.async_query_get:
+        id: $async_id
+        wait_for_completion_timeout: "30s"
+
+  - set: { cursor: c }
+
+  - do:
+      esql.delete_cursor:
+        cursor: $c
+        wait_for_completion: true
+
+  - do:
+      catch: missing
+      esql.cursor:
+        body:
+          cursor: $c
+  - match: { error.type: "resource_not_found_exception" }
+  - match: { error.reason: "cursor not found or expired" }
+
+  - do:
+      esql.async_query_delete:
+        id: $async_id
+
+---
+"Async query without page_size returns no cursor":
+  - do:
+      esql.async_query:
+        body:
+          query: 'from async_pagination_test | sort value | limit 5'
+          wait_for_completion_timeout: "30s"
+          keep_on_completion: true
+
+  - set: { id: async_id }
+
+  - do:
+      esql.async_query_get:
+        id: $async_id
+        wait_for_completion_timeout: "30s"
+
+  - is_false: cursor
+  - length: {values: 5}
+
+  - do:
+      esql.async_query_delete:
+        id: $async_id
+
+---
+"Async page_size of zero is rejected":
+  - do:
+      catch: bad_request
+      esql.async_query:
+        body:
+          query: 'from async_pagination_test | sort value | limit 5'
+          page_size: 0
+          wait_for_completion_timeout: "30s"
+          keep_on_completion: true
+  - match: { error.type: "action_request_validation_exception" }
+  - match: { error.reason: "Validation Failed: 1: [page_size] must be greater than 0;" }
+
+---
+"Async negative page_size is rejected":
+  - do:
+      catch: bad_request
+      esql.async_query:
+        body:
+          query: 'from async_pagination_test | sort value | limit 5'
+          page_size: -1
+          wait_for_completion_timeout: "30s"
+          keep_on_completion: true
+  - match: { error.type: "action_request_validation_exception" }
+  - match: { error.reason: "Validation Failed: 1: [page_size] must be greater than 0;" }
+
+---
+"Async page_size of 1 returns single row per page":
+  - do:
+      esql.async_query:
+        body:
+          query: 'from async_pagination_test | sort value | limit 5'
+          page_size: 1
+          wait_for_completion_timeout: "30s"
+          keep_on_completion: true
+
+  - set: { id: async_id }
+
+  - do:
+      esql.async_query_get:
+        id: $async_id
+        wait_for_completion_timeout: "30s"
+
+  - length: {values: 1}
+  - match: {values.0.1: 1}
+  - is_true: cursor
+  - set: { cursor: c }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 1}
+  - match: {values.0.1: 2}
+  - set: { cursor: c }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 1}
+  - match: {values.0.1: 3}
+  - set: { cursor: c }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 1}
+  - match: {values.0.1: 4}
+  - set: { cursor: c }
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+  - length: {values: 1}
+  - match: {values.0.1: 5}
+
+  - do:
+      esql.delete_cursor:
+        cursor: $c
+
+  - do:
+      esql.async_query_delete:
+        id: $async_id
+
+---
+"Empty result set with pagination via async":
+  - do:
+      esql.async_query:
+        body:
+          query: 'from async_pagination_test | where value > 9999 | sort value | limit 5'
+          page_size: 2
+          wait_for_completion_timeout: "30s"
+          keep_on_completion: true
+
+  - set: { id: async_id }
+
+  - do:
+      esql.async_query_get:
+        id: $async_id
+        wait_for_completion_timeout: "30s"
+
+  - length: {values: 0}
+
+  - do:
+      esql.async_query_delete:
+        id: $async_id
+
+---
+"Delete cursor with wait_for_completion via async":
+  - do:
+      esql.async_query:
+        body:
+          query: 'from async_pagination_test | sort value | limit 5'
+          page_size: 2
+          wait_for_completion_timeout: "30s"
+          keep_on_completion: true
+
+  - set: { id: async_id }
+
+  - do:
+      esql.async_query_get:
+        id: $async_id
+        wait_for_completion_timeout: "30s"
+
+  - set: { cursor: c }
+  - is_true: cursor
+
+  - do:
+      esql.delete_cursor:
+        cursor: $c
+        wait_for_completion: true
+
+  - match: { acknowledged: true }
+
+  - do:
+      esql.async_query_delete:
+        id: $async_id
+
+---
+"Cursor fetch with keep_alive via async":
+  - do:
+      esql.async_query:
+        body:
+          query: 'from async_pagination_test | sort value | limit 5'
+          page_size: 2
+          wait_for_completion_timeout: "30s"
+          keep_on_completion: true
+
+  - set: { id: async_id }
+
+  - do:
+      esql.async_query_get:
+        id: $async_id
+        wait_for_completion_timeout: "30s"
+
+  - set: { cursor: c }
+  - length: {values: 2}
+  - match: {values.0.1: 1}
+  - match: {values.1.1: 2}
+
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c
+          keep_alive: "10m"
+
+  - length: {values: 2}
+  - match: {values.0.1: 3}
+  - match: {values.1.1: 4}
+  - is_true: cursor
+  - set: { cursor: c2 }
+
+  - do:
+      esql.delete_cursor:
+        cursor: $c2
+
+  - do:
+      esql.async_query_delete:
+        id: $async_id
+
+---
+"Delete a non-existent cursor returns 404 via async":
+  - do:
+      catch: missing
+      esql.delete_cursor:
+        cursor: "AAAADmRvZXNfbm90X2V4aXN0AAAAAA"
+  - match: { error.type: "resource_not_found_exception" }
+  - match: { error.reason: "cursor not found or expired" }
+
+---
+"Delete an already-deleted cursor returns 404 via async":
+  - do:
+      esql.async_query:
+        body:
+          query: 'from async_pagination_test | sort value | limit 5'
+          page_size: 2
+          wait_for_completion_timeout: "30s"
+          keep_on_completion: true
+
+  - set: { id: async_id }
+
+  - do:
+      esql.async_query_get:
+        id: $async_id
+        wait_for_completion_timeout: "30s"
+
+  - set: { cursor: c }
+
+  - do:
+      esql.delete_cursor:
+        cursor: $c
+        wait_for_completion: true
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      esql.delete_cursor:
+        cursor: $c
+  - match: { error.type: "resource_not_found_exception" }
+  - match: { error.reason: "cursor not found or expired" }
+
+  - do:
+      esql.async_query_delete:
+        id: $async_id
+
+---
+"Fetch with a malformed cursor token returns 400 via async":
+  - do:
+      catch: bad_request
+      esql.cursor:
+        body:
+          cursor: "not_a_valid_cursor!!!"
+  - match: { error.type: "illegal_argument_exception" }
+
+---
+"Async delete cleans up cursor documents":
+  - do:
+      esql.async_query:
+        body:
+          query: 'from async_pagination_test | sort value | limit 5'
+          page_size: 2
+          wait_for_completion_timeout: "30s"
+          keep_on_completion: true
+
+  - set: { id: async_id }
+
+  - do:
+      esql.async_query_get:
+        id: $async_id
+        wait_for_completion_timeout: "30s"
+
+  - is_true: cursor
+  - set: { cursor: cursor_token }
+
+  # Delete the async result — this should also clean up cursor documents
+  - do:
+      esql.async_query_delete:
+        id: $async_id
+
+  # Fetching via cursor should now fail because cursor docs were cleaned up
+  - do:
+      catch: missing
+      esql.cursor:
+        body:
+          cursor: $cursor_token
+  - match: { error.type: "resource_not_found_exception" }
+  - match: { error.reason: "cursor not found or expired" }
+
+---
+"Async delete removes cursor metadata and pages":
+  - do:
+      esql.async_query:
+        body:
+          query: 'from async_pagination_test | sort value | limit 5'
+          page_size: 2
+          wait_for_completion_timeout: "30s"
+          keep_on_completion: true
+
+  - set: { id: async_id }
+
+  - do:
+      esql.async_query_get:
+        id: $async_id
+        wait_for_completion_timeout: "30s"
+
+  - is_true: cursor
+  - set: { cursor: c1 }
+
+  # First verify cursor works before delete
+  - do:
+      esql.cursor:
+        body:
+          cursor: $c1
+
+  - length: {values: 2}
+  - match: {values.0.1: 3}
+  - match: {values.1.1: 4}
+
+  # Now delete the async result
+  - do:
+      esql.async_query_delete:
+        id: $async_id
+
+  # Cursor should no longer work — metadata was cleaned up
+  - do:
+      catch: missing
+      esql.cursor:
+        body:
+          cursor: $c1
+  - match: { error.type: "resource_not_found_exception" }
+  - match: { error.reason: "cursor not found or expired" }
+
+---
+"Delete cursor first then async delete is safe":
+  - do:
+      esql.async_query:
+        body:
+          query: 'from async_pagination_test | sort value | limit 5'
+          page_size: 2
+          wait_for_completion_timeout: "30s"
+          keep_on_completion: true
+
+  - set: { id: async_id }
+
+  - do:
+      esql.async_query_get:
+        id: $async_id
+        wait_for_completion_timeout: "30s"
+
+  - is_true: cursor
+  - set: { cursor: c }
+
+  # Delete cursor first
+  - do:
+      esql.delete_cursor:
+        cursor: $c
+        wait_for_completion: true
+
+  - match: { acknowledged: true }
+
+  # Then delete async result — should still succeed even though cursor docs are already gone
+  - do:
+      esql.async_query_delete:
+        id: $async_id
+
+---
+"Async delete then cursor delete returns 404":
+  - do:
+      esql.async_query:
+        body:
+          query: 'from async_pagination_test | sort value | limit 5'
+          page_size: 2
+          wait_for_completion_timeout: "30s"
+          keep_on_completion: true
+
+  - set: { id: async_id }
+
+  - do:
+      esql.async_query_get:
+        id: $async_id
+        wait_for_completion_timeout: "30s"
+
+  - is_true: cursor
+  - set: { cursor: c }
+
+  # Delete async result first — should clean up cursor docs too
+  - do:
+      esql.async_query_delete:
+        id: $async_id
+
+  # Deleting cursor should return 404 since async delete already cleaned up
+  - do:
+      catch: missing
+      esql.delete_cursor:
+        cursor: $c
+  - match: { error.type: "resource_not_found_exception" }
+  - match: { error.reason: "cursor not found or expired" }

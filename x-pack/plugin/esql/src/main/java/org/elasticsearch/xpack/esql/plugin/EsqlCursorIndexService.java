@@ -551,7 +551,7 @@ public class EsqlCursorIndexService {
             DeleteByQueryRequest dbq = new DeleteByQueryRequest(CURSOR_INDEX).setQuery(QueryBuilders.termQuery(CURSOR_ID_FIELD, cursorId));
             clientWithOrigin.execute(DeleteByQueryAction.INSTANCE, dbq, l.delegateFailureAndWrap((l2, resp) -> {
                 logger.info("delete cursor [{}]: delete-by-query done, deleted=[{}]", cursorId, resp.getDeleted());
-                l2.onResponse(true);
+                l2.onResponse(resp.getDeleted() > 0);
             }));
         }));
     }

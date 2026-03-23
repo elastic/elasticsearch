@@ -429,15 +429,16 @@ setup:
           cursor: "AAAADmRvZXNfbm90X2V4aXN0AAAAAA"
 
 ---
-"Delete a non-existent cursor succeeds":
+"Delete a non-existent cursor returns 404":
   - do:
+      catch: missing
       esql.delete_cursor:
         cursor: "AAAADmRvZXNfbm90X2V4aXN0AAAAAA"
-
-  - match: { acknowledged: true }
+  - match: { error.type: "resource_not_found_exception" }
+  - match: { error.reason: "cursor not found or expired" }
 
 ---
-"Delete an already-deleted cursor is idempotent":
+"Delete an already-deleted cursor returns 404":
   - do:
       esql.query:
         body:
@@ -449,14 +450,16 @@ setup:
   - do:
       esql.delete_cursor:
         cursor: $c
+        wait_for_completion: true
 
   - match: { acknowledged: true }
 
   - do:
+      catch: missing
       esql.delete_cursor:
         cursor: $c
-
-  - match: { acknowledged: true }
+  - match: { error.type: "resource_not_found_exception" }
+  - match: { error.reason: "cursor not found or expired" }
 
 ---
 "Fetch with a malformed cursor token returns 400":

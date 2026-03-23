@@ -30,9 +30,7 @@ public class AmazonBedrockChatCompletionServiceSettings extends AmazonBedrockSer
 
         var baseSettings = AmazonBedrockServiceSettings.fromMap(serviceSettings, validationException, context);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AmazonBedrockChatCompletionServiceSettings(
             baseSettings.region(),

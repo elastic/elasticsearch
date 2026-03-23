@@ -55,9 +55,7 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
             context
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AnthropicChatCompletionServiceSettings(modelId, rateLimitSettings);
     }

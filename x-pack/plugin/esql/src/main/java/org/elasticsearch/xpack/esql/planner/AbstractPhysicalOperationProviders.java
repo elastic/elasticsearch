@@ -332,7 +332,11 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     // apply the grouping window in the final phase
                     if (mode.isOutputPartial() == false && aggregateFunction.hasWindow()) {
                         Duration windowInterval = (Duration) aggregateFunction.window().fold(foldContext);
-                        aggSupplier = new WindowAggregatorFunctionSupplier(aggSupplier, windowInterval);
+                        Duration outputBucketDuration = Duration.ZERO;
+                        if (aggregateExec instanceof TimeSeriesAggregateExec ts && ts.outputTimeBucket() != null) {
+                            outputBucketDuration = (Duration) ts.outputTimeBucket().buckets().fold(foldContext);
+                        }
+                        aggSupplier = new WindowAggregatorFunctionSupplier(aggSupplier, windowInterval, outputBucketDuration);
                     }
                     consumer.accept(new AggFunctionSupplierContext(aggSupplier, inputChannels, mode));
                 }

@@ -61,6 +61,19 @@ public abstract class TimeSeriesGroupingAggregatorEvaluationContext extends Grou
      */
     public abstract List<Integer> groupIdsFromWindow(int startingGroupId, Duration window);
 
+    /**
+     * Returns the group IDs of preceding groups that belong to the window ending at the {@code endingGroupId}.
+     * The time ranges of returned group IDs are within the interval
+     * {@code [rangeEndInMillis(endingGroupId) - window.toMillis(), rangeEndInMillis(endingGroupId))}.
+     * This is used for small windows (smaller than the output bucket) where the "last N minutes"
+     * of data within the output bucket must be aggregated.
+     *
+     * @param endingGroupId the ending group ID (the output-aligned group)
+     * @param window        the window duration
+     * @return a list of group IDs within the backward window
+     */
+    public abstract List<Integer> groupIdsFromWindowBackward(int endingGroupId, Duration window);
+
     public abstract int previousGroupId(int currentGroupId);
 
     public abstract int nextGroupId(int currentGroupId);

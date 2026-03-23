@@ -31,6 +31,11 @@ public class ApplyWindowFilter extends OptimizerRules.ParameterizedOptimizerRule
 
     @Override
     protected LogicalPlan rule(TimeSeriesAggregate aggregate, LogicalOptimizerContext context) {
+        // When sub-bucketing is active (timeBucket differs from outputTimeBucket), small windows
+        // are handled by backward merging in WindowGroupingAggregatorFunction, so WindowFilter is not needed.
+        if (isSubBucketingActive(aggregate)) {
+            return aggregate;
+        }
         List<NamedExpression> aggs = new ArrayList<>();
         boolean modified = false;
         for (var agg : aggregate.aggregates()) {
@@ -57,6 +62,12 @@ public class ApplyWindowFilter extends OptimizerRules.ParameterizedOptimizerRule
             aggs.add(agg);
         }
         return modified ? aggregate.with(aggregate.child(), aggregate.groupings(), aggs) : aggregate;
+    }
+
+    private static boolean isSubBucketingActive(TimeSeriesAggregate aggregate) {
+        return aggregate.outputTimeBucket() != null
+            && aggregate.timeBucket() != null
+            && aggregate.outputTimeBucket().equals(aggregate.timeBucket()) == false;
     }
 
     private static AggregateFunction replaceWindowWithFilter(AggregateFunction af, Bucket bucket, Expression timestamp) {

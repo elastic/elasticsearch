@@ -461,6 +461,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             pragma.put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(), between(10, 1000))
                 .put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey(), randomDoubleBetween(0.1, 1.0, true));
         }
+        if (enableRoundingDoubleValuesOnAsserting()
+            && hasCapabilities(client(), List.of("auto_partition_docs_threshold"))
+            && randomBoolean()) {
+            pragma.put(PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.getKey(), between(1, 1000));
+        }
         if (randomBoolean() && hasCapabilities(client(), List.of("fork_no_implicit_limit"))) {
             pragma.put("fork_implicit_limit", false);
         }

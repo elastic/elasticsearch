@@ -514,8 +514,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
     }
 
     public void testHasConfidenceIntervalDifference() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(
-            mapping(b -> b.startObject("field").field("type", "keyword").endObject()));
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> b.startObject("field").field("type", "keyword").endObject()));
 
         // Test with confidence_interval:0.0 in one source but not the other
         String sourceWithConfidenceInterval = "{\"_doc\":{\"properties\":{\"vector\":{\"type\":\"dense_vector\",\"dims\":4,"

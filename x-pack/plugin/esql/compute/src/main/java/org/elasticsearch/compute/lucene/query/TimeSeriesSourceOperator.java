@@ -31,6 +31,7 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
         public Factory(
             IndexedByShardId<? extends ShardContext> contexts,
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
+            int docThresholdForAutoStrategy,
             int taskConcurrency,
             int maxPageSize,
             int limit
@@ -40,6 +41,7 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
                 queryFunction,
                 DataPartitioning.SHARD,
                 query -> { throw new UnsupportedOperationException("locked to SHARD partitioning"); },
+                docThresholdForAutoStrategy,
                 taskConcurrency,
                 maxPageSize,
                 limit,

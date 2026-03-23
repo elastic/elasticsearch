@@ -14,3 +14,274 @@ emp_no:integer
 10004
 10005
 ;
+
+//
+// LIMIT BY
+//
+
+limitBy
+required_capability: esql_limit_by
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10005, 10006)
+| SORT emp_no
+| LIMIT 1000
+| LIMIT 5 BY languages
+| KEEP emp_no, first_name, languages
+;
+
+emp_no:integer | first_name:keyword | languages:integer
+10001          | Georgi             | 2
+10002          | Bezalel            | 5
+10003          | Parto              | 4
+10005          | Kyoichi            | 1
+10006          | Anneke             | 3
+;
+
+limitByLimit0
+required_capability: esql_limit_by
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003)
+| SORT emp_no
+| LIMIT 1000
+| LIMIT 0 BY languages
+| KEEP emp_no, languages
+;
+
+emp_no:integer | languages:integer
+;
+
+limitByMultipleColumns
+required_capability: esql_limit_by
+
+FROM employees
+| WHERE emp_no IN (10001, 10003, 10004, 10007)
+| SORT emp_no
+| LIMIT 1000
+| LIMIT 5 BY languages, gender
+| KEEP emp_no, first_name, languages, gender
+;
+
+emp_no:integer | first_name:keyword | languages:integer | gender:keyword
+10001          | Georgi             | 2                 | M
+10003          | Parto              | 4                 | M
+10004          | Chirstian          | 5                 | M
+10007          | Tzvetan            | 4                 | F
+;
+
+limitByWithExpression
+required_capability: esql_limit_by
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
+| SORT emp_no
+| LIMIT 1000
+| LIMIT 5 BY languages * 2
+| KEEP emp_no, first_name, languages
+;
+
+emp_no:integer | first_name:keyword | languages:integer
+10001          | Georgi             | 2
+10002          | Bezalel            | 5
+10003          | Parto              | 4
+10004          | Chirstian          | 5
+10005          | Kyoichi            | 1
+;
+
+limitByMultivalueGroupKey
+required_capability: esql_limit_by
+
+FROM employees
+| WHERE emp_no IN (10001, 10008)
+| SORT emp_no
+| LIMIT 1000
+| LIMIT 5 BY job_positions
+| KEEP emp_no, first_name, job_positions
+;
+
+emp_no:integer | first_name:keyword | job_positions:keyword
+10001          | Georgi             | [Accountant, Senior Python Developer]
+10008          | Saniya             | [Internship, Junior Developer, Purchase Manager, Senior Python Developer]
+;
+
+limitByNullGroup
+required_capability: esql_limit_by
+
+FROM employees
+| WHERE emp_no IN (10001, 10020)
+| SORT emp_no
+| LIMIT 1000
+| LIMIT 5 BY languages
+| KEEP emp_no, first_name, languages
+;
+
+emp_no:integer | first_name:keyword | languages:integer
+10001          | Georgi             | 2
+10020          | Mayuko             | null
+;
+
+limitByConstant
+required_capability: esql_limit_by
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10005, 10006)
+| SORT emp_no
+| LIMIT 1000
+| LIMIT 2 BY 5*42
+| KEEP emp_no, first_name, languages
+;
+
+emp_no:integer | first_name:keyword | languages:integer
+10001          | Georgi             | 2
+10002          | Bezalel            | 5
+;
+
+limitByWithExpressionAndConstant
+required_capability: esql_limit_by
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
+| SORT emp_no
+| LIMIT 1000
+| LIMIT 5 BY languages * 2, 20 - 5 * 2
+| KEEP emp_no, first_name, languages
+;
+
+emp_no:integer | first_name:keyword | languages:integer
+10001          | Georgi             | 2
+10002          | Bezalel            | 5
+10003          | Parto              | 4
+10004          | Chirstian          | 5
+10005          | Kyoichi            | 1
+;
+
+limitByWithAlias
+required_capability: esql_limit_by
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
+| SORT emp_no
+| LIMIT 1000
+| EVAL g = languages * 2
+| LIMIT 5 BY g
+| KEEP emp_no, first_name, languages
+;
+
+emp_no:integer | first_name:keyword | languages:integer
+10001          | Georgi             | 2
+10002          | Bezalel            | 5
+10003          | Parto              | 4
+10004          | Chirstian          | 5
+10005          | Kyoichi            | 1
+;
+
+limitByThenStats
+required_capability: esql_limit_by
+
+FROM employees
+| LIMIT 2 BY languages
+| STATS c = COUNT(*) BY languages
+| SORT languages ASC NULLS LAST
+;
+
+c:long | languages:integer
+2      | 1
+2      | 2
+2      | 3
+2      | 4
+2      | 5
+2      | null
+;
+
+limitByPrecededByStats
+required_capability: esql_limit_by
+
+FROM employees
+| STATS cnt=COUNT(*) BY job_positions, languages
+| SORT job_positions, cnt DESC, languages
+| LIMIT 1000
+| LIMIT 1 BY job_positions
+| LIMIT 5
+;
+
+cnt:long | job_positions:keyword | languages:integer
+5        | Accountant            | 2
+5        | Architect             | 4
+4        | Business Analyst      | 2
+3        | Data Scientist        | 1
+5        | Head Human Resources  | 5
+;
+
+limitByWithLookupJoin
+required_capability: esql_limit_by
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| SORT emp_no, language_code, language_name
+| LIMIT 1000
+| LIMIT 2 BY emp_no
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | German
+10001          | 2                     | German
+10002          | 5                     | null
+10003          | 4                     | Quenya
+10004          | 5                     | null
+10005          | 1                     | English
+10005          | 1                     | English
+;
+
+limitByShadowedNonJoinField
+required_capability: esql_limit_by
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
+| EVAL language_code = languages
+| EVAL language_name = 2*salary
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| SORT emp_no, language_code, language_name
+| LIMIT 1000
+| LIMIT 2 BY language_name
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | German
+10001          | 2                     | German
+10002          | 5                     | null
+10003          | 4                     | Quenya
+10004          | 5                     | null
+10005          | 1                     | English
+10005          | 1                     | English
+;
+
+limitByShadowedJoinField
+required_capability: esql_limit_by
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no IN (10001, 10002, 10003, 10004, 10005)
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| SORT emp_no, language_code, language_name
+| LIMIT 1000
+| LIMIT 2 BY language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | German
+10001          | 2                     | German
+10002          | 5                     | null
+10003          | 4                     | Quenya
+10004          | 5                     | null
+10005          | 1                     | English
+10005          | 1                     | English
+;

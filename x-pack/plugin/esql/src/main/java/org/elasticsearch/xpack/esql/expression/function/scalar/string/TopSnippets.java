@@ -256,22 +256,16 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
     private static void validateOptions(Map<String, Object> options) {
         validateOptionValueIsPositiveInteger(options, NUM_SNIPPETS);
-        validateOptionValueIsNonNegativeInteger(options, NUM_WORDS);
+        validateOptionValueIsPositiveInteger(options, NUM_WORDS);
         validateEncoder(options);
         validateHighlightOnlyOptions(options);
     }
+
 
     private static void validateOptionValueIsPositiveInteger(Map<String, Object> options, String paramName) {
         Object value = options.get(paramName);
         if (value != null && ((Number) value).intValue() <= 0) {
             throw new InvalidArgumentException("'{}' option must be a positive integer, found [{}]", paramName, value);
-        }
-    }
-
-    private static void validateOptionValueIsNonNegativeInteger(Map<String, Object> options, String paramName) {
-        Object value = options.get(paramName);
-        if (value != null && ((Number) value).intValue() < 0) {
-            throw new InvalidArgumentException("'{}' option must be a non-negative integer, found [{}]", paramName, value);
         }
     }
 
@@ -391,17 +385,11 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
         int firstValueIndex = field.getFirstValueIndex(position);
 
-        // Collect all chunks from all field values upfront so we build one index.
-        // When chunkingSettings is null (num_words=0), each field value is used as-is.
+        // Collect all chunks from all field values upfront so we build one index
         ArrayList<String> allChunks = new ArrayList<>();
         for (int i = 0; i < valueCount; i++) {
             BytesRef value = field.getBytesRef(firstValueIndex + i, scratch);
-            String text = value.utf8ToString();
-            if (chunkingSettings != null) {
-                allChunks.addAll(chunkText(text, chunkingSettings));
-            } else {
-                allChunks.add(text);
-            }
+            allChunks.addAll(chunkText(value.utf8ToString(), chunkingSettings));
         }
 
         try (var session = scorer.openSession(allChunks, highlightFormatter != null)) {
@@ -532,7 +520,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
             numWords = DEFAULT_WORD_SIZE;
         }
 
-        ChunkingSettings chunkingSettings = numWords > 0 ? new SentenceBoundaryChunkingSettings(numWords, 0) : null;
+        ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(numWords, 0);
         //TODO(mromaios): add Analyzer support
         MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
 

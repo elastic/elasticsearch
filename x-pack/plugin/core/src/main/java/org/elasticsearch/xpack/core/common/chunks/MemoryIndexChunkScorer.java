@@ -120,7 +120,6 @@ public class MemoryIndexChunkScorer {
         return new Session(chunks, analyzer, withOffsets ? HIGHLIGHTING_FIELD_TYPE : SCORING_FIELD_TYPE);
     }
 
-
     public Session openSession(List<String> chunks) {
         return new Session(chunks, analyzer, SCORING_FIELD_TYPE);
     }

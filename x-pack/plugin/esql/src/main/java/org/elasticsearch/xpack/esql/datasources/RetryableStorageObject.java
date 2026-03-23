@@ -22,7 +22,8 @@ import java.util.concurrent.Executor;
 /**
  * Wraps a {@link StorageObject} with retry logic for transient storage failures.
  * Retries are applied to all I/O operations (stream open, metadata, async reads)
- * using exponential backoff with jitter.
+ * using exponential backoff with jitter. Throttling errors (429/503) get a higher
+ * retry budget than other transient errors.
  */
 class RetryableStorageObject implements StorageObject {
 
@@ -87,14 +88,25 @@ class RetryableStorageObject implements StorageObject {
     }
 
     private void readBytesAsyncWithRetry(long position, long length, Executor executor, ActionListener<ByteBuffer> listener, int attempt) {
-        delegate.readBytesAsync(position, length, executor, ActionListener.wrap(listener::onResponse, e -> {
-            if (retryPolicy.isRetryable(e) && attempt < retryPolicy.maxRetries()) {
-                long delay = retryPolicy.delayMillis(attempt);
+        delegate.readBytesAsync(position, length, executor, ActionListener.wrap(result -> {
+            retryPolicy.notifySuccess();
+            listener.onResponse(result);
+        }, e -> {
+            boolean isThrottle = RetryPolicy.isThrottlingError(e);
+            int effectiveMaxRetries = isThrottle ? retryPolicy.throttleMaxRetries() : retryPolicy.maxRetries();
+
+            if (isThrottle) {
+                retryPolicy.notifyThrottled();
+            }
+
+            if (retryPolicy.isRetryable(e) && attempt < effectiveMaxRetries) {
+                long delay = retryPolicy.delayMillis(attempt, isThrottle);
                 logger.debug(
-                    "retrying async read for [{}] after transient failure (attempt [{}]/[{}], delay [{}]ms): [{}]",
+                    "retrying async read for [{}] after {} failure (attempt [{}]/[{}], delay [{}]ms): [{}]",
                     delegate.path(),
+                    isThrottle ? "throttle" : "transient",
                     attempt + 1,
-                    retryPolicy.maxRetries(),
+                    effectiveMaxRetries,
                     delay,
                     e.getMessage()
                 );

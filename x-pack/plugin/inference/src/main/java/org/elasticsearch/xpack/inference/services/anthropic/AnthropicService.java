@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -86,14 +85,22 @@ public class AnthropicService extends SenderService<AnthropicModel> {
         ActionListener<Model> parsedModelListener
     ) {
         try {
-            Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-            Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
+            var serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+            var taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-            AnthropicModel model = createModel(
+            var model = retrieveModelCreatorFromMapOrThrow(
+                MODEL_CREATORS,
                 inferenceEntityId,
                 taskType,
+                NAME,
+                ConfigurationParseContext.REQUEST
+            ).createFromMaps(
+                inferenceEntityId,
+                taskType,
+                NAME,
                 serviceSettingsMap,
                 taskSettingsMap,
+                null,
                 serviceSettingsMap,
                 ConfigurationParseContext.REQUEST
             );
@@ -106,26 +113,6 @@ public class AnthropicService extends SenderService<AnthropicModel> {
         } catch (Exception e) {
             parsedModelListener.onFailure(e);
         }
-    }
-
-    private static AnthropicModel createModel(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        @Nullable Map<String, Object> secretSettings,
-        ConfigurationParseContext context
-    ) {
-        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
-            inferenceEntityId,
-            taskType,
-            NAME,
-            serviceSettings,
-            taskSettings,
-            null,
-            secretSettings,
-            context
-        );
     }
 
     @Override

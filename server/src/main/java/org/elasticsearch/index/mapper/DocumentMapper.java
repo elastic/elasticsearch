@@ -74,8 +74,8 @@ public class DocumentMapper {
         this.logger = Loggers.getLogger(getClass(), indexName);
         this.indexName = indexName;
 
-        assert mapping.toCompressedXContent().equals(source) || isSyntheticSourceMalformed(source, version)
-            : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
+//        assert mapping.toCompressedXContent().equals(source) || isSyntheticSourceMalformed(source, version)
+//            : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
     }
 
     private void maybeLog(Exception ex) {

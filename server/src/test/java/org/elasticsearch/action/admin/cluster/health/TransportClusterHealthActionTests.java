@@ -82,7 +82,7 @@ public class TransportClusterHealthActionTests extends ESTestCase {
 
     ClusterState randomClusterStateWithInitializingShards(String index, final int initializingShards, ProjectId projectId) {
         final IndexMetadata indexMetadata = IndexMetadata.builder(index)
-            .settings(indexSettings(IndexVersion.current(), between(1, 10), randomInt(20)))
+            .settings(indexSettings(IndexVersion.current(), 1, randomInt(20)))
             .build();
 
         final List<ShardRoutingState> shardRoutingStates = new ArrayList<>();

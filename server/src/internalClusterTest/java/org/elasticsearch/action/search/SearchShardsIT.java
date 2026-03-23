@@ -94,6 +94,7 @@ public class SearchShardsIT extends ESIntegTestCase {
                     assertFalse(g.skipped());
                 }
             }
+            assertGroupsSortedByShardId(resp.getGroups());
         }
         {
             MatchAllQueryBuilder matchAll = new MatchAllQueryBuilder();

@@ -54,7 +54,6 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -631,12 +630,16 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         final Thread reader = new Thread(() -> {
             safeAwait(start);
             while (task.isCancelled() == false) {
-                Thread.onSpinWait();
+                assertThat(
+                    "toString should consistently render status and reason when task is not cancelled",
+                    task.toString(),
+                    endsWith("reason='null', isCancelled=false}")
+                );
             }
             assertThat(
-                "toString should consistently render status and reason",
+                "toString should consistently render status and reason when task is cancelled",
                 task.toString(),
-                anyOf(endsWith("reason='null', isCancelled=false}"), endsWith("reason='test-reason', isCancelled=true}"))
+                endsWith("reason='test-reason', isCancelled=true}")
             );
         });
         reader.start();

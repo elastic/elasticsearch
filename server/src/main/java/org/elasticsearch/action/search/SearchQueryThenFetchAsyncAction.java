@@ -113,7 +113,6 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         SearchRequest request,
         ActionListener<SearchResponse> listener,
         List<SearchShardIterator> shardsIts,
-        Map<String, Integer> skippedByClusterAlias,
         TransportSearchAction.SearchTimeProvider timeProvider,
         ClusterState clusterState,
         SearchTask task,
@@ -137,7 +136,6 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             request,
             listener,
             shardsIts,
-            skippedByClusterAlias,
             timeProvider,
             clusterState,
             task,
@@ -155,7 +153,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         this.batchQueryPhase = batchQueryPhase;
         // don't build the SearchShard list (can be expensive) if the SearchProgressListener won't use it
         if (progressListener != SearchProgressListener.NOOP) {
-            notifyListShards(progressListener, clusters, request, skippedByClusterAlias);
+            notifyListShards(progressListener, clusters, request, shardsIts);
         }
     }
 

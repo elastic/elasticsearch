@@ -494,6 +494,7 @@ public class OperatorTests extends MapperServiceTestCase {
             ctx -> queryAndTags,
             randomFrom(DataPartitioning.values()),
             DataPartitioning.AutoStrategy.DEFAULT,
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
             randomIntBetween(1, 10),
             randomPageSize(),
             limit,

@@ -23,7 +23,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class CountOnlyQueryPhaseResultConsumerTests extends ESTestCase {
@@ -41,7 +40,7 @@ public class CountOnlyQueryPhaseResultConsumerTests extends ESTestCase {
             timestamp,
             () -> timestamp + 1000
         );
-        searchProgressListener.notifyListShards(searchShards, Collections.emptyMap(), SearchResponse.Clusters.EMPTY, false, timeProvider);
+        searchProgressListener.notifyListShards(searchShards, Collections.emptyList(), SearchResponse.Clusters.EMPTY, false, timeProvider);
 
         try (
             CountOnlyQueryPhaseResultConsumer queryPhaseResultConsumer = new CountOnlyQueryPhaseResultConsumer(searchProgressListener, 10)
@@ -109,7 +108,7 @@ public class CountOnlyQueryPhaseResultConsumerTests extends ESTestCase {
         @Override
         protected void onListShards(
             List<SearchShard> shards,
-            Map<String, Integer> skippedByClusterAlias,
+            List<SearchShard> skippedShards,
             SearchResponse.Clusters clusters,
             boolean fetchPhase,
             TransportSearchAction.SearchTimeProvider timeProvider

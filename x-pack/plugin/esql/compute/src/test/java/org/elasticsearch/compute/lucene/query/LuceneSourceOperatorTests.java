@@ -246,6 +246,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             queryFunction,
             dataPartitioning,
             DataPartitioning.AutoStrategy.DEFAULT,
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
             taskConcurrency,
             maxPageSize,
             limit,
@@ -451,6 +452,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
                 queryFunction,
                 DataPartitioning.SEGMENT,
                 DataPartitioning.AutoStrategy.DEFAULT,
+                LuceneOperator.SMALL_INDEX_BOUNDARY,
                 taskConcurrency,
                 maxPageSize,
                 LuceneOperator.NO_LIMIT,
@@ -564,6 +566,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             boolean asUnsupportedSource,
             MappedFieldType.FieldExtractPreference fieldExtractPreference,
             BlockLoaderFunctionConfig blockLoaderFunctionConfig,
+            org.elasticsearch.index.mapper.blockloader.Warnings warnings,
             ByteSizeValue blockLoaderSizeOrdinals,
             ByteSizeValue blockLoaderSizeScript
         ) {

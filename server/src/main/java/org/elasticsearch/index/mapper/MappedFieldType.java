@@ -37,6 +37,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -650,23 +651,61 @@ public abstract class MappedFieldType {
 
     public enum FieldExtractPreference {
         /**
+         * Loads the field by extracting both the spatial bounds (extent) and the centroid from the binary encoded representation
+         */
+        EXTRACT_SPATIAL_BOUNDS_AND_CENTROID,
+        /**
+         * Loads the field by extracting the extent from the binary encoded representation
+         */
+        EXTRACT_SPATIAL_BOUNDS(null, null, EXTRACT_SPATIAL_BOUNDS_AND_CENTROID),
+        /**
+         * Loads the field by extracting the centroid (location and weight) from the binary encoded representation
+         */
+        EXTRACT_SPATIAL_CENTROID(null, EXTRACT_SPATIAL_BOUNDS_AND_CENTROID, null),
+        /**
          * Load the field from doc-values into a BlockLoader supporting doc-values.
          */
-        DOC_VALUES,
-        /**
-         *  Loads the field by extracting the extent from the binary encoded representation
-         */
-        EXTRACT_SPATIAL_BOUNDS,
+        DOC_VALUES(null, EXTRACT_SPATIAL_BOUNDS, EXTRACT_SPATIAL_CENTROID),
         /**
          * No preference. Leave the choice of where to load the field from up to the FieldType.
          */
-        NONE,
+        NONE(DOC_VALUES, EXTRACT_SPATIAL_BOUNDS, EXTRACT_SPATIAL_CENTROID),
         /**
          * Prefer loading from stored fields like {@code _source} because we're
          * loading many fields. The {@link MappedFieldType} can chose a different
          * method to load the field if it needs to.
          */
-        STORED
+        STORED;
+
+        private final FieldExtractPreference withDocValues;
+        private final FieldExtractPreference withSpatialBounds;
+        private final FieldExtractPreference withSpatialCentroid;
+
+        FieldExtractPreference() {
+            this(null, null, null);
+        }
+
+        FieldExtractPreference(
+            FieldExtractPreference withDocValues,
+            FieldExtractPreference withSpatialBounds,
+            FieldExtractPreference withSpatialCentroid
+        ) {
+            this.withDocValues = withDocValues;
+            this.withSpatialBounds = withSpatialBounds;
+            this.withSpatialCentroid = withSpatialCentroid;
+        }
+
+        public FieldExtractPreference withDocValues() {
+            return withDocValues == null ? this : withDocValues;
+        }
+
+        public FieldExtractPreference getWithSpatialBounds() {
+            return withSpatialBounds == null ? this : withSpatialBounds;
+        }
+
+        public FieldExtractPreference getWithSpatialCentroid() {
+            return withSpatialCentroid == null ? this : withSpatialCentroid;
+        }
     }
 
     /**
@@ -720,6 +759,12 @@ public abstract class MappedFieldType {
 
         @Nullable
         BlockLoaderFunctionConfig blockLoaderFunctionConfig();
+
+        /**
+         * Warnings collector for the block loader. May be {@code null} if warnings are not supported.
+         */
+        @Nullable
+        Warnings warnings();
 
         /**
          * Number of bytes reserved for each ordinals {@link BlockLoader.Reader}.

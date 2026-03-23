@@ -11,22 +11,25 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Data source plugin that provides CSV format support for ESQL external data sources.
+ * Data source plugin that provides CSV and TSV format support for ESQL external data sources.
  *
- * <p>This plugin provides:
+ * <p>This plugin registers two format readers:
  * <ul>
- *   <li>CSV format reader for reading CSV files from any storage provider</li>
+ *   <li>{@code csv} — comma-delimited ({@code .csv} files)</li>
+ *   <li>{@code tsv} — tab-delimited ({@code .tsv} files)</li>
  * </ul>
  *
- * <p>The CSV format reader uses Jackson's CSV parser for robust CSV parsing with
- * proper quote and escape handling. It supports:
+ * <p>Both readers use Jackson's CSV parser for robust parsing with
+ * proper quote and escape handling. They support:
  * <ul>
- *   <li>Schema discovery from CSV file headers (column_name:type_name format)</li>
+ *   <li>Schema discovery from file headers (column_name:type_name format)</li>
  *   <li>Column projection for efficient reads</li>
  *   <li>Batch reading with configurable batch sizes</li>
  *   <li>Direct conversion to ESQL Page format</li>
@@ -38,17 +41,17 @@ import java.util.Set;
 public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
-    public Set<String> supportedFormats() {
-        return Set.of("csv");
-    }
-
-    @Override
-    public Set<String> supportedExtensions() {
-        return Set.of(".csv", ".tsv");
+    public Set<FormatSpec> formatSpecs() {
+        return Set.of(FormatSpec.of("csv", ".csv"), FormatSpec.of("tsv", ".tsv"));
     }
 
     @Override
     public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-        return Map.of("csv", (s, blockFactory) -> new CsvFormatReader(blockFactory));
+        return Map.of(
+            "csv",
+            (s, blockFactory) -> new CsvFormatReader(blockFactory, "csv", List.of(".csv")),
+            "tsv",
+            (s, blockFactory) -> new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of(".tsv"))
+        );
     }
 }

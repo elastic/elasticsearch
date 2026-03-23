@@ -2,20 +2,14 @@
 
 ### Supported function named parameters
 
-`fuzziness`
-:   (keyword) Maximum edit distance allowed for matching.
+`analyzer`
+:   (keyword) Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.
 
 `auto_generate_synonyms_phrase_query`
 :   (boolean) If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.
 
-`analyzer`
-:   (keyword) Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.
-
-`minimum_should_match`
-:   (integer) Minimum number of clauses that must match for a document to be returned.
-
-`zero_terms_query`
-:   (keyword) Indicates whether all documents or none are returned if the analyzer removes all tokens, such as when using a stop filter. Defaults to none.
+`fuzziness`
+:   (keyword) Maximum edit distance allowed for matching.
 
 `boost`
 :   (float) Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0.
@@ -26,15 +20,21 @@
 `fuzzy_rewrite`
 :   (keyword) Method used to rewrite the query. See the rewrite parameter for valid values and more information. If the fuzziness parameter is not 0, the match query uses a fuzzy_rewrite method of top_terms_blended_freqs_${max_expansions} by default.
 
-`prefix_length`
-:   (integer) Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.
-
 `lenient`
 :   (boolean) If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.
+
+`max_expansions`
+:   (integer) Maximum number of terms to which the query will expand. Defaults to 50.
+
+`minimum_should_match`
+:   (integer) Minimum number of clauses that must match for a document to be returned.
 
 `operator`
 :   (keyword) Boolean logic used to interpret text in the query value. Defaults to OR.
 
-`max_expansions`
-:   (integer) Maximum number of terms to which the query will expand. Defaults to 50.
+`prefix_length`
+:   (integer) Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.
+
+`zero_terms_query`
+:   (keyword) Indicates whether all documents or none are returned if the analyzer removes all tokens, such as when using a stop filter. Defaults to none.
 

@@ -94,6 +94,15 @@ final class ConstantFloatVector extends AbstractVector implements FloatVector {
     }
 
     @Override
+    public FloatVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstantFloatVector(value, endExclusive - beginInclusive);
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.FLOAT;
     }

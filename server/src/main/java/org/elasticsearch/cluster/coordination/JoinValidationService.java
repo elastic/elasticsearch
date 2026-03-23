@@ -390,7 +390,7 @@ public class JoinValidationService {
         }
         assert clusterState.nodes().isLocalNodeElectedMaster();
 
-        try (var bytesStream = transportService.newNetworkBytesStream()) {
+        try (var bytesStream = transportService.newNetworkBytesStream(null)) {
             try (var stream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.flushOnCloseStream(bytesStream))) {
                 stream.setTransportVersion(version);
                 clusterState.writeTo(stream);

@@ -37,16 +37,10 @@ public final class MinBytesRefGroupingAggregatorFunction implements GroupingAggr
 
   private final DriverContext driverContext;
 
-  public MinBytesRefGroupingAggregatorFunction(List<Integer> channels,
-      MinBytesRefAggregator.GroupingState state, DriverContext driverContext) {
+  MinBytesRefGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = state;
+    this.state = MinBytesRefAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
-  }
-
-  public static MinBytesRefGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new MinBytesRefGroupingAggregatorFunction(channels, MinBytesRefAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

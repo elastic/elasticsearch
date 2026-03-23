@@ -2,6 +2,9 @@ setup:
   - requires:
       cluster_features: [ "retriever.result_diversification_mmr" ]
       reason: "Added retriever for result diversification using MMR"
+  - requires:
+      cluster_features: [ "lucene_10_4_upgrade" ]
+      reason: "MMR result ordering changed with Lucene 10.4"
 
   - requires:
       test_runner_features:
@@ -715,7 +718,7 @@ teardown:
 "Test MMR result diversification required field type":
 
   - do:
-      catch: /Failed to retrieve vectors for field \[unknown_field\]. Is it a \[dense_vector\] field?/
+      catch: /Failed to retrieve vectors for field \[unknown_field\]. Is it a \[dense_vector\] or \[semantic_text\] field with text embeddings?/
       search:
         index: test-result-diversification-index
         body:
@@ -738,7 +741,7 @@ teardown:
   - match: { error.suppressed.0.type: status_exception }
 
   - do:
-      catch: /Failed to retrieve vectors for field \[keywordfield\]. Is it a \[dense_vector\] field?/
+      catch: /Failed to retrieve vectors for field \[keywordfield\]. Is it a \[dense_vector\] or \[semantic_text\] field with text embeddings?/
       search:
         index: test-result-diversification-index
         body:
@@ -761,7 +764,7 @@ teardown:
   - match: { error.suppressed.0.type: status_exception }
 
   - do:
-      catch: /Failed to retrieve vectors for field \[textbody\]. Is it a \[dense_vector\] field?/
+      catch: /Failed to retrieve vectors for field \[textbody\]. Is it a \[dense_vector\] or \[semantic_text\] field with text embeddings?/
       search:
         index: test-result-diversification-index
         body:
@@ -781,4 +784,28 @@ teardown:
   - match: { status: 400 }
   - match: { error.type: status_exception }
   - contains: { error.reason: "[diversify] search failed" }
-  - match: { error.suppressed.0.type: illegal_argument_exception }
+  - match: { error.suppressed.0.type: status_exception }
+
+---
+"Test MMR result diversification cannot have a string encoded query vector":
+  - do:
+      catch: /\[diversify\] retriever cannot have a \[query_vector\] that is string encoded/
+      search:
+        index: "test-result-diversification-index*"
+        body:
+          retriever:
+            diversify:
+              type: "mmr"
+              field: "textvector"
+              lambda: 0.3
+              size: 3
+              query_vector: "48656c6c"
+              retriever:
+                knn:
+                  field: "textvector"
+                  query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+                  k: 10
+                  num_candidates: 10
+
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }

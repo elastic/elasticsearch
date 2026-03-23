@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
@@ -70,6 +71,7 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -1111,11 +1113,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Engine.IndexResult mappingUpdate = new Engine.IndexResult(Mapping.emptyCompressed(), "id");
 
         MapperService mapperService = mock(MapperService.class);
-        DocumentMapper documentMapper = mock(DocumentMapper.class);
-        when(documentMapper.mappingSource()).thenReturn(CompressedXContent.fromJSON("{}"));
-        // returning the current document mapper as the merge result to simulate a noop mapping update
-        when(mapperService.documentMapper()).thenReturn(documentMapper);
-        when(mapperService.merge(any(), any(CompressedXContent.class), any())).thenReturn(documentMapper);
+        when(mapperService.isNoOpUpdate(any())).thenReturn(true);
 
         IndexShard shard = mockShard(null, mapperService);
         when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
@@ -1164,11 +1162,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Engine.IndexResult successfulResult = new FakeIndexResult(1, 1, 10, true, resultLocation, "id");
 
         MapperService mapperService = mock(MapperService.class);
-        DocumentMapper documentMapper = mock(DocumentMapper.class);
-        when(documentMapper.mappingSource()).thenReturn(CompressedXContent.fromJSON("{}"));
-        when(mapperService.documentMapper()).thenReturn(documentMapper);
-        // returning the current document mapper as the merge result to simulate a noop mapping update
-        when(mapperService.merge(any(), any(CompressedXContent.class), any())).thenReturn(documentMapper);
+        when(mapperService.isNoOpUpdate(any())).thenReturn(true);
         // on the second invocation, the mapping version is incremented
         // so that the second mapping update attempt doesn't trigger the infinite loop prevention
         when(mapperService.mappingVersion()).thenReturn(0L, 0L, 1L);
@@ -1215,7 +1209,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         );
 
         latch.await();
-        verify(mapperService, times(2)).merge(any(), any(CompressedXContent.class), any());
+        verify(mapperService, times(2)).isNoOpUpdate(any());
     }
 
     private IndexShard mockShard(IndexSettings indexSettings, MapperService mapperService) {
@@ -1300,6 +1294,39 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         public Translog.Location getTranslogLocation() {
             return this.location;
         }
+    }
+
+    public void testBulkIndexWithSeqNoDisabledPreservesRealSeqNo() throws Exception {
+        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+        Settings settings = Settings.builder()
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        IndexShard shard = newStartedShard(true, settings);
+
+        BulkItemRequest[] items = new BulkItemRequest[1];
+        IndexRequest writeRequest = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE);
+        items[0] = new BulkItemRequest(0, writeRequest);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+
+        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
+        TransportShardBulkAction.executeBulkItemRequest(
+            context,
+            null,
+            threadPool::absoluteTimeInMillis,
+            new NoopMappingUpdatePerformer(),
+            (listener, mappingVersion) -> {},
+            ASSERTING_DONE_LISTENER,
+            DocumentParsingProvider.EMPTY_INSTANCE
+        );
+        assertFalse(context.hasMoreOperationsToExecute());
+
+        BulkItemResponse primaryResponse = bulkShardRequest.items()[0].getPrimaryResponse();
+        assertFalse(primaryResponse.isFailed());
+        assertThat(primaryResponse.getResponse().getSeqNo(), greaterThanOrEqualTo(0L));
+        assertThat(primaryResponse.getResponse().getPrimaryTerm(), greaterThanOrEqualTo(1L));
+
+        closeShards(shard);
     }
 
     /** Doesn't perform any mapping updates */

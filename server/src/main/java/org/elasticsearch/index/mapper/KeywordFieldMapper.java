@@ -64,6 +64,7 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.ByteLengthFromBytesRefDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMaxBytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.fn.MvMinBytesRefsFromOrdsBlockLoader;
@@ -239,6 +240,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final boolean forceDocValuesSkipper;
         private final boolean isWithinMultiField;
         private final IndexSettings indexSettings;
+        private final boolean storeIgnoredFieldsInBinaryDocValues;
 
         public Builder(final String name, final MappingParserContext mappingParserContext) {
             this(
@@ -293,6 +295,15 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.forceDocValuesSkipper = forceDocValuesSkipper;
             this.isWithinMultiField = isWithinMultiField;
             this.indexSettings = indexSettings;
+            if (indexCreatedVersion.onOrAfter(IndexVersions.STORE_IGNORED_WILDCARD_FIELDS_IN_BINARY_DOC_VALUES)) {
+                // from this version, we check whether TSDB doc values format is enabled
+                this.storeIgnoredFieldsInBinaryDocValues = indexSettings.useTimeSeriesDocValuesFormat();
+            } else {
+                // older indices stored ignored keyword fields in binary doc values regardless of the doc values format
+                this.storeIgnoredFieldsInBinaryDocValues = indexCreatedVersion.onOrAfter(
+                    IndexVersions.STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES
+                );
+            }
         }
 
         public Builder(String name, IndexSettings indexSettings) {
@@ -584,8 +595,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.scriptValues = builder.scriptValues();
             this.isDimension = builder.dimension.getValue();
             this.usesBinaryDocValues = builder.usesBinaryDocValues();
-            this.usesBinaryDocValuesForIgnoredFields = builder.indexSettings.getIndexVersionCreated()
-                .onOrAfter(IndexVersions.STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES);
+            this.usesBinaryDocValuesForIgnoredFields = builder.storeIgnoredFieldsInBinaryDocValues;
         }
 
         public KeywordFieldType(String name) {
@@ -878,16 +888,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                     }
                 }
                 return switch (cfg.function()) {
-                    case BYTE_LENGTH -> new ByteLengthFromBytesRefDocValuesBlockLoader(
-                        ((BlockLoaderFunctionConfig.JustWarnings) cfg).warnings(),
-                        name()
-                    );
-                    case LENGTH -> new Utf8CodePointsFromOrdsBlockLoader(
-                        ((BlockLoaderFunctionConfig.JustWarnings) cfg).warnings(),
-                        name(),
-                        blContext.ordinalsByteSize()
-                    );
-                    case MV_MAX -> new MvMaxBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
+                    case BYTE_LENGTH -> new ByteLengthFromBytesRefDocValuesBlockLoader(blContext.warnings(), name());
+                    case LENGTH -> new Utf8CodePointsFromOrdsBlockLoader(blContext.warnings(), name(), blContext.ordinalsByteSize());
+                    case MV_MAX -> usesBinaryDocValues
+                        ? new MvMaxBytesRefsFromBinaryBlockLoader(name())
+                        : new MvMaxBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                     case MV_MIN -> usesBinaryDocValues
                         ? new MvMinBytesRefsFromBinaryBlockLoader(name())
                         : new MvMinBytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
@@ -906,7 +911,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return new FallbackSyntheticSourceBlockLoader(
                     fallbackSyntheticSourceBlockLoaderReader(),
                     name(),
-                    IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings().getIndexVersionCreated())
+                    IgnoredSourceFieldMapper.ignoredSourceFormat(blContext.indexSettings())
                 ) {
                     @Override
                     public Builder builder(BlockFactory factory, int expectedCount) {
@@ -1245,6 +1250,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final IndexAnalyzers indexAnalyzers;
     private final IndexSettings indexSettings;
     private final boolean forceDocValuesSkipper;
+    private final boolean storeIgnoredFieldsInBinaryDocValues;
     private final String offsetsFieldName;
 
     private final IndexVersion indexCreatedVersion;
@@ -1271,6 +1277,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.scriptCompiler = builder.scriptCompiler;
         this.indexSettings = builder.indexSettings;
         this.forceDocValuesSkipper = builder.forceDocValuesSkipper;
+        this.storeIgnoredFieldsInBinaryDocValues = builder.storeIgnoredFieldsInBinaryDocValues;
         this.offsetsFieldName = offsetsFieldName;
         this.indexCreatedVersion = builder.indexCreatedVersion;
         sourceKeepMode = builder.sourceKeepMode.orElse(indexSettings.sourceKeepMode());
@@ -1354,7 +1361,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
                 final String fieldName = fieldType().syntheticSourceFallbackFieldName();
 
-                if (storeIgnoredKeywordFieldsInBinaryDocValuesIndexVersionCheck()) {
+                if (storeIgnoredFieldsInBinaryDocValues) {
                     // store the value in a binary doc values field, create one if it doesn't exist
                     MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
                     if (field == null) {
@@ -1424,10 +1431,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         return true;
-    }
-
-    private boolean storeIgnoredKeywordFieldsInBinaryDocValuesIndexVersionCheck() {
-        return indexCreatedVersion.onOrAfter(IndexVersions.STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES);
     }
 
     /**
@@ -1568,7 +1571,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (fieldType().ignoreAbove.valuesPotentiallyIgnored()) {
             final String fieldName = fieldType().syntheticSourceFallbackFieldName();
 
-            if (storeIgnoredKeywordFieldsInBinaryDocValuesIndexVersionCheck()) {
+            if (storeIgnoredFieldsInBinaryDocValues) {
                 layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldName));
             } else {
                 // old indices, stored ignored values in stored fields

@@ -18,11 +18,13 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.http.HttpHost;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -102,7 +104,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -145,11 +146,8 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
-import org.elasticsearch.index.engine.LuceneChangesSnapshot;
-import org.elasticsearch.index.engine.LuceneSyntheticSourceChangesSnapshot;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
-import org.elasticsearch.index.engine.SearchBasedChangesSnapshot;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -157,7 +155,8 @@ import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -165,7 +164,6 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.monitor.jvm.HotThreads;
@@ -923,7 +921,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
             return dataStream.getDataStreamIndices(failureStore).getIndices().size() == expectedSize;
         });
-        safeAwait(listener);
+        safeAwait(listener, TimeValue.timeValueSeconds(30));
         final var backingIndexNames = getDataStreamBackingIndexNames(dataStreamName, failureStore);
         assertEquals(
             Strings.format(
@@ -1080,6 +1078,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     public ClusterHealthStatus ensureGreen(String... indices) {
         return ensureGreen(TimeValue.timeValueSeconds(30), indices);
+    }
+
+    public ClusterHealthStatus ensureGreenAndNoInitializingShards(String... indices) {
+        return ensureColor(ClusterHealthStatus.GREEN, TimeValue.timeValueSeconds(30), true, indices);
     }
 
     /**
@@ -1341,8 +1343,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return shard.withEngineException(engine -> getLiveDocs(engine, true));
     }
 
-    private static final String NULL_ID = "<null id>";
-
     /**
      * Returns all live documents of the engine as {@link DocIdSeqNoAndSource}.
      *
@@ -1369,163 +1369,88 @@ public abstract class ESIntegTestCase extends ESTestCase {
         // Here we set up a source loader similar to what search fetch phase use to force loading the source, or id, before comparing docs.
         final var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
         final var storedFieldLoader = StoredFieldLoader.create(true, sourceLoader.requiredStoredFields());
-        final TriFunction<BytesReference, LeafReaderContext, Integer, BytesReference> forceLoadingSource = (src, leaf, segmentDocID) -> {
-            if (src != null || sourceEnabled == false) {
-                return src;
-            }
-            try {
-                var leafLoader = storedFieldLoader.getLoader(leaf, null);
-                leafLoader.advanceTo(segmentDocID);
-                src = sourceLoader.leaf(leaf.reader(), new int[] { segmentDocID }).source(leafLoader, segmentDocID).internalSourceRef();
-                assert src != null;
-                assert src.length() > 0;
-                return src;
-            } catch (IOException ioe) {
-                throw new AssertionError(ioe);
-            }
-        };
 
         // Some indices merge away the _id field
         final var pruneIdField = engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
-
         final var idLoader = IdLoader.create(mapperService.getIndexSettings(), mapperService.mappingLookup());
-        final TriFunction<String, LeafReaderContext, Integer, String> forceLoadingId = (id, leaf, segmentDocID) -> {
-            if (id != null) {
-                return id;
-            } else if (pruneIdField == false) {
-                throw new AssertionError("Document has a null value for _id field, but ids are not merged away");
-            }
-            try {
-                var leafLoader = storedFieldLoader.getLoader(leaf, null);
-                leafLoader.advanceTo(segmentDocID);
-                id = idLoader.leaf(leafLoader, leaf.reader(), new int[] { segmentDocID }).getId(segmentDocID);
-                assert id != null;
-                assert id.isEmpty() == false;
-                return id;
-            } catch (IOException ioe) {
-                throw new AssertionError(ioe);
-            }
-        };
 
-        Engine.Searcher searcher = engine.acquireSearcher(reason, Engine.SearcherScope.INTERNAL);
-        try {
-            Translog.Snapshot snapshot = null;
-            try {
-                if (engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
-                    snapshot = new LuceneSyntheticSourceChangesSnapshot(
-                        mapperService,
-                        searcher,
-                        SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
-                        RecoverySettings.DEFAULT_CHUNK_SIZE.getBytes(),
-                        0L,
-                        Long.MAX_VALUE,
-                        false,
-                        true
-                    ) {
-                        @Override
-                        protected IndexSearcher createIndexSearcher(Engine.Searcher engineSearcher) {
-                            return new IndexSearcher(engineSearcher.getDirectoryReader()); // Return only live docs, not all docs
-                        }
+        // Some integration tests merge away the _seq_no field, in which case this method sets all _seq_no to UNASSIGNED_SEQ_NO
+        final boolean seqNoDisabled = engineConfig.getIndexSettings().sequenceNumbersDisabled();
+        assert seqNoDisabled == false
+            || engineConfig.getIndexSettings().seqNoIndexOptions().equals(SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY);
 
-                        @Override
-                        protected boolean skipDocsWithNullSource() {
-                            return false; // Return docs with null source too
-                        }
+        final var docs = new ArrayList<DocIdSeqNoAndSource>();
+        try (var searcher = engine.acquireSearcher(reason, Engine.SearcherScope.INTERNAL)) {
+            final var reader = searcher.getDirectoryReader();
+            for (LeafReaderContext leaf : reader.leaves()) {
+                final var leafReader = leaf.reader();
+                final Bits liveDocs = leafReader.getLiveDocs();
+                final int maxDoc = leafReader.maxDoc();
 
-                        @Override
-                        protected String overrideId(String id, LeafReaderContext leaf, int segmentDocID) {
-                            return forceLoadingId.apply(id, leaf, segmentDocID);
-                        }
-
-                        @Override
-                        protected BytesReference overrideSource(BytesReference source, LeafReaderContext leaf, int segmentDocID) {
-                            return forceLoadingSource.apply(source, leaf, segmentDocID);
-                        }
-                    };
-                } else {
-                    snapshot = new LuceneChangesSnapshot(
-                        mapperService,
-                        searcher,
-                        SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
-                        0L,
-                        Long.MAX_VALUE,
-                        false,
-                        true,
-                        true
-                    ) {
-                        @Override
-                        protected IndexSearcher createIndexSearcher(Engine.Searcher engineSearcher) {
-                            return new IndexSearcher(engineSearcher.getDirectoryReader()); // Return only live docs, not all docs
-                        }
-
-                        @Override
-                        protected boolean skipDocsWithNullSource() {
-                            return false; // Return docs with null source too
-                        }
-
-                        @Override
-                        protected String overrideId(String id, LeafReaderContext leaf, int segmentDocID) {
-                            return forceLoadingId.apply(id, leaf, segmentDocID);
-                        }
-
-                        @Override
-                        protected BytesReference overrideSource(BytesReference source, LeafReaderContext leaf, int segmentDocID) {
-                            return forceLoadingSource.apply(source, leaf, segmentDocID);
-                        }
-                    };
+                var segmentDocIds = new ArrayList<Integer>();
+                // Only collect root documents; nested documents lack _primary_term doc values
+                var primaryTermDocValues = leafReader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+                if (primaryTermDocValues == null) {
+                    continue;
                 }
-                if (snapshot.totalOperations() == 0) {
-                    return List.of();
-                }
-
-                final var docs = new ArrayList<DocIdSeqNoAndSource>(snapshot.totalOperations());
-                Translog.Operation operation;
-                while ((operation = snapshot.next()) != null) {
-                    DocIdSeqNoAndSource doc;
-                    switch (operation.opType()) {
-                        case CREATE:
-                        case INDEX:
-                            final var indexOp = ESTestCase.asInstanceOf(Translog.Index.class, operation);
-                            doc = new DocIdSeqNoAndSource(
-                                Uid.decodeId(indexOp.uid()),
-                                sourceEnabled && indexOp.source() != null ? indexOp.source().toBytesRef() : null,
-                                indexOp.seqNo(),
-                                indexOp.primaryTerm(),
-                                indexOp.version()
-                            );
-                            break;
-                        case DELETE:
-                            final var deleteOp = ESTestCase.asInstanceOf(Translog.Delete.class, operation);
-                            doc = new DocIdSeqNoAndSource(
-                                Uid.decodeId(deleteOp.uid()),
-                                null,
-                                deleteOp.seqNo(),
-                                deleteOp.primaryTerm(),
-                                deleteOp.version()
-                            );
-                            break;
-                        case NO_OP:
-                            continue;
-                        default:
-                            throw new AssertionError("Unsupported operation type " + operation.opType());
+                for (int docId = 0; docId < maxDoc; docId++) {
+                    if (liveDocs != null && liveDocs.get(docId) == false) {
+                        continue;
                     }
-                    docs.add(doc);
+                    if (primaryTermDocValues.advanceExact(docId)) {
+                        segmentDocIds.add(docId);
+                    }
                 }
-                docs.sort(
-                    Comparator.comparingLong(DocIdSeqNoAndSource::seqNo)
-                        .thenComparingLong(DocIdSeqNoAndSource::primaryTerm)
-                        .thenComparing((DocIdSeqNoAndSource::id))
-                );
-                return docs;
-            } finally {
-                if (snapshot != null) {
-                    IOUtils.close(snapshot);
-                    searcher = null;
+                if (segmentDocIds.isEmpty()) {
+                    continue;
+                }
+
+                int[] docIdsArray = segmentDocIds.stream().mapToInt(Integer::intValue).toArray();
+                var leafStoredFieldLoader = storedFieldLoader.getLoader(leaf, docIdsArray);
+                var leafSourceLoader = sourceLoader.leaf(leafReader, docIdsArray);
+                var leafIdLoader = idLoader.leaf(leafStoredFieldLoader, leafReader, docIdsArray);
+
+                primaryTermDocValues = leafReader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+                final NumericDocValues seqNoDocValues = seqNoDisabled ? null : leafReader.getNumericDocValues(SeqNoFieldMapper.NAME);
+                final NumericDocValues versionDocValues = leafReader.getNumericDocValues(VersionFieldMapper.NAME);
+
+                for (int docId : docIdsArray) {
+                    leafStoredFieldLoader.advanceTo(docId);
+
+                    final var id = leafIdLoader.getId(docId);
+                    if (id == null && pruneIdField == false) {
+                        throw new AssertionError("Document has a null _id but ids are not merged away");
+                    }
+
+                    BytesRef source = null;
+                    if (sourceEnabled) {
+                        var src = leafSourceLoader.source(leafStoredFieldLoader, docId).internalSourceRef();
+                        source = src != null ? src.toBytesRef() : null;
+                    }
+
+                    final long seqNo = seqNoDocValues != null && seqNoDocValues.advanceExact(docId)
+                        ? seqNoDocValues.longValue()
+                        : SequenceNumbers.UNASSIGNED_SEQ_NO;
+
+                    boolean found = primaryTermDocValues.advanceExact(docId);
+                    assert found : "found no primary term for: " + docId;
+                    final long primaryTerm = primaryTermDocValues.longValue();
+
+                    found = versionDocValues.advanceExact(docId);
+                    assert found : "found no version for: " + docId;
+                    final long version = versionDocValues.longValue();
+
+                    docs.add(new DocIdSeqNoAndSource(id, source, seqNo, primaryTerm, version));
                 }
             }
-        } finally {
-            IOUtils.close(searcher);
         }
+
+        docs.sort(
+            Comparator.comparingLong(DocIdSeqNoAndSource::seqNo)
+                .thenComparingLong(DocIdSeqNoAndSource::primaryTerm)
+                .thenComparing((DocIdSeqNoAndSource::id))
+        );
+        return docs;
     }
 
     private static List<DocIdSeqNoAndSource> getLiveDocsNoOpEngine(

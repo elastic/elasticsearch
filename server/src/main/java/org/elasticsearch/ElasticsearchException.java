@@ -33,6 +33,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.engine.OCCNotSupportedException;
+import org.elasticsearch.index.engine.UpdateNotSupportedException;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
@@ -48,6 +50,7 @@ import org.elasticsearch.search.TooManyScrollContextsException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
+import org.elasticsearch.search.crossproject.InvalidProjectRoutingException;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.transport.TcpTransport;
@@ -86,7 +89,9 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VAL
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.INDEX_LIMIT_EXCEEDED_EXCEPTION_VERSION;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
+import static org.elasticsearch.index.engine.OCCNotSupportedException.OCC_NOT_SUPPORTED_EXCEPTION_VERSION;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.NO_MATCHING_PROJECT_EXCEPTION_VERSION;
+import static org.elasticsearch.search.crossproject.InvalidProjectRoutingException.INVALID_PROJECT_ROUTING_EXCEPTION_VERSION;
 
 /**
  * A base class for all elasticsearch exceptions.
@@ -2060,6 +2065,30 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             SearchContextMissingNodesException::new,
             188,
             SEARCH_CONTEXT_MISSING_NODES_EXCEPTION_VERSION
+        ),
+        OCC_NOT_SUPPORTED_EXCEPTION(
+            OCCNotSupportedException.class,
+            OCCNotSupportedException::new,
+            189,
+            OCC_NOT_SUPPORTED_EXCEPTION_VERSION
+        ),
+        UPDATE_NOT_SUPPORTED_EXCEPTION(
+            UpdateNotSupportedException.class,
+            UpdateNotSupportedException::new,
+            190,
+            OCC_NOT_SUPPORTED_EXCEPTION_VERSION
+        ),
+        REMOTE_VIEW_NOT_SUPPORTED_EXCEPTION(
+            org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException.class,
+            org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException::new,
+            191,
+            org.elasticsearch.action.support.IndicesOptions.INDICES_OPTIONS_RESOLVE_VIEWS
+        ),
+        INVALID_PROJECT_ROUTING_EXCEPTION(
+            InvalidProjectRoutingException.class,
+            InvalidProjectRoutingException::new,
+            192,
+            INVALID_PROJECT_ROUTING_EXCEPTION_VERSION
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

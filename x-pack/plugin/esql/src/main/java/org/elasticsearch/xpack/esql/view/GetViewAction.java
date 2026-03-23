@@ -38,7 +38,7 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
     public static final String NAME = EsqlViewActionNames.ESQL_GET_VIEW_ACTION_NAME;
 
     private static final IndicesOptions VIEW_INDICES_OPTIONS = IndicesOptions.builder()
-        .wildcardOptions(IndicesOptions.WildcardOptions.builder().resolveViews(true))
+        .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveViews(true).build())
         .concreteTargetOptions(ERROR_WHEN_UNAVAILABLE_TARGETS)
         .build();
 

@@ -392,6 +392,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:external-basic.operatorLikeRLike}
   issue: https://github.com/elastic/elasticsearch/issues/144807
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:external-basic.enrichRemote}
+  issue: https://github.com/elastic/elasticsearch/issues/144808
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:external-basic.operatorLikeRLike}
+  issue: https://github.com/elastic/elasticsearch/issues/144809
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerExternalTests
+  method: testWithMultiMatchFunctionRejected
+  issue: https://github.com/elastic/elasticsearch/issues/144811
 
 # Examples:
 #

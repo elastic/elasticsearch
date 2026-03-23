@@ -30,7 +30,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 import org.elasticsearch.xpack.core.ssl.extension.SslProfileExtension;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
@@ -764,7 +763,7 @@ public class SSLService {
         }
 
         private static SSLSocket createWithPermissions(CheckedSupplier<Socket, IOException> supplier) throws IOException {
-            return (SSLSocket) SocketAccess.doPrivileged(supplier);
+            return (SSLSocket) supplier.get();
         }
     }
 

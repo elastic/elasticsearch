@@ -20,7 +20,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.HttpResponse.HttpResponseBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -167,7 +166,7 @@ public class CommandLineHttpClient {
         conn.setRequestProperty("Content-Type", XContentType.JSON.mediaType());
         String bodyString = requestBodySupplier.get();
         conn.setDoOutput(bodyString != null); // set true if we are sending a body
-        SocketAccess.doPrivileged(conn::connect);
+        conn.connect();
         if (bodyString != null) {
             try (OutputStream out = conn.getOutputStream()) {
                 out.write(bodyString.getBytes(StandardCharsets.UTF_8));

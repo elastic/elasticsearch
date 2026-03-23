@@ -195,7 +195,9 @@ public class QueryRulesIndexService {
             @Override
             public void onResponse(GetResponse getResponse) {
                 if (getResponse.isExists() == false) {
-                    listener.onFailure(new ResourceNotFoundException(resourceName));
+                    ResourceNotFoundException e = new ResourceNotFoundException("query ruleset [" + resourceName + "] not found");
+                    e.setResources("query_ruleset", resourceName);
+                    listener.onFailure(e);
                     return;
                 }
                 final Map<String, Object> source = getResponse.getSource();
@@ -218,7 +220,11 @@ public class QueryRulesIndexService {
             @Override
             public void onFailure(Exception e) {
                 if (e instanceof IndexNotFoundException) {
-                    listener.onFailure(new ResourceNotFoundException(resourceName));
+                    ResourceNotFoundException resourceNotFoundException = new ResourceNotFoundException(
+                        "query ruleset [" + resourceName + "] not found"
+                    );
+                    resourceNotFoundException.setResources("query_ruleset", resourceName);
+                    listener.onFailure(resourceNotFoundException);
                     return;
                 }
                 listener.onFailure(e);
@@ -239,7 +245,11 @@ public class QueryRulesIndexService {
             if (maybeQueryRule.isPresent()) {
                 delegate.onResponse(maybeQueryRule.get());
             } else {
-                delegate.onFailure(new ResourceNotFoundException("rule id " + ruleId + " not found in ruleset " + rulesetId));
+                ResourceNotFoundException e = new ResourceNotFoundException(
+                    "rule id " + ruleId + " not found in ruleset " + rulesetId
+                );
+                e.setResources("query_rule", ruleId);
+                delegate.onFailure(e);
             }
         }));
     }
@@ -341,7 +351,9 @@ public class QueryRulesIndexService {
             @Override
             public void onResponse(DeleteResponse deleteResponse) {
                 if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                    listener.onFailure(new ResourceNotFoundException(resourceName));
+                    ResourceNotFoundException e = new ResourceNotFoundException("query ruleset [" + resourceName + "] not found");
+                    e.setResources("query_ruleset", resourceName);
+                    listener.onFailure(e);
                     return;
                 }
                 listener.onResponse(deleteResponse);
@@ -350,7 +362,11 @@ public class QueryRulesIndexService {
             @Override
             public void onFailure(Exception e) {
                 if (e instanceof IndexNotFoundException) {
-                    listener.onFailure(new ResourceNotFoundException(resourceName));
+                    ResourceNotFoundException resourceNotFoundException = new ResourceNotFoundException(
+                        "query ruleset [" + resourceName + "] not found"
+                    );
+                    resourceNotFoundException.setResources("query_ruleset", resourceName);
+                    listener.onFailure(resourceNotFoundException);
                     return;
                 }
                 listener.onFailure(e);
@@ -384,7 +400,11 @@ public class QueryRulesIndexService {
                     }));
                 }
             } else {
-                delegate.onFailure(new ResourceNotFoundException("rule id " + ruleId + " not found in ruleset " + rulesetId));
+                ResourceNotFoundException e = new ResourceNotFoundException(
+                    "rule id " + ruleId + " not found in ruleset " + rulesetId
+                );
+                e.setResources("query_rule", ruleId);
+                delegate.onFailure(e);
             }
         }));
     }

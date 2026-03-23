@@ -199,11 +199,11 @@ public class ExtractedFieldsDetectorFactory {
         }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof IndexNotFoundException) {
-                docValueFieldsLimitListener.onFailure(
-                    new ResourceNotFoundException(
-                        "cannot retrieve data because index " + ((IndexNotFoundException) cause).getIndex() + " does not exist"
-                    )
+                ResourceNotFoundException notFound = new ResourceNotFoundException(
+                    "cannot retrieve data because index " + ((IndexNotFoundException) cause).getIndex() + " does not exist"
                 );
+                notFound.setResources("index", ((IndexNotFoundException) cause).getIndex().getName());
+                docValueFieldsLimitListener.onFailure(notFound);
             } else {
                 docValueFieldsLimitListener.onFailure(e);
             }

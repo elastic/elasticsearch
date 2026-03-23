@@ -251,9 +251,12 @@ public final class PersistentTasksClusterService implements ClusterStateListener
                     } else {
                         logger.warn("The {} task [{}] wasn't found, status is not updated", taskTypeString(projectId), id);
                     }
-                    throw new ResourceNotFoundException(
+
+                    var e = new ResourceNotFoundException(
                         "the " + taskTypeString(projectId) + " task with id [" + id + "] and allocation id [" + allocationId + "] not found"
                     );
+                    e.setResources("task", id);
+                    throw e;
                 }
             }
 
@@ -292,7 +295,9 @@ public final class PersistentTasksClusterService implements ClusterStateListener
                 if (tasksInProgress.hasTask(id)) {
                     return tasksInProgress.removeTask(id).buildAndUpdate(currentState, projectId);
                 } else {
-                    throw new ResourceNotFoundException("the " + taskTypeString(projectId) + " task with id {} doesn't exist", id);
+                    var e = new ResourceNotFoundException("the " + taskTypeString(projectId) + " task with id {} doesn't exist", id);
+                    e.setResources("task", id);
+                    throw e;
                 }
             }
 
@@ -350,12 +355,14 @@ public final class PersistentTasksClusterService implements ClusterStateListener
                     } else {
                         logger.warn("trying to update state on non-existing {} task {}", taskTypeString(projectId), taskId);
                     }
-                    throw new ResourceNotFoundException(
+                    var e = new ResourceNotFoundException(
                         "the {} task with id {} and allocation id {} doesn't exist",
                         taskTypeString(projectId),
                         taskId,
                         taskAllocationId
                     );
+                    e.setResources("task", taskId);
+                    throw e;
                 }
             }
 
@@ -412,12 +419,14 @@ public final class PersistentTasksClusterService implements ClusterStateListener
                             .reassignTask(taskId, unassignedAssignment(reason))
                             .buildAndUpdate(currentState, projectId);
                     } else {
-                        throw new ResourceNotFoundException(
+                        var e = new ResourceNotFoundException(
                             "the {} task with id {} and allocation id {} doesn't exist",
                             taskTypeString(projectId),
                             taskId,
                             taskAllocationId
                         );
+                        e.setResources("task", taskId);
+                        throw e;
                     }
                 }
 

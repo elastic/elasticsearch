@@ -113,7 +113,9 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                 // find out which one wasn't found
                 var existingNodeNames = discoveryNodes.stream().map(DiscoveryNode::getName).collect(Collectors.toSet());
                 names.removeAll(existingNodeNames);
-                throw new ResourceNotFoundException("could not resolve node names {}", names);
+                var e = new ResourceNotFoundException("could not resolve node names {}", names);
+                e.setResources("node_name", names.toArray(String[]::new));
+                throw e;
             }
             assert resolvedNodes.size() == request.getNames().length;
             return resolvedNodes;
@@ -127,7 +129,9 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                 // find out which one wasn't found
                 var existingNodeIds = discoveryNodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
                 var idsNotFound = Arrays.stream(ids).filter(id -> existingNodeIds.contains(id) == false).collect(Collectors.toSet());
-                throw new ResourceNotFoundException("could not resolve node IDs {}", idsNotFound);
+                var e = new ResourceNotFoundException("could not resolve node IDs {}", idsNotFound);
+                e.setResources("node_id", idsNotFound.toArray(String[]::new));
+                throw e;
             }
             return resolvedNode;
         }
@@ -139,7 +143,9 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
             // find out which one wasn't found
             var existingExternalIds = discoveryNodes.stream().map(DiscoveryNode::getExternalId).collect(Collectors.toSet());
             externalIds.removeAll(existingExternalIds);
-            throw new ResourceNotFoundException("could not resolve node external IDs {}", externalIds);
+            var e = new ResourceNotFoundException("could not resolve node external IDs {}", externalIds);
+            e.setResources("node_external_id", externalIds.toArray(String[]::new));
+            throw e;
         }
         assert resolvedNodes.size() == request.getExternalIds().length;
         return resolvedNodes;

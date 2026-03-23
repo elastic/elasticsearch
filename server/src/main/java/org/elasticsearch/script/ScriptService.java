@@ -675,13 +675,17 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         ScriptMetadata scriptMetadata = clusterState.metadata().getProject(projectId).custom(ScriptMetadata.TYPE);
 
         if (scriptMetadata == null) {
-            throw new ResourceNotFoundException("unable to find script [" + id + "] in cluster state");
+            var e = new ResourceNotFoundException("unable to find script [" + id + "] in cluster state");
+            e.setResources("script", id);
+            throw e;
         }
 
         StoredScriptSource source = scriptMetadata.getStoredScript(id);
 
         if (source == null) {
-            throw new ResourceNotFoundException("unable to find script [" + id + "] in cluster state");
+            var e = new ResourceNotFoundException("unable to find script [" + id + "] in cluster state");
+            e.setResources("script", id);
+            throw e;
         }
 
         return source;

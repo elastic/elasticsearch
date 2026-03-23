@@ -33,7 +33,9 @@ public class TransportGetSecretAction extends HandledTransportAction<GetSecretRe
     protected void doExecute(Task task, GetSecretRequest request, ActionListener<GetSecretResponse> listener) {
         client.prepareGet(FLEET_SECRETS_INDEX_NAME, request.id()).execute(listener.delegateFailureAndWrap((delegate, getResponse) -> {
             if (getResponse.isSourceEmpty()) {
-                delegate.onFailure(new ResourceNotFoundException("No secret with id [" + request.id() + "]"));
+                ResourceNotFoundException e = new ResourceNotFoundException("No secret with id [" + request.id() + "]");
+                e.setResources("secret", request.id());
+                delegate.onFailure(e);
                 return;
             }
             delegate.onResponse(new GetSecretResponse(getResponse.getId(), getResponse.getSource().get("value").toString()));

@@ -117,14 +117,15 @@ public class InferenceEndpointRegistry {
 
     private void loadFromIndex(InferenceIdAndProject idAndProject, ActionListener<Model> listener) {
         modelRegistry.getModelWithSecrets(idAndProject.inferenceEntityId(), listener.delegateFailureAndWrap((l, unparsedModel) -> {
-            var service = serviceRegistry.getService(unparsedModel.service())
-                .orElseThrow(
-                    () -> new ResourceNotFoundException(
-                        "Unknown service [{}] for model [{}]",
-                        unparsedModel.service(),
-                        idAndProject.inferenceEntityId()
-                    )
+            var service = serviceRegistry.getService(unparsedModel.service()).orElseThrow(() -> {
+                var exception = new ResourceNotFoundException(
+                    "Unknown service [{}] for model [{}]",
+                    unparsedModel.service(),
+                    idAndProject.inferenceEntityId()
                 );
+                exception.setResources("inference_endpoint", idAndProject.inferenceEntityId());
+                return exception;
+            });
 
             var model = service.parsePersistedConfig(unparsedModel);
 

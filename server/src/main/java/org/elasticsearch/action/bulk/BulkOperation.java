@@ -778,11 +778,12 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
     private boolean addFailureIfRequiresDataStreamAndNoParentDataStream(DocWriteRequest<?> request, int idx, ProjectMetadata project) {
         if (request.isRequireDataStream() && (project.indexIsADataStream(request.index()) == false)) {
-            Exception exception = new ResourceNotFoundException(
+            var e = new ResourceNotFoundException(
                 "[" + DocWriteRequest.REQUIRE_DATA_STREAM + "] request flag is [true] and [" + request.index() + "] is not a data stream",
                 request.index()
             );
-            addFailureAndDiscardRequest(request, idx, request.index(), exception, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
+            e.setResources("data_stream", request.index());
+            addFailureAndDiscardRequest(request, idx, request.index(), e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
             return true;
         }
         return false;

@@ -67,7 +67,9 @@ public class AnalyticsCollectionResolver {
         AnalyticsCollection collection = new AnalyticsCollection(collectionName);
 
         if (state.metadata().getProject().dataStreams().containsKey(collection.getEventDataStream()) == false) {
-            throw new ResourceNotFoundException("no such analytics collection [{}]", collectionName);
+            ResourceNotFoundException e = new ResourceNotFoundException("no such analytics collection [" + collectionName + "]");
+            e.setResources("analytics_collection", collectionName);
+            throw e;
         }
 
         return collection;
@@ -102,7 +104,10 @@ public class AnalyticsCollectionResolver {
             .toList();
 
         if (missingCollections.isEmpty() == false) {
-            throw new ResourceNotFoundException("no such analytics collection [{}] ", missingCollections.get(0));
+            String collectionName = missingCollections.get(0);
+            ResourceNotFoundException e = new ResourceNotFoundException("no such analytics collection [" + collectionName + "]");
+            e.setResources("analytics_collection", collectionName);
+            throw e;
         }
 
         return new ArrayList<>(collections.values());

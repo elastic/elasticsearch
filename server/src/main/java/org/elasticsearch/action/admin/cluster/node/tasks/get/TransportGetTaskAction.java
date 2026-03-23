@@ -152,9 +152,9 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                     return;
                 }
                 if (requestProjectId.id().equals(runningTask.getProjectId()) == false) {
-                    listener.onFailure(
-                        new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", request.getTaskId())
-                    );
+                    var e = new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", request.getTaskId());
+                    e.setResources("task", request.getTaskId().toString());
+                    listener.onFailure(e);
                     return;
                 }
             }
@@ -254,7 +254,9 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
      */
     void onGetFinishedTaskFromIndex(GetResponse response, ActionListener<GetTaskResponse> listener) throws IOException {
         if (false == response.isExists()) {
-            listener.onFailure(new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", response.getId()));
+            var e = new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", response.getId());
+            e.setResources("task", response.getId());
+            listener.onFailure(e);
             return;
         }
         if (response.isSourceEmpty()) {

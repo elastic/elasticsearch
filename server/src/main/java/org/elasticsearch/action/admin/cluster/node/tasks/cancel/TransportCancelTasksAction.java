@@ -80,7 +80,9 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
                     // The task exists, but doesn't support cancellation
                     throw new IllegalArgumentException("task [" + request.getTargetTaskId() + "] doesn't support cancellation");
                 } else {
-                    throw new ResourceNotFoundException("task [{}] is not found", request.getTargetTaskId());
+                    var e = new ResourceNotFoundException("task [{}] is not found", request.getTargetTaskId());
+                    e.setResources("task", request.getTargetTaskId().toString());
+                    throw e;
                 }
             }
         } else {

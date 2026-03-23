@@ -36,7 +36,9 @@ public class TransportDeleteSecretAction extends HandledTransportAction<DeleteSe
     protected void doExecute(Task task, DeleteSecretRequest request, ActionListener<DeleteSecretResponse> listener) {
         client.prepareDelete(FLEET_SECRETS_INDEX_NAME, request.id()).execute(listener.delegateFailureAndWrap((delegate, deleteResponse) -> {
             if (deleteResponse.getResult() == Result.NOT_FOUND) {
-                delegate.onFailure(new ResourceNotFoundException("No secret with id [" + request.id() + "]"));
+                ResourceNotFoundException e = new ResourceNotFoundException("No secret with id [" + request.id() + "]");
+                e.setResources("secret", request.id());
+                delegate.onFailure(e);
                 return;
             }
             delegate.onResponse(new DeleteSecretResponse(deleteResponse.getResult() == Result.DELETED));

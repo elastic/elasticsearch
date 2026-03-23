@@ -773,7 +773,9 @@ public class MetadataDataStreamsService {
         for (DataStream dataStream : dataStreams) {
             assert dataStream != null;
             if (projectState.metadata().dataStreams().get(dataStream.getName()) == null) {
-                throw new ResourceNotFoundException("data stream [" + dataStream.getName() + "] not found");
+                var e = new ResourceNotFoundException("data stream [" + dataStream.getName() + "] not found");
+                e.setResources("data_stream", dataStream.getName());
+                throw e;
             }
             backingIndicesToRemove.addAll(dataStream.getIndices());
             backingIndicesToRemove.addAll(dataStream.getFailureIndices());

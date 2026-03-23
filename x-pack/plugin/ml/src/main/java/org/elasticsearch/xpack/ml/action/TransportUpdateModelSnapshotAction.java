@@ -74,11 +74,11 @@ public class TransportUpdateModelSnapshotAction extends HandledTransportAction<
         // Even though the quantiles can be large we have to fetch them initially so that the updated document is complete
         jobResultsProvider.getModelSnapshot(request.getJobId(), request.getSnapshotId(), true, modelSnapshot -> {
             if (modelSnapshot == null) {
-                listener.onFailure(
-                    new ResourceNotFoundException(
-                        Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getSnapshotId(), request.getJobId())
-                    )
+                ResourceNotFoundException e = new ResourceNotFoundException(
+                    Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getSnapshotId(), request.getJobId())
                 );
+                e.setResources("model_snapshot", request.getJobId(), request.getSnapshotId());
+                listener.onFailure(e);
             } else {
                 Result<ModelSnapshot> updatedSnapshot = applyUpdate(request, modelSnapshot);
                 indexModelSnapshot(updatedSnapshot, b -> {

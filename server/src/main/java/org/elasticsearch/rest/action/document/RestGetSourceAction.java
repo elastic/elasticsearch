@@ -102,9 +102,15 @@ public class RestGetSourceAction extends BaseRestHandler {
             final String id = response.getId();
 
             if (response.isExists() == false) {
-                throw new ResourceNotFoundException("Document not found [" + index + "]/[" + id + "]");
+                var e = new ResourceNotFoundException("Document not found [" + index + "]/[" + id + "]");
+                e.setResources("document", id);
+                e.setIndex(index);
+                throw e;
             } else if (response.isSourceEmpty()) {
-                throw new ResourceNotFoundException("Source not found [" + index + "]/[" + id + "]");
+                var e = new ResourceNotFoundException("Source not found [" + index + "]/[" + id + "]");
+                e.setResources("document_source", id);
+                e.setIndex(index);
+                throw e;
             }
         }
     }

@@ -72,7 +72,9 @@ public abstract class ElasticsearchInternalModel extends Model {
             public void onFailure(Exception e) {
                 var cause = ExceptionsHelper.unwrapCause(e);
                 if (cause instanceof ResourceNotFoundException) {
-                    listener.onFailure(new ResourceNotFoundException(modelNotFoundErrorMessage(esModel.internalServiceSettings.modelId())));
+                    var exception = new ResourceNotFoundException(modelNotFoundErrorMessage(esModel.internalServiceSettings.modelId()));
+                    exception.setResources("inference_endpoint", esModel.internalServiceSettings.modelId());
+                    listener.onFailure(exception);
                     return;
                 } else if (cause instanceof ElasticsearchStatusException statusException) {
                     if (statusException.status() == RestStatus.CONFLICT

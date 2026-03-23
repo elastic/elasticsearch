@@ -174,7 +174,9 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
                         l.onResponse(new FilterWithSeqNo(filter, getDocResponse));
                     }
                 } else {
-                    l.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.FILTER_NOT_FOUND, filterId)));
+                    ResourceNotFoundException e = new ResourceNotFoundException(Messages.getMessage(Messages.FILTER_NOT_FOUND, filterId));
+                    e.setResources("filter", filterId);
+                    l.onFailure(e);
                 }
             } catch (Exception e) {
                 l.onFailure(e);

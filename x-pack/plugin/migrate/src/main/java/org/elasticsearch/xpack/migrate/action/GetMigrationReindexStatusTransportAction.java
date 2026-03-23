@@ -75,7 +75,9 @@ public class GetMigrationReindexStatusTransportAction extends HandledTransportAc
             persistentTaskId
         );
         if (persistentTask == null) {
-            listener.onFailure(new ResourceNotFoundException("No migration reindex status found for [{}]", index));
+            ResourceNotFoundException e = new ResourceNotFoundException("No migration reindex status found for [{}]", index);
+            e.setResources("data_stream", index);
+            listener.onFailure(e);
         } else if (persistentTask.isAssigned()) {
             String nodeId = persistentTask.getExecutorNode();
             if (clusterService.localNode().getId().equals(nodeId)) {
@@ -104,15 +106,15 @@ public class GetMigrationReindexStatusTransportAction extends HandledTransportAc
     void fetchAndReportStatusForTaskOnThisNode(String persistentTaskId, ActionListener<Response> listener) {
         Task runningTask = getRunningPersistentTaskFromTaskManager(persistentTaskId);
         if (runningTask == null) {
-            listener.onFailure(
-                new ResourceNotFoundException(
-                    Strings.format(
-                        "Persistent task [%s] is supposed to be running on node [%s], but the task is not found on that node",
-                        persistentTaskId,
-                        clusterService.localNode().getId()
-                    )
+            ResourceNotFoundException e = new ResourceNotFoundException(
+                Strings.format(
+                    "Persistent task [%s] is supposed to be running on node [%s], but the task is not found on that node",
+                    persistentTaskId,
+                    clusterService.localNode().getId()
                 )
             );
+            e.setResources("task", persistentTaskId);
+            listener.onFailure(e);
         } else {
             TaskInfo info = runningTask.taskInfo(clusterService.localNode().getId(), true);
             ReindexDataStreamStatus status = (ReindexDataStreamStatus) info.status();
@@ -206,17 +208,18 @@ public class GetMigrationReindexStatusTransportAction extends HandledTransportAc
      * The task and its status exist on some other node, so this method forwards the request to that node.
      */
     private void fetchAndReportStatusForTaskOnRemoteNode(Task thisTask, Request request, String nodeId, ActionListener<Response> listener) {
+        String persistentTaskId = ReindexDataStreamAction.TASK_ID_PREFIX + request.getIndex();
         DiscoveryNode node = clusterService.state().nodes().get(nodeId);
         if (node == null) {
-            listener.onFailure(
-                new ResourceNotFoundException(
-                    Strings.format(
-                        "Persistent task [%s] is supposed to be running on node [%s], but that node is not part of the cluster",
-                        request.getIndex(),
-                        nodeId
-                    )
+            ResourceNotFoundException e = new ResourceNotFoundException(
+                Strings.format(
+                    "Persistent task [%s] is supposed to be running on node [%s], but that node is not part of the cluster",
+                    request.getIndex(),
+                    nodeId
                 )
             );
+            e.setResources("task", persistentTaskId);
+            listener.onFailure(e);
         } else {
             Request nodeRequest = request.nodeRequest(clusterService.localNode().getId(), thisTask.getId());
             transportService.sendRequest(

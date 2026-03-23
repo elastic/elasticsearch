@@ -89,7 +89,9 @@ public class ConnectorSecretsIndexService {
     public void getSecret(String id, ActionListener<GetConnectorSecretResponse> listener) {
         clientWithOrigin.prepareGet(CONNECTOR_SECRETS_INDEX_NAME, id).execute(listener.delegateFailureAndWrap((delegate, getResponse) -> {
             if (getResponse.isSourceEmpty()) {
-                delegate.onFailure(new ResourceNotFoundException("No secret with id [" + id + "]"));
+                ResourceNotFoundException e = new ResourceNotFoundException("No secret with id [" + id + "]");
+                e.setResources("connector_secret", id);
+                delegate.onFailure(e);
                 return;
             }
             delegate.onResponse(new GetConnectorSecretResponse(getResponse.getId(), getResponse.getSource().get("value").toString()));
@@ -152,7 +154,9 @@ public class ConnectorSecretsIndexService {
             clientWithOrigin.prepareDelete(CONNECTOR_SECRETS_INDEX_NAME, id)
                 .execute(listener.delegateFailureAndWrap((delegate, deleteResponse) -> {
                     if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                        delegate.onFailure(new ResourceNotFoundException("No secret with id [" + id + "]"));
+                        ResourceNotFoundException e = new ResourceNotFoundException("No secret with id [" + id + "]");
+                        e.setResources("connector_secret", id);
+                        delegate.onFailure(e);
                         return;
                     }
                     delegate.onResponse(new DeleteConnectorSecretResponse(deleteResponse.getResult() == DocWriteResponse.Result.DELETED));

@@ -125,7 +125,9 @@ public class EnrichPolicyExecutor {
         try {
             EnrichPolicy policy = EnrichStore.getPolicy(policyName, clusterService.state().metadata().getProject(projectId));
             if (policy == null) {
-                throw new ResourceNotFoundException("policy [{}] does not exist", policyName);
+                ResourceNotFoundException e = new ResourceNotFoundException("policy [{}] does not exist", policyName);
+                e.setResources("enrich policy", policyName);
+                throw e;
             }
 
             task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.SCHEDULED));

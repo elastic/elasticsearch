@@ -275,16 +275,14 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
 
         provider.getModelSnapshot(request.getJobId(), request.getSnapshotId(), true, modelSnapshot -> {
             if (modelSnapshot == null) {
-                throw missingSnapshotException(request);
+                ResourceNotFoundException e = new ResourceNotFoundException(
+                    Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getSnapshotId(), request.getJobId())
+                );
+                e.setResources("model_snapshot", request.getJobId(), request.getSnapshotId());
+                throw e;
             }
             handler.accept(modelSnapshot.result);
         }, errorHandler);
-    }
-
-    private static ResourceNotFoundException missingSnapshotException(RevertModelSnapshotAction.Request request) {
-        return new ResourceNotFoundException(
-            Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getSnapshotId(), request.getJobId())
-        );
     }
 
     private ActionListener<RevertModelSnapshotAction.Response> wrapDeleteOldAnnotationsListener(

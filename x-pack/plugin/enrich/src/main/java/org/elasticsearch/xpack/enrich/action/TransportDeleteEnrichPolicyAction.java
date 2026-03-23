@@ -93,7 +93,9 @@ public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMast
         final String policyName = request.getName();
         final EnrichPolicy policy = EnrichStore.getPolicy(policyName, state.metadata()); // ensure the policy exists first
         if (policy == null) {
-            throw new ResourceNotFoundException("policy [{}] not found", policyName);
+            ResourceNotFoundException e = new ResourceNotFoundException("policy [{}] not found", policyName);
+            e.setResources("enrich policy", policyName);
+            throw e;
         }
 
         EnrichPolicyLock policyLock = enrichPolicyLocks.lockPolicy(policyName);

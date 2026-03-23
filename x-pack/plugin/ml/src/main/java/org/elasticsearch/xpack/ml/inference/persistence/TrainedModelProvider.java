@@ -414,7 +414,11 @@ public class TrainedModelProvider {
         }
         executeAsyncWithOrigin(client, ML_ORIGIN, TransportSearchAction.TYPE, searchRequest, ActionListener.wrap(searchResponse -> {
             if (searchResponse.getHits().getHits().length == 0) {
-                listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_METADATA_NOT_FOUND, modelIds)));
+                ResourceNotFoundException e = new ResourceNotFoundException(
+                    Messages.getMessage(Messages.MODEL_METADATA_NOT_FOUND, modelIds)
+                );
+                e.setResources("trained_model", modelIds.toArray(String[]::new));
+                listener.onFailure(e);
                 return;
             }
             HashMap<String, TrainedModelMetadata> map = new HashMap<>();
@@ -425,7 +429,11 @@ public class TrainedModelProvider {
             listener.onResponse(map);
         }, e -> {
             if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-                listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_METADATA_NOT_FOUND, modelIds)));
+                ResourceNotFoundException notFound = new ResourceNotFoundException(
+                    Messages.getMessage(Messages.MODEL_METADATA_NOT_FOUND, modelIds)
+                );
+                notFound.setResources("trained_model", modelIds.toArray(String[]::new));
+                listener.onFailure(notFound);
                 return;
             }
             listener.onFailure(e);
@@ -596,7 +604,12 @@ public class TrainedModelProvider {
             }
         }, e -> {
             if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-                listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
+                ResourceNotFoundException e2 = new ResourceNotFoundException(
+                    Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)
+                );
+                e2.setResources("trained_model", modelId);
+                listener.onFailure(e2);
+                return;
             }
             listener.onFailure(e);
         });
@@ -679,9 +692,9 @@ public class TrainedModelProvider {
             try {
                 builder = handleHits(modelSearchResponse.getHits(), modelId, this::parseModelConfigLenientlyFromSource).get(0);
             } catch (ResourceNotFoundException ex) {
-                getTrainedModelListener.onFailure(
-                    new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId))
-                );
+                ResourceNotFoundException e = new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId));
+                e.setResources("trained_model", modelId);
+                getTrainedModelListener.onFailure(e);
                 return;
             } catch (Exception ex) {
                 getTrainedModelListener.onFailure(ex);
@@ -732,9 +745,11 @@ public class TrainedModelProvider {
                         }
 
                     } catch (ResourceNotFoundException ex) {
-                        getTrainedModelListener.onFailure(
-                            new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId))
+                        ResourceNotFoundException e = new ResourceNotFoundException(
+                            Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)
                         );
+                        e.setResources("trained_model", modelId);
+                        getTrainedModelListener.onFailure(e);
                         return;
                     } catch (Exception ex) {
                         getTrainedModelListener.onFailure(ex);
@@ -876,9 +891,11 @@ public class TrainedModelProvider {
             // Otherwise, treat it as if it was never expanded to begin with.
             Set<String> missingConfigs = Sets.difference(modelIds.keySet(), observedIds);
             if (missingConfigs.isEmpty() == false && allowNoResources == false) {
-                getTrainedModelListener.onFailure(
-                    new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND_MULTIPLE, missingConfigs))
+                ResourceNotFoundException e = new ResourceNotFoundException(
+                    Messages.getMessage(Messages.INFERENCE_NOT_FOUND_MULTIPLE, missingConfigs)
                 );
+                e.setResources("trained_model", missingConfigs.toArray(String[]::new));
+                getTrainedModelListener.onFailure(e);
                 return;
             }
             // Ensure sorted even with the injection of locally resourced models
@@ -904,14 +921,20 @@ public class TrainedModelProvider {
 
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, ActionListener.wrap(deleteResponse -> {
             if (deleteResponse.getDeleted() == 0) {
-                listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
+                ResourceNotFoundException e = new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId));
+                e.setResources("trained_model", modelId);
+                listener.onFailure(e);
                 return;
             }
 
             refreshCacheVersion(listener);
         }, e -> {
             if (e.getClass() == IndexNotFoundException.class) {
-                listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
+                ResourceNotFoundException notFound = new ResourceNotFoundException(
+                    Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)
+                );
+                notFound.setResources("trained_model", modelId);
+                listener.onFailure(notFound);
             } else {
                 listener.onFailure(e);
             }
@@ -1247,7 +1270,9 @@ public class TrainedModelProvider {
         URL resource = getClass().getResource(MODEL_RESOURCE_PATH + modelId + MODEL_RESOURCE_FILE_EXT);
         if (resource == null) {
             logger.error("[{}] presumed stored as a resource but not found", modelId);
-            throw new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId));
+            ResourceNotFoundException e = new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId));
+            e.setResources("trained_model", modelId);
+            throw e;
         }
         try (
             XContentParser parser = JsonXContent.jsonXContent.createParser(

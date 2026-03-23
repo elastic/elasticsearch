@@ -152,7 +152,9 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
         IndexMetadata sourceIndex = projectMetadata.index(sourceIndexName);
         if (sourceIndex == null) {
-            listener.onFailure(new ResourceNotFoundException("source index [{}] does not exist", sourceIndexName));
+            ResourceNotFoundException e = new ResourceNotFoundException("source index [{}] does not exist", sourceIndexName);
+            e.setResources("index", sourceIndexName);
+            listener.onFailure(e);
             return;
         }
 

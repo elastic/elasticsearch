@@ -1968,7 +1968,9 @@ public class JobResultsProvider {
                             listener.onResponse(calendar);
                         }
                     } else {
-                        this.onFailure(new ResourceNotFoundException("No calendar with id [" + calendarId + "]"));
+                        ResourceNotFoundException e = new ResourceNotFoundException("No calendar with id [" + calendarId + "]");
+                        e.setResources("calendar", calendarId);
+                        this.onFailure(e);
                     }
                 } catch (Exception e) {
                     this.onFailure(e);
@@ -1978,7 +1980,9 @@ public class JobResultsProvider {
             @Override
             public void onFailure(Exception e) {
                 if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
-                    listener.onFailure(new ResourceNotFoundException("No calendar with id [" + calendarId + "]"));
+                    ResourceNotFoundException notFound = new ResourceNotFoundException("No calendar with id [" + calendarId + "]");
+                    notFound.setResources("calendar", calendarId);
+                    listener.onFailure(notFound);
                 } else {
                     listener.onFailure(e);
                 }

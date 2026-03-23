@@ -94,7 +94,11 @@ public class TransportUpdateWatcherSettingsAction extends TransportMasterNodeAct
         final IndexMetadata watcherIndexMd = projectResolver.getProjectMetadata(state.metadata()).index(WATCHER_INDEX_NAME);
         if (watcherIndexMd == null) {
             // Index does not exist, so fail fast
-            listener.onFailure(new ResourceNotFoundException("no Watches found on which to modify settings"));
+            final ResourceNotFoundException resourceNotFoundException = new ResourceNotFoundException(
+                "no Watches found on which to modify settings"
+            );
+            resourceNotFoundException.setResources("index", WATCHER_INDEX_NAME);
+            listener.onFailure(resourceNotFoundException);
             return;
         }
         final Settings newSettings = Settings.builder().loadFromMap(request.settings()).build();

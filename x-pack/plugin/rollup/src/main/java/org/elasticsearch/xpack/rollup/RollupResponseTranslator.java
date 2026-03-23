@@ -85,12 +85,14 @@ public class RollupResponseTranslator {
 
                 // If an index was deleted after execution, give a hint to the user that this is a transient error
                 if (e instanceof IndexNotFoundException) {
-                    throw new ResourceNotFoundException(
+                    ResourceNotFoundException resourceNotFoundException = new ResourceNotFoundException(
                         "Index ["
                             + ((IndexNotFoundException) e).getIndex().getName()
                             + "] was not found, likely because it was deleted while the request was in-flight. "
                             + "Rollup does not support partial search results, please try the request again."
                     );
+                    resourceNotFoundException.setResources("index", ((IndexNotFoundException) e).getIndex().getName());
+                    throw resourceNotFoundException;
                 }
 
                 // Otherwise just throw
@@ -217,7 +219,7 @@ public class RollupResponseTranslator {
 
                 // If an index was deleted after execution, give a hint to the user that this is a transient error
                 if (e instanceof IndexNotFoundException) {
-                    throw new ResourceNotFoundException(
+                    ResourceNotFoundException resourceNotFoundException = new ResourceNotFoundException(
                         "Index ["
                             + ((IndexNotFoundException) e).getIndex()
                             + "] was not found, "
@@ -225,6 +227,8 @@ public class RollupResponseTranslator {
                             + "partial search results, please try the request again.",
                         e
                     );
+                    resourceNotFoundException.setResources("index", ((IndexNotFoundException) e).getIndex().getName());
+                    throw resourceNotFoundException;
                 }
 
                 // Otherwise just throw

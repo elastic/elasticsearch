@@ -275,7 +275,9 @@ public class ModelRegistry implements ClusterStateListener {
 
             var existing = state.getMinimalServiceSettings(inferenceEntityId);
             if (existing == null && state.isUpgraded() && throwIfAnyNotFound) {
-                throw new ResourceNotFoundException(inferenceEntityId + " does not exist in this cluster.");
+                var exception = new ResourceNotFoundException(inferenceEntityId + " does not exist in this cluster.");
+                exception.setResources("inference_endpoint", inferenceEntityId);
+                throw exception;
             }
             if (existing != null) {
                 settingsById.put(inferenceEntityId, existing);
@@ -396,7 +398,9 @@ public class ModelRegistry implements ClusterStateListener {
     }
 
     private ResourceNotFoundException inferenceNotFoundException(String inferenceEntityId) {
-        return new ResourceNotFoundException("Inference endpoint not found [{}]", inferenceEntityId);
+        var exception = new ResourceNotFoundException("Inference endpoint not found [{}]", inferenceEntityId);
+        exception.setResources("inference_endpoint", inferenceEntityId);
+        return exception;
     }
 
     /**

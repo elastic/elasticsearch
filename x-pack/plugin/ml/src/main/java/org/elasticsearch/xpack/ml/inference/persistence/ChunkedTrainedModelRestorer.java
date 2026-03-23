@@ -159,7 +159,11 @@ public class ChunkedTrainedModelRestorer {
             );
             try {
                 if (searchResponse.getHits().getHits().length == 0) {
-                    errorConsumer.accept(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
+                    ResourceNotFoundException e = new ResourceNotFoundException(
+                        Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)
+                    );
+                    e.setResources("trained_model", modelId);
+                    errorConsumer.accept(e);
                     return;
                 }
 
@@ -212,7 +216,11 @@ public class ChunkedTrainedModelRestorer {
             }
         } catch (Exception e) {
             if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-                errorConsumer.accept(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
+                ResourceNotFoundException notFound = new ResourceNotFoundException(
+                    Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)
+                );
+                notFound.setResources("trained_model", modelId);
+                errorConsumer.accept(notFound);
             } else {
                 errorConsumer.accept(e);
             }

@@ -48,7 +48,9 @@ public final class QueryPage<T extends ToXContent & Writeable> implements ToXCon
     }
 
     public static ResourceNotFoundException emptyQueryPage(ParseField resultsField) {
-        return new ResourceNotFoundException("Could not find requested " + resultsField.getPreferredName());
+        ResourceNotFoundException e = new ResourceNotFoundException("Could not find requested " + resultsField.getPreferredName());
+        e.setResources("results_field", resultsField.getPreferredName());
+        return e;
     }
 
     @Override

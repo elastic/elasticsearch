@@ -148,7 +148,9 @@ public class TransportDeleteDataStreamAction extends AcknowledgedTransportMaster
             if (request.isWildcardExpressionsOriginallySpecified()) {
                 return projectState.cluster();
             } else {
-                throw new ResourceNotFoundException("data streams " + Arrays.toString(request.getNames()) + " not found");
+                var e = new ResourceNotFoundException("data streams " + Arrays.toString(request.getNames()) + " not found");
+                e.setResources("data_stream", request.getNames());
+                throw e;
             }
         }
 

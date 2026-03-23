@@ -412,11 +412,14 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         queryRewriteContext.registerAsyncAction((client, listener) -> {
             client.get(getRequest, listener.delegateFailureAndWrap((l, getResponse) -> {
                 if (getResponse.isExists() == false) {
-                    throw new ResourceNotFoundException(
+                    var e = new ResourceNotFoundException(
                         "indexed document [{}/{}] couldn't be found",
                         indexedDocumentIndex,
                         indexedDocumentId
                     );
+                    e.setResources("document", indexedDocumentId);
+                    e.setIndex(indexedDocumentIndex);
+                    throw e;
                 }
                 if (getResponse.isSourceEmpty()) {
                     throw new IllegalArgumentException(

@@ -105,12 +105,12 @@ public class TransportGetJobModelSnapshotsUpgradeStatsAction extends TransportMa
                 statsList.stream().map(Response.JobModelSnapshotUpgradeStats::getSnapshotId).collect(Collectors.toList())
             );
             if (requiredSnapshotIdMatches.hasUnmatchedIds()) {
-                listener.onFailure(
-                    new ResourceNotFoundException(
-                        "no snapshot upgrade is running for snapshot_id [{}]",
-                        requiredSnapshotIdMatches.unmatchedIdsString()
-                    )
+                ResourceNotFoundException e = new ResourceNotFoundException(
+                    "no snapshot upgrade is running for snapshot_id [{}]",
+                    requiredSnapshotIdMatches.unmatchedIdsString()
                 );
+                e.setResources("model_snapshot", requiredSnapshotIdMatches.unmatchedIds().toArray(String[]::new));
+                listener.onFailure(e);
             } else {
                 listener.onResponse(
                     new Response(new QueryPage<>(statsList, statsList.size(), GetJobModelSnapshotsUpgradeStatsAction.RESULTS_FIELD))

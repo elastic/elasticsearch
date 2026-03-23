@@ -192,7 +192,9 @@ public class HealthService {
             : String.format(Locale.ROOT, "Found multiple indicators with the same name: %s", findDuplicatesByName(results));
         if (results.isEmpty() && indicatorName != null) {
             String errorMessage = String.format(Locale.ROOT, "Did not find indicator %s", indicatorName);
-            listener.onFailure(new ResourceNotFoundException(errorMessage));
+            var e = new ResourceNotFoundException(errorMessage);
+            e.setResources("indicator", indicatorName);
+            listener.onFailure(e);
         } else {
             listener.onResponse(results);
         }

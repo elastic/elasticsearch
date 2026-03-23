@@ -1902,7 +1902,11 @@ public class ApiKeyService implements Closeable {
         final Set<String> foundIds = foundDocs.stream().map(VersionedApiKeyDoc::id).collect(Collectors.toUnmodifiableSet());
         for (String id : requestedIds) {
             if (foundIds.contains(id) == false) {
-                responseBuilder.error(id, new ResourceNotFoundException("no API key owned by requesting user found for ID [" + id + "]"));
+                final ResourceNotFoundException e = new ResourceNotFoundException(
+                    "no API key owned by requesting user found for ID [" + id + "]"
+                );
+                e.setResources("api_key", id);
+                responseBuilder.error(id, e);
             }
         }
     }

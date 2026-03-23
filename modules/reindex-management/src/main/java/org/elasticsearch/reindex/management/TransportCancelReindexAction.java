@@ -139,7 +139,9 @@ public class TransportCancelReindexAction extends TransportTasksProjectAction<
     }
 
     private static ResourceNotFoundException reindexWithTaskIdNotFoundException(final TaskId requestedTaskId) {
-        return new ResourceNotFoundException("reindex task [{}] either not found or completed", requestedTaskId);
+        var e = new ResourceNotFoundException("reindex task [{}] either not found or completed", requestedTaskId);
+        e.setResources("reindex", requestedTaskId.toString());
+        return e;
     }
 
     private TaskResult taskResultWithCancelledTrue(final TaskResult r) {

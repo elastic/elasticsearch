@@ -714,11 +714,13 @@ public class EnrichPolicyRunner {
         }
         MappingMetadata mapping = destinationIndex.mapping();
         if (mapping == null) {
-            throw new ResourceNotFoundException(
+            ResourceNotFoundException e = new ResourceNotFoundException(
                 "Could not locate mapping for enrich index [{}] while completing [{}] policy run",
                 destinationIndexName,
                 policyName
             );
+            e.setResources("enrich index", destinationIndexName);
+            throw e;
         }
         Map<String, Object> mappingSource = mapping.sourceAsMap();
         Object meta = mappingSource.get("_meta");

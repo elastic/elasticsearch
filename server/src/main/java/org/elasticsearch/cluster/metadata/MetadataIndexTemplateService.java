@@ -520,7 +520,9 @@ public class MetadataIndexTemplateService {
             }
 
             if (missingNames != null) {
-                throw new ResourceNotFoundException(String.join(",", missingNames));
+                var e = new ResourceNotFoundException(String.join(",", missingNames));
+                e.setResources("component_template", missingNames.toArray(String[]::new));
+                throw e;
             }
         } else {
             for (String templateName : project.componentTemplates().keySet()) {
@@ -534,7 +536,9 @@ public class MetadataIndexTemplateService {
                 if (Regex.isMatchAllPattern(names[0])) {
                     return project;
                 }
-                throw new ResourceNotFoundException(names[0]);
+                var e = new ResourceNotFoundException(names[0]);
+                e.setResources("component_template", names[0]);
+                throw e;
             }
         }
         ProjectMetadata.Builder builder = ProjectMetadata.builder(project);

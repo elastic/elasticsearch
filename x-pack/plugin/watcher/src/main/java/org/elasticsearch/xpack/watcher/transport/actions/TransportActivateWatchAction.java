@@ -103,9 +103,12 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
                                 watch.status().version(getResponse.getVersion());
                                 listener.onResponse(new ActivateWatchResponse(watch.status()));
                             } else {
-                                listener.onFailure(
-                                    new ResourceNotFoundException("Watch with id [{}] does not exist", request.getWatchId())
+                                ResourceNotFoundException e = new ResourceNotFoundException(
+                                    "Watch with id [{}] does not exist",
+                                    request.getWatchId()
                                 );
+                                e.setResources("watch", request.getWatchId());
+                                listener.onFailure(e);
                             }
                         }, listener::onFailure),
                         client::get

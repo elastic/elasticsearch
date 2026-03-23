@@ -60,6 +60,7 @@ public class CCMPersistentStorageService {
 
     public void get(ActionListener<CCMModel> listener) {
         var ccmConfigNotFound = new ResourceNotFoundException("CCM configuration not found");
+        ccmConfigNotFound.setResources("ccm_config", CCM_DOC_ID);
 
         var searchListener = ActionListener.<SearchResponse>wrap(searchResponse -> {
             if (searchResponse.getHits().getHits().length == 0) {

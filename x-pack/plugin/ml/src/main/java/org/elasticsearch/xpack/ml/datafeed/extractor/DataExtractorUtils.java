@@ -144,11 +144,31 @@ public final class DataExtractorUtils {
     public static void checkForSkippedClusters(SearchResponse searchResponse) {
         SearchResponse.Clusters clusterResponse = searchResponse.getClusters();
         if (clusterResponse != null && clusterResponse.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED) > 0) {
-            throw new ResourceNotFoundException(
+            List<String> skippedClusterAliases = new ArrayList<>();
+            for (String alias : clusterResponse.getClusterAliases()) {
+                SearchResponse.Cluster cluster = clusterResponse.getCluster(alias);
+                if (cluster != null && cluster.getStatus() == SearchResponse.Cluster.Status.SKIPPED) {
+                    String clusterId = alias;
+                    if (clusterId.isBlank()) {
+                        String label = cluster.getOriginClusterLabel();
+                        if (label == null || label.isBlank()) {
+                            continue;
+                        }
+                        clusterId = label;
+                    }
+                    skippedClusterAliases.add(clusterId);
+                }
+            }
+
+            ResourceNotFoundException e = new ResourceNotFoundException(
                 "[{}] remote clusters out of [{}] were skipped when performing datafeed search",
                 clusterResponse.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED),
                 clusterResponse.getTotal()
             );
+            if (skippedClusterAliases.isEmpty() == false) {
+                e.setResources("cluster", skippedClusterAliases.toArray(String[]::new));
+            }
+            throw e;
         }
     }
 }

@@ -115,7 +115,9 @@ class HttpClient {
                     }
                     break;
                 case HTTP_NOT_FOUND:
-                    throw new ResourceNotFoundException("{} not found", url);
+                    var e = new ResourceNotFoundException("{} not found", url);
+                    e.setResources("url", url);
+                    throw e;
                 default:
                     int responseCode = conn.getResponseCode();
                     throw new ElasticsearchStatusException("error during downloading {}", RestStatus.fromCode(responseCode), url);

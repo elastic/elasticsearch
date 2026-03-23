@@ -451,10 +451,20 @@ public abstract class IndexRouting {
             try {
                 idBytes = Base64.getUrlDecoder().decode(id);
             } catch (IllegalArgumentException e) {
-                throw new ResourceNotFoundException("invalid id [{}] for index [{}] in " + indexMode.getName() + " mode", id, indexName);
+                var resourceNotFound = new ResourceNotFoundException(
+                    "invalid id [{}] for index [{}] in " + indexMode.getName() + " mode",
+                    id,
+                    indexName
+                );
+                resourceNotFound.setResources("id", id);
+                resourceNotFound.setIndex(indexName);
+                throw resourceNotFound;
             }
             if (idBytes.length < 4) {
-                throw new ResourceNotFoundException("invalid id [{}] for index [{}] in " + indexMode.getName() + " mode", id, indexName);
+                var e = new ResourceNotFoundException("invalid id [{}] for index [{}] in " + indexMode.getName() + " mode", id, indexName);
+                e.setResources("id", id);
+                e.setIndex(indexName);
+                throw e;
             }
             int hash;
             if (addIdWithRoutingHash) {

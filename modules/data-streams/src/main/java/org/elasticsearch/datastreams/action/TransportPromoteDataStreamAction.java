@@ -108,7 +108,9 @@ public class TransportPromoteDataStreamAction extends AcknowledgedTransportMaste
         DataStream dataStream = project.dataStreams().get(request.getName());
 
         if (dataStream == null) {
-            throw new ResourceNotFoundException("data stream [" + request.getName() + "] does not exist");
+            var e = new ResourceNotFoundException("data stream [" + request.getName() + "] does not exist");
+            e.setResources("data_stream", request.getName());
+            throw e;
         }
 
         warnIfTemplateMissingForDatastream(dataStream, project);

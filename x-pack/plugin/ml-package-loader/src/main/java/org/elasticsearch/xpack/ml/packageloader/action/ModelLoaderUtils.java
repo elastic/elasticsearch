@@ -286,8 +286,11 @@ final class ModelLoaderUtils {
                     case HTTP_MOVED_TEMP:
                     case HTTP_SEE_OTHER:
                         throw new IllegalStateException("redirects aren't supported yet");
-                    case HTTP_NOT_FOUND:
-                        throw new ResourceNotFoundException("{} not found", uri);
+                    case HTTP_NOT_FOUND: {
+                        ResourceNotFoundException e = new ResourceNotFoundException("{} not found", uri);
+                        e.setResources("uri", uri.toString());
+                        throw e;
+                    }
                     case 416: // Range not satisfiable, for some reason not in the list of constants
                         throw new IllegalStateException("Invalid request range [" + range.bytesRange() + "]");
                     default:
@@ -319,7 +322,9 @@ final class ModelLoaderUtils {
         PrivilegedAction<InputStream> privilegedFileReader = () -> {
             File file = new File(uri);
             if (file.exists() == false) {
-                throw new ResourceNotFoundException("{} not found", uri);
+                ResourceNotFoundException e = new ResourceNotFoundException("{} not found", uri);
+                e.setResources("uri", uri.toString());
+                throw e;
             }
 
             try {

@@ -168,7 +168,11 @@ public final class RemoteClusterLicenseChecker {
             public void onResponse(final XPackInfoResponse xPackInfoResponse) {
                 final XPackInfoResponse.LicenseInfo licenseInfo = xPackInfoResponse.getLicenseInfo();
                 if (licenseInfo == null) {
-                    listener.onFailure(new ResourceNotFoundException("license info is missing for cluster [" + clusterAlias.get() + "]"));
+                    final ResourceNotFoundException e = new ResourceNotFoundException(
+                        "license info is missing for cluster [" + clusterAlias.get() + "]"
+                    );
+                    e.setResources("cluster", clusterAlias.get());
+                    listener.onFailure(e);
                     return;
                 }
 

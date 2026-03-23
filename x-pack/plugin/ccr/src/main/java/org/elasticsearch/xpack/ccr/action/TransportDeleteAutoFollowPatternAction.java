@@ -76,7 +76,9 @@ public class TransportDeleteAutoFollowPatternAction extends AcknowledgedTranspor
     static ClusterState innerDelete(DeleteAutoFollowPatternAction.Request request, ProjectState projectState) {
         AutoFollowMetadata currentAutoFollowMetadata = projectState.metadata().custom(AutoFollowMetadata.TYPE);
         if (currentAutoFollowMetadata == null || currentAutoFollowMetadata.getPatterns().get(request.getName()) == null) {
-            throw new ResourceNotFoundException("auto-follow pattern [{}] is missing", request.getName());
+            ResourceNotFoundException e = new ResourceNotFoundException("auto-follow pattern [{}] is missing", request.getName());
+            e.setResources("auto-follow pattern", request.getName());
+            throw e;
         }
 
         AutoFollowMetadata newAutoFollowMetadata = removePattern(currentAutoFollowMetadata, request.getName());

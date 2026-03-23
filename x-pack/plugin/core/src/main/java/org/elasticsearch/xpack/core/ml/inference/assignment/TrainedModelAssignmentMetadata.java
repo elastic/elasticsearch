@@ -238,7 +238,9 @@ public class TrainedModelAssignmentMetadata implements Metadata.ProjectCustom {
 
         public Builder updateAssignment(String deploymentId, TrainedModelAssignment.Builder assignment) {
             if (deploymentRoutingEntries.containsKey(deploymentId) == false) {
-                throw new ResourceNotFoundException("[{}] assignment does not exist", deploymentId);
+                ResourceNotFoundException e = new ResourceNotFoundException("[{}] assignment does not exist", deploymentId);
+                e.setResources("trained_model_assignment", deploymentId);
+                throw e;
             }
             deploymentRoutingEntries.put(deploymentId, assignment);
             return this;

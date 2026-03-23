@@ -151,7 +151,9 @@ public class ViewService {
         final ProjectMetadata metadata = clusterService.state().metadata().getProject(projectId);
         final ViewMetadata viewMetadata = metadata.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
         if (viewMetadata.getView(name) == null) {
-            listener.onFailure(new ResourceNotFoundException("view [{}] not found", name));
+            var exception = new ResourceNotFoundException("view [{}] not found", name);
+            exception.setResources("view", name);
+            listener.onFailure(exception);
             return;
         }
 

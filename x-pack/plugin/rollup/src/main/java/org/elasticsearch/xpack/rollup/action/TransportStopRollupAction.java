@@ -192,7 +192,9 @@ public class TransportStopRollupAction extends TransportTasksAction<
         // Either the job doesn't exist (the user didn't create it yet) or was deleted after the Stop API executed.
         // In either case, let the user know
         if (tasks.size() == 0) {
-            throw new ResourceNotFoundException("Task for Rollup Job [" + request.getId() + "] not found");
+            ResourceNotFoundException e = new ResourceNotFoundException("Task for Rollup Job [" + request.getId() + "] not found");
+            e.setResources("rollup job", request.getId());
+            throw e;
         }
 
         assert tasks.size() == 1;

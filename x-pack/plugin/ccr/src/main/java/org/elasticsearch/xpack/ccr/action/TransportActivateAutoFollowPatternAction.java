@@ -79,13 +79,17 @@ public class TransportActivateAutoFollowPatternAction extends AcknowledgedTransp
         final var project = currentState.metadata().getProject();
         final AutoFollowMetadata autoFollowMetadata = project.custom(AutoFollowMetadata.TYPE);
         if (autoFollowMetadata == null) {
-            throw new ResourceNotFoundException("auto-follow pattern [{}] is missing", request.getName());
+            ResourceNotFoundException e = new ResourceNotFoundException("auto-follow pattern [{}] is missing", request.getName());
+            e.setResources("auto-follow pattern", request.getName());
+            throw e;
         }
 
         final Map<String, AutoFollowMetadata.AutoFollowPattern> patterns = autoFollowMetadata.getPatterns();
         final AutoFollowMetadata.AutoFollowPattern previousAutoFollowPattern = patterns.get(request.getName());
         if (previousAutoFollowPattern == null) {
-            throw new ResourceNotFoundException("auto-follow pattern [{}] is missing", request.getName());
+            ResourceNotFoundException e = new ResourceNotFoundException("auto-follow pattern [{}] is missing", request.getName());
+            e.setResources("auto-follow pattern", request.getName());
+            throw e;
         }
 
         if (previousAutoFollowPattern.isActive() == request.isActive()) {

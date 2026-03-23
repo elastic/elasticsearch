@@ -49,7 +49,9 @@ class ActiveRepositoryVerifyIntegrityTasks {
     RepositoryVerifyIntegrityResponseStream acquireResponseStream(long taskId) {
         final var outerRequest = responseStreamsByCoordinatingTaskId.get(taskId);
         if (outerRequest == null || outerRequest.tryIncRef() == false) {
-            throw new ResourceNotFoundException("verify task [" + taskId + "] not found");
+            ResourceNotFoundException e = new ResourceNotFoundException("verify task [" + taskId + "] not found");
+            e.setResources("task", Long.toString(taskId));
+            throw e;
         }
         return outerRequest;
     }

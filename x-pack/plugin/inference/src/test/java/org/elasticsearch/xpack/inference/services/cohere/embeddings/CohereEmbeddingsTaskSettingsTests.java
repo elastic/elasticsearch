@@ -53,9 +53,7 @@ public class CohereEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         if (newSettings.getTruncation() != null) {
             newSettingsMap.put(CohereServiceFields.TRUNCATE, newSettings.getTruncation().toString());
         }
-        CohereEmbeddingsTaskSettings updatedSettings = (CohereEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
-            newSettingsMap
-        );
+        CohereEmbeddingsTaskSettings updatedSettings = (CohereEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(newSettingsMap);
         if (newSettings.getInputType() == null) {
             assertEquals(initialSettings.getInputType(), updatedSettings.getInputType());
         } else {

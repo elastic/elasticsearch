@@ -36,9 +36,7 @@ public class RerankTaskSettingsTests extends AbstractWireSerializingTestCase<Rer
         if (newSettings.returnDocuments() != null) {
             newSettingsMap.put(RerankTaskSettings.RETURN_DOCUMENTS, newSettings.returnDocuments());
         }
-        RerankTaskSettings updatedSettings = (RerankTaskSettings) initialSettings.updatedTaskSettings(
-            newSettingsMap
-        );
+        RerankTaskSettings updatedSettings = (RerankTaskSettings) initialSettings.updatedTaskSettings(newSettingsMap);
         if (newSettings.returnDocuments() == null) {
             assertEquals(initialSettings.returnDocuments(), updatedSettings.returnDocuments());
         } else {

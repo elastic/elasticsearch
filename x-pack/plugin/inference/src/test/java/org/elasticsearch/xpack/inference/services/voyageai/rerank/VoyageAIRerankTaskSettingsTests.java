@@ -115,12 +115,9 @@ public class VoyageAIRerankTaskSettingsTests extends AbstractWireSerializingTest
 
     public void testUpdatedTaskSettings_WithMultipleNewValues_ReturnsUpdatedSettings() {
         var initialSettings = new VoyageAIRerankTaskSettings(5, true, true);
-        var newSettings = new HashMap<String, Object>(Map.of(
-            VoyageAIRerankTaskSettings.RETURN_DOCUMENTS,
-            false,
-            VoyageAIRerankTaskSettings.TOP_K_DOCS_ONLY,
-            7
-        ));
+        var newSettings = new HashMap<String, Object>(
+            Map.of(VoyageAIRerankTaskSettings.RETURN_DOCUMENTS, false, VoyageAIRerankTaskSettings.TOP_K_DOCS_ONLY, 7)
+        );
         VoyageAIRerankTaskSettings updatedSettings = (VoyageAIRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
         assertTrue(updatedSettings.getTruncation());
         assertFalse(updatedSettings.getReturnDocuments());

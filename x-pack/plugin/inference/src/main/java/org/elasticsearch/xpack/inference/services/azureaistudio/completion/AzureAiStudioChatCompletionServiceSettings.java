@@ -39,13 +39,13 @@ public class AzureAiStudioChatCompletionServiceSettings extends AzureAiStudioSer
     public AzureAiStudioChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
 
-        var baseSettings = updateBaseServiceSettings(serviceSettings, validationException);
+        var updatedCommonSettings = updateCommonSettings(serviceSettings, validationException);
 
         validationException.throwIfValidationErrorsExist();
-        return new AzureAiStudioChatCompletionServiceSettings(new AzureAiStudioCompletionCommonFields(baseSettings));
+        return new AzureAiStudioChatCompletionServiceSettings(new AzureAiStudioCompletionCommonFields(updatedCommonSettings));
     }
 
-    private record AzureAiStudioCompletionCommonFields(BaseAzureAiStudioCommonFields baseCommonFields) {}
+    private record AzureAiStudioCompletionCommonFields(AzureAiStudioCommonSettings baseCommonFields) {}
 
     public AzureAiStudioChatCompletionServiceSettings(
         String target,

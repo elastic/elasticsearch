@@ -30,27 +30,31 @@ public class AzureAiStudioRerankServiceSettings extends AzureAiStudioServiceSett
     );
 
     public static AzureAiStudioRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        final var validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        final var baseSettings = AzureAiStudioServiceSettings.fromMap(map, validationException, context);
+        var commonSettings = AzureAiStudioServiceSettings.fromMap(map, validationException, context);
 
         validationException.throwIfValidationErrorsExist();
 
-        return new AzureAiStudioRerankServiceSettings(new AzureAiStudioRerankServiceSettings.AzureAiStudioRerankCommonFields(baseSettings));
+        return new AzureAiStudioRerankServiceSettings(
+            new AzureAiStudioRerankServiceSettings.AzureAiStudioRerankCommonFields(commonSettings)
+        );
     }
 
     @Override
     public AzureAiStudioRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        final var validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        final var baseSettings = updateBaseServiceSettings(serviceSettings, validationException);
+        var updatedCommonSettings = updateCommonSettings(serviceSettings, validationException);
 
         validationException.throwIfValidationErrorsExist();
 
-        return new AzureAiStudioRerankServiceSettings(new AzureAiStudioRerankServiceSettings.AzureAiStudioRerankCommonFields(baseSettings));
+        return new AzureAiStudioRerankServiceSettings(
+            new AzureAiStudioRerankServiceSettings.AzureAiStudioRerankCommonFields(updatedCommonSettings)
+        );
     }
 
-    private record AzureAiStudioRerankCommonFields(BaseAzureAiStudioCommonFields baseCommonFields) {}
+    private record AzureAiStudioRerankCommonFields(AzureAiStudioCommonSettings commonFields) {}
 
     public AzureAiStudioRerankServiceSettings(
         String target,
@@ -67,10 +71,10 @@ public class AzureAiStudioRerankServiceSettings extends AzureAiStudioServiceSett
 
     private AzureAiStudioRerankServiceSettings(AzureAiStudioRerankServiceSettings.AzureAiStudioRerankCommonFields fields) {
         this(
-            fields.baseCommonFields.target(),
-            fields.baseCommonFields.provider(),
-            fields.baseCommonFields.endpointType(),
-            fields.baseCommonFields.rateLimitSettings()
+            fields.commonFields.target(),
+            fields.commonFields.provider(),
+            fields.commonFields.endpointType(),
+            fields.commonFields.rateLimitSettings()
         );
     }
 

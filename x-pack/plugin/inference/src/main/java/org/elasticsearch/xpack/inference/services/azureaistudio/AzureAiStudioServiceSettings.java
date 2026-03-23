@@ -38,7 +38,7 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
 
     protected static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(240);
 
-    protected static BaseAzureAiStudioCommonFields fromMap(
+    protected static AzureAiStudioCommonSettings fromMap(
         Map<String, Object> map,
         ValidationException validationException,
         ConfigurationParseContext context
@@ -59,7 +59,6 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
             EnumSet.allOf(AzureAiStudioEndpointType.class),
             validationException
         );
-
         var provider = extractRequiredEnum(
             map,
             PROVIDER_FIELD,
@@ -69,10 +68,10 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
             validationException
         );
 
-        return new BaseAzureAiStudioCommonFields(target, provider, endpointType, rateLimitSettings);
+        return new AzureAiStudioCommonSettings(target, provider, endpointType, rateLimitSettings);
     }
 
-    protected BaseAzureAiStudioCommonFields updateBaseServiceSettings(
+    protected AzureAiStudioCommonSettings updateCommonSettings(
         Map<String, Object> serviceSettings,
         ValidationException validationException
     ) {
@@ -83,7 +82,7 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
             AzureAiStudioService.NAME,
             ConfigurationParseContext.REQUEST
         );
-        return new BaseAzureAiStudioCommonFields(this.target, this.provider, this.endpointType, extractedRateLimitSettings);
+        return new AzureAiStudioCommonSettings(this.target, this.provider, this.endpointType, extractedRateLimitSettings);
     }
 
     protected AzureAiStudioServiceSettings(StreamInput in) throws IOException {
@@ -105,7 +104,7 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
-    protected record BaseAzureAiStudioCommonFields(
+    protected record AzureAiStudioCommonSettings(
         String target,
         AzureAiStudioProvider provider,
         AzureAiStudioEndpointType endpointType,
@@ -151,5 +150,4 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
         builder.field(ENDPOINT_TYPE_FIELD, this.endpointType);
         rateLimitSettings.toXContent(builder, params);
     }
-
 }

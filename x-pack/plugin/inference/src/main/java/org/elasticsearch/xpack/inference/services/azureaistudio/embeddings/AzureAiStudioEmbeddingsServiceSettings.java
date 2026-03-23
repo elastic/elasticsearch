@@ -44,7 +44,7 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
     public static AzureAiStudioEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var validationException = new ValidationException();
 
-        var baseSettings = AzureAiStudioServiceSettings.fromMap(map, validationException, context);
+        var commonSettings = AzureAiStudioServiceSettings.fromMap(map, validationException, context);
 
         var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -77,12 +77,12 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
         validationException.throwIfValidationErrorsExist();
 
         return new AzureAiStudioEmbeddingsServiceSettings(
-            new AzureAiStudioEmbeddingCommonFields(baseSettings, dimensions, dimensionsSetByUser, maxInputTokens, similarity)
+            new AzureAiStudioEmbeddingCommonFields(commonSettings, dimensions, dimensionsSetByUser, maxInputTokens, similarity)
         );
     }
 
     private record AzureAiStudioEmbeddingCommonFields(
-        BaseAzureAiStudioCommonFields baseCommonFields,
+        AzureAiStudioCommonSettings commonFields,
         @Nullable Integer dimensions,
         Boolean dimensionsSetByUser,
         @Nullable Integer maxInputTokens,
@@ -116,14 +116,14 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
 
     private AzureAiStudioEmbeddingsServiceSettings(AzureAiStudioEmbeddingCommonFields fields) {
         this(
-            fields.baseCommonFields.target(),
-            fields.baseCommonFields.provider(),
-            fields.baseCommonFields.endpointType(),
+            fields.commonFields.target(),
+            fields.commonFields.provider(),
+            fields.commonFields.endpointType(),
             fields.dimensions(),
             fields.dimensionsSetByUser(),
             fields.maxInputTokens(),
             fields.similarity(),
-            fields.baseCommonFields.rateLimitSettings()
+            fields.commonFields.rateLimitSettings()
         );
     }
 
@@ -170,7 +170,7 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
     public AzureAiStudioEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
 
-        var baseSettings = updateBaseServiceSettings(serviceSettings, validationException);
+        var updatedCommonSettings = updateCommonSettings(serviceSettings, validationException);
 
         var extractedMaxInputTokens = extractOptionalPositiveInteger(
             serviceSettings,
@@ -183,7 +183,7 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
 
         return new AzureAiStudioEmbeddingsServiceSettings(
             new AzureAiStudioEmbeddingCommonFields(
-                baseSettings,
+                updatedCommonSettings,
                 this.dimensions,
                 this.dimensionsSetByUser,
                 extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,

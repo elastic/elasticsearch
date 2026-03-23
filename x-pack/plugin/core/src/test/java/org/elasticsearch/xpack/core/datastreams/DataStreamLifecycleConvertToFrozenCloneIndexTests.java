@@ -207,7 +207,9 @@ public class DataStreamLifecycleConvertToFrozenCloneIndexTests extends ESTestCas
         assertThat(exception.getMessage(), containsString("failed to clone"));
 
         // Should attempt to delete the clone index on failure
+        String cloneIndexName = convert.getDLMCloneIndexName();
         assertThat(capturedDeleteRequest.get(), is(notNullValue()));
+        assertThat(capturedDeleteRequest.get().indices()[0], equalTo(cloneIndexName));
     }
 
     public void testDeleteCloneSuccessfully() {

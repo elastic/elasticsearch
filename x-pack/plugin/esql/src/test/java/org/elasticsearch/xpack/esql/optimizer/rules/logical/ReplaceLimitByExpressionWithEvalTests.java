@@ -44,10 +44,10 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
      * }</pre>
      */
     public void testAttributeGroupingUnchanged() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | LIMIT 1 BY emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var defaultLimit = as(plan, Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
@@ -65,10 +65,10 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
      * }</pre>
      */
     public void testMultipleAttributeGroupingsUnchanged() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | LIMIT 2 BY emp_no, salary
-            """);
+            """).coordinatorLogicalOptimized();
 
         var defaultLimit = as(plan, Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
@@ -86,10 +86,10 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
      * }</pre>
      */
     public void testAllFoldableGroupingsDegenerateToPlainLimit() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | LIMIT 1 BY 1
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(1));
@@ -104,10 +104,10 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
      * }</pre>
      */
     public void testMultipleFoldableGroupingsDegenerateToPlainLimit() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | LIMIT 3 BY 1, "constant", false
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(3));
@@ -123,10 +123,10 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
      * }</pre>
      */
     public void testMixedFoldableAndAttributeGroupingsPruneFoldable() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | LIMIT 1 BY emp_no, 1
-            """);
+            """).coordinatorLogicalOptimized();
 
         var defaultLimit = as(plan, Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
@@ -147,11 +147,11 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
      * }</pre>
      */
     public void testSingleExpressionMovedToEval() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | KEEP emp_no
             | LIMIT 1 BY emp_no + 5
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("emp_no"));
@@ -177,11 +177,11 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
      * }</pre>
      */
     public void testMultipleExpressionsMovedToEval() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | KEEP emp_no, salary
             | LIMIT 1 BY emp_no + 5, salary * 2
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("emp_no", "salary"));
@@ -210,11 +210,11 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
      * }</pre>
      */
     public void testMixedAttributeAndExpressionGroupings() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | KEEP emp_no, salary
             | LIMIT 1 BY emp_no, salary * 2
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("emp_no", "salary"));
@@ -243,11 +243,11 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
      * }</pre>
      */
     public void testFoldableGroupingPrunedAndExpressionExtracted() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | KEEP emp_no
             | LIMIT 1 BY emp_no + 5, 1
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("emp_no"));
@@ -271,10 +271,10 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
      * }</pre>
      */
     public void testFoldableGroupingPrunedAttributeSurvives() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | LIMIT 1 BY emp_no, 1, false
-            """);
+            """).coordinatorLogicalOptimized();
 
         var defaultLimit = as(plan, Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
@@ -296,11 +296,11 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
      * }</pre>
      */
     public void testEvalAliasAndExpressionMixedInLimitBy() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL x = emp_no + 5
             | LIMIT 1 BY x, salary * 2
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var defaultLimit = as(project.child(), Limit.class);
@@ -331,11 +331,11 @@ public class ReplaceLimitByExpressionWithEvalTests extends AbstractLogicalPlanOp
      * }</pre>
      */
     public void testFoldableAttributeAndExpressionGroupingsMixed() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | KEEP emp_no, salary
             | LIMIT 1 BY emp_no, salary * 2, 1
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("emp_no", "salary"));

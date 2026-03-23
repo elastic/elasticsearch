@@ -665,12 +665,12 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testDoNotPushDownIsNullFilterPastLookupJoin() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | RENAME languages AS language_code
             | LOOKUP JOIN languages_lookup ON language_code
             | WHERE language_name IS NULL
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -690,12 +690,12 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testPushDownGreaterThanFilterPastLookupJoin() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | RENAME languages AS language_code
             | LOOKUP JOIN languages_lookup ON language_code
             | WHERE language_name > "a"
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -715,12 +715,12 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testDoNotPushDownCoalesceFilterPastLookupJoin() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | RENAME languages AS language_code
             | LOOKUP JOIN languages_lookup ON language_code
             | WHERE COALESCE(language_name, "a") == "a"
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -741,12 +741,12 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#18, language_name{f}#19]
      */
     public void testPushDownIsNotNullFilterPastLookupJoin() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | RENAME languages AS language_code
             | LOOKUP JOIN languages_lookup ON language_code
             | WHERE language_name IS NOT NULL
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -769,7 +769,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#22, language_name{f}#23]
      */
     public void testPushDownMultipleWhere() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | RENAME languages AS language_code
             | LOOKUP JOIN languages_lookup ON language_code
@@ -778,7 +778,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
             | WHERE language_name LIKE "*b"
             | WHERE COALESCE(language_name, "c") == "c"
             | WHERE language_name RLIKE "f.*"
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -830,13 +830,13 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      *     \_EsRelation[test_lookup][LOOKUP][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
      */
     public void testPushDownFilterPastTwoLookupJoins() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | RENAME languages AS language_code
             | LOOKUP JOIN languages_lookup ON language_code
             | LOOKUP JOIN test_lookup ON salary
             | WHERE language_name > "a"
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -961,11 +961,11 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
             "requires LOOKUP JOIN ON boolean expression capability",
             EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
         );
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | LOOKUP JOIN languages_lookup ON languages > language_code
             | WHERE language_name IS NULL
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -989,7 +989,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
             "requires LOOKUP JOIN ON boolean expression capability",
             EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
         );
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | LOOKUP JOIN languages_lookup ON languages <= language_code
             | WHERE language_name IS NOT NULL
@@ -997,7 +997,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
             | WHERE language_name LIKE "*b"
             | WHERE COALESCE(language_name, "c") == "c"
             | WHERE language_name RLIKE "f.*"
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var topFilter = as(limit.child(), Filter.class);
@@ -1059,12 +1059,12 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      * languages{f}#15]]
      */
     public void testPushDown_OneGroupingFilter_PastInlineJoin() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM employees
             | INLINE STATS avg = AVG(salary) BY languages
             | WHERE languages > 2
             | KEEP avg, languages, salary, emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var subPlansResults = new HashSet<LocalRelation>();
         var firstSubPlan = InlineJoin.firstSubPlan(plan, subPlansResults).stubReplacedSubPlan();
@@ -1125,12 +1125,12 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      *       \_EsRelation[employees][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
      */
     public void testPushDown_SelectiveGroupingAndFilters_PastInlineJoin() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM employees
             | INLINE STATS avg = AVG(salary) BY languages, gender
             | WHERE languages > 2 AND gender IS NOT NULL AND emp_no > 10050
             | KEEP avg, languages, gender, emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var subPlansResults = new HashSet<LocalRelation>();
         var firstSubPlan = InlineJoin.firstSubPlan(plan, subPlansResults).stubReplacedSubPlan();
@@ -1204,12 +1204,12 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      *       \_EsRelation[employees][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
      */
     public void testPushDown_SelectiveGroupingOrFilters_PastInlineJoin() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM employees
             | INLINE STATS avg = AVG(salary) BY languages, gender
             | WHERE languages > 2 AND (gender IS NOT NULL OR emp_no > 10050)
             | KEEP avg, languages, gender, emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var subPlansResults = new HashSet<LocalRelation>();
         var firstSubPlan = InlineJoin.firstSubPlan(plan, subPlansResults).stubReplacedSubPlan();
@@ -1286,13 +1286,13 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      *       \_EsRelation[employees][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
      */
     public void testPushDown_ComplexFiltering_CombinedWithLeftFiltering_PastInlineJoin() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM employees
             | WHERE emp_no < 10090 AND salary < 10000
             | INLINE STATS avg = AVG(salary) BY languages, gender
             | WHERE languages > 2 AND (gender IS NOT NULL OR emp_no > 10050) AND salary > 5000
             | KEEP avg, languages, gender, emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var subPlansResults = new HashSet<LocalRelation>();
         var firstSubPlan = InlineJoin.firstSubPlan(plan, subPlansResults).stubReplacedSubPlan();
@@ -1378,13 +1378,13 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      *     \_EsRelation[employees][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
      */
     public void testPushDown_ImpossibleFilter_PastInlineJoin() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM employees
             | WHERE salary < 10000
             | INLINE STATS salary = AVG(salary) BY salary
             | WHERE salary > 10000
             | KEEP salary, emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -1430,12 +1430,12 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      *     \_EsRelation[employees][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
      */
     public void testDontPushDown_A_SimpleFilter_PastInlineJoin() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM employees
             | INLINE STATS a = AVG(salary) BY gender
             | WHERE languages > 2
             | KEEP languages, a, gender
-            """);
+            """).coordinatorLogicalOptimized();
 
         var subPlansResults = new HashSet<LocalRelation>();
         var firstSubPlan = InlineJoin.firstSubPlan(plan, subPlansResults).stubReplacedSubPlan();
@@ -1520,13 +1520,13 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
             | WHERE languages > 2
             | KEEP avg*, languages, gender, emp_no
          */
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM employees
             | INLINE STATS avgByL = AVG(salary) BY languages
             | INLINE STATS avgByG = AVG(salary) BY gender
             | WHERE languages > 2 AND gender IS NOT NULL
             | KEEP avg*, languages, gender, emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var subPlansResults = new HashSet<LocalRelation>();
         var subPlans = InlineJoin.firstSubPlan(plan, subPlansResults);
@@ -1651,13 +1651,13 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      *         \_LocalRelation[[avgByL{r}#5, languages{f}#22],org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier@d78bf66e]
      */
     public void testPartiallyPushDown_GroupingFilters_PastTwoInlineJoins2() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM employees
             | INLINE STATS avgByL = AVG(salary) BY languages
             | INLINE STATS avgByG = AVG(salary) BY gender, languages
             | WHERE languages > 2 AND gender IS NOT NULL AND emp_no > 10050
             | KEEP avg*, languages, gender, emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         // the optimized query should roughly look like this:
         /*
@@ -1809,13 +1809,13 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      *         \_LocalRelation[[avgByL{r}#5, languages{f}#22],org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier@1dc60410]
      */
     public void testPartiallyPushDown_GroupingFilters_PastTwoInlineJoins_ExcludeAggFilters() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM employees
             | INLINE STATS avgByL = AVG(salary) BY languages
             | INLINE STATS avgByG = AVG(salary) BY gender, languages
             | WHERE languages > 3 AND gender IS NOT NULL AND avgByL > 40000
             | KEEP avgB*, languages, gender, emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         // the optimized query should roughly look like this:
         /*
@@ -1969,7 +1969,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      *           \_LocalRelation[[avgByL{r}#9, languages{f}#29],org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier]
      */
     public void testPartiallyPushDown_RenamedGroupingFilters_PastTwoInlineJoins() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM employees
             | KEEP languages, salary, gender, emp_no
             | INLINE STATS avgByL = AVG(salary) BY languages
@@ -1977,7 +1977,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
             | INLINE STATS avgByG = AVG(salary) BY gender, lang
             | WHERE lang > 3 AND gender IS NOT NULL AND emp_no > 10050
             | KEEP avgB*, lang, gender, emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         // the optimized query should roughly look like this:
         /*
@@ -2127,12 +2127,12 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      */
     public void testDontPushDown_OnRightSideOf_InlineStats() {
         // a > 55000 even if it makes sense to have it pushed down on the right hand side, atm it cannot be done for inlinestats
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM employees
             | INLINE STATS a = AVG(salary) BY gender
             | WHERE a > 55000
             | KEEP a, gender
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -2195,13 +2195,13 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      *         \_LocalRelation[[avgByL{r}#5, languages{f}#22],org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier@817a68ce]
      */
     public void testPartiallyPushDown_GroupingFilters_PastTwoInlineJoins_ExcludeComplexAggFilters() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM employees
             | INLINE STATS avgByL = AVG(salary) BY languages
             | INLINE STATS avgByG = AVG(salary) BY gender
             | WHERE languages > 3 AND gender IS NOT NULL AND avgByL > 40000 AND avgByG < 50000
             | KEEP avgB*, languages, gender, emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         // the optimized query should roughly look like this:
         /*
@@ -2326,12 +2326,12 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      *   \_EsRelation[employees][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
      */
     public void testPushDown_OneGroupingFilter_PastInlineJoinWithInnerFilter() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM employees
             | INLINE STATS sum = SUM(salary) WHERE salary > 50000  BY languages
             | WHERE languages > 2
             | KEEP sum, languages, salary
-            """);
+            """).coordinatorLogicalOptimized();
 
         var subPlansResults = new HashSet<LocalRelation>();
         var firstSubPlan = InlineJoin.firstSubPlan(plan, subPlansResults).stubReplacedSubPlan();
@@ -2390,7 +2390,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
             | uri_parts u = first_name
             | WHERE u.domain == "elastic.co" AND salary > 5000
             """;
-        LogicalPlan plan = optimizedPlan(query);
+        LogicalPlan plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         // 1. The top level plan should be a Limit (can't be pushed down past filters)
         var limit = as(plan, Limit.class);
@@ -2428,7 +2428,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
             | registered_domain rd = first_name
             | WHERE rd.registered_domain == "example.co.uk" AND salary > 5000
             """;
-        LogicalPlan plan = optimizedPlan(query);
+        LogicalPlan plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
 

@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.is;
 public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimizerTests {
 
     protected LogicalPlan planK8s(String query) {
-        return logicalOptimizer.optimize(analyzerWithEnrichPolicies().addK8s().query(query));
+        return analyzerWithEnrichPolicies().addK8s().plans(query).coordinatorLogicalOptimized();
     }
 
     /**

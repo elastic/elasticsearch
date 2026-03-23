@@ -41,11 +41,11 @@ public class PruneLiteralsInLimitByTests extends AbstractLogicalPlanOptimizerTes
      * }</pre>
      */
     public void testLimitByFoldableEvalAlias() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL x = 5
             | LIMIT 1 BY x
-            """);
+            """).coordinatorLogicalOptimized();
 
         var eval = assertEvalFields(as(plan, Eval.class), new String[] { "x" }, new Object[] { 5 });
         var limit = as(eval.child(), Limit.class);
@@ -61,12 +61,12 @@ public class PruneLiteralsInLimitByTests extends AbstractLogicalPlanOptimizerTes
      * }</pre>
      */
     public void testLimitByFoldableContiguousEvalAlias() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL x = 5
             | EVAL y = x + 2
             | LIMIT 1 BY y
-            """);
+            """).coordinatorLogicalOptimized();
 
         var eval = assertEvalFields(as(plan, Eval.class), new String[] { "x", "y" }, new Object[] { 5, 7 });
 
@@ -83,13 +83,13 @@ public class PruneLiteralsInLimitByTests extends AbstractLogicalPlanOptimizerTes
      * }</pre>
      */
     public void testLimitByFoldableNonContiguousEvalAlias() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL x = 5
             | LIMIT 50
             | EVAL y = x + 2
             | LIMIT 1 BY y
-            """);
+            """).coordinatorLogicalOptimized();
 
         var eval = assertEvalFields(as(plan, Eval.class), new String[] { "x", "y" }, new Object[] { 5, 7 });
 
@@ -109,11 +109,11 @@ public class PruneLiteralsInLimitByTests extends AbstractLogicalPlanOptimizerTes
      * }</pre>
      */
     public void testFoldableEvalAliasAndAttributeMixed() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL x = 5
             | LIMIT 1 BY x, emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var eval = assertEvalFields(as(plan, Eval.class), new String[] { "x" }, new Object[] { 5 });
         var defaultLimit = as(eval.child(), Limit.class);
@@ -133,11 +133,11 @@ public class PruneLiteralsInLimitByTests extends AbstractLogicalPlanOptimizerTes
      * }</pre>
      */
     public void testFoldableEvalAliasAndLiteralBothPruned() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL x = 5
             | LIMIT 1 BY x, 3
-            """);
+            """).coordinatorLogicalOptimized();
 
         var eval = assertEvalFields(as(plan, Eval.class), new String[] { "x" }, new Object[] { 5 });
         var limit = as(eval.child(), Limit.class);
@@ -157,11 +157,11 @@ public class PruneLiteralsInLimitByTests extends AbstractLogicalPlanOptimizerTes
      * }</pre>
      */
     public void testFoldableExpressionFromPropagatedEval() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL x = 5
             | LIMIT 1 BY x + x + 2
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var eval = assertEvalFields(as(project.child(), Eval.class), new String[] { "x" }, new Object[] { 5 });
@@ -179,12 +179,12 @@ public class PruneLiteralsInLimitByTests extends AbstractLogicalPlanOptimizerTes
      * }</pre>
      */
     public void testContiguousLimitByWithFoldableEval() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL x = 5
             | LIMIT 2 BY x
             | LIMIT 1 BY x
-            """);
+            """).coordinatorLogicalOptimized();
 
         var eval = assertEvalFields(as(plan, Eval.class), new String[] { "x" }, new Object[] { 5 });
         var limit = as(eval.child(), Limit.class);
@@ -202,13 +202,13 @@ public class PruneLiteralsInLimitByTests extends AbstractLogicalPlanOptimizerTes
      * }</pre>
      */
     public void testNonContiguousLimitByWithFoldableEval() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL x = 5 + 24
             | LIMIT 2 BY x
             | EVAL y = x
             | LIMIT 1 BY y
-            """);
+            """).coordinatorLogicalOptimized();
 
         var eval = assertEvalFields(as(plan, Eval.class), new String[] { "x", "y" }, new Object[] { 29, 29 });
         var limit = as(eval.child(), Limit.class);
@@ -225,12 +225,12 @@ public class PruneLiteralsInLimitByTests extends AbstractLogicalPlanOptimizerTes
      * }</pre>
      */
     public void testEvalShouldBePruned() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL x = 5
             | LIMIT 1 BY x
             | KEEP emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);

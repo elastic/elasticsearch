@@ -51,10 +51,10 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
      * }</pre>
      */
     public void testReplaceStatsFilteredAggWithEvalSingleAgg() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats sum(salary) where false
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Limit.class);
         var source = as(project.child(), LocalRelation.class);
@@ -74,10 +74,10 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
      * }</pre>
      */
     public void testReplaceStatsFilteredAggWithEvalSingleAggWithExpression() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats sum(salary) + 1 where false
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("sum(salary) + 1 where false"));
@@ -109,12 +109,12 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
      * }</pre>
      */
     public void testReplaceStatsFilteredAggWithEvalMixedFilterAndNoFilter() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats sum(salary) + 1 where false,
                     sum(salary) + 2
               by emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("sum(salary) + 1 where false", "sum(salary) + 2", "emp_no"));
@@ -147,13 +147,13 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
      *
      */
     public void testReplaceStatsFilteredAggWithEvalFilterFalseAndNull() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats sum(salary) + 1 where false,
                     sum(salary) + 3,
                     sum(salary) + 2 where null,
                     sum(salary) + 4 where not true
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(
@@ -195,10 +195,10 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
      * \_LocalRelation[[count(salary) where false{r}#3],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
      */
     public void testReplaceStatsFilteredAggWithEvalNotTrue() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats count(salary) where not true
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var source = as(limit.child(), LocalRelation.class);
@@ -216,10 +216,10 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
      * \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
      */
     public void testReplaceStatsFilteredAggWithEvalNotFalse() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats m1 = count(salary) where not false
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var aggregate = as(limit.child(), Aggregate.class);
         assertEquals(1, aggregate.aggregates().size());
@@ -237,10 +237,10 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
      * }</pre>
      */
     public void testReplaceStatsFilteredAggWithEvalCount() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats count(salary) where false
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var source = as(limit.child(), LocalRelation.class);
@@ -261,10 +261,10 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
      * }</pre>
      */
     public void testReplaceStatsFilteredAggWithEvalCountDistinctInExpression() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats count_distinct(salary + 2) + 3 where false
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("count_distinct(salary + 2) + 3 where false"));
@@ -298,12 +298,12 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
      * }</pre>
      */
     public void testReplaceStatsFilteredAggWithEvalSameAggWithAndWithoutFilter() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats max = max(salary), max_a = max(salary) where null,
                     min = min(salary), min_a = min(salary) where to_string(null) == "abc"
               by emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("max", "max_a", "min", "min_a", "emp_no"));
@@ -338,11 +338,11 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634") // i.e. PropagateEvalFoldables applicability to Aggs
     public void testReplaceStatsFilteredAggWithEvalFilterUsingEvaledValue() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | eval my_length = length(concat(first_name, null))
             | stats count = count(my_length) where my_length > 0
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var source = as(limit.child(), LocalRelation.class);
@@ -365,11 +365,11 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
      * }</pre>
      */
     public void testReplaceStatsFilteredAggWithEvalSingleAggWithGroup() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats c = count(emp_no) where false
               by emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("c", "emp_no"));
@@ -402,7 +402,7 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = plan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         assertMap(
             Expressions.names(project.projections()).stream().map(Object::toString).toList(),
@@ -445,7 +445,7 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = plan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         assertMap(
             Expressions.names(project.projections()).stream().map(Object::toString).toList(),
@@ -494,7 +494,7 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = plan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var ij = as(limit.child(), InlineJoin.class);
         var left = as(ij.left(), Project.class);
@@ -550,7 +550,7 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = plan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var ij = as(limit.child(), InlineJoin.class);
 
@@ -601,7 +601,7 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = plan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("emp_no", "salary", "count(salary) where not true"));
 
@@ -633,7 +633,7 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = plan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var ij = as(limit.child(), InlineJoin.class);
 
@@ -666,7 +666,7 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = plan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("salary", "count(salary) where false"));
 
@@ -696,7 +696,7 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = plan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("salary", "count_distinct(salary + 2) + 3 where false"));
 
@@ -733,7 +733,7 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = plan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var ij = as(limit.child(), InlineJoin.class);
 
@@ -784,7 +784,7 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = plan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("emp_no", "count", "cc"));
 
@@ -811,10 +811,10 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
      * }</pre>
      */
     public void testReplaceStatsMaxOnNullReferenceWithEvalSingleAgg() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             row x = null
             | stats max(x)
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Limit.class);
         var source = as(project.child(), LocalRelation.class);
@@ -834,10 +834,10 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
      * }</pre>
      */
     public void testReplaceStatsMaxOnNullLiteralWithEvalSingleAgg() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             row x = 3
             | stats y = max(null)
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("y"));
@@ -863,12 +863,12 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
      * }</pre>
      */
     public void testReplaceStatsMaxOnNullWithEvalAndAgg() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             row x = null, y = 1
             | stats max(x),
                     sum(y)
               by x
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("max(x)", "sum(y)", "x"));
@@ -895,10 +895,10 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
      */
     public void testReplaceStatsOnNullLiteralWithEvalSpecialFunctions() {
         // COUNT(null) surrogates to COUNT(*) * MV_COUNT(null), and ABSENT(x) surrogates to NOT(PRESENT(x)), so they're not included
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             row x = 3
             | stats a = COUNT_DISTINCT(null), b = PRESENT(null)
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("a", "b"));
@@ -934,10 +934,10 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
      */
     public void testReplaceStatsOnPropagatedNullLiteralWithEvalSpecialFunctions() {
         // ABSENT(x) surrogates to NOT(PRESENT(x)), so it's not included
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             row x = null
             | stats a = COUNT(x), b = COUNT_DISTINCT(x), c = PRESENT(x)
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var source = as(limit.child(), LocalRelation.class);

@@ -190,6 +190,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.relation;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
@@ -232,10 +233,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     private static final LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new LiteralsOnTheRight();
 
     public void testEvalWithScoreImplicitLimit() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL s = SCORE(MATCH(last_name, "high"))
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         assertThat(limit.child(), instanceOf(Eval.class));
         assertThat(((Literal) limit.limit()).value(), equalTo(1000));
@@ -245,11 +246,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testEvalWithScoreExplicitLimit() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL s = SCORE(MATCH(last_name, "high"))
             | LIMIT 42
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         assertThat(limit.child(), instanceOf(Eval.class));
         assertThat(((Literal) limit.limit()).value(), equalTo(42));
@@ -259,11 +260,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testEmptyProjections() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | keep salary
             | drop salary
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(project.expressions(), is(empty()));
@@ -272,11 +273,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testEmptyProjectionInStat() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats c = count(salary)
             | drop c
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var relation = as(limit.child(), LocalRelation.class);
         assertThat(relation.output(), is(empty()));
@@ -296,13 +297,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testEmptyProjectInStatWithEval() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | where languages > 1
             | stats c = count(salary)
             | eval x = 1, c2 = c*2
             | drop c, c2
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var eval = as(project.child(), Eval.class);
@@ -331,13 +332,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testEmptyProjectInStatWithGroupAndEval() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | where languages > 1
             | stats c = count(salary) by emp_no
             | eval x = 1, c2 = c*2
             | drop c, emp_no, c2
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var eval = as(project.child(), Eval.class);
@@ -362,11 +363,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineProjections() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | keep emp_no, *name, salary
             | keep last_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         assertThat(Expressions.names(keep.projections()), contains("last_name"));
@@ -383,11 +384,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testCombineProjectionsWithEvalAndDrop() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | eval f1 = languages, f2 = f1
             | keep f2
-            """);
+            """).coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         assertThat(Expressions.names(keep.projections()), contains("f2"));
@@ -407,13 +408,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testCombineProjectionsWithEval() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | eval f1 = languages, f2 = f1, f3 = 1 + 2, f4 = f3 + languages
             | keep emp_no, *name, salary, f*
             | drop f3
             | keep last_name, f2, f4
-            """);
+            """).coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         assertThat(Expressions.names(keep.projections()), contains("last_name", "f2", "f4"));
@@ -425,26 +426,26 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineProjectionWithFilterInBetween() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | keep *name, salary
             | where salary > 10
             | keep last_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         assertThat(Expressions.names(keep.projections()), contains("last_name"));
     }
 
     public void testCombineProjectionWhilePreservingAlias() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | rename first_name as x
             | keep x, salary
             | where salary > 10
             | rename x as y
             | keep y
-            """);
+            """).coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         assertThat(Expressions.names(keep.projections()), contains("y"));
@@ -454,11 +455,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineProjectionWithAggregation() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats s = sum(salary) by last_name, first_name
             | keep s, last_name, first_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -476,12 +477,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testCombineProjectionWithAggregationAndEval() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | eval k = first_name, k1 = k
             | stats s = sum(salary) by last_name, first_name, k, k1
             | keep s, last_name, first_name, k
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -498,11 +499,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRemoveOverridesInAggregate() throws Exception {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats x = count(emp_no), x = min(emp_no), x = max(emp_no) by languages
             | sort x
-            """);
+            """).coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         var agg = as(topN.child(), Aggregate.class);
@@ -530,11 +531,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testAggsWithOverridingInputAndGrouping() throws Exception {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats b = count(emp_no), b = max(emp_no) by b = languages
             | sort b
-            """);
+            """).coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         var agg = as(topN.child(), Aggregate.class);
@@ -557,10 +558,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testStatsWithFilteringDefaultAliasing() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats sum(salary), sum(salary) WheRe last_name ==   "Doe"
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -569,11 +570,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testExtractStatsCommonFilter() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats m = min(salary) where emp_no > 1,
                     max(salary) where emp_no > 1
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -602,11 +603,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testExtractStatsCommonAlwaysTruePlusOtherFilter() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats m1 = min(salary) where (true and emp_no > 1),
                     m2 = max(salary) where (1==1 and emp_no > 1)
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -627,13 +628,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testExtractStatsCommonFilterUsingAliases() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | eval eno = emp_no
             | drop emp_no
             | stats min(salary) where eno > 1,
                     max(salary) where eno > 1
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -654,12 +655,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testExtractStatsCommonFilterUsingJustOneAlias() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | eval eno = emp_no
             | stats min(salary) where emp_no > 1,
                     max(salary) where eno > 1
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -683,11 +684,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testExtractStatsCommonFilterSkippedNotSameFilter() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats min(salary) where emp_no > 1,
                     max(salary) where emp_no > 2
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -705,11 +706,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testExtractStatsCommonFilterSkippedOnLackingFilter() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats min(salary),
                     max(salary) where emp_no > 2
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -727,11 +728,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testExtractStatsCommonFilterSkippedWithGroups() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats min(salary) where emp_no > 2,
                     max(salary) where emp_no > 2 by first_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -749,12 +750,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testExtractStatsCommonFilterNormalizeAndCombineWithExistingFilter() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | where emp_no > 3
             | stats min(salary) where emp_no > 2,
                     max(salary) where 2 < emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -775,11 +776,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testExtractStatsCommonFilterInConjunction() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats min(salary) where emp_no > 2 and first_name == "John",
                     max(salary) where emp_no > 1 + 1 and length(last_name) < 19
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -803,11 +804,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testExtractStatsCommonFilterInConjunctionWithMultipleCommonConjunctions() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats min(salary) where emp_no < 10 and first_name == "John" and last_name == "Doe",
                     max(salary) where emp_no - 1 < 2 + 7 and length(last_name) < 19 and last_name == "Doe"
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -839,11 +840,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testExtractStatsCommonFilterSkippedDueToDisjunction() {
         // same query as in testExtractStatsCommonFilterInConjunction, except for the OR in the filter
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats min(salary) where emp_no > 2 OR first_name == "John",
                     max(salary) where emp_no > 1 + 1 and length(last_name) < 19
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -861,10 +862,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testQlComparisonOptimizationsApply() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | where (1 + 4) < salary
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -878,10 +879,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineDisjunctionToInEquals() {
-        LogicalPlan plan = plan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | where emp_no == 1 or emp_no == 2
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
         var condition = as(filter.condition(), In.class);
@@ -889,10 +890,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineDisjunctionToInMixed() {
-        LogicalPlan plan = plan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | where emp_no == 1 or emp_no in (2)
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
         var condition = as(filter.condition(), In.class);
@@ -900,10 +901,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineDisjunctionToInFromIn() {
-        LogicalPlan plan = plan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | where emp_no in (1) or emp_no in (2)
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
         var condition = as(filter.condition(), In.class);
@@ -919,12 +920,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testCombineProjectionWithPruning() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | rename first_name as x
             | keep x, salary, last_name
             | stats count(salary) by x
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -945,11 +946,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testCombineProjectionWithAggregationFirstAndAliasedGroupingUsedInAgg() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | rename emp_no as e, first_name as f
             | stats s = sum(e), c = count(f) by f
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -977,12 +978,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testCombineProjectionWithCategorizeGrouping() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | eval k = first_name, k1 = k
             | stats s = sum(salary) by cat = CATEGORIZE(k1)
             | keep s, cat
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -1006,11 +1007,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testCombineProjectionWithAggregationFirstAndAliasedGroupingUnused() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | rename emp_no as e, first_name as f, last_name as l
             | stats s = sum(e) by f
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -1035,12 +1036,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testCombineEvals() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | eval x = emp_no + 2
             | eval y = salary + 3
             | keep x, y
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var eval = as(project.child(), Eval.class);
@@ -1057,7 +1058,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var anotherLimit = new Limit(EMPTY, L(limitValues[secondLimit]), oneLimit);
         assertEquals(
             new Limit(EMPTY, L(Math.min(limitValues[0], limitValues[1])), emptySource()),
-            new PushDownAndCombineLimits().rule(anotherLimit, logicalOptimizerCtx)
+            new PushDownAndCombineLimits().rule(anotherLimit, unboundLogicalOptimizerContext())
         );
     }
 
@@ -1078,7 +1079,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var limit = new Limit(EMPTY, L(10), join);
 
-        var optimizedPlan = rule.apply(limit, logicalOptimizerCtx);
+        var optimizedPlan = rule.apply(limit, unboundLogicalOptimizerContext());
 
         var expectedPlan = join instanceof InlineJoin
             ? new Limit(limit.source(), limit.limit(), join, false, false)
@@ -1086,7 +1087,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         assertEquals(expectedPlan, optimizedPlan);
 
-        var optimizedTwice = rule.apply(optimizedPlan, logicalOptimizerCtx);
+        var optimizedTwice = rule.apply(optimizedPlan, unboundLogicalOptimizerContext());
         // We mustn't create the limit after the JOIN multiple times when the rule is applied multiple times, that'd lead to infinite loops.
         assertEquals(optimizedPlan, optimizedTwice);
     }
@@ -1104,18 +1105,18 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             var value = i == limitWithMinimum ? minimum : randomIntBetween(100, 1000);
             plan = new Limit(EMPTY, L(value), plan);
         }
-        assertEquals(new Limit(EMPTY, L(minimum), relation), logicalOptimizer.optimize(plan));
+        assertEquals(new Limit(EMPTY, L(minimum), relation), buildLogicalOptimizer().optimize(plan));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/115311")
     public void testSelectivelyPushDownFilterPastRefAgg() {
         // expected plan: "from test | where emp_no > 1 and emp_no < 3 | stats x = count(1) by emp_no | where x > 7"
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | where emp_no > 1
             | stats x = count(1) by emp_no
             | where x + 2 > 9
-            | where emp_no < 3""");
+            | where emp_no < 3""").coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
 
@@ -1144,10 +1145,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testNoPushDownOrFilterPastAgg() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | stats x = count(1) by emp_no
-            | where emp_no < 3 or x > 9""");
+            | where emp_no < 3 or x > 9""").coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
 
@@ -1163,10 +1164,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/115311")
     public void testSelectivePushDownComplexFilterPastAgg() {
         // expected plan: from test | emp_no > 0 | stats x = count(1) by emp_no | where emp_no < 3 or x > 9
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | stats x = count(1) by emp_no
-            | where (emp_no < 3 or x > 9) and emp_no > 0""");
+            | where (emp_no < 3 or x > 9) and emp_no > 0""").coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
 
@@ -1188,12 +1189,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testSelectivelyPushDownFilterPastEval() {
         // expected plan: "from test | where emp_no > 1 and emp_no < 3 | eval x = emp_no + 1 | where x < 7"
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | where emp_no > 1
             | eval x = emp_no + 1
             | where x + 2 < 9
-            | where emp_no < 3""");
+            | where emp_no < 3""").coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
 
@@ -1225,10 +1226,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testNoPushDownOrFilterPastLimit() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | limit 3
-            | where emp_no < 3 or salary > 9""");
+            | where emp_no < 3 or salary > 9""").coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
 
@@ -1242,11 +1243,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownFilterPastProject() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | rename emp_no as x
             | keep x
-            | where x > 10""");
+            | where x > 10""").coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var limit = as(keep.child(), Limit.class);
@@ -1256,11 +1257,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownEvalPastProject() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | rename emp_no as x
             | keep x
-            | eval y = x * 2""");
+            | eval y = x * 2""").coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var eval = as(keep.child(), Eval.class);
@@ -1277,12 +1278,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownDissectPastProject() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | rename first_name as x
             | keep x
             | dissect x "%{y}"
-            """);
+            """).coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var dissect = as(keep.child(), Dissect.class);
@@ -1290,12 +1291,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownGrokPastProject() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | rename first_name as x
             | keep x
             | grok x "%{WORD:y}"
-            """);
+            """).coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var grok = as(keep.child(), Grok.class);
@@ -1303,11 +1304,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownFilterPastProjectUsingEval() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | eval y = emp_no + 1
             | rename y as x
-            | where x > 10""");
+            | where x > 10""").coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var limit = as(keep.child(), Limit.class);
@@ -1319,13 +1320,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownFilterPastProjectUsingDissect() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | dissect first_name "%{y}"
             | rename y as x
             | keep x
             | where x == "foo"
-            """);
+            """).coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var limit = as(keep.child(), Limit.class);
@@ -1337,13 +1338,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownFilterPastProjectUsingGrok() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | grok first_name "%{WORD:y}"
             | rename y as x
             | keep x
             | where x == "foo"
-            """);
+            """).coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var limit = as(keep.child(), Limit.class);
@@ -1355,52 +1356,52 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownLimitPastEval() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | eval x = emp_no + 100
-            | limit 10""");
+            | limit 10""").coordinatorLogicalOptimized();
 
         var eval = as(plan, Eval.class);
         as(eval.child(), Limit.class);
     }
 
     public void testPushDownLimitPastDissect() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | dissect first_name "%{y}"
-            | limit 10""");
+            | limit 10""").coordinatorLogicalOptimized();
 
         var dissect = as(plan, Dissect.class);
         as(dissect.child(), Limit.class);
     }
 
     public void testPushDownLimitPastGrok() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | grok first_name "%{WORD:y}"
-            | limit 10""");
+            | limit 10""").coordinatorLogicalOptimized();
 
         var grok = as(plan, Grok.class);
         as(grok.child(), Limit.class);
     }
 
     public void testPushDownLimitPastProject() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | rename emp_no as a
             | keep a
-            | limit 10""");
+            | limit 10""").coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         as(keep.child(), Limit.class);
     }
 
     public void testDontPushDownLimitPastFilter() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | limit 100
             | where emp_no > 10
-            | limit 10""");
+            | limit 10""").coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -1408,13 +1409,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testEliminateHigherLimitDueToDescendantLimit() throws Exception {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | limit 10
             | sort emp_no
             | where emp_no > 10
             | eval c = emp_no + 2
-            | limit 100""");
+            | limit 100""").coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         var eval = as(topN.child(), Eval.class);
@@ -1423,12 +1424,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testDoNotEliminateHigherLimitDueToDescendantLimit() throws Exception {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | limit 10
             | where emp_no > 10
             | stats c = count(emp_no) by emp_no
-            | limit 100""");
+            | limit 100""").coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -1437,11 +1438,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPruneSortBeforeStats() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no
             | where emp_no > 10
-            | stats x = sum(salary) by first_name""");
+            | stats x = sum(salary) by first_name""").coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var stats = as(limit.child(), Aggregate.class);
@@ -1450,11 +1451,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testDontPruneSortWithLimitBeforeStats() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no
             | limit 100
-            | stats x = sum(salary) by first_name""");
+            | stats x = sum(salary) by first_name""").coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var stats = as(limit.child(), Aggregate.class);
@@ -1463,10 +1464,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineOrderBy() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no
-            | sort salary""");
+            | sort salary""").coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         assertThat(orderNames(topN), contains("salary"));
@@ -1474,11 +1475,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineOrderByThroughEval() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no
             | eval x = salary + 1
-            | sort x""");
+            | sort x""").coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         assertThat(orderNames(topN), contains("x"));
@@ -1487,12 +1488,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineOrderByThroughEvalWithTwoDefs() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no
             | eval x = salary + 1, y = salary + 2
             | eval z = x * y
-            | sort z""");
+            | sort z""").coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         assertThat(orderNames(topN), contains("z"));
@@ -1502,11 +1503,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineOrderByThroughDissect() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no
             | dissect first_name "%{x}"
-            | sort x""");
+            | sort x""").coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         assertThat(orderNames(topN), contains("x"));
@@ -1515,11 +1516,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineOrderByThroughGrok() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no
             | grok first_name "%{WORD:x}"
-            | sort x""");
+            | sort x""").coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         assertThat(orderNames(topN), contains("x"));
@@ -1528,11 +1529,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineOrderByThroughProject() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no
             | keep salary, emp_no
-            | sort salary""");
+            | sort salary""").coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
@@ -1541,13 +1542,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineOrderByThroughProjectAndEval() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no
             | rename emp_no as en
             | keep salary, en
             | eval e = en * 2
-            | sort salary""");
+            | sort salary""").coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
@@ -1558,12 +1559,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineOrderByThroughProjectWithAlias() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no
             | rename salary as l
             | keep l, emp_no
-            | sort l""");
+            | sort l""").coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
@@ -1572,11 +1573,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineOrderByThroughFilter() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no
             | where emp_no > 10
-            | sort salary""");
+            | sort salary""").coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         assertThat(orderNames(topN), contains("salary"));
@@ -1593,11 +1594,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testDontCombineOrderByThroughMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no
             | mv_expand first_name
-            | sort first_name""");
+            | sort first_name""").coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         assertThat(orderNames(topN), contains("first_name"));
@@ -1616,12 +1617,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testCopyDefaultLimitPastMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | rename first_name as x
             | keep x
             | mv_expand x
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = asLimit(plan, 1000, true);
         var mvExpand = as(limit.child(), MvExpand.class);
@@ -1642,12 +1643,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testCopyDefaultLimitPastLookupJoin() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | rename languages AS language_code
             | keep language_code
             | lookup join languages_lookup ON language_code
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = asLimit(project.child(), 1000, true);
@@ -1667,13 +1668,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testDontPushDownLimitPastMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | limit 1
             | keep first_name, last_name
             | mv_expand first_name
             | limit 10
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = asLimit(plan, 10, true);
         var mvExpand = as(limit.child(), MvExpand.class);
@@ -1694,14 +1695,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testDontPushDownLimitPastLookupJoin() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | limit 1
             | rename languages AS language_code
             | keep language_code, last_name
             | lookup join languages_lookup on language_code
             | limit 10
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = asLimit(project.child(), 10, true);
@@ -1728,7 +1729,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testMultipleMvExpandWithSortAndLimit() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | where emp_no <= 10006
             | sort emp_no desc
@@ -1741,7 +1742,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | sort first_name
             | keep emp_no, first_name, languages, lll, salary
             | sort salary desc
-            """);
+            """).coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
@@ -1781,7 +1782,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testMultipleLookupJoinWithSortAndLimit() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | where emp_no <= 10006
             | sort emp_no desc
@@ -1796,7 +1797,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | sort first_name
             | keep emp_no, first_name, languages, lll, salary, language_name
             | sort salary desc
-            """);
+            """).coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
@@ -1825,13 +1826,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testPushDownLimitThroughMultipleSort_AfterMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no
             | mv_expand first_name
             | keep emp_no, first_name, salary
             | sort salary, first_name
-            | limit 5""");
+            | limit 5""").coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
@@ -1852,14 +1853,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testPushDownLimitThroughMultipleSort_AfterMvExpand2() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no
             | mv_expand first_name
             | keep emp_no, first_name, salary
             | sort salary
             | limit 5
-            | sort first_name""");
+            | sort first_name""").coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
@@ -1886,7 +1887,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testDontPushDownLimitPastAggregate_AndMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no
             | limit 50
@@ -1894,7 +1895,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | keep emp_no, first_name, salary
             | stats max_s = max(salary) by first_name
             | where first_name is not null
-            | limit 5""");
+            | limit 5""").coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -1921,14 +1922,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *           \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
      */
     public void testPushDown_TheRightLimit_PastMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | mv_expand first_name
             | limit 50
             | keep emp_no, first_name, salary
             | stats max_s = max(salary) by first_name
             | where first_name is not null
-            | limit 5""");
+            | limit 5""").coordinatorLogicalOptimized();
 
         var limit = asLimit(plan, 5, false);
         var filter = as(limit.child(), Filter.class);
@@ -1956,7 +1957,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testPushDown_TheRightLimit_PastLookupJoin() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | rename languages as language_code
             | lookup join languages_lookup on language_code
@@ -1964,7 +1965,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | keep emp_no, first_name, salary
             | stats max_s = max(salary) by first_name
             | where first_name is not null
-            | limit 5""");
+            | limit 5""").coordinatorLogicalOptimized();
 
         var limit = asLimit(plan, 5, false);
         var filter = as(limit.child(), Filter.class);
@@ -1986,14 +1987,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testPushDownLimit_PastEvalAndMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort first_name
             | mv_expand first_name
             | eval b = 100
             | sort salary
             | limit 5
-            | keep first_name, emp_no, salary, b""");
+            | keep first_name, emp_no, salary, b""").coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
@@ -2015,14 +2016,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRedundantSort_BeforeMvExpand_WithFilterOnExpandedField_ResultTruncationDefaultSize() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no
             | mv_expand first_name
             | where gender == "F"
             | where first_name LIKE "R*"
             | keep emp_no, first_name, salary
-            | sort salary, first_name""");
+            | sort salary, first_name""").coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
@@ -2046,12 +2047,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testFilterWithSortBeforeMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | where emp_no <= 10006
             | sort emp_no desc
             | mv_expand first_name
-            | limit 10""");
+            | limit 10""").coordinatorLogicalOptimized();
 
         var limit = asLimit(plan, 10, true);
         var mvExp = as(limit.child(), MvExpand.class);
@@ -2077,13 +2078,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testFilterWithSortBeforeLookupJoin() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | where emp_no <= 10006
             | sort emp_no desc
             | rename languages as language_code
             | lookup join languages_lookup on language_code
-            | limit 10""");
+            | limit 10""").coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = asLimit(project.child(), 10, true);
@@ -2111,13 +2112,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testMultiMvExpand_SortDownBelow() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort last_name ASC
             | mv_expand emp_no
             | where  emp_no > 10050
             | mv_expand last_name
-            | sort first_name""");
+            | sort first_name""").coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(1000));
@@ -2145,13 +2146,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testLimitThenSortBeforeMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             row  a = null, b = 123, c = 234
             | mv_expand b
             | limit 7300
             | keep c, a
             | sort a NULLS FIRST
-            | mv_expand c""");
+            | mv_expand c""").coordinatorLogicalOptimized();
 
         var limit10kBefore = asLimit(plan, 10000, true);
         var mvExpand = as(limit10kBefore.child(), MvExpand.class);
@@ -2184,7 +2185,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testLimitThenSortBeforeLookupJoin() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             row  a = null, language_code = 123, c = 234
             | lookup join languages_lookup on language_code
             | limit 7300
@@ -2192,7 +2193,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | sort a NULLS FIRST
             | rename c as language_code
             | lookup join languages_lookup on language_code
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit10kBefore = asLimit(project.child(), 10000, true);
@@ -2219,12 +2220,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRemoveUnusedSortBeforeMvExpand_DefaultLimit10000() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no
             | mv_expand first_name
             | sort first_name
-            | limit 15000""");
+            | limit 15000""").coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         assertThat(orderNames(topN), contains("first_name"));
@@ -2244,7 +2245,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRedundantSort_BeforeMvExpand_WithFilterOnExpandedField() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no
             | mv_expand first_name
@@ -2252,7 +2253,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | where first_name LIKE "R*"
             | keep emp_no, first_name, salary
             | sort salary, first_name
-            | limit 15""");
+            | limit 15""").coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
@@ -2275,7 +2276,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRedundantSort_BeforeMvExpand_WithFilter_NOT_OnExpandedField() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no
             | mv_expand first_name
@@ -2283,7 +2284,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | where salary > 60000
             | keep emp_no, first_name, salary
             | sort salary, first_name
-            | limit 15""");
+            | limit 15""").coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
@@ -2306,7 +2307,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRedundantSort_BeforeMvExpand_WithFilterOnExpandedFieldAlias() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort gender
             | mv_expand first_name
@@ -2315,7 +2316,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | where x LIKE "A*"
             | keep emp_no, x, salary
             | sort salary, x
-            | limit 15""");
+            | limit 15""").coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
@@ -2337,11 +2338,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testSortMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             row a = 1
             | sort a
             | mv_expand a
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = asLimit(plan, 1000, true);
         var expand = as(limit.child(), MvExpand.class);
@@ -2360,11 +2361,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testSortLookupJoin() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             row language_code = 1
             | sort language_code
             | lookup join languages_lookup on language_code
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = asLimit(plan, 1000, true);
         var join = as(limit.child(), Join.class);
@@ -2387,11 +2388,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testSortMvExpandLimit() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no
             | mv_expand emp_no
-            | limit 20""");
+            | limit 20""").coordinatorLogicalOptimized();
 
         var limit = asLimit(plan, 20, true);
         var expand = as(limit.child(), MvExpand.class);
@@ -2414,12 +2415,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testSortLookupJoinLimit() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no
             | rename emp_no as language_code
             | lookup join languages_lookup on language_code
-            | limit 20""");
+            | limit 20""").coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = asLimit(project.child(), 20, true);
@@ -2446,11 +2447,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *  see <a href="https://github.com/elastic/elasticsearch/issues/102084">https://github.com/elastic/elasticsearch/issues/102084</a>
      */
     public void testWhereMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             row  a = 1, b = -15
             | where b < 3
             | mv_expand b
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = asLimit(plan, 1000, true);
         var expand = as(limit.child(), MvExpand.class);
@@ -2470,11 +2471,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testWhereLookupJoin() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             row  a = 1, language_code = -15
             | where language_code < 3
             | lookup join languages_lookup on language_code
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = asLimit(plan, 1000, true);
         var join = as(limit.child(), Join.class);
@@ -2495,13 +2496,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Notice that the `TopN` at the very top has limit 1, not 3!
      */
     public void testDescendantLimitMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             ROW language_code = 1
             | MV_EXPAND language_code
             | LIMIT 1
             | SORT language_code
             | LIMIT 3
-            """);
+            """).coordinatorLogicalOptimized();
 
         var topn = as(plan, TopN.class);
         var limitAfter = asLimit(topn.child(), 1, true);
@@ -2524,13 +2525,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Notice that the `TopN` at the very top has limit 1, not 3!
      */
     public void testDescendantLimitLookupJoin() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             ROW language_code = 1
             | LOOKUP JOIN languages_lookup ON language_code
             | LIMIT 1
             | SORT language_code
             | LIMIT 3
-            """);
+            """).coordinatorLogicalOptimized();
 
         var topn = as(plan, TopN.class);
         var limitAfter = asLimit(topn.child(), 1, true);
@@ -2548,12 +2549,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testPruneJoinOnNullMatchingField() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | eval language_code = null::integer
             | keep emp_no, first_name, languages, language_code
             | lookup join languages_lookup on language_code
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.output()), contains("emp_no", "first_name", "languages", "language_code", "language_name"));
@@ -2576,12 +2577,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             "requires LOOKUP JOIN ON boolean expression capability",
             EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
         );
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | eval language_code_left = null::integer
             | keep emp_no, first_name, languages, language_code_left
             | lookup join languages_lookup on language_code_left == language_code
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(
@@ -2602,14 +2603,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testPruneJoinOnNullAssignedMatchingField() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | eval my_null = null::integer
             | rename languages as language_code
             | eval language_code = my_null
             | lookup join languages_lookup on language_code
             | keep emp_no, first_name, language_code, language_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.output()), contains("emp_no", "first_name", "language_code", "language_name"));
@@ -2631,14 +2632,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             "requires LOOKUP JOIN ON boolean expression capability",
             EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
         );
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | eval my_null = null::integer
             | rename languages as language_code_right
             | eval language_code_right = my_null
             | lookup join languages_lookup on language_code_right > language_code
             | keep emp_no, first_name, language_code, language_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.output()), contains("emp_no", "first_name", "language_code", "language_name"));
@@ -2660,11 +2661,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testEvalAfterStats() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             ROW foo = 1
             | STATS x = max(foo)
             | EVAL x = 2
-            """);
+            """).coordinatorLogicalOptimized();
         var eval = as(plan, Eval.class);
         var limit = as(eval.child(), Limit.class);
         var localRelation = as(limit.child(), LocalRelation.class);
@@ -2681,12 +2682,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testEvalAfterGroupBy() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             ROW foo = 1
             | STATS x = max(foo) by foo
             | KEEP x
             | EVAL x = 2
-            """);
+            """).coordinatorLogicalOptimized();
         var eval = as(plan, Eval.class);
         var limit = as(eval.child(), Limit.class);
         var aggregate = as(limit.child(), Aggregate.class);
@@ -2695,13 +2696,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineLimitWithOrderByThroughFilterAndEval() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort salary
             | eval x = emp_no / 2
             | where x > 20
             | sort x
-            | limit 10""");
+            | limit 10""").coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         var filter = as(topN.child(), Filter.class);
@@ -2717,7 +2718,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         // | where salary > 1
         // | sort emp_no, first_name
         // | keep l = salary, emp_no, first_name
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no
             | rename salary as l
@@ -2726,7 +2727,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | limit 100
             | sort first_name
             | where l > 1
-            | sort emp_no""");
+            | sort emp_no""").coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
@@ -2738,13 +2739,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testDontPruneSameFieldDifferentDirectionSortClauses() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort salary nulls last, emp_no desc nulls first
             | where salary > 2
             | eval e = emp_no * 2
             | keep salary, emp_no, e
-            | sort e, emp_no, salary desc, emp_no desc""");
+            | sort e, emp_no, salary desc, emp_no desc""").coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
@@ -2781,13 +2782,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPruneRedundantSortClauses() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort salary desc nulls last, emp_no desc nulls first
             | where salary > 2
             | eval e = emp_no * 2
             | keep salary, emp_no, e
-            | sort e, emp_no desc, salary desc, emp_no desc nulls last""");
+            | sort e, emp_no desc, salary desc, emp_no desc nulls last""").coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var topN = as(project.child(), TopN.class);
@@ -2824,12 +2825,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testDontPruneSameFieldDifferentDirectionSortClauses_UsingAlias() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no desc
             | rename emp_no as e
             | keep e
-            | sort e""");
+            | sort e""").coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
@@ -2847,12 +2848,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPruneRedundantSortClausesUsingAlias() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | sort emp_no desc
             | rename emp_no as e
             | keep e
-            | sort e desc""");
+            | sort e desc""").coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var topN = as(project.child(), TopN.class);
@@ -2872,7 +2873,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testInsist_fieldDoesNotExist_createsUnmappedFieldInRelation() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        LogicalPlan plan = optimizedPlan("FROM test | INSIST_\uD83D\uDC14 foo");
+        LogicalPlan plan = defaultAnalyzer().plans("FROM test | INSIST_\uD83D\uDC14 foo").coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -2883,7 +2884,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testInsist_multiIndexFieldPartiallyExistsAndIsKeyword_castsAreNotSupported() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        var plan = planMultiIndex("FROM multi_index | INSIST_\uD83D\uDC14 partial_type_keyword");
+        var plan = multiIndexAnalyzer().plans("FROM multi_index | INSIST_\uD83D\uDC14 partial_type_keyword").coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
         var relation = as(limit.child(), EsRelation.class);
@@ -2894,7 +2895,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testInsist_multipleInsistClauses_insistsAreFolded() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        var plan = planMultiIndex("FROM multi_index | INSIST_\uD83D\uDC14 partial_type_keyword | INSIST_\uD83D\uDC14 foo");
+        var plan = multiIndexAnalyzer().plans("FROM multi_index | INSIST_\uD83D\uDC14 partial_type_keyword | INSIST_\uD83D\uDC14 foo")
+            .coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
         var relation = as(limit.child(), EsRelation.class);
@@ -2909,10 +2911,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testSimplifyLikeNoWildcard() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | where first_name like "foo"
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
 
@@ -2923,10 +2925,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testSimplifyLikeMatchAll() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | where first_name like "*"
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
 
@@ -2935,10 +2937,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testSimplifyRLikeNoWildcard() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | where first_name rlike "foo"
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
 
@@ -2949,10 +2951,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testSimplifyRLikeMatchAll() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | where first_name rlike ".*"
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
 
@@ -2964,7 +2966,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         String query = "from test | where first_name rlike \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"";
         String error = "line 1:19: Invalid regex pattern for RLIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
             + "[invalid range: from (95) cannot be > to (93)]";
-        ParsingException e = expectThrows(ParsingException.class, () -> plan(query));
+        ParsingException e = expectThrows(ParsingException.class, () -> defaultAnalyzer().plans(query).coordinatorLogicalOptimized());
         assertThat(e.getMessage(), is(error));
     }
 
@@ -2972,124 +2974,124 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         String query = "from test | where first_name like \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"";
         String error = "line 1:19: Invalid pattern for LIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
             + "[Invalid sequence - escape character is not followed by special wildcard char]";
-        ParsingException e = expectThrows(ParsingException.class, () -> plan(query));
+        ParsingException e = expectThrows(ParsingException.class, () -> defaultAnalyzer().plans(query).coordinatorLogicalOptimized());
         assertThat(e.getMessage(), is(error));
     }
 
     public void testFoldNullInToLocalRelation() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | where null in (first_name, ".*")
-            """);
+            """).coordinatorLogicalOptimized();
         assertThat(plan, instanceOf(LocalRelation.class));
     }
 
     public void testFoldNullListInToLocalRelation() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | where first_name in (null, null)
-            """);
+            """).coordinatorLogicalOptimized();
         assertThat(plan, instanceOf(LocalRelation.class));
     }
 
     public void testFoldInKeyword() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | where "foo" in ("bar", "baz")
-            """);
+            """).coordinatorLogicalOptimized();
         assertThat(plan, instanceOf(LocalRelation.class));
 
-        plan = optimizedPlan("""
+        plan = defaultAnalyzer().plans("""
             from test
             | where "foo" in ("bar", "foo", "baz")
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         as(limit.child(), EsRelation.class);
     }
 
     public void testFoldInIP() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | where to_ip("1.1.1.1") in (to_ip("1.1.1.2"), to_ip("1.1.1.2"))
-            """);
+            """).coordinatorLogicalOptimized();
         assertThat(plan, instanceOf(LocalRelation.class));
 
-        plan = optimizedPlan("""
+        plan = defaultAnalyzer().plans("""
             from test
             | where to_ip("1.1.1.1") in (to_ip("1.1.1.1"), to_ip("1.1.1.2"))
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         as(limit.child(), EsRelation.class);
     }
 
     public void testFoldInVersion() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | where to_version("1.2.3") in (to_version("1"), to_version("1.2.4"))
-            """);
+            """).coordinatorLogicalOptimized();
         assertThat(plan, instanceOf(LocalRelation.class));
 
-        plan = optimizedPlan("""
+        plan = defaultAnalyzer().plans("""
             from test
             | where to_version("1.2.3") in (to_version("1"), to_version("1.2.3"))
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         as(limit.child(), EsRelation.class);
     }
 
     public void testFoldInNumerics() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | where 3 in (4.0, 5, 2147483648)
-            """);
+            """).coordinatorLogicalOptimized();
         assertThat(plan, instanceOf(LocalRelation.class));
 
-        plan = optimizedPlan("""
+        plan = defaultAnalyzer().plans("""
             from test
             | where 3 in (4.0, 3.0, to_long(3))
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         as(limit.child(), EsRelation.class);
     }
 
     public void testFoldInEval() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | eval a = 1, b = a + 1, c = b + a
             | where c > 10
-            """);
+            """).coordinatorLogicalOptimized();
 
         var local = as(plan, LocalRelation.class);
         assertThat(local.supplier(), is(EmptyLocalSupplier.EMPTY));
     }
 
     public void testFoldFromRow() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
               row a = 1, b = 2, c = 3
             | where c > 10
-            """);
+            """).coordinatorLogicalOptimized();
 
         as(plan, LocalRelation.class);
     }
 
     public void testFoldFromRowInEval() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
               row a = 1, b = 2, c = 3
             | eval x = c
             | where x > 10
-            """);
+            """).coordinatorLogicalOptimized();
 
         as(plan, LocalRelation.class);
     }
 
     public void testInvalidFoldDueToReplacement() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | eval x = 1
             | eval x = emp_no
             | where x > 10
             | keep x
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("x"));
@@ -3101,11 +3103,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testEnrich() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | eval x = to_string(languages)
             | enrich languages_idx on x
-            """);
+            """).coordinatorLogicalOptimized();
         var enrich = as(plan, Enrich.class);
         assertTrue(enrich.policyName().resolved());
         assertThat(enrich.policyName().fold(FoldContext.small()), is(BytesRefs.toBytesRef("languages_idx")));
@@ -3115,27 +3117,27 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownEnrichPastProject() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | eval a = to_string(languages)
             | rename a as x
             | keep x
             | enrich languages_idx on x
-            """);
+            """).coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         as(keep.child(), Enrich.class);
     }
 
     public void testTopNEnrich() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | rename languages as x
             | eval x = to_string(x)
             | keep x
             | enrich languages_idx on x
             | sort language_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var topN = as(keep.child(), TopN.class);
@@ -3143,13 +3145,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testEnrichNotNullFilter() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | eval x = to_string(languages)
             | enrich languages_idx on x
             | where language_name is not null
             | limit 10
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
         var enrich = as(filter.child(), Enrich.class);
@@ -3171,10 +3173,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testSimpleAvgReplacement() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | stats a = avg(salary) by last_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("a", "last_name"));
@@ -3207,10 +3209,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testClashingAggAvgReplacement() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats a = avg(salary), c = count(salary), s = sum(salary) by last_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         assertThat(Expressions.names(plan.output()), contains("a", "c", "s", "last_name"));
         var project = as(plan, Project.class);
@@ -3236,10 +3238,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testSemiClashingAvgReplacement() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats a = avg(salary), c = count(languages), s = sum(salary) by last_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("a", "c", "s", "last_name"));
@@ -3271,10 +3273,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testMedianReplacement() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | stats m = median(salary) by last_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3292,14 +3294,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         FieldAttribute fa = getFieldAttribute("foo");
         In in = new In(EMPTY, ONE, List.of(TWO, THREE, fa, L(null)));
         Or expected = new Or(EMPTY, new In(EMPTY, ONE, List.of(TWO, THREE)), new In(EMPTY, ONE, List.of(fa, L(null))));
-        assertThat(new SplitInWithFoldableValue().rule(in, logicalOptimizerCtx), equalTo(expected));
+        assertThat(new SplitInWithFoldableValue().rule(in, unboundLogicalOptimizerContext()), equalTo(expected));
     }
 
     public void testReplaceFilterWithExact() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | where job == "foo"
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -3309,10 +3311,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testReplaceExpressionWithExact() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | eval x = job
-            """);
+            """).coordinatorLogicalOptimized();
 
         var eval = as(plan, Eval.class);
         var alias = as(eval.fields().get(0), Alias.class);
@@ -3321,10 +3323,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testReplaceSortWithExact() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | sort job
-            """);
+            """).coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         assertThat(topN.order().size(), equalTo(1));
@@ -3341,13 +3343,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testPruneEvalAliasOnAggUngrouped() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | eval x = emp_no, x = salary
             | eval y = salary
             | eval y = emp_no
             | stats cx = count(x), cy = count(y)
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3367,13 +3369,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testPruneEvalAliasOnAggGroupedByAlias() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | eval x = emp_no, x = salary
             | eval y = salary
             | eval y = emp_no
             | stats cy = count(y) by x
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3394,13 +3396,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testPruneEvalAliasOnAggGrouped() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | eval x = emp_no, x = salary
             | eval y = salary
             | eval y = emp_no
             | stats cy = count(y), cx = min(x) by gender
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3422,13 +3424,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testPruneEvalAliasMixedWithRenameOnAggGrouped() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | eval x = emp_no, x = salary
             | rename salary as x
             | eval y = emp_no
             | stats cy = count(y), cx = min(x) by gender
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3451,13 +3453,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testEvalAliasingAcrossCommands() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | eval x = emp_no + 1
             | eval y = x
             | eval z = y + 1
             | stats cy = count(y), cx = min(x) by gender
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3482,11 +3484,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testEvalAliasingInsideSameCommand() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | eval x = emp_no + 1, y = x, z = y + 1
             | stats cy = count(y), cx = min(x) by gender
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3511,11 +3513,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testEvalAliasingInsideSameCommandWithShadowing() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | eval x = emp_no + 1, y = x, z = y + 1, y = z
             | stats cy = count(y), cx = min(x) by gender
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3531,12 +3533,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPruneRenameOnAgg() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | rename emp_no as x
             | rename salary as y
             | stats cy = count(y), cx = min(x) by gender
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3557,12 +3559,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testPruneRenameOnAggBy() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | rename emp_no as x
             | rename salary as y, gender as g
             | stats cy = count(y), cx = min(x) by g
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3586,11 +3588,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testMvExpandFoldable() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             row a = [1, 2, 3]
             | mv_expand a
             | where a > 2
-            | limit 2""");
+            | limit 2""").coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -3611,11 +3613,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRenameStatsDropGroup() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             row a = 1
             | rename a AS foo
             | stats bar = count(*) by foo
-            | drop foo""");
+            | drop foo""").coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3632,11 +3634,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testMultipleRenameStatsDropGroup() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             row a = 1, b = 2
             | rename a AS foo, b as bar
             | stats baz = count(*) by foo, bar
-            | drop foo""");
+            | drop foo""").coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3653,11 +3655,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testMultipleRenameStatsDropGroupMultirow() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | rename emp_no AS foo, gender as bar
             | stats baz = max(salary) by foo, bar
-            | drop foo""");
+            | drop foo""").coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3666,11 +3668,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testLimitZeroUsesLocalRelation() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | stats count=count(*)
             | sort count desc
-            | limit 0""");
+            | limit 0""").coordinatorLogicalOptimized();
 
         assertThat(plan, instanceOf(LocalRelation.class));
     }
@@ -3684,10 +3686,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testIsNotNullConstraintForStatsWithoutGrouping() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats sum(emp_no)
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3697,10 +3699,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testIsNotNullConstraintForStatsWithGrouping() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats sum(emp_no) by salary
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3718,10 +3720,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testIsNotNullConstraintForStatsWithAndOnGrouping() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats sum(salary) by salary
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3739,11 +3741,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testIsNotNullConstraintForStatsWithAndOnGroupingAlias() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | eval x = salary
             | stats sum(salary) by x
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3761,11 +3763,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testIsNotNullConstraintSkippedForStatsWithAlias() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | eval x = emp_no
             | stats sum(x) by salary
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3785,10 +3787,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testIsNotNullConstraintForStatsWithMultiAggWithoutGrouping() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats a = sum(emp_no), b = min(salary)
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3806,10 +3808,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testIsNotNullConstraintForStatsWithMultiAggWithGrouping() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats a = sum(emp_no), b = min(salary) by gender
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3827,10 +3829,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testIsNotNullConstraintForStatsWithMultiAggWithAndOnGrouping() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats a = sum(emp_no), b = min(salary) by emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3850,7 +3852,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testIsNotNullConstraintForAliasedExpressions() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | eval x = emp_no / 10
             | eval y = x + salary
@@ -3860,7 +3862,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | eval a = (s + 4) / 2
             | eval b = a + 3
             | stats c = count(b) by w, g
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3878,10 +3880,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testSpatialTypesAndStatsUseDocValues() {
-        var plan = planAirports("""
+        var plan = airportsAnalyzer().plans("""
             from airports
             | stats centroid = st_centroid_agg(location)
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3905,10 +3907,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testSpatialTypesAndStatsUseDocValuesWithEval() {
-        var plan = planAirports("""
+        var plan = airportsAnalyzer().plans("""
             from airports
             | stats centroid = st_centroid_agg(to_geopoint(location))
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3942,7 +3944,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 default -> "to_" + type;
             };
             var field = "types." + type;
-            var plan = planExtra("from extra | eval new_" + field + " = " + func + "(" + field + ")");
+            var plan = extraAnalyzer().plans("from extra | eval new_" + field + " = " + func + "(" + field + ")")
+                .coordinatorLogicalOptimized();
             var eval = as(plan, Eval.class);
             var alias = as(eval.fields().get(0), Alias.class);
             assertThat(func + "(" + field + ")", alias.name(), equalTo("new_" + field));
@@ -3963,10 +3966,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testNestedExpressionsInGroups() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats c = count(salary) by emp_no % 2
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -3991,10 +3994,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testNestedExpressionsInGroupsWithCategorize() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats c = count(salary) by CATEGORIZE(CONCAT(first_name, "abc"))
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -4025,10 +4028,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testNestedExpressionsInAggs() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats c = count(salary + 1) by emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -4053,10 +4056,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testNestedExpressionsInBothAggsAndGroups() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats c = count(salary + 1 + 100 / languages) by emp_no % 2
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -4080,10 +4083,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testNestedMultiExpressionsInGroupingAndAggs() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats count(salary + 1), max(salary   +  23) by languages   + 1, emp_no %  3
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -4100,10 +4103,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testNestedExpressionsWithGroupingKeyInAggs() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats c = count(languages + emp_no % 2) by g = emp_no % 2
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var aggregate = as(limit.child(), Aggregate.class);
@@ -4140,10 +4143,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      */
     @AwaitsFix(bugUrl = "disabled since canonical representation relies on hashing which is runtime defined")
     public void testNestedExpressionsWithMultiGrouping() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats m = max(languages + salary), c = count(languages + salary + emp_no % 2) by emp_no % 2, languages + salary
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var aggregate = as(limit.child(), Aggregate.class);
@@ -4188,10 +4191,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testNestedExpressionsInStatsWithExpression() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats e = max(languages + emp_no) + 1 by languages + emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var eval = as(project.child(), Eval.class);
@@ -4207,21 +4210,21 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testBucketAcceptsEvalLiteralReferences() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | eval bucket_start = 1, bucket_end = 100000
             | stats by bucket(salary, 10, bucket_start, bucket_end)
-            """);
+            """).coordinatorLogicalOptimized();
         var ab = as(plan, Limit.class);
         assertTrue(ab.optimized());
     }
 
     public void testBucketFailsOnFieldArgument() {
-        VerificationException e = expectThrows(VerificationException.class, () -> plan("""
+        VerificationException e = expectThrows(VerificationException.class, () -> defaultAnalyzer().plans("""
             from test
             | eval bucket_end = 100000
             | stats by bucket(salary, 10, emp_no, bucket_end)
-            """));
+            """).coordinatorLogicalOptimized());
         assertTrue(e.getMessage().startsWith("Found "));
         final String header = "Found 1 problem\nline ";
         assertEquals(
@@ -4241,10 +4244,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testBucketWithAggExpression() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats bucket(salary, 1000.) + 1 by bucket(salary, 1000.)
-            """);
+            """).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         var evalTop = as(project.child(), Eval.class);
         var limit = as(evalTop.child(), Limit.class);
@@ -4305,7 +4308,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     private String typesError(String query) {
-        VerificationException e = expectThrows(VerificationException.class, () -> planTypes(query));
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> typesAnalyzer().plans(query).coordinatorLogicalOptimized()
+        );
         String message = e.getMessage();
         assertTrue(message.startsWith("Found "));
         String pattern = "\nline ";
@@ -4326,10 +4332,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testStatsExpOverAggs() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats x = avg(salary) /2 + max(salary)
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("x"));
@@ -4372,10 +4378,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testStatsExpOverAggsMulti() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats x = avg(salary % 3) + max(emp_no), y = min(emp_no / 3) + 10 - median(salary) by z = languages % 2
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("x", "y", "z"));
@@ -4431,12 +4437,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testStatsExpOverAggsWithScalars() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats x = CONCAT(TO_STRING(AVG(salary % 3)), TO_STRING(MAX(emp_no))),
                     y = (MIN(emp_no / 3) + PI() - MEDIAN(salary))/E()
                     by z = languages % 2
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("x", "y", "z"));
@@ -4485,13 +4491,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testStatsWithCanonicalAggregate() throws Exception {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats a = sum(salary / 2 + languages),
                     b = sum(languages + salary / 2)
                     by w = emp_no % 2
             | keep a, b, w
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("a", "b", "w"));
@@ -4526,14 +4532,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testCountOfLiteral() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats s = count([1,2]),
                     s_expr = count(314.0/100),
                     s_null = count(null)
                     by w = emp_no % 2
             | keep s, s_expr, s_null, w
-            """, new TestSubstitutionOnlyOptimizer());
+            """).localPlanOptimizerBuilder(ctx -> new TestSubstitutionOnlyOptimizer()).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var topProject = as(limit.child(), Project.class);
@@ -4598,14 +4604,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testSumOfLiteral() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats s = sum([1,2]),
                     s_expr = sum(314.0/100),
                     s_null = sum(null)
                     by w = emp_no % 2
             | keep s, s_expr, s_null, w
-            """, new TestSubstitutionOnlyOptimizer());
+            """).localPlanOptimizerBuilder(ctx -> new TestSubstitutionOnlyOptimizer()).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var topProject = as(limit.child(), Project.class);
@@ -4712,7 +4718,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             );
             String query = LoggerMessageFormat.format(null, queryWithoutValues, "[1,2]", "314.0/100", "null");
 
-            var plan = plan(query, new TestSubstitutionOnlyOptimizer());
+            var plan = defaultAnalyzer().plans(query)
+                .localPlanOptimizerBuilder(ctx -> new TestSubstitutionOnlyOptimizer())
+                .coordinatorLogicalOptimized();
 
             var limit = as(plan, Limit.class);
             var topProject = as(limit.child(), Project.class);
@@ -4760,7 +4768,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             );
             String query = LoggerMessageFormat.format(null, queryWithoutValues, "[1,2]", "314.0/100", "null");
 
-            var plan = plan(query, new TestSubstitutionOnlyOptimizer());
+            var plan = defaultAnalyzer().plans(query)
+                .localPlanOptimizerBuilder(ctx -> new TestSubstitutionOnlyOptimizer())
+                .coordinatorLogicalOptimized();
 
             var limit = as(plan, Limit.class);
             var topProject = as(limit.child(), Project.class);
@@ -4828,28 +4838,28 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         EsIndex empty = EsIndexGenerator.esIndex("empty_test");
         var emptyAnalyzer = analyzerWithEnrichPolicies().addIndex(empty);
 
-        var plan = logicalOptimizer.optimize(emptyAnalyzer.query("from empty_test"));
+        var plan = emptyAnalyzer.plans("from empty_test").coordinatorLogicalOptimized();
         as(plan, LocalRelation.class);
         assertThat(plan.output(), equalTo(NO_FIELDS));
 
-        plan = logicalOptimizer.optimize(emptyAnalyzer.query("from empty_test metadata _id | eval x = 1"));
+        plan = emptyAnalyzer.plans("from empty_test metadata _id | eval x = 1").coordinatorLogicalOptimized();
         as(plan, LocalRelation.class);
         assertThat(Expressions.names(plan.output()), contains("_id", "x"));
 
-        plan = logicalOptimizer.optimize(emptyAnalyzer.query("from empty_test metadata _id, _version | limit 5"));
+        plan = emptyAnalyzer.plans("from empty_test metadata _id, _version | limit 5").coordinatorLogicalOptimized();
         as(plan, LocalRelation.class);
         assertThat(Expressions.names(plan.output()), contains("_id", "_version"));
 
-        plan = logicalOptimizer.optimize(emptyAnalyzer.query("from empty_test | eval x = \"abc\" | enrich languages_idx on x"));
+        plan = emptyAnalyzer.plans("from empty_test | eval x = \"abc\" | enrich languages_idx on x").coordinatorLogicalOptimized();
         LocalRelation local = as(plan, LocalRelation.class);
         assertThat(Expressions.names(local.output()), contains(NO_FIELDS.get(0).name(), "x", "language_code", "language_name"));
     }
 
     public void testPlanSanityCheck() throws Exception {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats a = min(salary) by emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var aggregate = as(limit.child(), Aggregate.class);
@@ -4863,7 +4873,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             asList(new Order(limit.source(), salary, Order.OrderDirection.ASC, Order.NullsPosition.FIRST))
         );
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> logicalOptimizer.optimize(invalidPlan));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> buildLogicalOptimizer().optimize(invalidPlan));
         assertThat(e.getMessage(), containsString("Plan [OrderBy[[Order[salary"));
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references [salary"));
     }
@@ -4882,22 +4892,25 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testPlanSanityCheckWithBinaryPlans() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
               FROM test
             | RENAME languages AS language_code
             | LOOKUP JOIN languages_lookup ON language_code
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var upperLimit = asLimit(project.child(), null, true);
         var join = as(upperLimit.child(), Join.class);
 
         var joinWithInvalidLeftPlan = join.replaceChildren(join.right(), join.right());
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> logicalOptimizer.optimize(joinWithInvalidLeftPlan));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> buildLogicalOptimizer().optimize(joinWithInvalidLeftPlan)
+        );
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from left hand side [languages"));
 
         var joinWithInvalidRightPlan = join.replaceChildren(join.left(), join.left());
-        e = expectThrows(IllegalStateException.class, () -> logicalOptimizer.optimize(joinWithInvalidRightPlan));
+        e = expectThrows(IllegalStateException.class, () -> buildLogicalOptimizer().optimize(joinWithInvalidRightPlan));
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from right hand side [language_code"));
     }
 
@@ -4915,10 +4928,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testLookupJoinRightFilter() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
 
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().minimumTransportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION).plans("""
               FROM test
             | LOOKUP JOIN languages_lookup ON languages == language_code and language_name == "English"
-            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+            """).coordinatorLogicalOptimized();
 
         var upperLimit = asLimit(plan, 1000, true);
         var join = as(upperLimit.child(), Join.class);
@@ -4931,10 +4944,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testLookupJoinRightFilterMatch() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
 
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().minimumTransportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION).plans("""
               FROM test
             | LOOKUP JOIN languages_lookup ON languages == language_code and MATCH(language_name,"English")
-            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+            """).coordinatorLogicalOptimized();
 
         var upperLimit = asLimit(plan, 1000, true);
         var join = as(upperLimit.child(), Join.class);
@@ -4956,11 +4969,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testLookupJoinRightFilterMatchWithWhereClause() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
 
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().minimumTransportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION).plans("""
               FROM test
             | LOOKUP JOIN languages_lookup ON languages == language_code and MATCH(language_name,"English")
             | WHERE language_name LIKE "French*"
-            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+            """).coordinatorLogicalOptimized();
 
         var upperLimit = asLimit(plan, 1000, false);
         var topFilter = as(upperLimit.child(), Filter.class);
@@ -4979,12 +4992,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     // https://github.com/elastic/elasticsearch/issues/104995
     public void testNoWrongIsNotNullPruning() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
               ROW a = 5, b = [ 1, 2 ]
               | EVAL sum = a + b
               | LIMIT 1
               | WHERE sum IS NOT NULL
-            """);
+            """).coordinatorLogicalOptimized();
 
         var local = as(plan, LocalRelation.class);
         assertThat(local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));
@@ -5034,7 +5047,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         for (String overwritingCommand : overwritingCommands) {
             String queryTemplate = randomBoolean() ? queryTemplateKeepFirst : queryTemplateKeepAfter;
-            var plan = optimizedPlan(LoggerMessageFormat.format(null, queryTemplate, overwritingCommand));
+            var plan = defaultAnalyzer().plans(LoggerMessageFormat.format(null, queryTemplate, overwritingCommand))
+                .coordinatorLogicalOptimized();
 
             var project = as(plan, Project.class);
             var projections = project.projections();
@@ -5402,11 +5416,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testReplaceSortByExpressionsWithStats() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats min = min(salary) by languages
             | sort min + languages
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("min", "languages"));
@@ -5447,7 +5461,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class); // TODO: this needs to go
         var inline = as(limit.child(), InlineJoin.class);
         var eval = as(inline.left(), Eval.class);
@@ -5496,7 +5510,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("a")));
@@ -5534,7 +5548,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var limit = asLimit(plan, 10000, false);
         var aggregate = as(limit.child(), Aggregate.class);
@@ -5565,7 +5579,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("c", "b", "a")));
         var eval = as(project.child(), Eval.class);
@@ -5595,7 +5609,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("c", "n")));
@@ -5636,7 +5650,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("c", "s", "m", "n")));
@@ -5681,7 +5695,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("c1", "n1", "c2", "n2")));
@@ -5733,7 +5747,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("c", "n")));
@@ -5773,7 +5787,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("c", "n1", "n2")));
@@ -5815,7 +5829,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("c", "n", "emp_no")));
@@ -5847,13 +5861,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testReplaceSortByExpressionsMultipleSorts() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | sort salary/10000 + languages, emp_no desc
             | eval d = emp_no
             | sort salary/10000 + languages, d desc
             | keep salary, languages, emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("salary", "languages", "emp_no"));
@@ -5927,7 +5941,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         for (String overwritingCommand : overwritingCommands) {
             String queryTemplate = randomBoolean() ? queryTemplateKeepFirst : queryTemplateKeepAfter;
-            var plan = optimizedPlan(LoggerMessageFormat.format(null, queryTemplate, overwritingCommand));
+            var plan = defaultAnalyzer().plans(LoggerMessageFormat.format(null, queryTemplate, overwritingCommand))
+                .coordinatorLogicalOptimized();
 
             var project = as(plan, Project.class);
             var projections = project.projections();
@@ -5994,10 +6009,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPartiallyFoldCase() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
               FROM test
             | EVAL c = CASE(true, emp_no, salary)
-            """);
+            """).coordinatorLogicalOptimized();
 
         var eval = as(plan, Eval.class);
         var languages = as(Alias.unwrap(eval.expressions().get(0)), FieldAttribute.class);
@@ -6005,7 +6020,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     private EsqlBinaryComparison extractPlannedBinaryComparison(String expression) {
-        LogicalPlan plan = planTypes("FROM types | WHERE " + expression);
+        LogicalPlan plan = typesAnalyzer().plans("FROM types | WHERE " + expression).coordinatorLogicalOptimized();
 
         return extractPlannedBinaryComparison(plan);
     }
@@ -6053,7 +6068,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     private static void assertSemanticMatching(Expression fieldAttributeExp, Expression unresolvedAttributeExp) {
         Expression unresolvedUpdated = unresolvedAttributeExp.transformUp(
             LITERALS_ON_THE_RIGHT.expressionToken(),
-            be -> LITERALS_ON_THE_RIGHT.rule(be, logicalOptimizerCtx)
+            be -> LITERALS_ON_THE_RIGHT.rule(be, unboundLogicalOptimizerContext())
         ).transformUp(x -> x.foldable() ? new Literal(x.source(), x.fold(FoldContext.small()), x.dataType()) : x);
 
         List<Expression> resolvedFields = fieldAttributeExp.collectFirstChildren(x -> x instanceof FieldAttribute);
@@ -6073,7 +6088,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     private void assertNotSimplified(String comparison) {
         String query = "FROM types | WHERE " + comparison;
-        Expression optimized = getComparisonFromLogicalPlan(planTypes(query));
+        Expression optimized = getComparisonFromLogicalPlan(typesAnalyzer().plans(query).coordinatorLogicalOptimized());
         Expression raw = getComparisonFromLogicalPlan(typesAnalyzer().query(query));
 
         assertTrue(raw.semanticEquals(optimized));
@@ -6188,13 +6203,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testReplaceStringCasingWithInsensitiveEqualsUpperFalse() {
-        var plan = optimizedPlan("FROM test | WHERE TO_UPPER(first_name) == \"VALÜe\"");
+        var plan = defaultAnalyzer().plans("FROM test | WHERE TO_UPPER(first_name) == \"VALÜe\"").coordinatorLogicalOptimized();
         var local = as(plan, LocalRelation.class);
         assertThat(local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));
     }
 
     public void testReplaceStringCasingWithInsensitiveEqualsUpperTrue() {
-        var plan = optimizedPlan("FROM test | WHERE TO_UPPER(first_name) != \"VALÜe\"");
+        var plan = defaultAnalyzer().plans("FROM test | WHERE TO_UPPER(first_name) != \"VALÜe\"").coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
         var isNotNull = as(filter.condition(), IsNotNull.class);
@@ -6203,13 +6218,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testReplaceStringCasingWithInsensitiveEqualsLowerFalse() {
-        var plan = optimizedPlan("FROM test | WHERE TO_LOWER(first_name) == \"VALÜe\"");
+        var plan = defaultAnalyzer().plans("FROM test | WHERE TO_LOWER(first_name) == \"VALÜe\"").coordinatorLogicalOptimized();
         var local = as(plan, LocalRelation.class);
         assertThat(local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));
     }
 
     public void testReplaceStringCasingWithInsensitiveEqualsLowerTrue() {
-        var plan = optimizedPlan("FROM test | WHERE TO_LOWER(first_name) != \"VALÜe\"");
+        var plan = defaultAnalyzer().plans("FROM test | WHERE TO_LOWER(first_name) != \"VALÜe\"").coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
         assertThat(filter.condition(), instanceOf(IsNotNull.class));
@@ -6220,7 +6235,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         for (var fn : List.of("TO_LOWER", "TO_UPPER")) {
             var value = fn.equals("TO_LOWER") ? fn.toLowerCase(Locale.ROOT) : fn.toUpperCase(Locale.ROOT);
             value += "🐔✈🔥🎉"; // these should not cause folding, they're not in the upper/lower char class
-            var plan = optimizedPlan("FROM test | WHERE " + fn + "(first_name) == \"" + value + "\"");
+            var plan = defaultAnalyzer().plans("FROM test | WHERE " + fn + "(first_name) == \"" + value + "\"")
+                .coordinatorLogicalOptimized();
             var limit = as(plan, Limit.class);
             var filter = as(limit.child(), Filter.class);
             var insensitive = as(filter.condition(), InsensitiveEquals.class);
@@ -6235,7 +6251,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         for (var fn : List.of("TO_LOWER", "TO_UPPER")) {
             var value = fn.equals("TO_LOWER") ? fn.toLowerCase(Locale.ROOT) : fn.toUpperCase(Locale.ROOT);
             value += "🐔✈🔥🎉"; // these should not cause folding, they're not in the upper/lower char class
-            var plan = optimizedPlan("FROM test | WHERE " + fn + "(first_name) != \"" + value + "\"");
+            var plan = defaultAnalyzer().plans("FROM test | WHERE " + fn + "(first_name) != \"" + value + "\"")
+                .coordinatorLogicalOptimized();
             var limit = as(plan, Limit.class);
             var filter = as(limit.child(), Filter.class);
             var not = as(filter.condition(), Not.class);
@@ -6248,7 +6265,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testReplaceStringCasingWithInsensitiveEqualsUnwrap() {
-        var plan = optimizedPlan("FROM test | WHERE TO_UPPER(TO_LOWER(TO_UPPER(first_name))) == \"VALÜ\"");
+        var plan = defaultAnalyzer().plans("FROM test | WHERE TO_UPPER(TO_LOWER(TO_UPPER(first_name))) == \"VALÜ\"")
+            .coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
         var insensitive = as(filter.condition(), InsensitiveEquals.class);
@@ -6290,7 +6308,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             defaultAnalyzer().error(query, ParsingException.class, containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var join = as(plan, Join.class);
 
         // Right is the lookup table
@@ -6370,7 +6388,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             defaultAnalyzer().error(query, ParsingException.class, containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
 
@@ -6459,7 +6477,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | LOOKUP JOIN languages_lookup ON language_code
             | WHERE language_code > 1
             """;
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var upperLimit = asLimit(project.child(), 1000, true);
@@ -6503,7 +6521,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | WHERE emp_no > 1
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var upperLimit = asLimit(project.child(), 1000, true);
@@ -6547,7 +6565,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | WHERE language_name == "English"
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = asLimit(project.child(), 1000, false);
@@ -6594,7 +6612,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | WHERE language_name == "English" AND emp_no > 1
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = asLimit(project.child(), 1000, false);
@@ -6635,10 +6653,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testLookupJoinRightFilterSpatialIntersects() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
 
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().minimumTransportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION).plans("""
               FROM test
             | LOOKUP JOIN spatial_lookup ON emp_no == id AND ST_INTERSECTS(TO_GEOSHAPE("POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"), shape)
-            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+            """).coordinatorLogicalOptimized();
 
         var upperLimit = asLimit(plan, 1000, true);
         var join = as(upperLimit.child(), Join.class);
@@ -6663,10 +6681,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testLookupJoinRightFilterSpatialWithin() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
 
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().minimumTransportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION).plans("""
               FROM test
             | LOOKUP JOIN spatial_lookup ON emp_no == id AND ST_WITHIN(shape, TO_GEOSHAPE("POLYGON((0 0, 2 0, 2 2, 0 2, 0 0))"))
-            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+            """).coordinatorLogicalOptimized();
 
         var upperLimit = asLimit(plan, 1000, true);
         var join = as(upperLimit.child(), Join.class);
@@ -6691,11 +6709,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testLookupJoinRightFilterSpatialContains() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
 
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().minimumTransportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION).plans("""
               FROM test
             | LOOKUP JOIN spatial_lookup
             ON emp_no == id AND ST_CONTAINS(shape, TO_GEOSHAPE("POLYGON((0.5 0.5, 1.5 0.5, 1.5 1.5, 0.5 1.5, 0.5 0.5))"))
-            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+            """).coordinatorLogicalOptimized();
 
         var upperLimit = asLimit(plan, 1000, true);
         var join = as(upperLimit.child(), Join.class);
@@ -6731,7 +6749,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | WHERE language_name == "English" OR emp_no > 1
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -6787,7 +6805,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | LOOKUP JOIN languages_lookup ON language_code
             """ + commandDiscardingFields;
 
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(project.projections().size(), equalTo(1));
@@ -6826,7 +6844,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | LOOKUP JOIN languages_lookup ON language_code
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var limit1 = asLimit(plan, 1000, true);
 
@@ -6851,7 +6869,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testTranslateMetricsWithoutGrouping() {
         var query = "TS k8s | STATS max(rate(network.total_bytes_in))";
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         Limit limit = as(plan, Limit.class);
         Aggregate finalAggs = as(limit.child(), Aggregate.class);
         assertThat(finalAggs, not(instanceOf(TimeSeriesAggregate.class)));
@@ -6871,7 +6889,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testTranslateMixedAggsWithoutGrouping() {
         var query = "TS k8s | STATS max(rate(network.total_bytes_in)), max(network.cost)";
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         Limit limit = as(plan, Limit.class);
         Aggregate finalAggs = as(limit.child(), Aggregate.class);
         assertThat(finalAggs, not(instanceOf(TimeSeriesAggregate.class)));
@@ -6895,7 +6913,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testTranslateMixedAggsWithMathWithoutGrouping() {
         var query = "TS k8s | STATS max(rate(network.total_bytes_in)), max(network.cost + 0.2) * 1.1";
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         Project project = as(plan, Project.class);
         Eval mulEval = as(project.child(), Eval.class);
         assertThat(mulEval.fields(), hasSize(1));
@@ -6934,7 +6952,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testTranslateMetricsGroupedByOneDimension() {
         var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY cluster | SORT cluster | LIMIT 10";
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         Project project = as(plan, Project.class);
         TopN topN = as(project.child(), TopN.class);
         Eval unpack = as(topN.child(), Eval.class);
@@ -6960,7 +6978,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testTranslateMetricsGroupedByTwoDimension() {
         var query = "TS k8s | STATS avg(rate(network.total_bytes_in)) BY cluster, pod";
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         Project project = as(plan, Project.class);
         Eval eval = as(project.child(), Eval.class);
         assertThat(eval.fields(), hasSize(3));
@@ -7001,7 +7019,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testTranslateMetricsGroupedByTimeBucket() {
         var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY bucket(@timestamp, 1h)";
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         Limit limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
@@ -7034,7 +7052,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | SORT cluster
             | LIMIT 10
             """;
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         Project project = as(plan, Project.class);
         TopN topN = as(project.child(), TopN.class);
         Eval eval = as(topN.child(), Eval.class);
@@ -7073,7 +7091,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | SORT cluster
             | LIMIT 10
             """;
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         Project projection = as(plan, Project.class);
         TopN topN = as(projection.child(), TopN.class);
         Eval unpack = as(topN.child(), Eval.class);
@@ -7100,7 +7118,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | SORT cluster
             | LIMIT 10
             """;
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         Project project = as(plan, Project.class);
         TopN topN = as(project.child(), TopN.class);
         Eval eval = as(topN.child(), Eval.class);
@@ -7143,7 +7161,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | SORT cluster
             | LIMIT 10
             """;
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         Project project = as(plan, Project.class);
         TopN topN = as(project.child(), TopN.class);
         Eval evalDiv = as(topN.child(), Eval.class);
@@ -7193,7 +7211,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testTranslateMaxOverTime() {
         var query = "TS k8s | STATS sum(max_over_time(network.bytes_in)) BY bucket(@timestamp, 1h)";
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         Limit limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
@@ -7221,7 +7239,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testTranslateAvgOverTime() {
         var query = "TS k8s | STATS sum(avg_over_time(network.bytes_in)) BY bucket(@timestamp, 1h)";
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         Limit limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
@@ -7256,7 +7274,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             TS k8s | STATS avg(last_over_time(network.bytes_in)) BY bucket(@timestamp, 1 minute)
             | LIMIT 10
             """;
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         var eval = as(project.child(), Eval.class);
         var limit = as(eval.child(), Limit.class);
@@ -7285,7 +7303,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             TS k8s | STATS sum(last_over_time(network.bytes_in)) WHERE cluster == "prod" BY bucket(@timestamp, 1 minute)
             | LIMIT 10
             """;
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
@@ -7320,7 +7338,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | STATS sum(last_over_time(network.bytes_in)) WHERE cluster == "prod" BY tbucket=date_trunc(1m, @timestamp)
             | LIMIT 10
             """);
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
@@ -7358,7 +7376,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             TS k8s | STATS avg(network.bytes_in) WHERE cluster == "prod" BY bucket(@timestamp, 1 minute)
             | LIMIT 10
             """;
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         var eval = as(project.child(), Eval.class);
         var limit = as(eval.child(), Limit.class);
@@ -7390,7 +7408,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var query = """
             TS exp_histo_sample | STATS SUM(responseTime) BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
@@ -7421,7 +7439,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var query = """
             TS exp_histo_sample | STATS SUM(responseTime) WHERE instance == "foobar" BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
@@ -7453,7 +7471,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var query = """
             TS exp_histo_sample | STATS PERCENTILE(responseTime, 50) BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         var percentileExtractionEval = as(project.child(), Eval.class);
         var limit = as(percentileExtractionEval.child(), Limit.class);
@@ -7485,7 +7503,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var query = """
             TS exp_histo_sample | STATS PERCENTILE(responseTime, 50) WHERE instance == "foobar" BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         var percentileExtractionEval = as(project.child(), Eval.class);
         var limit = as(percentileExtractionEval.child(), Limit.class);
@@ -7518,7 +7536,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var query = """
             TS tdigest_timeseries_index | STATS SUM(responseTime) BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
@@ -7549,7 +7567,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var query = """
             TS tdigest_timeseries_index | STATS PERCENTILE(responseTime, 50) BY bucket(@timestamp, 1 minute) | LIMIT 10
             """;
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         var percentileExtractionEval = as(project.child(), Eval.class);
         var limit = as(percentileExtractionEval.child(), Limit.class);
@@ -7585,7 +7603,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS avg(last_over_time(network.bytes_in, %s minute)) BY TBUCKET(1 minute)
                 | LIMIT 10
                 """, window);
-            var plan = planMetrics(query);
+            var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
             Holder<LastOverTime> holder = new Holder<>();
             plan.forEachExpressionDown(LastOverTime.class, holder::set);
             assertNotNull(holder.get());
@@ -7603,7 +7621,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS avg(last_over_time(network.bytes_in, %s hour)) BY TBUCKET(%s minute)
                 | LIMIT 10
                 """, window, bucket);
-            var plan = planMetrics(query);
+            var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
             Holder<LastOverTime> holder = new Holder<>();
             plan.forEachExpressionDown(LastOverTime.class, holder::set);
             assertNotNull(holder.get());
@@ -7621,7 +7639,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS sum(rate(network.total_bytes_in, %s minute)) BY TBUCKET(5m)
                 | LIMIT 10
                 """, window);
-            var plan = planMetrics(query);
+            var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
             Holder<Rate> holder = new Holder<>();
             plan.forEachExpressionDown(Rate.class, holder::set);
             assertNotNull(holder.get());
@@ -7638,7 +7656,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS avg(last_over_time(network.bytes_in, %s minute)) BY tbucket(5 minute)
                 | LIMIT 10
                 """, window);
-            var error = expectThrows(IllegalArgumentException.class, () -> { planMetrics(query); });
+            var error = expectThrows(IllegalArgumentException.class, () -> {
+                metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
+            });
             assertThat(error.getMessage(), containsString("the window must be an exact multiple of the time bucket [tbucket(5 minute)]"));
         }
         // no time bucket
@@ -7649,7 +7669,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS avg(last_over_time(network.bytes_in, %s minute))
                 | LIMIT 10
                 """, window);
-            var error = expectThrows(IllegalArgumentException.class, () -> { planMetrics(query); });
+            var error = expectThrows(IllegalArgumentException.class, () -> {
+                metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
+            });
             assertThat(
                 error.getMessage(),
                 equalTo(
@@ -7673,7 +7695,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS sum(rate(network.total_bytes_in, 10m)) BY TBUCKET(20, "2024-05-10T00:00:00Z", "2024-05-10T01:00:00Z")
                 | LIMIT 10
                 """;
-            logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query(query));
+            metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         }
         // same but with last_over_time
         {
@@ -7682,7 +7704,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS avg(last_over_time(network.bytes_in, 10 minute)) BY TBUCKET(20, "2024-05-10T00:00:00Z", "2024-05-10T01:00:00Z")
                 | LIMIT 10
                 """;
-            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query(query));
+            var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
             Holder<LastOverTime> holder = new Holder<>();
             plan.forEachExpressionDown(LastOverTime.class, holder::set);
             assertNotNull(holder.get());
@@ -7697,7 +7719,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | LIMIT 10
                 """;
             var error = expectThrows(IllegalArgumentException.class, () -> {
-                logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query(query));
+                metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
             });
             assertThat(error.getMessage(), containsString("the window must be an exact multiple of the time bucket"));
         }
@@ -7712,7 +7734,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS max_over_time(network.bytes_in, %s minute) BY TBUCKET(5 minute)
                 | LIMIT 10
                 """, window);
-            var plan = planMetrics(query);
+            var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
             Holder<WindowFilter> holder = new Holder<>();
             plan.forEachExpressionDown(WindowFilter.class, holder::set);
             assertNotNull(holder.get());
@@ -7726,7 +7748,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS avg(sum_over_time(network.bytes_in, %s minute)) BY TBUCKET(5 minute)
                 | LIMIT 10
                 """, window);
-            var plan = planMetrics(query);
+            var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
             Holder<WindowFilter> holder = new Holder<>();
             plan.forEachExpressionDown(WindowFilter.class, holder::set);
             assertNotNull(holder.get());
@@ -7741,7 +7763,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS min(max_over_time(network.bytes_in, %s minute)), sum(rate(network.total_bytes_in, %s minute)) BY TBUCKET(5 minute)
                 | LIMIT 10
                 """, window1, window2);
-            var plan = planMetrics(query);
+            var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
             Holder<Max> maxHolder = new Holder<>();
             Holder<Rate> rateHolder = new Holder<>();
             plan.forEachExpressionDown(Max.class, maxHolder::set);
@@ -7767,7 +7789,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS min(max_over_time(network.bytes_in, %s minute)), sum(rate(network.total_bytes_in, %s minute)) BY TBUCKET(5 minute)
                 | LIMIT 10
                 """, window1, window2);
-            var plan = planMetrics(query);
+            var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
             Holder<Max> maxHolder = new Holder<>();
             Holder<Rate> rateHolder = new Holder<>();
             plan.forEachExpressionDown(Max.class, maxHolder::set);
@@ -7799,10 +7821,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testMvSortInvalidOrder() {
-        VerificationException e = expectThrows(VerificationException.class, () -> plan("""
+        VerificationException e = expectThrows(VerificationException.class, () -> defaultAnalyzer().plans("""
             from test
             | EVAL sd = mv_sort(salary, "ABC")
-            """));
+            """).coordinatorLogicalOptimized());
         assertTrue(e.getMessage().startsWith("Found "));
         final String header = "Found 1 problem\nline ";
         assertEquals(
@@ -7810,144 +7832,144 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             e.getMessage().substring(header.length())
         );
 
-        e = expectThrows(VerificationException.class, () -> plan("""
+        e = expectThrows(VerificationException.class, () -> defaultAnalyzer().plans("""
             from test
             | EVAL order = "ABC", sd = mv_sort(salary, order)
-            """));
+            """).coordinatorLogicalOptimized());
         assertTrue(e.getMessage().startsWith("Found "));
         assertEquals(
             "2:16: Invalid order value in [mv_sort(salary, order)], expected one of [ASC, DESC] but got [ABC]",
             e.getMessage().substring(header.length())
         );
 
-        e = expectThrows(VerificationException.class, () -> plan("""
+        e = expectThrows(VerificationException.class, () -> defaultAnalyzer().plans("""
             from test
             | EVAL order = concat("d", "sc"), sd = mv_sort(salary, order)
-            """));
+            """).coordinatorLogicalOptimized());
         assertTrue(e.getMessage().startsWith("Found "));
         assertEquals(
             "2:16: Invalid order value in [mv_sort(salary, order)], expected one of [ASC, DESC] but got [dsc]",
             e.getMessage().substring(header.length())
         );
 
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> plan("""
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> defaultAnalyzer().plans("""
             row v = [1, 2, 3] | EVAL sd = mv_sort(v, "dsc")
-            """));
+            """).coordinatorLogicalOptimized());
         assertEquals("Invalid order value in [mv_sort(v, \"dsc\")], expected one of [ASC, DESC] but got [dsc]", iae.getMessage());
 
-        iae = expectThrows(IllegalArgumentException.class, () -> plan("""
+        iae = expectThrows(IllegalArgumentException.class, () -> defaultAnalyzer().plans("""
             row v = [1, 2, 3], o = concat("d", "sc") | EVAL sd = mv_sort(v, o)
-            """));
+            """).coordinatorLogicalOptimized());
         assertEquals("Invalid order value in [mv_sort(v, o)], expected one of [ASC, DESC] but got [dsc]", iae.getMessage());
     }
 
     public void testToDatePeriodTimeDurationInvalidIntervals() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
-            from types | EVAL interval = "3 dys", x = date + interval::date_period"""));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> typesAnalyzer().plans("""
+            from types | EVAL interval = "3 dys", x = date + interval::date_period""").coordinatorLogicalOptimized());
         assertEquals(
             "Invalid interval value in [interval::date_period], expected integer followed by one of "
                 + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 dys]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
-            from types | EVAL interval = "- 3 days", x = date + interval::date_period"""));
+        e = expectThrows(IllegalArgumentException.class, () -> typesAnalyzer().plans("""
+            from types | EVAL interval = "- 3 days", x = date + interval::date_period""").coordinatorLogicalOptimized());
         assertEquals(
             "Invalid interval value in [interval::date_period], expected integer followed by one of "
                 + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [- 3 days]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
-            from types  | EVAL interval = "3 dys", x = date - to_dateperiod(interval)"""));
+        e = expectThrows(IllegalArgumentException.class, () -> typesAnalyzer().plans("""
+            from types  | EVAL interval = "3 dys", x = date - to_dateperiod(interval)""").coordinatorLogicalOptimized());
         assertEquals(
             "Invalid interval value in [to_dateperiod(interval)], expected integer followed by one of "
                 + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 dys]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
-            from types  | EVAL interval = "- 3 days", x = date - to_dateperiod(interval)"""));
+        e = expectThrows(IllegalArgumentException.class, () -> typesAnalyzer().plans("""
+            from types  | EVAL interval = "- 3 days", x = date - to_dateperiod(interval)""").coordinatorLogicalOptimized());
         assertEquals(
             "Invalid interval value in [to_dateperiod(interval)], expected integer followed by one of "
                 + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [- 3 days]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
-            from types  | EVAL interval = "3 ours", x = date + interval::time_duration"""));
+        e = expectThrows(IllegalArgumentException.class, () -> typesAnalyzer().plans("""
+            from types  | EVAL interval = "3 ours", x = date + interval::time_duration""").coordinatorLogicalOptimized());
         assertEquals(
             "Invalid interval value in [interval::time_duration], expected integer followed by one of "
                 + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, M, HOUR, HOURS, H] but got [3 ours]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
-            from types  | EVAL interval = "- 3 hours", x = date + interval::time_duration"""));
+        e = expectThrows(IllegalArgumentException.class, () -> typesAnalyzer().plans("""
+            from types  | EVAL interval = "- 3 hours", x = date + interval::time_duration""").coordinatorLogicalOptimized());
         assertEquals(
             "Invalid interval value in [interval::time_duration], expected integer followed by one of "
                 + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, M, HOUR, HOURS, H] but got [- 3 hours]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
-            from types  | EVAL interval = "3 ours", x = date - to_timeduration(interval)"""));
+        e = expectThrows(IllegalArgumentException.class, () -> typesAnalyzer().plans("""
+            from types  | EVAL interval = "3 ours", x = date - to_timeduration(interval)""").coordinatorLogicalOptimized());
         assertEquals(
             "Invalid interval value in [to_timeduration(interval)], expected integer followed by one of "
                 + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, M, HOUR, HOURS, H] but got [3 ours]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
-            from types  | EVAL interval = "- 3 hours", x = date - to_timeduration(interval)"""));
+        e = expectThrows(IllegalArgumentException.class, () -> typesAnalyzer().plans("""
+            from types  | EVAL interval = "- 3 hours", x = date - to_timeduration(interval)""").coordinatorLogicalOptimized());
         assertEquals(
             "Invalid interval value in [to_timeduration(interval)], expected integer followed by one of "
                 + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, M, HOUR, HOURS, H] but got [- 3 hours]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
-            from types  | EVAL interval = "3.5 hours", x = date - to_timeduration(interval)"""));
+        e = expectThrows(IllegalArgumentException.class, () -> typesAnalyzer().plans("""
+            from types  | EVAL interval = "3.5 hours", x = date - to_timeduration(interval)""").coordinatorLogicalOptimized());
         assertEquals(
             "Invalid interval value in [to_timeduration(interval)], expected integer followed by one of "
                 + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, M, HOUR, HOURS, H] but got [3.5 hours]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
-            row x = "2024-01-01"::datetime | eval y = x + "3 dys"::date_period"""));
+        e = expectThrows(IllegalArgumentException.class, () -> typesAnalyzer().plans("""
+            row x = "2024-01-01"::datetime | eval y = x + "3 dys"::date_period""").coordinatorLogicalOptimized());
         assertEquals(
             "Invalid interval value in [\"3 dys\"::date_period], expected integer followed by one of "
                 + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 dys]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
-            row x = "2024-01-01"::datetime | eval y = x - to_dateperiod("3 dys")"""));
+        e = expectThrows(IllegalArgumentException.class, () -> typesAnalyzer().plans("""
+            row x = "2024-01-01"::datetime | eval y = x - to_dateperiod("3 dys")""").coordinatorLogicalOptimized());
         assertEquals(
             "Invalid interval value in [to_dateperiod(\"3 dys\")], expected integer followed by one of "
                 + "[DAY, DAYS, D, WEEK, WEEKS, W, MONTH, MONTHS, MO, QUARTER, QUARTERS, Q, YEAR, YEARS, YR, Y] but got [3 dys]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
-            row x = "2024-01-01"::datetime | eval y = x + "3 ours"::time_duration"""));
+        e = expectThrows(IllegalArgumentException.class, () -> typesAnalyzer().plans("""
+            row x = "2024-01-01"::datetime | eval y = x + "3 ours"::time_duration""").coordinatorLogicalOptimized());
         assertEquals(
             "Invalid interval value in [\"3 ours\"::time_duration], expected integer followed by one of "
                 + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, M, HOUR, HOURS, H] but got [3 ours]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
-            row x = "2024-01-01"::datetime | eval y = x - to_timeduration("3 ours")"""));
+        e = expectThrows(IllegalArgumentException.class, () -> typesAnalyzer().plans("""
+            row x = "2024-01-01"::datetime | eval y = x - to_timeduration("3 ours")""").coordinatorLogicalOptimized());
         assertEquals(
             "Invalid interval value in [to_timeduration(\"3 ours\")], expected integer followed by one of "
                 + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, M, HOUR, HOURS, H] but got [3 ours]",
             e.getMessage()
         );
 
-        e = expectThrows(IllegalArgumentException.class, () -> planTypes("""
-            row x = "2024-01-01"::datetime | eval y = x - to_timeduration("3.5 hours")"""));
+        e = expectThrows(IllegalArgumentException.class, () -> typesAnalyzer().plans("""
+            row x = "2024-01-01"::datetime | eval y = x - to_timeduration("3.5 hours")""").coordinatorLogicalOptimized());
         assertEquals(
             "Invalid interval value in [to_timeduration(\"3.5 hours\")], expected integer followed by one of "
                 + "[MILLISECOND, MILLISECONDS, MS, SECOND, SECONDS, SEC, S, MINUTE, MINUTES, MIN, M, HOUR, HOURS, H] but got [3.5 hours]",
@@ -7957,40 +7979,40 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testToDatePeriodToTimeDurationWithField() {
         final String header = "Found 1 problem\nline ";
-        VerificationException e = expectThrows(VerificationException.class, () -> planTypes("""
-            from types | EVAL x = date + keyword::date_period"""));
+        VerificationException e = expectThrows(VerificationException.class, () -> typesAnalyzer().plans("""
+            from types | EVAL x = date + keyword::date_period""").coordinatorLogicalOptimized());
         assertTrue(e.getMessage().startsWith("Found "));
         assertEquals(
             "1:30: argument of [keyword::date_period] must be a constant, received [keyword]",
             e.getMessage().substring(header.length())
         );
 
-        e = expectThrows(VerificationException.class, () -> planTypes("""
-            from types  | EVAL x = date - to_timeduration(keyword)"""));
+        e = expectThrows(VerificationException.class, () -> typesAnalyzer().plans("""
+            from types  | EVAL x = date - to_timeduration(keyword)""").coordinatorLogicalOptimized());
         assertEquals(
             "1:47: argument of [to_timeduration(keyword)] must be a constant, received [keyword]",
             e.getMessage().substring(header.length())
         );
 
-        e = expectThrows(VerificationException.class, () -> planTypes("""
-            from types | EVAL x = keyword, y = date + x::date_period"""));
+        e = expectThrows(VerificationException.class, () -> typesAnalyzer().plans("""
+            from types | EVAL x = keyword, y = date + x::date_period""").coordinatorLogicalOptimized());
         assertTrue(e.getMessage().startsWith("Found "));
         assertEquals("1:43: argument of [x::date_period] must be a constant, received [x]", e.getMessage().substring(header.length()));
 
-        e = expectThrows(VerificationException.class, () -> planTypes("""
-            from types  | EVAL x = keyword, y = date - to_timeduration(x)"""));
+        e = expectThrows(VerificationException.class, () -> typesAnalyzer().plans("""
+            from types  | EVAL x = keyword, y = date - to_timeduration(x)""").coordinatorLogicalOptimized());
         assertEquals("1:60: argument of [to_timeduration(x)] must be a constant, received [x]", e.getMessage().substring(header.length()));
     }
 
     public void testWhereNull() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | sort salary
             | rename emp_no as e, first_name as f
             | keep salary, e, f
             | where null
             | LIMIT 12
-            """);
+            """).coordinatorLogicalOptimized();
         var local = as(plan, LocalRelation.class);
         assertThat(local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));
     }
@@ -8000,7 +8022,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from test
             | WHERE MATCH(first_name, "Anna Smith", {"minimum_should_match": 2.0})
             """;
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         Limit limit = as(plan, Limit.class);
         Filter filter = as(limit.child(), Filter.class);
         Match match = as(filter.condition(), Match.class);
@@ -8018,7 +8040,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from test
             | WHERE MULTI_MATCH("Anna Smith", first_name, last_name, {"minimum_should_match": 2.0})
             """;
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         Limit limit = as(plan, Limit.class);
         Filter filter = as(limit.child(), Filter.class);
         MultiMatch match = as(filter.condition(), MultiMatch.class);
@@ -8044,7 +8066,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRedundantSortOnJoin() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
               FROM test
             | SORT languages
             | RENAME languages AS language_code
@@ -8052,7 +8074,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | LOOKUP JOIN languages_lookup ON language_code
             | WHERE language_code > 1
             | SORT emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var topN = as(project.child(), TopN.class);
@@ -8074,14 +8096,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRedundantSortOnMvExpand() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
               FROM test
             | SORT languages
             | EVAL foo = "bar"
             | MV_EXPAND languages
             | WHERE emp_no > 1
             | SORT emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         var filter = as(topN.child(), Filter.class);
@@ -8102,7 +8124,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRedundantSortOnMvExpandAndJoin() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
               FROM test
             | SORT languages
             | EVAL language_code = languages
@@ -8110,7 +8132,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | WHERE emp_no > 1
             | LOOKUP JOIN languages_lookup ON language_code
             | SORT emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         var join = as(topN.child(), Join.class);
@@ -8132,7 +8154,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testMultlipleRedundantSortOnMvExpandAndJoin() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
               FROM test
             | SORT first_name
             | EVAL language_code = languages
@@ -8141,7 +8163,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | WHERE emp_no > 1
             | LOOKUP JOIN languages_lookup ON language_code
             | SORT emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         var join = as(topN.child(), Join.class);
@@ -8166,7 +8188,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRedundantSortOnMvExpandEnrichGrokDissect() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
               FROM test
             | SORT languages
             | EVAL foo = to_string(languages)
@@ -8176,7 +8198,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | MV_EXPAND languages
             | WHERE emp_no > 1
             | SORT emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         var filter = as(topN.child(), Filter.class);
@@ -8205,7 +8227,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRedundantSortOnMvExpandJoinEnrichGrokDissect() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
               FROM test
             | SORT languages
             | EVAL foo = to_string(languages), language_code = languages
@@ -8216,7 +8238,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | MV_EXPAND languages
             | WHERE emp_no > 1
             | SORT emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         var filter = as(topN.child(), Filter.class);
@@ -8244,7 +8266,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRedundantSortOnMvExpandJoinKeepDropRename() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
               FROM test
             | SORT languages
             | EVAL foo = to_string(languages), language_code = languages
@@ -8255,7 +8277,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | MV_EXPAND languages
             | WHERE emp_no > 1
             | SORT emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         var filter = as(topN.child(), Filter.class);
@@ -8282,7 +8304,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testEvalLookupMultipleSorts() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
               FROM test
             | EVAL language_code = 1
             | LOOKUP JOIN languages_lookup ON language_code
@@ -8292,7 +8314,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | MV_EXPAND foo
             | WHERE emp_no > 1
             | SORT emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         var filter = as(topN.child(), Filter.class);
@@ -8313,7 +8335,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
               | WHERE x > 2
             """;
 
-        VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> defaultAnalyzer().plans(query).coordinatorLogicalOptimized()
+        );
         assertThat(e.getMessage(), containsString("line 2:5: Unbounded SORT not supported yet [SORT y] please add a LIMIT"));
     }
 
@@ -8325,7 +8350,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
               | WHERE language_name == "foo"
             """;
 
-        VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> defaultAnalyzer().plans(query).coordinatorLogicalOptimized()
+        );
         assertThat(e.getMessage(), containsString("line 2:5: Unbounded SORT not supported yet [SORT y] please add a LIMIT"));
         assertWarnings(
             "No limit defined, adding default limit of [1000]",
@@ -8345,7 +8373,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | WHERE foo == "foo"
             """;
 
-        VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> defaultAnalyzer().plans(query).coordinatorLogicalOptimized()
+        );
         assertThat(e.getMessage(), containsString("line 4:3: Unbounded SORT not supported yet [SORT language_name] please add a LIMIT"));
     }
 
@@ -8360,7 +8391,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | WHERE language_name == "foo"
             """;
 
-        VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> defaultAnalyzer().plans(query).coordinatorLogicalOptimized()
+        );
         assertThat(e.getMessage(), containsString("line 5:3: Unbounded SORT not supported yet [SORT foo] please add a LIMIT"));
         assertWarnings(
             "No limit defined, adding default limit of [1000]",
@@ -8377,7 +8411,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
               | WHERE x > 2
             """;
 
-        VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> defaultAnalyzer().plans(query).coordinatorLogicalOptimized()
+        );
         assertThat(e.getMessage(), containsString("line 2:5: Unbounded SORT not supported yet [SORT x] please add a LIMIT"));
     }
 
@@ -8422,7 +8459,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | EVAL irrelevant2 = 2
             | SAMPLE .1
             """;
-        var optimized = optimizedPlan(query);
+        var optimized = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var eval = as(optimized, Eval.class);
         var limit = as(eval.child(), Limit.class);
@@ -8446,7 +8483,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             "DISSECT first_name \"%{z}\""
         )) {
             var query = "FROM test | " + command + " | SAMPLE .5";
-            var optimized = optimizedPlan(query);
+            var optimized = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
             var unary = as(optimized, UnaryPlan.class);
             var limit = as(unary.child(), Limit.class);
@@ -8461,7 +8498,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
 
         var query = "FROM test | WHERE emp_no > 0 | SAMPLE 0.5 | LIMIT 100";
-        var optimized = optimizedPlan(query);
+        var optimized = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var limit = as(optimized, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -8475,7 +8512,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
 
         var query = "FROM test | SORT emp_no | SAMPLE 0.5 | LIMIT 100";
-        var optimized = optimizedPlan(query);
+        var optimized = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var topN = as(optimized, TopN.class);
         var sample = as(topN.child(), Sample.class);
@@ -8489,7 +8526,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         for (var command : List.of("LIMIT 100", "MV_EXPAND languages", "STATS COUNT()")) {
             var query = "FROM test | " + command + " | SAMPLE .5";
-            var optimized = optimizedPlan(query);
+            var optimized = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
             var limit = as(optimized, Limit.class);
             var sample = as(limit.child(), Sample.class);
@@ -8517,7 +8554,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | LOOKUP JOIN languages_lookup ON language_code
             | SAMPLE .5
             """;
-        var optimized = optimizedPlan(query);
+        var optimized = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var limit = as(optimized, Limit.class);
         var sample = as(limit.child(), Sample.class);
@@ -8544,7 +8581,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | CHANGE_POINT emp_no ON hire_date
             | SAMPLE .5
             """;
-        var optimized = optimizedPlan(query);
+        var optimized = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var limit = as(optimized, Limit.class);
         var sample = as(limit.child(), Sample.class);
@@ -8559,7 +8596,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from types
             | where knn(dense_vector, [0, 1, 2]) and integer > 10
             """;
-        var optimized = planTypes(query);
+        var optimized = typesAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var limit = as(optimized, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -8579,7 +8616,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | where integer > 10
             | where keyword == "test"
             """;
-        var optimized = planTypes(query);
+        var optimized = typesAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var limit = as(optimized, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -8598,7 +8635,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from types
             | where knn(dense_vector, [0, 1, 2]) or integer > 10
             """;
-        var optimized = planTypes(query);
+        var optimized = typesAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var limit = as(optimized, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -8626,7 +8663,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | where
                  ((knn(dense_vector, [0, 1, 2]) or integer > 10) and keyword == "test") and ((short < 5) or (double > 5.0))
             """;
-        var optimized = planTypes(query);
+        var optimized = typesAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var limit = as(optimized, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -8659,7 +8696,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | where
                  ((knn(dense_vector, [0, 1, 2]) and integer > 10) or keyword == "test") or ((short < 5) and (double > 5.0))
             """;
-        var optimized = planTypes(query);
+        var optimized = typesAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var limit = as(optimized, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -8685,7 +8722,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from types
             | where ((knn(dense_vector, [0, 1, 2]) or integer > 10) and ((keyword == "test") or knn(dense_vector, [4, 5, 6])))
             """;
-        var optimized = planTypes(query);
+        var optimized = typesAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var limit = as(optimized, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -8717,7 +8754,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from types
             | where knn(dense_vector, [0, 1, 2])
             """;
-        var optimized = planTypes(query);
+        var optimized = typesAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var limit = as(optimized, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -8731,7 +8768,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | where knn(dense_vector, [0, 1, 2])
             | limit 10
             """;
-        var optimized = planTypes(query);
+        var optimized = typesAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var limit = as(optimized, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -8746,7 +8783,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | sort _score desc
             | limit 10
             """;
-        var optimized = planTypes(query);
+        var optimized = typesAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var topN = as(optimized, TopN.class);
         var filter = as(topN.child(), Filter.class);
@@ -8762,7 +8799,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | sort _score desc
             | limit 10
             """;
-        var optimized = planTypes(query);
+        var optimized = typesAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var topN = as(optimized, TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(10));
@@ -8779,7 +8816,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | limit 20
             | limit 10
             """;
-        var optimized = planTypes(query);
+        var optimized = typesAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var limit = as(optimized, Limit.class);
         assertThat(limit.limit().fold(FoldContext.small()), equalTo(10));
@@ -8796,7 +8833,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | sort _score
             | limit 10
             """;
-        var optimized = planTypes(query);
+        var optimized = typesAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var topN = as(optimized, TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(10));
@@ -8823,7 +8860,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | rerank "some text" on text with { "inference_id" : "reranking-inference-id" }
             """;
 
-        var optimized = planTypes(query);
+        var optimized = typesAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var rerank = as(optimized, Rerank.class);
         var limit = as(rerank.child(), Limit.class);
@@ -8841,7 +8878,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | limit 100
             """;
 
-        var optimized = planTypes(query);
+        var optimized = typesAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var rerank = as(optimized, Rerank.class);
         var limit = as(rerank.child(), Limit.class);
@@ -8866,10 +8903,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testVerifierOnAdditionalAttributeAdded() throws Exception {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats a = min(salary) by emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var aggregate = as(limit.child(), Aggregate.class);
@@ -8898,7 +8935,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         );
         LogicalPlanOptimizer customRulesLogicalPlanOptimizer = getCustomRulesLogicalPlanOptimizer(
             List.of(customRuleBatch),
-            logicalOptimizer.context().minimumVersion()
+            buildLogicalOptimizer().context().minimumVersion()
         );
         Exception e = expectThrows(VerificationException.class, () -> customRulesLogicalPlanOptimizer.optimize(plan));
         assertThat(e.getMessage(), containsString("Output has changed from"));
@@ -8906,10 +8943,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testVerifierOnAttributeDatatypeChanged() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats a = min(salary) by emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var aggregate = as(limit.child(), Aggregate.class);
@@ -8946,7 +8983,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         );
         LogicalPlanOptimizer customRulesLogicalPlanOptimizer = getCustomRulesLogicalPlanOptimizer(
             List.of(customRuleBatch),
-            logicalOptimizerCtx.minimumVersion()
+            unboundLogicalOptimizerContext().minimumVersion()
         );
         Exception e = expectThrows(VerificationException.class, () -> customRulesLogicalPlanOptimizer.optimize(plan));
         assertThat(e.getMessage(), containsString("Output has changed from"));
@@ -8954,7 +8991,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testTimeSeriesWithLimitZeroDoesNotFailVerifier() {
         var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY bucket(@timestamp, 1h) | LIMIT 0";
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         var local = as(plan, LocalRelation.class);
         assertThat(local.supplier(), instanceOf(EmptyLocalSupplier.class));
     }
@@ -8962,7 +8999,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testTimeSeriesGroupByAllWithLimitZeroDoesNotFailVerifier() {
         assumeTrue("requires metrics group by all", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());
         var query = "TS k8s | STATS avg_over_time(network.cost) | LIMIT 0";
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         var eval = as(project.child(), Eval.class);
         var local = as(eval.child(), LocalRelation.class);
@@ -8971,7 +9008,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testTimeSeriesBareFieldWithBucketAndLimitZeroDoesNotFailVerifier() {
         var query = "TS k8s | STATS network.cost BY bucket(@timestamp, 1h) | LIMIT 0";
-        var plan = planMetrics(query);
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         var eval = as(project.child(), Eval.class);
         var local = as(eval.child(), LocalRelation.class);
@@ -8986,7 +9023,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | SORT min
             """;
 
-        var plan = planSample(query);
+        var plan = sampleDataAnalyzer().plans(query).coordinatorLogicalOptimized();
         var topN = as(plan, TopN.class);
 
         Aggregate aggregate = as(topN.child(), Aggregate.class);
@@ -9027,7 +9064,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testTranslateMetricsGroupedByTBucketInTSMode() {
         var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY tbucket(1h)";
-        var plan = logicalOptimizer.optimize(metricsAnalyzer().query(query));
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         Limit limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
@@ -9060,7 +9097,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | KEEP decay_result
             | LIMIT 5""";
 
-        Exception e = expectThrows(VerificationException.class, () -> logicalOptimizer.optimize(defaultAnalyzer().query(query)));
+        Exception e = expectThrows(VerificationException.class, () -> defaultAnalyzer().plans(query).coordinatorLogicalOptimized());
         assertThat(e.getMessage(), containsString("has non-literal value [origin]"));
     }
 
@@ -9071,7 +9108,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | KEEP decay_result
             | LIMIT 5""";
 
-        Exception e = expectThrows(VerificationException.class, () -> logicalOptimizer.optimize(defaultAnalyzer().query(query)));
+        Exception e = expectThrows(VerificationException.class, () -> defaultAnalyzer().plans(query).coordinatorLogicalOptimized());
         assertThat(e.getMessage(), containsString("has non-literal value [scale]"));
     }
 
@@ -9091,11 +9128,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             "requires LOOKUP JOIN ON boolean expression capability",
             EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
         );
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | keep languages
             | lookup join languages_lookup ON language_code == languages
-            """);
+            """).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         var limit = asLimit(project.child(), 1000, true);
         var join = as(limit.child(), Join.class);
@@ -9134,7 +9171,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | lookup join languages_lookup ON language_code_left != language_code and language_code_left > language_code
             """;
 
-        LogicalPlan plan = optimizedPlan(query);
+        LogicalPlan plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         var limit = asLimit(project.child(), 1000, true);
         var join = as(limit.child(), Join.class);
@@ -9178,14 +9215,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#21, language_name{f}#22]
      */
     public void LookupJoinSemanticFilterDeupPushdown() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = defaultAnalyzer().plans("""
             from test
             | rename first_name as language_name
             | lookup join languages_lookup on language_name
             | where NOT language_code >= 50 OR language_name == ""
             | where language_code < 50
             | where language_name == ""
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -9234,8 +9271,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | KEEP @timestamp
             """, timestampValue);
 
-        LogicalPlan analyze = metricsAnalyzer().query(query);
-        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(analyze);
+        LogicalPlan plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
 
         Project project = as(plan, Project.class);
         Eval eval = as(project.child(), Eval.class);
@@ -9265,8 +9301,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | KEEP @timestamp
             """, timestampValue);
 
-        LogicalPlan analyze = metricsAnalyzer().query(query);
-        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(analyze);
+        LogicalPlan plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
 
         LocalRelation relation = as(plan, LocalRelation.class);
         assertThat(relation.output(), hasSize(1));
@@ -9277,13 +9312,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * LocalRelation[[@timestamp{r}#3],EMPTY]
      */
     public void testTranslateTRangeFoldsToLocalRelation() {
-        LogicalPlan analyze = metricsAnalyzer().query("""
+        LogicalPlan plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans("""
             TS k8s
             | EVAL @timestamp = null::datetime
             | WHERE TRANGE("2024-05-10T00:17:14.000Z", "2024-05-10T00:18:33.000Z")
             | KEEP @timestamp
-            """);
-        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(analyze);
+            """).coordinatorLogicalOptimized();
 
         LocalRelation relation = as(plan, LocalRelation.class);
         assertThat(relation.output(), hasSize(1));
@@ -9306,13 +9340,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testToLongAndToIntegerSurrogateFoldsToLongAndToInteger() {
-        LogicalPlan analyze = baseConversionAnalyzer().query("""
+        LogicalPlan plan = baseConversionAnalyzer().plans("""
             FROM  base_conversion
             | EVAL to_long = TO_LONG(string), to_integer = TO_INTEGER(string)
             | KEEP to_long, to_integer
             | LIMIT 10
-            """);
-        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(analyze);
+            """).coordinatorLogicalOptimized();
 
         Project project = as(plan, Project.class);
         Eval eval = as(project.child(), Eval.class);
@@ -9341,13 +9374,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testToLongAndToIntegerSurrogateFoldsToLongBaseAndToIntegerBase() {
-        LogicalPlan analyze = baseConversionAnalyzer().query("""
+        LogicalPlan plan = baseConversionAnalyzer().plans("""
             FROM  base_conversion
             | EVAL to_long = TO_LONG(string, base), to_integer = TO_INTEGER(string, base)
             | KEEP to_long, to_integer
             | LIMIT 10
-            """);
-        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(analyze);
+            """).coordinatorLogicalOptimized();
 
         Project project = as(plan, Project.class);
         Eval eval = as(project.child(), Eval.class);
@@ -9379,14 +9411,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testToLongSurrogateFoldsToLongBaseWithToInteger() {
-        LogicalPlan analyze = baseConversionAnalyzer().query("""
+        LogicalPlan plan = baseConversionAnalyzer().plans("""
             FROM  base_conversion
             | EVAL ubase = TO_UNSIGNED_LONG(base)
             | EVAL to_long = TO_LONG(string, ubase), to_integer = TO_INTEGER(string, ubase)
             | KEEP ubase, to_long, to_integer
             | LIMIT 10
-            """);
-        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(analyze);
+            """).coordinatorLogicalOptimized();
 
         Project project = as(plan, Project.class);
         Eval eval = as(project.child(), Eval.class);
@@ -9412,11 +9443,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      */
     public void testNestedSubqueries() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        VerificationException e = expectThrows(VerificationException.class, () -> planSubquery("""
+        VerificationException e = expectThrows(VerificationException.class, () -> subqueryAnalyzer().plans("""
             FROM test, (FROM test, (FROM languages
                                                       | WHERE language_code > 0))
             | WHERE emp_no > 10000
-            """));
+            """).coordinatorLogicalOptimized());
         assertTrue(e.getMessage().startsWith("Found "));
         final String header = "Found 1 problem\nline ";
         assertEquals("1:18: Nested subqueries are not supported", e.getMessage().substring(header.length()));
@@ -9427,12 +9458,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      */
     public void testForkInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        VerificationException e = expectThrows(VerificationException.class, () -> planSubquery("""
+        VerificationException e = expectThrows(VerificationException.class, () -> subqueryAnalyzer().plans("""
             FROM test, (FROM languages
                                  | WHERE language_code > 0
                                  | FORK (WHERE language_name == "a") (WHERE language_name == "b")
                                  )
-            """));
+            """).coordinatorLogicalOptimized());
         assertTrue(e.getMessage().startsWith("Found "));
         final String header = "Found 1 problem\nline ";
         assertEquals("3:24: FORK inside subquery is not supported", e.getMessage().substring(header.length()));
@@ -9445,10 +9476,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      */
     public void testFullTextFunctionOnNull() {
         String functionName = randomFrom("match", "match_phrase");
-        var plan = optimizedPlan(String.format(Locale.ROOT, """
+        var plan = defaultAnalyzer().plans(String.format(Locale.ROOT, """
             from test
             | where %s(null, "John") or %s(last_name, "Doe")
-            """, functionName, functionName));
+            """, functionName, functionName)).coordinatorLogicalOptimized();
 
         // Limit[1000[INTEGER],false,false]
         var limit = as(plan, Limit.class);
@@ -9468,11 +9499,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testFullTextFunctionOnEvalNull() {
         String functionName = randomFrom("match", "match_phrase");
-        var plan = optimizedPlan(String.format(Locale.ROOT, """
+        var plan = defaultAnalyzer().plans(String.format(Locale.ROOT, """
             from test
             | eval some_field = null
             | where %s(some_field, "John") or %s(last_name, "Doe")
-            """, functionName, functionName));
+            """, functionName, functionName)).coordinatorLogicalOptimized();
 
         // Eval null
         var eval = as(plan, Eval.class);
@@ -9502,12 +9533,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *         \_EsRelation[union_types_index*][!first_name, id{f}#14, !languages, !last_name, !sal..]
      */
     public void testUnionTypesResolvePastProjections() {
-        LogicalPlan plan = planUnionIndex("""
+        LogicalPlan plan = unionIndexAnalyzer().plans("""
             FROM union_types_index*
             | KEEP languages, id
             | MV_EXPAND id
             | EVAL languages = languages::keyword
-            """);
+            """).coordinatorLogicalOptimized();
 
         Project topProject = as(plan, Project.class);
         var topOutput = topProject.output();
@@ -9543,11 +9574,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      */
     public void testTranslateMetricsAfterRenamingTimestamp() {
         assertThat(
-            expectThrows(VerificationException.class, () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query("""
+            expectThrows(VerificationException.class, () -> metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans("""
                 TS k8s |
                 EVAL @timestamp = region |
                 STATS max(network.cost), count(network.eth0.rx)
-                """))).getMessage(),
+                """).coordinatorLogicalOptimized()).getMessage(),
             containsString(
                 "second argument of [implicit time-series aggregation function (LastOverTime) for network.cost] "
                     + "must be [date_nanos or datetime], found value [@timestamp] type [keyword]"
@@ -9555,11 +9586,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         );
 
         assertThat(
-            expectThrows(VerificationException.class, () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query("""
+            expectThrows(VerificationException.class, () -> metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans("""
                 TS k8s |
                 EVAL @timestamp = region |
                 STATS max(last_over_time(network.cost)), count(last_over_time(network.eth0.rx))
-                """))).getMessage(),
+                """).coordinatorLogicalOptimized()).getMessage(),
             containsString(
                 "second argument of [last_over_time(network.cost)] must be [date_nanos or datetime], "
                     + "found value [@timestamp] type [keyword]"
@@ -9567,31 +9598,31 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         );
 
         assertThat(
-            expectThrows(VerificationException.class, () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query("""
+            expectThrows(VerificationException.class, () -> metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans("""
                 TS k8s |
                 EVAL @timestamp = region |
                 STATS max(max_over_time(network.cost)), count(count_over_time(network.eth0.rx))
-                """))).getMessage(),
+                """).coordinatorLogicalOptimized()).getMessage(),
             containsString("the TS STATS command requires an @timestamp field of type date or date_nanos but it was of type [keyword]")
         );
 
         assertThat(
-            expectThrows(VerificationException.class, () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query("""
+            expectThrows(VerificationException.class, () -> metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans("""
                 TS k8s |
                 DISSECT event "%{@timestamp} %{network.total_bytes_in}" |
                 STATS ohxqxpSqEZ = avg(network.eth0.currently_connected_clients)
-                """))).getMessage(),
+                """).coordinatorLogicalOptimized()).getMessage(),
             containsString(
                 "second argument of [implicit time-series aggregation function (LastOverTime) for "
                     + "network.eth0.currently_connected_clients] must be [date_nanos or datetime], found value [@timestamp] type [keyword]"
             )
         );
 
-        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query("""
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans("""
             TS k8s |
             EVAL `@timestamp` = @timestamp + 1day |
             STATS std_dev(network.eth0.currently_connected_clients)
-            """));
+            """).coordinatorLogicalOptimized();
         var tsStats = plan.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(tsStats.timestamp().dataType(), equalTo(DataType.DATETIME));
         LastOverTime lastOverTime = as(Alias.unwrap(tsStats.aggregates().getFirst()), LastOverTime.class);
@@ -9599,9 +9630,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         String errorMessage = expectThrows(
             VerificationException.class,
-            () -> logicalOptimizerWithLatestVersion.optimize(
-                metricsAnalyzer().query("TS k8s | KEEP network.total_bytes_in | STATS count(*)")
-            )
+            () -> metricsAnalyzer().minimumTransportVersion(TransportVersion.current())
+                .plans("TS k8s | KEEP network.total_bytes_in | STATS count(*)")
+                .coordinatorLogicalOptimized()
         ).getMessage();
         assertThat(errorMessage, containsString("count_star [count(*)] can't be used with TS command; use count on a field instead"));
         assertThat(
@@ -9627,11 +9658,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testMvConstantGroupByWhere() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             ROW a = [1, 2]
             | STATS c = SUM(a) BY a
             | WHERE a > 1
-            """);
+            """).coordinatorLogicalOptimized();
 
         // Plan structure: Limit -> Filter -> Aggregate -> LocalRelation
         var limit = as(plan, Limit.class);
@@ -9662,10 +9693,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testMvConstantGroupByAggExpr() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             ROW a = [1, 2]
             | STATS a + SUM(a) BY a
-            """);
+            """).coordinatorLogicalOptimized();
 
         // Plan structure: Project -> Eval -> Limit -> Aggregate -> LocalRelation
         var project = as(plan, Project.class);
@@ -9702,11 +9733,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testMvConstantGroupByEval() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             ROW a = [1, 2]
             | STATS SUM(a) BY a
             | EVAL b = a
-            """);
+            """).coordinatorLogicalOptimized();
 
         // Plan structure: Eval -> Limit -> Aggregate -> LocalRelation
         var eval = as(plan, Eval.class);
@@ -9748,7 +9779,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | ENRICH languages_idx ON message
             | STATS a = COUNT(TO_LOWER(language_name)), b = COUNT(language_name)
             """;
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         // Limit[1000[INTEGER],false,false]
         var limit = as(plan, Limit.class);
@@ -9827,7 +9858,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     (where emp_no < 10)
              | limit 10
             """;
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(10));
         var fork = as(limit.child(), Fork.class);
@@ -9872,7 +9903,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     (where emp_no < 10 | limit 100)
              | limit 10
             """;
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(10));
         var fork = as(limit.child(), Fork.class);
@@ -9931,7 +9962,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
              | mv_expand emp_no
              | limit 10
             """;
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(10));
 
@@ -9966,9 +9997,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRowFieldResolutionBasic() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             ROW x = 4, y = 2, z = x + y
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = asLimit(plan, 1000, false, false);
         var relation = as(limit.child(), LocalRelation.class);
         assertMap(Expressions.names(relation.output()), is(List.of("x", "y", "z")));
@@ -9992,9 +10023,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRowFieldResolutionMultipleRefs() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             ROW a = 10, b = a * 2, c = a + b, d = b - a
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = asLimit(plan, 1000, false, false);
         var relation = as(limit.child(), LocalRelation.class);
         assertMap(Expressions.names(relation.output()), is(List.of("a", "b", "c", "d")));
@@ -10019,9 +10050,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRowFieldResolutionComplexExpr() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             ROW x = 5, y = 3, z = x * y + 10, w = z / (x - y)
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = asLimit(plan, 1000, false, false);
         var relation = as(limit.child(), LocalRelation.class);
         assertMap(Expressions.names(relation.output()), is(List.of("x", "y", "z", "w")));
@@ -10046,9 +10077,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRowFieldResolutionWithFunctions() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             ROW a = 10, b = 3, c = ROUND(a / b, 2), d = c * 2
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = asLimit(plan, 1000, false, false);
         var relation = as(limit.child(), LocalRelation.class);
         assertMap(Expressions.names(relation.output()), is(List.of("a", "b", "c", "d")));
@@ -10073,9 +10104,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRowFieldResolutionNestedArithmetic() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             ROW a = 2, b = 3, c = 4, result = (a + b) * c - a
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = asLimit(plan, 1000, false, false);
         var relation = as(limit.child(), LocalRelation.class);
         assertMap(Expressions.names(relation.output()), is(List.of("a", "b", "c", "result")));
@@ -10098,9 +10129,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRowFieldResolutionWithNull() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             ROW x = 10, y = null, z = x + y
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var relation = as(limit.child(), LocalRelation.class);
         assertMap(Expressions.names(relation.output()), is(List.of("x", "y", "z")));
@@ -10125,9 +10156,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRowFieldResolutionChained() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             ROW a = 1, b = a + 1, c = b + 1, d = c + 1, e = d + 1
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = asLimit(plan, 1000, false, false);
         var relation = as(limit.child(), LocalRelation.class);
         assertMap(Expressions.names(relation.output()), is(List.of("a", "b", "c", "d", "e")));
@@ -10153,9 +10184,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRowFieldResolutionBoolean() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             ROW a = 10, b = 20, is_greater = b > a, is_equal = a == b
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = asLimit(plan, 1000, false, false);
         var relation = as(limit.child(), LocalRelation.class);
         assertMap(Expressions.names(relation.output()), is(List.of("a", "b", "is_greater", "is_equal")));
@@ -10178,9 +10209,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRowFieldResolutionShadowing() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             ROW a = 1, b = 2, a = 3
-            """);
+            """).coordinatorLogicalOptimized();
         var limit = asLimit(plan, 1000, false, false);
         var relation = as(limit.child(), LocalRelation.class);
         assertMap(Expressions.names(relation.output()), is(List.of("b", "a")));
@@ -10210,7 +10241,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     )
                 )
             );
-        var optimized = logicalOptimizer.optimize(analyzed);
+        var optimized = buildLogicalOptimizer().optimize(analyzed);
 
         var limit = asLimit(optimized, 1000, false, false);
         var relation = as(limit.child(), LocalRelation.class);
@@ -10229,12 +10260,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * SORT followed by LOOKUP JOIN should warn because the order is lost.
      */
     public void testWarnSortBeforeLookupJoin() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL language_code = languages
             | SORT emp_no
             | LOOKUP JOIN languages_lookup ON language_code
-            """);
+            """).coordinatorLogicalOptimized();
 
         as(plan, Limit.class);
         assertWarnings(
@@ -10249,13 +10280,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * because the final SORT restores order.
      */
     public void testNoWarnSortBeforeLookupJoinWithSortAfter() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL language_code = languages
             | SORT emp_no
             | LOOKUP JOIN languages_lookup ON language_code
             | SORT first_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         as(plan, TopN.class);
         // Only the default limit warning, no sort order warning
@@ -10266,11 +10297,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * LOOKUP JOIN without a preceding SORT should NOT warn.
      */
     public void testNoWarnLookupJoinWithoutSort() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL language_code = languages
             | LOOKUP JOIN languages_lookup ON language_code
-            """);
+            """).coordinatorLogicalOptimized();
 
         as(plan, Limit.class);
         // Only the default limit warning, no sort order warning
@@ -10281,13 +10312,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * TopN (which includes SORT) followed by LOOKUP JOIN should warn.
      */
     public void testWarnTopNBeforeLookupJoin() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL language_code = languages
             | SORT emp_no
             | LIMIT 10
             | LOOKUP JOIN languages_lookup ON language_code
-            """);
+            """).coordinatorLogicalOptimized();
 
         as(plan, Limit.class);
         assertWarnings(
@@ -10297,10 +10328,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateMetricsWithAliasToDimensionInGroup() {
-        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query("""
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans("""
             TS k8s |
             STATS max(max_over_time(network.bytes_in)) by p = pod, bucket(@timestamp, 1 minute)
-            """));
+            """).coordinatorLogicalOptimized();
 
         // Project[[max(max_over_time(network.bytes_in)){r}#420, pod{r}#426, bucket(@timestamp, 1 minute){r}#418]]
         var project = as(plan, Project.class);
@@ -10360,7 +10391,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testPushDownSampleAndLimitThroughUriParts() {
         assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
         var query = "FROM test | URI_PARTS parts = \"http://example.com/foo/bar?baz=qux\" | SAMPLE .5";
-        var optimized = optimizedPlan(query);
+        var optimized = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         // UriParts should be above Sample and Limit
         var uriParts = as(optimized, UriParts.class);
         var limit = as(uriParts.child(), Limit.class);
@@ -10377,7 +10408,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | keep x
             | uri_parts u = x
             """;
-        LogicalPlan plan = optimizedPlan(query);
+        LogicalPlan plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         // UriParts should be pushed below Project
         var keep = as(plan, Project.class);
@@ -10399,7 +10430,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | uri_parts u = first_name
             | sort u.domain
             """;
-        LogicalPlan plan = optimizedPlan(query);
+        LogicalPlan plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         assertThat(orderNames(topN), contains("u.domain"));
@@ -10410,7 +10441,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testPushDownSampleAndLimitThroughRegisteredDomain() {
         assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
         var query = "FROM test | registered_domain parts = \"www.example.co.uk\" | SAMPLE .5";
-        var optimized = optimizedPlan(query);
+        var optimized = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var registeredDomain = as(optimized, RegisteredDomain.class);
         var limit = as(registeredDomain.child(), Limit.class);
         var sample = as(limit.child(), Sample.class);
@@ -10426,7 +10457,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | keep x
             | registered_domain rd = x
             """;
-        LogicalPlan plan = optimizedPlan(query);
+        LogicalPlan plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var registeredDomain = as(keep.child(), RegisteredDomain.class);
@@ -10446,7 +10477,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | registered_domain rd = first_name
             | sort rd.registered_domain
             """;
-        LogicalPlan plan = optimizedPlan(query);
+        LogicalPlan plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         assertThat(orderNames(topN), contains("rd.registered_domain"));
@@ -10463,10 +10494,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      */
     public void testLimitByZero() {
         assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | LIMIT 0 BY emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var defaultLimit = as(plan, Limit.class);
         assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
@@ -10474,10 +10505,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTopSnippetsQueryMustBeFoldable() {
-        VerificationException e = expectThrows(VerificationException.class, () -> plan("""
+        VerificationException e = expectThrows(VerificationException.class, () -> defaultAnalyzer().plans("""
             FROM test
             | EVAL x = TOP_SNIPPETS(first_name, last_name)
-            """));
+            """).coordinatorLogicalOptimized());
         assertTrue(e.getMessage().startsWith("Found "));
         assertThat(
             e.getMessage(),

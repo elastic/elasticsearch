@@ -38,6 +38,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests.releaseBuildForInlineStats;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -71,7 +72,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
 
@@ -120,7 +121,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         assertThat(topN.order().size(), is(1));
@@ -183,7 +184,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         assertThat(topN.order().size(), is(1));
@@ -251,7 +252,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         assertThat(topN.order().size(), is(1));
@@ -327,7 +328,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("emp_no", "ls", "cd", "s1")));
@@ -405,7 +406,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("emp_no", "ls", "cd", "s1")));
@@ -489,7 +490,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), hasItem("cd"));
@@ -550,7 +551,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("salary", "emp_no")));
@@ -605,7 +606,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("salary", "emp_no")));
@@ -668,7 +669,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("salary", "emp_no")));
@@ -736,7 +737,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("emp_idx", "salary", "sum", "languages")));
@@ -798,7 +799,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
@@ -856,7 +857,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(5));
@@ -914,7 +915,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
@@ -981,7 +982,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(
@@ -1046,7 +1047,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = planAirports(query);
+        var plan = airportsAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("abbrev", "backup_scalerank", "scalerank")));
@@ -1085,18 +1086,20 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
          * - FORK will inject a LIMIT and thus fail because of the "LIMIT before INLINE STATS" limitation
          */
         for (var cmd : List.of("MV_EXPAND languages", "LOOKUP JOIN languages_lookup ON language_code == languages")) {
-            failPlan(
-                """
-                    FROM test
-                    | KEEP emp_no, languages, gender
-                    | SORT emp_no
-                    |""" + " " + cmd + "\n" + """
-                    | INLINE STATS max_lang = MAX(languages) BY gender
-                    | WHERE emp_no > 10000 // prevents the default LIMIT being pushed past INLINE STATS
-                    """,
-                "line 5:3: INLINE STATS [INLINE STATS max_lang = MAX(languages) BY gender] cannot yet have an unbounded SORT"
-                    + " [SORT emp_no] before it"
-            );
+            defaultAnalyzer().plans("""
+                FROM test
+                | KEEP emp_no, languages, gender
+                | SORT emp_no
+                |""" + " " + cmd + "\n" + """
+                | INLINE STATS max_lang = MAX(languages) BY gender
+                | WHERE emp_no > 10000 // prevents the default LIMIT being pushed past INLINE STATS
+                """)
+                .coordinatorLogicalPlanOptimizationError(
+                    containsString(
+                        "5:3: INLINE STATS [INLINE STATS max_lang = MAX(languages) BY gender] cannot yet have an unbounded SORT"
+                            + " [SORT emp_no] before it"
+                    )
+                );
             if (cmd.startsWith("LOOKUP JOIN")) {
                 assertWarnings(
                     "No limit defined, adding default limit of [1000]",

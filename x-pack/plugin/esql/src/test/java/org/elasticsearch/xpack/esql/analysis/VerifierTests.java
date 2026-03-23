@@ -4029,7 +4029,7 @@ public class VerifierTests extends ESTestCase {
     private static TestAnalyzer lookupJoinFullText() {
         return analyzer().addDefaultIndex()
             .addLanguagesLookup()
-            .minimumTransportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
+            .randomMinimumTransportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
             .stripErrorPrefix(true);
     }
 

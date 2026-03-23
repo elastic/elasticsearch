@@ -11,18 +11,15 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -31,8 +28,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
-import org.elasticsearch.xpack.esql.telemetry.Metrics;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,13 +35,9 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -55,29 +46,6 @@ import static org.hamcrest.Matchers.is;
  * to the lookup node's logical plan before physical planning.
  */
 public class LookupLogicalOptimizerTests extends MapperServiceTestCase {
-
-    private Analyzer analyzer;
-    private TestPlannerOptimizer plannerOptimizer;
-
-    @Before
-    public void init() {
-        Map<String, EsField> mapping = loadMapping("mapping-basic.json");
-        EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-
-        analyzer = new Analyzer(
-            testAnalyzerContext(
-                TEST_CFG,
-                new EsqlFunctionRegistry(),
-                indexResolutions(test),
-                defaultLookupResolution(),
-                new EnrichResolution(),
-                emptyInferenceResolution()
-            ),
-            new Verifier(new Metrics(new EsqlFunctionRegistry(), true, true), new XPackLicenseState(() -> 0L))
-        );
-        plannerOptimizer = new TestPlannerOptimizer(TEST_CFG, analyzer);
-    }
-
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
@@ -224,7 +192,7 @@ public class LookupLogicalOptimizerTests extends MapperServiceTestCase {
      * each lookup plan. Returns the optimized logical plans in tree traversal order.
      */
     private List<LogicalPlan> optimizeAllLookupLogicalPlans(String esql, SearchStats searchStats) {
-        PhysicalPlan dataNodePlan = plannerOptimizer.plan(esql);
+        PhysicalPlan dataNodePlan = analyzer().addEmployees("test").addLanguagesLookup().addTestLookup().plans(esql).dataNodePlanOptimized();
 
         List<LookupJoinExec> joins = findAllLookupJoins(dataNodePlan);
         assertThat("Expected at least one LookupJoinExec in the plan", joins.isEmpty(), is(false));

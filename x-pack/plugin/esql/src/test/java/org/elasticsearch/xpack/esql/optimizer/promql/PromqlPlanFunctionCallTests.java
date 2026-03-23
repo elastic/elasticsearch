@@ -81,7 +81,10 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
      *                 \_EsRelation[k8s]
      */
     public void testScalarInnerAggregate() {
-        var plan = planPromql("PROMQL index=k8s step=1h result=(scalar(sum by (cluster) (network.bytes_in)))");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1h result=(scalar(sum by (cluster) (network.bytes_in)))")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
 
         var project = as(plan, Project.class);
@@ -115,7 +118,10 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
      *             \_EsRelation[k8s]
      */
     public void testScalar() {
-        var plan = planPromql("PROMQL index=k8s step=1h result=(scalar(network.bytes_in))");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1h result=(scalar(network.bytes_in))")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
 
         var project = as(plan, Project.class);

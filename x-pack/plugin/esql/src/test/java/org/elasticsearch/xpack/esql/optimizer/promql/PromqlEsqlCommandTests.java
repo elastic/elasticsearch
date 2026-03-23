@@ -40,29 +40,41 @@ import static org.hamcrest.Matchers.not;
 public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
 
     public void testPromqlTrailingSpaces() {
-        planPromql("PROMQL index=k8s step=1h (max(network.bytes_in)) ");
-        planPromql("PROMQL index=k8s step=1h (max(network.bytes_in)) | SORT step");
+        tsAnalyzer().plans("PROMQL index=k8s step=1h (max(network.bytes_in)) ")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
+        tsAnalyzer().plans("PROMQL index=k8s step=1h (max(network.bytes_in)) | SORT step")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
     }
 
     public void testPromqlMaxOfLongField() {
-        var plan = planPromql("PROMQL index=k8s step=1h max(network.bytes_in)");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1h max(network.bytes_in)")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         // In PromQL, the output is always double
         assertThat(plan.output().getFirst().dataType(), equalTo(DataType.DOUBLE));
         assertThat(plan.output().getFirst().name(), equalTo("max(network.bytes_in)"));
     }
 
     public void testPromqlExplicitOutputName() {
-        var plan = planPromql("PROMQL index=k8s step=1h max_bytes=(max(network.bytes_in))");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1h max_bytes=(max(network.bytes_in))")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         assertThat(plan.output().getFirst().name(), equalTo("max_bytes"));
     }
 
     public void testSort() {
-        var plan = planPromql("""
+        var plan = tsAnalyzer().plans("""
             PROMQL index=k8s step=1h (
                 avg(network.bytes_in) by (pod)
               )
             | SORT step, pod, `avg(network.bytes_in) by (pod)`
-            """);
+            """).replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
         List<String> order = plan.collect(TopN.class)
             .getFirst()
             .order()
@@ -78,13 +90,19 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
         // TODO because we wrap group-by-all aggregates into Values, this does not optimize away yet
         // "rate(non_existent_metric[5m])"
         ).forEach(query -> {
-            var plan = planPromql("PROMQL index=k8s step=1m " + query);
+            var plan = tsAnalyzer().plans("PROMQL index=k8s step=1m " + query)
+                .replaceNow()
+                .assertSomeReferences()
+                .coordinatorLogicalOptimized();
             assertThat(as(plan, LocalRelation.class).supplier(), equalTo(EmptyLocalSupplier.EMPTY));
         });
     }
 
     public void testGroupByNonExistentLabel() {
-        var plan = planPromql("PROMQL index=k8s step=1m result=(sum by (non_existent_label) (network.eth0.rx))");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1m result=(sum by (non_existent_label) (network.eth0.rx))")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         // equivalent to avg(network.eth0.rx) since the label does not exist
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
         // the non-existent label should not appear in the groupings
@@ -98,10 +116,10 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
     }
 
     public void testAvgAvgOverTimeOutput() {
-        var plan = planPromql("""
+        var plan = tsAnalyzer().plans("""
             PROMQL index=k8s step=1h ( avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[1h])) )
             | LIMIT 1000
-            """);
+            """).replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(3));
@@ -137,9 +155,9 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
     }
 
     public void testImplicitRangeSelectorUsesStepWindow() {
-        var plan = planPromql("""
+        var plan = tsAnalyzer().plans("""
             PROMQL index=k8s step=5m rate=(rate(network.total_bytes_in))
-            """);
+            """).replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
 
         TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
         Rate rate = tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
@@ -147,9 +165,9 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
     }
 
     public void testImplicitRangeSelectorUsesScrapeIntervalWhenStepIsSmaller() {
-        var plan = planPromql("""
+        var plan = tsAnalyzer().plans("""
             PROMQL index=k8s step=15s rate=(rate(network.total_bytes_in))
-            """);
+            """).replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
 
         TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
         Rate rate = tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
@@ -157,9 +175,9 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
     }
 
     public void testImplicitRangeSelectorRoundsWindowToStepMultiple() {
-        var plan = planPromql("""
+        var plan = tsAnalyzer().plans("""
             PROMQL index=k8s step=20s scrape_interval=1m rate=(rate(network.total_bytes_in))
-            """);
+            """).replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
 
         TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
         Rate rate = tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
@@ -167,9 +185,9 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
     }
 
     public void testImplicitRangeSelectorUsesInferredStepFromDefaultBuckets() {
-        var plan = planPromql("""
+        var plan = tsAnalyzer().plans("""
             PROMQL index=k8s start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" rate=(rate(network.total_bytes_in))
-            """);
+            """).replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
 
         TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
@@ -179,9 +197,9 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
     }
 
     public void testImplicitRangeSelectorUsesInferredStepFromBuckets() {
-        var plan = planPromql("""
+        var plan = tsAnalyzer().plans("""
             PROMQL index=k8s start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" buckets=6 rate=(rate(network.total_bytes_in))
-            """);
+            """).replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
 
         TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
@@ -197,7 +215,7 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
                 )
             """;
 
-        var plan = planPromql(testQuery);
+        var plan = tsAnalyzer().plans(testQuery).replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
         var filters = plan.collect(Filter.class);
         assertThat(
             filters.stream()
@@ -211,30 +229,30 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
     }
 
     public void testInferredStepUsesDefaultBuckets() {
-        var plan = planPromql("""
+        var plan = tsAnalyzer().plans("""
             PROMQL index=k8s start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" (
                 avg(avg_over_time(network.bytes_in[6m]))
               )
-            """);
+            """).replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
         TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
     }
 
     public void testInferredStepMinStepIsUnknownParameter() {
-        ParsingException e = assertThrows(ParsingException.class, () -> planPromql("""
+        ParsingException e = assertThrows(ParsingException.class, () -> tsAnalyzer().plans("""
             PROMQL index=k8s start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" min_step=1s (
                 avg(avg_over_time(network.bytes_in[6m]))
               )
-            """));
+            """).replaceNow().assertSomeReferences().coordinatorLogicalOptimized());
         assertThat(e.getMessage(), containsString("Unknown parameter [min_step]"));
     }
 
     public void testInferredStepUsesBuckets() {
-        var plan = planPromql("""
+        var plan = tsAnalyzer().plans("""
             PROMQL index=k8s start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" buckets=6 (
                 avg(avg_over_time(network.bytes_in[1h]))
               )
-            """);
+            """).replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
         TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
     }

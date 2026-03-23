@@ -2459,7 +2459,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     private static Analyzer analyzerWithNullifyMode() {
-        return analyzer().unmappedResolution(UnmappedResolution.NULLIFY).addIndex("test", "mapping-basic.json").buildAnalyzer();
+        return analyzer().unmappedResolution(UnmappedResolution.NULLIFY).addEmployees("test").buildAnalyzer();
     }
 
     private LogicalPlan planWithNullify(String query) {

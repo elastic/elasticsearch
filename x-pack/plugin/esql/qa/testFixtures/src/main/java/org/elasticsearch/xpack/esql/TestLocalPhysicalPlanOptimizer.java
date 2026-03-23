@@ -5,8 +5,10 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.optimizer;
+package org.elasticsearch.xpack.esql;
 
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.util.List;

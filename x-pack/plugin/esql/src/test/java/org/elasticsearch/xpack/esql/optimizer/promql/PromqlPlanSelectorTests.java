@@ -38,13 +38,19 @@ import static org.hamcrest.Matchers.hasSize;
 public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
 
     public void testRangeSelector() {
-        var plan = planPromql("PROMQL index=k8s step=1h ( max by (pod) (last_over_time(network.bytes_in[1h])) )");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1h ( max by (pod) (last_over_time(network.bytes_in[1h])) )")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         var lot = collectInnerLastOverTimes(plan).getFirst();
         assertThat(lot.window().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
     }
 
     public void testRangeSelectorWithDifferentStep() {
-        var plan = planPromql("PROMQL index=k8s step=5m sum by (pod) (avg_over_time(events_received[10m]))");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=5m sum by (pod) (avg_over_time(events_received[10m]))")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         var tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
         var sum = tsAggregate.aggregates().getFirst().collect(Sum.class).getFirst();
@@ -52,39 +58,45 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
     }
 
     public void testLabelSelector() {
-        var plan = planPromql("""
+        var plan = tsAnalyzer().plans("""
             PROMQL index=k8s step=1m (
                 max by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[5m]))
               )
-            """);
+            """).replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
         var in = collectInnermostSelectorFilter(plan, In.class);
         assertThat(in.value().sourceText(), equalTo("pod"));
         assertThat(in.list().stream().map(Expression::toString).toList(), containsInAnyOrder("host-0", "host-1", "host-2"));
     }
 
     public void testLabelSelectorPrefix() {
-        var plan = planPromql("""
+        var plan = tsAnalyzer().plans("""
             PROMQL index=k8s step=1m avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-.*"}[5m]))
-            """);
+            """).replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
         assertTrue(anyFilterContains(plan, StartsWith.class));
         assertFalse(anyFilterContains(plan, NotEquals.class));
     }
 
     public void testLabelSelectorProperPrefix() {
-        var plan = planPromql("""
+        var plan = tsAnalyzer().plans("""
             PROMQL index=k8s step=1m avg(avg_over_time(network.bytes_in{pod=~"host-.+"}[1h]))
-            """);
+            """).replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
         assertTrue(anyFilterContains(plan, StartsWith.class));
         assertTrue(anyFilterContains(plan, NotEquals.class));
     }
 
     public void testLabelSelectorRegex() {
-        var plan = planPromql("PROMQL index=k8s step=1m avg(avg_over_time(network.bytes_in{pod=~\"[a-z]+\"}[1h]))");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1m avg(avg_over_time(network.bytes_in{pod=~\"[a-z]+\"}[1h]))")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         assertTrue(anyFilterContains(plan, RegexMatch.class));
     }
 
     public void testLabelSelectorNotEquals() {
-        var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!=\"foo\"})");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1m avg(network.bytes_in{pod!=\"foo\"})")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         var not = collectInnermostSelectorFilter(plan, Not.class);
         var in = as(not.field(), In.class);
         assertThat(as(in.value(), FieldAttribute.class).name(), equalTo("pod"));
@@ -93,7 +105,10 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
     }
 
     public void testLabelSelectorRegexNegation() {
-        var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!~\"f.o\"})");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1m avg(network.bytes_in{pod!~\"f.o\"})")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         var not = collectInnermostSelectorFilter(plan, Not.class);
         var rLike = as(not.field(), RLike.class);
         assertThat(as(rLike.field(), FieldAttribute.class).name(), equalTo("pod"));
@@ -101,7 +116,10 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
     }
 
     public void testLabelSelectors() {
-        var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!=\"foo\",cluster=~\"bar|baz\",region!~\"us-.*\"})");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1m avg(network.bytes_in{pod!=\"foo\",cluster=~\"bar|baz\",region!~\"us-.*\"})")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         assertTrue(anyFilterContains(plan, Not.class));
         assertTrue(anyFilterContains(plan, In.class));
         assertTrue(anyFilterContains(plan, StartsWith.class));
@@ -109,40 +127,76 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
 
     public void testGroupByAllInstantSelector() {
         assertThat(
-            outputColumns(planPromql("PROMQL index=k8s step=1m network.bytes_in")),
+            outputColumns(
+                tsAnalyzer().plans("PROMQL index=k8s step=1m network.bytes_in")
+                    .replaceNow()
+                    .assertSomeReferences()
+                    .coordinatorLogicalOptimized()
+            ),
             equalTo(List.of("network.bytes_in", "step", "_timeseries"))
         );
     }
 
     public void testGroupByAllInstantSelectorRate() {
         assertThat(
-            outputColumns(planPromql("PROMQL index=k8s step=1m rate=(rate(network.total_bytes_in[1m]))")),
+            outputColumns(
+                tsAnalyzer().plans("PROMQL index=k8s step=1m rate=(rate(network.total_bytes_in[1m]))")
+                    .replaceNow()
+                    .assertSomeReferences()
+                    .coordinatorLogicalOptimized()
+            ),
             equalTo(List.of("rate", "step", "_timeseries"))
         );
     }
 
     public void testGroupByAllWithinSeriesAggregate() {
         assertThat(
-            outputColumns(planPromql("PROMQL index=k8s step=1m count=(count_over_time(network.bytes_in[1m]))")),
+            outputColumns(
+                tsAnalyzer().plans("PROMQL index=k8s step=1m count=(count_over_time(network.bytes_in[1m]))")
+                    .replaceNow()
+                    .assertSomeReferences()
+                    .coordinatorLogicalOptimized()
+            ),
             equalTo(List.of("count", "step", "_timeseries"))
         );
     }
 
     public void testSelectorFilterPushedToSource() {
-        assertTrue(anyFilterContains(planPromql("PROMQL index=k8s step=1m result=(sum(network.bytes_in{pod=\"p1\"}))"), Equals.class));
+        assertTrue(
+            anyFilterContains(
+                tsAnalyzer().plans("PROMQL index=k8s step=1m result=(sum(network.bytes_in{pod=\"p1\"}))")
+                    .replaceNow()
+                    .assertSomeReferences()
+                    .coordinatorLogicalOptimized(),
+                Equals.class
+            )
+        );
     }
 
     public void testSelectorFilterPushedToSourceThroughUnaryOp() {
-        assertTrue(anyFilterContains(planPromql("PROMQL index=k8s step=1m result=(-sum(network.bytes_in{pod=\"p1\"}))"), Equals.class));
+        assertTrue(
+            anyFilterContains(
+                tsAnalyzer().plans("PROMQL index=k8s step=1m result=(-sum(network.bytes_in{pod=\"p1\"}))")
+                    .replaceNow()
+                    .assertSomeReferences()
+                    .coordinatorLogicalOptimized(),
+                Equals.class
+            )
+        );
     }
 
     public void testSelectorFilterPushedToSourceThroughScalar() {
-        var plan = planPromql("PROMQL index=k8s step=1m result=(scalar(sum by (cluster) (network.bytes_in{cluster=\"prod\"})))");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1m result=(scalar(sum by (cluster) (network.bytes_in{cluster=\"prod\"})))")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         assertTrue(anyFilterContains(plan, Equals.class));
     }
 
     public void testBinaryOpConflictingSelectors() {
-        var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.bytes_in{pod=\"p1\"}) / sum(network.bytes_in{pod=\"p2\"}))");
+        var plan = tsAnalyzer().plans(
+            "PROMQL index=k8s step=1m ratio=(sum(network.bytes_in{pod=\"p1\"}) / sum(network.bytes_in{pod=\"p2\"}))"
+        ).replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
         var lots = collectInnerLastOverTimes(plan);
         assertThat(lots, hasSize(2));
         assertTrue(lots.stream().allMatch(LastOverTime::hasFilter));
@@ -150,7 +204,9 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
     }
 
     public void testBinaryOpDifferentLabelKeys() {
-        var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.bytes_in{cluster=\"c1\"}) / sum(network.bytes_in{pod=\"p1\"}))");
+        var plan = tsAnalyzer().plans(
+            "PROMQL index=k8s step=1m ratio=(sum(network.bytes_in{cluster=\"c1\"}) / sum(network.bytes_in{pod=\"p1\"}))"
+        ).replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
         var lots = collectInnerLastOverTimes(plan);
         assertThat(lots, hasSize(2));
         assertTrue(lots.stream().allMatch(LastOverTime::hasFilter));
@@ -158,7 +214,10 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
     }
 
     public void testBinaryOpSelectorOnOneSideOnly() {
-        var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.bytes_in{pod=\"p1\"}) / sum(network.bytes_in))");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1m ratio=(sum(network.bytes_in{pod=\"p1\"}) / sum(network.bytes_in))")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         var lots = collectInnerLastOverTimes(plan);
         assertThat(lots, hasSize(2));
         assertThat(lots.stream().filter(LastOverTime::hasFilter).count(), equalTo(1L));
@@ -166,7 +225,9 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
     }
 
     public void testBinaryOpConflictingSelectorsInFunction() {
-        var plan = planPromql("PROMQL index=k8s step=1m r=(ceil(sum(network.bytes_in{pod=\"p1\"}) / sum(network.bytes_in{pod=\"p2\"})))");
+        var plan = tsAnalyzer().plans(
+            "PROMQL index=k8s step=1m r=(ceil(sum(network.bytes_in{pod=\"p1\"}) / sum(network.bytes_in{pod=\"p2\"})))"
+        ).replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
         var lots = collectInnerLastOverTimes(plan);
         assertThat(lots, hasSize(2));
         assertTrue(lots.stream().allMatch(LastOverTime::hasFilter));

@@ -41,11 +41,11 @@ public class PruneEmptyForkBranchesTests extends AbstractLogicalPlanOptimizerTes
      * }</pre>
      */
     public void testEmptyForkBranches() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | FORK (EVAL x = 1 ) (WHERE false)
             | LIMIT 10
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var fork = as(limit.child(), Fork.class);
@@ -62,13 +62,13 @@ public class PruneEmptyForkBranchesTests extends AbstractLogicalPlanOptimizerTes
     }
 
     public void testAllEmptyForkBranches() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | KEEP salary
             | FORK (EVAL x = 1 | WHERE CONTAINS(CONCAT("something", "else"), "nothing"))
                    (WHERE false)
             | LIMIT 10
-            """);
+            """).coordinatorLogicalOptimized();
 
         var localRelation = as(plan, LocalRelation.class);
         assertTrue(localRelation.hasEmptySupplier());
@@ -91,11 +91,11 @@ public class PruneEmptyForkBranchesTests extends AbstractLogicalPlanOptimizerTes
      */
     public void testOneEmptySubquery() {
         checkSubquerySupport();
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM (FROM test | EVAL x = 1),
                  (FROM test | WHERE false)
             | LIMIT 10
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var unionAll = as(limit.child(), UnionAll.class);
@@ -111,11 +111,11 @@ public class PruneEmptyForkBranchesTests extends AbstractLogicalPlanOptimizerTes
 
     public void testAllEmptySubqueries() {
         checkSubquerySupport();
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM (FROM test | KEEP salary | EVAL x = 1 | WHERE CONTAINS(CONCAT("something", "else"), "nothing")),
                  (FROM test | KEEP salary | WHERE false)
             | LIMIT 10
-            """);
+            """).coordinatorLogicalOptimized();
 
         var localRelation = as(plan, LocalRelation.class);
         assertTrue(localRelation.hasEmptySupplier());

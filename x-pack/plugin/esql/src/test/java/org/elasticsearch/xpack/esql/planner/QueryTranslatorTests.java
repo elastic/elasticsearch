@@ -9,13 +9,10 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.hamcrest.Matcher;
-import org.junit.BeforeClass;
 
 import java.util.List;
 
@@ -28,45 +25,30 @@ import static org.hamcrest.Matchers.matchesRegex;
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class QueryTranslatorTests extends ESTestCase {
 
-    private static TestPlannerOptimizer plannerOptimizer;
-
-    private static TestPlannerOptimizer plannerOptimizerIPs;
-
-    private static TestPlannerOptimizer plannerOptimizerDateDateNanosUnionTypes;
-
-    @BeforeClass
-    public static void init() {
-        plannerOptimizer = new TestPlannerOptimizer(
-            EsqlTestUtils.TEST_CFG,
-            analyzer().addIndex("test", "mapping-all-types.json").buildAnalyzer()
-        );
-        plannerOptimizerIPs = new TestPlannerOptimizer(
-            EsqlTestUtils.TEST_CFG,
-            analyzer().addIndex("hosts", "mapping-hosts.json").buildAnalyzer()
-        );
-    }
-
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
     }
 
     public void assertQueryTranslation(String query, Matcher<String> translationMatcher) {
-        PhysicalPlan optimized = plannerOptimizer.plan(query);
+        PhysicalPlan optimized = analyzer().addIndex("test", "mapping-all-types.json").plans(query).dataNodePlanOptimized();
         EsQueryExec eqe = (EsQueryExec) optimized.collectLeaves().get(0);
         final String translatedQuery = eqe.query().toString().replaceAll("\\s+", "");
         assertThat(translatedQuery, translationMatcher);
     }
 
     public void assertQueryTranslationIPs(String query, Matcher<String> translationMatcher) {
-        PhysicalPlan optimized = plannerOptimizerIPs.plan(query);
+        PhysicalPlan optimized = analyzer().addIndex("hosts", "mapping-hosts.json").plans(query).dataNodePlanOptimized();
         EsQueryExec eqe = (EsQueryExec) optimized.collectLeaves().get(0);
         final String translatedQuery = eqe.query().toString().replaceAll("\\s+", "");
         assertThat(translatedQuery, translationMatcher);
     }
 
     private void assertQueryTranslationDateDateNanosUnionTypes(String query, SearchStats stats, Matcher<String> translationMatcher) {
-        PhysicalPlan optimized = plannerOptimizerDateDateNanosUnionTypes.plan(query, stats);
+        PhysicalPlan optimized = analyzer().addIndex(indexWithDateDateNanosUnionType())
+            .plans(query)
+            .searchStats(stats)
+            .dataNodePlanOptimized();
         EsQueryExec eqe = (EsQueryExec) optimized.collectLeaves().get(0);
         final String translatedQuery = eqe.query().toString().replaceAll("\\s+", "");
         assertThat(translatedQuery, translationMatcher);
@@ -290,11 +272,6 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testToDateNanos() {
-        IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
-        plannerOptimizerDateDateNanosUnionTypes = new TestPlannerOptimizer(
-            EsqlTestUtils.TEST_CFG,
-            analyzer().addIndex(indexWithUnionTypedFields).buildAnalyzer()
-        );
         var stats = EsqlTestUtils.statsForExistingField("date_and_date_nanos", "date_and_date_nanos_and_long");
 
         // == term

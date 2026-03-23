@@ -289,7 +289,7 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
                     (where emp_no < 10 | SORT emp_no)
              | LIMIT 10
             """;
-        var plan = planWithoutForkImplicitLimit(query);
+        var plan = analyzerWithoutForkImplicitLimit().plans(query).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(10));
 
@@ -333,7 +333,7 @@ public class PushDownAndCombineLimitsTests extends AbstractLogicalPlanOptimizerT
                    (SORT b)
             | LIMIT 10
             """;
-        var plan = planWithoutForkImplicitLimit(query);
+        var plan = analyzerWithoutForkImplicitLimit().plans(query).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(10));

@@ -13,6 +13,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
+import org.elasticsearch.xpack.esql.TestLocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -31,7 +32,6 @@ import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.optimizer.TestLocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -54,6 +54,7 @@ import org.junit.Before;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -69,9 +70,10 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
     }
 
     public void testWithoutGroupingProducesTimeSeriesOutput() {
-        var plan = logicalOptimizerWithLatestVersion.optimize(
-            planPromql("PROMQL index=k8s step=1h result=(sum without (pod) (network.bytes_in))")
-        );
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1h result=(sum without (pod) (network.bytes_in))")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
 
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", MetadataAttribute.TIMESERIES)));
 
@@ -94,7 +96,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
 
     public void testWithoutGroupingSurvivesDataNodePlanSerialization() {
         String query = "PROMQL index=k8s step=1h result=(sum without (pod) (network.bytes_in))";
-        var logical = logicalOptimizerWithLatestVersion.optimize(planPromql(query));
+        var logical = tsAnalyzer().plans(query).replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
         var physical = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG, TransportVersion.current())).optimize(
             new Mapper().map(new Versioned<>(logical, TransportVersion.current()))
         );
@@ -188,17 +190,20 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
     }
 
     public void testNestedWithoutOverByProducesTimeSeriesOutput() {
-        var plan = planPromql("PROMQL index=k8s step=1h result=(sum without (pod) (sum by (cluster, region, pod) (network.cost)))");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1h result=(sum without (pod) (sum by (cluster, region, pod) (network.cost)))")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", MetadataAttribute.TIMESERIES)));
     }
 
     public void testNestedWithoutOverByPacksTimeSeriesOnlyOnce() {
-        LogicalPlan analyzed = planPromql(
+        LogicalPlan analyzed = tsAnalyzer().plans(
             "PROMQL index=k8s step=1h result=(sum without (pod) (sum by (cluster, region, pod) (network.cost)))"
-        );
+        ).replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
         PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
 
-        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
+        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, unboundLogicalOptimizerContext());
         TimeSeriesAggregate innerAggregate = translated.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(
             innerAggregate.toString(),
@@ -208,10 +213,13 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
     }
 
     public void testParentBySynthesizesConsumedBindingFromWithoutCarrier() {
-        LogicalPlan analyzed = planPromql("PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (pod) (network.cost)))");
+        LogicalPlan analyzed = tsAnalyzer().plans("PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (pod) (network.cost)))")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
 
-        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
+        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, unboundLogicalOptimizerContext());
         TimeSeriesAggregate innerAggregate = translated.collect(TimeSeriesAggregate.class).getFirst();
         assertTrue(innerAggregate.groupings().stream().anyMatch(grouping -> Alias.unwrap(grouping) instanceof TimeSeriesWithout));
         assertThat(innerAggregate.aggregates().stream().map(NamedExpression::name).toList(), hasItem("cluster"));
@@ -220,22 +228,34 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
     public void testNestedWithoutOverWithoutIsRejectedByVerifier() {
         VerificationException e = assertThrows(
             VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=1h result=(sum without (region) (sum without (pod) (network.cost)))")
+            () -> tsAnalyzer().plans("PROMQL index=k8s step=1h result=(sum without (region) (sum without (pod) (network.cost)))")
+                .replaceNow()
+                .assertSomeReferences()
+                .coordinatorLogicalOptimized()
         );
         assertThat(e.getMessage(), containsString("nested WITHOUT over WITHOUT is not supported at this time"));
     }
 
     public void testNestedWithoutOverPartialByProducesTimeSeriesOutput() {
-        var plan = planPromql("PROMQL index=k8s step=1h result=(sum without (pod) (sum by (cluster, pod) (network.cost)))");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1h result=(sum without (pod) (sum by (cluster, pod) (network.cost)))")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", MetadataAttribute.TIMESERIES)));
     }
 
     public void testAvgOverWithoutRangeAggregationPlans() {
-        planPromql("PROMQL index=k8s step=1h result=(avg(sum without (pod, region) (avg_over_time(network.cost[1h]))))");
+        tsAnalyzer().plans("PROMQL index=k8s step=1h result=(avg(sum without (pod, region) (avg_over_time(network.cost[1h]))))")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
     }
 
     public void testSumByRegionOverSumWithoutRegionProducesScalar() {
-        var plan = planPromql("PROMQL index=k8s step=1h result=(sum by (region) (sum without (region) (network.cost)))");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1h result=(sum by (region) (sum without (region) (network.cost)))")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem("result"));
         assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem("step"));
     }
@@ -243,60 +263,73 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
     public void testWithoutOverByOverWithoutIsRejectedByVerifier() {
         VerificationException e = assertThrows(
             VerificationException.class,
-            () -> planPromql(
+            () -> tsAnalyzer().plans(
                 "PROMQL index=k8s step=1h result=(sum without (region) (sum by (cluster, region) (sum without (pod) (network.cost))))"
-            )
+            ).replaceNow().assertSomeReferences().coordinatorLogicalOptimized()
         );
         assertThat(e.getMessage(), containsString("nested WITHOUT over WITHOUT is not supported at this time"));
     }
 
     public void testByOverWithoutOverByProducesExactOutput() {
-        var plan = planPromql(
+        var plan = tsAnalyzer().plans(
             "PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (pod) (sum by (cluster, region, pod) (network.cost))))"
-        );
+        ).replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", "cluster")));
     }
 
     public void testScalarOverWithoutProducesScalarOutput() {
-        var plan = planPromql("PROMQL index=k8s step=1h result=(scalar(sum without (pod, region) (avg_over_time(network.cost[1h]))))");
+        var plan = tsAnalyzer().plans(
+            "PROMQL index=k8s step=1h result=(scalar(sum without (pod, region) (avg_over_time(network.cost[1h]))))"
+        ).replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
     }
 
     public void testWithoutAbsentLabelIsNoOp() {
-        LogicalPlan analyzed = planPromql(
+        LogicalPlan analyzed = tsAnalyzer().plans(
             "PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (does_not_exist) (network.cost)))"
-        );
+        ).replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
         PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
-        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
+        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, unboundLogicalOptimizerContext());
         TimeSeriesAggregate innerTsa = translated.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(innerTsa.aggregates().stream().map(NamedExpression::name).toList(), hasItem("cluster"));
     }
 
     public void testWithoutAllKnownLabelsProducesEmptyGrouping() {
-        var plan = planPromql("PROMQL index=k8s step=1h result=(sum without (cluster, region, pod) (network.cost))");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1h result=(sum without (cluster, region, pod) (network.cost))")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", MetadataAttribute.TIMESERIES)));
     }
 
     public void testWithoutPostfixSyntaxPlans() {
-        planPromql("PROMQL index=k8s step=1h result=(sum(avg_over_time(network.cost[1h])) without (pod, region))");
+        tsAnalyzer().plans("PROMQL index=k8s step=1h result=(sum(avg_over_time(network.cost[1h])) without (pod, region))")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
     }
 
     public void testWithoutTrailingCommaPlans() {
-        planPromql("PROMQL index=k8s step=1h result=(sum without (pod, region,) (avg_over_time(network.cost[1h])))");
+        tsAnalyzer().plans("PROMQL index=k8s step=1h result=(sum without (pod, region,) (avg_over_time(network.cost[1h])))")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
     }
 
     public void testWithoutEmptyLabelListPlans() {
-        LogicalPlan analyzed = planPromql(
+        LogicalPlan analyzed = tsAnalyzer().plans(
             "PROMQL index=k8s step=1h result=(sum by (cluster) (sum without () (avg_over_time(network.cost[1h]))))"
-        );
+        ).replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
         PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
-        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
+        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, unboundLogicalOptimizerContext());
         TimeSeriesAggregate innerTsa = translated.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(innerTsa.aggregates().stream().map(NamedExpression::name).toList(), hasItem("cluster"));
     }
 
     public void testScalarOverMaxOfWithoutProducesScalarOutput() {
-        var plan = planPromql("PROMQL index=k8s step=1h result=(scalar(max(sum without (pod, region) (avg_over_time(network.cost[1h])))))");
+        var plan = tsAnalyzer().plans(
+            "PROMQL index=k8s step=1h result=(scalar(max(sum without (pod, region) (avg_over_time(network.cost[1h])))))"
+        ).replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
     }
 }

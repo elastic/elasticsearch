@@ -17,15 +17,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
-import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.TestPlans;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.plan.QuerySettings;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.BufferedWriter;
 import java.io.Closeable;
@@ -50,9 +46,6 @@ import static java.util.function.Predicate.not;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.summingInt;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 
 /**
  * A utility to analyze PromQL queries from a file and report parsing, analysis,
@@ -71,20 +64,12 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
  */
 public class PromqlCoverageAnalyzer implements Closeable {
 
-    private final PromqlFakeResolver resolver = new PromqlFakeResolver();
-    private final Analyzer analyzer = new Analyzer(
-        new MutableAnalyzerContext(
-            EsqlTestUtils.TEST_CFG,
-            TEST_FUNCTION_REGISTRY,
-            Map.of(),
-            AnalyzerTestUtils.defaultLookupResolution(),
-            new EnrichResolution(),
-            EsqlTestUtils.emptyInferenceResolution(),
-            TransportVersion.current(),
-            QuerySettings.UNMAPPED_FIELDS.defaultValue()
-        ),
-        TEST_VERIFIER
-    );
+    private final TestAnalyzer analyzer = EsqlTestUtils.analyzer()
+        .addPreanalyzer(new PromqlFakeResolver())
+        .addLanguagesLookup()
+        .addTestLookup()
+        .addSpatialLookup()
+        .minimumTransportVersion(TransportVersion.current());
 
     private final LogicalPlanOptimizer logicalOptimizer = new LogicalPlanOptimizer(
         new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), TransportVersion.current())
@@ -159,11 +144,12 @@ public class PromqlCoverageAnalyzer implements Closeable {
         String query = split[1];
         String adjustedQuery = query.replaceAll("\\[\\$\\w+\\]", "[1m]").replaceAll("\\$(\\w+)", "$1").replaceAll("\\$\\{(\\w+)\\}", "$1");
         try {
-            LogicalPlan plan = TEST_PARSER.parseQuery("PROMQL step=10s (" + adjustedQuery + ")");
+            TestPlans plans = analyzer.plans("PROMQL step=10s (" + adjustedQuery + ")");
+            plans.parsed();
             try {
-                plan = analyzer.analyze(resolver.apply(plan));
+                plans.coordinatorLogicalUnoptimized();
                 try {
-                    logicalOptimizer.optimize(plan);
+                    plans.coordinatorLogicalOptimized();
                 } catch (Exception e) {
                     optimizerError = Optional.of(e.getMessage());
                 }

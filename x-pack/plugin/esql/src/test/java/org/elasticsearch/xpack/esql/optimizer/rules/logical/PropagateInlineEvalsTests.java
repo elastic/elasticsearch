@@ -41,7 +41,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
 
     @BeforeClass
     public static void init() {
-        analyzer = analyzer().addIndex("test", "mapping-basic.json");
+        analyzer = analyzer().addEmployees("test");
     }
 
     /**

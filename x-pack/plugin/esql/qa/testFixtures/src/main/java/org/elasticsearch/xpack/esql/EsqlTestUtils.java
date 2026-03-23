@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import org.apache.http.HttpEntity;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
@@ -45,7 +46,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestHolder;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
@@ -85,8 +85,6 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
-import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -100,7 +98,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
-import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -120,7 +117,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
@@ -132,7 +128,6 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
-import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -202,6 +197,7 @@ import java.util.zip.ZipEntry;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
 import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.elasticsearch.test.ESTestCase.assertEquals;
 import static org.elasticsearch.test.ESTestCase.between;
@@ -232,11 +228,11 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.IDENTIFIER;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
-import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -614,88 +610,6 @@ public final class EsqlTestUtils {
      */
     public static TestOptimizer optimizer() {
         return new TestOptimizer();
-    }
-
-    // TODO: make this even simpler, remove the enrichResolution for tests that do not require it (most tests)
-    public static MutableAnalyzerContext testAnalyzerContext(
-        Configuration configuration,
-        EsqlFunctionRegistry functionRegistry,
-        Map<IndexPattern, IndexResolution> indexResolutions,
-        EnrichResolution enrichResolution,
-        InferenceResolution inferenceResolution
-    ) {
-        return testAnalyzerContext(configuration, functionRegistry, indexResolutions, Map.of(), enrichResolution, inferenceResolution);
-    }
-
-    /**
-     * Analyzer context for a random (but compatible) minimum transport version.
-     */
-    public static MutableAnalyzerContext testAnalyzerContext(
-        Configuration configuration,
-        EsqlFunctionRegistry functionRegistry,
-        Map<IndexPattern, IndexResolution> indexResolutions,
-        Map<String, IndexResolution> lookupResolution,
-        EnrichResolution enrichResolution,
-        InferenceResolution inferenceResolution
-    ) {
-        return testAnalyzerContext(
-            configuration,
-            functionRegistry,
-            indexResolutions,
-            lookupResolution,
-            enrichResolution,
-            inferenceResolution,
-            UNMAPPED_FIELDS.defaultValue()
-        );
-    }
-
-    public static MutableAnalyzerContext testAnalyzerContext(
-        Configuration configuration,
-        EsqlFunctionRegistry functionRegistry,
-        Map<IndexPattern, IndexResolution> indexResolutions,
-        Map<String, IndexResolution> lookupResolution,
-        EnrichResolution enrichResolution,
-        InferenceResolution inferenceResolution,
-        UnmappedResolution unmappedResolution
-    ) {
-        return testAnalyzerContext(
-            configuration,
-            functionRegistry,
-            indexResolutions,
-            lookupResolution,
-            enrichResolution,
-            inferenceResolution,
-            unmappedResolution,
-            null
-        );
-    }
-
-    /**
-     * Build an analyzer.
-     * @deprecated use {@link EsqlTestUtils#analyzer}.
-     */
-    @Deprecated
-    public static MutableAnalyzerContext testAnalyzerContext(
-        Configuration configuration,
-        EsqlFunctionRegistry functionRegistry,
-        Map<IndexPattern, IndexResolution> indexResolutions,
-        Map<String, IndexResolution> lookupResolution,
-        EnrichResolution enrichResolution,
-        InferenceResolution inferenceResolution,
-        UnmappedResolution unmappedResolution,
-        @Nullable TimestampBounds timestampBounds
-    ) {
-        return new MutableAnalyzerContext(
-            configuration,
-            functionRegistry,
-            indexResolutions,
-            lookupResolution,
-            enrichResolution,
-            inferenceResolution,
-            randomMinimumVersion(),
-            unmappedResolution,
-            timestampBounds
-        );
     }
 
     public static LogicalOptimizerContext unboundLogicalOptimizerContext() {
@@ -1809,5 +1723,28 @@ public final class EsqlTestUtils {
         results.add(input.substring(lastSplit).trim());
 
         return results;
+    }
+
+    static String assertPlanError(
+        boolean stripErrorPrefix,
+        String query,
+        Class<? extends Exception> exception,
+        Matcher<String> messageMatcher,
+        LuceneTestCase.ThrowingRunnable runanable
+    ) {
+        Throwable e = expectThrows(exception, "Expected error for query [" + query + "] but no error was raised", runanable);
+        assertThat(e, instanceOf(exception));
+
+        String message = e.getMessage();
+        if (stripErrorPrefix) {
+            if (e instanceof VerificationException) {
+                assertThat(message, startsWith("Found "));
+            }
+            String pattern = "\nline ";
+            int index = message.indexOf(pattern);
+            message = message.substring(index + pattern.length());
+        }
+        assertThat(message, messageMatcher);
+        return message;
     }
 }

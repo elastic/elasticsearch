@@ -54,7 +54,7 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
              | sort emp_no
              | LIMIT 10
             """;
-        var plan = planWithoutForkImplicitLimit(query);
+        var plan = analyzerWithoutForkImplicitLimit().plans(query).coordinatorLogicalOptimized();
         var topN = as(plan, TopN.class);
         assertThat(((Literal) topN.limit()).value(), equalTo(10));
         assertOrders(List.of("emp_no", "ASC"), topN);
@@ -97,7 +97,7 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
              | sort emp_no ASC
              | LIMIT 10
             """;
-        var plan = planWithoutForkImplicitLimit(query);
+        var plan = analyzerWithoutForkImplicitLimit().plans(query).coordinatorLogicalOptimized();
         var topN = as(plan, TopN.class);
         assertThat(((Literal) topN.limit()).value(), equalTo(10));
         assertOrders(List.of("emp_no", "ASC"), topN);
@@ -150,7 +150,7 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
             | SORT _fork DESC, emp_no, hd DESC
             | LIMIT 10
             """;
-        var plan = planWithoutForkImplicitLimit(query);
+        var plan = analyzerWithoutForkImplicitLimit().plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         var topN = as(project.child(), TopN.class);
 
@@ -213,7 +213,7 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
              | sort emp_no
              | LIMIT 20
             """;
-        var plan = planWithoutForkImplicitLimit(query);
+        var plan = analyzerWithoutForkImplicitLimit().plans(query).coordinatorLogicalOptimized();
         var topN = as(plan, TopN.class);
         assertOrders(List.of("emp_no", "ASC"), topN);
         assertThat(((Literal) topN.limit()).value(), equalTo(20));
@@ -262,7 +262,7 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
              | LIMIT 20
             """;
 
-        var plan = planWithoutForkImplicitLimit(query);
+        var plan = analyzerWithoutForkImplicitLimit().plans(query).coordinatorLogicalOptimized();
         var topN = as(plan, TopN.class);
         assertOrders(List.of("emp_no", "ASC"), topN);
         assertThat(((Literal) topN.limit()).value(), equalTo(20));
@@ -310,7 +310,7 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
              | LIMIT 20
             """;
 
-        var plan = planWithoutForkImplicitLimit(query);
+        var plan = analyzerWithoutForkImplicitLimit().plans(query).coordinatorLogicalOptimized();
         var topN = as(plan, TopN.class);
         assertOrders(List.of("emp_no", "ASC"), topN);
         assertThat(((Literal) topN.limit()).value(), equalTo(20));
@@ -354,7 +354,7 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
              | sort emp_no ASC
              | LIMIT 10
             """;
-        var plan = planWithoutForkImplicitLimit(query);
+        var plan = analyzerWithoutForkImplicitLimit().plans(query).coordinatorLogicalOptimized();
         var topN = as(plan, TopN.class);
         assertThat(((Literal) topN.limit()).value(), equalTo(10));
         assertOrders(List.of("emp_no", "ASC"), topN);
@@ -404,7 +404,7 @@ public class PushDownLimitAndOrderByIntoForkTests extends AbstractLogicalPlanOpt
             | SORT c, a
             | LIMIT 10
             """;
-        var plan = planWithoutForkImplicitLimit(query);
+        var plan = analyzerWithoutForkImplicitLimit().plans(query).coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         assertThat(((Literal) topN.limit()).value(), equalTo(10));

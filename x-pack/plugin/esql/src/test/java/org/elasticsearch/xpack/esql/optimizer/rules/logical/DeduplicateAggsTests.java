@@ -64,11 +64,11 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testCombineProjectionWithDuplicateAggregation() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats s = sum(salary), d = sum(salary), c = sum(salary) by last_name, first_name
             | keep d, s, last_name, first_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("d", "s", "last_name", "first_name"));
@@ -91,10 +91,10 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634")
     public void testEliminateDuplicateAggsCountAll() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | stats c1 = count(1), c2 = count(2), cs = count(*), cm = count(), cexp = count("123")
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("c1", "c2", "cs", "cm", "cexp"));
@@ -128,7 +128,7 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testStatsExpOverAggsWithScalarAndDuplicateAggs() {
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats a = avg(salary) + max(salary),
                     b = max(salary) + 3 + PI() + count(salary),
@@ -139,7 +139,7 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
                     g = max(salary)
                     by w = languages % 2
             | keep a, b, d, e, g
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var projections = project.projections();
@@ -197,12 +197,12 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634")
     public void testEliminateDuplicateAggsWithAliasedFields() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | eval x = 1
             | eval y = x
             | stats c1 = count(1), cx = count(x), cs = count(*), cy = count(y)
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("c1", "cx", "cs", "cy"));
@@ -230,10 +230,10 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testEliminateDuplicateAggsMixed() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | stats min = min(salary), max = max(salary), min2 = min(salary), max2 = max(salary) by gender
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var projections = project.projections();
@@ -262,13 +262,13 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testEliminateDuplicateAggsNonCount() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | eval x = salary
             | eval y = x
             | eval z = y
             | stats max(x), max(y), max(z)
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var projections = project.projections();
@@ -294,11 +294,11 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testEliminateDuplicateRenamedGroupings() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | eval x = salary
             | stats by salary, x
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -318,11 +318,11 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634")
     public void testEliminateDuplicateAggWithNull() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | eval x = null + 1
             | stats a = avg(x), c = count(x)
-            """);
+            """).coordinatorLogicalOptimized();
         fail("Awaits fix");
     }
 
@@ -343,7 +343,7 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
                 | stats  a = count(x), b = count(x) + count(x), c = count_distinct(x, 10), d = count_distinct(x, 10 + 1 - 1)
             """;
 
-        LogicalPlan plan = planAirports(query);
+        LogicalPlan plan = airportsAnalyzer().plans(query).coordinatorLogicalOptimized();
         Project project = as(plan, Project.class);
         var projections = project.projections();
         assertThat(projections, hasSize(4));
@@ -401,7 +401,7 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
                 | STATS MAX(y), 2* MAX(a)
             """;
 
-        LogicalPlan plan = planAirports(query);
+        LogicalPlan plan = airportsAnalyzer().plans(query).coordinatorLogicalOptimized();
         Project project = as(plan, Project.class);
         var projections = project.projections();
         assertThat(projections, hasSize(2));
@@ -448,7 +448,7 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
                 | STATS COUNT(y), 2 * COUNT(scalerank) BY y = scalerank
             """;
 
-        LogicalPlan plan = planAirports(query);
+        LogicalPlan plan = airportsAnalyzer().plans(query).coordinatorLogicalOptimized();
         Project project = as(plan, Project.class);
         var projections = project.projections();
         assertThat(projections, hasSize(3));
@@ -494,7 +494,7 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
                         c = COUNT_DISTINCT(scalerank)
             """;
 
-        LogicalPlan plan = planAirports(query);
+        LogicalPlan plan = airportsAnalyzer().plans(query).coordinatorLogicalOptimized();
         Project project = as(plan, Project.class);
         var projections = project.projections();
         assertThat(projections, hasSize(3));
@@ -544,7 +544,7 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
                         c = 2*COUNT_DISTINCT(scalerank, 1 + 200 - 80 - 20 - 1)
             """;
 
-        LogicalPlan plan = planAirports(query);
+        LogicalPlan plan = airportsAnalyzer().plans(query).coordinatorLogicalOptimized();
         Project project = as(plan, Project.class);
         var projections = project.projections();
         assertThat(projections, hasSize(3));
@@ -588,7 +588,7 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
                 c = 2*COUNT_DISTINCT(scalerank, 1 + 200 - 80 - 20 - 1)
             """;
 
-        LogicalPlan plan = planAirports(query);
+        LogicalPlan plan = airportsAnalyzer().plans(query).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var inlineJoin = as(limit.child(), InlineJoin.class);
 

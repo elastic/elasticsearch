@@ -55,7 +55,7 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
             | DROP foo
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var upperLimit = asLimit(project.child(), 1000, true);
@@ -91,7 +91,7 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
             | LOOKUP JOIN languages_lookup ON language_code
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit1 = asLimit(project.child(), 1000, true);
@@ -122,7 +122,7 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
             | LOOKUP JOIN languages_lookup ON language_code
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit1 = asLimit(project.child(), 1000, true);
@@ -183,7 +183,7 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
             | KEEP languages, emp_no, salary, salary2, ln
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit1 = asLimit(project.child(), 1000, true);
@@ -256,7 +256,7 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
             | KEEP languages, emp_no, salary
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         var limit1 = asLimit(project.child(), 1000, true);
         var join = as(limit1.child(), Join.class);
@@ -304,7 +304,7 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
             | KEEP languages, emp_no, salary, lang2
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         var limit1 = asLimit(project.child(), 1000, true);
         var join = as(limit1.child(), Join.class);
@@ -354,7 +354,7 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
             | KEEP languages, emp_no, salary
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         var limit1 = asLimit(project.child(), 1000, true);
         var join = as(limit1.child(), Join.class);
@@ -401,7 +401,7 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
             | KEEP languages, emp_no, salary
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         var limit1 = asLimit(project.child(), 1000, true);
         var join = as(limit1.child(), Join.class);

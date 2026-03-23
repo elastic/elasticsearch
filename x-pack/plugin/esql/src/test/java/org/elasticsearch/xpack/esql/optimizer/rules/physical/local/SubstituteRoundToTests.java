@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLocalPhysicalPlanOptimizerTests;
-import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -293,15 +292,13 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
             if (dateHistogram.contains("bucket")) { // bucket cannot be used outside of stats
                 continue;
             }
-            String query = LoggerMessageFormat.format(null, """
+            PhysicalPlan plan = allTypes().plans(String.format(Locale.ROOT, """
                 from test
                 | sort date
-                | eval x = {}
+                | eval x = %s
                 | keep alias_integer, date, x
                 | limit 5
-                """, dateHistogram);
-
-            PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
+                """, dateHistogram)).searchStats(searchStats).dataNodePlanOptimized();
 
             ProjectExec projectExec = as(plan, ProjectExec.class);
             TopNExec topNExec = as(projectExec.child(), TopNExec.class);
@@ -504,13 +501,12 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
     // ReplaceRoundToWithQueryAndTags does not support lookup joins yet
     public void testDateTruncBucketNotTransformToQueryAndTagsWithFork() {
         for (String dateHistogram : dateHistograms) {
-            String query = LoggerMessageFormat.format(null, """
+            PhysicalPlan plan = allTypes().plans(String.format(Locale.ROOT, """
                 from test
                 | fork (where integer > 100)
                        (where keyword : "keyword")
-                | stats count(*) by x = {}
-                """, dateHistogram);
-            PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
+                | stats count(*) by x = %s
+                """, dateHistogram)).searchStats(searchStats()).dataNodePlanOptimized();
 
             LimitExec limit = as(plan, LimitExec.class);
             AggregateExec agg = as(limit.child(), AggregateExec.class);
@@ -615,20 +611,8 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
                     | stats count(*) by x = round_to(integer, {})
                     """, points.toString());
 
-                TestPlannerOptimizer plannerOptimizerWithPragmas = new TestPlannerOptimizer(
-                    configuration(
-                        new QueryPragmas(
-                            Settings.builder()
-                                .put(QueryPragmas.ROUNDTO_PUSHDOWN_THRESHOLD.getKey().toLowerCase(Locale.ROOT), queryLevelThreshold)
-                                .build()
-                        ),
-                        query
-                    ),
-                    makeAnalyzer("mapping-all-types.json")
-                );
-                EsqlFlags esqlFlags = new EsqlFlags(clusterLevelThreshold);
-                assertEquals(clusterLevelThreshold, esqlFlags.roundToPushdownThreshold());
-                assertTrue(esqlFlags.stringLikeOnIndex());
+                assertEquals(clusterLevelThreshold, new EsqlFlags(clusterLevelThreshold).roundToPushdownThreshold());
+                assertTrue(new EsqlFlags(clusterLevelThreshold).stringLikeOnIndex());
                 boolean pushdown;
                 if (queryLevelThreshold > -1) {
                     pushdown = queryLevelThreshold >= 127;
@@ -636,8 +620,20 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
                     pushdown = clusterLevelThreshold >= 127;
                 }
 
+                Configuration pragmasConfig = configuration(
+                    new QueryPragmas(
+                        Settings.builder()
+                            .put(QueryPragmas.ROUNDTO_PUSHDOWN_THRESHOLD.getKey().toLowerCase(Locale.ROOT), queryLevelThreshold)
+                            .build()
+                    ),
+                    query
+                );
                 ExchangeExec exchange = validatePlanBeforeExchange(
-                    plannerOptimizerWithPragmas.plan(query, searchStats, esqlFlags),
+                    allTypes().configuration(pragmasConfig)
+                        .plans(query)
+                        .searchStats(searchStats)
+                        .roundToPushdownThreshold(clusterLevelThreshold)
+                        .dataNodePlanOptimized(),
                     DataType.INTEGER,
                     List.of("count(*)")
                 );
@@ -683,7 +679,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
         @Nullable QueryBuilder esFilter
     ) {
         return validatePlanBeforeExchange(
-            plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"), esFilter),
+            allTypes().addLanguagesLookup().plans(query).searchStats(searchStats).esFilter(esFilter).dataNodePlanOptimized(),
             aggregateType,
             aggregation
         );
@@ -722,57 +718,52 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
     public void testAdjustThresholdForQueries() {
         {
             int points = between(2, 127);
-            String q = String.format(Locale.ROOT, """
+            PhysicalPlan plan = allTypes().plans(String.format(Locale.ROOT, """
                 from test
                 | stats count(*) by x = round_to(integer, %s)
-                """, pointArray(points));
-            PhysicalPlan plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
+                """, pointArray(points))).searchStats(searchStats).dataNodePlanOptimized();
             int queryAndTags = statsQueryAndTags(plan);
             assertThat(queryAndTags, equalTo(points + 1)); // include null bucket
         }
         {
             int points = between(2, 64);
-            String q = String.format(Locale.ROOT, """
+            var plan = allTypes().plans(String.format(Locale.ROOT, """
                 from test
                 | where date >= "2023-10-19"
                 | stats count(*) by x = round_to(integer, %s)
-                """, pointArray(points));
-            var plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
+                """, pointArray(points))).searchStats(searchStats).dataNodePlanOptimized();
             int queryAndTags = plainQueryAndTags(plan);
             assertThat(queryAndTags, equalTo(points + 1)); // include null bucket
         }
         {
             int points = between(65, 128);
-            String q = String.format(Locale.ROOT, """
+            var plan = allTypes().plans(String.format(Locale.ROOT, """
                 from test
                 | where date >= "2023-10-19"
                 | stats count(*) by x = round_to(integer, %s)
-                """, pointArray(points));
-            var plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
+                """, pointArray(points))).searchStats(searchStats).dataNodePlanOptimized();
             int queryAndTags = plainQueryAndTags(plan);
             assertThat(queryAndTags, equalTo(1)); // no rewrite
         }
         {
             int points = between(2, 19);
-            String q = String.format(Locale.ROOT, """
+            var plan = allTypes().plans(String.format(Locale.ROOT, """
                 from test
                 | where date >= "2023-10-19"
                 | where keyword LIKE "w*"
                 | stats count(*) by x = round_to(integer, %s)
-                """, pointArray(points));
-            var plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
+                """, pointArray(points))).searchStats(searchStats).dataNodePlanOptimized();
             int queryAndTags = plainQueryAndTags(plan);
             assertThat("points=" + points, queryAndTags, equalTo(points + 1)); // include null bucket
         }
         {
             int points = between(20, 128);
-            String q = String.format(Locale.ROOT, """
+            PhysicalPlan plan = allTypes().plans(String.format(Locale.ROOT, """
                 from test
                 | where date >= "2023-10-19"
                 | where keyword LIKE "*w*"
                 | stats count(*) by x = round_to(integer, %s)
-                """, pointArray(points));
-            PhysicalPlan plan = plannerOptimizer.plan(q, searchStats, makeAnalyzer("mapping-all-types.json"));
+                """, pointArray(points))).searchStats(searchStats).dataNodePlanOptimized();
             int queryAndTags = plainQueryAndTags(plan);
             assertThat("points=" + points, queryAndTags, equalTo(1)); // no rewrite
         }
@@ -885,12 +876,11 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
     }
 
     public void testForkWithStatsCountStarDateTrunc() {
-        String query = """
+        PhysicalPlan plan = allTypes().plans("""
             from test
             | fork (stats x = count(*), y = max(long) by hd = date_trunc(1 day, date))
                    (stats x = count(*), y = min(long) by hd = date_trunc(2 day, date))
-            """;
-        PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
+            """).searchStats(searchStats).dataNodePlanOptimized();
 
         LimitExec limit = as(plan, LimitExec.class);
         MergeExec merge = as(limit.child(), MergeExec.class);
@@ -943,11 +933,10 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
     public void testSubqueryWithCountStarAndDateTrunc() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         assumeTrue("requires subqueries in from", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled());
-        String query = """
+        PhysicalPlan plan = allTypes().plans("""
             from test, (from test | stats cnt = count(*) by x = date_trunc(1 day, date))
             | keep x, cnt, date
-            """;
-        PhysicalPlan plan = plannerOptimizer.plan(query, searchStats, makeAnalyzer("mapping-all-types.json"));
+            """).searchStats(searchStats).dataNodePlanOptimized();
 
         ProjectExec project = as(plan, ProjectExec.class);
         LimitExec limit = as(project.child(), LimitExec.class);
@@ -1006,23 +995,21 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
         };
         // enable filter-by-filter for rate aggregations
         {
-            String q = """
+            PhysicalPlan plan = timeSeries().plans("""
                 TS k8s
                 | STATS max(rate(network.total_bytes_in)) BY cluster, BUCKET(@timestamp, 1 hour)
                 | LIMIT 10
-                """;
-            PhysicalPlan plan = plannerOptimizerTimeSeries.plan(q, searchStats, timeSeriesAnalyzer);
+                """).searchStats(searchStats).dataNodePlanOptimized();
             int queryAndTags = plainQueryAndTags(plan);
             assertThat(queryAndTags, equalTo(4));
         }
         // disable filter-by-filter for non-rate aggregations
         {
-            String q = """
+            PhysicalPlan plan = timeSeries().plans("""
                 TS k8s
                 | STATS max(avg_over_time(network.bytes_in)) BY cluster, BUCKET(@timestamp, 1 hour)
                 | LIMIT 10
-                """;
-            PhysicalPlan plan = plannerOptimizerTimeSeries.plan(q, searchStats, timeSeriesAnalyzer);
+                """).searchStats(searchStats).dataNodePlanOptimized();
             int queryAndTags = plainQueryAndTags(plan);
             assertThat(queryAndTags, equalTo(1));
         }

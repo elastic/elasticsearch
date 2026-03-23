@@ -7,19 +7,21 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
-import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 
 import java.util.List;
 
 import static java.util.function.Predicate.not;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.hamcrest.Matchers.contains;
 
 public class PromqlFakeResolverTests extends AbstractLogicalPlanOptimizerTests {
 
-    private final PromqlFakeResolver resolver = new PromqlFakeResolver();
+    private TestAnalyzer analyzer() {
+        return EsqlTestUtils.analyzer().addPreanalyzer(new PromqlFakeResolver());
+    }
 
     public void testSimpleQuery() {
         var attributes = extractAttributes("PROMQL step=1m foo");
@@ -44,11 +46,7 @@ public class PromqlFakeResolverTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     private List<Attribute> extractAttributes(String query) {
-        var plan = TEST_PARSER.parseQuery(query);
-        plan = resolver.apply(plan);
-        plan = defaultAnalyzer().buildAnalyzer().analyze(plan);
-        plan = logicalOptimizer.optimize(plan);
-        return plan.collect(LeafPlan.class).getFirst().output();
+        return analyzer().plans(query).coordinatorLogicalOptimizedLeafOutput();
     }
 
     private List<String> gauges(List<Attribute> attributes) {

@@ -8,16 +8,11 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
-import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -30,10 +25,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.enrich.AbstractLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
@@ -48,10 +40,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
-import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
-import org.elasticsearch.xpack.esql.telemetry.Metrics;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -59,14 +48,10 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -78,27 +63,8 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
-    private Analyzer analyzer;
-    private TestPlannerOptimizer plannerOptimizer;
-
-    @Before
-    public void init() {
-        Configuration config = TEST_CFG;
-        Map<String, EsField> mapping = loadMapping("mapping-basic.json");
-        EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-
-        analyzer = new Analyzer(
-            testAnalyzerContext(
-                config,
-                new EsqlFunctionRegistry(),
-                indexResolutions(test),
-                defaultLookupResolution(),
-                new EnrichResolution(),
-                emptyInferenceResolution()
-            ),
-            new Verifier(new Metrics(new EsqlFunctionRegistry(), true, true), new XPackLicenseState(() -> 0L))
-        );
-        plannerOptimizer = new TestPlannerOptimizer(config, analyzer);
+    private TestAnalyzer buildTestAnalyzer() {
+        return analyzer().configuration(TEST_CFG).addEmployees("test").addTestLookup().addLanguagesLookup();
     }
 
     @Override
@@ -406,14 +372,9 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     private List<PhysicalPlan> optimizeAllLookupPlans(String esql, TransportVersion minVersion, SearchStats searchStats) {
         PhysicalPlan dataNodePlan;
         if (minVersion != null) {
-            MutableAnalyzerContext mutableContext = (MutableAnalyzerContext) analyzer.context();
-            try (
-                MutableAnalyzerContext.RestoreTransportVersion restore = mutableContext.setTemporaryTransportVersionOnOrAfter(minVersion)
-            ) {
-                dataNodePlan = plannerOptimizer.plan(esql);
-            }
+            dataNodePlan = buildTestAnalyzer().randomMinimumTransportVersion(minVersion).plans(esql).dataNodePlanOptimized();
         } else {
-            dataNodePlan = plannerOptimizer.plan(esql);
+            dataNodePlan = buildTestAnalyzer().plans(esql).dataNodePlanOptimized();
         }
 
         List<LookupJoinExec> joins = findAllLookupJoins(dataNodePlan);

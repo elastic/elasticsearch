@@ -27,6 +27,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizer
 /**
  * Helper for testing all things related to {@link LogicalPlanOptimizer#optimize}
  * and {@link LocalLogicalPlanOptimizer#localOptimize}. Defaults an empty config.
+ * <p>
+ *     IMPORTANT: This makes some unreal assumptions about the way that local
+ *     plans are extracted. {@link TestAnalyzer#plans} is much more realistic.
+ * </p>
  */
 public class TestOptimizer {
     private final TestAnalyzer analyzer = new TestAnalyzer();

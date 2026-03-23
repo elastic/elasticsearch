@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -46,6 +45,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
@@ -116,8 +116,8 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
@@ -192,10 +192,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      */
     // TODO: this is suboptimal due to eval not being removed/folded
     public void testCountAllWithEval() {
-        var plan = plannerOptimizer.plan("""
+        var plan = defaultAnalyzer().plans("""
               from test | eval s = salary | rename s as sr | eval hidden_s = sr | rename emp_no as e | where e < 10050
             | stats c = count(*)
-            """);
+            """).dataNodePlanOptimized();
         var stat = (EsStatsQueryExec.BasicStat) queryStatsFor(plan);
         assertThat(stat.type(), is(StatsType.COUNT));
         assertThat(stat.query(), is(nullValue()));
@@ -211,7 +211,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      *       limit[],
      */
     public void testCountAllWithFilter() {
-        var plan = plannerOptimizer.plan("from test | where emp_no > 10040 | stats c = count(*)");
+        var plan = defaultAnalyzer().plans("from test | where emp_no > 10040 | stats c = count(*)").dataNodePlanOptimized();
         var stat = (EsStatsQueryExec.BasicStat) queryStatsFor(plan);
         assertThat(stat.type(), is(StatsType.COUNT));
         assertThat(stat.query(), is(nullValue()));
@@ -231,7 +231,9 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      *   limit[],
      */
     public void testCountFieldWithFilter() {
-        var plan = plannerOptimizer.plan("from test | where emp_no > 10040 | stats c = count(emp_no)", IS_SV_STATS);
+        var plan = defaultAnalyzer().plans("from test | where emp_no > 10040 | stats c = count(emp_no)")
+            .searchStats(IS_SV_STATS)
+            .dataNodePlanOptimized();
         var stat = (EsStatsQueryExec.BasicStat) queryStatsFor(plan);
         assertThat(stat.type(), is(StatsType.COUNT));
         assertThat(stat.query(), is(existsQuery("emp_no")));
@@ -249,10 +251,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      *   }
      */
     public void testCountFieldWithEval() {
-        var plan = plannerOptimizer.plan("""
+        var plan = defaultAnalyzer().plans("""
               from test | eval s = salary | rename s as sr | eval hidden_s = sr | rename emp_no as e | where e < 10050
             | stats c = count(hidden_s)
-            """, IS_SV_STATS);
+            """).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -272,7 +274,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             | where salary > 1000
             | stats c = count(salary)
             """;
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS);
+        var plan = defaultAnalyzer().plans(query).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -293,12 +295,12 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     // optimized doesn't know yet how to push down count over field
     public void testCountOneFieldWithFilterAndLimit() {
-        var plan = plannerOptimizer.plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | where salary > 1000
             | limit 10
             | stats c = count(salary)
-            """, IS_SV_STATS);
+            """).searchStats(IS_SV_STATS).dataNodePlanOptimized();
         assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
     }
 
@@ -360,7 +362,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         }, directoryReader -> {
             IndexSearcher searcher = newSearcher(directoryReader);
             SearchExecutionContext ctx = createSearchExecutionContext(mapperService, searcher);
-            plan.set(plannerOptimizer.plan(query, SearchContextStats.from(List.of(ctx))));
+            plan.set(defaultAnalyzer().plans(query).searchStats(SearchContextStats.from(List.of(ctx))).dataNodePlanOptimized());
         });
 
         return plan.get();
@@ -368,11 +370,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     // optimizer doesn't know yet how to break down different multi count
     public void testCountMultipleFieldsWithFilter() {
-        var plan = plannerOptimizer.plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | where salary > 1000 and emp_no > 10010
             | stats cs = count(salary), ce = count(emp_no)
-            """, IS_SV_STATS);
+            """).searchStats(IS_SV_STATS).dataNodePlanOptimized();
         assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
     }
 
@@ -382,7 +384,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             | where emp_no > 10010
             | stats c = count()
             """;
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS);
+        var plan = defaultAnalyzer().plans(query).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -399,18 +401,21 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     // optimizer doesn't know yet how to normalize and deduplicate cout(*), count(), count(1) etc.
     public void testMultiCountAllWithFilter() {
-        var plan = plannerOptimizer.plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | where emp_no > 10010
             | stats c = count(), call = count(*), c_literal = count(1)
-            """, IS_SV_STATS);
+            """).searchStats(IS_SV_STATS).dataNodePlanOptimized();
         assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
     }
 
     @SuppressWarnings("unchecked")
     public void testSingleCountWithStatsFilter() {
         // an optimizer that filters out the ExtractAggregateCommonFilter rule
-        var logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext()) {
+        var plan = analyzer().configuration(config).addDefaultIndex().plans("""
+            from test
+            | stats c = count(hire_date) where emp_no < 10042
+            """).searchStats(IS_SV_STATS).localPlanOptimizerBuilder(ctx -> new LogicalPlanOptimizer(ctx) {
             @Override
             protected List<Batch<LogicalPlan>> batches() {
                 var oldBatches = super.batches();
@@ -422,13 +427,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
                 }
                 return newBatches;
             }
-        };
-        var analyzer = makeAnalyzer("mapping-default.json");
-        var plannerOptimizer = new TestPlannerOptimizer(config, analyzer, logicalOptimizer);
-        var plan = plannerOptimizer.plan("""
-            from test
-            | stats c = count(hire_date) where emp_no < 10042
-            """, IS_SV_STATS);
+        }).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -470,11 +469,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     // optimizer doesn't know yet how to break down different multi count
     public void testCountFieldsAndAllWithFilter() {
-        var plan = plannerOptimizer.plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | where emp_no > 10010
             | stats c = count(), cs = count(salary), ce = count(emp_no)
-            """, IS_SV_STATS);
+            """).searchStats(IS_SV_STATS).dataNodePlanOptimized();
         assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
     }
 
@@ -493,11 +492,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             }
         };
 
-        var plan = plannerOptimizer.plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | where emp_no > 10010
             | stats c = count()
-            """, stats);
+            """).searchStats(stats).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -519,7 +518,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      *       \_EsQueryExec[test], query[{"exists":{"field":"emp_no","boost":1.0}}][_doc{f}#13], limit[1000], sort[] estimatedRowSize[324]
      */
     public void testIsNotNullPushdownFilter() {
-        var plan = plannerOptimizer.plan("from test | where emp_no is not null");
+        var plan = defaultAnalyzer().plans("from test | where emp_no is not null").dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -543,7 +542,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      *         limit[1000], sort[] estimatedRowSize[324]
      */
     public void testIsNullPushdownFilter() {
-        var plan = plannerOptimizer.plan("from test | where emp_no is null");
+        var plan = defaultAnalyzer().plans("from test | where emp_no is null").dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -567,9 +566,9 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      */
     public void testIsNotNull_TextField_Pushdown() {
         String textField = randomFrom("gender", "job");
-        var plan = plannerOptimizer.plan(
+        var plan = defaultAnalyzer().plans(
             String.format(Locale.ROOT, "from test | where %s is not null | stats count(%s)", textField, textField)
-        );
+        ).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var finalAgg = as(limit.child(), AggregateExec.class);
@@ -593,7 +592,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      */
     public void testIsNull_TextField_Pushdown() {
         String textField = randomFrom("gender", "job");
-        var plan = plannerOptimizer.plan(String.format(Locale.ROOT, "from test | where %s is null", textField, textField));
+        var plan = defaultAnalyzer().plans(String.format(Locale.ROOT, "from test | where %s is null", textField, textField))
+            .dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -618,12 +618,12 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      * [vector=ConstantBooleanVector[positions=1, value=true]]]]
      */
     public void testIsNull_TextField_Pushdown_WithCount() {
-        var plan = plannerOptimizer.plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
               | eval filtered_job = job, count_job = job
               | where filtered_job IS NULL
               | stats c = COUNT(count_job)
-            """, IS_SV_STATS);
+            """).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -649,12 +649,12 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      * }]]], query[{"exists":{"field":"job","boost":1.0}}][count{r}#25, seen{r}#26], limit[],
      */
     public void testIsNotNull_TextField_Pushdown_WithCount() {
-        var plan = plannerOptimizer.plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
               | eval filtered_job = job, count_job = job
               | where filtered_job IS NOT NULL
               | stats c = COUNT(count_job)
-            """, IS_SV_STATS);
+            """).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -676,8 +676,6 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     private static final String NEQ = "!=";
 
     public void testOutOfRangeFilterPushdown() {
-        var allTypeMappingAnalyzer = makeAnalyzer("mapping-all-types.json");
-
         String largerThanInteger = String.valueOf(randomLongBetween(Integer.MAX_VALUE + 1L, Long.MAX_VALUE));
         String smallerThanInteger = String.valueOf(randomLongBetween(Long.MIN_VALUE, Integer.MIN_VALUE - 1L));
 
@@ -719,7 +717,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
                 Source expectedSource = new Source(1, 18, comparison);
 
                 logger.info("Query: " + query);
-                EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query, allTypeMappingAnalyzer);
+                EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query);
 
                 assertThat(actualQueryExec.query(), is(instanceOf(SingleValueQuery.Builder.class)));
                 var actualLuceneQuery = (SingleValueQuery.Builder) actualQueryExec.query();
@@ -734,7 +732,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
                 var query = "from test | where " + comparison;
                 Source expectedSource = new Source(1, 18, comparison);
 
-                EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query, allTypeMappingAnalyzer);
+                EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query);
 
                 assertThat(actualQueryExec.query(), is(instanceOf(SingleValueQuery.Builder.class)));
                 var actualLuceneQuery = (SingleValueQuery.Builder) actualQueryExec.query();
@@ -748,8 +746,6 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testOutOfRangeFilterPushdownWithFloatAndHalfFloat() {
-        var allTypeMappingAnalyzer = makeAnalyzer("mapping-all-types.json");
-
         String smallerThanFloat = String.valueOf(randomDoubleBetween(-Double.MAX_VALUE, -Float.MAX_VALUE - 1d, true));
         String largerThanFloat = String.valueOf(randomDoubleBetween(Float.MAX_VALUE + 1d, Double.MAX_VALUE, true));
 
@@ -767,7 +763,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
                     Source expectedSource = new Source(1, 18, comparison);
 
                     logger.info("Query: " + query);
-                    EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query, allTypeMappingAnalyzer);
+                    EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query);
 
                     assertThat(actualQueryExec.query(), is(instanceOf(SingleValueQuery.Builder.class)));
                     var actualLuceneQuery = (SingleValueQuery.Builder) actualQueryExec.query();
@@ -801,8 +797,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      *     \_FieldExtractExec[!alias_integer, boolean{f}#190, byte{f}#191, consta..][]
      *       \_EsQueryExec[test], query[{"esql_single_value":{"field":"byte","next":{"match_all":{"boost":1.0}},...}}]
      */
-    private EsQueryExec doTestOutOfRangeFilterPushdown(String query, Analyzer analyzer) {
-        var plan = plannerOptimizer.plan(query, EsqlTestUtils.TEST_SEARCH_STATS, analyzer);
+    private EsQueryExec doTestOutOfRangeFilterPushdown(String query) {
+        var plan = allTypes().plans(query).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -827,7 +823,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     public void testMissingFieldsDoNotGetExtracted() {
         var stats = EsqlTestUtils.statsForMissingField("first_name", "last_name", "emp_no", "salary");
 
-        var plan = plannerOptimizer.plan("from test", stats);
+        var plan = defaultAnalyzer().plans("from test").searchStats(stats).dataNodePlanOptimized();
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
@@ -879,13 +875,13 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     public void testMissingFieldsPurgesTheJoinLocally() {
         var stats = EsqlTestUtils.statsForMissingField("languages");
 
-        var plan = plannerOptimizer.plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | keep emp_no, languages
             | rename languages AS language_code
             | lookup join languages_lookup ON language_code
             | stats c = count(emp_no) by language_code
-            """, stats);
+            """).searchStats(stats).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -918,7 +914,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     public void testMissingFieldsPurgesTheJoinLocallyThroughCommands() {
         var stats = EsqlTestUtils.statsForMissingField("languages");
 
-        var plan = plannerOptimizer.plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | keep emp_no, languages, first_name
             | rename languages AS language_code
@@ -926,7 +922,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             | grok first_name "%{WORD:foo}"
             | lookup join languages_lookup ON language_code
             | stats c = count(emp_no) by language_code
-            """, stats);
+            """).searchStats(stats).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -962,7 +958,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     public void testMissingFieldsNotPurgingTheJoinLocally() {
         var stats = EsqlTestUtils.statsForMissingField("languages");
 
-        var plan = plannerOptimizer.plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | keep emp_no, languages, first_name
             | rename languages AS language_code
@@ -970,7 +966,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             | grok first_name "%{NUMBER:language_code:int}" // this reassigns language_code
             | lookup join languages_lookup ON language_code
             | stats c = count(emp_no) by language_code
-            """, stats);
+            """).searchStats(stats).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -1009,13 +1005,13 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var stats = EsqlTestUtils.statsForMissingField("languages");
 
         // same as the query above, but with the last two lines swapped, so that the join is no longer pushed to the data nodes
-        var plan = plannerOptimizer.plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | keep emp_no, languages
             | rename languages AS language_code
             | stats c = count(emp_no) by language_code
             | lookup join languages_lookup ON language_code
-            """, stats);
+            """).searchStats(stats).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var join = as(limit.child(), LookupJoinExec.class);
@@ -1131,7 +1127,6 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         Collection<DataType> fieldDataTypes,
         String queryFormat
     ) {
-        var analyzer = makeAnalyzer("mapping-all-types.json");
         // Check for every possible query data type
         for (DataType fieldDataType : fieldDataTypes) {
             if (DataType.UNDER_CONSTRUCTION.contains(fieldDataType) || fieldDataType == NULL) {
@@ -1144,7 +1139,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             var esqlQuery = String.format(Locale.ROOT, queryFormat, fieldName, queryValueProvider.apply(queryValue, fieldDataType));
 
             try {
-                var plan = plannerOptimizer.plan(esqlQuery, IS_SV_STATS, analyzer);
+                var plan = allTypes().plans(esqlQuery).searchStats(IS_SV_STATS).dataNodePlanOptimized();
                 var limit = as(plan, LimitExec.class);
                 var exchange = as(limit.child(), ExchangeExec.class);
                 var project = as(exchange.child(), ProjectExec.class);
@@ -1194,13 +1189,12 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testMatchOptionsPushDown() {
-        String query = """
+        var plan = defaultAnalyzer().plans("""
             from test
             | where match(first_name, "Anna", {"fuzziness": "AUTO", "prefix_length": 3, "max_expansions": 10,
             "fuzzy_transpositions": false, "auto_generate_synonyms_phrase_query": true, "analyzer": "my_analyzer",
             "boost": 2.1, "minimum_should_match": 2, "operator": "AND"})
-            """;
-        var plan = plannerOptimizer.plan(query);
+            """).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -1224,7 +1218,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testQStrOptionsPushDown() {
-        String query = """
+        var plan = defaultAnalyzer().plans("""
             from test
             | where QSTR("first_name: Anna", {"allow_leading_wildcard": "true", "analyze_wildcard": "true",
             "analyzer": "auto", "auto_generate_synonyms_phrase_query": "false", "default_field": "test", "default_operator": "AND",
@@ -1232,8 +1226,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             "fuzzy_transpositions": "true", "lenient": "false", "max_determinized_states": 10, "minimum_should_match": 3,
             "quote_analyzer": "q_analyzer", "quote_field_suffix": "q_field_suffix", "phrase_slop": 20, "rewrite": "fuzzy",
             "time_zone": "America/Los_Angeles"})
-            """;
-        var plan = plannerOptimizer.plan(query);
+            """).dataNodePlanOptimized();
 
         AtomicReference<String> planStr = new AtomicReference<>();
         plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
@@ -1261,14 +1254,13 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testMultiMatchOptionsPushDown() {
-        String query = """
+        var plan = defaultAnalyzer().plans("""
             from test
             | where MULTI_MATCH("Anna", first_name, last_name, {"fuzzy_rewrite": "constant_score", "slop": 10, "analyzer": "auto",
             "auto_generate_synonyms_phrase_query": "false", "fuzziness": "auto", "fuzzy_transpositions": false, "lenient": "false",
             "max_expansions": 10, "minimum_should_match": 3, "operator": "AND", "prefix_length": 20, "tie_breaker": 1.0,
             "type": "best_fields", "boost": 2.0})
-            """;
-        var plan = plannerOptimizer.plan(query);
+            """).dataNodePlanOptimized();
 
         AtomicReference<String> planStr = new AtomicReference<>();
         plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
@@ -1292,14 +1284,12 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testKnnOptionsPushDown() {
-        String query = """
+        var plan = allTypes().plans("""
             from test
             | where KNN(dense_vector, [0.1, 0.2, 0.3],
                 {"k": 10, "min_candidates": 20, "rescore_oversample": 1.5, "similarity": 0.5, "boost": 2.0, "visit_percentage": 0.25})
             | limit 50
-            """;
-        var analyzer = makeAnalyzer("mapping-all-types.json");
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+            """).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         AtomicReference<String> planStr = new AtomicReference<>();
         plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
@@ -1317,13 +1307,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testKnnUsesLimitForK() {
-        String query = """
+        var plan = allTypes().plans("""
             from test
             | where KNN(dense_vector, [0.1, 0.2, 0.3])
             | limit 10
-            """;
-        var analyzer = makeAnalyzer("mapping-all-types.json");
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+            """).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         AtomicReference<String> planStr = new AtomicReference<>();
         plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
@@ -1333,13 +1321,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testKnnKOverridesLimitK() {
-        String query = """
+        var plan = allTypes().plans("""
             from test
             | where KNN(dense_vector, [0.1, 0.2, 0.3], {"k": 20})
             | limit 10
-            """;
-        var analyzer = makeAnalyzer("mapping-all-types.json");
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+            """).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         AtomicReference<String> planStr = new AtomicReference<>();
         plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
@@ -1358,11 +1344,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      *       limit[1000], sort[] estimatedRowSize[332]
      */
     public void testMatchWithFieldCasting() {
-        String query = """
+        var plan = defaultAnalyzer().plans("""
             from test
             | where emp_no::long : 123456
-            """;
-        var plan = plannerOptimizer.plan(query);
+            """).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -1419,7 +1404,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | where %s
             """, testCase.esqlQuery());
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = allTypes().plans(query).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -1436,8 +1421,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | where %s and cidr_match(ip, "127.0.0.1/32")
             """, testCase.esqlQuery());
-        var analyzer = makeAnalyzer("mapping-all-types.json");
-        var plan = plannerOptimizer.plan(queryText, IS_SV_STATS, analyzer);
+        var plan = allTypes().plans(queryText).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -1458,8 +1442,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | where %s and integer > 10010
             """, testCase.esqlQuery());
-        var analyzer = makeAnalyzer("mapping-all-types.json");
-        var plan = plannerOptimizer.plan(queryText, IS_SV_STATS, analyzer);
+        var plan = allTypes().plans(queryText).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -1482,8 +1465,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | where %s and %s
             """, testCase.esqlQuery(), second.esqlQuery());
-        var analyzer = makeAnalyzer("mapping-all-types.json");
-        var plan = plannerOptimizer.plan(queryText, IS_SV_STATS, analyzer);
+        var plan = allTypes().plans(queryText).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -1504,8 +1486,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             | where %s
             | where integer > 10010
             """, testCase.esqlQuery());
-        var analyzer = makeAnalyzer("mapping-all-types.json");
-        var plan = plannerOptimizer.plan(queryText, IS_SV_STATS, analyzer);
+        var plan = allTypes().plans(queryText).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -1526,7 +1507,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | where %s and length(text) > 10
             """, testCase.esqlQuery());
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = allTypes().plans(query).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -1545,7 +1526,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test metadata _score
             | where %s and integer > 10000
             """, testCase.esqlQuery());
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = allTypes().plans(query).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -1563,7 +1544,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | where %s or length(text) > 10
             """, testCase.esqlQuery());
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = allTypes().plans(query).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -1583,7 +1564,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | where %s or integer > 10000
             """, testCase.esqlQuery());
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = allTypes().plans(query).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -1618,7 +1599,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             | eval description = concat("integer: ", to_str(integer), ", text: ", text, " ", keyword)
             | where %s
             """, testCase.esqlQuery(), second.esqlQuery(), third.esqlQuery());
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = allTypes().plans(query).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var eval = as(plan, EvalExec.class);
         var topNExec = as(eval.child(), TopNExec.class);
@@ -1644,7 +1625,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             | where (%s or %s) and %s
             | sort integer
             """, testCase.esqlQuery(), second.esqlQuery(), third.esqlQuery());
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = allTypes().plans(query).searchStats(IS_SV_STATS).dataNodePlanOptimized();
         var topNExec = as(plan, TopNExec.class);
         var exchange = as(topNExec.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
@@ -1664,7 +1645,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             | where (%s or %s) and length(keyword) > 5
             | sort integer
             """, testCase.esqlQuery(), second.esqlQuery());
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = allTypes().plans(query).searchStats(IS_SV_STATS).dataNodePlanOptimized();
         var topNExec = as(plan, TopNExec.class);
         var exchange = as(topNExec.child(), ExchangeExec.class);
         var project = as(exchange.child(), ProjectExec.class);
@@ -1683,7 +1664,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | stats c = count(*) where %s
             """, testCase.esqlQuery());
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = allTypes().plans(query).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -1699,7 +1680,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             | where length(keyword) > 10
             | stats c = count(*) where %s
             """, testCase.esqlQuery());
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = allTypes().plans(query).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -1720,7 +1701,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | stats c = count(*) where %s, d = count(*) where %s
             """, testCase.esqlQuery(), second.esqlQuery());
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = allTypes().plans(query).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -1741,9 +1722,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | stats count(*) where %s by keyword
             """, testCase.esqlQuery());
-        var analyzer = makeAnalyzer("mapping-default.json");
-        var plannerOptimizer = new TestPlannerOptimizer(config, analyzer);
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var analyzer = analyzer().configuration(config).addIndex("test", "mapping-default.json").buildAnalyzer();
+        var plan = allTypes().plans(query).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -1765,7 +1745,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | where knn(dense_vector, [0, 1, 2]) and integer > 10
             """;
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = allTypes().plans(query).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -1798,7 +1778,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             | where integer > 10
             | where keyword == "test"
             """;
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = allTypes().plans(query).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -1831,7 +1811,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | where knn(dense_vector, [0, 1, 2]) and integer > 10
             """;
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = allTypes().plans(query).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -1867,7 +1847,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | where knn(dense_vector, [0, 1, 2]) and NOT integer > 10
             """;
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = allTypes().plans(query).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -1903,7 +1883,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | where knn(dense_vector, [0, 1, 2]) or integer > 10
             """;
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = allTypes().plans(query).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -1938,7 +1918,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | where ((knn(dense_vector, [0, 1, 2]) AND integer > 10) and ((keyword == "test") or length(text) > 10))
             """;
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = allTypes().plans(query).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -1971,7 +1951,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             | where ((knn(dense_vector, [0, 1, 2]) or NOT integer > 10)
               and NOT ((keyword == "test") or knn(dense_vector, [4, 5, 6])))
             """;
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = allTypes().plans(query).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -2018,7 +1998,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | where ((knn(dense_vector, [0, 1, 2]) or integer > 10) and ((keyword == "test") or knn(dense_vector, [4, 5, 6])))
             """;
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = allTypes().plans(query).searchStats(IS_SV_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -2090,8 +2070,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | where `constant_keyword-foo` == "foo"
             """;
-        var analyzer = makeAnalyzer("mapping-all-types.json");
-        var plan = plannerOptimizer.plan(queryText, CONSTANT_K_STATS, analyzer);
+        var plan = allTypes().plans(queryText).searchStats(CONSTANT_K_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -2116,8 +2095,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | where `constant_keyword-foo` == "non-matching"
             """;
-        var analyzer = makeAnalyzer("mapping-all-types.json");
-        var plan = plannerOptimizer.plan(queryText, CONSTANT_K_STATS, analyzer);
+        var plan = allTypes().plans(queryText).searchStats(CONSTANT_K_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -2141,8 +2119,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             | mv_expand `constant_keyword-foo`
             | where `constant_keyword-foo` == "foo"
             """;
-        var analyzer = makeAnalyzer("mapping-all-types.json");
-        var plan = plannerOptimizer.plan(queryText, CONSTANT_K_STATS, analyzer);
+        var plan = allTypes().plans(queryText).searchStats(CONSTANT_K_STATS).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -2169,8 +2146,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             | dissect `constant_keyword-foo` "%{bar}"
             | where `constant_keyword-foo` == "foo"
             """;
-        var analyzer = makeAnalyzer("mapping-all-types.json");
-        var plan = plannerOptimizer.plan(queryText, CONSTANT_K_STATS, analyzer);
+        var plan = allTypes().plans(queryText).searchStats(CONSTANT_K_STATS).dataNodePlanOptimized();
 
         var dissect = as(plan, DissectExec.class);
         var limit = as(dissect.child(), LimitExec.class);
@@ -2188,8 +2164,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             | uri_parts u = `constant_keyword-foo`
             | WHERE `constant_keyword-foo` == "foo"
             """;
-        var analyzer = makeAnalyzer("mapping-all-types.json");
-        var plan = plannerOptimizer.plan(query, CONSTANT_K_STATS, analyzer);
+        var plan = allTypes().plans(query).searchStats(CONSTANT_K_STATS).dataNodePlanOptimized();
 
         var uriParts = as(plan, UriPartsExec.class);
         var limit = as(uriParts.child(), LimitExec.class);
@@ -2207,8 +2182,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             | registered_domain rd = `constant_keyword-foo`
             | WHERE `constant_keyword-foo` == "foo"
             """;
-        var analyzer = makeAnalyzer("mapping-all-types.json");
-        var plan = plannerOptimizer.plan(query, CONSTANT_K_STATS, analyzer);
+        var plan = allTypes().plans(query).searchStats(CONSTANT_K_STATS).dataNodePlanOptimized();
 
         var registeredDomain = as(plan, RegisteredDomainExec.class);
         var limit = as(registeredDomain.child(), LimitExec.class);
@@ -2220,11 +2194,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testMatchFunctionWithStatsWherePushable() {
-        String query = """
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats c = count(*) where match(last_name, "Smith")
-            """;
-        var plan = plannerOptimizer.plan(query);
+            """).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -2235,12 +2208,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testMatchFunctionWithStatsPushableAndNonPushableCondition() {
-        String query = """
+        var plan = defaultAnalyzer().plans("""
             from test
             | where length(first_name) > 10
             | stats c = count(*) where match(last_name, "Smith")
-            """;
-        var plan = plannerOptimizer.plan(query);
+            """).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -2255,11 +2227,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testMatchFunctionStatisWithNonPushableCondition() {
-        String query = """
+        var plan = defaultAnalyzer().plans("""
             from test
             | stats c = count(*) where match(last_name, "Smith"), d = count(*) where match(first_name, "Anna")
-            """;
-        var plan = plannerOptimizer.plan(query);
+            """).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -2279,12 +2250,14 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     public void testToDateNanosPushDown() {
         IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
-        plannerOptimizerDateDateNanosUnionTypes = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, makeAnalyzer(indexWithUnionTypedFields));
-        var stats = EsqlTestUtils.statsForExistingField("date_and_date_nanos", "date_and_date_nanos_and_long");
         String query = """
             from index*
             | where date_and_date_nanos < "2025-01-01" and date_and_date_nanos_and_long::date_nanos >= "2024-01-01\"""";
-        var plan = plannerOptimizerDateDateNanosUnionTypes.plan(query, stats);
+        var plan = analyzer().configuration(config)
+            .addIndex(indexWithUnionTypedFields)
+            .plans(query)
+            .searchStats(EsqlTestUtils.statsForExistingField("date_and_date_nanos", "date_and_date_nanos_and_long"))
+            .dataNodePlanOptimized();
 
         // date_and_date_nanos should be pushed down to EsQueryExec, date_and_date_nanos_and_long should not be pushed down
         var project = as(plan, ProjectExec.class);
@@ -2323,10 +2296,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     public void testVerifierOnMissingReferences() throws Exception {
 
-        PhysicalPlan plan = plannerOptimizer.plan("""
+        PhysicalPlan plan = defaultAnalyzer().plans("""
             from test
             | stats a = min(salary) by emp_no
-            """);
+            """).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var aggregate = as(limit.child(), AggregateExec.class);
@@ -2366,10 +2339,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     public void testVerifierOnAdditionalAttributeAdded() throws Exception {
 
-        PhysicalPlan plan = plannerOptimizer.plan("""
+        PhysicalPlan plan = defaultAnalyzer().plans("""
             from test
             | stats a = min(salary) by emp_no
-            """);
+            """).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var aggregate = as(limit.child(), AggregateExec.class);
@@ -2409,10 +2382,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     public void testVerifierOnAttributeDatatypeChanged() throws Exception {
 
-        PhysicalPlan plan = plannerOptimizer.plan("""
+        PhysicalPlan plan = defaultAnalyzer().plans("""
             from test
             | stats a = min(salary) by emp_no
-            """);
+            """).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
         var aggregate = as(limit.child(), AggregateExec.class);
@@ -2459,8 +2432,9 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testTranslateMetricsGroupedByTwoDimension() {
-        var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY cluster, pod";
-        var plan = plannerOptimizerTimeSeries.plan(query);
+        var plan = timeSeries().randomMinimumTransportVersion(DimensionValues.DIMENSION_VALUES_VERSION)
+            .plans("TS k8s | STATS sum(rate(network.total_bytes_in)) BY cluster, pod")
+            .dataNodePlanOptimized();
         var project = as(plan, ProjectExec.class);
         var unpack = as(project.child(), EvalExec.class);
         var limit = as(unpack.child(), LimitExec.class);
@@ -2495,12 +2469,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      *              queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]
      */
     public void testTopNUsesSortedInputFromDataNodes() {
-        String query = """
+        var plan = defaultAnalyzer().plans("""
               from test
             | sort last_name
             | keep first_name
-            """;
-        var plan = plannerOptimizer.plan(query);
+            """).dataNodePlanOptimized();
 
         var projectExec = as(plan, ProjectExec.class);
         var topNExec = as(projectExec.child(), TopNExec.class);
@@ -2516,10 +2489,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     public void testLimitByNotPushedToSource() {
         assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
-        var plan = plannerOptimizer.plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | limit 10 by first_name
-            """);
+            """).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
 
@@ -2536,10 +2509,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     public void testLimitByMultipleKeys() {
         assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
-        var plan = plannerOptimizer.plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | limit 5 by first_name, last_name
-            """);
+            """).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
 
@@ -2555,11 +2528,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     public void testLimitByWithFilter() {
         assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
-        var plan = plannerOptimizer.plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | where salary > 1000
             | limit 10 by first_name
-            """);
+            """).dataNodePlanOptimized();
 
         var limit = as(plan, LimitExec.class);
 

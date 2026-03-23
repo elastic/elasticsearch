@@ -33,32 +33,29 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends AbstractLocalPhysical
      */
     public void testSamePhysicalPlans() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
-        String testQuery = """
+        PhysicalPlan actualPlan = timeSeries().plans("""
             TS k8s
             | STATS max(rate(network.total_bytes_in)) BY Bucket(@timestamp, 1 hour)
             | LIMIT 10
-            """;
-        PhysicalPlan actualPlan = plannerOptimizerTimeSeries.plan(testQuery);
+            """).dataNodePlanOptimized();
 
-        String controlQuery = """
+        PhysicalPlan expectedPlan = timeSeries().plans("""
             TS k8s
             | WHERE network.total_bytes_in IS NOT NULL
             | STATS max(rate(network.total_bytes_in)) BY Bucket(@timestamp, 1 hour)
             | LIMIT 10
-            """;
-        PhysicalPlan expectedPlan = plannerOptimizerTimeSeries.plan(controlQuery);
+            """).dataNodePlanOptimized();
 
         assertEqualsIgnoringIds(NodeUtils.diffString(expectedPlan, actualPlan), expectedPlan, actualPlan);
     }
 
     public void testPushdownOfSimpleCounterQuery() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
-        String query = """
+        PhysicalPlan actualPlan = timeSeries().plans("""
             TS k8s
             | STATS max(rate(network.total_bytes_in)) BY Bucket(@timestamp, 1 hour)
             | LIMIT 10
-            """;
-        PhysicalPlan actualPlan = plannerOptimizerTimeSeries.plan(query);
+            """).dataNodePlanOptimized();
         EsQueryExec queryExec = (EsQueryExec) actualPlan.collect(node -> node instanceof EsQueryExec).get(0);
 
         QueryBuilder expected = unscore(existsQuery("network.total_bytes_in"));
@@ -67,12 +64,11 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends AbstractLocalPhysical
 
     public void testPushdownOfSimpleGagueQuery() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
-        String query = """
+        PhysicalPlan actualPlan = timeSeries().plans("""
             TS k8s
             | STATS max(max_over_time(network.eth0.tx)) BY Bucket(@timestamp, 1 hour)
             | LIMIT 10
-            """;
-        PhysicalPlan actualPlan = plannerOptimizerTimeSeries.plan(query);
+            """).dataNodePlanOptimized();
         EsQueryExec queryExec = (EsQueryExec) actualPlan.collect(node -> node instanceof EsQueryExec).get(0);
 
         QueryBuilder expected = unscore(existsQuery("network.eth0.tx"));

@@ -91,6 +91,7 @@ import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -162,7 +163,6 @@ import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomInferenceIdOtherThan;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.unresolvedRelation;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -6068,7 +6068,7 @@ public class AnalyzerTests extends ESTestCase {
         );
 
         LogicalPlan analyzedPlan = defaultMapping().addLanguagesLookup()
-            .minimumTransportVersion(Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
+            .randomMinimumTransportVersion(Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
             .query(
                 "FROM test | LOOKUP JOIN languages_lookup "
                     + "ON languages == language_code AND MATCH(language_name, \"English\")"
@@ -6387,5 +6387,17 @@ public class AnalyzerTests extends ESTestCase {
 
     private static TestAnalyzer multiFieldWithNested() {
         return analyzer().addIndex("test", "mapping-multi-field-with-nested.json");
+    }
+
+    private static UnresolvedRelation unresolvedRelation(String index) {
+        return new UnresolvedRelation(
+            Source.EMPTY,
+            new IndexPattern(Source.EMPTY, index),
+            false,
+            List.of(),
+            IndexMode.STANDARD,
+            null,
+            "FROM"
+        );
     }
 }

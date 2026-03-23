@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTests {
 
     public void testConstantFoldingArithmeticOperators() {
-        var plan = planPromqlExpectNoReferences("PROMQL index=k8s step=5m 1 + 1");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=5m 1 + 1").replaceNow().assertNoReferences().coordinatorLogicalOptimized();
         var eval = plan.collect(Eval.class).getFirst();
         var literal = as(eval.fields().getFirst().child(), Literal.class);
         assertThat(literal.value(), equalTo(2.0));
@@ -52,7 +52,10 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
 
     public void testScalarAndInstantVectorArithmeticOperators() {
         LogicalPlan plan;
-        plan = planPromql("PROMQL index=k8s step=5m max(network.bytes_in / 1024) by (pod)");
+        plan = tsAnalyzer().plans("PROMQL index=k8s step=5m max(network.bytes_in / 1024) by (pod)")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         Div div = plan.collect(Eval.class)
             .stream()
             .map(e -> e.fields().getLast().child())
@@ -65,7 +68,10 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testBinaryInstantSelectorAndLiteral() {
-        var plan = planPromql("PROMQL index=k8s step=1m bits=(network.bytes_in * 8)");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1m bits=(network.bytes_in * 8)")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step", "_timeseries")));
 
         Mul mul = plan.collect(Eval.class)
@@ -87,9 +93,15 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         boolean piFirst = randomBoolean();
         LogicalPlan plan;
         if (piFirst) {
-            plan = planPromql("PROMQL index=k8s step=1m bits=(pi() - network.bytes_in)");
+            plan = tsAnalyzer().plans("PROMQL index=k8s step=1m bits=(pi() - network.bytes_in)")
+                .replaceNow()
+                .assertSomeReferences()
+                .coordinatorLogicalOptimized();
         } else {
-            plan = planPromql("PROMQL index=k8s step=1m bits=(network.bytes_in - pi())");
+            plan = tsAnalyzer().plans("PROMQL index=k8s step=1m bits=(network.bytes_in - pi())")
+                .replaceNow()
+                .assertSomeReferences()
+                .coordinatorLogicalOptimized();
         }
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step", "_timeseries")));
 
@@ -112,11 +124,11 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testTopLevelBinaryArithmeticQuery() {
-        var plan = planPromql("""
+        var plan = tsAnalyzer().plans("""
             PROMQL index=k8s step=1m in_n_out=(
                 network.eth0.rx + network.eth0.tx
               )
-            | SORT in_n_out""");
+            | SORT in_n_out""").replaceNow().assertSomeReferences().coordinatorLogicalOptimized();
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("in_n_out", "step", "_timeseries")));
         Add add = plan.collect(Eval.class)
             .stream()
@@ -129,7 +141,10 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testBinaryAcrossSeriesAndLiteral() {
-        var plan = planPromql("PROMQL index=k8s step=1m bits=(max(network.total_bytes_in) * 8)");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1m bits=(max(network.total_bytes_in) * 8)")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step")));
 
         Eval eval = plan.collect(Eval.class).getFirst();
@@ -148,7 +163,10 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testAcrossSeriesMultiplicationLiteral() {
-        var plan = planPromql("PROMQL index=k8s step=1m bits=(max(network.total_bytes_in * 8))");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1m bits=(max(network.total_bytes_in * 8))")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step")));
 
         Aggregate agg = plan.collect(Aggregate.class).getFirst();
@@ -167,7 +185,10 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testBinaryAcrossSeriesAggregations() {
-        var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.total_bytes_in) / max(network.total_bytes_in))");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1m ratio=(sum(network.total_bytes_in) / max(network.total_bytes_in))")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("ratio", "step")));
 
         // Find the outer Aggregate (not TimeSeriesAggregate) that should contain both sum and max
@@ -182,7 +203,10 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
 
     public void testBinaryAcrossSeriesAggregationsDoNotLoseReferences() {
         // Verifies that both aggregate expressions are preserved when folding (using different fields)
-        var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.total_bytes_in) / max(network.bytes_in))");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1m ratio=(sum(network.total_bytes_in) / max(network.bytes_in))")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("ratio", "step")));
 
         var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
@@ -195,7 +219,10 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
 
     public void testNestedBinaryAggregationsWithScalar() {
         // Pattern: (agg op agg) op scalar
-        var plan = planPromql("PROMQL index=k8s step=1m result=(sum(network.total_bytes_in) / max(network.total_bytes_in) * 100)");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1m result=(sum(network.total_bytes_in) / max(network.total_bytes_in) * 100)")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
 
         var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
@@ -204,7 +231,10 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
 
     public void testFunctionOnBinaryAggregations() {
         // Pattern: func(agg op agg) - tests that Eval nodes for function are preserved
-        var plan = planPromql("PROMQL index=k8s step=1m result=(ceil(sum(network.total_bytes_in) / max(network.total_bytes_in)))");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1m result=(ceil(sum(network.total_bytes_in) / max(network.total_bytes_in)))")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
 
         var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
@@ -217,7 +247,10 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
 
     public void testBinaryAggregationsWithAddition() {
         // Two aggregates combined with addition
-        var plan = planPromql("PROMQL index=k8s step=1m result=(sum(network.total_bytes_in) + max(network.total_bytes_in))");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1m result=(sum(network.total_bytes_in) + max(network.total_bytes_in))")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
 
         var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
@@ -225,7 +258,10 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testComparisonAcrossSeriesWithScalar() {
-        var plan = planPromql("PROMQL index=k8s step=1m max(network.eth0.rx) > 1000");
+        var plan = tsAnalyzer().plans("PROMQL index=k8s step=1m max(network.eth0.rx) > 1000")
+            .replaceNow()
+            .assertSomeReferences()
+            .coordinatorLogicalOptimized();
         GreaterThan gt = plan.collect(Filter.class)
             .stream()
             .map(Filter::condition)

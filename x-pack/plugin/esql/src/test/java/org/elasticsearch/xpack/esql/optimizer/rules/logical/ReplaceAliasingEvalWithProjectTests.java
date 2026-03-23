@@ -37,7 +37,7 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
      */
     public void testSimple() {
         // Rule only kicks in if there's a Project or Aggregate above, so we add a KEEP *
-        var plan = plan(randomFrom("""
+        var plan = defaultAnalyzer().plans(randomFrom("""
             FROM test
             | KEEP emp_no, salary
             | EVAL emp_no2 = emp_no, salary2 = 2*salary, emp_no3 = emp_no2, salary3 = 3*salary2
@@ -48,7 +48,7 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
             | EVAL emp_no2 = emp_no, salary2 = 2*salary
             | EVAL emp_no3 = emp_no2, salary3 = 3*salary2
             | KEEP *
-            """));
+            """)).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var eval = as(project.child(), Eval.class);
@@ -87,13 +87,13 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
      */
     public void testSimpleFieldFromLookup() {
         // Rule only kicks in if there's a Project or Aggregate above, so we add a KEEP *
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | LOOKUP JOIN test_lookup ON emp_no
             | KEEP emp_no, salary
             | EVAL emp_no2 = emp_no, salary2 = 2*salary, emp_no3 = emp_no2, salary3 = 3*salary2
             | KEEP *
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var eval = as(project.child(), Eval.class);
@@ -135,12 +135,12 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
      */
     public void testOnlyAliases() {
         // Rule only kicks in if there's a Project or Aggregate above, so we add a KEEP *
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | KEEP emp_no, salary
             | EVAL emp_no2 = emp_no, salary2 = salary, emp_no3 = emp_no2, salary = emp_no3, salary3 = salary2, emp_no = salary3
             | KEEP *
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -167,13 +167,13 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
      */
     public void testAliasLoopTwoVars() {
         // Rule only kicks in if there's a Project or Aggregate above, so we add a KEEP *
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | KEEP emp_no
             | RENAME emp_no AS a
             | EVAL b = a, a = b, b = a, a = b, b = a, a = b
             | KEEP *
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -195,13 +195,13 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
      */
     public void testAliasLoopThreeVars() {
         // Rule only kicks in if there's a Project or Aggregate above, so we add a KEEP *
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | KEEP emp_no
             | RENAME emp_no AS a
             | EVAL b = a, c = b, a = c
             | KEEP *
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -226,12 +226,12 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
      */
     public void testNonAliasShadowingAliasedAttribute() {
         // Rule only kicks in if there's a Project or Aggregate above, so we add a KEEP *
-        var plan = plan(randomFrom("""
+        var plan = defaultAnalyzer().plans(randomFrom("""
             from test
             | KEEP emp_no, salary
             | EVAL emp_no2 = emp_no, emp_no = 2*salary, emp_no3 = emp_no2, salary3 = 2*emp_no
             | KEEP *
-            """));
+            """)).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var eval = as(project.child(), Eval.class);
@@ -269,12 +269,12 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
      */
     public void testNonAliasShadowingAliasedAttributeWithAgg() {
         // Rule only kicks in if there's a Project or Aggregate above, so we add a KEEP *
-        var plan = plan(randomFrom("""
+        var plan = defaultAnalyzer().plans(randomFrom("""
             from test
             | KEEP emp_no, salary
             | EVAL emp_no2 = emp_no, emp_no = 2*salary, emp_no3 = emp_no2, salary3 = 2*emp_no
             | STATS BY emp_no, emp_no2, emp_no3, salary, salary3
-            """));
+            """)).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -312,14 +312,14 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
      */
     public void testNonAliasShadowingAliasedAttributeWithRename() {
         // Rule only kicks in if there's a Project or Aggregate above, so we add a KEEP *
-        var plan = plan(randomFrom("""
+        var plan = defaultAnalyzer().plans(randomFrom("""
             from test
             | KEEP emp_no, salary
             | RENAME emp_no AS id
             | EVAL id2 = id, id = 2*salary, id3 = id2, salary3 = 2*id
             | RENAME id2 AS emp_no2, id AS emp_no, id3 AS emp_no3
             | KEEP *
-            """));
+            """)).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var eval = as(project.child(), Eval.class);
@@ -357,12 +357,12 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
      */
     public void testNonAliasShadowingAliasOfAliasedAttribute() {
         // Rule only kicks in if there's a Project or Aggregate above, so we add a KEEP *
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | KEEP emp_no, salary
             | EVAL emp_no2 = emp_no, emp_no3 = emp_no2, emp_no2 = 2*salary, salary3 = 3*emp_no2
             | KEEP *
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var eval = as(project.child(), Eval.class);
@@ -393,12 +393,12 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
      */
     public void testAliasShadowingOtherAlias() {
         // Rule only kicks in if there's a Project or Aggregate above, so we add a KEEP *
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | KEEP emp_no, salary
             | EVAL emp_no2 = emp_no, salary2 = salary, emp_no3 = emp_no2, salary3 = salary2, emp_no2 = salary, salary2 = emp_no
             | KEEP *
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
 
@@ -425,12 +425,12 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
      */
     public void testAliasForNonAlias() {
         // Rule only kicks in if there's a Project or Aggregate above, so we add a KEEP *
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | KEEP salary
             | EVAL salary2 = 2*salary, aliased_salary2 = salary2, salary3 = 3*salary2, twice_aliased_salary2 = aliased_salary2
             | KEEP *
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var eval = as(project.child(), Eval.class);
@@ -462,12 +462,12 @@ public class ReplaceAliasingEvalWithProjectTests extends AbstractLogicalPlanOpti
      */
     public void testAliasForShadowedNonAlias() {
         // Rule only kicks in if there's a Project or Aggregate above, so we add a KEEP *
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | KEEP salary
             | EVAL salary2 = 2*salary, aliased_salary2 = salary2, salary2 = 3*salary2, salary3 = 4*salary2, salary4 = salary3
             | KEEP *
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var eval = as(project.child(), Eval.class);

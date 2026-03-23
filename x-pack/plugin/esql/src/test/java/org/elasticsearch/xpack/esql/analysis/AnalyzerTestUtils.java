@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
-import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -29,18 +28,6 @@ import static org.elasticsearch.xpack.esql.TestAnalyzer.loadMapping;
 public final class AnalyzerTestUtils {
 
     private AnalyzerTestUtils() {}
-
-    public static UnresolvedRelation unresolvedRelation(String index) {
-        return new UnresolvedRelation(
-            Source.EMPTY,
-            new IndexPattern(Source.EMPTY, index),
-            false,
-            List.of(),
-            IndexMode.STANDARD,
-            null,
-            "FROM"
-        );
-    }
 
     public static Map<IndexPattern, IndexResolution> indexResolutions(EsIndex... indexes) {
         Map<IndexPattern, IndexResolution> map = new HashMap<>();

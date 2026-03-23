@@ -305,7 +305,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
     }
 
     static Versioned<LogicalPlan> parse(String query) {
-        var analyzer = analyzer().addIndex("test", "mapping-basic.json").buildAnalyzer();
+        var analyzer = analyzer().addEmployees("test").buildAnalyzer();
         TransportVersion minimumVersion = analyzer.context().minimumVersion();
         var logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(TEST_CFG, FoldContext.small(), minimumVersion));
         return new Versioned<>(logicalOptimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query))), minimumVersion);

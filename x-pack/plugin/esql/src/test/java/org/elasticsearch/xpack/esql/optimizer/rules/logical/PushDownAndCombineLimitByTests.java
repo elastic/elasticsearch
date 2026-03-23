@@ -48,12 +48,12 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
      * }</pre>
      */
     public void testLimitByPruneIdenticalLimits() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | LIMIT 1 BY emp_no
             | LIMIT 2 BY emp_no
             | LIMIT 1 BY emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var defaultLimit = as(plan, Limit.class);
         assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
@@ -71,11 +71,11 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
      * }</pre>
      */
     public void testLimitByKeepDifferentGroupings() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | LIMIT 1 BY emp_no
             | LIMIT 1 BY first_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         var defaultLimit = as(plan, Limit.class);
         assertThat(((Literal) defaultLimit.limit()).value(), equalTo(1000));
@@ -99,12 +99,12 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
      * }</pre>
      */
     public void testLimitByNotCombinedWhenSeparatedByPlainLimit() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | LIMIT 1 BY emp_no
             | LIMIT 2
             | LIMIT 2 BY emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var defaultLimit = as(plan, Limit.class);
         assertThat(((Literal) defaultLimit.limit()).value(), equalTo(2));
@@ -128,14 +128,14 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
      * }</pre>
      */
     public void testLimitByNotCombinedWithTopN() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | SORT emp_no
             | LIMIT 1000
             | LIMIT 2 BY languages
             | STATS c = COUNT(*) BY languages
             | SORT languages ASC NULLS LAST
-            """);
+            """).coordinatorLogicalOptimized();
 
         var topN = as(plan, TopN.class);
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(10000));
@@ -162,11 +162,11 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
      * }</pre>
      */
     public void testLimitByNotPushedBelowLocalEnrichWhenGroupingReferencesEnrichField() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | ENRICH languages_idx ON first_name
             | LIMIT 5 BY language_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         var defaultLimit = as(plan, Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
@@ -187,11 +187,11 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
      * }</pre>
      */
     public void testLimitByDuplicatedBelowRemoteEnrichWhenGroupingReferencesEnrichField() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | ENRICH _remote:languages_remote ON first_name
             | LIMIT 5 BY language_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         var defaultLimit = as(plan, Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
@@ -212,11 +212,11 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
      * }</pre>
      */
     public void testLimitByNotDuplicatedBelowRemoteEnrichWhenGroupingReferencesEnrichField() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | ENRICH _remote:languages_remote ON first_name
             | LIMIT 5 BY language_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         var defaultLimit = as(plan, Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
@@ -237,11 +237,11 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
      * }</pre>
      */
     public void testLimitByNotDuplicatedBelowLocalEnrichWhenSomeGroupingReferencesEnrichField() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | ENRICH languages_idx ON first_name
             | LIMIT 5 BY emp_no, language_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         var defaultLimit = as(plan, Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
@@ -262,11 +262,11 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
      * }</pre>
      */
     public void testLimitByPushedBelowLocalEnrichWhenGroupingOnSourceField() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | ENRICH languages_idx ON first_name
             | LIMIT 5 BY emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var enrich = as(plan, Enrich.class);
         var defaultLimit = as(enrich.child(), Limit.class);
@@ -280,11 +280,11 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
      * A grouped LIMIT (LIMIT BY) above a Fork must not be pushed into the fork branches.
      */
     public void testLimitByNotPushedIntoForkBranches() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | FORK (WHERE emp_no > 100) (WHERE emp_no < 10)
             | LIMIT 5 BY emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var defaultLimit = as(plan, Limit.class);
         var limit = as(defaultLimit.child(), LimitBy.class);
@@ -310,11 +310,11 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
      * }</pre>
      */
     public void testLimitByDuplicatedPastMvExpand() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | MV_EXPAND first_name
             | LIMIT 5 BY emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var defaultLimit = as(plan, Limit.class);
         var upperLimitBy = as(defaultLimit.child(), LimitBy.class);
@@ -346,12 +346,12 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
      * }</pre>
      */
     public void testLimitByOriginalFieldDuplicated() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL language_code = languages
             | LOOKUP JOIN languages_lookup ON language_code
             | LIMIT 5 BY emp_no
-            """);
+            """).coordinatorLogicalOptimized();
 
         var defaultLimit = as(plan, Limit.class);
         var upperLimitBy = as(defaultLimit.child(), LimitBy.class);
@@ -382,12 +382,12 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
      * }</pre>
      */
     public void testLimitByFieldIntroducedInTheJoinNotDuplicated() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL language_code = languages
             | LOOKUP JOIN languages_lookup ON language_code
             | LIMIT 5 BY language_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         var defaultLimit = as(plan, Limit.class);
         var limitBy = as(defaultLimit.child(), LimitBy.class);
@@ -413,13 +413,13 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
      * }</pre>
      */
     public void testLimitByShadowedNonJoinFieldNotDuplicated() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL language_code = languages
             | EVAL language_name = 2*salary
             | LOOKUP JOIN languages_lookup ON language_code
             | LIMIT 5 BY language_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         var defaultLimit = as(plan, Limit.class);
         var upperLimitBy = as(defaultLimit.child(), LimitBy.class);
@@ -448,13 +448,13 @@ public class PushDownAndCombineLimitByTests extends AbstractLogicalPlanOptimizer
      * }</pre>
      */
     public void testLimitByShadowedJoinFieldDuplicated() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | RENAME languages AS language_code
             | EVAL language_name = 2*salary
             | LOOKUP JOIN languages_lookup ON language_code
             | LIMIT 5 BY language_code
-            """);
+            """).coordinatorLogicalOptimized();
 
         var defaultLimit = as(plan, Limit.class);
         var upperLimitBy = as(defaultLimit.child(), LimitBy.class);

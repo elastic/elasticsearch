@@ -7,13 +7,10 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
-import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -30,23 +27,23 @@ import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.hamcrest.Matchers.containsString;
 
 public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
-    protected static LogicalOptimizerContext logicalOptimizerCtx;
-    protected static LogicalPlanOptimizer logicalOptimizer;
-
-    protected static LogicalPlanOptimizer logicalOptimizerWithLatestVersion;
-    protected static LogicalPlanOptimizer optimizerWithoutForkImplicitLimit;
-
     protected static Map<String, EsField> mapping;
+
+    /**
+     * Build a {@link LogicalPlanOptimizer} for tests. Prefer {@link TestAnalyzer#plans} when it's
+     * possible to express the test as a parsed query.
+     */
+    protected static LogicalPlanOptimizer buildLogicalOptimizer() {
+        return new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
+    }
 
     public static class TestSubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
         // A static instance of this would break the EsqlNodeSubclassTests because its initialization requires a Random instance.
@@ -63,19 +60,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
     @BeforeClass
     public static void init() {
-        logicalOptimizerCtx = unboundLogicalOptimizerContext();
-        logicalOptimizer = new LogicalPlanOptimizer(logicalOptimizerCtx);
-        logicalOptimizerWithLatestVersion = new LogicalPlanOptimizer(
-            new LogicalOptimizerContext(logicalOptimizerCtx.configuration(), logicalOptimizerCtx.foldCtx(), TransportVersion.current())
-        );
         mapping = loadMapping("mapping-basic.json");
-
-        var config = configuration(
-            new QueryPragmas(Settings.builder().put(QueryPragmas.FORK_IMPLICIT_LIMIT.getKey().toLowerCase(Locale.ROOT), false).build())
-        );
-        optimizerWithoutForkImplicitLimit = new LogicalPlanOptimizer(
-            new LogicalOptimizerContext(config, FoldContext.small(), TransportVersion.current())
-        );
     }
 
     protected static TestAnalyzer analyzerWithEnrichPolicies() {
@@ -198,74 +183,9 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             .addSpatialLookup();
     }
 
-    protected LogicalPlan optimize(LogicalPlan plan) {
-        return logicalOptimizer.optimize(plan);
-    }
-
-    protected LogicalPlan optimizedPlan(String query) {
-        return plan(query);
-    }
-
-    protected LogicalPlan optimizedPlan(String query, TransportVersion transportVersion) {
-        return optimize(defaultAnalyzer().minimumTransportVersion(transportVersion).buildAnalyzer().analyze(TEST_PARSER.parseQuery(query)));
-    }
-
-    protected LogicalPlan plan(String query) {
-        return plan(query, logicalOptimizer);
-    }
-
-    protected LogicalPlan plan(String query, LogicalPlanOptimizer optimizer) {
-        return optimizer.optimize(defaultAnalyzer().query(query));
-    }
-
-    protected LogicalPlan planAirports(String query) {
-        return optimize(airportsAnalyzer().query(query));
-    }
-
-    protected LogicalPlan planExtra(String query) {
-        return optimize(extraAnalyzer().query(query));
-    }
-
-    protected LogicalPlan planTypes(String query) {
-        return optimize(typesAnalyzer().query(query));
-    }
-
-    protected LogicalPlan planMetrics(String query) {
-        return logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query(query));
-    }
-
-    protected LogicalPlan planMultiIndex(String query) {
-        return optimize(multiIndexAnalyzer().query(query));
-    }
-
-    protected LogicalPlan planUnionIndex(String query) {
-        return optimize(unionIndexAnalyzer().query(query));
-    }
-
-    protected LogicalPlan planSample(String query) {
-        return optimize(sampleDataAnalyzer().query(query));
-    }
-
-    protected LogicalPlan planSubquery(String query) {
-        return optimize(subqueryAnalyzer().query(query));
-    }
-
-    protected LogicalPlan planWithoutForkImplicitLimit(String query) {
-        return optimizerWithoutForkImplicitLimit.optimize(analyzerWithoutForkImplicitLimit().query(query));
-    }
-
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
-    }
-
-    protected <T extends Throwable> void failPlan(String esql, Class<T> exceptionClass, String reason) {
-        var e = expectThrows(exceptionClass, () -> plan(esql));
-        assertThat(e.getMessage(), containsString(reason));
-    }
-
-    protected void failPlan(String esql, String reason) {
-        failPlan(esql, VerificationException.class, reason);
     }
 
 }

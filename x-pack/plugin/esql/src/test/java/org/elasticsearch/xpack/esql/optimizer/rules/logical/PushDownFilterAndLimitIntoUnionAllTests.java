@@ -75,10 +75,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *   |       \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
      */
     public void testPushDownSimpleFilterPastUnionAll() {
-        var plan = planSubquery("""
+        var plan = subqueryAnalyzer().plans("""
             FROM test, (FROM test | WHERE languages > 0), (FROM languages | WHERE language_code > 0)
             | WHERE emp_no > 10000
-            """);
+            """).coordinatorLogicalOptimized();
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
@@ -131,9 +131,9 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *           \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
      */
     public void testSubqueryWithSort() {
-        var plan = planSubquery("""
+        var plan = subqueryAnalyzer().plans("""
             FROM test, (FROM test | WHERE languages > 0 | SORT emp_no | LIMIT 1000)
-            """);
+            """).coordinatorLogicalOptimized();
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
@@ -172,10 +172,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *           \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
      */
     public void testPushDownFilterAndLimitPastSubqueryWithSort() {
-        var plan = planSubquery("""
+        var plan = subqueryAnalyzer().plans("""
             FROM test, (FROM test | WHERE languages > 0 | SORT emp_no | LIMIT 1000)
             | WHERE emp_no > 10000
-            """);
+            """).coordinatorLogicalOptimized();
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
@@ -229,10 +229,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *   |       \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
      */
     public void testPushDownConjunctiveFilterPastUnionAll() {
-        var plan = planSubquery("""
+        var plan = subqueryAnalyzer().plans("""
             FROM test, (FROM test | WHERE languages > 0), (FROM languages | WHERE language_code > 0)
             | WHERE emp_no > 10000 and salary > 50000
-            """);
+            """).coordinatorLogicalOptimized();
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
@@ -301,10 +301,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *   |       \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
      */
     public void testPushDownDisjunctiveFilterPastUnionAll() {
-        var plan = planSubquery("""
+        var plan = subqueryAnalyzer().plans("""
             FROM test, (FROM test | WHERE languages > 0), (FROM languages | WHERE language_code > 0)
             | WHERE emp_no > 10000 or salary > 50000
-            """);
+            """).coordinatorLogicalOptimized();
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
@@ -373,10 +373,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *   |       \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
      */
     public void testPushDownFilterPastUnionAllAndCombineWithFilterInSubquery() {
-        var plan = planSubquery("""
+        var plan = subqueryAnalyzer().plans("""
             FROM test, (FROM test | where salary < 100000), (FROM languages  | WHERE language_code > 0)
             | WHERE emp_no > 10000 and salary < 50000
-            """);
+            """).coordinatorLogicalOptimized();
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
@@ -471,7 +471,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *                 \_EsRelation[languages_lookup][LOOKUP][language_code{f}#80, language_name{f}#81]
      */
     public void testPushDownFilterOnReferenceAttributesPastUnionAll() {
-        var plan = planSubquery("""
+        var plan = subqueryAnalyzer().plans("""
             FROM test
                        , (FROM test
                           | where salary < 100000
@@ -486,7 +486,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
                           | RENAME emp_no AS x, salary AS y, language_code AS z)
             | EVAL x = x::long, y = y::long
             | WHERE x is not null and y is not null and z > 0
-            """);
+            """).coordinatorLogicalOptimized();
 
         Project project = as(plan, Project.class);
         List<? extends NamedExpression> projections = project.projections();
@@ -600,10 +600,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *             \_EsRelation[test][_meta_field{f}#29, emp_no{f}#23, first_name{f}#24, ..]
      */
     public void testPushDownFilterOnReferenceAttributesAndFieldAttributesPastUnionAll() {
-        var plan = planSubquery("""
+        var plan = subqueryAnalyzer().plans("""
             FROM test, (FROM test | where salary < 100000 | EVAL x = 1, y = emp_no + 1)
             | WHERE x is not null and y > 0 and emp_no > 0
-            """);
+            """).coordinatorLogicalOptimized();
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
@@ -692,11 +692,11 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *               \_EsRelation[test_mixed_types][avg_worked_seconds{f}#46, birth_date{f}#34, emp_no{..]
      */
     public void testFilterOnMixedDataTypesFields() {
-        var plan = planSubquery("""
+        var plan = subqueryAnalyzer().plans("""
             FROM test, (FROM test_mixed_types | WHERE languages > 1)
             | EVAL x = emp_no::double,  emp_no = emp_no::long, gender = gender::keyword, y = languages
             | WHERE emp_no > 10000 AND gender is not null AND y < 5
-            """);
+            """).coordinatorLogicalOptimized();
 
         Project project = as(plan, Project.class);
         List<? extends NamedExpression> projections = project.projections();
@@ -770,10 +770,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *         \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
      */
     public void testPushDownSingleFullTextFunctionPastUnionAll() {
-        var plan = planSubquery("""
+        var plan = subqueryAnalyzer().plans("""
             FROM test, (FROM test | WHERE languages > 0)
             | WHERE first_name:"first"
-            """);
+            """).coordinatorLogicalOptimized();
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
@@ -823,10 +823,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *         \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
      */
     public void testPushDownFullTextFunctionNoFieldRequiredPastUnionAll() {
-        var plan = planSubquery("""
+        var plan = subqueryAnalyzer().plans("""
             FROM test, (FROM test | WHERE languages > 0 AND qstr("gender:female"))
             | WHERE qstr("first_name:first") == true AND kql("last_name:last") == false
-            """);
+            """).coordinatorLogicalOptimized();
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
@@ -886,10 +886,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *         \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
      */
     public void testPushDownConjunctiveFullTextFunctionPastUnionAll() {
-        var plan = planSubquery("""
+        var plan = subqueryAnalyzer().plans("""
             FROM test, (FROM test | WHERE languages > 0)
             | WHERE first_name:"first" and match(last_name, "last") and qstr("gender:female")
-            """);
+            """).coordinatorLogicalOptimized();
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
@@ -959,10 +959,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *         \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
      */
     public void testPushDownDisjunctiveFullTextFunctionPastUnionAll() {
-        var plan = planSubquery("""
+        var plan = subqueryAnalyzer().plans("""
             FROM test, (FROM test | WHERE languages > 0 and match(gender , "F"))
             | WHERE first_name:"first" or match_phrase(last_name, "last") or kql("gender:female")
-            """);
+            """).coordinatorLogicalOptimized();
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
@@ -1027,10 +1027,10 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      * the full text function can be pushed down.
      */
     public void testFullTextFunctionCanBePushedDownPastUnionAll() {
-        var plan = planSubquery("""
+        var plan = subqueryAnalyzer().plans("""
             FROM test, (FROM languages)
             | WHERE match(language_name, "text")
-            """);
+            """).coordinatorLogicalOptimized();
 
         // Limit[1000[INTEGER],false,false]
         Limit limit = as(plan, Limit.class);
@@ -1072,13 +1072,13 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *     |       \_EsRelation[colors][color{f}#11, hex_code{f}#12, id{f}#10, primary{f}#1..]
      */
     public void testPushDownKnnPastUnionAll() {
-        var plan = planSubquery("""
+        var plan = subqueryAnalyzer().plans("""
             from colors, (from languages) metadata _score
             | where knn(rgb_vector, "007800")
             | sort _score desc, color asc
             | keep color, rgb_vector, language_name
             | limit 10
-            """);
+            """).coordinatorLogicalOptimized();
 
         Project project = as(plan, Project.class);
         TopN topN = as(project.child(), TopN.class);
@@ -1124,7 +1124,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
      *             \_EsRelation[languages][language_code{f}#17, language_name{f}#18]
      */
     public void testSortInSubquery() {
-        var plan = planSubquery("""
+        var plan = subqueryAnalyzer().plans("""
             FROM
                 (FROM test
                  | SORT last_name),
@@ -1132,7 +1132,7 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
                  | WHERE language_code > 0
                  | SORT language_name
                 )
-            """);
+            """).coordinatorLogicalOptimized();
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);

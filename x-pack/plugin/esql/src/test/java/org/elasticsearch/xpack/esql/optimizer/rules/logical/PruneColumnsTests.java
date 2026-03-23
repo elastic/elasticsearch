@@ -73,11 +73,11 @@ import static org.hamcrest.Matchers.is;
 public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
     public void testPruneUnusedEval() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | eval garbage = salary + 3
             | keep salary
-            """);
+            """).coordinatorLogicalOptimized();
 
         var keep = as(plan, Project.class);
         var limit = as(keep.child(), Limit.class);
@@ -85,25 +85,25 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     public void testPruneChainedEval() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | eval garbage_a = salary + 3
             | eval garbage_b = emp_no / garbage_a, garbage_c = garbage_a
             | eval garbage_x = 1 - garbage_b/garbage_c
             | keep salary
-            """);
+            """).coordinatorLogicalOptimized();
         var keep = as(plan, Project.class);
         var limit = as(keep.child(), Limit.class);
         var source = as(limit.child(), EsRelation.class);
     }
 
     public void testPruneChainedEvalNoProjection() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | eval garbage = salary + 3
             | eval garbage = emp_no / garbage, garbage = garbage
             | eval garbage = 1
-            """);
+            """).coordinatorLogicalOptimized();
         var eval = as(plan, Eval.class);
         var limit = as(eval.child(), Limit.class);
         var source = as(limit.child(), EsRelation.class);
@@ -124,12 +124,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testPruneEvalDueToStats() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | eval garbage_a = salary + 3, x = salary
             | eval garbage_b = x + 3
             | stats c = count(x)
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var aggregate = as(limit.child(), Aggregate.class);
@@ -140,11 +140,11 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     public void testPruneUnusedAggSimple() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | stats c = count(salary), max = max(salary), min = min(salary)
             | keep c
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -165,12 +165,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testPruneUnusedAggMixedWithEval() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | stats c = count(salary), max = max(salary), min = min(salary)
             | eval x = c
             | keep x
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -183,14 +183,14 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     public void testPruneUnusedAggsChainedAgg() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | stats c = count(salary), max = max(salary), min = min(salary)
             | eval x = max + min + c
             | eval y = min
             | eval z = c
             | keep c
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -213,7 +213,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testPruneMixedAggInsideUnusedEval() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | stats c = count(salary), max = max(salary), min = min(salary)
             | eval x = max + min + c
@@ -221,7 +221,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | where y > 10
             | eval z = c
             | keep c
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -245,13 +245,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testNoPruningWhenDealingJustWithEvals() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | stats c = count(salary), max = max(salary), min = min(salary)
             | eval x = max + min + c
             | eval y = min
             | eval z = c
-            """);
+            """).coordinatorLogicalOptimized();
 
         var eval = as(plan, Eval.class);
         var limit = as(eval.child(), Limit.class);
@@ -268,11 +268,11 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testNoPruningWhenChainedEvals() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | eval x = emp_no, y = x + 1, z = y
             | keep z
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("z"));
@@ -291,13 +291,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testPruningDuplicateEvals() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
               from test
             | eval x = emp_no, x = salary
             | eval y = salary
             | eval y = emp_no
             | keep x, y
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var projections = project.projections();
@@ -328,7 +328,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("x", "emp_no")));
@@ -361,7 +361,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("emp_no", "count")));
@@ -404,7 +404,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("x", "emp_no")));
@@ -433,7 +433,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("x", "a", "emp_no")));
@@ -462,7 +462,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("x", "a", "emp_no")));
@@ -515,7 +515,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var employeesFields = List.of(
             "_meta_field",
@@ -583,7 +583,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("emp_no")));
@@ -623,7 +623,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("emp_no")));
@@ -664,7 +664,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("avg", "decades")));
@@ -707,7 +707,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("avg", "decades", "avgavg")));
@@ -757,7 +757,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             return;
         }
 
-        var plan = planAirports(query);
+        var plan = airportsAnalyzer().plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("abbrev", "backup_scalerank", "scalerank")));
         var topN = as(project.child(), TopN.class);
@@ -796,7 +796,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("avg", "emp_no", "first_name")));
@@ -831,7 +831,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("emp_no")));
@@ -873,7 +873,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
                 | WHERE _fork == "fork1"
                 | DROP _fork
             """;
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         assertThat(project.projections().size(), equalTo(1));
         assertThat(Expressions.names(project.projections()), contains("first_name"));
@@ -929,7 +929,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
              | KEEP _fork, emp_no, x, y, z
              | SORT _fork, emp_no
             """;
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         assertThat(project.projections().size(), equalTo(5));
         assertThat(Expressions.names(project.projections()), containsInAnyOrder("_fork", "emp_no", "x", "y", "z"));
@@ -1004,7 +1004,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
                    ( EVAL x = "abc" | EVAL y = "aaa" )
             | STATS count(*), d = count(emp_no), m = max(_fork), ls = count(s)
             """;
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var aggregate = as(limit.child(), Aggregate.class);
         assertThat(aggregate.aggregates().size(), equalTo(4));
@@ -1096,7 +1096,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | where _fork == "fork1"
             | drop _fork
             """;
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         assertThat(project.projections().size(), equalTo(1));
         assertThat(Expressions.names(project.projections()), contains("languages"));
@@ -1147,7 +1147,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | drop _fork
             | keep languages
             """;
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         assertThat(project.projections().size(), equalTo(1));
         assertThat(Expressions.names(project.projections()), contains("languages"));
@@ -1220,7 +1220,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | drop _fork
             | drop languages
             """;
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         assertThat(project.projections().size(), equalTo(10));
         var limit = as(project.child(), Limit.class);
@@ -1278,7 +1278,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
                     (stats a = max(salary), b = min(salary))
              | KEEP a
             """;
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         assertThat(project.projections().size(), equalTo(1));
         assertThat(Expressions.names(project.projections()), contains("a"));
@@ -1324,7 +1324,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | INLINE STATS languages2 = SUM(languages1), avg = AVG(salary)
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         var limit = as(plan, Limit.class);
         var topJoin = as(limit.child(), InlineJoin.class);
         // Left
@@ -1368,7 +1368,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | LIMIT 10
             """;
 
-        var plan = as(optimizedPlan(query), Project.class);
+        var plan = as(defaultAnalyzer().plans(query).coordinatorLogicalOptimized(), Project.class);
         var limit = as(plan.child(), Limit.class);
         var join = as(limit.child(), InlineJoin.class);
         // Left
@@ -1405,7 +1405,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | LIMIT 10
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         Project project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
         var join = as(limit.child(), InlineJoin.class);
@@ -1451,7 +1451,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | LIMIT 10
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         Project project = as(plan, Project.class);
         var topN = as(project.child(), TopN.class);
         var join = as(topN.child(), InlineJoin.class);
@@ -1503,7 +1503,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | LIMIT 10
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
         Project project = as(plan, Project.class);
         var topN = as(project.child(), TopN.class);
         var join = as(topN.child(), InlineJoin.class);
@@ -1535,11 +1535,11 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      *   \_EsRelation[union_types_index*][!first_name, id{f}#7, !languages, !last_name, !sala..]
      */
     public void testExplicitRetainOriginalFieldWithCast() {
-        LogicalPlan plan = planUnionIndex("""
+        LogicalPlan plan = unionIndexAnalyzer().plans("""
             FROM union_types_index*
             | KEEP languages
             | EVAL x = languages::long
-            """);
+            """).coordinatorLogicalOptimized();
 
         Project topProject = as(plan, Project.class);
         var projections = topProject.projections();
@@ -1579,7 +1579,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | keep id
             """;
 
-        var plan = planUnionIndex(query);
+        var plan = unionIndexAnalyzer().plans(query).coordinatorLogicalOptimized();
         Project project = as(plan, Project.class);
 
         assertThat(project.projections().size(), equalTo(1));
@@ -1790,11 +1790,11 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testCannotPartiallyPruneDissectFields() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             ROW message = "2023-01-23T12:15:00Z - error - 192.168.1.1"
             | DISSECT message "%{date} - %{level} - %{ip}"
             | KEEP date
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("date")));
@@ -1814,11 +1814,11 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testPruneAllDissectFields() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             ROW message = "2023-01-23T12:15:00Z - error - 192.168.1.1"
             | DISSECT message "%{date} - %{level} - %{ip}"
             | KEEP message
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("message"));
@@ -1839,12 +1839,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testCannotPartiallyPruneDissectFieldsInAgg() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL full_name = CONCAT(first_name, " ", last_name)
             | DISSECT full_name "%{extracted_first} %{extracted_last}"
             | STATS count = COUNT(*) BY extracted_last
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -1870,11 +1870,11 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testCannotPartiallyPruneGrokFields() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             ROW message = "2023-01-23T12:15:00Z 192.168.1.1 user@example.com 42"
             | GROK message "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}"
             | KEEP date
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("date")));
@@ -1894,11 +1894,11 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testPruneAllGrokFields() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             ROW message = "2023-01-23T12:15:00Z 192.168.1.1 user@example.com 42"
             | GROK message "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}"
             | KEEP message
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("message"));
@@ -1919,12 +1919,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testCannotPartiallyPruneGrokFieldsInAgg() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL full_name = CONCAT(first_name, " ", last_name)
             | GROK full_name "%{WORD:extracted_first} %{WORD:extracted_last}"
             | STATS count = COUNT(*) BY extracted_last
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -1948,12 +1948,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testPruneDissectFieldsViaDrop() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL full_name = CONCAT(first_name, " ", last_name)
             | DISSECT full_name "%{extracted_first} %{extracted_last}"
             | DROP extracted_first, extracted_last, full_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var projections = Expressions.names(project.projections());
@@ -1975,12 +1975,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testPruneGrokFieldsViaDrop() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL full_name = CONCAT(first_name, " ", last_name)
             | GROK full_name "%{WORD:extracted_first} %{WORD:extracted_last}"
             | DROP extracted_first, extracted_last, full_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var projections = Expressions.names(project.projections());
@@ -2004,11 +2004,11 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testCannotPartiallyPruneDissectFieldsViaDrop() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             ROW message = "2023-01-23T12:15:00Z - error - 192.168.1.1"
             | DISSECT message "%{date} - %{level} - %{ip}"
             | DROP level, ip
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(2));
@@ -2033,12 +2033,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testPruneDissectFieldsShadowedByEval() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             ROW message = "2023-01-23T12:15:00Z - error - 192.168.1.1"
             | DISSECT message "%{date} - %{level} - %{ip}"
             | EVAL date = "overwritten", level = "overwritten", ip = "overwritten"
             | KEEP message, date, level, ip
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(4));
@@ -2064,12 +2064,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testPruneGrokFieldsShadowedByEval() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             ROW message = "2023-01-23T12:15:00Z 192.168.1.1 user@example.com 42"
             | GROK message "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}"
             | EVAL date = "overwritten", ip = "overwritten", email = "overwritten", num = 0
             | KEEP message, date
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(2));
@@ -2095,13 +2095,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testCannotPartiallyPruneDissectFieldShadowedByRename() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL full_name = CONCAT(first_name, " ", last_name)
             | DISSECT full_name "%{extracted_first} %{extracted_last}"
             | RENAME first_name AS extracted_first
             | KEEP extracted_first, extracted_last
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(2));
@@ -2148,7 +2148,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(2));
@@ -2189,7 +2189,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(2));
@@ -2212,7 +2212,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testPruneDissectWithLookupJoin() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL language_code = languages
             | EVAL full_name = CONCAT(first_name, " ", last_name)
@@ -2220,7 +2220,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | LOOKUP JOIN languages_lookup ON language_code
             | DROP extracted_first, extracted_last, full_name
             | KEEP emp_no, language_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(2));
@@ -2246,7 +2246,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testPruneGrokWithLookupJoin() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL language_code = languages
             | EVAL full_name = CONCAT(first_name, " ", last_name)
@@ -2254,7 +2254,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | LOOKUP JOIN languages_lookup ON language_code
             | DROP extracted_first, extracted_last, full_name
             | KEEP emp_no, language_name
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(2));
@@ -2278,12 +2278,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testPruneChainedDissectAndGrok() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             ROW message = "2023-01-23 error 192.168.1.1"
             | DISSECT message "%{date} %{rest}"
             | GROK rest "%{WORD:level} %{IP:ip}"
             | KEEP message
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(1));
@@ -2308,12 +2308,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testCannotPartiallyPruneChainedDissectAndGrok() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             ROW message = "2023-01-23 error 192.168.1.1"
             | DISSECT message "%{date} %{rest}"
             | GROK rest "%{WORD:level} %{IP:ip}"
             | KEEP level
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(1));
@@ -2342,13 +2342,13 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testPruneDissectFieldRedefinedBeforeStats() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             FROM test
             | EVAL full_name = CONCAT(first_name, " ", last_name)
             | DISSECT full_name "%{extracted_first} %{extracted_last}"
             | EVAL extracted_first = "constant", extracted_last = "constant"
             | STATS count = COUNT(*) BY extracted_first
-            """);
+            """).coordinatorLogicalOptimized();
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -2375,12 +2375,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testCannotPartiallyPruneGrokFieldsUsedInFilter() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             ROW message = "2023-01-23T12:15:00Z 192.168.1.1 user@example.com 42"
             | GROK message "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}"
             | WHERE ip == "192.168.1.1"
             | KEEP message, ip
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(2));
@@ -2408,12 +2408,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testNoPruneDissectFieldsUsedInEvalExpression() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             ROW message = "hello world"
             | DISSECT message "%{a} %{b}"
             | EVAL combined = CONCAT(a, "-", b)
             | KEEP combined
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(1));
@@ -2512,12 +2512,12 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
      */
     public void testPruneColumnsKeepsLimitByGrouping() {
         assumeTrue("LIMIT BY requires snapshot builds", EsqlCapabilities.Cap.ESQL_LIMIT_BY.isEnabled());
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | eval x = salary + 4
             | limit 1 by x
             | drop x
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), org.hamcrest.Matchers.not(hasItems("x")));

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -35,7 +36,7 @@ public class HoistRemoteEnrichLimitTests extends AbstractLogicalPlanOptimizerTes
      * </pre>
      */
     public void testLimitWithinRemoteEnrich() {
-        var plan = plan(randomFrom("""
+        var plan = defaultAnalyzer().plans(randomFrom("""
             from test
             | EVAL id = emp_no
             | LIMIT 10
@@ -45,7 +46,7 @@ public class HoistRemoteEnrichLimitTests extends AbstractLogicalPlanOptimizerTes
             | LIMIT 10
             | EVAL id = emp_no
             | ENRICH _remote:languages_remote
-            """)); // it should be the same in any order
+            """)).coordinatorLogicalOptimized(); // it should be the same in any order
 
         var limit = as(plan, Limit.class);
         assertTrue(limit.duplicated());
@@ -69,13 +70,13 @@ public class HoistRemoteEnrichLimitTests extends AbstractLogicalPlanOptimizerTes
      * </pre>
      */
     public void testLimitWithinRemoteEnrichAndAfter() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | LIMIT 20
             | EVAL id = emp_no
             | ENRICH _remote:languages_remote
             | LIMIT 10
-            """); // it should be the same in any order
+            """).coordinatorLogicalOptimized(); // it should be the same in any order
 
         var limit = as(plan, Limit.class);
         assertTrue(limit.duplicated());
@@ -90,13 +91,13 @@ public class HoistRemoteEnrichLimitTests extends AbstractLogicalPlanOptimizerTes
 
     // Same as above but limits are reversed
     public void testLimitWithinRemoteEnrichAndAfterHigher() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | LIMIT 10
             | EVAL id = emp_no
             | ENRICH _remote:languages_remote
             | LIMIT 20
-            """); // it should be the same in any order
+            """).coordinatorLogicalOptimized(); // it should be the same in any order
 
         var limit = as(plan, Limit.class);
         assertTrue(limit.duplicated());
@@ -122,7 +123,7 @@ public class HoistRemoteEnrichLimitTests extends AbstractLogicalPlanOptimizerTes
      * </pre>
      */
     public void testManyLimitsWithinRemoteEnrich() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | LIMIT 10
             | EVAL id = emp_no
@@ -131,7 +132,7 @@ public class HoistRemoteEnrichLimitTests extends AbstractLogicalPlanOptimizerTes
             | DISSECT first_name "%{first_name}s"
             | LIMIT 5
             | ENRICH _remote:languages_remote
-            """);
+            """).coordinatorLogicalOptimized();
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -159,7 +160,7 @@ public class HoistRemoteEnrichLimitTests extends AbstractLogicalPlanOptimizerTes
      *           \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
      */
     public void testLimitsWithinRemoteEnrichTwice() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | LIMIT 10
             | EVAL id = emp_no
@@ -168,7 +169,7 @@ public class HoistRemoteEnrichLimitTests extends AbstractLogicalPlanOptimizerTes
             | RENAME salary AS wage
             | LIMIT 5
             | ENRICH _remote:languages_remote
-            """);
+            """).coordinatorLogicalOptimized();
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
         assertTrue(limit.duplicated());
@@ -191,12 +192,12 @@ public class HoistRemoteEnrichLimitTests extends AbstractLogicalPlanOptimizerTes
     // These cases do not get hoisting, and it's ok
     public void testLimitWithinOtherEnrich() {
         String enrichPolicy = randomFrom("languages_idx", "_any:languages_idx", "_coordinator:languages_coordinator");
-        var plan = plan(String.format(Locale.ROOT, """
+        var plan = defaultAnalyzer().plans(String.format(Locale.ROOT, """
             from test
             | EVAL id = emp_no
             | LIMIT 10
             | ENRICH %s
-            """, enrichPolicy));
+            """, enrichPolicy)).coordinatorLogicalOptimized();
         // Here ENRICH is on top - no hoisting happens
         var enrich = as(plan, Enrich.class);
         assertThat(enrich.mode(), not(is(Enrich.Mode.REMOTE)));
@@ -205,24 +206,24 @@ public class HoistRemoteEnrichLimitTests extends AbstractLogicalPlanOptimizerTes
     // Non-cardinality preserving commands after limit
     public void testFilterLimitThenEnrich() {
         // Hoisting does not happen, so the verifier fails since LIMIT is before remote ENRICH
-        failPlan("""
+        defaultAnalyzer().plans("""
             from test
             | EVAL id = emp_no
             | LIMIT 10
             | WHERE first_name != "john"
             | ENRICH _remote:languages_remote
-            """, "ENRICH with remote policy can't be executed after [LIMIT 10]");
+            """).coordinatorLogicalPlanOptimizationError(containsString("ENRICH with remote policy can't be executed after [LIMIT 10]"));
     }
 
     public void testMvExpandLimitThenEnrich() {
         // Hoisting does not happen, so the verifier fails since LIMIT is before remote ENRICH
-        failPlan("""
+        defaultAnalyzer().stripErrorPrefix(true).error("""
             from test
             | EVAL id = emp_no
             | LIMIT 10
             | MV_EXPAND languages
             | ENRICH _remote:languages_remote
-            """, "MV_EXPAND after LIMIT is incompatible with remote ENRICH");
+            """, containsString("MV_EXPAND after LIMIT is incompatible with remote ENRICH"));
     }
 
     // Other cases where hoisting does not happen:

@@ -32,7 +32,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
     private static final float SOAR_MIN_DISTANCE = 1e-16f;
     private static final int PREFIX_MIN_DIMENSIONS = 128;
     private static final float PREFIX_LENGTH_RATIO = 0.5f;
-    private static final int PREFIX_TOPK_SIZE = 5;
+    private static final int PREFIX_TOPK_SIZE = 4;
 
     @Override
     public abstract ClusteringFloatVectorValues copy() throws IOException;
@@ -60,7 +60,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         int[] results
     ) throws IOException {
         final float[] distances = new float[4];
-        final PrefixScratch prefixScratch = maybeCreatePrefixScratch(centroids.length);
+        final PrefixScratch prefixScratch = maybeCreatePrefixScratch(centroids.length, dimension());
         boolean changed = false;
         for (int i = startOrd; i < endOrd; i++) {
             float[] vector = vectorValue(i);
@@ -79,8 +79,10 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         return changed;
     }
 
-    final PrefixScratch maybeCreatePrefixScratch(int numCentroids) {
-        return dimension() >= (PREFIX_MIN_DIMENSIONS * 2) && numCentroids > PREFIX_TOPK_SIZE * 2 ? new PrefixScratch() : null;
+    final PrefixScratch maybeCreatePrefixScratch(int numCentroids, int dims) {
+        return dimension() >= (PREFIX_MIN_DIMENSIONS * 2) && numCentroids > PREFIX_TOPK_SIZE * 2
+            ? new PrefixScratch(prefixLength(dims))
+            : null;
     }
 
     /**
@@ -109,7 +111,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         int[] results
     ) throws IOException {
         final float[] distances = new float[4];
-        final PrefixScratch prefixScratch = maybeCreatePrefixScratch(centroids.length);
+        final PrefixScratch prefixScratch = maybeCreatePrefixScratch(centroids.length, dimension());
         boolean changed = false;
         for (int i = startOrd; i < endOrd; i++) {
             float[] vector = vectorValue(i);
@@ -375,7 +377,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         PrefixScratch scratch
     ) {
         final int dims = vector.length;
-        final int prefixLength = prefixLength(dims);
+        final int prefixLength = scratch.prefixLength;
         final int suffixLength = dims - prefixLength;
         final float[] topPrefixDistances = scratch.topPrefixDistances;
         final int[] topPrefixIds = scratch.topPrefixIds;
@@ -452,7 +454,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
 
     private static int computeBestCentroidPrefix(float[] vector, float[][] centroids, float[] distances, PrefixScratch scratch) {
         final int dims = vector.length;
-        final int prefixLength = prefixLength(dims);
+        final int prefixLength = scratch.prefixLength;
         final int suffixLength = dims - prefixLength;
         final float[] topPrefixDistances = scratch.topPrefixDistances;
         final int[] topPrefixIds = scratch.topPrefixIds;
@@ -545,9 +547,9 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         ids[i] = id;
     }
 
-    private record PrefixScratch(float[] topPrefixDistances, int[] topPrefixIds) {
-        public PrefixScratch() {
-            this(new float[PREFIX_TOPK_SIZE], new int[PREFIX_TOPK_SIZE]);
+    private record PrefixScratch(float[] topPrefixDistances, int[] topPrefixIds, int prefixLength) {
+        public PrefixScratch(int prefixLength) {
+            this(new float[PREFIX_TOPK_SIZE], new int[PREFIX_TOPK_SIZE], prefixLength);
         }
     }
 

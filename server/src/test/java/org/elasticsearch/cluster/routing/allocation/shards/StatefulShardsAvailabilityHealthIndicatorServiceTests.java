@@ -175,7 +175,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             List.of()
         );
         final var noGracePeriod = Settings.builder()
-            .put(ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
+            .put(ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME.getKey(), TimeValue.ZERO)
             .build();
         var service = createShardsAvailabilityIndicatorService(projectId, noGracePeriod, clusterState, Collections.emptyMap());
 
@@ -260,7 +260,12 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                     "This cluster has 1 creating primary shard.",
                     Map.of("creating_primaries", 1),
                     emptyList(),
-                    emptyList()
+                    List.of(
+                        new Diagnosis(
+                            ACTION_CHECK_ALLOCATION_EXPLAIN_API,
+                            List.of(new Diagnosis.Resource(INDEX, List.of("unreplicated-index")))
+                        )
+                    )
                 )
             )
         );
@@ -807,7 +812,12 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                     "This cluster has 1 creating primary shard, 1 creating replica shard.",
                     Map.of("creating_primaries", 1, "creating_replicas", 1),
                     emptyList(),
-                    emptyList()
+                    List.of(
+                        new Diagnosis(
+                            ACTION_CHECK_ALLOCATION_EXPLAIN_API,
+                            List.of(new Diagnosis.Resource(INDEX, List.of("restarting-index")))
+                        )
+                    )
                 )
             )
         );
@@ -877,7 +887,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         );
     }
 
-    public void testReplicaUnassignedWithinGracePeriod() {
+    public void testShouldBeGreenWhenReplicaUnassignedWithinGracePeriod() {
         final var acceptableReasons = List.of(
             UnassignedInfo.Reason.INDEX_CREATED,
             UnassignedInfo.Reason.REPLICA_ADDED,
@@ -901,7 +911,10 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             UnassignedInfo.Reason.PRIMARY_FAILED,
             UnassignedInfo.Reason.NODE_RESTARTING
         );
-        final var unassignedTimeWithinGracePeriod = new TimeValue(System.currentTimeMillis(), TimeUnit.MILLISECONDS);
+        final var unassignedTimeWithinGracePeriod = new TimeValue(
+            System.currentTimeMillis() + TimeValue.timeValueHours(1).getMillis(),
+            TimeUnit.MILLISECONDS
+        );
         for (int i = 0; i < 10; i++) {
             final var projectId = randomProjectIdOrDefault();
             final boolean isAcceptable = randomBoolean();
@@ -919,7 +932,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             );
             final var service = createShardsAvailabilityIndicatorService(
                 projectId,
-                Settings.builder().put(ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_GRACE_PERIOD.getKey(), "20s").build(),
+                Settings.builder().put(ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME.getKey(), "20s").build(),
                 clusterState,
                 Collections.emptyMap()
             );
@@ -942,7 +955,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         }
     }
 
-    public void testUnassignedNewInitialization() {
+    public void testShouldBeGreenWhenUnassignedNewInitialization() {
         for (int i = 0; i < 10; i++) {
             final var projectId = randomProjectIdOrDefault();
             final boolean isAcceptable = randomBoolean();

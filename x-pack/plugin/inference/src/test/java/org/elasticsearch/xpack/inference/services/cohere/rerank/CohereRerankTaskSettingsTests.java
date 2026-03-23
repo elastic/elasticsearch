@@ -123,14 +123,16 @@ public class CohereRerankTaskSettingsTests extends AbstractWireSerializingTestCa
 
     public void testUpdatedTaskSettings_WithMultipleNewValues_ReturnsUpdatedSettings() {
         var initialSettings = new CohereRerankTaskSettings(5, true, 10);
-        var newSettings = new HashMap<String, Object>(Map.of(
-            CohereRerankTaskSettings.RETURN_DOCUMENTS,
-            false,
-            CohereRerankTaskSettings.TOP_N_DOCS_ONLY,
-            7,
-            CohereRerankTaskSettings.MAX_CHUNKS_PER_DOC,
-            15
-        ));
+        var newSettings = new HashMap<String, Object>(
+            Map.of(
+                CohereRerankTaskSettings.RETURN_DOCUMENTS,
+                false,
+                CohereRerankTaskSettings.TOP_N_DOCS_ONLY,
+                7,
+                CohereRerankTaskSettings.MAX_CHUNKS_PER_DOC,
+                15
+            )
+        );
         CohereRerankTaskSettings updatedSettings = (CohereRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
         assertFalse(updatedSettings.getReturnDocuments());
         assertEquals(7, updatedSettings.getTopNDocumentsOnly().intValue());

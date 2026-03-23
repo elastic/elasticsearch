@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 144770
+summary: Allow multiple synsets per filter
+type: feature

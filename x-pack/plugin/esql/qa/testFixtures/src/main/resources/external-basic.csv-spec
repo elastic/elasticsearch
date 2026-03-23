@@ -842,6 +842,8 @@ book_no:keyword|title:text                           |description:text          
 
 
 operatorLikeRLike
+required_capability: external_command
+
 EXTERNAL "{{employees}}"
 | KEEP emp_no, first_name, job_positions
 | WHERE job_positions LIKE "Senior*"

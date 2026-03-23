@@ -21,9 +21,9 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchFailure;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
@@ -122,7 +122,7 @@ public class ReindexerTests extends ESTestCase {
         Exception anotherException = new Exception("another failure");
         BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(
             null,
-            List.of(new PaginatedHitSource.SearchFailure(exception), new PaginatedHitSource.SearchFailure(anotherException))
+            List.of(new BulkByPaginatedSearchFailure(exception), new BulkByPaginatedSearchFailure(anotherException))
         );
         wrapped.onResponse(response);
 
@@ -287,13 +287,13 @@ public class ReindexerTests extends ESTestCase {
 
     private BulkByScrollResponse reindexResponseWithBulkAndSearchFailures(
         final List<BulkItemResponse.Failure> bulkFailures,
-        List<PaginatedHitSource.SearchFailure> searchFailures
+        List<BulkByPaginatedSearchFailure> bulkByPaginatedSearchFailures
     ) {
         return new BulkByScrollResponse(
             TimeValue.ZERO,
             new BulkByScrollTask.Status(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0f, null, timeValueMillis(0)),
             bulkFailures,
-            searchFailures,
+            bulkByPaginatedSearchFailures,
             false
         );
     }

@@ -34,10 +34,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchFailure;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.PaginatedHitSource;
-import org.elasticsearch.index.reindex.PaginatedHitSource.SearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
@@ -317,10 +316,10 @@ public abstract class AbstractAsyncBulkByScrollAction<
     protected BulkByScrollResponse buildResponse(
         TimeValue took,
         List<BulkItemResponse.Failure> indexingFailures,
-        List<SearchFailure> searchFailures,
+        List<BulkByPaginatedSearchFailure> bulkByPaginatedSearchFailures,
         boolean timedOut
     ) {
-        return new BulkByScrollResponse(took, task.getStatus(), indexingFailures, searchFailures, timedOut);
+        return new BulkByScrollResponse(took, task.getStatus(), indexingFailures, bulkByPaginatedSearchFailures, timedOut);
     }
 
     /**
@@ -610,9 +609,13 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * Start terminating a request that finished non-catastrophically by refreshing the modified indices and then proceeding to
      * {@link #finishHim(Exception, List, List, boolean)}.
      */
-    void refreshAndFinish(List<Failure> indexingFailures, List<SearchFailure> searchFailures, boolean timedOut) {
+    void refreshAndFinish(
+        List<Failure> indexingFailures,
+        List<BulkByPaginatedSearchFailure> bulkByPaginatedSearchFailures,
+        boolean timedOut
+    ) {
         if (task.isCancelled() || false == mainRequest.isRefresh() || destinationIndices.isEmpty()) {
-            finishHim(null, indexingFailures, searchFailures, timedOut);
+            finishHim(null, indexingFailures, bulkByPaginatedSearchFailures, timedOut);
             return;
         }
         RefreshRequest refresh = new RefreshRequest();
@@ -621,7 +624,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         bulkClient.admin().indices().refresh(refresh, new ActionListener<>() {
             @Override
             public void onResponse(BroadcastResponse response) {
-                finishHim(null, indexingFailures, searchFailures, timedOut);
+                finishHim(null, indexingFailures, bulkByPaginatedSearchFailures, timedOut);
             }
 
             @Override
@@ -645,17 +648,22 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * Finish the request.
      * @param failure if non null then the request failed catastrophically with this exception
      * @param indexingFailures any indexing failures accumulated during the request
-     * @param searchFailures any search failures accumulated during the request
+     * @param bulkByPaginatedSearchFailures any search failures accumulated during the request
      * @param timedOut have any of the sub-requests timed out?
      */
-    protected void finishHim(Exception failure, List<Failure> indexingFailures, List<SearchFailure> searchFailures, boolean timedOut) {
+    protected void finishHim(
+        Exception failure,
+        List<Failure> indexingFailures,
+        List<BulkByPaginatedSearchFailure> bulkByPaginatedSearchFailures,
+        boolean timedOut
+    ) {
         logger.debug("[{}]: finishing without any catastrophic failures", task.getId());
         paginatedHitSource.close(threadPool.getThreadContext().preserveContext(() -> {
             if (failure == null) {
                 BulkByScrollResponse response = buildResponse(
                     timeValueMillis(System.currentTimeMillis() - startTimeEpochMillis.get()),
                     indexingFailures,
-                    searchFailures,
+                    bulkByPaginatedSearchFailures,
                     timedOut
                 );
                 listener.onResponse(response);

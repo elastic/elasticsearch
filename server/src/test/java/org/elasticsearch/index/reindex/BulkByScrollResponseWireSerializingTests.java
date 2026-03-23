@@ -156,22 +156,22 @@ public class BulkByScrollResponseWireSerializingTests extends AbstractWireSerial
         );
     }
 
-    private List<PaginatedHitSource.SearchFailure> randomSearchFailures() {
+    private List<BulkByPaginatedSearchFailure> randomSearchFailures() {
         return randomList(0, 5, this::randomSearchFailure);
     }
 
-    private List<PaginatedHitSource.SearchFailure> mutateSearchFailures(List<PaginatedHitSource.SearchFailure> searchFailures) {
-        List<PaginatedHitSource.SearchFailure> newFailures = new ArrayList<>(searchFailures);
+    private List<BulkByPaginatedSearchFailure> mutateSearchFailures(List<BulkByPaginatedSearchFailure> bulkByPaginatedSearchFailures) {
+        List<BulkByPaginatedSearchFailure> newFailures = new ArrayList<>(bulkByPaginatedSearchFailures);
         newFailures.add(randomSearchFailure());
         return newFailures;
     }
 
-    private PaginatedHitSource.SearchFailure randomSearchFailure() {
+    private BulkByPaginatedSearchFailure randomSearchFailure() {
         Throwable reason = randomException();
         String index = randomBoolean() ? randomAlphaOfLengthBetween(1, 10) : null;
         Integer shardId = randomBoolean() ? randomIntBetween(0, 100) : null;
         String nodeId = randomBoolean() ? randomAlphaOfLengthBetween(1, 10) : null;
-        return new PaginatedHitSource.SearchFailure(reason, index, shardId, nodeId);
+        return new BulkByPaginatedSearchFailure(reason, index, shardId, nodeId);
     }
 
     /**
@@ -271,8 +271,8 @@ public class BulkByScrollResponseWireSerializingTests extends AbstractWireSerial
 
         if (a.getSearchFailures().size() != b.getSearchFailures().size()) return false;
         for (int i = 0; i < a.getSearchFailures().size(); i++) {
-            PaginatedHitSource.SearchFailure fa = a.getSearchFailures().get(i);
-            PaginatedHitSource.SearchFailure fb = b.getSearchFailures().get(i);
+            BulkByPaginatedSearchFailure fa = a.getSearchFailures().get(i);
+            BulkByPaginatedSearchFailure fb = b.getSearchFailures().get(i);
             if (Objects.equals(fa.getIndex(), fb.getIndex()) == false) return false;
             if (Objects.equals(fa.getShardId(), fb.getShardId()) == false) return false;
             if (Objects.equals(fa.getNodeId(), fb.getNodeId()) == false) return false;

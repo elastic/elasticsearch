@@ -216,7 +216,7 @@ The following is a complete list of spatial relation operators available when se
 
 Each relation compares the **indexed** geometry in the document to the **query** geometry you supply. For `WITHIN`, the indexed shape must lie entirely inside the query shape (including on its boundary, per the implementation). For `CONTAINS`, the indexed shape must fully enclose the query shape.
 
-`INTERSECTS` is true when the two geometries share at least one point in the plane, including points in their interiors or on their boundaries (the same idea as [`ST_INTERSECTS`](/reference/query-languages/esql/functions-operators/spatial-functions/st_intersects.md) for geo types). `DISJOINT` is the negation of `INTERSECTS` for this implementation.
+`INTERSECTS` is true when the two geometries share at least one point in the plane, including points in their interiors or on their boundaries (the same idea as [`ST_INTERSECTS`](/reference/query-languages/esql/functions-operators/spatial-functions/st_intersects.md) for geo types). `DISJOINT` is the negation of `INTERSECTS`.
 
 `WITHIN` and `CONTAINS` express **topological containment in two-dimensional longitude–latitude space**. They use the same naming as common GIS APIs but are **not** guaranteed to match every detail of the OGC Simple Features model or the **DE-9IM** predicate matrix. If you rely on strict standard semantics, validate behavior in your environment.
 

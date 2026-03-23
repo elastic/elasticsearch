@@ -9,7 +9,7 @@ mapped_pages:
 
 Filter documents indexed using either the [`geo_shape`](/reference/elasticsearch/mapping-reference/geo-shape.md) or the [`geo_point`](/reference/elasticsearch/mapping-reference/geo-point.md) type.
 
-The `geo_shape` query uses the same [index](/reference/elasticsearch/mapping-reference/geo-shape.md#geoshape-indexing-approach) as the `geo_shape` or `geo_point` mapping to find documents that have a shape that is related to the query shape, using a specified [spatial relationship](#geo-shape-spatial-relations): either intersects, contains, within, and disjoint.
+The `geo_shape` query uses the same [index](/reference/elasticsearch/mapping-reference/geo-shape.md#geoshape-indexing-approach) as the `geo_shape` or `geo_point` mapping to find documents that have a shape that is related to the query shape, using a specified [spatial relationship](#geo-shape-spatial-relations): either intersects, contains, within, or disjoint.
 
 The query supports two ways of defining the query shape, either by providing a whole shape definition, or by referencing the name of a shape pre-indexed in another index. Both formats are defined below with examples.
 

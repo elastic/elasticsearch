@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.List;
@@ -144,6 +145,7 @@ public class Approximation {
         Filter.class,
         Grok.class,
         Insist.class,
+        LocalRelation.class,
         MvExpand.class,
         OrderBy.class,
         Project.class,
@@ -316,7 +318,7 @@ public class Approximation {
 
     Approximation(LogicalPlan logicalPlan, ApproximationSettings settings) {
         this.logicalPlan = logicalPlan;
-        this.queryProperties = verifyPlan(logicalPlan);
+        this.queryProperties = verifyPlanOrThrow(logicalPlan);
 
         if (settings.rows() != null) {
             sampleRowCount = settings.rows();

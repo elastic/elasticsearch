@@ -93,4 +93,17 @@ public class ESWordnetSynonymParserTests extends ESTokenStreamTestCase {
         StringReader rulesReader = new StringReader(rules);
         assertThrows(CircuitBreakingException.class, () -> parser.parse(rulesReader));
     }
+
+    public void testCircuitBreakerDuringBuild() throws IOException, ParseException {
+        TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
+
+        ESWordnetSynonymParser parser = new ESWordnetSynonymParser(true, false, false, new StandardAnalyzer(), circuitBreaker);
+        String rules = """
+            s(100000001,1,'foo',a,1,0).
+            s(100000001,2,'bar',a,1,0).""";
+        parser.parse(new StringReader(rules));
+
+        circuitBreaker.startBreaking();
+        assertThrows(CircuitBreakingException.class, () -> parser.build());
+    }
 }

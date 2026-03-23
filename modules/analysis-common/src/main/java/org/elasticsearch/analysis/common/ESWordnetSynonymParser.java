@@ -12,6 +12,7 @@ package org.elasticsearch.analysis.common;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.analysis.synonym.WordnetSynonymParser;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
@@ -24,6 +25,7 @@ public class ESWordnetSynonymParser extends WordnetSynonymParser {
 
     private final boolean lenient;
     private final CircuitBreaker circuitBreaker;
+    private final ESSynonymMapBuilder esBuilder;
 
     private int ruleCount = 0;
 
@@ -31,6 +33,7 @@ public class ESWordnetSynonymParser extends WordnetSynonymParser {
         super(dedup, expand, analyzer);
         this.lenient = lenient;
         this.circuitBreaker = circuitBreaker;
+        this.esBuilder = new ESSynonymMapBuilder(dedup, circuitBreaker);
     }
 
     @Override
@@ -47,8 +50,13 @@ public class ESWordnetSynonymParser extends WordnetSynonymParser {
                 circuitBreaker.addEstimateBytesAndMaybeBreak(0L, "Synonyms");
             }
 
-            super.add(input, output, includeOrig);
+            esBuilder.add(input, output, includeOrig);
         }
+    }
+
+    @Override
+    public SynonymMap build() throws IOException {
+        return esBuilder.build();
     }
 
     @Override

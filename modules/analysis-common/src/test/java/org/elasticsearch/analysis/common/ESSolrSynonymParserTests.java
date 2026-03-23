@@ -86,4 +86,17 @@ public class ESSolrSynonymParserTests extends ESTokenStreamTestCase {
         StringReader rulesReader = new StringReader(rules);
         assertThrows(CircuitBreakingException.class, () -> parser.parse(rulesReader));
     }
+
+    public void testCircuitBreakerDuringBuild() throws IOException, ParseException {
+        TestCircuitBreaker circuitBreaker = new TestCircuitBreaker();
+
+        ESSolrSynonymParser parser = new ESSolrSynonymParser(true, false, false, new StandardAnalyzer(), circuitBreaker);
+        String rules = """
+            foo, bar, baz
+            """;
+        parser.parse(new StringReader(rules));
+
+        circuitBreaker.startBreaking();
+        assertThrows(CircuitBreakingException.class, () -> parser.build());
+    }
 }

@@ -115,7 +115,8 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     private enum InferenceResultType {
         NONE,
         SPARSE_EMBEDDING,
-        TEXT_EMBEDDING
+        TEXT_EMBEDDING,
+        EMBEDDING
     }
 
     private Integer queryTokenCount;
@@ -257,6 +258,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             case NONE -> assertThat(nestedQuery.getChildQuery(), instanceOf(MatchNoDocsQuery.class));
             case SPARSE_EMBEDDING -> assertSparseEmbeddingLuceneQuery(nestedQuery.getChildQuery());
             case TEXT_EMBEDDING -> assertTextEmbeddingLuceneQuery(nestedQuery.getChildQuery());
+            case EMBEDDING -> assertTextEmbeddingLuceneQuery(nestedQuery.getChildQuery());
         }
     }
 
@@ -325,6 +327,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             case NONE -> randomBoolean() ? generateSparseEmbeddingInferenceResponse(query) : generateTextEmbeddingInferenceResponse();
             case SPARSE_EMBEDDING -> generateSparseEmbeddingInferenceResponse(query);
             case TEXT_EMBEDDING -> generateTextEmbeddingInferenceResponse();
+            case EMBEDDING -> generateTextEmbeddingInferenceResponse();
         };
 
         @SuppressWarnings("unchecked")  // We matched the method above.
@@ -586,6 +589,13 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                 TaskType.TEXT_EMBEDDING,
                 TEXT_EMBEDDING_DIMENSION_COUNT,
                 // l2_norm similarity is required for bit embeddings
+                denseVectorElementType == DenseVectorFieldMapper.ElementType.BIT ? SimilarityMeasure.L2_NORM : SimilarityMeasure.COSINE,
+                denseVectorElementType
+            );
+            case EMBEDDING -> new MinimalServiceSettings(
+                "my-service",
+                TaskType.EMBEDDING,
+                TEXT_EMBEDDING_DIMENSION_COUNT,
                 denseVectorElementType == DenseVectorFieldMapper.ElementType.BIT ? SimilarityMeasure.L2_NORM : SimilarityMeasure.COSINE,
                 denseVectorElementType
             );

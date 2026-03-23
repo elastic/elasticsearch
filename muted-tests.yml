@@ -246,18 +246,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
   method: testTransform {class org.elasticsearch.xpack.esql.plan.logical.MMR}
   issue: https://github.com/elastic/elasticsearch/issues/142674
-- class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
-  method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
-  issue: https://github.com/elastic/elasticsearch/issues/142079
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
   issue: https://github.com/elastic/elasticsearch/issues/143407
-- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
-  method: testWriteLargeBlob
-  issue: https://github.com/elastic/elasticsearch/issues/143551
 - class: org.elasticsearch.xpack.security.support.MetadataFlattenedMigrationIntegTests
   method: testMigrationWithConcurrentUpdates
   issue: https://github.com/elastic/elasticsearch/issues/143674
@@ -375,17 +369,25 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
   issue: https://github.com/elastic/elasticsearch/issues/144699
-- class: org.elasticsearch.index.mapper.TsidExtractingIdFieldMapperTests
-  method: testParsedDescriptionWithIndexDimensions
-  issue: https://github.com/elastic/elasticsearch/issues/144678
 - class: org.elasticsearch.index.store.StoreDirectoryMetricsIT
   method: testDirectoryMetrics
   issue: https://github.com/elastic/elasticsearch/issues/144702
-- class: org.elasticsearch.index.mapper.TsidExtractingIdFieldMapperTests
-  issue: https://github.com/elastic/elasticsearch/issues/144678
 - class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
   issue: https://github.com/elastic/elasticsearch/issues/144709
-
+- class: org.elasticsearch.index.mapper.TsidExtractingIdFieldMapperTests
+  issue: https://github.com/elastic/elasticsearch/issues/144678
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-avg-over-time.avg_over_time_of_integer}
+  issue: https://github.com/elastic/elasticsearch/issues/144719
+- class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceTests
+  method: testBatchedIndexCreationAndReroute
+  issue: https://github.com/elastic/elasticsearch/issues/144723
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  method: testEndpointGetsUpdated_GivenFingerprintChanges_FromNonNull
+  issue: https://github.com/elastic/elasticsearch/issues/144731
+- class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
+  method: testProcessOnceOnPrimary
+  issue: https://github.com/elastic/elasticsearch/issues/144743
 
 # Examples:
 #

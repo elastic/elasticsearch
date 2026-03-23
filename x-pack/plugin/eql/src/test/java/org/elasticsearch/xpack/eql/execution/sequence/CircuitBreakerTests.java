@@ -470,8 +470,7 @@ public class CircuitBreakerTests extends ESTestCase {
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY,
-                searchRequest.pointInTimeBuilder().getEncodedId(),
-                null
+                searchRequest.pointInTimeBuilder().getEncodedId()
             );
 
             if (searchRequestsRemainingCount() == 1) {
@@ -524,8 +523,7 @@ public class CircuitBreakerTests extends ESTestCase {
                         0,
                         ShardSearchFailure.EMPTY_ARRAY,
                         SearchResponse.Clusters.EMPTY,
-                        searchRequest.pointInTimeBuilder().getEncodedId(),
-                        null
+                        searchRequest.pointInTimeBuilder().getEncodedId()
                     )
                 );
             } else {
@@ -563,8 +561,7 @@ public class CircuitBreakerTests extends ESTestCase {
                             0,
                             failures,
                             SearchResponse.Clusters.EMPTY,
-                            searchRequest.pointInTimeBuilder().getEncodedId(),
-                            null
+                            searchRequest.pointInTimeBuilder().getEncodedId()
                         )
                     );
                 }

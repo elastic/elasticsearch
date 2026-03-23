@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
@@ -686,11 +687,15 @@ public class IndexRoutingTests extends ESTestCase {
     public void testRoutingPathBwcAfterTsidBasedRouting() throws IOException {
         boolean useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean();
         TimeSeriesRoutingFixture fixture = indexRoutingForTimeSeriesDimensions(
-            IndexVersion.current(),
+            IndexVersionUtils.randomVersionBetween(
+                IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)
+            ),
             8,
             "dim.*,other.*,top",
             useSyntheticId
         );
+        assertFalse(TsidBuilder.useSingleBytePrefixLayout(fixture.routing.creationVersion));
         /*
          * These are the expected shards after tsid based routing. If these values change
          * time series will be routed to unexpected shards. You may modify
@@ -710,6 +715,28 @@ public class IndexRoutingTests extends ESTestCase {
         assertIndexShard(fixture, Map.of("dim.a", "1"), 5);
         assertIndexShard(fixture, Map.of("dim.a", true), 5);
         assertIndexShard(fixture, Map.of("dim.a", "true"), 6);
+    }
+
+    public void testRoutingPathWithSingleBytePrefixTsid() throws IOException {
+        boolean useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean();
+        TimeSeriesRoutingFixture fixture = indexRoutingForTimeSeriesDimensions(
+            IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG),
+            8,
+            "dim.*,other.*,top",
+            useSyntheticId
+        );
+        assumeTrue("require single-byte-prefix tsid", TsidBuilder.useSingleBytePrefixLayout(fixture.routing.creationVersion));
+        assertIndexShard(fixture, Map.of("dim", Map.of("a", "a")), 5);
+        assertIndexShard(fixture, Map.of("dim", Map.of("a", "b")), 3);
+        assertIndexShard(fixture, Map.of("dim", Map.of("c", "d")), 7);
+        assertIndexShard(fixture, Map.of("other", Map.of("a", "a")), 1);
+        assertIndexShard(fixture, Map.of("top", "a"), 6);
+        assertIndexShard(fixture, Map.of("dim", Map.of("c", "d"), "top", "b"), 0);
+        assertIndexShard(fixture, Map.of("dim.a", "a"), 5);
+        assertIndexShard(fixture, Map.of("dim.a", 1), 2);
+        assertIndexShard(fixture, Map.of("dim.a", "1"), 0);
+        assertIndexShard(fixture, Map.of("dim.a", true), 3);
+        assertIndexShard(fixture, Map.of("dim.a", "true"), 1);
     }
 
     public void testRoutingPathReadWithInvalidString() {
@@ -1236,7 +1263,7 @@ public class IndexRoutingTests extends ESTestCase {
      */
     private int hash(IndexRouting routing, List<Object> keysAndValues) {
         if (routing instanceof IndexRouting.ExtractFromSource.ForIndexDimensions) {
-            return tsidBasedRoutingHash(keysAndValues);
+            return tsidBasedRoutingHash(keysAndValues, routing.creationVersion);
         }
         return legacyRoutingHash(keysAndValues);
     }
@@ -1252,7 +1279,7 @@ public class IndexRoutingTests extends ESTestCase {
         return hash;
     }
 
-    private static int tsidBasedRoutingHash(List<Object> keysAndValues) {
+    private static int tsidBasedRoutingHash(List<Object> keysAndValues, IndexVersion indexVersion) {
         TsidBuilder tsidBuilder = new TsidBuilder();
         for (int i = 0; i < keysAndValues.size(); i += 2) {
             String key = keysAndValues.get(i).toString();
@@ -1271,6 +1298,6 @@ public class IndexRoutingTests extends ESTestCase {
                 throw new IllegalArgumentException("Unsupported value type for TSID routing: " + value.getClass());
             }
         }
-        return StringHelper.murmurhash3_x86_32(tsidBuilder.buildTsid(), 0);
+        return StringHelper.murmurhash3_x86_32(tsidBuilder.buildTsid(indexVersion), 0);
     }
 }

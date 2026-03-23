@@ -13,8 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
@@ -25,7 +23,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -147,40 +144,6 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
 
     public static InternalAggregations readFrom(StreamInput in) throws IOException {
         return from(in.readNamedWriteableCollectionAsList(InternalAggregation.class));
-    }
-
-    /**
-     * Appends SearchHits from all top_hits aggregations in the tree to the given collection.
-     * Does not take a reference; use on the shard where top_hits were already registered with
-     * {@link org.elasticsearch.search.query.QuerySearchResult#registerTopHitsForRelease}.
-     */
-    public static void addTopHitsToReleaseList(InternalAggregations aggs, Collection<SearchHits> out) {
-        addTopHitsToReleaseList(aggs, out, false);
-    }
-
-    /**
-     * Appends SearchHits from all top_hits aggregations in the tree to the given collection.
-     * When {@code takeRef} is true, takes a reference for each so the collection owner can decRef on release
-     * (use when the tree was expanded from the wire / reduce context).
-     */
-    public static void addTopHitsToReleaseList(InternalAggregations aggs, Collection<SearchHits> out, boolean takeRef) {
-        if (aggs == null) {
-            return;
-        }
-        addTopHitsToReleaseListImpl(aggs, out, takeRef);
-    }
-
-    private static void addTopHitsToReleaseListImpl(InternalAggregations aggs, Collection<SearchHits> out, boolean takeRef) {
-        for (InternalAggregation agg : aggs.asList()) {
-            if (agg instanceof InternalTopHits topHits) {
-                SearchHits h = topHits.getHits();
-                if (takeRef) {
-                    h.incRef();
-                }
-                out.add(h);
-            }
-            agg.forEachBucket(sub -> addTopHitsToReleaseListImpl(sub, out, takeRef));
-        }
     }
 
     @Override

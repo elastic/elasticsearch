@@ -259,11 +259,67 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     }
 
     /**
-     * Translates an AcrossSeriesAggregate (sum, avg, max, min, count, etc.).
-     * Creates TimeSeriesAggregate if child has no aggregation or Aggregate if child already aggregated.
-     * NOTE: Only AcrossSeriesAggregate nodes create plan-level aggregation nodes.
-     * WithinSeriesAggregate and other PromqlFunctionCall nodes produce
-     * expressions embedded inside the aggregation, but do not create Aggregate plan nodes themselves.
+     * Translates {@code AcrossSeriesAggregate} to an ESQL {@code Aggregate}.
+     * <p>
+     * PromQL aggregation shape is dynamic and can't be expressed in ESQL directly without enumerating the full label set.
+     * We avoid that at plan time (for performance), so the translator carries aggregation shape as a triplet
+     * {@code (G, O, X)} where G = grouping labels, O = output labels, X = excluded labels.
+     * G is either a concrete set of label names or an opaque runtime representation {@code T...} (backed by _timeseries).
+     * Labels in O but not in G are null-filled in the output.
+     * <p>
+     * <ul>
+     *   <li>WITHOUT(E): (G, O, X) -> (G\E, G\E, X u E)</li>
+     *   <li>BY(W): (G, O, X) -> (W\X, W, X)</li>
+     * </ul>
+     * <p>
+     * Leaf state is {@code [G=T..., O=T..., X={}]} (all labels present but unknown by name).
+     * <p>
+     * Examples:
+     *
+     * <pre>
+     * sum without(pod) (
+     *   avg without(region) (
+     *     cpu_util
+     *   ) [G=T...\{region}, O=T...\{region}, X={region}]
+     * ) [G=T...\{region,pod}, O=T...\{region,pod}, X={region,pod}]
+     * </pre>
+     *
+     * <pre>
+     * sum by(cluster,region) (
+     *   avg without(region) (
+     *     cpu_util
+     *   ) [G=T...\{region}, O=T...\{region}, X={region}]
+     * ) [G={cluster}, O={cluster,region}, X={region}]   // region is null-filled
+     * </pre>
+     *
+     * <pre>
+     * max without(cluster) (
+     *   sum by(cluster,region) (
+     *     avg without(region) (
+     *       cpu_util
+     *     ) [G=T...\{region}, O=T...\{region}, X={region}]
+     *   ) [G={cluster}, O={cluster,region}, X={region}] // region is null-filled
+     * ) [G={}, O={}, X={region,cluster}]
+     * </pre>
+     *
+     * <pre>
+     * sum without(pod) (
+     *   avg by(cluster,pod) (
+     *     cpu_util
+     *   ) [G={cluster,pod}, O={cluster,pod}, X={}]
+     * ) [G={cluster}, O={cluster}, X={pod}]
+     * </pre>
+     * <pre>
+     * sum by(cluster) (
+     *   avg by(cluster,pod) (
+     *     cpu_util
+     *   ) [G={cluster,pod}, O={cluster,pod}, X={}]
+     * ) [G={cluster}, O={cluster}, X={}]
+     * </pre>
+     *
+     * <p>Only {@code AcrossSeriesAggregate} creates plan-level aggregation nodes.
+     * {@code WithinSeriesAggregate} and other {@code PromqlFunctionCall} nodes are
+     * lowered to expressions and folded into the aggregate.
      */
     private TranslationResult translateAcrossSeriesAggregate(AcrossSeriesAggregate agg, LogicalPlan currentPlan, TranslationContext ctx) {
         List<Attribute> groupingLabels = normalizeLabels(agg.groupings());

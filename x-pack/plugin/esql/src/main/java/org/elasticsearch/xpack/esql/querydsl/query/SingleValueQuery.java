@@ -24,7 +24,7 @@ import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -129,7 +129,7 @@ public class SingleValueQuery extends Query {
         return next.containsPlan();
     }
 
-    public abstract static class AbstractBuilder extends AbstractQueryBuilder<AbstractBuilder> {
+    public abstract static class AbstractBuilder extends LeafQueryBuilder<AbstractBuilder> {
         private final QueryBuilder next;
         private final String field;
         private final Source source;

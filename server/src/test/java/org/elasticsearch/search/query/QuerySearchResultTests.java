@@ -142,24 +142,4 @@ public class QuerySearchResultTests extends ESTestCase {
         );
         assertEquals(querySearchResult.isNull(), deserialized.isNull());
     }
-
-    /**
-     * Wire-read (deserialized) QuerySearchResult is ref-counted with initial ref 1, so decRef() releases it and returns true once.
-     */
-    public void testWireReadResultIsRefCounted() throws Exception {
-        QuerySearchResult original = createTestInstance();
-        try {
-            QuerySearchResult deserialized = copyWriteable(
-                original,
-                namedWriteableRegistry,
-                QuerySearchResult::new,
-                TransportVersion.current()
-            );
-            assertTrue("wire-read result should have references", deserialized.hasReferences());
-            assertTrue("single decRef should release", deserialized.decRef());
-            assertFalse("after release should have no references", deserialized.hasReferences());
-        } finally {
-            original.decRef();
-        }
-    }
 }

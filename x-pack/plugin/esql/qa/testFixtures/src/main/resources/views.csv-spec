@@ -420,3 +420,40 @@ rehired_count:long | is_rehired:boolean
 11                 | true
 12                 | false
 ;
+
+// Testing views used inside subqueries
+// These tests verify that view references inside user-written subqueries are resolved correctly.
+// The parser produces a plain UnionAll for "FROM index, (FROM ...)" syntax, and ViewResolver
+// must recurse into it to resolve any view references in the subquery children.
+
+viewInSubquery
+required_capability: subquery_in_from_command
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM sample_data, (FROM country_airports)
+| STATS sd = COUNT(client_ip), ca = COUNT(count), total = COUNT()
+;
+
+sd:long | ca:long | total:long
+7       | 15      | 22
+;
+
+viewInSubqueryMultipleRows
+required_capability: subquery_in_from_command
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM sample_data, (FROM country_airports)
+| STATS total = COUNT() BY country
+| SORT total DESC, country ASC
+| LIMIT 5
+;
+
+total:long | country:keyword
+7          | null
+1          | Argentina
+1          | Australia
+1          | Brazil
+1          | Canada
+;

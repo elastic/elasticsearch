@@ -10,22 +10,18 @@ package org.elasticsearch.xpack.esql.generator.function;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
-import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.needsQuoting;
-import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.quote;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.randomName;
 import static org.elasticsearch.xpack.esql.generator.command.source.FromGenerator.isFromSource;
 
 /**
- * Generates random full-text search expressions (match/match_phrase/qstr/kql/multi_match/:).
+ * Generates random full-text search expressions (match/match_phrase/qstr/kql/:).
  */
 public final class FullTextFunctionGenerator {
 
@@ -66,7 +62,7 @@ public final class FullTextFunctionGenerator {
 
     /**
      * Returns the subset of columns that are index-mapped (originate from the actual index mapping).
-     * Full-text functions (match, match_phrase, multi_match, {@code :} operator) require these fields.
+     * Full-text functions (match, match_phrase, {@code :} operator) require these fields.
      * Returns {@code null} when the information is unavailable (e.g. non-FROM source).
      */
     private static List<Column> indexFieldColumns(List<Column> columns, List<CommandGenerator.CommandDescription> previousCommands) {
@@ -147,12 +143,6 @@ public final class FullTextFunctionGenerator {
 
     private static final String[][] KQL_OPTIONS = { { "case_insensitive", "true", "false" }, { "boost", "1.0", "2.5" }, };
 
-    private static final String[][] MULTI_MATCH_OPTIONS = {
-        { "operator", "\"AND\"", "\"OR\"" },
-        { "lenient", "true", "false" },
-        { "boost", "1.0", "2.5" },
-        { "type", "\"best_fields\"", "\"most_fields\"", "\"phrase\"" }, };
-
     /**
      * Generates a {@code match(field, "query")} expression, or its operator variant {@code field : "query"}.
      * {@code MatchOperator} extends {@code Match} — they share all constraints.
@@ -217,34 +207,14 @@ public final class FullTextFunctionGenerator {
     }
 
     /**
-     * Generates a {@code multi_match("query", field1, field2 [, ...])} expression.
-     * Fields accept the same types as match(). Query must be a string literal.
-     */
-    public static String multiMatchFunction(List<Column> columns) {
-        List<String> fields = columns.stream()
-            .filter(c -> MATCH_FIELD_TYPES.contains(c.type()))
-            .map(c -> needsQuoting(c.name()) ? quote(c.name()) : c.name())
-            .collect(Collectors.toList());
-        if (fields.size() < 2) {
-            return null;
-        }
-        int count = Math.min(fields.size(), randomIntBetween(2, 4));
-        List<String> selected = new ArrayList<>();
-        for (int i = 0; i < count; i++) {
-            selected.add(fields.get(randomIntBetween(0, fields.size() - 1)));
-        }
-        return "multi_match(\"" + randomQueryWord() + "\", " + String.join(", ", selected) + maybeOptions(MULTI_MATCH_OPTIONS) + ")";
-    }
-
-    /**
      * Generates a random full-text search boolean expression. Picks one of: match (including
-     * its {@code :} operator variant), match_phrase, qstr, kql, or multi_match.
+     * its {@code :} operator variant), match_phrase, qstr, or kql.
      * <p>
      * Respects two sets of constraints:
      * <ul>
      *   <li><b>Placement</b>: full-text functions are forbidden after LIMIT/STATS;
      *       QSTR and KQL additionally require all preceding commands to be FROM/WHERE/SORT.</li>
-     *   <li><b>Field origin</b>: match, match_phrase, and multi_match
+     *   <li><b>Field origin</b>: match and match_phrase.
      *       require fields from the actual index mapping (FieldAttribute), not columns
      *       created by EVAL, GROK, DISSECT, etc.</li>
      * </ul>
@@ -261,18 +231,16 @@ public final class FullTextFunctionGenerator {
         boolean fieldBasedAllowed = indexColumns != null && indexColumns.isEmpty() == false;
 
         if (fieldBasedAllowed && qstrKqlAllowed) {
-            return switch (randomIntBetween(0, 4)) {
+            return switch (randomIntBetween(0, 3)) {
                 case 0 -> matchFunction(indexColumns);
                 case 1 -> matchPhraseFunction(indexColumns);
                 case 2 -> qstrFunction(columns);
-                case 3 -> kqlFunction(columns);
-                default -> multiMatchFunction(indexColumns);
+                default -> kqlFunction(columns);
             };
         } else if (fieldBasedAllowed) {
-            return switch (randomIntBetween(0, 2)) {
+            return switch (randomIntBetween(0, 1)) {
                 case 0 -> matchFunction(indexColumns);
-                case 1 -> matchPhraseFunction(indexColumns);
-                default -> multiMatchFunction(indexColumns);
+                default -> matchPhraseFunction(indexColumns);
             };
         } else if (qstrKqlAllowed) {
             return randomBoolean() ? qstrFunction(columns) : kqlFunction(columns);

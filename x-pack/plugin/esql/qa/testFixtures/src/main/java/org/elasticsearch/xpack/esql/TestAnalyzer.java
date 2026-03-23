@@ -15,22 +15,30 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
+import org.elasticsearch.xpack.esql.datasources.FileSet;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
+import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -41,6 +49,7 @@ import java.util.function.Supplier;
 
 import static junit.framework.Assert.assertTrue;
 import static org.elasticsearch.test.ESTestCase.expectThrows;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.toQueryParams;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -52,7 +61,7 @@ import static org.hamcrest.Matchers.instanceOf;
  *     <li>{@link #query} for successful analysis
  *     <li>{@link #error} for analysis errors
  *     <li>{@link #buildAnalyzer} for building {@link Analyzer} for advanced usage
- *     <li>{@link #buildContext} for building a {@link MutableAnalyzerContext} for
+ *     <li>{@link #buildContext} for building an {@link AnalyzerContext} for
  *         even more advanced usage
  * </ul>
  */
@@ -61,42 +70,78 @@ public class TestAnalyzer {
     private EsqlFunctionRegistry functionRegistry = EsqlTestUtils.TEST_FUNCTION_REGISTRY;
     private final Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
     private final Map<String, IndexResolution> lookupResolution = new HashMap<>();
-    private EnrichResolution enrichResolution = new EnrichResolution();
-    private InferenceResolution inferenceResolution = InferenceResolution.EMPTY;
+    private final EnrichResolution enrichResolution = new EnrichResolution();
+    private final InferenceResolution.Builder inferenceResolution = InferenceResolution.builder();
     private UnmappedResolution unmappedResolution = UNMAPPED_FIELDS.defaultValue();
     private TimestampBounds timestampBounds;
     private Supplier<TransportVersion> minimumTransportVersion = TransportVersionUtils::randomCompatibleVersion;
+    private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
     private boolean stripErrorPrefix;
 
     TestAnalyzer() {}
 
+    /**
+     * Set the {@link Configuration} used for the query.
+     */
     public TestAnalyzer configuration(Configuration configuration) {
         this.configuration = configuration;
         return this;
     }
 
+    protected Configuration configuration() {
+        return configuration;
+    }
+
+    /**
+     * Set the {@link EsqlFunctionRegistry} use to resolve functions.
+     */
     public TestAnalyzer functionRegistry(EsqlFunctionRegistry functionRegistry) {
         this.functionRegistry = functionRegistry;
         return this;
     }
 
+    /**
+     * Add an index to the query.
+     */
     public TestAnalyzer addIndex(String pattern, IndexResolution resolution) {
         this.indexResolutions.put(new IndexPattern(Source.EMPTY, pattern), resolution);
         return this;
     }
 
-    public TestAnalyzer addIndex(EsIndex index) {
-        return addIndex(IndexResolution.valid(index));
-    }
-
+    /**
+     * Add an index to the query.
+     */
     public TestAnalyzer addIndex(IndexResolution resolution) {
         return addIndex(resolution.get().name(), resolution);
     }
 
     /**
-     * Adds the standard set of subquery index resolutions used by many analyzer tests.
+     * Add an index to the query.
      */
-    public TestAnalyzer addAnalysisTestsIndexResolutions() {
+    public TestAnalyzer addIndex(EsIndex index) {
+        return addIndex(IndexResolution.valid(index));
+    }
+
+    /**
+     * Adds an index with empty resolution (used for pruned subqueries).
+     */
+    public TestAnalyzer addRemoteMissingIndex() {
+        addIndex("remote:missingIndex", IndexResolution.EMPTY_SUBQUERY);
+        return this;
+    }
+
+    /**
+     * Adds an index with empty mapping, indexNameWithModes, originalIndices and concreteIndices.
+     */
+    public TestAnalyzer addEmptyIndex() {
+        addIndex("empty_index", IndexResolution.empty("empty_index"));
+        return this;
+    }
+
+    /**
+     * Adds an index with empty mapping but valid indexNameWithModes, originalIndices and concreteIndices.
+     */
+    public TestAnalyzer addNoFieldsIndex() {
         String noFieldsIndexName = "no_fields_index";
         EsIndex noFieldsIndex = new EsIndex(
             noFieldsIndexName,
@@ -106,13 +151,6 @@ public class TestAnalyzer {
             Map.of("", List.of(noFieldsIndexName)),
             Set.of()
         );
-        addIndex("languages", "mapping-languages.json");
-        addIndex("sample_data", "mapping-sample_data.json");
-        addIndex("test_mixed_types", "mapping-default-incompatible.json");
-        addIndex("colors", "mapping-colors.json");
-        addIndex("k8s", "k8s-downsampled-mappings.json", IndexMode.TIME_SERIES);
-        addIndex("remote:missingIndex", IndexResolution.EMPTY_SUBQUERY);
-        addIndex("empty_index", IndexResolution.empty("empty_index"));
         addIndex(noFieldsIndexName, IndexResolution.valid(noFieldsIndex));
         return this;
     }
@@ -124,6 +162,9 @@ public class TestAnalyzer {
         return addIndex(name, mappingFile, IndexMode.STANDARD);
     }
 
+    /**
+     * Adds an index resolution by loading the mapping from a resource file.
+     */
     public TestAnalyzer addIndex(String name, String mappingFile, IndexMode indexMode) {
         return addIndex(name, loadMapping(mappingFile, name, indexMode));
     }
@@ -143,11 +184,95 @@ public class TestAnalyzer {
     }
 
     /**
+     * Adds the languages index.
+     */
+    public TestAnalyzer addLanguages() {
+        return addIndex("languages", "mapping-languages.json");
+    }
+
+    /**
+     * Adds the languages_lookup lookup index.
+     */
+    public TestAnalyzer addLanguagesLookup() {
+        return addLookupIndex("languages_lookup", "mapping-languages.json");
+    }
+
+    /**
+     * Adds the sample_data index.
+     */
+    public TestAnalyzer addSampleData() {
+        return addIndex("sample_data", "mapping-sample_data.json");
+    }
+
+    /**
+     * Adds the sample_data_lookup lookup index.
+     */
+    public TestAnalyzer addSampleDataLookup() {
+        return addLookupIndex("sample_data_lookup", "mapping-sample_data.json");
+    }
+
+    /**
+     * Adds the test_lookup lookup index.
+     */
+    public TestAnalyzer addTestLookup() {
+        return addLookupIndex("test_lookup", "mapping-basic.json");
+    }
+
+    /**
+     * Adds the spatial_lookup lookup index.
+     */
+    public TestAnalyzer addSpatialLookup() {
+        return addLookupIndex("spatial_lookup", "mapping-multivalue_geometries.json");
+    }
+
+    /**
+     * Adds the test index with mapping-default.json.
+     */
+    public TestAnalyzer addDefaultIndex() {
+        return addIndex("test", "mapping-default.json");
+    }
+
+    /**
+     * Adds the airports index.
+     */
+    public TestAnalyzer addAirports() {
+        return addIndex("airports", "mapping-airports.json");
+    }
+
+    /**
+     * Adds the test_mixed_types index with mapping-default-incompatible.json.
+     */
+    public TestAnalyzer addDefaultIncompatible() {
+        return addIndex("test_mixed_types", "mapping-default-incompatible.json");
+    }
+
+    /**
+     * Adds the k8s index with k8s-mappings.json in time series mode.
+     */
+    public TestAnalyzer addK8s() {
+        return addIndex("k8s", "k8s-mappings.json", IndexMode.TIME_SERIES);
+    }
+
+    /**
+     * Adds the k8s index with k8s-downsampled-mappings.json in time series mode.
+     */
+    public TestAnalyzer addK8sDownsampled() {
+        return addIndex("k8s", "k8s-downsampled-mappings.json", IndexMode.TIME_SERIES);
+    }
+
+    /**
+     * Adds a lookup index.
+     */
+    public TestAnalyzer addLookupIndex(String name, IndexResolution resolution) {
+        this.lookupResolution.put(name, resolution);
+        return this;
+    }
+
+    /**
      * Adds a lookup index.
      */
     public TestAnalyzer addLookupIndex(IndexResolution resolution) {
-        this.lookupResolution.put(resolution.get().name(), resolution);
-        return this;
+        return addLookupIndex(resolution.get().name(), resolution);
     }
 
     /**
@@ -158,14 +283,8 @@ public class TestAnalyzer {
     }
 
     /**
-     * Adds the standard set of lookup resolutions used by many analyzer tests.
+     * Add an error resolving enrich indices.
      */
-    public TestAnalyzer addAnalysisTestsLookupResolutions() {
-        addLookupIndex("languages_lookup", "mapping-languages.json");
-        addLookupIndex("test_lookup", "mapping-basic.json");
-        return addLookupIndex("spatial_lookup", "mapping-multivalue_geometries.json");
-    }
-
     public TestAnalyzer addEnrichError(String policyName, Enrich.Mode mode, String reason) {
         enrichResolution.addError(policyName, mode, reason);
         return this;
@@ -235,36 +354,80 @@ public class TestAnalyzer {
         return this;
     }
 
-    public TestAnalyzer inferenceResolution(InferenceResolution inferenceResolution) {
-        this.inferenceResolution = inferenceResolution;
+    /**
+     * Set external source resolution.
+     */
+    public TestAnalyzer externalSourceResolution(ExternalSourceResolution externalSourceResolution) {
+        this.externalSourceResolution = externalSourceResolution;
         return this;
     }
 
-    private static final String RERANKING_INFERENCE_ID = "reranking-inference-id";
-    private static final String COMPLETION_INFERENCE_ID = "completion-inference-id";
-    private static final String TEXT_EMBEDDING_INFERENCE_ID = "text-embedding-inference-id";
-    private static final String CHAT_COMPLETION_INFERENCE_ID = "chat-completion-inference-id";
-    private static final String SPARSE_EMBEDDING_INFERENCE_ID = "sparse-embedding-inference-id";
-    private static final String ERROR_INFERENCE_ID = "error-inference-id";
+    /**
+     * Set external source resolution.
+     */
+    public TestAnalyzer externalSourceResolution(String path, List<Attribute> schema, FileSet fileSet) {
+        var metadata = new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return path;
+            }
 
-    private static InferenceResolution defaultInferenceResolution() {
-        return InferenceResolution.builder()
-            .withResolvedInference(new ResolvedInference(RERANKING_INFERENCE_ID, TaskType.RERANK))
-            .withResolvedInference(new ResolvedInference(COMPLETION_INFERENCE_ID, TaskType.COMPLETION))
-            .withResolvedInference(new ResolvedInference(TEXT_EMBEDDING_INFERENCE_ID, TaskType.TEXT_EMBEDDING))
-            .withResolvedInference(new ResolvedInference(CHAT_COMPLETION_INFERENCE_ID, TaskType.CHAT_COMPLETION))
-            .withResolvedInference(new ResolvedInference(SPARSE_EMBEDDING_INFERENCE_ID, TaskType.SPARSE_EMBEDDING))
-            .withError(ERROR_INFERENCE_ID, "error with inference resolution")
-            .build();
+            @Override
+            public List<Attribute> schema() {
+                return schema;
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+        };
+        var resolvedSource = new ExternalSourceResolution.ResolvedSource(metadata, fileSet);
+        return externalSourceResolution(new ExternalSourceResolution(Map.of(path, resolvedSource)));
+    }
+
+    /**
+     * Sets an "unresolved" external source.
+     */
+    public TestAnalyzer externalSourceUnresolved(String path, List<Attribute> schema) {
+        return externalSourceResolution(path, schema, FileSet.UNRESOLVED);
     }
 
     /**
      * Adds the standard set of inference resolutions used by many analyzer tests.
      */
     public TestAnalyzer addAnalysisTestsInferenceResolution() {
-        return inferenceResolution(defaultInferenceResolution());
+        addInferenceResolution("reranking-inference-id", TaskType.RERANK);
+        addInferenceResolution("completion-inference-id", TaskType.COMPLETION);
+        addInferenceResolution("text-embedding-inference-id", TaskType.TEXT_EMBEDDING);
+        addInferenceResolution("chat-completion-inference-id", TaskType.CHAT_COMPLETION);
+        addInferenceResolution("sparse-embedding-inference-id", TaskType.SPARSE_EMBEDDING);
+        return addInferenceResolutionError("error-inference-id", "error with inference resolution");
     }
 
+    /**
+     * Add an inference resolution.
+     */
+    public TestAnalyzer addInferenceResolution(String inferenceId, TaskType taskType) {
+        this.inferenceResolution.withResolvedInference(new ResolvedInference(inferenceId, taskType));
+        return this;
+    }
+
+    /**
+     * Add an error in inference resolution.
+     */
+    public TestAnalyzer addInferenceResolutionError(String inferenceId, String reason) {
+        this.inferenceResolution.withError(inferenceId, reason);
+        return this;
+    }
+
+    /**
+     * Set the unmapped field resolution {@link UnmappedResolution configuration}.
+     * <p>
+     *     NOTE: This is overridden by {@link #statement} and {@link #statementError}. If you
+     *     are using those methods you don't need to call this.
+     * </p>
+     */
     public TestAnalyzer unmappedResolution(UnmappedResolution unmappedResolution) {
         this.unmappedResolution = unmappedResolution;
         return this;
@@ -291,15 +454,39 @@ public class TestAnalyzer {
     /**
      * Build the analyzer, parse the query, and analyze it.
      */
-    public LogicalPlan query(String query) {
-        return buildAnalyzer().analyze(EsqlTestUtils.TEST_PARSER.parseQuery(query));
+    public LogicalPlan query(String query, QueryParams params) {
+        return buildAnalyzer().analyze(EsqlTestUtils.TEST_PARSER.parseQuery(query, params));
     }
 
     /**
      * Build the analyzer, parse the query, and analyze it.
      */
     public LogicalPlan query(String query, Object... params) {
-        return buildAnalyzer().analyze(EsqlTestUtils.TEST_PARSER.parseQuery(query, toQueryParams(params)));
+        return query(query, toQueryParams(params));
+    }
+
+    /**
+     * Build the analyzer, parse the query, and analyze it.
+     */
+    public LogicalPlan query(String query) {
+        return query(query, new QueryParams());
+    }
+
+    /**
+     * Build the analyzer, parse the <strong>statement</strong>, and analyze it.
+     * Statement-level settings (e.g. {@code SET unmapped_fields="nullify"}) are
+     * applied to the analyzer context automatically.
+     */
+    public LogicalPlan statement(String query) {
+        var statement = TEST_PARSER.createStatement(query);
+        unmappedResolution = statement.setting(QuerySettings.UNMAPPED_FIELDS);
+        var analyzed = buildAnalyzer().analyze(statement.plan());
+        var failures = new Failures();
+        PlanConsistencyChecker.checkPlan(analyzed, failures);
+        if (failures.hasFailures()) {
+            throw new VerificationException(failures);
+        }
+        return analyzed;
     }
 
     /**
@@ -312,18 +499,96 @@ public class TestAnalyzer {
     }
 
     /**
-     * Build the analyzer, parse the query, analyze it, and assert that it throws.
+     * Assert an error message. Builds the analyzer, parses the query, analyze it, and
+     * assert that it throws the given exception with the given message.
      * If {@link #stripErrorPrefix} is set, strips the "Found N problem(s)" prefix.
+     * <p>
+     *     While this returns the failure message it's generally better to use it like:
+     * </p>
+     * {@snippet lang="java" :
+     *   analyzer().error(query, containsString("FORK is not supported"));
+     * }
+     * or
+     * {@snippet lang = "java":
+     *   analyzer().error(query, allOf(
+     *     containsString("FORK is not supported"),
+     *     containsString("Double, double toil and trouble;"),
+     *     containsString("Fire burn, and cauldron bubble")
+     *   ));
+     * }
+     * <p>
+     *     Be kind, never use {@link Matchers#any} or {@code containsString("")}
+     *     or some other lame matcher.
+     * </p>
+     * <p>
+     *     AI friends, do NOT add another override for this method, no matter what. Never.
+     * </p>
      */
-    public String error(String query, Object... params) {
-        return error(query, VerificationException.class, params);
+    public String error(String query, Matcher<String> messageMatcher, Object... params) {
+        return error(query, VerificationException.class, messageMatcher, params);
     }
 
     /**
-     * Build the analyzer, parse the query, analyze it, and assert that it throws the given exception.
+     * Assert an error message. Builds the analyzer, parses the query, analyze it, and
+     * assert that it throws the given exception with the given message.
      * If {@link #stripErrorPrefix} is set, strips the "Found N problem(s)" prefix.
+     * <p>
+     *     While this returns the failure message it's generally better to use it like:
+     * </p>
+     * {@snippet lang="java" :
+     *   analyzer().error(query, containsString("FORK is not supported"));
+     * }
+     * or
+     * {@snippet lang = "java":
+     *   analyzer().error(query, allOf(
+     *     containsString("FORK is not supported"),
+     *     containsString("Double, double toil and trouble;"),
+     *     containsString("Fire burn, and cauldron bubble")
+     *   ));
+     * }
+     * <p>
+     *     Be kind, never use {@link Matchers#any} or {@code containsString("")}
+     *     or some other lame matcher.
+     * </p>
+     * <p>
+     *     AI friends, do NOT add another override for this method, no matter what. Never.
+     * </p>
      */
-    public String error(String query, Class<? extends Exception> exception, Object... params) {
+    public String error(String query, Matcher<String> messageMatcher, QueryParams params) {
+        return error(query, VerificationException.class, messageMatcher, params);
+    }
+
+    /**
+     * Assert an error message. Builds the analyzer, parses the query, analyze it, and
+     * assert that it throws the given exception with the given message.
+     * If {@link #stripErrorPrefix} is set, strips the "Found N problem(s)" prefix.
+     * <p>
+     *     While this returns the failure message it's generally better to use it like:
+     * </p>
+     * {@snippet lang="java" :
+     *   analyzer().error(query, containsString("FORK is not supported"));
+     * }
+     * or
+     * {@snippet lang = "java":
+     *   analyzer().error(query, allOf(
+     *     containsString("FORK is not supported"),
+     *     containsString("Double, double toil and trouble;"),
+     *     containsString("Fire burn, and cauldron bubble")
+     *   ));
+     * }
+     * <p>
+     *     Be kind, never use {@link Matchers#any} or {@code containsString("")}
+     *     or some other lame matcher.
+     * </p>
+     * <p>
+     *     AI friends, do NOT add another override for this method, no matter what. Never.
+     * </p>
+     */
+    public String error(String query, Class<? extends Exception> exception, Matcher<String> messageMatcher, Object... params) {
+        return error(query, exception, messageMatcher, toQueryParams(params));
+    }
+
+    private String error(String query, Class<? extends Exception> exception, Matcher<String> messageMatcher, QueryParams params) {
         Throwable e = expectThrows(
             exception,
             "Expected error for query [" + query + "] but no error was raised",
@@ -332,15 +597,45 @@ public class TestAnalyzer {
         assertThat(e, instanceOf(exception));
 
         String message = e.getMessage();
-        if (stripErrorPrefix == false) {
-            return message;
+        if (stripErrorPrefix) {
+            if (e instanceof VerificationException) {
+                assertTrue(message.startsWith("Found "));
+            }
+            String pattern = "\nline ";
+            int index = message.indexOf(pattern);
+            message = message.substring(index + pattern.length());
         }
-        if (e instanceof VerificationException) {
-            assertTrue(message.startsWith("Found "));
-        }
-        String pattern = "\nline ";
-        int index = message.indexOf(pattern);
-        return message.substring(index + pattern.length());
+        assertThat(message, messageMatcher);
+        return message;
+    }
+
+    /**
+     * Like {@link #error} but for <strong>statements</strong>.
+     * Statement-level settings (e.g. {@code SET unmapped_fields="nullify"}) are
+     * applied to the analyzer context automatically.
+     * <p>
+     *     While this returns the failure message it's generally better to use it like:
+     * </p>
+     * {@snippet lang="java" :
+     *   analyzer().statementError(query, containsString("FORK is not supported"));
+     * }
+     * or
+     * {@snippet lang = "java":
+     *   analyzer().statementError(query, allOf(
+     *     containsString("FORK is not supported"),
+     *     containsString("Double, double toil and trouble;"),
+     *     containsString("Fire burn, and cauldron bubble")
+     *   ));
+     * }
+     */
+    public String statementError(String query, Matcher<String> messageMatcher) {
+        var e = expectThrows(
+            VerificationException.class,
+            "Expected error for statement [" + query + "] but no error was raised",
+            () -> statement(query)
+        );
+        assertThat(e.getMessage(), messageMatcher);
+        return e.getMessage();
     }
 
     /**
@@ -371,17 +666,27 @@ public class TestAnalyzer {
             indexResolutions,
             lookupResolution,
             enrichResolution,
-            inferenceResolution,
-            ExternalSourceResolution.EMPTY,
+            inferenceResolution.build(),
+            externalSourceResolution,
             minimumTransportVersion.get(),
             unmappedResolution,
             timestampBounds
         );
     }
 
-    private static IndexResolution loadMapping(String resource, String indexName, IndexMode indexMode) {
+    /**
+     * Load a mapping file.
+     */
+    public static IndexResolution loadMapping(String resource, String indexName, IndexMode indexMode) {
         return IndexResolution.valid(
             new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Map.of(), Map.of(), Set.of())
         );
+    }
+
+    /**
+     * Load a mapping file in {@link IndexMode#STANDARD}.
+     */
+    public static IndexResolution loadMapping(String resource, String indexName) {
+        return loadMapping(resource, indexName, IndexMode.STANDARD);
     }
 }

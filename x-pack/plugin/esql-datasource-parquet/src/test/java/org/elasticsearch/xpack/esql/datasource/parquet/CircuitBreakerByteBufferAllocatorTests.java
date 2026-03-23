@@ -24,7 +24,11 @@ public class CircuitBreakerByteBufferAllocatorTests extends ESTestCase {
     }
 
     private ByteBufferAllocator allocator(CircuitBreaker breaker) {
-        return new CircuitBreakerByteBufferAllocator(new HeapByteBufferAllocator(), breaker);
+        return new CircuitBreakerByteBufferAllocator(new TestAllocator(0, Integer.MAX_VALUE), breaker);
+    }
+
+    private ByteBufferAllocator allocator(CircuitBreaker breaker, int minAllocationSize, int maxAllocationSize) {
+        return new CircuitBreakerByteBufferAllocator(new TestAllocator(minAllocationSize, maxAllocationSize), breaker);
     }
 
     public void testAllocationWithinLimitSucceeds() {
@@ -95,5 +99,58 @@ public class CircuitBreakerByteBufferAllocatorTests extends ESTestCase {
         assertTrue(breaker.getUsed() >= 800);
         allocator.release(buf2);
         assertEquals(0, breaker.getUsed());
+    }
+
+    public void testBelowMinAllocation() {
+        var breaker = breaker(200);
+        var allocator = allocator(breaker, 100, 300);
+        var buffer = allocator.allocate(50);
+        // Check that over-allocation happened
+        assertEquals(100, buffer.capacity());
+        allocator.release(buffer);
+        assertEquals(0, breaker.getUsed());
+    }
+
+    public void testAboveMaxAllocation() {
+        var breaker = breaker(100);
+        var allocator = allocator(breaker, 200, 300);
+        // First reserves 50 bytes, then extra rounded capacity (+150 bytes) trips the breaker
+        expectThrows(CircuitBreakingException.class, () -> allocator.allocate(50));
+        assertEquals(0, breaker.getUsed());
+    }
+
+    public void testAllocationFails() {
+        var breaker = breaker(300);
+        var allocator = allocator(breaker, 0, 100);
+        // Breaker accepts reservation, allocation fails
+        expectThrows(IllegalArgumentException.class, () -> allocator.allocate(200));
+        assertEquals(0, breaker.getUsed());
+    }
+
+    static class TestAllocator implements ByteBufferAllocator {
+        private final int minAllocationSize;
+        private final int maxAllocationSize;
+        private final ByteBufferAllocator delegate = new HeapByteBufferAllocator();
+
+        public TestAllocator(int minAllocationSize, int maxAllocationSize) {
+            this.minAllocationSize = minAllocationSize;
+            this.maxAllocationSize = maxAllocationSize;
+        }
+
+        @Override
+        public ByteBuffer allocate(int size) {
+            if (size > maxAllocationSize) {
+                throw new IllegalArgumentException("Exceeded capacity");
+            }
+            return delegate.allocate(Math.max(size, minAllocationSize));
+        }
+
+        @Override
+        public void release(ByteBuffer b) {}
+
+        @Override
+        public boolean isDirect() {
+            return delegate.isDirect();
+        }
     }
 }

@@ -439,6 +439,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         /** Per-attribute column metadata; null for attributes not present in the file. */
         private final ColumnInfo[] columnInfos;
 
+        private PageReadStore rowGroup;
         private ColumnReader[] columnReaders;
         private long rowsRemainingInGroup;
         private boolean exhausted = false;
@@ -505,26 +506,30 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         }
 
         private boolean advanceRowGroup() throws IOException {
-            try (PageReadStore rowGroup = reader.readNextRowGroup()) {
-                if (rowGroup == null) {
-                    exhausted = true;
-                    return false;
-                }
-                rowsRemainingInGroup = rowGroup.getRowCount();
-                ColumnReadStoreImpl store = new ColumnReadStoreImpl(
-                    rowGroup,
-                    new NoOpGroupConverter(projectedSchema),
-                    projectedSchema,
-                    createdBy
-                );
-                columnReaders = new ColumnReader[columnInfos.length];
-                for (int i = 0; i < columnInfos.length; i++) {
-                    if (columnInfos[i] != null) {
-                        columnReaders[i] = store.getColumnReader(columnInfos[i].descriptor);
-                    }
-                }
-                return rowsRemainingInGroup > 0;
+            if (rowGroup != null) {
+                rowGroup.close();
+                rowGroup = null;
             }
+            rowGroup = reader.readNextRowGroup();
+            if (rowGroup == null) {
+                exhausted = true;
+                return false;
+            }
+            rowsRemainingInGroup = rowGroup.getRowCount();
+            ColumnReadStoreImpl store = new ColumnReadStoreImpl(
+                rowGroup,
+                new NoOpGroupConverter(projectedSchema),
+                projectedSchema,
+                createdBy
+            );
+            columnReaders = new ColumnReader[columnInfos.length];
+            for (int i = 0; i < columnInfos.length; i++) {
+                if (columnInfos[i] != null) {
+                    columnReaders[i] = store.getColumnReader(columnInfos[i].descriptor);
+                }
+            }
+            return rowsRemainingInGroup > 0;
+
         }
 
         @Override
@@ -1060,7 +1065,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
         @Override
         public void close() throws IOException {
-            reader.close();
+            try {
+                if (rowGroup != null) {
+                    rowGroup.close();
+                }
+            } finally {
+                reader.close();
+            }
         }
     }
 

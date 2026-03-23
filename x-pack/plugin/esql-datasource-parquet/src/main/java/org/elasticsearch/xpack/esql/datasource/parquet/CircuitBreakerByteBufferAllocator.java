@@ -25,9 +25,34 @@ public class CircuitBreakerByteBufferAllocator implements ByteBufferAllocator {
     }
 
     @Override
-    public ByteBuffer allocate(int i) {
-        breaker.addEstimateBytesAndMaybeBreak(i, "parquet reader");
-        return delegate.allocate(i);
+    public ByteBuffer allocate(int capacity) {
+        ByteBuffer buffer = null;
+        breaker.addEstimateBytesAndMaybeBreak(capacity, "parquet reader");
+        try {
+            buffer = delegate.allocate(capacity);
+        } finally {
+            if (buffer == null) {
+                // Failed to allocate, but we reserved that space.
+                breaker.addWithoutBreaking(-capacity);
+            }
+        }
+
+        // Capacity may have been rounded up.
+        boolean success = false;
+        var difference = buffer.capacity() - capacity;
+        if (difference != 0) {
+            try {
+                breaker.addEstimateBytesAndMaybeBreak(difference, "parquet reader");
+                success = true;
+            } finally {
+                if (success == false) {
+                    // Couldn't charge the extra capacity. Release the original one.
+                    delegate.release(buffer);
+                    breaker.addWithoutBreaking(-capacity);
+                }
+            }
+        }
+        return buffer;
     }
 
     @Override

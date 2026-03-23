@@ -95,21 +95,8 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
 
     public static final String NAME = "shards_availability";
 
-    /**
-     * Grace period during which a newly unassigned or initializing replica is not considered unavailable.
-     *
-     * Within this window, replicas that meet all of the following conditions are excluded from the
-     * all-shards-unavailable check and do not cause the health indicator to turn YELLOW:
-     *
-     * - The replica is UNASSIGNED or INITIALIZING (not yet STARTED)
-     * - The unassigned reason is benign (e.g. `INDEX_CREATED`, `REPLICA_ADDED`, `NEW_INDEX_RESTORED`)
-     * - There are no failed allocation attempts (`failedAllocations == 0`)
-     * - Allocation is not blocked by deciders (`lastAllocationStatus != DECIDERS_NO`)
-     *
-     * Replicas unassigned for problematic reasons (`NODE_LEFT`, `ALLOCATION_FAILED`,
-     * `PRIMARY_FAILED`, `REINITIALIZED`, `REALLOCATED_REPLICA`, `NODE_RESTARTING`)
-     * are never eligible and will immediately count as unavailable regardless of this setting.
-     */
+    /// Grace period during which a newly unassigned replica may not cause the health indicator to turn YELLOW.
+    /// See [#isUnassignedReplicaWithinGracePeriod] for unassignment reason eligibility criteria.
     public static final Setting<TimeValue> REPLICA_UNASSIGNED_GRACE_PERIOD = Setting.timeSetting(
         "health.shards_availability.replica_unassigned_buffer_time",
         TimeValue.timeValueSeconds(5),
@@ -444,17 +431,15 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
             .allMatch(ShardRouting::unassigned);
     }
 
-    /**
-     * Returns true if the given replica shard is unassigned within the grace period and the reason it is unassigned is
-     * eligible for a grace period.
-     * Returns false for any non-replica shard.
-     *
-     * @param projectId the project owning the shard
-     * @param routing the shard routing to inspect
-     * @param state the current cluster state
-     * @param gracePeriodCutoffTime epoch millis before which a shard is considered outside the grace period (only
-     *                              consulted when the configured grace duration is positive; otherwise callers skip this method)
-     */
+    /// Returns `true` if the given replica shard is unassigned within the grace period and the reason
+    /// it is unassigned is eligible for a grace period.
+    /// Returns `false` for any non-replica shard.
+    ///
+    /// @param projectId the project owning the shard
+    /// @param routing the shard routing to inspect
+    /// @param state the current cluster state
+    /// @param gracePeriodCutoffTime epoch millis before which a shard is considered outside the grace period
+    ///
     static boolean isUnassignedReplicaWithinGracePeriod(
         ProjectId projectId,
         ShardRouting routing,

@@ -137,9 +137,7 @@ public class AzureOpenAiOAuth2SettingsTests extends AbstractBWCWireSerialization
 
         var updated = settings.updateServiceSettings(new HashMap<>(), validationException);
 
-        assertThat(updated.clientId(), is(OAuth2SettingsTests.CLIENT_ID_VALUE));
-        assertThat(updated.scopes(), is(OAuth2SettingsTests.SCOPES_VALUE));
-        assertThat(updated.tenantId(), is(TENANT_ID_VALUE));
+        assertThat(updated, is(settings));
     }
 
     public void testUpdateServiceSettings_UpdateTenantId_ReplacesTenantId() {

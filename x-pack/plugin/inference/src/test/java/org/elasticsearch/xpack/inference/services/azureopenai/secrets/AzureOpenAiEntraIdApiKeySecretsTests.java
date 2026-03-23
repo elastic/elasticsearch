@@ -64,19 +64,19 @@ public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSeriali
     public void testNewSecretSettingsApiKey() {
         var initialSettings = createRandomEntraIdApiKeySecrets();
         var apiKey = randomSecureStringOfLength(15);
-        var newSettings = new AzureOpenAiEntraIdApiKeySecrets(apiKey, null);
-        var finalSettings = (AzureOpenAiEntraIdApiKeySecrets) initialSettings.newSecretSettings(Map.of(API_KEY, apiKey.toString()));
+        var expectedSettings = new AzureOpenAiEntraIdApiKeySecrets(apiKey, null);
+        var newSettings = (AzureOpenAiEntraIdApiKeySecrets) initialSettings.newSecretSettings(Map.of(API_KEY, apiKey.toString()));
 
-        assertThat(finalSettings, is(newSettings));
+        assertThat(newSettings, is(expectedSettings));
     }
 
     public void testNewSecretSettingsEntraId() {
         var initialSettings = createRandomEntraIdApiKeySecrets();
         var entraId = randomSecureStringOfLength(15);
-        var newSettings = new AzureOpenAiEntraIdApiKeySecrets(null, entraId);
-        var finalSettings = (AzureOpenAiEntraIdApiKeySecrets) initialSettings.newSecretSettings(Map.of(ENTRA_ID, entraId.toString()));
+        var expectedSettings = new AzureOpenAiEntraIdApiKeySecrets(null, entraId);
+        var newSettings = (AzureOpenAiEntraIdApiKeySecrets) initialSettings.newSecretSettings(Map.of(ENTRA_ID, entraId.toString()));
 
-        assertEquals(newSettings, finalSettings);
+        assertThat(newSettings, is(expectedSettings));
     }
 
     public void testToXContext_WritesApiKeyOnlyWhenApiKeySet() throws IOException {

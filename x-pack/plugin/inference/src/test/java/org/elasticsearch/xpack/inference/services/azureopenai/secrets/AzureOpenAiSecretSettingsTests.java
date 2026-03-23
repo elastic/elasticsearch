@@ -53,20 +53,27 @@ public class AzureOpenAiSecretSettingsTests extends ESTestCase {
     public void testFromMap_MissingApiKeyAndEntraId_ThrowsError() {
         var thrownException = expectThrows(ValidationException.class, () -> AzureOpenAiSecretSettings.fromMap(new HashMap<>()));
 
-        assertThat(thrownException.getMessage(), containsString("must have exactly one of"));
-        assertThat(thrownException.getMessage(), containsString(API_KEY));
-        assertThat(thrownException.getMessage(), containsString(ENTRA_ID));
-        assertThat(thrownException.getMessage(), containsString(CLIENT_SECRET_FIELD));
+        assertThat(
+            thrownException.getMessage(),
+            containsString(Strings.format("must have exactly one of [%s], [%s], or [%s] field set", API_KEY, ENTRA_ID, CLIENT_SECRET_FIELD))
+        );
     }
 
     public void testFromMap_HasBothApiKeyAndEntraId_ThrowsError() {
         var mapValues = getAzureOpenAiSecretSettingsMap(TEST_API_KEY, TEST_ENTRA_ID, null);
         var thrownException = expectThrows(ValidationException.class, () -> AzureOpenAiSecretSettings.fromMap(mapValues));
 
-        assertThat(thrownException.getMessage(), containsString("must have exactly one of"));
-        assertThat(thrownException.getMessage(), containsString("received:"));
-        assertThat(thrownException.getMessage(), containsString(API_KEY));
-        assertThat(thrownException.getMessage(), containsString(ENTRA_ID));
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format(
+                    "must have exactly one of [%1$s], [%2$s], or [%3$s] field set, received: [%1$s, %2$s]",
+                    API_KEY,
+                    ENTRA_ID,
+                    CLIENT_SECRET_FIELD
+                )
+            )
+        );
     }
 
     public void testFromMap_ApiKeyAndClientSecret_ThrowsError() {
@@ -75,11 +82,17 @@ public class AzureOpenAiSecretSettingsTests extends ESTestCase {
             ValidationException.class,
             () -> AzureOpenAiSecretSettings.fromMap(mapWithApiKeyAndClientSecret)
         );
-
-        assertThat(thrownException.getMessage(), containsString("must have exactly one of"));
-        assertThat(thrownException.getMessage(), containsString("received:"));
-        assertThat(thrownException.getMessage(), containsString(API_KEY));
-        assertThat(thrownException.getMessage(), containsString(CLIENT_SECRET_FIELD));
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format(
+                    "must have exactly one of [%1$s], [%2$s], or [%3$s] field set, received: [%1$s, %3$s]",
+                    API_KEY,
+                    ENTRA_ID,
+                    CLIENT_SECRET_FIELD
+                )
+            )
+        );
     }
 
     public void testFromMap_EntraAndClientSecret_ThrowsError() {
@@ -88,11 +101,17 @@ public class AzureOpenAiSecretSettingsTests extends ESTestCase {
             ValidationException.class,
             () -> AzureOpenAiSecretSettings.fromMap(mapWithApiKeyAndClientSecret)
         );
-
-        assertThat(thrownException.getMessage(), containsString("must have exactly one of"));
-        assertThat(thrownException.getMessage(), containsString("received:"));
-        assertThat(thrownException.getMessage(), containsString(ENTRA_ID));
-        assertThat(thrownException.getMessage(), containsString(CLIENT_SECRET_FIELD));
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format(
+                    "must have exactly one of [%1$s], [%2$s], or [%3$s] field set, received: [%2$s, %3$s]",
+                    API_KEY,
+                    ENTRA_ID,
+                    CLIENT_SECRET_FIELD
+                )
+            )
+        );
     }
 
     public void testFromMap_EmptyApiKey_ThrowsError() {

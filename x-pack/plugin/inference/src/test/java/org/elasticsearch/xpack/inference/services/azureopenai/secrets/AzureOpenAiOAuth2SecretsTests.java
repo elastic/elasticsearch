@@ -36,12 +36,12 @@ public class AzureOpenAiOAuth2SecretsTests extends AbstractBWCWireSerializationT
     public void testNewSecretSettings_ClientSecret() {
         var initialSettings = createRandom();
         var clientSecret = randomSecureStringOfLength(15);
-        var newSettings = new AzureOpenAiOAuth2Secrets(clientSecret);
-        var finalSettings = (AzureOpenAiOAuth2Secrets) initialSettings.newSecretSettings(
+        var expectedSettings = new AzureOpenAiOAuth2Secrets(clientSecret);
+        var newSettings = (AzureOpenAiOAuth2Secrets) initialSettings.newSecretSettings(
             Map.of(CLIENT_SECRET_FIELD, clientSecret.toString())
         );
 
-        assertThat(finalSettings, is(newSettings));
+        assertThat(newSettings, is(expectedSettings));
     }
 
     public void testToXContent_WritesClientSecretWhenSet() throws IOException {
@@ -57,7 +57,7 @@ public class AzureOpenAiOAuth2SecretsTests extends AbstractBWCWireSerializationT
         assertThat(xContentResult, is(expectedResult));
     }
 
-    public void testFromMap_Empty_ThrowsError() {
+    public void testFromMap_EmptyClientSecretValue_ThrowsError() {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(CLIENT_SECRET_FIELD, "")))

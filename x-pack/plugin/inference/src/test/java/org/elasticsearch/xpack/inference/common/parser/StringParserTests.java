@@ -23,13 +23,14 @@ public class StringParserTests extends ESTestCase {
     private static final String PROPERTIES = "properties";
     private static final int WRONG_TYPE_ITEM = 42;
     private static final String INTEGER_CLASS_NAME = Integer.class.getSimpleName();
+    private static final List<String> DEFAULT_LIST_VALUE = List.of("default");
 
-    public void testExtractStringList_ReturnsEmpty_WhenKeyMissing() {
+    public void testExtractStringList_WithDefault_ReturnsDefault_WhenKeyMissing() {
         var map = new HashMap<String, Object>();
 
-        var result = StringParser.extractStringList(map, PROPERTIES, ROOT, List.of());
+        var result = StringParser.extractStringList(map, PROPERTIES, ROOT, DEFAULT_LIST_VALUE);
 
-        assertThat(result, equalTo(List.of()));
+        assertThat(result, equalTo(DEFAULT_LIST_VALUE));
     }
 
     public void testExtractStringList_ReturnsNull_WhenKeyMissing() {
@@ -40,13 +41,13 @@ public class StringParserTests extends ESTestCase {
         assertNull(result);
     }
 
-    public void testExtractStringList_ReturnsEmpty_WhenValueNull() {
+    public void testExtractStringList_ReturnsDefault_WhenValueNull() {
         var map = new HashMap<String, Object>();
         map.put(PROPERTIES, null);
 
-        var result = StringParser.extractStringList(map, PROPERTIES, ROOT, List.of());
+        var result = StringParser.extractStringList(map, PROPERTIES, ROOT, DEFAULT_LIST_VALUE);
 
-        assertThat(result, equalTo(List.of()));
+        assertThat(result, equalTo(DEFAULT_LIST_VALUE));
     }
 
     public void testExtractStringList_ReturnsNull_WhenValueNull() {

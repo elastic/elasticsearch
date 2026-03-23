@@ -36,10 +36,14 @@ public class ValidationResultTests extends ESTestCase {
         assertNull(result.result());
     }
 
-    public void testFailed_ReturnsSameInstanceForSameType() {
-        var failed1 = ValidationResult.<String>failed();
-        var failed2 = ValidationResult.<String>failed();
-        assertSame(failed1, failed2);
+    @SuppressWarnings("AssertBetweenInconvertibleTypes")
+    public void testFailed_ReturnsSameInstance() {
+        var failedNoType = ValidationResult.failed();
+        var failedInteger = ValidationResult.<Integer>failed();
+        var failedString = ValidationResult.<String>failed();
+        assertSame(failedNoType, failedInteger);
+        assertSame(failedNoType, failedString);
+        assertSame(failedString, failedInteger);
     }
 
     public void testUndefined_ReturnsResultWithCorrectState() {
@@ -51,9 +55,13 @@ public class ValidationResultTests extends ESTestCase {
         assertNull(result.result());
     }
 
-    public void testUndefined_ReturnsSameInstanceForSameType() {
-        var undefined1 = ValidationResult.<String>undefined();
-        var undefined2 = ValidationResult.<String>undefined();
-        assertSame(undefined1, undefined2);
+    @SuppressWarnings("AssertBetweenInconvertibleTypes")
+    public void testUndefined_ReturnsSameInstance() {
+        var undefinedNoType = ValidationResult.undefined();
+        var undefinedInteger = ValidationResult.<Integer>undefined();
+        var undefinedString = ValidationResult.<String>undefined();
+        assertSame(undefinedNoType, undefinedInteger);
+        assertSame(undefinedNoType, undefinedString);
+        assertSame(undefinedString, undefinedInteger);
     }
 }

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.common.JsonUtils.toJson;
 import static org.hamcrest.Matchers.containsString;
@@ -42,6 +43,8 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
         @Nullable String clientId,
         @Nullable List<String> scopes
     ) {
+        Objects.requireNonNull(map);
+
         if (clientId != null) {
             map.put(OAuth2Settings.CLIENT_ID_FIELD, clientId);
         }
@@ -53,9 +56,7 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
     }
 
     public void testFromMap_WithAllRequiredFields_CreatesSettings() {
-        var map = new HashMap<String, Object>();
-        map.put(OAuth2Settings.CLIENT_ID_FIELD, CLIENT_ID_VALUE);
-        map.put(OAuth2Settings.SCOPES_FIELD, SCOPES_VALUE);
+        var map = addOAuth2FieldsToMap(new HashMap<>(), CLIENT_ID_VALUE, SCOPES_VALUE);
 
         var validationException = new ValidationException();
         var validationResult = OAuth2Settings.fromMap(map, validationException);
@@ -143,9 +144,7 @@ public class OAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OA
         assertTrue(validationResult.isSuccess());
 
         var updated = validationResult.result();
-        assertNotNull(updated);
-        assertThat(updated.clientId(), is(CLIENT_ID_VALUE));
-        assertThat(updated.scopes(), is(SCOPES_VALUE));
+        assertThat(updated, is(settings));
     }
 
     public void testUpdateServiceSettings_UpdateClientId_ReplacesClientId() {

@@ -121,7 +121,9 @@ public class AzureOpenAiRequestTests extends ESTestCase {
         assertThat(httpPost.getLastHeader(CUSTOM_HEADER_NAME).getValue(), is(CUSTOM_HEADER_VALUE));
     }
 
-    public void testCreateHttpRequest_AppliesTaskSettingsHeadersWhenPresent_DoesNotOverwriteAuthHeader() {
+    // This test ensures that if the task settings include an auth header, it does not overwrite the header that the request logic adds
+    // when a user specifies an API key in the service settings.
+    public void testCreateHttpRequest_AppliesTaskSettingsHeadersWhenPresent_DoesNotOverwriteAuthHeader_WhenAuthHeaderIsAdded() {
         var baseModel = AzureOpenAiEmbeddingsModelTests.createModel(
             RESOURCE_NAME_VALUE,
             DEPLOYMENT_ID_VALUE,

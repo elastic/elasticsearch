@@ -205,12 +205,7 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AzureOpenAiServic
 
         var updated = (AzureOpenAiCompletionServiceSettings) settings.updateServiceSettings(new HashMap<>());
 
-        assertThat(updated.resourceName(), is(settings.resourceName()));
-        assertThat(updated.deploymentId(), is(settings.deploymentId()));
-        assertThat(updated.apiVersion(), is(settings.apiVersion()));
-        assertThat(updated.oAuth2Settings().clientId(), is(OAuth2SettingsTests.CLIENT_ID_VALUE));
-        assertThat(updated.oAuth2Settings().scopes(), is(OAuth2SettingsTests.SCOPES_VALUE));
-        assertThat(updated.oAuth2Settings().tenantId(), is(TENANT_ID_VALUE));
+        assertThat(updated, is(settings));
     }
 
     public void testUpdateServiceSettings_WhenOAuth2SettingsPresent_UpdateTenantId_ReturnsSettingsWithUpdatedOAuth2() {

@@ -797,7 +797,7 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AzureOpenAiServic
 
     // Versions before AZURE_OPENAI_OAUTH_SETTINGS throw an exception when serializing non-null OAuth2 settings,
     // so we filter those out of the bwc versions to avoid test failures.
-    // The logic is tested directly by <>.
+    // The logic is tested directly by testAzureOpenAiOAuth2Settings_AreNotBackwardsCompatible.
     @Override
     protected Collection<TransportVersion> bwcVersions() {
         return super.bwcVersions().stream().filter(version -> version.supports(AZURE_OPENAI_OAUTH_SETTINGS)).toList();

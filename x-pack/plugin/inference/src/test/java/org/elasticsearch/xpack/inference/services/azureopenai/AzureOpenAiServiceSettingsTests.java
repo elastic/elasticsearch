@@ -32,8 +32,7 @@ public abstract class AzureOpenAiServiceSettingsTests<T extends AzureOpenAiServi
     protected static final String TENANT_ID_VALUE = "some_tenant_id";
     protected static final int RATE_LIMIT_REQUESTS_PER_MINUTE = 99;
 
-    protected static final String ERROR_API_VERSION_REQUIRED = "[service_settings] does not contain the required setting [api_version]";
-
+    private static final String ERROR_API_VERSION_REQUIRED = "[service_settings] does not contain the required setting [api_version]";
     private static final Map<String, Object> UPDATE_REQUEST_MAP_WITHOUT_OAUTH2 = Map.of("some_key", "some_value");
     private static final String ERROR_RESOURCE_NAME_REQUIRED = "[service_settings] does not contain the required setting [resource_name]";
     private static final String ERROR_DEPLOYMENT_ID_REQUIRED = "[service_settings] does not contain the required setting [deployment_id]";

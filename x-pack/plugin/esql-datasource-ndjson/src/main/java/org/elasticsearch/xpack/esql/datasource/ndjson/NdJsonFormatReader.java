@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -26,55 +28,63 @@ import java.util.List;
  */
 public class NdJsonFormatReader implements SegmentableFormatReader {
 
-    private final BlockFactory blockFactory;
+    public static final String SCHEMA_SAMPLE_SIZE_SETTING = "esql.datasource.ndjson.schema_sample_size";
+    public static final int DEFAULT_SCHEMA_SAMPLE_SIZE = 100;
 
-    public NdJsonFormatReader(BlockFactory blockFactory) {
+    private final BlockFactory blockFactory;
+    private final Settings settings;
+    private final List<Attribute> resolvedSchema;
+
+    public NdJsonFormatReader(Settings settings, BlockFactory blockFactory, List<Attribute> resolvedSchema) {
         this.blockFactory = blockFactory;
+        this.settings = settings == null ? Settings.EMPTY : settings;
+        this.resolvedSchema = resolvedSchema;
+    }
+
+    NdJsonFormatReader(Settings settings, BlockFactory blockFactory) {
+        this(settings, blockFactory, null);
+    }
+
+    @Override
+    public NdJsonFormatReader withSchema(List<Attribute> schema) {
+        return new NdJsonFormatReader(settings, blockFactory, schema);
+    }
+
+    private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object) throws IOException {
+        if (attributes != null && attributes.isEmpty() == false) {
+            return attributes;
+        }
+
+        try (var stream = object.newStream()) {
+            return NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize(settings));
+        }
+    }
+
+    private static int schemaSampleSize(Settings settings) {
+        return settings.getAsInt(SCHEMA_SAMPLE_SIZE_SETTING, DEFAULT_SCHEMA_SAMPLE_SIZE);
     }
 
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
         List<Attribute> schema;
         try (var stream = object.newStream()) {
-            schema = NdJsonSchemaInferrer.inferSchema(stream);
+            schema = NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize(settings));
         }
         return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
     }
 
     @Override
-    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
-        return new NdJsonPageIterator(object, projectedColumns, batchSize, blockFactory, false);
-    }
-
-    @Override
-    public CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        List<Attribute> resolvedAttributes
-    ) throws IOException {
-        return new NdJsonPageIterator(object, projectedColumns, batchSize, blockFactory, skipFirstLine, false, resolvedAttributes);
-    }
-
-    @Override
-    public CloseableIterator<Page> readSplit(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        boolean skipFirstLine,
-        boolean lastSplit,
-        List<Attribute> resolvedAttributes
-    ) throws IOException {
-        boolean trimLastPartialLine = lastSplit == false;
+    public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+        boolean skipFirstLine = context.firstSplit() == false;
+        boolean trimLastPartialLine = context.lastSplit() == false;
         return new NdJsonPageIterator(
             object,
-            projectedColumns,
-            batchSize,
+            context.projectedColumns(),
+            context.batchSize(),
             blockFactory,
             skipFirstLine,
             trimLastPartialLine,
-            resolvedAttributes
+            inferSchemaIfNeeded(resolvedSchema, object)
         );
     }
 

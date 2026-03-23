@@ -3,8 +3,8 @@
 ## Parameters
 
 `field1`
-:   Multivalue expression. Null values are treated as empty sets.
+:   Expression that can be null, a single value, or multiple values. Null values are treated as empty sets.
 
 `field2`
-:   Multivalue expression. Null values are treated as empty sets.
+:   Expression that can be null, a single value, or multiple values. Null values are treated as empty sets.
 

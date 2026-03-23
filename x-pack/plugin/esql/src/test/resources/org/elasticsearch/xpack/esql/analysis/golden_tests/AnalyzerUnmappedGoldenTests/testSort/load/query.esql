@@ -1,0 +1,2 @@
+SET unmapped_fields="load"; FROM employees
+| SORT does_not_exist ASC

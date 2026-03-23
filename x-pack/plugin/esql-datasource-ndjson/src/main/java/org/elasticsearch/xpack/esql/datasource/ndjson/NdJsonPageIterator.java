@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -38,26 +37,6 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
     private boolean endOfFile = false;
     private Page nextPage;
 
-    NdJsonPageIterator(StorageObject object, List<String> projectedColumns, int batchSize, BlockFactory blockFactory) throws IOException {
-        this(object, projectedColumns, batchSize, blockFactory, false, false, null);
-    }
-
-    NdJsonPageIterator(StorageObject object, List<String> projectedColumns, int batchSize, BlockFactory blockFactory, boolean skipFirstLine)
-        throws IOException {
-        this(object, projectedColumns, batchSize, blockFactory, skipFirstLine, false, null);
-    }
-
-    NdJsonPageIterator(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        BlockFactory blockFactory,
-        boolean skipFirstLine,
-        @Nullable List<Attribute> resolvedAttributes
-    ) throws IOException {
-        this(object, projectedColumns, batchSize, blockFactory, skipFirstLine, false, resolvedAttributes);
-    }
-
     NdJsonPageIterator(
         StorageObject object,
         List<String> projectedColumns,
@@ -65,18 +44,8 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         BlockFactory blockFactory,
         boolean skipFirstLine,
         boolean trimLastPartialLine,
-        @Nullable List<Attribute> resolvedAttributes
+        List<Attribute> resolvedAttributes
     ) throws IOException {
-        List<Attribute> attributes;
-        if (resolvedAttributes != null && resolvedAttributes.isEmpty() == false) {
-            attributes = resolvedAttributes;
-        } else {
-            // FIXME: either read schema ahead of time, or buffer the stream and replay it to avoid opening it twice.
-            try (var stream = object.newStream()) {
-                attributes = NdJsonSchemaInferrer.inferSchema(stream);
-            }
-        }
-
         InputStream inputStream = object.newStream();
         if (skipFirstLine) {
             skipToNextLine(inputStream);
@@ -84,7 +53,7 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         if (trimLastPartialLine) {
             inputStream = trimLastPartialLine(inputStream);
         }
-        this.pageDecoder = new NdJsonPageDecoder(inputStream, attributes, projectedColumns, batchSize, blockFactory);
+        this.pageDecoder = new NdJsonPageDecoder(inputStream, resolvedAttributes, projectedColumns, batchSize, blockFactory);
     }
 
     @Override

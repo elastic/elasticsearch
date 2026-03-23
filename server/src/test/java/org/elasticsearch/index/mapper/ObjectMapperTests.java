@@ -538,18 +538,20 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertThat(mapper.mapping().getRoot().syntheticFieldLoader(null).docValuesLoader(null, null), nullValue());
     }
 
-    public void testSyntheticFieldLoaderAlwaysIncludesIgnoredSource() throws IOException {
-        MapperService mapperService = createSytheticSourceMapperService(
-            mapping(b -> b.startObject("kwd").field("type", "keyword").endObject())
-        );
-        Mapping mapping = mapperService.documentMapper().mapping();
+    public void testIgnoredSourceAlwaysLoadedRegardlessOfSourceFilter() throws IOException {
+        assumeTrue("feature under test must be enabled", IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_DOC_VALUES_FF.isEnabled());
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("kwd").field("type", "keyword").field("ignore_above", 1).endObject();
+            b.startObject("other").field("type", "keyword").field("ignore_above", 1).endObject();
+        }));
+        DocumentMapper mapper = mapperService.documentMapper();
+
+        String unfilteredSource = syntheticSource(mapper, b -> b.field("kwd", "toolong").field("other", "alsotoolong"));
+        assertEquals("{\"kwd\":\"toolong\",\"other\":\"alsotoolong\"}", unfilteredSource);
+
         SourceFilter filterKwdOnly = new SourceFilter(new String[] { "kwd" }, null);
-
-        SourceLoader.SyntheticFieldLoader filteredSource = mapping.syntheticFieldLoader(filterKwdOnly);
-        SourceLoader.SyntheticFieldLoader unfilteredSource = mapping.syntheticFieldLoader(null);
-
-        assertTrue(filteredSource.storedFieldLoaders().anyMatch(e -> e.getKey().equals(IgnoredSourceFieldMapper.NAME)));
-        assertTrue(unfilteredSource.storedFieldLoaders().anyMatch(e -> e.getKey().equals(IgnoredSourceFieldMapper.NAME)));
+        String filteredSource = syntheticSource(mapper, filterKwdOnly, b -> b.field("kwd", "toolong").field("other", "alsotoolong"));
+        assertEquals("{\"kwd\":\"toolong\"}", filteredSource);
     }
 
     public void testStoreArraySourceInSyntheticSourceMode() throws IOException {

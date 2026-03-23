@@ -285,9 +285,6 @@ tests:
 - class: org.elasticsearch.test.apmintegration.MetricsApmIT
   method: testJvmMetrics {withOTel=false}
   issue: https://github.com/elastic/elasticsearch/issues/144167
-- class: org.elasticsearch.xpack.security.authc.service.ServiceAccountIT
-  method: testAuthenticateShouldNotFallThroughInCaseOfFailure
-  issue: https://github.com/elastic/elasticsearch/issues/144262
 - class: org.elasticsearch.test.apmintegration.MetricsApmIT
   method: testApmIntegration {withOTel=false}
   issue: https://github.com/elastic/elasticsearch/issues/144282
@@ -374,6 +371,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/144702
 - class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
   issue: https://github.com/elastic/elasticsearch/issues/144709
+- class: org.elasticsearch.index.mapper.TsidExtractingIdFieldMapperTests
+  issue: https://github.com/elastic/elasticsearch/issues/144678
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-avg-over-time.avg_over_time_of_integer}
   issue: https://github.com/elastic/elasticsearch/issues/144719

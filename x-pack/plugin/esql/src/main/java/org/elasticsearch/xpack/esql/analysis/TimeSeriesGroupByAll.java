@@ -78,7 +78,7 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
         }
 
         List<Expression> groupings = new ArrayList<>();
-        groupings.add(new TimeSeriesWithout(aggregate.source(), List.of()).asTimeSeriesAttribute());
+        groupings.add(new TimeSeriesWithout(aggregate.source(), List.of()).toAttribute());
 
         for (Expression grouping : aggregate.groupings()) {
             if (Functions.isGrouping(Alias.unwrap(grouping)) == false) {

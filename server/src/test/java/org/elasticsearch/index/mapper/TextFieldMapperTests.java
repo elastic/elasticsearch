@@ -148,11 +148,11 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerUpdateCheck(b -> b.field("fielddata", true), m -> {
+        checker.registerUpdateCheck("fielddata", b -> b.field("fielddata", true), m -> {
             TextFieldType ft = (TextFieldType) m.fieldType();
             assertTrue(ft.fielddata());
         });
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck("fielddata_frequency_filter", b -> {
             b.field("fielddata", true);
             b.startObject("fielddata_frequency_filter");
             {
@@ -167,12 +167,16 @@ public class TextFieldMapperTests extends MapperTestCase {
             assertEquals(20, ft.fielddataMaxFrequency(), 0);
             assertEquals(100, ft.fielddataMinSegmentSize());
         });
-        checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", "true"), m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck(
+            "eager_global_ordinals",
+            b -> b.field("eager_global_ordinals", "true"),
+            m -> assertTrue(m.fieldType().eagerGlobalOrdinals())
+        );
+        checker.registerUpdateCheck("search_analyzer", b -> {
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
         }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchAnalyzer().name()));
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck("search_quote_analyzer", b -> {
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
             b.field("search_quote_analyzer", "keyword");
@@ -200,7 +204,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             b.field("type", "text");
             b.field("norms", true);
         }));
-        checker.registerUpdateCheck(b -> {
+        checker.registerUpdateCheck("norms", b -> {
             b.field("type", "text");
             b.field("norms", true);
         }, b -> {

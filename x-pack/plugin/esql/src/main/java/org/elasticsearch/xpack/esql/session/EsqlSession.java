@@ -275,7 +275,7 @@ public class EsqlSession {
         ActionListener<Versioned<Result>> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
-        gatherPlanTelemetry(viewResolution.plan(), planTelemetry);
+        gatherPlanTelemetry(viewResolution.plan(), statement.settings());
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
 
         ZoneId timeZone = request.timeZone() == null
@@ -714,10 +714,10 @@ public class EsqlSession {
     }
 
     /**
-     * Populates {@code planTelemetry} from the view-resolved plan, capturing commands and functions
-     * from the original statement plus any nodes introduced by view expansion.
+     * Populates {@code planTelemetry} from the view-resolved plan, capturing commands, functions,
+     * and settings from the original statement plus any nodes introduced by view expansion.
      */
-    static void gatherPlanTelemetry(LogicalPlan plan, PlanTelemetry planTelemetry) {
+    private void gatherPlanTelemetry(LogicalPlan plan, List<QuerySetting> settings) {
         EsqlFunctionRegistry registry = planTelemetry.functionRegistry().snapshotRegistry();
         plan.forEachDown(node -> {
             if (node instanceof TelemetryAware ta && ta.telemetryLabel() != null) {
@@ -737,6 +737,9 @@ public class EsqlSession {
                 }
             });
         });
+        if (settings != null) {
+            settings.forEach(s -> planTelemetry.setting(s.name()));
+        }
     }
 
     private void gatherSettingsMetrics(EsqlStatement statement) {

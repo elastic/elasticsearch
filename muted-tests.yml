@@ -363,9 +363,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultRerank
   issue: https://github.com/elastic/elasticsearch/issues/144162
-- class: org.elasticsearch.xpack.esql.plugin.RerankIT
-  method: testRerankRowLimitEnforcement
-  issue: https://github.com/elastic/elasticsearch/issues/144421
 - class: org.elasticsearch.indices.IndicesRequestCacheIT
   method: testCanCache
   issue: https://github.com/elastic/elasticsearch/issues/144526

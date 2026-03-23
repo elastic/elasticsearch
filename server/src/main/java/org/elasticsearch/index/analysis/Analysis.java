@@ -368,9 +368,7 @@ public class Analysis {
         SynonymsManagementAPIService synonymsManagementAPIService,
         boolean ignoreMissing
     ) {
-        StringBuilder sb = new StringBuilder();
-        appendSynonymRulesFromIndex(synonymsSet, synonymsManagementAPIService, ignoreMissing, sb);
-        return new StringReader(sb.toString());
+        return getReaderFromIndex(List.of(synonymsSet), synonymsManagementAPIService, ignoreMissing);
     }
 
     public static Reader getReaderFromIndex(
@@ -378,26 +376,30 @@ public class Analysis {
         SynonymsManagementAPIService synonymsManagementAPIService,
         boolean ignoreMissing
     ) {
-        StringBuilder sb = new StringBuilder();
+        List<PlainActionFuture<PagedResult<SynonymRule>>> futures = new ArrayList<>(synonymsSets.size());
         for (String synonymsSet : synonymsSets) {
-            appendSynonymRulesFromIndex(synonymsSet, synonymsManagementAPIService, ignoreMissing, sb);
+            PlainActionFuture<PagedResult<SynonymRule>> future = new PlainActionFuture<>();
+            synonymsManagementAPIService.getSynonymSetRules(synonymsSet, future);
+            futures.add(future);
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < futures.size(); i++) {
+            collectSynonymRules(synonymsSets.get(i), futures.get(i), ignoreMissing, sb);
         }
         return new StringReader(sb.toString());
     }
 
-    private static void appendSynonymRulesFromIndex(
+    private static void collectSynonymRules(
         String synonymsSet,
-        SynonymsManagementAPIService synonymsManagementAPIService,
+        PlainActionFuture<PagedResult<SynonymRule>> future,
         boolean ignoreMissing,
         StringBuilder sb
     ) {
-        final PlainActionFuture<PagedResult<SynonymRule>> synonymsLoadingFuture = new PlainActionFuture<>();
-        synonymsManagementAPIService.getSynonymSetRules(synonymsSet, synonymsLoadingFuture);
-
         PagedResult<SynonymRule> results;
 
         try {
-            results = synonymsLoadingFuture.actionGet();
+            results = future.actionGet();
         } catch (Exception e) {
             if (ignoreMissing == false) {
                 throw e;

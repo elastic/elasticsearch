@@ -1,7 +1,7 @@
 setup:
   - requires:
-      cluster_features: ["gte_v9.4.0"]
-      reason: Multiple synonym sets per filter is introduced in 9.4.0
+      cluster_features: ["synonyms.multiple_sets_per_filter"]
+      reason: Multiple synonym sets per filter requires this feature
 
   # Create set-a with "quick, fast"
   - do:

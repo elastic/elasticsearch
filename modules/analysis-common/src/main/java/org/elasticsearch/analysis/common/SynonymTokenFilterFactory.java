@@ -15,7 +15,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -44,8 +43,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     private static final Logger LOGGER = LogManager.getLogger(SynonymTokenFilterFactory.class);
 
     private static final SynonymMap EMPTY_SYNONYM_MAP = buildEmptySynonymMap();
-
-    static final TransportVersion MULTIPLE_SYNSETS_PER_FILTER = TransportVersion.fromName("multiple_synsets_per_filter");
 
     protected enum SynonymsSource {
         INLINE("synonyms") {

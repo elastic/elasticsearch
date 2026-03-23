@@ -405,20 +405,21 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testLoadModeDisallowsForkAndLookupJoin() {
-        test().addLanguagesLookup().statementError(
-            setUnmappedLoad("""
-                FROM test
-                | EVAL language_code = languages
-                | LOOKUP JOIN languages_lookup ON language_code
-                | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
-                """),
-            allOf(
-                containsString("Found 3 problems"),
-                containsString("line 4:3: FORK is not supported with unmapped_fields=\"load\""),
-                containsString("line 3:15: LOOKUP JOIN is not supported with unmapped_fields=\"load\""),
-                containsString("line 3:15: LOOKUP JOIN is not supported with unmapped_fields=\"load\"")
-            )
-        );
+        test().addLanguagesLookup()
+            .statementError(
+                setUnmappedLoad("""
+                    FROM test
+                    | EVAL language_code = languages
+                    | LOOKUP JOIN languages_lookup ON language_code
+                    | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
+                    """),
+                allOf(
+                    containsString("Found 3 problems"),
+                    containsString("line 4:3: FORK is not supported with unmapped_fields=\"load\""),
+                    containsString("line 3:15: LOOKUP JOIN is not supported with unmapped_fields=\"load\""),
+                    containsString("line 3:15: LOOKUP JOIN is not supported with unmapped_fields=\"load\"")
+                )
+            );
     }
 
     public void testLoadMode_AllowsSingleSubqueryInFrom() {
@@ -448,10 +449,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     public void testLoadModeDisallowsMainIndexPlusSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        test().addLanguages().statementError(
-            setUnmappedLoad("FROM test, (FROM languages | WHERE language_code > 1)"),
-            containsString("line 1:40: Subqueries and views are not supported with unmapped_fields=\"load\"")
-        );
+        test().addLanguages()
+            .statementError(
+                setUnmappedLoad("FROM test, (FROM languages | WHERE language_code > 1)"),
+                containsString("line 1:40: Subqueries and views are not supported with unmapped_fields=\"load\"")
+            );
     }
 
     public void testLoadModeDisallowsTwoSubqueriesWithoutMainIndex() {
@@ -481,14 +483,16 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     public void testLoadModeDisallowsNestedSubqueries() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        test().addLanguages().addSampleData().statementError(
-            setUnmappedLoad("FROM test, (FROM languages, (FROM sample_data | STATS count(*)) | WHERE language_code > 10)"),
-            allOf(
-                containsString("Found 2 problems"),
-                containsString("line 1:40: Subqueries and views are not supported with unmapped_fields=\"load\""),
-                containsString("line 1:57: Subqueries and views are not supported with unmapped_fields=\"load\"")
-            )
-        );
+        test().addLanguages()
+            .addSampleData()
+            .statementError(
+                setUnmappedLoad("FROM test, (FROM languages, (FROM sample_data | STATS count(*)) | WHERE language_code > 10)"),
+                allOf(
+                    containsString("Found 2 problems"),
+                    containsString("line 1:40: Subqueries and views are not supported with unmapped_fields=\"load\""),
+                    containsString("line 1:57: Subqueries and views are not supported with unmapped_fields=\"load\"")
+                )
+            );
     }
 
     public void testLoadModeDisallowsSubqueryWithLookupJoin() {
@@ -532,13 +536,14 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             FROM test, (FROM languages | WHERE language_code > 1)
             | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
             """);
-        test().addLanguages().statementError(
-            query,
-            allOf(
-                containsString("Subqueries and views are not supported with unmapped_fields=\"load\""),
-                containsString("FORK is not supported with unmapped_fields=\"load\"")
-            )
-        );
+        test().addLanguages()
+            .statementError(
+                query,
+                allOf(
+                    containsString("Subqueries and views are not supported with unmapped_fields=\"load\""),
+                    containsString("FORK is not supported with unmapped_fields=\"load\"")
+                )
+            );
     }
 
     public void testLoadModeAllowsNonBranchingViewEquivalent() {

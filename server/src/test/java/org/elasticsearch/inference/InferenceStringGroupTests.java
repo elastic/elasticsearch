@@ -59,6 +59,15 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
         assertThat(input.containsMultipleInferenceStrings(), is(true));
     }
 
+    public void testInferenceStringListConstructor_withNullList_throws() {
+        assertThrows(NullPointerException.class, () -> new InferenceStringGroup((List<InferenceString>) null));
+    }
+
+    public void testInferenceStringListConstructor_withEmptyList_throws() {
+        var exception = assertThrows(IllegalArgumentException.class, () -> new InferenceStringGroup(List.of()));
+        assertThat(exception.getMessage(), is("InferenceStringGroup constructor argument cannot be an empty list"));
+    }
+
     public void testParser_withEmptyContentObject_throws() throws IOException {
         var requestJson = """
                 {
@@ -66,10 +75,38 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
                 }
             """;
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            // Need to call nextToken() so that the parser is at the correct element
-            parser.nextToken();
-            var exception = expectThrows(XContentParseException.class, () -> InferenceStringGroup.PARSER.apply(parser, null));
+            var exception = expectThrows(XContentParseException.class, () -> InferenceStringGroup.parse(parser));
             assertThat(exception.getMessage(), containsString("[InferenceStringGroup] failed to parse field [content]"));
+            assertThat(exception.getCause().getMessage(), containsString("Required [type, value]"));
+        }
+    }
+
+    public void testParser_withEmptyContentObjectArray_throws() throws IOException {
+        var requestJson = """
+                {
+                    "content": []
+                }
+            """;
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var exception = expectThrows(XContentParseException.class, () -> InferenceStringGroup.parse(parser));
+            assertThat(exception.getMessage(), containsString("[InferenceStringGroup] failed to parse field [content]"));
+            assertThat(
+                exception.getCause().getMessage(),
+                containsString("failed to build [InferenceStringGroup] after last required field arrived")
+            );
+            assertThat(exception.getCause().getCause().getMessage(), containsString("[content] field cannot be an empty array"));
+        }
+    }
+
+    public void testParser_withNullContent_throws() throws IOException {
+        var requestJson = """
+                {
+                    "content": null
+                }
+            """;
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var exception = expectThrows(XContentParseException.class, () -> InferenceStringGroup.parse(parser));
+            assertThat(exception.getMessage(), containsString("[InferenceStringGroup] content doesn't support values of type: VALUE_NULL"));
         }
     }
 
@@ -158,7 +195,7 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
 
     @Override
     protected InferenceStringGroup doParseInstance(XContentParser parser) throws IOException {
-        return InferenceStringGroup.PARSER.parse(parser, null);
+        return InferenceStringGroup.parse(parser);
     }
 
     @Override
@@ -184,10 +221,17 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     protected InferenceStringGroup mutateInstance(InferenceStringGroup instance) throws IOException {
         var inferenceStrings = instance.inferenceStrings();
         List<InferenceString> newInferenceStrings = new ArrayList<>(inferenceStrings);
-        if (inferenceStrings.isEmpty() || randomBoolean()) {
-            newInferenceStrings.add(InferenceStringTests.createRandom());
+        var maintainListSize = randomBoolean();
+        if (maintainListSize) {
+            var firstElement = newInferenceStrings.getFirst();
+            newInferenceStrings.set(0, randomValueOtherThan(firstElement, InferenceStringTests::createRandom));
         } else {
-            newInferenceStrings.removeLast();
+            // Don't remove from the list if there is only one element
+            if (inferenceStrings.size() == 1 || randomBoolean()) {
+                newInferenceStrings.add(InferenceStringTests.createRandom());
+            } else {
+                newInferenceStrings.removeLast();
+            }
         }
         return new InferenceStringGroup(newInferenceStrings);
     }

@@ -660,8 +660,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 any(ClusterState.class),
                 any(CreateIndexClusterStateUpdateRequest.class),
                 anyBoolean(),
-                any(RerouteBehavior.class),
                 any(),
+                any(RerouteBehavior.class),
                 any()
             )
         ).thenAnswer(objectAnswer);

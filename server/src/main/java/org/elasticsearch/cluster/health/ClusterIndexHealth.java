@@ -105,9 +105,7 @@ public final class ClusterIndexHealth implements Writeable, ToXContentFragment {
                 computeStatus = ClusterHealthStatus.YELLOW;
             }
         }
-        if (shards.isEmpty()) { // might be since none has been created yet (two phase index creation)
-            computeStatus = ClusterHealthStatus.RED;
-        }
+        assert shards.size() == numberOfShards : "expected " + numberOfShards + " shards but got " + shards.size();
 
         this.status = computeStatus;
         this.activePrimaryShards = computeActivePrimaryShards;

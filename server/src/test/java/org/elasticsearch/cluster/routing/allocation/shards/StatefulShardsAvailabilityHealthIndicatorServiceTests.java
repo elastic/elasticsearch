@@ -54,7 +54,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -78,7 +77,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.mockito.stubbing.Answer;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -89,6 +87,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
@@ -121,7 +120,6 @@ import static org.elasticsearch.cluster.routing.allocation.shards.StatefulShards
 import static org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorServiceTests.ShardState.UNAVAILABLE;
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
-import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.health.Diagnosis.Resource.Type.FEATURE_STATE;
 import static org.elasticsearch.health.Diagnosis.Resource.Type.INDEX;
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -176,7 +174,10 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             ),
             List.of()
         );
-        var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
+        final var noGracePeriod = Settings.builder()
+            .put(ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
+            .build();
+        var service = createShardsAvailabilityIndicatorService(projectId, noGracePeriod, clusterState, Collections.emptyMap());
 
         assertThat(
             service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO),
@@ -874,6 +875,107 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
                 )
             )
         );
+    }
+
+    public void testReplicaUnassignedWithinGracePeriod() {
+        final var acceptableReasons = List.of(
+            UnassignedInfo.Reason.INDEX_CREATED,
+            UnassignedInfo.Reason.REPLICA_ADDED,
+            UnassignedInfo.Reason.NEW_INDEX_RESTORED,
+            UnassignedInfo.Reason.EXISTING_INDEX_RESTORED,
+            UnassignedInfo.Reason.CLUSTER_RECOVERED,
+            UnassignedInfo.Reason.INDEX_REOPENED,
+            UnassignedInfo.Reason.DANGLING_INDEX_IMPORTED,
+            UnassignedInfo.Reason.REROUTE_CANCELLED,
+            UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY,
+            UnassignedInfo.Reason.MANUAL_ALLOCATION,
+            UnassignedInfo.Reason.INDEX_CLOSED,
+            UnassignedInfo.Reason.UNPROMOTABLE_REPLICA,
+            UnassignedInfo.Reason.RESHARD_ADDED
+        );
+        final var unacceptableReasons = List.of(
+            UnassignedInfo.Reason.ALLOCATION_FAILED,
+            UnassignedInfo.Reason.NODE_LEFT,
+            UnassignedInfo.Reason.REINITIALIZED,
+            UnassignedInfo.Reason.REALLOCATED_REPLICA,
+            UnassignedInfo.Reason.PRIMARY_FAILED,
+            UnassignedInfo.Reason.NODE_RESTARTING
+        );
+        final var unassignedTimeWithinGracePeriod = new TimeValue(System.currentTimeMillis(), TimeUnit.MILLISECONDS);
+        for (int i = 0; i < 10; i++) {
+            final var projectId = randomProjectIdOrDefault();
+            final boolean isAcceptable = randomBoolean();
+            final var reason = isAcceptable ? randomFrom(acceptableReasons) : randomFrom(unacceptableReasons);
+            final var clusterState = createClusterStateWith(
+                projectId,
+                List.of(
+                    index(
+                        "test-index",
+                        new ShardAllocation(randomNodeId(), AVAILABLE),
+                        new ShardAllocation(randomNodeId(), UNAVAILABLE, unassignedInfo(reason, unassignedTimeWithinGracePeriod))
+                    )
+                ),
+                List.of()
+            );
+            final var service = createShardsAvailabilityIndicatorService(
+                projectId,
+                Settings.builder().put(ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_GRACE_PERIOD.getKey(), "20s").build(),
+                clusterState,
+                Collections.emptyMap()
+            );
+            final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+            if (isAcceptable) {
+                assertThat("expected GREEN for acceptable reason " + reason, result.status(), equalTo(GREEN));
+                assertThat(
+                    "expected creating replica symptom for reason " + reason,
+                    result.symptom(),
+                    equalTo("This cluster has 1 creating replica shard.")
+                );
+            } else {
+                assertThat("expected YELLOW for unacceptable reason " + reason, result.status(), equalTo(YELLOW));
+                assertThat(
+                    "expected unavailable replica symptom for reason " + reason,
+                    result.symptom(),
+                    equalTo("This cluster has 1 unavailable replica shard.")
+                );
+            }
+        }
+    }
+
+    public void testUnassignedNewInitialization() {
+        for (int i = 0; i < 10; i++) {
+            final var projectId = randomProjectIdOrDefault();
+            final boolean isAcceptable = randomBoolean();
+
+            // Acceptable: new unassigned primary with no allocation issues (YELLOW health -> provisional)
+            // Unacceptable: new unassigned primary with failed allocations (RED health -> unavailable)
+            final var primaryUnassignedInfo = isAcceptable
+                ? new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+                : unassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, randomTimeValue());
+
+            final var clusterState = createClusterStateWith(
+                projectId,
+                List.of(
+                    index(
+                        "test-index",
+                        new ShardAllocation(randomNodeId(), CREATING, primaryUnassignedInfo),
+                        new ShardAllocation(randomNodeId(), UNAVAILABLE)
+                    )
+                ),
+                List.of()
+            );
+
+            final var service = createShardsAvailabilityIndicatorService(projectId, clusterState);
+            final var result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+
+            if (isAcceptable) {
+                assertThat(result.status(), equalTo(GREEN));
+                assertThat(result.symptom(), equalTo("This cluster has 1 creating primary shard, 1 creating replica shard."));
+            } else {
+                assertThat(result.status(), equalTo(RED));
+                assertThat(result.symptom(), equalTo("This cluster has 1 unavailable primary shard, 1 unavailable replica shard."));
+            }
+        }
     }
 
     public void testDiagnosisNotGeneratedWhenNotDrillingDown() {
@@ -2129,182 +2231,6 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         }
     }
 
-    public void testIsNewlyCreatedAndInitializingReplica() {
-        ProjectId projectId = randomProjectIdOrDefault();
-        ShardId id = new ShardId("index", "uuid", 0);
-        IndexMetadata idxMeta = IndexMetadata.builder("index")
-            .numberOfShards(1)
-            .numberOfReplicas(1)
-            .settings(
-                Settings.builder()
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 1)
-                    .put("index.version.created", IndexVersion.current())
-                    .put("index.uuid", "uuid")
-                    .build()
-            )
-            .build();
-
-        ClusterState state;
-
-        // --------- Test conditions that don't depend on threshold ---------
-
-        TimeValue replicaUnassignedThreshold = randomFrom(timeValueSeconds(3), timeValueSeconds(0));
-        {
-            // active, whether primary or replica
-            boolean primary = randomBoolean();
-            ShardAllocation primaryAllocation = new ShardAllocation("node", AVAILABLE);
-            ShardRouting shard = createShardRouting(id, primary, primaryAllocation);
-            state = createClusterStateWith(projectId, List.of(index("index", primaryAllocation)), List.of());
-            assertFalse(
-                ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(
-                    projectId,
-                    shard,
-                    state,
-                    Instant.now().toEpochMilli() - replicaUnassignedThreshold.millis()
-                )
-            );
-        }
-
-        {   // primary, but not active
-            var primaryAllocation = new ShardAllocation("node", INITIALIZING);
-            ShardRouting primary = createShardRouting(id, true, primaryAllocation);
-            state = createClusterStateWith(projectId, List.of(index("index", primaryAllocation)), List.of());
-            assertFalse(
-                ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(
-                    projectId,
-                    primary,
-                    state,
-                    Instant.now().toEpochMilli() - replicaUnassignedThreshold.millis()
-                )
-            );
-        }
-
-        // --------- Test conditions that depend on threshold, but with threshold of 0 ---------
-        replicaUnassignedThreshold = timeValueSeconds(0);
-        long now = Instant.now().toEpochMilli();
-        TimeValue afterCutoffTime = TimeValue.timeValueMillis(now);
-        {
-            var unassignedInfo = randomFrom(decidersNo(afterCutoffTime), unassignedInfoNoFailures(afterCutoffTime));
-            var replicaAllocation = new ShardAllocation("node", UNAVAILABLE, unassignedInfo);
-            var primaryAllocation = new ShardAllocation("node", randomFrom(INITIALIZING, UNAVAILABLE, AVAILABLE, RESTARTING));
-
-            ShardRouting unallocatedReplica = createShardRouting(id, false, replicaAllocation);
-            state = createClusterStateWith(
-                projectId,
-                List.of(idxMeta),
-                List.of(index(idxMeta, primaryAllocation, replicaAllocation)),
-                List.of(),
-                List.of()
-            );
-            assertFalse(
-                ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(
-                    projectId,
-                    unallocatedReplica,
-                    state,
-                    now - replicaUnassignedThreshold.millis()
-                )
-            );
-        }
-
-        {
-            var unassignedInfo = randomFrom(decidersNo(afterCutoffTime), unassignedInfoNoFailures(afterCutoffTime));
-            var replicaAllocation = new ShardAllocation("node", UNAVAILABLE, unassignedInfo);
-            var primaryAllocation = new ShardAllocation("node", CREATING);
-
-            ShardRouting unallocatedReplica = createShardRouting(id, false, replicaAllocation);
-            state = createClusterStateWith(
-                projectId,
-                List.of(idxMeta),
-                List.of(index(idxMeta, primaryAllocation, replicaAllocation)),
-                List.of(),
-                List.of()
-            );
-            assertTrue(
-                ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(
-                    projectId,
-                    unallocatedReplica,
-                    state,
-                    now - replicaUnassignedThreshold.millis()
-                )
-            );
-        }
-
-        // --------- Test conditions that do depend on threshold, but with non-zero threshold ---------
-
-        replicaUnassignedThreshold = timeValueSeconds(3);
-        afterCutoffTime = TimeValue.timeValueMillis(now - 3000);
-        TimeValue beforeCutoffTime = TimeValue.timeValueMillis(now - 2999);
-        {
-            List<Tuple<ShardState, UnassignedInfo>> configs = new ArrayList<>();
-
-            // return false if primary is not creating and if unassigned info has failed allocations or is after cutoff
-            var uis = List.of(decidersNo(afterCutoffTime), decidersNo(beforeCutoffTime), unassignedInfoNoFailures(afterCutoffTime));
-            var shardStates = List.of(UNAVAILABLE, INITIALIZING, RESTARTING, AVAILABLE);
-            for (var shardState : shardStates) {
-                for (var ui : uis) {
-                    configs.add(tuple(shardState, ui));
-                }
-            }
-            // return false if primary is not creating or available and unassigned time is before cutoff
-            for (var shardState : List.of(UNAVAILABLE, INITIALIZING, RESTARTING)) {
-                configs.add(tuple(shardState, unassignedInfoNoFailures(beforeCutoffTime)));
-            }
-
-            for (var config : configs) {
-                var replicaAllocation = new ShardAllocation("node", UNAVAILABLE, config.v2());
-                var primaryAllocation = new ShardAllocation("node", config.v1());
-                ShardRouting unallocatedReplica = createShardRouting(id, false, replicaAllocation);
-                state = createClusterStateWith(
-                    projectId,
-                    List.of(idxMeta),
-                    List.of(index(idxMeta, primaryAllocation, replicaAllocation)),
-                    List.of(),
-                    List.of()
-                );
-                assertFalse(
-                    ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(
-                        projectId,
-                        unallocatedReplica,
-                        state,
-                        now - replicaUnassignedThreshold.millis()
-                    )
-                );
-            }
-        }
-
-        {
-            var configs = List.of(
-                // return true because primary is still creating
-                tuple(CREATING, decidersNo(afterCutoffTime)),
-                tuple(CREATING, decidersNo(beforeCutoffTime)),
-                tuple(CREATING, unassignedInfoNoFailures(afterCutoffTime)),
-                tuple(CREATING, unassignedInfoNoFailures(beforeCutoffTime)),
-
-                // returns true because unassigned time is before cutoff, and no failedAllocations
-                tuple(AVAILABLE, unassignedInfoNoFailures(beforeCutoffTime))
-            );
-
-            for (var config : configs) {
-                var replicaAllocation = new ShardAllocation("node", UNAVAILABLE, config.v2());
-                var primaryAllocation = new ShardAllocation("node", config.v1());
-
-                ShardRouting unallocatedReplica = createShardRouting(id, false, replicaAllocation);
-                IndexRoutingTable index = index(idxMeta, primaryAllocation, replicaAllocation);
-
-                state = createClusterStateWith(projectId, List.of(idxMeta), List.of(index), List.of(), List.of());
-                assertTrue(
-                    ShardsAvailabilityHealthIndicatorService.isNewlyCreatedAndInitializingReplica(
-                        projectId,
-                        unallocatedReplica,
-                        state,
-                        now - replicaUnassignedThreshold.millis()
-                    )
-                );
-            }
-        }
-    }
-
     public void testMultiProjectShouldDisplayProjectId() {
         ProjectId projectId1 = randomUniqueProjectId();
         ProjectId projectId2 = randomUniqueProjectId();
@@ -2548,10 +2474,10 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             override.getOrDefault("started_primaries", 0),
             "unassigned_replicas",
             override.getOrDefault("unassigned_replicas", 0),
-            "creating_replicas",
-            override.getOrDefault("creating_replicas", 0),
             "initializing_replicas",
             override.getOrDefault("initializing_replicas", 0),
+            "creating_replicas",
+            override.getOrDefault("creating_replicas", 0),
             "restarting_replicas",
             override.getOrDefault("restarting_replicas", 0),
             "started_replicas",
@@ -2632,11 +2558,14 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
     }
 
     private static ShardRouting createShardRouting(ShardId shardId, boolean primary, ShardAllocation allocation) {
+        var initialUnassignedInfo = allocation.unassignedInfo != null
+            ? allocation.unassignedInfo
+            : new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
         var routing = newUnassigned(
             shardId,
             primary,
             getSource(primary, allocation.state),
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
+            initialUnassignedInfo,
             ShardRouting.Role.DEFAULT
         );
         if (allocation.state == CREATING) {
@@ -2713,49 +2642,15 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
     }
 
     private static UnassignedInfo noShardCopy() {
-        return new UnassignedInfo(
+        return unassignedInfo(
             randomBoolean() ? UnassignedInfo.Reason.NODE_LEFT : UnassignedInfo.Reason.CLUSTER_RECOVERED,
-            null,
-            null,
-            0,
-            0,
-            0,
-            false,
             UnassignedInfo.AllocationStatus.NO_VALID_SHARD_COPY,
-            Collections.emptySet(),
-            null
+            TimeValue.ZERO
         );
     }
 
     private static UnassignedInfo nodeLeft() {
-        return new UnassignedInfo(
-            UnassignedInfo.Reason.NODE_LEFT,
-            null,
-            null,
-            0,
-            0,
-            0,
-            false,
-            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-            Collections.emptySet(),
-            null
-        );
-    }
-
-    private static UnassignedInfo unassignedInfoNoFailures(TimeValue unassignedTime) {
-        UnassignedInfo.Reason reason = randomFrom(UnassignedInfo.Reason.NODE_LEFT, UnassignedInfo.Reason.NODE_RESTARTING);
-        return new UnassignedInfo(
-            reason,
-            "message",
-            null,
-            0,
-            unassignedTime.nanos(),
-            unassignedTime.millis(),
-            randomBoolean(),
-            randomValueOtherThan(UnassignedInfo.AllocationStatus.DECIDERS_NO, () -> randomFrom(UnassignedInfo.AllocationStatus.values())),
-            Set.of(),
-            reason == UnassignedInfo.Reason.NODE_LEFT ? null : randomAlphaOfLength(20)
-        );
+        return unassignedInfo(UnassignedInfo.Reason.NODE_LEFT, UnassignedInfo.AllocationStatus.NO_ATTEMPT, TimeValue.ZERO);
     }
 
     private static UnassignedInfo decidersNo() {
@@ -2763,17 +2658,32 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
     }
 
     private static UnassignedInfo decidersNo(TimeValue unassignedTime) {
+        return unassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, UnassignedInfo.AllocationStatus.DECIDERS_NO, unassignedTime);
+    }
+
+    private static UnassignedInfo unassignedInfo(UnassignedInfo.Reason reason, TimeValue unassignedTime) {
+        return unassignedInfo(reason, UnassignedInfo.AllocationStatus.NO_ATTEMPT, unassignedTime);
+    }
+
+    private static UnassignedInfo unassignedInfo(
+        UnassignedInfo.Reason reason,
+        UnassignedInfo.AllocationStatus allocationStatus,
+        TimeValue unassignedTime
+    ) {
+        // ALLOCATION_FAILED requires failedAllocations > 0
+        int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0;
+        String lastAllocatedNodeId = reason == UnassignedInfo.Reason.NODE_RESTARTING ? "last-allocated-test-node" : null;
         return new UnassignedInfo(
-            UnassignedInfo.Reason.ALLOCATION_FAILED,
+            reason,
             null,
             null,
-            1,
+            failedAllocations,
             unassignedTime.nanos(),
             unassignedTime.millis(),
             false,
-            UnassignedInfo.AllocationStatus.DECIDERS_NO,
+            allocationStatus,
             Collections.emptySet(),
-            null
+            lastAllocatedNodeId
         );
     }
 
@@ -2830,7 +2740,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
         when(clusterService.state()).thenReturn(clusterState);
         var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getSettings()).thenReturn(nodeSettings);
         var allocationService = mock(AllocationService.class);
         when(allocationService.explainShardAllocation(any(ShardRouting.class), any(RoutingAllocation.class))).thenAnswer(
             (Answer<ShardAllocationDecision>) invocation -> {

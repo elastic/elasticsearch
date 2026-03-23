@@ -871,7 +871,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         MapperService mapperService = mapperService(
             false,
             false,
-            IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)
+            IndexVersionUtils.randomVersionBetween(
+                IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)
+            )
         );
         blockLoaderTestRunner.mapperService(mapperService);
         blockLoaderTestRunner.document(parse(mapperService, testCase.source));
@@ -884,7 +887,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         MapperService mapperService = mapperService(
             true,
             false,
-            IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING)
+            IndexVersionUtils.randomVersionBetween(
+                IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)
+            )
         );
         blockLoaderTestRunner.mapperService(mapperService);
         blockLoaderTestRunner.document(parse(mapperService, testCase.source));
@@ -897,7 +903,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         MapperService mapperService = mapperService(
             false,
             false,
-            IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)
+            IndexVersionUtils.randomVersionBetween(
+                IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)
+            )
         );
         blockLoaderTestRunner.mapperService(mapperService);
         blockLoaderTestRunner.document(parse(testCase.expectedIdWithRoutingPath(false), mapperService, testCase.source));
@@ -910,7 +919,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         MapperService mapperService = mapperService(
             true,
             false,
-            IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING)
+            IndexVersionUtils.randomVersionBetween(
+                IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)
+            )
         );
         blockLoaderTestRunner.mapperService(mapperService);
         blockLoaderTestRunner.document(parse(testCase.expectedIdWithIndexDimensions(false), mapperService, testCase.source));
@@ -923,7 +935,10 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         MapperService mapperService = mapperService(
             false,
             false,
-            IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)
+            IndexVersionUtils.randomVersionBetween(
+                IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)
+            )
         );
         for (CheckedConsumer<XContentBuilder, IOException> equivalent : testCase.equivalentSources) {
             blockLoaderTestRunner.mapperService(mapperService);

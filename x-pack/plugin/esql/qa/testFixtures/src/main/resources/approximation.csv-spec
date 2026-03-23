@@ -423,6 +423,19 @@ count:long | key:integer | _approximation_confidence_interval(count):long | _app
 ;
 
 
+Filter all rows
+required_capability: approximation_v5
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+  | STATS median = MEDIAN(sv)
+  | WHERE false
+;
+
+median:double | _approximation_confidence_interval(median):double | _approximation_certified(median):boolean 
+;
+
+
 Warn on no stats
 required_capability: approximation_v5
 

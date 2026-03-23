@@ -33,9 +33,9 @@ required_capability: knn_function_v5
 FROM dense_vector_text METADATA _score
 | EVAL query_embedding = EMBEDDING("be excellent to each other", "test_embedding_inference")
 | WHERE KNN(text_embedding_field, query_embedding)
-// end::embedding-knn[]
 | SORT _score DESC
 | LIMIT 10
+// end::embedding-knn[]
 | KEEP text_field, query_embedding
 ;
 

@@ -548,11 +548,7 @@ public class OptionsTests extends ESTestCase {
 
     public void testSingleEntryOptions_SingleDataTypeAllowed_ArrayValue_ShouldResolve() {
         Map<String, DataType> allowedOptions = Map.of("keyword_option", DataType.KEYWORD);
-        Literal arrayLiteral = new Literal(
-            Source.EMPTY,
-            List.of(new BytesRef("value1"), new BytesRef("value2")),
-            DataType.KEYWORD
-        );
+        Literal arrayLiteral = new Literal(Source.EMPTY, List.of(new BytesRef("value1"), new BytesRef("value2")), DataType.KEYWORD);
         MapExpression mapExpression = new MapExpression(
             Source.EMPTY,
             List.of(Literal.keyword(Source.EMPTY, "keyword_option"), arrayLiteral)
@@ -595,11 +591,7 @@ public class OptionsTests extends ESTestCase {
         Map<String, DataType> allowedOptions = Map.of("array_option", DataType.KEYWORD, "scalar_option", DataType.INTEGER);
         Map<String, Object> optionsMap = new HashMap<>();
 
-        Literal arrayLiteral = new Literal(
-            Source.EMPTY,
-            List.of(new BytesRef("a"), new BytesRef("b")),
-            DataType.KEYWORD
-        );
+        Literal arrayLiteral = new Literal(Source.EMPTY, List.of(new BytesRef("a"), new BytesRef("b")), DataType.KEYWORD);
         MapExpression mapExpression = new MapExpression(
             Source.EMPTY,
             List.of(
@@ -628,11 +620,7 @@ public class OptionsTests extends ESTestCase {
         Map<String, DataType> allowedOptions = Map.of("known_option", DataType.KEYWORD);
         Map<String, Object> optionsMap = new HashMap<>();
 
-        Literal arrayLiteral = new Literal(
-            Source.EMPTY,
-            List.of(new BytesRef("value1"), new BytesRef("value2")),
-            DataType.KEYWORD
-        );
+        Literal arrayLiteral = new Literal(Source.EMPTY, List.of(new BytesRef("value1"), new BytesRef("value2")), DataType.KEYWORD);
         MapExpression mapExpression = new MapExpression(
             Source.EMPTY,
             List.of(Literal.keyword(Source.EMPTY, "unknown_array_option"), arrayLiteral)
@@ -655,10 +643,7 @@ public class OptionsTests extends ESTestCase {
             List.of(new BytesRef("not_a_number"), new BytesRef("also_not_a_number")),
             DataType.KEYWORD
         );
-        MapExpression mapExpression = new MapExpression(
-            Source.EMPTY,
-            List.of(Literal.keyword(Source.EMPTY, "int_option"), arrayLiteral)
-        );
+        MapExpression mapExpression = new MapExpression(Source.EMPTY, List.of(Literal.keyword(Source.EMPTY, "int_option"), arrayLiteral));
 
         InvalidArgumentException exception = assertThrows(InvalidArgumentException.class, () -> {
             Options.populateMap(mapExpression, optionsMap, Source.EMPTY, TypeResolutions.ParamOrdinal.DEFAULT, allowedOptions);

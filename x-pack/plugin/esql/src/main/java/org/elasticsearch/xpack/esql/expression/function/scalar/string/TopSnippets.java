@@ -259,7 +259,6 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         validateHighlightOnlyOptions(options);
     }
 
-
     private static void validateOptionValueIsPositiveInteger(Map<String, Object> options, String paramName) {
         Object value = options.get(paramName);
         if (value != null && ((Number) value).intValue() <= 0) {
@@ -460,11 +459,8 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
      * leaf-scoped; {@link ReaderUtil#subIndex} is the same pattern as {@code FetchPhaseDocsIterator} and
      * {@code FollowingEngine} for resolving a top-level doc id to a segment.
      */
-    private static List<String> highlightScoredChunks(
-        CustomUnifiedHighlighter highlighter,
-        IndexReader reader,
-        List<ScoredChunk> topChunks
-    ) throws IOException {
+    private static List<String> highlightScoredChunks(CustomUnifiedHighlighter highlighter, IndexReader reader, List<ScoredChunk> topChunks)
+        throws IOException {
         List<LeafReaderContext> leaves = reader.leaves();
         if (leaves.isEmpty()) {
             return topChunks.stream().map(ScoredChunk::content).toList();
@@ -506,11 +502,11 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
             if (Boolean.TRUE.equals(opts.get(HIGHLIGHT))) {
                 List<String> preTags = toStringList(opts.get(PRE_TAGS), DEFAULT_PRE_TAGS);
                 List<String> postTags = toStringList(opts.get(POST_TAGS), DEFAULT_POST_TAGS);
-                //TODO(mromaios): the array complicates things, AFAIU the current DefaultHighlighter also just gets the first tag to use
-                //do we really need multiple tags support here? Maybe not, but only have this in the HIGHLIGHT cmd
+                // TODO(mromaios): the array complicates things, AFAIU the current DefaultHighlighter also just gets the first tag to use
+                // do we really need multiple tags support here? Maybe not, but only have this in the HIGHLIGHT cmd
                 String encoderType = opts.containsKey(ENCODER) ? (String) opts.get(ENCODER) : DEFAULT_ENCODER;
                 Encoder encoder = "html".equals(encoderType) ? new SimpleHTMLEncoder() : new DefaultEncoder();
-                //TODO(mromaios): We could use HighlightUtils.Encoders.HTML, but it's under search/phase/subphase which feels weird.
+                // TODO(mromaios): We could use HighlightUtils.Encoders.HTML, but it's under search/phase/subphase which feels weird.
                 highlightFormatter = new CustomPassageFormatter(preTags.getFirst(), postTags.getFirst(), encoder, 0);
             }
         } else {
@@ -519,7 +515,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         }
 
         ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(numWords, 0);
-        //TODO(mromaios): add Analyzer support
+        // TODO(mromaios): add Analyzer support
         MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
 
         return new TopSnippetsEvaluator.Factory(

@@ -209,7 +209,7 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
              * it with a shard move is useless: the node that receives the shard will hotspot instead, and an important
              * shard will be unavailable briefly when it moves.
              *
-             * The maxSingleShardWriteLoad is computed only for hotspotting nodes, and cached within cluster info so it
+             * The maxShardWriteLoadAsRatio is computed only for hotspotting nodes, and cached within cluster info so it
              * is only computed once per balancing round */
             final double maxShardWriteLoadThreshold = writeLoadConstraintSettings.getHotspotUtilizationMaxSingleShardThreshold();
             final double maxShardWriteLoadAsRatio = allocation.clusterInfo()

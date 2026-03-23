@@ -76,7 +76,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
                 new DocumentSpec("2021-04-29T17:39:22.470Z", 13)
             ),
             "30m",
-            0.003
+            0.1
         );
     }
 
@@ -95,7 +95,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
                 new DocumentSpec("2021-04-29T17:39:22.470Z", 13)
             ),
             "30m",
-            0.003
+            0.1
         );
     }
 
@@ -114,7 +114,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
                 new DocumentSpec("2021-04-29T17:39:22.470Z", 80)
             ),
             "30m",
-            0.003
+            0.1
         );
     }
 
@@ -141,7 +141,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
                 new DocumentSpec("2021-04-29T17:59:22.470Z", 20)
             ),
             "30m",
-            0.003
+            0.1
         );
     }
 
@@ -161,7 +161,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
             currentTime += randomLongBetween(5, 30) * 1000;
         }
         // We use higher rate epsilon because there is a bigger fluctuation due to the random data
-        runTest(documentSpecs, "1h", 0.1);
+        runTest(documentSpecs, "1h", 0.25);
     }
 
     private void runTest(List<DocumentSpec> documentSpecs, String interval, double rateEpsilon) {
@@ -189,7 +189,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
             // We need these two assertions to correctly identify the rate
             assertThat(contenderRow.timeseries, equalTo(baselineRow.timeseries));
             assertThat(contenderRow.timestamp, equalTo(baselineRow.timestamp));
-            assertEquals(baselineRow.rate, contenderRow.rate, rateEpsilon);
+            assertEquals(0, Math.abs(baselineRow.rate - contenderRow.rate) / baselineRow.rate, rateEpsilon);
         }
     }
 

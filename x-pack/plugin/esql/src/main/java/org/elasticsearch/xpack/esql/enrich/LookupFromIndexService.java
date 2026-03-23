@@ -57,7 +57,9 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LookupLogicalOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LookupPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -849,9 +851,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     /**
      * Builds the output attributes for a {@link ParameterizedQuery}, mirroring how {@link EsRelation}
      * exposes all index fields. This ensures the logical verifier can validate that all field references
-     * in the plan are satisfied. At the physical level, {@code ReplaceSourceAttributes}
+     * in the plan are satisfied. At the physical level,
+     * {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes ReplaceSourceAttributes}
      * strips the output back down to just {@code [_doc, _positions]}, and {@code InsertFieldExtraction}
-     * adds the needed fields back — the same pattern used for {@code EsRelation / ReplaceSourceAttributes}.
+     * adds the needed fields back — the same pattern used for {@code EsRelation}.
      */
     private static List<Attribute> buildParameterizedQueryOutput(
         FieldAttribute docAttribute,
@@ -879,7 +882,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     /**
      * Builds the physical plan for the lookup node by running:
-     * LocalMapper.map -> LookupPhysicalPlanOptimizer.
+     * LookupLogicalOptimizer -> LocalMapper.map -> LookupPhysicalPlanOptimizer.
      * The caller is responsible for building the logical plan via {@link #buildLocalLogicalPlan}.
      */
     public static PhysicalPlan createLookupPhysicalPlan(
@@ -890,7 +893,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         SearchStats searchStats,
         EsqlFlags flags
     ) {
-        PhysicalPlan physicalPlan = LocalMapper.INSTANCE.map(logicalPlan);
+        LogicalPlan optimizedLogical = new LookupLogicalOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats))
+            .localOptimize(logicalPlan);
+        PhysicalPlan physicalPlan = LocalMapper.INSTANCE.map(optimizedLogical);
         LocalPhysicalOptimizerContext context = new LocalPhysicalOptimizerContext(
             plannerSettings,
             flags,

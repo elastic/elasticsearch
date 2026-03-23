@@ -23,6 +23,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -162,6 +163,8 @@ public class CodecTests extends ESTestCase {
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, BitsetFilterCache.Listener.NOOP);
         MapperService service = new MapperService(
             () -> TransportVersion.current(),
+            null,
+            new FeatureService(List.of()),
             settings,
             indexAnalyzers,
             parserConfig(),

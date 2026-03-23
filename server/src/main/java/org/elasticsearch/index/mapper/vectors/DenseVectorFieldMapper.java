@@ -70,6 +70,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParser;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -347,7 +348,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 "index_options",
                 true,
                 () -> defaultIndexOptions(defaultInt8Hnsw, defaultBBQHnsw),
-                (n, c, o) -> o == null ? null : parseIndexOptions(n, o, indexVersionCreated, experimentalFeaturesEnabled),
+                (n, c, o) -> o == null ? null : parseIndexOptions(n, o, indexVersionCreated, c, experimentalFeaturesEnabled),
                 m -> toType(m).indexOptions,
                 (b, n, v) -> {
                     if (v != null) {
@@ -1518,6 +1519,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
+                MappingParserContext parserContext,
                 boolean experimentalFeaturesEnabled
             ) {
                 Object mNode = indexOptionsMap.remove("m");
@@ -1553,11 +1555,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
+                MappingParserContext parserContext,
                 boolean experimentalFeaturesEnabled
             ) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
-                Float confidenceInterval = parseConfidenceInterval(fieldName, indexOptionsMap, indexVersion);
+                Float confidenceInterval = parseConfidenceInterval(
+                    fieldName,
+                    indexOptionsMap,
+                    indexVersion,
+                    parserContext.getFeaturePredicate()
+                );
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
                 Object flatIndexThresholdNode = indexOptionsMap.remove("flat_index_threshold");
 
@@ -1589,11 +1597,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
+                MappingParserContext parserContext,
                 boolean experimentalFeaturesEnabled
             ) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
-                Float confidenceInterval = parseConfidenceInterval(fieldName, indexOptionsMap, indexVersion);
+                Float confidenceInterval = parseConfidenceInterval(
+                    fieldName,
+                    indexOptionsMap,
+                    indexVersion,
+                    parserContext.getFeaturePredicate()
+                );
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
                 Object flatIndexThresholdNode = indexOptionsMap.remove("flat_index_threshold");
 
@@ -1627,6 +1641,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
+                MappingParserContext parserContext,
                 boolean experimentalFeaturesEnabled
             ) {
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
@@ -1654,10 +1669,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
+                MappingParserContext parserContext,
                 boolean experimentalFeaturesEnabled
             ) {
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
-                Float confidenceInterval = parseConfidenceInterval(fieldName, indexOptionsMap, indexVersion);
+                Float confidenceInterval = parseConfidenceInterval(
+                    fieldName,
+                    indexOptionsMap,
+                    indexVersion,
+                    parserContext.getFeaturePredicate()
+                );
                 RescoreVector rescoreVector = null;
                 if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
@@ -1686,10 +1707,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
+                MappingParserContext parserContext,
                 boolean experimentalFeaturesEnabled
             ) {
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
-                Float confidenceInterval = parseConfidenceInterval(fieldName, indexOptionsMap, indexVersion);
+                Float confidenceInterval = parseConfidenceInterval(
+                    fieldName,
+                    indexOptionsMap,
+                    indexVersion,
+                    parserContext.getFeaturePredicate()
+                );
                 RescoreVector rescoreVector = null;
                 if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
@@ -1718,6 +1745,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
+                MappingParserContext parserContext,
                 boolean experimentalFeaturesEnabled
             ) {
                 Object mNode = indexOptionsMap.remove("m");
@@ -1758,6 +1786,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
+                MappingParserContext parserContext,
                 boolean experimentalFeaturesEnabled
             ) {
                 RescoreVector rescoreVector = null;
@@ -1792,6 +1821,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 String fieldName,
                 Map<String, ?> indexOptionsMap,
                 IndexVersion indexVersion,
+                MappingParserContext parserContext,
                 boolean experimentalFeaturesEnabled
             ) {
                 Object clusterSizeNode = indexOptionsMap.remove("cluster_size");
@@ -1905,6 +1935,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             String fieldName,
             Map<String, ?> indexOptionsMap,
             IndexVersion indexVersion,
+            MappingParserContext parserContext,
             boolean experimentalFeaturesEnabled
         );
 
@@ -3522,6 +3553,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         String fieldName,
         Object propNode,
         IndexVersion indexVersion,
+        MappingParserContext parserContext,
         boolean experimentalFeaturesEnabled
     ) {
         @SuppressWarnings("unchecked")
@@ -3536,7 +3568,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new MapperParsingException("Unknown vector index options type [" + type + "] for field [" + fieldName + "]");
         }
         VectorIndexType parsedType = vectorIndexType.get();
-        return parsedType.parseIndexOptions(fieldName, indexOptionsMap, indexVersion, experimentalFeaturesEnabled);
+        return parsedType.parseIndexOptions(fieldName, indexOptionsMap, indexVersion, parserContext, experimentalFeaturesEnabled);
     }
 
     private static Float parseConfidenceInterval(

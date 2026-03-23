@@ -45,6 +45,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
@@ -585,11 +586,13 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             );
             IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings);
             scriptService = new MockScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
+            FeatureService featureService = new FeatureService(List.of());
             similarityService = new SimilarityService(idxSettings, null, Collections.emptyMap());
             this.bitsetFilterCache = new BitsetFilterCache(idxSettings, BitsetFilterCache.Listener.NOOP);
             MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
             mapperService = new MapperService(
                 clusterService,
+                featureService,
                 idxSettings,
                 indexAnalyzers,
                 parserConfiguration,

@@ -885,6 +885,7 @@ public class SnapshotResiliencyTestHelper {
                     new IndexMetadataVerifier(
                         settings,
                         clusterService,
+                        new FeatureService(List.of()),
                         namedXContentRegistry,
                         mapperRegistry,
                         indexScopedSettings,

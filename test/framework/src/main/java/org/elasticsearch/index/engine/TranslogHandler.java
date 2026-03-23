@@ -10,9 +10,11 @@
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -29,10 +31,12 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static org.mockito.Mockito.mock;
 
 public class TranslogHandler implements Engine.TranslogRecoveryRunner {
 
@@ -53,6 +57,8 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
         MapperRegistry mapperRegistry = new IndicesModule(emptyList()).getMapperRegistry();
         mapperService = new MapperService(
             () -> TransportVersion.current(),
+            mock(ClusterService.class),
+            new FeatureService(List.of()),
             indexSettings,
             (type, name) -> Lucene.STANDARD_ANALYZER,
             XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),

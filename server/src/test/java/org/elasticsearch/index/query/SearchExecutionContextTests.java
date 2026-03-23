@@ -663,6 +663,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                 },
                 null,
                 namespaceValidator,
+                null,
                 null
             )
         );

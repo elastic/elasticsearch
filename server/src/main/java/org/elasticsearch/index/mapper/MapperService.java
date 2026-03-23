@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexMode;
@@ -214,12 +215,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
     private final Function<Query, BitSetProducer> bitSetProducer;
     private final MapperMetrics mapperMetrics;
+    private final ClusterService clusterService;
+    private final FeatureService featureService;
 
     private volatile DocumentMapper mapper;
     private volatile long mappingVersion;
 
     public MapperService(
         ClusterService clusterService,
+        FeatureService featureService,
         IndexSettings indexSettings,
         IndexAnalyzers indexAnalyzers,
         XContentParserConfiguration parserConfiguration,
@@ -235,6 +239,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     ) {
         this(
             () -> clusterService.state().getMinTransportVersion(),
+            clusterService,
+            featureService,
             indexSettings,
             indexAnalyzers,
             parserConfiguration,
@@ -253,6 +259,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     @SuppressWarnings("this-escape")
     public MapperService(
         Supplier<TransportVersion> clusterTransportVersion,
+        ClusterService clusterService,
+        FeatureService featureService,
         IndexSettings indexSettings,
         IndexAnalyzers indexAnalyzers,
         XContentParserConfiguration parserConfiguration,
@@ -272,6 +280,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.indexMode = IndexMode.fromIndexSettingsWithoutValidation(indexSettings.getSettings());
         this.indexAnalyzers = indexAnalyzers;
         this.mapperRegistry = mapperRegistry;
+        this.clusterService = clusterService;
+        this.featureService = featureService;
         this.mappingParserContextSupplier = () -> new MappingParserContext(
             similarityService::getSimilarity,
             type -> mapperRegistry.getMapperParser(type, indexVersionCreated),
@@ -286,7 +296,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             bitSetProducer,
             mapperRegistry.getVectorsFormatProviders(),
             mapperRegistry.getNamespaceValidator(),
-            projectMetadataSupplier
+            projectMetadataSupplier,
+            feature -> featureService.clusterHasFeature(clusterService.state(), feature)
         );
         this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContextSupplier.get());
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(

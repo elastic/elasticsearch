@@ -15,6 +15,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -25,6 +26,7 @@ import org.elasticsearch.script.ScriptCompiler;
 
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -49,6 +51,7 @@ public class MappingParserContext {
     private final List<VectorsFormatProvider> vectorsFormatProviders;
     private final RootObjectMapperNamespaceValidator namespaceValidator;
     private final Supplier<ProjectMetadata> projectMetadataSupplier;
+    private final Predicate<NodeFeature> featurePredicate;
 
     public MappingParserContext(
         Function<String, SimilarityProvider> similarityLookupService,
@@ -64,7 +67,8 @@ public class MappingParserContext {
         Function<Query, BitSetProducer> bitSetProducer,
         List<VectorsFormatProvider> vectorsFormatProviders,
         RootObjectMapperNamespaceValidator namespaceValidator,
-        Supplier<ProjectMetadata> projectMetadataSupplier
+        Supplier<ProjectMetadata> projectMetadataSupplier,
+        Predicate<NodeFeature> featurePredicate
     ) {
         this.similarityLookupService = similarityLookupService;
         this.typeParsers = typeParsers;
@@ -81,6 +85,7 @@ public class MappingParserContext {
         this.vectorsFormatProviders = vectorsFormatProviders;
         this.namespaceValidator = namespaceValidator;
         this.projectMetadataSupplier = projectMetadataSupplier;
+        this.featurePredicate = featurePredicate;
     }
 
     public MappingParserContext(
@@ -111,7 +116,8 @@ public class MappingParserContext {
             bitSetProducer,
             vectorsFormatProviders,
             null,
-            null
+            null,
+            feature -> false
         );
     }
 
@@ -213,6 +219,10 @@ public class MappingParserContext {
         return projectMetadataSupplier;
     }
 
+    public Predicate<NodeFeature> getFeaturePredicate() {
+        return featurePredicate;
+    }
+
     private static class MultiFieldParserContext extends MappingParserContext {
         MultiFieldParserContext(MappingParserContext in) {
             super(
@@ -229,7 +239,8 @@ public class MappingParserContext {
                 in.bitSetProducer,
                 in.vectorsFormatProviders,
                 in.namespaceValidator,
-                null
+                null,
+                in.featurePredicate
             );
         }
 
@@ -262,7 +273,8 @@ public class MappingParserContext {
                 in.bitSetProducer,
                 in.vectorsFormatProviders,
                 in.namespaceValidator,
-                null
+                null,
+                in.featurePredicate
             );
             this.dateFormatter = dateFormatter;
         }

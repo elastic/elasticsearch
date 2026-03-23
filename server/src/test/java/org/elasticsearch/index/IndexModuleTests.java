@@ -51,6 +51,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -264,7 +265,8 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
-            StoreMetrics.NOOP_HOLDER
+            StoreMetrics.NOOP_HOLDER,
+            new FeatureService(List.of())
         );
         module.setReaderWrapper(s -> new Wrapper());
 
@@ -296,7 +298,8 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
-            StoreMetrics.NOOP_HOLDER
+            StoreMetrics.NOOP_HOLDER,
+            new FeatureService(List.of())
         );
 
         final IndexService indexService = newIndexService(module);
@@ -326,7 +329,8 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
-            StoreMetrics.NOOP_HOLDER
+            StoreMetrics.NOOP_HOLDER,
+            new FeatureService(List.of())
         );
 
         module.setDirectoryWrapper(new TestDirectoryWrapper());
@@ -684,7 +688,8 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
-            StoreMetrics.NOOP_HOLDER
+            StoreMetrics.NOOP_HOLDER,
+            new FeatureService(List.of())
         );
 
         final IndexService indexService = newIndexService(module);
@@ -711,7 +716,8 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
-            StoreMetrics.NOOP_HOLDER
+            StoreMetrics.NOOP_HOLDER,
+            new FeatureService(List.of())
         );
 
         final AtomicLong lastAcquiredPrimaryTerm = new AtomicLong();
@@ -818,7 +824,8 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
-            StoreMetrics.NOOP_HOLDER
+            StoreMetrics.NOOP_HOLDER,
+            new FeatureService(List.of())
         );
     }
 

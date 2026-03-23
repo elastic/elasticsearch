@@ -145,7 +145,7 @@ public class SemanticTextIndexOptions implements ToXContent {
                 XContentMapValues.nodeStringValue(type, null)
             ).orElseThrow(() -> new IllegalArgumentException("Unsupported index options " + TYPE_FIELD + " " + type));
 
-            return vectorIndexType.parseIndexOptions(fieldName, map, indexVersion, experimentalFeaturesEnabled);
+            return vectorIndexType.parseIndexOptions(fieldName, map, indexVersion, null, experimentalFeaturesEnabled);
         } catch (Exception exc) {
             throw new ElasticsearchException(exc);
         }

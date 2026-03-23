@@ -35,6 +35,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -186,6 +187,7 @@ public final class IndexModule {
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
     private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
+    private final FeatureService featureService;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -211,7 +213,8 @@ public final class IndexModule {
         final IndexingStatsSettings indexingStatsSettings,
         final SearchStatsSettings searchStatsSettings,
         final MergeMetrics mergeMetrics,
-        final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder
+        final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder,
+        final FeatureService featureService
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
@@ -229,6 +232,7 @@ public final class IndexModule {
         this.searchStatsSettings = searchStatsSettings;
         this.mergeMetrics = mergeMetrics;
         this.metricHolder = metricHolder;
+        this.featureService = featureService;
     }
 
     /**
@@ -566,7 +570,8 @@ public final class IndexModule {
                 indexingStatsSettings,
                 searchStatsSettings,
                 mergeMetrics,
-                metricHolder
+                metricHolder,
+                featureService
             );
             success = true;
             return indexService;
@@ -668,6 +673,7 @@ public final class IndexModule {
     ) throws IOException {
         return new MapperService(
             clusterService,
+            featureService,
             indexSettings,
             analysisRegistry.build(IndexCreationContext.METADATA_VERIFICATION, indexSettings),
             parserConfiguration,

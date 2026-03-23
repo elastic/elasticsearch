@@ -41,6 +41,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -141,6 +142,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final XContentParserConfiguration parserConfiguration;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final SimilarityService similarityService;
+    private final FeatureService featureService;
     private final EngineFactory engineFactory;
     private final IndexWarmer warmer;
     private volatile Map<Integer, IndexShard> shards = Map.of();
@@ -215,7 +217,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexingStatsSettings indexingStatsSettings,
         SearchStatsSettings searchStatsSettings,
         MergeMetrics mergeMetrics,
-        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder
+        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder,
+        FeatureService featureService
     ) {
         super(indexSettings);
         assert indexCreationContext != IndexCreationContext.RELOAD_ANALYZERS
@@ -230,11 +233,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.snapshotCommitSupplier = snapshotCommitSupplier;
         this.indexAnalyzers = indexAnalyzers;
+        this.featureService = featureService;
         if (needsMapperService(indexSettings, indexCreationContext)) {
             assert indexAnalyzers != null;
             this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
             this.mapperService = new MapperService(
                 clusterService,
+                featureService,
                 indexSettings,
                 indexAnalyzers,
                 parserConfiguration,

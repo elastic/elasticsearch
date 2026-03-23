@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
@@ -75,6 +76,7 @@ public class IndicesServiceBuilder {
     ProjectResolver projectResolver;
     Client client;
     MetaStateService metaStateService;
+    FeatureService featureService;
     Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders = List.of();
     Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories = Map.of();
     @Nullable
@@ -177,6 +179,11 @@ public class IndicesServiceBuilder {
         return this;
     }
 
+    public IndicesServiceBuilder featureService(FeatureService featureService) {
+        this.featureService = featureService;
+        return this;
+    }
+
     public IndicesServiceBuilder valuesSourceRegistry(ValuesSourceRegistry valuesSourceRegistry) {
         this.valuesSourceRegistry = valuesSourceRegistry;
         return this;
@@ -231,6 +238,7 @@ public class IndicesServiceBuilder {
         Objects.requireNonNull(projectResolver);
         Objects.requireNonNull(client);
         Objects.requireNonNull(metaStateService);
+        Objects.requireNonNull(featureService);
         Objects.requireNonNull(engineFactoryProviders);
         Objects.requireNonNull(directoryFactories);
         Objects.requireNonNull(recoveryStateFactories);

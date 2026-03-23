@@ -11,10 +11,12 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -34,6 +36,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.test.ESTestCase.createTestAnalysis;
+import static org.mockito.Mockito.mock;
 
 public class MapperTestUtils {
     public static MapperService newMapperService(
@@ -86,6 +89,8 @@ public class MapperTestUtils {
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
         return new MapperService(
             () -> TransportVersion.current(),
+            mock(ClusterService.class),
+            new FeatureService(List.of()),
             indexSettings,
             indexAnalyzers,
             XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),

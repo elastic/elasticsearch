@@ -185,7 +185,7 @@ public class WeightedAvgTests extends AbstractAggregationTestCase {
                     } else if (totalWeights != 0.0) {
                         var result = weightedSum / totalWeights;
                         if (Double.isInfinite(result) || Double.isNaN(result)) {
-                            warnings.add("Line 1:1: java.lang.ArithmeticException: / by zero");
+                            warnings.add("Line 1:1: java.lang.ArithmeticException: not a finite double number: " + result);
                         } else {
                             expected = result;
                         }

@@ -12,6 +12,47 @@ FROM tdigest_standard_index
 2025-01-01T00:00:00Z | hand-rolled-empty | "{""centroids"":[], ""counts"":[]}"
 ;
 
+// -------------------------------------------------------------------------------
+
+to_tdigest from exponential histogram
+required_capability: to_tdigest_from_exponential_histogram
+
+FROM exp_histo_sample
+ | WHERE instance == "dummy-full"
+ | STATS min = MIN(to_tdigest(responseTime)),
+         max = MAX(to_tdigest(responseTime)),
+         p10 = PERCENTILE(to_tdigest(responseTime), 10),
+         p50 = PERCENTILE(to_tdigest(responseTime), 50),
+         p90 = PERCENTILE(to_tdigest(responseTime), 90),
+         sum = SUM(to_tdigest(responseTime)),
+         cnt = COUNT(to_tdigest(responseTime))
+;
+
+min:double | max:double | p10:double | p50:double | p90:double | sum:double | cnt:long
+-100.0     | 50.0       | -100..-90  | -30..-20    | 35..40    | -3775.0    | 151
+;
+
+// -------------------------------------------------------------------------------
+
+timeseries to_tdigest from exponential histogram
+required_capability: to_tdigest_from_exponential_histogram
+required_capability: ts_command_v0
+
+TS exp_histo_sample
+ | WHERE instance == "dummy-full"
+ | STATS min = MIN(to_tdigest(responseTime)),
+         max = MAX(to_tdigest(responseTime)),
+         p10 = PERCENTILE(to_tdigest(responseTime), 10),
+         p50 = PERCENTILE(to_tdigest(responseTime), 50),
+         p90 = PERCENTILE(to_tdigest(responseTime), 90),
+         sum = SUM(to_tdigest(responseTime)),
+         cnt = COUNT(to_tdigest(responseTime))
+;
+
+min:double | max:double | p10:double | p50:double | p90:double | sum:double | cnt:long
+-100.0     | 50.0       | -100..-90  | -30..-20    | 35..40    | -3775.0    | 151
+;
+
 
 allAggsUngrouped
 required_capability: tdigest_time_series_metric

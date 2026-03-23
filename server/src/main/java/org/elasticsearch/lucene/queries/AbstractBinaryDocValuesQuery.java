@@ -15,6 +15,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -55,21 +56,7 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
                     return null;
                 }
 
-                final TwoPhaseIterator iterator = new TwoPhaseIterator(counts) {
-                    final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
-
-                    @Override
-                    public boolean matches() throws IOException {
-                        values.advance(counts.docID());
-                        return reader.match(values.binaryValue(), counts.longValue(), matcher);
-                    }
-
-                    @Override
-                    public float matchCost() {
-                        return matchCost;
-                    }
-                };
-
+                final var iterator = multiValuedIterator(values, counts, matcher, matchCost());
                 return new DefaultScorerSupplier(new ConstantScoreScorer(score(), scoreMode, iterator));
             }
 
@@ -87,5 +74,27 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
         if (visitor.acceptField(fieldName)) {
             visitor.visitLeaf(this);
         }
+    }
+
+    static DocIdSetIterator multiValuedIterator(
+        BinaryDocValues values,
+        NumericDocValues counts,
+        Predicate<BytesRef> predicate,
+        float cost
+    ) {
+        return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(counts) {
+            final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
+
+            @Override
+            public boolean matches() throws IOException {
+                values.advance(counts.docID());
+                return reader.match(values.binaryValue(), counts.longValue(), predicate);
+            }
+
+            @Override
+            public float matchCost() {
+                return cost;
+            }
+        });
     }
 }

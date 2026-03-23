@@ -28,6 +28,7 @@ import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOp
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -84,15 +86,6 @@ public class AzureOpenAiService extends SenderService<AzureOpenAiModel> {
         CHAT_COMPLETION_REQUEST_TYPE,
         OpenAiChatCompletionResponseEntity::fromResponse
     );
-    private static final AzureOpenAiCompletionModelCreator COMPLETION_MODEL_CREATOR = new AzureOpenAiCompletionModelCreator();
-    private static final Map<TaskType, ModelCreator<? extends AzureOpenAiModel>> MODEL_CREATORS = Map.of(
-        TaskType.TEXT_EMBEDDING,
-        new AzureOpenAiEmbeddingsModelCreator(),
-        TaskType.COMPLETION,
-        COMPLETION_MODEL_CREATOR,
-        TaskType.CHAT_COMPLETION,
-        COMPLETION_MODEL_CREATOR
-    );
 
     public AzureOpenAiService(
         HttpRequestSender.Factory factory,
@@ -103,7 +96,20 @@ public class AzureOpenAiService extends SenderService<AzureOpenAiModel> {
     }
 
     public AzureOpenAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService, MODEL_CREATORS);
+        super(factory, serviceComponents, clusterService, initModelCreators(serviceComponents.threadPool()));
+    }
+
+    private static Map<TaskType, ModelCreator<? extends AzureOpenAiModel>> initModelCreators(ThreadPool threadPool) {
+        var completionModelCreator = new AzureOpenAiCompletionModelCreator(threadPool);
+
+        return Map.of(
+            TaskType.TEXT_EMBEDDING,
+            new AzureOpenAiEmbeddingsModelCreator(threadPool),
+            TaskType.COMPLETION,
+            completionModelCreator,
+            TaskType.CHAT_COMPLETION,
+            completionModelCreator
+        );
     }
 
     @Override
@@ -129,7 +135,7 @@ public class AzureOpenAiService extends SenderService<AzureOpenAiModel> {
                 );
             }
 
-            AzureOpenAiModel model = createModel(
+            var model = createModel(
                 inferenceEntityId,
                 taskType,
                 serviceSettingsMap,
@@ -151,7 +157,7 @@ public class AzureOpenAiService extends SenderService<AzureOpenAiModel> {
         }
     }
 
-    private static AzureOpenAiModel createModel(
+    private AzureOpenAiModel createModel(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
@@ -160,7 +166,7 @@ public class AzureOpenAiService extends SenderService<AzureOpenAiModel> {
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
+        return retrieveModelCreatorFromMapOrThrow(modelCreators, inferenceEntityId, taskType, NAME, context).createFromMaps(
             inferenceEntityId,
             taskType,
             NAME,
@@ -175,7 +181,7 @@ public class AzureOpenAiService extends SenderService<AzureOpenAiModel> {
     @Override
     public AzureOpenAiModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
         return retrieveModelCreatorFromMapOrThrow(
-            MODEL_CREATORS,
+            modelCreators,
             config.getInferenceEntityId(),
             config.getTaskType(),
             config.getService(),
@@ -289,7 +295,8 @@ public class AzureOpenAiService extends SenderService<AzureOpenAiModel> {
                 serviceSettings.dimensionsSetByUser(),
                 serviceSettings.maxInputTokens(),
                 similarityToUse,
-                serviceSettings.rateLimitSettings()
+                serviceSettings.rateLimitSettings(),
+                serviceSettings.oAuth2Settings()
             );
 
             return new AzureOpenAiEmbeddingsModel(embeddingsModel, updatedServiceSettings);
@@ -364,7 +371,8 @@ public class AzureOpenAiService extends SenderService<AzureOpenAiModel> {
                         .build()
                 );
 
-                configurationMap.putAll(AzureOpenAiSecretSettings.Configuration.get());
+                configurationMap.putAll(AzureOpenAiSecretSettings.configurations(SUPPORTED_TASK_TYPES));
+                configurationMap.putAll(AzureOpenAiOAuth2Settings.configurations(SUPPORTED_TASK_TYPES));
                 configurationMap.putAll(
                     RateLimitSettings.toSettingsConfigurationWithDescription(
                         "The azureopenai service sets a default number of requests allowed per minute depending on the task type.",

@@ -888,7 +888,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
             true,
             false,
             IndexVersionUtils.randomVersionBetween(
-                IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID,
+                IndexVersions.TSID_CREATED_DURING_ROUTING,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)
             )
         );
@@ -920,7 +920,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
             true,
             false,
             IndexVersionUtils.randomVersionBetween(
-                IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID,
+                IndexVersions.TSID_CREATED_DURING_ROUTING,
                 IndexVersionUtils.getPreviousVersion(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG)
             )
         );

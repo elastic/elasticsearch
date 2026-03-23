@@ -106,6 +106,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X;
+import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
@@ -547,13 +548,15 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         private void validateServiceSettings(MinimalServiceSettings settings, MinimalServiceSettings resolved) {
             switch (settings.taskType()) {
-                case SPARSE_EMBEDDING, TEXT_EMBEDDING -> {
+                case SPARSE_EMBEDDING, TEXT_EMBEDDING, EMBEDDING -> {
                 }
                 default -> throw new IllegalArgumentException(
                     "Wrong ["
                         + MinimalServiceSettings.TASK_TYPE_FIELD
                         + "], expected "
                         + TEXT_EMBEDDING
+                        + ", "
+                        + EMBEDDING
                         + " or "
                         + SPARSE_EMBEDDING
                         + ", got "
@@ -597,9 +600,15 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
 
             if (indexOptions.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
-                if (modelSettings.taskType() != TEXT_EMBEDDING) {
+                if (modelSettings.taskType() != TEXT_EMBEDDING && modelSettings.taskType() != EMBEDDING) {
                     throw new IllegalArgumentException(
-                        "Invalid task type for index options, required [" + TEXT_EMBEDDING + "] but was [" + modelSettings.taskType() + "]"
+                        "Invalid task type for index options, required ["
+                            + TEXT_EMBEDDING
+                            + " or "
+                            + EMBEDDING
+                            + "] but was ["
+                            + modelSettings.taskType()
+                            + "]"
                     );
                 }
 
@@ -1059,7 +1068,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             null
                         );
                     }
-                    case TEXT_EMBEDDING -> {
+                    case TEXT_EMBEDDING, EMBEDDING -> {
                         if (inferenceResults instanceof MlDenseEmbeddingResults == false) {
                             throw new IllegalArgumentException(
                                 generateQueryInferenceResultsTypeMismatchMessage(inferenceResults, MlDenseEmbeddingResults.NAME)
@@ -1384,7 +1393,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
                 yield sparseVectorMapperBuilder;
             }
-            case TEXT_EMBEDDING -> {
+            case TEXT_EMBEDDING, EMBEDDING -> {
                 DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
                     CHUNKED_EMBEDDINGS_FIELD,
                     indexVersionCreated,
@@ -1503,7 +1512,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return null;
         }
 
-        if (modelSettings.taskType() == TaskType.TEXT_EMBEDDING) {
+        if (modelSettings.taskType() == TEXT_EMBEDDING || modelSettings.taskType() == EMBEDDING) {
             DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions = defaultDenseVectorIndexOptions(
                 indexVersionCreated,
                 modelSettings

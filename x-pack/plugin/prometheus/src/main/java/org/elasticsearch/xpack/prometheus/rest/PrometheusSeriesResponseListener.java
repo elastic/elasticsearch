@@ -127,7 +127,8 @@ public class PrometheusSeriesResponseListener implements ActionListener<EsqlQuer
         if (labels.containsKey("__name__") == false && metricName != null) {
             labels.put("__name__", metricName);
         }
-        assert labels.isEmpty() == false : "label map must not be empty for metric_name=[" + metricName + "] dimensions=[" + dimensionsJson + "]";
+        assert labels.isEmpty() == false
+            : "label map must not be empty for metric_name=[" + metricName + "] dimensions=[" + dimensionsJson + "]";
         return labels;
     }
 

@@ -32,7 +32,6 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -44,7 +43,6 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -69,7 +67,6 @@ import org.elasticsearch.xpack.rollup.RollupResponseTranslator;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -138,26 +135,24 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         client.multiSearch(msearch, ActionListener.wrap(msearchResponse -> {
             AggregationReduceContext.Builder reduceContextBuilder = new AggregationReduceContext.Builder() {
                 @Override
-                public AggregationReduceContext forPartialReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
+                public AggregationReduceContext forPartialReduction() {
                     return new AggregationReduceContext.ForPartial(
                         bigArrays,
                         scriptService,
                         ((CancellableTask) task)::isCancelled,
                         request.source().aggregations(),
-                        b -> {},
-                        topHitsToRelease
+                        b -> {}
                     );
                 }
 
                 @Override
-                public AggregationReduceContext forFinalReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
+                public AggregationReduceContext forFinalReduction() {
                     return new AggregationReduceContext.ForFinal(
                         bigArrays,
                         scriptService,
                         ((CancellableTask) task)::isCancelled,
                         request.source().aggregations(),
-                        b -> {},
-                        topHitsToRelease
+                        b -> {}
                     );
                 }
             };

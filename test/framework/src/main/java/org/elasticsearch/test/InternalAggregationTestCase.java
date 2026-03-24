@@ -18,14 +18,12 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -38,16 +36,13 @@ import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
-import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -67,7 +62,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * can be extracted from the AggregatorSpecs in the plugin (as well as any other custom NamedWriteables)
  */
 public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractNamedWriteableTestCase<T> {
-
     /**
      * Builds an {@link AggregationReduceContext} that is valid but empty.
      */
@@ -82,27 +76,13 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     public static AggregationReduceContext.Builder emptyReduceContextBuilder(AggregatorFactories.Builder aggs) {
         return new AggregationReduceContext.Builder() {
             @Override
-            public AggregationReduceContext forPartialReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
-                return new AggregationReduceContext.ForPartial(
-                    BigArrays.NON_RECYCLING_INSTANCE,
-                    null,
-                    () -> false,
-                    aggs,
-                    b -> {},
-                    topHitsToRelease
-                );
+            public AggregationReduceContext forPartialReduction() {
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, () -> false, aggs, b -> {});
             }
 
             @Override
-            public AggregationReduceContext forFinalReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
-                return new AggregationReduceContext.ForFinal(
-                    BigArrays.NON_RECYCLING_INSTANCE,
-                    null,
-                    () -> false,
-                    aggs,
-                    b -> {},
-                    topHitsToRelease
-                );
+            public AggregationReduceContext forFinalReduction() {
+                return new AggregationReduceContext.ForFinal(BigArrays.NON_RECYCLING_INSTANCE, null, () -> false, aggs, b -> {});
             }
         };
     }
@@ -114,27 +94,19 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     public static AggregationReduceContext.Builder mockReduceContext(AggregationBuilder agg) {
         return new AggregationReduceContext.Builder() {
             @Override
-            public AggregationReduceContext forPartialReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
-                return new AggregationReduceContext.ForPartial(
-                    BigArrays.NON_RECYCLING_INSTANCE,
-                    null,
-                    () -> false,
-                    agg,
-                    b -> {},
-                    topHitsToRelease
-                );
+            public AggregationReduceContext forPartialReduction() {
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, () -> false, agg, b -> {});
             }
 
             @Override
-            public AggregationReduceContext forFinalReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
+            public AggregationReduceContext forFinalReduction() {
                 return new AggregationReduceContext.ForFinal(
                     BigArrays.NON_RECYCLING_INSTANCE,
                     null,
                     () -> false,
                     agg,
                     b -> {},
-                    PipelineTree.EMPTY,
-                    topHitsToRelease
+                    PipelineTree.EMPTY
                 );
             }
         };
@@ -145,36 +117,6 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     @SuppressWarnings("this-escape")
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(getNamedWriteables());
-
-    protected final List<InternalAggregation> aggregationsToRelease = new ArrayList<>();
-
-    /**
-     * Recursively release pooled SearchHits held by InternalTopHits in the aggregation tree.
-     * Call this for aggregations created by tests (e.g. from createTestInstance or randomResultsToReduce)
-     * so that pooled SearchHits are not leaked. Do not call for the result of reduce() since those
-     * SearchHits are released via the reduce context's topHitsToRelease list.
-     */
-    protected static void releaseAggregationResources(InternalAggregation agg) {
-        if (agg instanceof InternalTopHits topHits) {
-            SearchHits hits = topHits.getHits();
-            if (hits != null && hits.isPooled()) {
-                hits.decRef();
-            }
-        }
-        agg.forEachBucket(ia -> {
-            for (InternalAggregation a : ia) {
-                releaseAggregationResources(a);
-            }
-        });
-    }
-
-    @After
-    public void releaseTrackedAggregations() {
-        for (InternalAggregation agg : aggregationsToRelease) {
-            releaseAggregationResources(agg);
-        }
-        aggregationsToRelease.clear();
-    }
 
     public static InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         try (AggregatorReducer reducer = aggregations.get(0).getReducer(reduceContext, aggregations.size())) {
@@ -286,86 +228,70 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         String name = randomAlphaOfLength(5);
         int size = between(1, 200);
         BuilderAndToReduce<T> inputs = randomResultsToReduce(name, size);
-        aggregationsToRelease.addAll(inputs.toReduce());
         assertThat(inputs.toReduce(), hasSize(size));
         List<InternalAggregation> toReduce = new ArrayList<>();
-        List<SearchHits> topHitsToRelease = new ArrayList<>();
         toReduce.addAll(inputs.toReduce());
-        InternalAggregation partialReducedToRelease = null;
-        try {
-            ScriptService mockScriptService = mockScriptService();
-            MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
-            if (randomBoolean() && toReduce.size() > 1) {
-                // sometimes do a partial reduce
-                if (supportsOutOfOrderReduce()) {
-                    Collections.shuffle(toReduce, random());
-                }
-                int r = randomIntBetween(1, toReduce.size());
-                List<InternalAggregation> toPartialReduce = toReduce.subList(0, r);
-                AggregationReduceContext context = new AggregationReduceContext.ForPartial(
-                    bigArrays,
-                    mockScriptService,
-                    () -> false,
-                    inputs.builder(),
-                    b -> {},
-                    topHitsToRelease
-                );
-                @SuppressWarnings("unchecked")
-                T reduced = (T) reduce(toPartialReduce, context);
-                int initialBucketCount = 0;
-                for (InternalAggregation internalAggregation : toPartialReduce) {
-                    initialBucketCount += countInnerBucket(internalAggregation);
-                }
-                int reducedBucketCount = countInnerBucket(reduced);
-                // check that non final reduction never adds buckets
-                assertThat(reducedBucketCount, lessThanOrEqualTo(initialBucketCount));
-                /*
-                 * Sometimes serializing and deserializing the partially reduced
-                 * result to simulate the compaction that we attempt after a
-                 * partial reduce. And to simulate cross cluster search.
-                 */
-                if (randomBoolean()) {
-                    reduced = copyNamedWriteable(reduced, getNamedWriteableRegistry(), categoryClass());
-                    // Deserialized aggregation has its own pooled SearchHits that are not in topHitsToRelease
-                    partialReducedToRelease = reduced;
-                }
-                toReduce = new ArrayList<>(toReduce.subList(r, toReduce.size()));
-                toReduce.add(reduced);
+        ScriptService mockScriptService = mockScriptService();
+        MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        if (randomBoolean() && toReduce.size() > 1) {
+            // sometimes do a partial reduce
+            if (supportsOutOfOrderReduce()) {
+                Collections.shuffle(toReduce, random());
             }
-            MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(
-                DEFAULT_MAX_BUCKETS,
-                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
-            );
-            AggregationReduceContext context = new AggregationReduceContext.ForFinal(
+            int r = randomIntBetween(1, toReduce.size());
+            List<InternalAggregation> toPartialReduce = toReduce.subList(0, r);
+            AggregationReduceContext context = new AggregationReduceContext.ForPartial(
                 bigArrays,
                 mockScriptService,
                 () -> false,
                 inputs.builder(),
-                bucketConsumer,
-                PipelineTree.EMPTY,
-                topHitsToRelease
+                b -> {}
             );
             @SuppressWarnings("unchecked")
-            T reduced = (T) reduce(toReduce, context);
-            doAssertReducedMultiBucketConsumer(reduced, bucketConsumer);
-            assertReduced(reduced, inputs.toReduce());
-            if (supportsSampling()) {
-                SamplingContext randomContext = new SamplingContext(
-                    randomDoubleBetween(1e-8, 0.1, false),
-                    randomInt(),
-                    randomBoolean() ? null : randomInt()
-                );
-                @SuppressWarnings("unchecked")
-                T sampled = (T) reduced.finalizeSampling(randomContext);
-                assertSampled(sampled, reduced, randomContext);
+            T reduced = (T) reduce(toPartialReduce, context);
+            int initialBucketCount = 0;
+            for (InternalAggregation internalAggregation : toPartialReduce) {
+                initialBucketCount += countInnerBucket(internalAggregation);
             }
-        } finally {
-            for (SearchHits h : topHitsToRelease) {
-                h.decRef();
+            int reducedBucketCount = countInnerBucket(reduced);
+            // check that non final reduction never adds buckets
+            assertThat(reducedBucketCount, lessThanOrEqualTo(initialBucketCount));
+            /*
+             * Sometimes serializing and deserializing the partially reduced
+             * result to simulate the compaction that we attempt after a
+             * partial reduce. And to simulate cross cluster search.
+             */
+            if (randomBoolean()) {
+                reduced = copyNamedWriteable(reduced, getNamedWriteableRegistry(), categoryClass());
             }
-            if (partialReducedToRelease != null) {
-                releaseAggregationResources(partialReducedToRelease);
-            }
+            toReduce = new ArrayList<>(toReduce.subList(r, toReduce.size()));
+            toReduce.add(reduced);
+        }
+        MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(
+            DEFAULT_MAX_BUCKETS,
+            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+        );
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(
+            bigArrays,
+            mockScriptService,
+            () -> false,
+            inputs.builder(),
+            bucketConsumer,
+            PipelineTree.EMPTY
+        );
+        @SuppressWarnings("unchecked")
+        T reduced = (T) reduce(toReduce, context);
+        doAssertReducedMultiBucketConsumer(reduced, bucketConsumer);
+        assertReduced(reduced, inputs.toReduce());
+        if (supportsSampling()) {
+            SamplingContext randomContext = new SamplingContext(
+                randomDoubleBetween(1e-8, 0.1, false),
+                randomInt(),
+                randomBoolean() ? null : randomInt()
+            );
+            @SuppressWarnings("unchecked")
+            T sampled = (T) reduced.finalizeSampling(randomContext);
+            assertSampled(sampled, reduced, randomContext);
         }
     }
 
@@ -388,9 +314,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     @Override
     public final T createTestInstance() {
-        T instance = createTestInstance(randomAlphaOfLength(5));
-        aggregationsToRelease.add(instance);
-        return instance;
+        return createTestInstance(randomAlphaOfLength(5));
     }
 
     protected boolean supportsSampling() {

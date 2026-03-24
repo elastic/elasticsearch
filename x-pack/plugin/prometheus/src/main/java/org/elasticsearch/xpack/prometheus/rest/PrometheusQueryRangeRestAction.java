@@ -62,7 +62,7 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_prometheus/api/v1/query_range"));
+        return List.of(new Route(GET, "/_prometheus/api/v1/query_range"), new Route(GET, "/_prometheus/{index}/api/v1/query_range"));
     }
 
     @Override
@@ -71,9 +71,10 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
         String start = getRequiredParam(request, START_PARAM);
         String end = getRequiredParam(request, END_PARAM);
         String step = getRequiredParam(request, PrometheusQueryRangeResponseListener.STEP_PARAM);
+        String index = request.param(INDEX_PARAM, "*");
 
         EsqlQueryRequest esqlRequest = EsqlQueryRequest.syncEsqlQueryRequest(ESQL_QUERY);
-        esqlRequest.params(buildQueryParams(query, "*", start, end, step));
+        esqlRequest.params(buildQueryParams(query, index, start, end, step));
 
         return channel -> client.execute(EsqlQueryAction.INSTANCE, esqlRequest, new PrometheusQueryRangeResponseListener(channel));
     }

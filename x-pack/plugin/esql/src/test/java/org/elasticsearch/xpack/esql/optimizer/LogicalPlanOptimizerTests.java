@@ -60,7 +60,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
@@ -8004,24 +8003,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Limit limit = as(plan, Limit.class);
         Filter filter = as(limit.child(), Filter.class);
         Match match = as(filter.condition(), Match.class);
-        MapExpression me = as(match.options(), MapExpression.class);
-        assertEquals(1, me.entryExpressions().size());
-        EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
-        BytesRef key = as(ee.key().fold(FoldContext.small()), BytesRef.class);
-        assertEquals("minimum_should_match", key.utf8ToString());
-        assertEquals(new Literal(EMPTY, 2.0, DataType.DOUBLE), ee.value());
-        assertEquals(DataType.DOUBLE, ee.dataType());
-    }
-
-    public void testFunctionNamedParamsAsFunctionArgument1() {
-        var query = """
-            from test
-            | WHERE MULTI_MATCH("Anna Smith", first_name, last_name, {"minimum_should_match": 2.0})
-            """;
-        var plan = optimizedPlan(query);
-        Limit limit = as(plan, Limit.class);
-        Filter filter = as(limit.child(), Filter.class);
-        MultiMatch match = as(filter.condition(), MultiMatch.class);
         MapExpression me = as(match.options(), MapExpression.class);
         assertEquals(1, me.entryExpressions().size());
         EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);

@@ -326,8 +326,9 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         InferenceAction.Response response = switch (inferenceResultType) {
             case NONE -> randomBoolean() ? generateSparseEmbeddingInferenceResponse(query) : generateTextEmbeddingInferenceResponse();
             case SPARSE_EMBEDDING -> generateSparseEmbeddingInferenceResponse(query);
-            case TEXT_EMBEDDING -> generateTextEmbeddingInferenceResponse();
-            case EMBEDDING -> generateTextEmbeddingInferenceResponse();
+            // For text embedding and embedding inference result types we return the same response since TaskType.ANY
+            // is used for the inference request
+            case TEXT_EMBEDDING, EMBEDDING -> generateTextEmbeddingInferenceResponse();
         };
 
         @SuppressWarnings("unchecked")  // We matched the method above.

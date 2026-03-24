@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 
 import java.util.Map;
 
-// FIXME(gal, NOCOMMIT) Add new boolean property
 public class InvalidMappedFieldTests extends AbstractEsFieldTypeTests<InvalidMappedField> {
     static InvalidMappedField randomInvalidMappedField(int maxPropertiesDepth) {
         String name = randomAlphaOfLength(4);

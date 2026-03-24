@@ -635,8 +635,9 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
+    public static final FeatureFlag TIME_SERIES_TEMPORALITY_FEATURE_FLAG = new FeatureFlag("time_series_temporality");
     /**
-     * Defines the name of the field storing the metric temporality
+     * Defines the name of the field storing the metric temporality.
      */
     public static final Setting<String> TIME_SERIES_TEMPORALITY_FIELD = Setting.simpleString(
         "index.time_series.temporality_field",

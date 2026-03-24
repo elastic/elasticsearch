@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCa
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 
 import java.io.IOException;
 
@@ -41,7 +42,7 @@ public class UpdateTransformsActionResponseTests extends AbstractSerializingTran
 
     @Override
     protected Response doParseInstance(XContentParser parser) throws IOException {
-        return new Response(TransformConfig.fromXContent(parser, null, false));
+        return new Response(TransformConfig.fromXContent(parser, null, false, new TransformParsingContext(false)));
     }
 
 }

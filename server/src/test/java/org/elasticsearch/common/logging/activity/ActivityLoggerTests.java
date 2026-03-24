@@ -52,7 +52,7 @@ public class ActivityLoggerTests extends ESTestCase {
         var writerProvider = mock(ActivityLogWriterProvider.class);
         when(writerProvider.getWriter(loggerName)).thenReturn(writer);
 
-        actionLogger = new ActivityLogger<>(loggerName, clusterSettings, producer, writerProvider, fieldProvider);
+        actionLogger = new ActivityLogger<>(clusterSettings, producer, writerProvider, fieldProvider);
     }
 
     private ESLogMessage randomMessage() {

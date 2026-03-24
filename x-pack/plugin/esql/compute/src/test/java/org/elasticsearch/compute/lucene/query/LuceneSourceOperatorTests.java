@@ -246,6 +246,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             queryFunction,
             dataPartitioning,
             DataPartitioning.AutoStrategy.DEFAULT,
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
             taskConcurrency,
             maxPageSize,
             limit,
@@ -438,7 +439,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         IndexReader rLarge = null;
         try {
             r0 = simpleReader(dir0, 0, 1);
-            rLarge = simpleReader(dirLarge, 200, 10);
+            rLarge = simpleReader(dirLarge, 2000, 100);
 
             List<ShardContext> shardContexts = List.of(new MockShardContext(r0, 0), new MockShardContext(rLarge, 1));
 
@@ -451,6 +452,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
                 queryFunction,
                 DataPartitioning.SEGMENT,
                 DataPartitioning.AutoStrategy.DEFAULT,
+                LuceneOperator.SMALL_INDEX_BOUNDARY,
                 taskConcurrency,
                 maxPageSize,
                 LuceneOperator.NO_LIMIT,
@@ -564,6 +566,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             boolean asUnsupportedSource,
             MappedFieldType.FieldExtractPreference fieldExtractPreference,
             BlockLoaderFunctionConfig blockLoaderFunctionConfig,
+            org.elasticsearch.index.mapper.blockloader.Warnings warnings,
             ByteSizeValue blockLoaderSizeOrdinals,
             ByteSizeValue blockLoaderSizeScript
         ) {

@@ -130,6 +130,27 @@ setup:
           query: 'FRO test'
 
   - do:
+      catch: /Not enough actual parameters 0/
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == ?'
+
+  - do:
+      catch: /Unknown query parameter \[animal\]/
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == ?animal'
+
+  - do:
+      catch: /No parameter is defined for position 1/
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == ?1'
+
+  - do:
       esql.get_view: { }
 
   - match: { views: [] }
@@ -272,14 +293,13 @@ setup:
           query: 'FROM test | WHERE animal == "dog"'
 
   - do:
+      catch: /no such index \[myview\]/
       search:
         index: myview
         body: { query: { match_all: {} } }
 
-  - length: { hits.hits: 0 }
-
   - do:
-      catch: /an ESQL view \[myview\] may not be the target of an index operation/
+      catch: /no such index \[myview\]/
       index:
         index: myview
         id: "1"
@@ -480,3 +500,24 @@ setup:
   - length: { values: 2 }
   - match: { values.0: [1, "cat"] }
   - match: { values.1: [4, "dog"] }
+
+---
+"query-view-with-outer-params":
+  - do:
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM dogs | WHERE color == ? | SORT id | KEEP id, color | LIMIT 10'
+          params: ["brown"]
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.1.name: "color" }
+  - length: { values: 3 }
+  - match: { values.0: [2, "brown"] }
+  - match: { values.1: [4, "brown"] }
+  - match: { values.2: [6, "brown"] }

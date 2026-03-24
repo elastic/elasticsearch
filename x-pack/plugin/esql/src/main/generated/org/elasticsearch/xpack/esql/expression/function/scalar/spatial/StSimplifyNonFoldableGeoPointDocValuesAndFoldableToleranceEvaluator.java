@@ -13,22 +13,22 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StSimplify}.
+ * {@link ExpressionEvaluator} implementation for {@link StSimplify}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StSimplifyNonFoldableGeoPointDocValuesAndFoldableToleranceEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class StSimplifyNonFoldableGeoPointDocValuesAndFoldableToleranceEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StSimplifyNonFoldableGeoPointDocValuesAndFoldableToleranceEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator point;
+  private final ExpressionEvaluator point;
 
   private final double tolerance;
 
@@ -37,7 +37,7 @@ public final class StSimplifyNonFoldableGeoPointDocValuesAndFoldableToleranceEva
   private Warnings warnings;
 
   public StSimplifyNonFoldableGeoPointDocValuesAndFoldableToleranceEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator point, double tolerance, DriverContext driverContext) {
+      ExpressionEvaluator point, double tolerance, DriverContext driverContext) {
     this.source = source;
     this.point = point;
     this.tolerance = tolerance;
@@ -97,15 +97,14 @@ public final class StSimplifyNonFoldableGeoPointDocValuesAndFoldableToleranceEva
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory point;
+    private final ExpressionEvaluator.Factory point;
 
     private final double tolerance;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory point,
-        double tolerance) {
+    public Factory(Source source, ExpressionEvaluator.Factory point, double tolerance) {
       this.source = source;
       this.point = point;
       this.tolerance = tolerance;

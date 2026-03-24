@@ -1507,19 +1507,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public CompletionStats completionStats(String... fields) {
         readAllowed();
-        return getEngine().completionStats(fields);
+        return withEngine(engine -> engine.completionStats(fields));
     }
 
     public DenseVectorStats denseVectorStats() {
         readAllowed();
         MappingLookup mappingLookup = mapperService != null ? mapperService.mappingLookup() : null;
-        return getEngine().denseVectorStats(mappingLookup);
+        return withEngine(engine -> engine.denseVectorStats(mappingLookup));
     }
 
     public SparseVectorStats sparseVectorStats() {
         readAllowed();
         MappingLookup mappingLookup = mapperService != null ? mapperService.mappingLookup() : null;
-        return getEngine().sparseVectorStats(mappingLookup);
+        return withEngine(engine -> engine.sparseVectorStats(mappingLookup));
     }
 
     public BulkStats bulkStats() {
@@ -1943,6 +1943,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } finally {
                 engineResetLock.writeLock().unlock();
             }
+            checkAndCallWaitForEngineOrClosedShardListeners();
+
             synchronized (mutex) {
                 if (state == IndexShardState.CLOSED) {
                     throw new IndexShardClosedException(shardId);
@@ -2312,7 +2314,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         onSettingsChanged();
         assert assertLastestCommitUserData();
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
-        checkAndCallWaitForEngineOrClosedShardListeners();
     }
 
     // awful hack to work around problem in CloseFollowerIndexIT

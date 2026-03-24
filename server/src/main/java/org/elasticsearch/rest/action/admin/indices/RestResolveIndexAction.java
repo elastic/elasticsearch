@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -40,8 +39,8 @@ public class RestResolveIndexAction extends BaseRestHandler {
     private static final Set<String> CAPABILITIES = Set.of("mode_filter");
     private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public RestResolveIndexAction(Settings settings) {
-        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+    public RestResolveIndexAction(CrossProjectModeDecider crossProjectModeDecider) {
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     @Override

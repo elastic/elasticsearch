@@ -16,11 +16,13 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -100,12 +102,13 @@ public final class S3StorageObject implements StorageObject {
         try {
             GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).build();
             ResponseInputStream<GetObjectResponse> response = s3Client.getObject(request);
+            GetObjectResponse metadata = response.response();
 
             if (cachedLength == null) {
-                cachedLength = response.response().contentLength();
+                cachedLength = metadata.contentLength();
             }
             if (cachedLastModified == null) {
-                cachedLastModified = response.response().lastModified();
+                cachedLastModified = metadata.lastModified();
             }
 
             return response;
@@ -131,20 +134,16 @@ public final class S3StorageObject implements StorageObject {
         try {
             GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader).build();
             ResponseInputStream<GetObjectResponse> response = s3Client.getObject(request);
+            GetObjectResponse metadata = response.response();
 
-            if (cachedLength == null && response.response().contentLength() != null) {
-                String contentRange = response.response().contentRange();
-                if (contentRange != null && contentRange.contains("/")) {
-                    String[] parts = contentRange.split("/");
-                    if (parts.length == 2 && parts[1].equals("*") == false) {
-                        try {
-                            cachedLength = Long.parseLong(parts[1]);
-                        } catch (NumberFormatException ignored) {}
-                    }
+            if (cachedLength == null) {
+                Long total = ContentRangeParser.parseTotalLength(metadata.contentRange());
+                if (total != null) {
+                    cachedLength = total;
                 }
             }
             if (cachedLastModified == null) {
-                cachedLastModified = response.response().lastModified();
+                cachedLastModified = metadata.lastModified();
             }
 
             return response;
@@ -196,12 +195,46 @@ public final class S3StorageObject implements StorageObject {
             cachedLength = response.contentLength();
             cachedLastModified = response.lastModified();
         } catch (NoSuchKeyException e) {
-            cachedExists = false;
-            cachedLength = 0L;
-            cachedLastModified = null;
+            setNotFound();
         } catch (Exception e) {
-            throw new IOException("HeadObject request failed for " + path, e);
+            if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
+                fetchMetadataViaRangeGet();
+            } else {
+                throw new IOException("HeadObject request failed for " + path, e);
+            }
         }
+    }
+
+    private void fetchMetadataViaRangeGet() throws IOException {
+        try {
+            GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range("bytes=0-0").build();
+            try (var response = s3Client.getObject(request)) {
+                GetObjectResponse metadata = response.response();
+                cachedExists = true;
+                cachedLastModified = metadata.lastModified();
+                Long total = ContentRangeParser.parseTotalLength(metadata.contentRange());
+                if (total == null) {
+                    throw new IOException(
+                        "Failed to determine object size for " + path + ": Content-Range header missing from range GET response"
+                    );
+                }
+                cachedLength = total;
+            }
+        } catch (IOException e) {
+            throw e;
+        } catch (Exception e) {
+            if (e instanceof NoSuchKeyException) {
+                setNotFound();
+            } else {
+                throw new IOException("Failed to get metadata for " + path + " (HEAD denied, range GET also failed)", e);
+            }
+        }
+    }
+
+    private void setNotFound() {
+        cachedExists = false;
+        cachedLength = 0L;
+        cachedLastModified = null;
     }
 
     public String bucket() {
@@ -249,14 +282,9 @@ public final class S3StorageObject implements StorageObject {
                 cachedLastModified = response.lastModified();
             }
             if (cachedLength == null) {
-                String contentRange = response.contentRange();
-                if (contentRange != null && contentRange.contains("/")) {
-                    String[] parts = contentRange.split("/");
-                    if (parts.length == 2 && parts[1].equals("*") == false) {
-                        try {
-                            cachedLength = Long.parseLong(parts[1]);
-                        } catch (NumberFormatException ignored) {}
-                    }
+                Long total = ContentRangeParser.parseTotalLength(response.contentRange());
+                if (total != null) {
+                    cachedLength = total;
                 }
             }
 

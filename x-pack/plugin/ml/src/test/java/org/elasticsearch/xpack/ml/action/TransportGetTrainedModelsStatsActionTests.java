@@ -31,11 +31,11 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
@@ -163,6 +163,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             Collections.singletonList(SKINNY_INGEST_PLUGIN),
             client,
             null,
+            UserAgentParserRegistry.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {
@@ -170,8 +171,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                 }
-            },
-            mock(SamplingService.class)
+            }
         );
     }
 

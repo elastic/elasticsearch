@@ -14,46 +14,69 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class TSDBDocValuesFormatFactoryTests extends ESTestCase {
 
-    public void testVersion3WithoutLargeBlockSize() {
+    public void testVersion3() {
         assertSame(
             TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT,
-            TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3, false)
+            TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3, false, false, false)
         );
     }
 
-    public void testVersion3WithLargeBlockSize() {
+    public void testVersion3WithLargeNumericBlockSize() {
         assertSame(
             TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK,
-            TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3, true)
+            TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3, true, false, false)
         );
+    }
+
+    public void testVersion3WithLargeBinaryBlockSize() {
+        var withPartition = (ES819Version3TSDBDocValuesFormat) TSDBDocValuesFormatFactory.createDocValuesFormat(
+            IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3,
+            false,
+            true,
+            true
+        );
+        assertSame(TSDBDocValuesFormatFactory.ES_819_4_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK, withPartition);
+        assertThat(withPartition.blockBytesThreshold, equalTo(1024 * 1024));
+        assertThat(withPartition.blockCountThreshold, equalTo(32768));
+        var withoutPartition = (ES819Version3TSDBDocValuesFormat) TSDBDocValuesFormatFactory.createDocValuesFormat(
+            IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3,
+            false,
+            true,
+            false
+        );
+        assertSame(TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK, withoutPartition);
+        assertThat(withoutPartition.blockBytesThreshold, equalTo(1024 * 1024));
+        assertThat(withoutPartition.blockCountThreshold, equalTo(32768));
     }
 
     public void testVersionAfterVersion3() {
         assertSame(
             TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT,
-            TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersion.current(), false)
+            TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersion.current(), false, false, false)
         );
         assertSame(
             TSDBDocValuesFormatFactory.ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK,
-            TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersion.current(), true)
+            TSDBDocValuesFormatFactory.createDocValuesFormat(IndexVersion.current(), true, false, false)
         );
     }
 
-    public void testPreVersion3WithoutLargeBlockSize() {
+    public void testPreVersion3() {
         IndexVersion preV3 = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3);
         assertSame(
             TSDBDocValuesFormatFactory.ES_819_2_TSDB_DOC_VALUES_FORMAT,
-            TSDBDocValuesFormatFactory.createDocValuesFormat(preV3, false)
+            TSDBDocValuesFormatFactory.createDocValuesFormat(preV3, false, false, false)
         );
     }
 
-    public void testPreVersion3WithLargeBlockSize() {
+    public void testPreVersion3WithLargeNumericBlockSize() {
         IndexVersion preV3 = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3);
         assertSame(
             TSDBDocValuesFormatFactory.ES_819_2_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK,
-            TSDBDocValuesFormatFactory.createDocValuesFormat(preV3, true)
+            TSDBDocValuesFormatFactory.createDocValuesFormat(preV3, true, false, false)
         );
     }
 }

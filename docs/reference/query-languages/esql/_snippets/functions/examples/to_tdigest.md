@@ -12,6 +12,6 @@ FROM histogram_standard_index
 
 | responseTime:histogram | tdigest:tdigest |
 | --- | --- |
-| "{""values"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}" | "{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}" |
+| {"values":[0.1,0.2,0.3,0.4,0.5], "counts":[3,7,23,12,6]} | {"min": 0.1, "max": 0.5, "sum": 16.4, "centroids":[0.1,0.2,0.3,0.4,0.5], "counts":[3,7,23,12,6]} |
 
 

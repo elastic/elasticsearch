@@ -47,9 +47,11 @@ dependencies {
   api(project(':x-pack:plugin:core'))
   api(project(':x-pack:plugin:esql'))
   api(project(':x-pack:plugin:esql:compute'))
+  api(project(':x-pack:plugin:esql-datasource-csv'))
   api(project(':x-pack:plugin:analytics'))
   api(project(':x-pack:plugin:logsdb'))
   implementation project(path: ':libs:native')
+  implementation(testFixtures(project(':libs:native')))
   implementation project(path: ':libs:simdvec')
   implementation (testFixtures(project(path: ':libs:simdvec')))
   implementation project(path: ':libs:swisshash')
@@ -94,14 +96,15 @@ tasks.register("copyPainless", Copy) {
 
 tasks.named("run").configure {
   executable = "${buildParams.runtimeJavaHome.get()}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
-  args << "-Dplugins.dir=${buildDir}/plugins" << "-Dtests.index=${buildDir}/index"
   dependsOn "copyExpression", "copyPainless", configurations.nativeLib
+  systemProperty 'plugins.dir', "${buildDir}/plugins"
+  systemProperty 'tests.index', "${buildDir}/index"
   systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file("../libs/native/libraries/build/platform/").toString())
 }
 
 tasks.named('test').configure {
   if (buildParams.getRuntimeJavaVersion().map{ it.majorVersion.toInteger() }.get() >= 21) {
-    jvmArgs '--add-modules=jdk.incubator.vector'
+    jvmArgs '--add-modules=jdk.incubator.vector', '--add-opens=java.base/java.nio=ALL-UNNAMED'
   }
 }
 

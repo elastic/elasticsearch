@@ -17,6 +17,7 @@ public class AggregateWritables {
         return List.of(
             Avg.ENTRY,
             Count.ENTRY,
+            CountApproximate.ENTRY,
             CountDistinct.ENTRY,
             First.ENTRY,
             Max.ENTRY,

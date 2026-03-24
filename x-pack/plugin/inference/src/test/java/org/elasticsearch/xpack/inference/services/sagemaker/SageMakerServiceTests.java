@@ -13,7 +13,6 @@ import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWith
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -28,9 +27,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
-import org.elasticsearch.inference.completion.ContentObjects;
-import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
@@ -61,9 +58,6 @@ import static org.elasticsearch.action.ActionListener.assertOnce;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.core.TimeValue.THIRTY_SECONDS;
-import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomContentObjectFile;
-import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomContentObjectImage;
-import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomContentObjectText;
 import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomTextInputOnlyUnifiedCompletionRequest;
 import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomUnifiedCompletionRequest;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
@@ -128,13 +122,21 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         }));
     }
 
-    public void testParsePersistedConfigWithSecrets() {
-        sageMakerService.parsePersistedConfigWithSecrets("modelId", TaskType.ANY, Map.of(), Map.of());
-        verify(modelBuilder, only()).fromStorage(eq("modelId"), eq(TaskType.ANY), eq(SageMakerService.NAME), eq(Map.of()), eq(Map.of()));
+    public void testParsePersistedConfig_WithSecrets() {
+        sageMakerService.parsePersistedConfig(
+            new UnparsedModel("modelId", TaskType.ANY, SageMakerService.NAME, Map.of(), Map.of("key", "value"))
+        );
+        verify(modelBuilder, only()).fromStorage(
+            eq("modelId"),
+            eq(TaskType.ANY),
+            eq(SageMakerService.NAME),
+            eq(Map.of()),
+            eq(Map.of("key", "value"))
+        );
     }
 
-    public void testParsePersistedConfig() {
-        sageMakerService.parsePersistedConfig("modelId", TaskType.ANY, Map.of());
+    public void testParsePersistedConfig_WithoutSecrets() {
+        sageMakerService.parsePersistedConfig(new UnparsedModel("modelId", TaskType.ANY, SageMakerService.NAME, Map.of(), null));
         verify(modelBuilder, only()).fromStorage(eq("modelId"), eq(TaskType.ANY), eq(SageMakerService.NAME), eq(Map.of()), eq(null));
     }
 
@@ -393,35 +395,6 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         );
         verify(client, only()).invokeStream(any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
-    }
-
-    public void testUnifiedInferDoesNotSupportMultimodalContent() {
-        var model = mockModel();
-
-        var request = new UnifiedCompletionRequest(
-            List.of(
-                new Message(
-                    new ContentObjects(List.of(randomContentObjectText(), randomContentObjectImage(), randomContentObjectFile())),
-                    "user",
-                    null,
-                    null
-                )
-            ),
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
-
-        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        var exception = assertThrows(
-            UnsupportedOperationException.class,
-            () -> sageMakerService.unifiedCompletionInfer(model, request, THIRTY_SECONDS, listener)
-        );
-        assertThat(exception.getMessage(), is("The amazon_sagemaker service does not support unified completion with non-text inputs"));
     }
 
     public void testUnifiedInferError() {

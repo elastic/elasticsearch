@@ -30,7 +30,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -260,7 +259,12 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(DataStreamsPlugin.class, LocalStateCompositeXPackPlugin.class, AggregateMetricMapperPlugin.class, EsqlPlugin.class);
+        return List.of(
+            DataStreamsPlugin.class,
+            LocalStateCompositeXPackPlugin.class,
+            AggregateMetricMapperPlugin.class,
+            EsqlPluginWithEnterpriseOrTrialLicense.class
+        );
     }
 
     record RateRange(Double lower, Double upper) implements Comparable<RateRange> {

@@ -19,9 +19,9 @@ import java.util.List;
 /**
  * Adaptive distribution strategy for external sources.
  * <p>
- * Distributes when the plan contains aggregations and there are multiple splits,
- * or when the split count exceeds the number of eligible nodes.
- * Stays on the coordinator for single splits or LIMIT-only plans.
+ * Distributes when the plan contains pipeline breakers (aggregations, TopN)
+ * and there are multiple splits, or when the split count exceeds the number
+ * of eligible nodes. Stays on the coordinator for single splits or LIMIT-only plans.
  */
 public final class AdaptiveStrategy implements ExternalDistributionStrategy {
 
@@ -56,10 +56,20 @@ public final class AdaptiveStrategy implements ExternalDistributionStrategy {
             return ExternalDistributionPlan.LOCAL;
         }
 
-        boolean hasAggregation = plan.anyMatch(n -> n instanceof AggregateExec);
+        boolean hasPipelineBreaker = plan.anyMatch(n -> n instanceof AggregateExec || n instanceof TopNExec);
         boolean manySplits = splits.size() > nodes.size();
 
-        if (hasAggregation || manySplits) {
+        if (hasPipelineBreaker || manySplits) {
+            boolean allHaveSize = true;
+            for (ExternalSplit split : splits) {
+                if (split.estimatedSizeInBytes() <= 0) {
+                    allHaveSize = false;
+                    break;
+                }
+            }
+            if (allHaveSize) {
+                return WeightedRoundRobinStrategy.assignByWeight(splits, nodes);
+            }
             return RoundRobinStrategy.assignRoundRobin(splits, nodes);
         }
 

@@ -391,6 +391,11 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
             return quantizedVectorValues.scorer(query);
         }
 
+        @Override
+        public VectorScorer rescorer(float[] floats) throws IOException {
+            return in.rescorer(floats);
+        }
+
         BinarizedByteVectorValues getQuantizedVectorValues() throws IOException {
             return quantizedVectorValues;
         }

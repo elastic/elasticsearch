@@ -29,6 +29,7 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.elasticsearch.core.Booleans;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
@@ -39,7 +40,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * In-memory Arrow Flight server that serves employee data from the employees.csv test fixture.
@@ -149,7 +149,7 @@ public class EmployeeFlightServer implements Closeable {
                 allFirstNames[i] = fields[firstNameIdx].trim();
                 allLastNames[i] = fields[lastNameIdx].trim();
                 allSalaries[i] = Integer.parseInt(fields[salaryIdx].trim());
-                allStillHired[i] = org.elasticsearch.core.Booleans.parseBoolean(fields[stillHiredIdx].trim());
+                allStillHired[i] = Booleans.parseBoolean(fields[stillHiredIdx].trim());
                 allHeights[i] = Double.parseDouble(fields[heightIdx].trim());
             }
         }
@@ -248,8 +248,16 @@ public class EmployeeFlightServer implements Closeable {
     @Override
     public void close() throws IOException {
         try {
-            server.shutdown();
-            server.awaitTermination(5, TimeUnit.SECONDS);
+            // Use FlightServer.close() which provides a robust shutdown sequence:
+            // graceful shutdown → awaitTermination → shutdownNow fallback.
+            // After close() returns, the gRPC server is terminated but Netty's event loop may still
+            // have pending ChannelFutureListener callbacks (e.g. NettyServerHandler.closeStreamWhenDone)
+            // that can throw if the HTTP/2 stream was already closed. Netty's DefaultPromise logs
+            // these as WARN which ESTestCase.checkStaticState() treats as a test failure.
+            // ESTestCase now filters this specific gRPC NettyServerHandler warning (see #144244, #144263).
+            // A brief sleep still helps reduce log noise.
+            server.close();
+            Thread.sleep(50);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("Interrupted while closing FlightServer", e);

@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -68,6 +67,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -84,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
@@ -198,7 +199,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
             matchFields.add(new MatchConfig(matchField, i, inputDataType));
         }
         Expression joinOnExpression = null;
-        FragmentExec rightPlanWithOptionalPreJoinFilter = LookupFromIndexOperatorTests.buildLessThanFilter(LESS_THAN_VALUE);
+        FragmentExec rightPlanWithOptionalPreJoinFilter = LookupFromIndexOperatorTests.buildLessThanFilter(LESS_THAN_VALUE, loadFields);
         if (operation != null) {
             List<Expression> conditions = new ArrayList<>();
             for (int i = 0; i < numberOfJoinColumns; i++) {
@@ -231,6 +232,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
         final FragmentExec finalRightPlan = rightPlanWithOptionalPreJoinFilter;
         final Expression finalJoinOnExpression = joinOnExpression;
         final int exchangeBufferSize = QueryPragmas.EXCHANGE_BUFFER_SIZE.getDefault(Settings.EMPTY);
+        final Configuration finalConfiguration = randomBoolean() ? EsqlTestUtils.TEST_CFG : null;
 
         // Create a factory that produces StreamingLookupFromIndexOperator
         return new Operator.OperatorFactory() {
@@ -251,7 +253,8 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
                     finalRightPlan,
                     finalJoinOnExpression,
                     exchangeBufferSize,
-                    true // profile - enables plan tracking for mode verification
+                    true, // profile - enables plan tracking for mode verification
+                    finalConfiguration
                 );
             }
 
@@ -713,8 +716,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
      */
     private void runWithLimit(Operator.OperatorFactory factory, List<Page> input, ByteSizeValue limit) {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, limit).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
+        MockBlockFactory blockFactory = new MockBlockFactory(BlockFactory.builder(bigArrays));
         DriverContext driverContext = new DriverContext(bigArrays, blockFactory, LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS);
         List<Page> localInput = CannedSourceOperator.deepCopyOf(blockFactory, input);
         boolean driverStarted = false;
@@ -727,7 +729,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
                 Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(localInput.iterator(), p -> p::releaseBlocks)));
             }
             blockFactory.ensureAllBlocksAreReleased();
-            assertThat(breaker.getUsed(), equalTo(0L));
+            assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
         }
     }
 

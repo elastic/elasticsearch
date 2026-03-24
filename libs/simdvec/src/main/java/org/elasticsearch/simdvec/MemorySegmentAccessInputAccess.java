@@ -15,8 +15,10 @@ import org.apache.lucene.store.MemorySegmentAccessInput;
 import java.util.Objects;
 
 public interface MemorySegmentAccessInputAccess {
+    /** Returns the underlying {@link MemorySegmentAccessInput}, or {@code null} if not available. */
     MemorySegmentAccessInput get();
 
+    /** Unwraps to the underlying {@link MemorySegmentAccessInput} if available, otherwise returns the input unchanged. */
     static IndexInput unwrap(IndexInput input) {
         MemorySegmentAccessInput memorySeg = input instanceof MemorySegmentAccessInputAccess msaia ? msaia.get() : null;
         return Objects.requireNonNullElse((IndexInput) memorySeg, input);

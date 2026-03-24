@@ -9,6 +9,9 @@
 
 package org.elasticsearch.common.logging.activity;
 
+/**
+ * Provider interface to make log writer overrideable by plugins.
+ */
 public interface ActivityLogWriterProvider {
     ActivityLogWriterProvider NOOP = (n) -> ActivityLogWriter.NOOP;
 

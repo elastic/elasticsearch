@@ -89,7 +89,7 @@ public class VectorScorerInt7uBulkBenchmark {
     @Param({ "16", "32", "64", "256", "1024" })
     public int bulkSize;
 
-    @Param({ "SCALAR", "LUCENE", "NATIVE" })
+    @Param
     public VectorImplementation implementation;
 
     @Param({ "DOT_PRODUCT", "EUCLIDEAN" })

@@ -25,6 +25,9 @@ public class IndexFeatures implements FeatureSpecification {
     public static final NodeFeature LOGSDB_NO_HOST_NAME_FIELD = new NodeFeature("index.logsdb_no_host_name_field");
 
     public static final NodeFeature TIME_SERIES_SYNTHETIC_ID = new NodeFeature("index.time_series_synthetic_id");
+    public static final NodeFeature TIME_SERIES_SYNTHETIC_ID_DEFAULT = new NodeFeature("index.time_series_synthetic_id_default");
+
+    public static final NodeFeature TIME_SERIES_NO_SEQNO = new NodeFeature("index.time_series_no_seqno");
 
     private static final NodeFeature SYNONYMS_SET_LENIENT_ON_NON_EXISTING = new NodeFeature("index.synonyms_set_lenient_on_non_existing");
 
@@ -49,6 +52,8 @@ public class IndexFeatures implements FeatureSpecification {
         return Set.of(
             LOGSDB_NO_HOST_NAME_FIELD,
             TIME_SERIES_SYNTHETIC_ID,
+            TIME_SERIES_SYNTHETIC_ID_DEFAULT,
+            TIME_SERIES_NO_SEQNO,
             SYNONYMS_SET_LENIENT_ON_NON_EXISTING,
             THROW_EXCEPTION_FOR_UNKNOWN_TOKEN_IN_REST_INDEX_PUT_ALIAS_ACTION,
             THROW_EXCEPTION_ON_INDEX_CREATION_IF_UNSUPPORTED_VALUE_TYPE_IN_ALIAS,

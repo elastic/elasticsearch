@@ -27,11 +27,11 @@ import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_IN
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_SCALE;
-import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.adjustScale;
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.compareExponentiallyScaledValues;
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.computeIndex;
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.exponentiallyScaledToDoubleValue;
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.normalizeScale;
+import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.reduceScale;
 
 /**
  * Represents the bucket for values around zero in an exponential histogram.
@@ -279,8 +279,8 @@ public final class ZeroBucket {
     @Override
     public int hashCode() {
         int normalizedScale = normalizeScale(index(), scale);
-        int scaleAdjustment = normalizedScale - scale;
-        long normalizedIndex = adjustScale(index(), scale, scaleAdjustment);
+        int scaleReduction = scale - normalizedScale;
+        long normalizedIndex = reduceScale(index(), scaleReduction);
 
         int result = normalizedScale;
         result = 31 * result + Long.hashCode(normalizedIndex);

@@ -81,6 +81,12 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
+
+    @Override
+    protected boolean supportsFloatVectorFallback() {
+        return false;
+    }
+
     KnnVectorsFormat format;
 
     @Before
@@ -616,7 +622,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                 return fmt.fieldsReader(state, dio);
             }) {
                 @Override
-                public CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice)
+                CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice, int depth)
                     throws IOException {
                     return new PrefetchingCentroidIterator(centroidIterator, postingListSlice, prefetchDepth);
                 }

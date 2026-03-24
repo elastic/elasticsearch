@@ -52,11 +52,12 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.Azure
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankTaskSettings;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiEntraIdApiKeySecrets;
+import org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiOAuth2Secrets;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsServiceSettings;
@@ -118,8 +119,6 @@ import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatComp
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankServiceSettings;
-import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.nvidia.embeddings.NvidiaEmbeddingsTaskSettings;
@@ -193,7 +192,6 @@ public class InferenceNamedWriteablesProvider {
         addOpenShiftAiNamedWriteables(namedWriteables);
         addNvidiaNamedWriteables(namedWriteables);
         addFireworksAiNamedWriteables(namedWriteables);
-        addMixedbreadNamedWriteables(namedWriteables);
 
         addUnifiedNamedWriteables(namedWriteables);
 
@@ -435,10 +433,13 @@ public class InferenceNamedWriteablesProvider {
     private static void addAzureOpenAiNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
-                AzureOpenAiSecretSettings.class,
-                AzureOpenAiSecretSettings.NAME,
-                AzureOpenAiSecretSettings::new
+                SecretSettings.class,
+                AzureOpenAiEntraIdApiKeySecrets.NAME,
+                AzureOpenAiEntraIdApiKeySecrets::new
             )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(SecretSettings.class, AzureOpenAiOAuth2Secrets.NAME, AzureOpenAiOAuth2Secrets::new)
         );
 
         namedWriteables.add(
@@ -971,19 +972,6 @@ public class InferenceNamedWriteablesProvider {
                 ElasticInferenceServiceDenseEmbeddingsServiceSettings.NAME,
                 ElasticInferenceServiceDenseEmbeddingsServiceSettings::new
             )
-        );
-    }
-
-    private static void addMixedbreadNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                ServiceSettings.class,
-                MixedbreadRerankServiceSettings.NAME,
-                MixedbreadRerankServiceSettings::new
-            )
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(TaskSettings.class, MixedbreadRerankTaskSettings.NAME, MixedbreadRerankTaskSettings::new)
         );
     }
 }

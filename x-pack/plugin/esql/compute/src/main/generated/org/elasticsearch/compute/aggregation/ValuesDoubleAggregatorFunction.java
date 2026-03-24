@@ -31,16 +31,10 @@ public final class ValuesDoubleAggregatorFunction implements AggregatorFunction 
 
   private final List<Integer> channels;
 
-  public ValuesDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      ValuesDoubleAggregator.SingleState state) {
+  ValuesDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = state;
-  }
-
-  public static ValuesDoubleAggregatorFunction create(DriverContext driverContext,
-      List<Integer> channels) {
-    return new ValuesDoubleAggregatorFunction(driverContext, channels, ValuesDoubleAggregator.initSingle(driverContext.bigArrays()));
+    this.state = ValuesDoubleAggregator.initSingle(driverContext.bigArrays());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

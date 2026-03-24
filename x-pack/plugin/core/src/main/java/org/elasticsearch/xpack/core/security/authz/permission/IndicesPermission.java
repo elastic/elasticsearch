@@ -41,6 +41,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -639,6 +640,7 @@ public final class IndicesPermission {
         final Map<String, DocumentLevelPermissions> roleQueriesByIndex = Maps.newMapWithExpectedSize(totalResourceCount);
         final Set<String> grantedResources = Sets.newHashSetWithExpectedSize(totalResourceCount);
 
+        final IndexAccessControlCache indexAccessControlCache = new IndexAccessControlCache(fieldPermissionsCache);
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
 
         for (Map.Entry<String, IndexResource> resourceEntry : requestedResources.entrySet()) {
@@ -649,6 +651,13 @@ public final class IndicesPermission {
             final Collection<String> concreteIndices = resource.resolveConcreteIndices(
                 failureIndicesByIndexResource.get(resourceEntry.getKey())
             );
+
+            // Accumulate FLS and DLS at the resource level: one pass over groups instead of
+            // groups × concreteIndices. All concrete indices of a resource go through the same
+            // set of matching groups, so they accumulate identical permissions.
+            Set<FieldPermissions> fieldPermissions = null;
+            DocumentLevelPermissions docPermissions = DocumentLevelPermissions.EMPTY;
+
             for (Group group : groups) {
                 // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
                 if (resource.checkIndex(group)) {
@@ -658,46 +667,24 @@ public final class IndicesPermission {
                             && false == resource.isPartOfDataStream()
                             && containsPrivilegeThatGrantsMappingUpdatesForBwc(group))) {
                         granted = true;
-                        // propagate DLS and FLS permissions over the concrete indices
-                        for (String index : concreteIndices) {
-                            final Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.compute(index, (k, existingSet) -> {
-                                if (existingSet == null) {
-                                    // Most indices rely on the default (empty) field permissions object, so we optimize for that case
-                                    // Using an immutable single item set is significantly faster because it avoids any of the hashing
-                                    // and backing set creation.
-                                    return Set.of(group.getFieldPermissions());
-                                } else if (existingSet.size() == 1) {
-                                    FieldPermissions fp = group.getFieldPermissions();
-                                    if (existingSet.contains(fp)) {
-                                        return existingSet;
-                                    }
-                                    // This index doesn't have a single field permissions object, replace the singleton with a real Set
-                                    final Set<FieldPermissions> hashSet = new HashSet<>(existingSet);
-                                    hashSet.add(fp);
-                                    return hashSet;
-                                } else {
-                                    existingSet.add(group.getFieldPermissions());
-                                    return existingSet;
-                                }
-                            });
 
-                            DocumentLevelPermissions docPermissions;
-                            if (group.hasQuery()) {
-                                docPermissions = roleQueriesByIndex.computeIfAbsent(index, (k) -> new DocumentLevelPermissions());
-                                docPermissions.addAll(group.getQuery());
-                            } else {
-                                // if more than one permission matches for a concrete index here and if
-                                // a single permission doesn't have a role query then DLS will not be
-                                // applied even when other permissions do have a role query
-                                docPermissions = DocumentLevelPermissions.ALLOW_ALL;
-                                // don't worry about what's already there - just overwrite it, it avoids doing a 2nd hash lookup.
-                                roleQueriesByIndex.put(index, docPermissions);
+                        FieldPermissions fp = group.getFieldPermissions();
+                        if (fieldPermissions == null) {
+                            fieldPermissions = Set.of(fp);
+                        } else if (false == fieldPermissions.contains(fp)) {
+                            if (fieldPermissions.size() == 1) {
+                                fieldPermissions = new HashSet<>(fieldPermissions);
                             }
+                            fieldPermissions.add(fp);
+                        }
 
-                            if (index.equals(resourceName) == false) {
-                                fieldPermissionsByIndex.put(resourceName, fieldPermissions);
-                                roleQueriesByIndex.put(resourceName, docPermissions);
-                            }
+                        if (group.hasQuery()) {
+                            docPermissions = docPermissions.withQueries(group.getQuery());
+                        } else {
+                            // if more than one permission matches for a concrete index here and if
+                            // a single permission doesn't have a role query then DLS will not be
+                            // applied even when other permissions do have a role query
+                            docPermissions = DocumentLevelPermissions.ALLOW_ALL;
                         }
                     }
                 }
@@ -706,8 +693,15 @@ public final class IndicesPermission {
             if (granted) {
                 grantedResources.add(resourceName);
 
-                if (resource.canHaveBackingIndices()) {
-                    for (String concreteIndex : concreteIndices) {
+                // Propagate resource-level permissions to the resource name and all concrete indices.
+                // Using merge (not put) preserves cross-resource accumulation semantics: if a concrete
+                // index appears in multiple resources, their FLS/DLS contributions are unioned.
+                mergePermissions(fieldPermissionsByIndex, roleQueriesByIndex, resourceName, fieldPermissions, docPermissions);
+                for (String concreteIndex : concreteIndices) {
+                    if (false == concreteIndex.equals(resourceName)) {
+                        mergePermissions(fieldPermissionsByIndex, roleQueriesByIndex, concreteIndex, fieldPermissions, docPermissions);
+                    }
+                    if (resource.canHaveBackingIndices()) {
                         // If the name appears directly as part of the requested indices, it takes precedence over implicit access
                         if (false == requestedResources.containsKey(concreteIndex)) {
                             grantedResources.add(concreteIndex);
@@ -719,25 +713,36 @@ public final class IndicesPermission {
 
         Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = Maps.newMapWithExpectedSize(grantedResources.size());
         for (String index : grantedResources) {
-            final DocumentLevelPermissions permissions = roleQueriesByIndex.get(index);
-            final DocumentPermissions documentPermissions;
-            if (permissions != null && permissions.isAllowAll() == false) {
-                documentPermissions = DocumentPermissions.filteredBy(permissions.queries);
-            } else {
-                documentPermissions = DocumentPermissions.allowAll();
-            }
-            final FieldPermissions fieldPermissions;
-            final Set<FieldPermissions> indexFieldPermissions = fieldPermissionsByIndex.get(index);
-            if (indexFieldPermissions != null && indexFieldPermissions.isEmpty() == false) {
-                fieldPermissions = indexFieldPermissions.size() == 1
-                    ? indexFieldPermissions.iterator().next()
-                    : fieldPermissionsCache.union(indexFieldPermissions);
-            } else {
-                fieldPermissions = FieldPermissions.DEFAULT;
-            }
-            indexPermissions.put(index, new IndicesAccessControl.IndexAccessControl(fieldPermissions, documentPermissions));
+            indexPermissions.put(
+                index,
+                indexAccessControlCache.getOrCreate(roleQueriesByIndex.get(index), fieldPermissionsByIndex.get(index))
+            );
         }
         return unmodifiableMap(indexPermissions);
+    }
+
+    private static void mergePermissions(
+        Map<String, Set<FieldPermissions>> fieldPermissionsByIndex,
+        Map<String, DocumentLevelPermissions> roleQueriesByIndex,
+        String index,
+        @Nullable Set<FieldPermissions> fieldPerms,
+        DocumentLevelPermissions docPerms
+    ) {
+        if (fieldPerms != null) {
+            fieldPermissionsByIndex.merge(index, fieldPerms, IndicesPermission::mergeFieldPermSets);
+        }
+        if (docPerms != DocumentLevelPermissions.EMPTY) {
+            roleQueriesByIndex.merge(index, docPerms, DocumentLevelPermissions::merge);
+        }
+    }
+
+    private static Set<FieldPermissions> mergeFieldPermSets(Set<FieldPermissions> existing, Set<FieldPermissions> incoming) {
+        if (existing.containsAll(incoming)) {
+            return existing;
+        }
+        var merged = new HashSet<>(existing);
+        merged.addAll(incoming);
+        return merged;
     }
 
     /**
@@ -1060,25 +1065,113 @@ public final class IndicesPermission {
 
     private static class DocumentLevelPermissions {
 
-        public static final DocumentLevelPermissions ALLOW_ALL = new DocumentLevelPermissions();
-        static {
-            ALLOW_ALL.allowAll = true;
+        static final DocumentLevelPermissions ALLOW_ALL = new DocumentLevelPermissions(true, null);
+        static final DocumentLevelPermissions EMPTY = new DocumentLevelPermissions(false, null);
+
+        private final boolean allowAll;
+        private final Set<BytesReference> queries;
+
+        private DocumentLevelPermissions(boolean allowAll, @Nullable Set<BytesReference> queries) {
+            this.allowAll = allowAll;
+            this.queries = queries;
         }
 
-        private Set<BytesReference> queries = null;
-        private boolean allowAll = false;
-
-        private void addAll(Set<BytesReference> query) {
-            if (allowAll == false) {
-                if (queries == null) {
-                    queries = Sets.newHashSetWithExpectedSize(query.size());
-                }
-                queries.addAll(query);
-            }
-        }
-
-        private boolean isAllowAll() {
+        boolean isAllowAll() {
             return allowAll;
+        }
+
+        /**
+         * Returns a new instance with {@code newQueries} merged into this instance's queries.
+         * Returns {@code this} if the queries are already contained, or {@link #ALLOW_ALL} if applicable.
+         */
+        DocumentLevelPermissions withQueries(Set<BytesReference> newQueries) {
+            if (allowAll) {
+                return ALLOW_ALL;
+            }
+            if (queries != null && queries.containsAll(newQueries)) {
+                return this;
+            }
+            int expectedSize = (queries == null ? 0 : queries.size()) + newQueries.size();
+            Set<BytesReference> merged = Sets.newHashSetWithExpectedSize(expectedSize);
+            if (queries != null) {
+                merged.addAll(queries);
+            }
+            merged.addAll(newQueries);
+            return new DocumentLevelPermissions(false, Set.copyOf(merged));
+        }
+
+        static DocumentLevelPermissions merge(DocumentLevelPermissions a, DocumentLevelPermissions b) {
+            if (a.allowAll || b.allowAll) {
+                return ALLOW_ALL;
+            }
+            if (a == EMPTY) {
+                return b;
+            }
+            if (b == EMPTY) {
+                return a;
+            }
+            if (a.queries.containsAll(b.queries)) {
+                return a;
+            }
+            if (b.queries.containsAll(a.queries)) {
+                return b;
+            }
+            var merged = new HashSet<>(a.queries);
+            merged.addAll(b.queries);
+            return new DocumentLevelPermissions(false, Set.copyOf(merged));
+        }
+    }
+
+    /**
+     * Caches {@link IndicesAccessControl.IndexAccessControl} instances within a single
+     * {@code buildIndicesAccessControl} call. Indices that accumulate the same FLS and DLS permissions
+     * will share a single {@code IndexAccessControl} object.
+     *
+     * <p>Uses a two-level {@link IdentityHashMap} keyed by {@code DocumentLevelPermissions} then
+     * {@code Set<FieldPermissions>} to avoid creating composite key objects. Identity-based lookup
+     * is safe because all concrete indices of the same resource share the same accumulated objects,
+     * which is the dominant deduplication case (e.g. 1500 backing indices of a data stream).
+     *
+     * <p>This class is not thread-safe and is intended to be created and used within
+     * a single invocation of {@code buildIndicesAccessControl}.
+     */
+    private static class IndexAccessControlCache {
+
+        private final FieldPermissionsCache fieldPermissionsCache;
+        private final IdentityHashMap<DocumentLevelPermissions,
+            IdentityHashMap<Set<FieldPermissions>, IndicesAccessControl.IndexAccessControl>> cache = new IdentityHashMap<>();
+
+        IndexAccessControlCache(FieldPermissionsCache fieldPermissionsCache) {
+            this.fieldPermissionsCache = fieldPermissionsCache;
+        }
+
+        IndicesAccessControl.IndexAccessControl getOrCreate(
+            @Nullable DocumentLevelPermissions docPerms,
+            @Nullable Set<FieldPermissions> fieldPerms
+        ) {
+            return cache.computeIfAbsent(docPerms, k -> new IdentityHashMap<>())
+                .computeIfAbsent(fieldPerms, fp -> buildNew(docPerms, fp));
+        }
+
+        private IndicesAccessControl.IndexAccessControl buildNew(
+            @Nullable DocumentLevelPermissions docPerms,
+            @Nullable Set<FieldPermissions> fieldPerms
+        ) {
+            final DocumentPermissions documentPermissions;
+            if (docPerms != null && docPerms != DocumentLevelPermissions.EMPTY && false == docPerms.isAllowAll()) {
+                documentPermissions = DocumentPermissions.filteredBy(docPerms.queries);
+            } else {
+                documentPermissions = DocumentPermissions.allowAll();
+            }
+            final FieldPermissions fieldPermissions;
+            if (fieldPerms != null && false == fieldPerms.isEmpty()) {
+                fieldPermissions = fieldPerms.size() == 1
+                    ? fieldPerms.iterator().next()
+                    : fieldPermissionsCache.union(fieldPerms);
+            } else {
+                fieldPermissions = FieldPermissions.DEFAULT;
+            }
+            return new IndicesAccessControl.IndexAccessControl(fieldPermissions, documentPermissions);
         }
     }
 }

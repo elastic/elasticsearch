@@ -166,6 +166,7 @@ public class CsvTestsDataLoader {
         new TestDataset("date_nanos"),
         new TestDataset("date_nanos_union_types"),
         new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json"),
+        new TestDataset("k8s_unmapped", "mapping-k8s-unmapped.json", "k8s.csv").withSetting("k8s-settings.json"),
         new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv", "k8s-settings.json"),
         new TestDataset("k8s-downsampled", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json"),
         new TestDataset("distances"),
@@ -211,6 +212,14 @@ public class CsvTestsDataLoader {
         new TestDataset("json_logs"),
         new TestDataset("flattened_otel_logs")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
+
+    // Developer flags for faster iteration when debugging specific csv-spec tests:
+    // -Dtests.spec_indices=index1,index2 load only the specified dataset indices (enrich skipped unless spec_enrich_policies is set)
+    // -Dtests.spec_enrich_policies=p1,p2 load only the specified enrich policies (overrides the spec_indices skipping of enrich)
+    @Nullable
+    private static final Set<String> specIndices = parseSetProperty("tests.spec_indices");
+    @Nullable
+    private static final Set<String> specEnrichPolicies = parseSetProperty("tests.spec_enrich_policies");
 
     public static final Map<String, EnrichConfig> ENRICH_POLICIES = Stream.of(
         new EnrichConfig("languages_policy", "enrich-policy-languages.json", "languages"),
@@ -389,7 +398,17 @@ public class CsvTestsDataLoader {
             }
         }
 
+        if (specIndices != null) {
+            testDataSets.removeIf(d -> specIndices.contains(d.indexName) == false);
+        }
+
         return testDataSets;
+    }
+
+    @Nullable
+    private static Set<String> parseSetProperty(String name) {
+        String prop = System.getProperty(name);
+        return (prop == null || prop.isBlank()) ? null : Set.of(prop.split(", *"));
     }
 
     private static boolean isLookupDataset(TestDataset dataset) throws IOException {
@@ -419,8 +438,17 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled
     ) throws IOException {
-        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, cap -> false);
+        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, cap -> false, null);
     }
+
+    private static final IndexCreator INDEX_CREATOR = (restClient, indexName, indexMapping, indexSettings) -> ESRestTestCase.createIndex(
+        restClient,
+        indexName,
+        indexSettings,
+        indexMapping,
+        null,
+        DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER
+    );
 
     public static void loadDataSetIntoEs(
         RestClient client,
@@ -430,26 +458,68 @@ public class CsvTestsDataLoader {
         boolean timeSeriesOnly,
         Predicate<EsqlCapabilities.Cap> capabilityCheck
     ) throws IOException {
-        loadDataSets(
+        loadDataSetIntoEs(
             client,
             supportsIndexModeLookup,
             supportsSourceFieldMapping,
             inferenceEnabled,
             timeSeriesOnly,
             capabilityCheck,
-            (restClient, indexName, indexMapping, indexSettings) -> {
-                ESRestTestCase.createIndex(
-                    restClient,
-                    indexName,
-                    indexSettings,
-                    indexMapping,
-                    null,
-                    DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER
-                );
-            }
+            null
         );
-        if (timeSeriesOnly == false) {
-            loadEnrichPolicies(client);
+    }
+
+    /**
+     * Load test datasets into Elasticsearch.
+     *
+     * @param indicesToLoad null to load all indices (default); empty list to load nothing; non-empty list to load only those indices
+     */
+    public static void loadDataSetIntoEs(
+        RestClient client,
+        boolean supportsIndexModeLookup,
+        boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled,
+        boolean timeSeriesOnly,
+        Predicate<EsqlCapabilities.Cap> capabilityCheck,
+        @Nullable List<String> indicesToLoad
+    ) throws IOException {
+        if (indicesToLoad != null && indicesToLoad.isEmpty()) {
+            return;
+        }
+        if (indicesToLoad != null) {
+            loadDatasetsIntoEs(client, indicesToLoad);
+        } else {
+            loadDataSets(
+                client,
+                supportsIndexModeLookup,
+                supportsSourceFieldMapping,
+                inferenceEnabled,
+                timeSeriesOnly,
+                capabilityCheck,
+                INDEX_CREATOR
+            );
+            if (timeSeriesOnly == false) {
+                loadEnrichPolicies(client);
+            }
+        }
+    }
+
+    /**
+     * Load only the specified indices from CSV_DATASET into the cluster.
+     * Used by external source tests that need lookup indices (e.g. languages_lookup) for LOOKUP JOIN.
+     */
+    public static void loadDatasetsIntoEs(RestClient client, List<String> indexNames) throws IOException {
+        Set<String> loadedDatasets = new HashSet<>();
+        for (String indexName : indexNames) {
+            TestDataset dataset = CSV_DATASET.get(indexName);
+            if (dataset == null) {
+                throw new IllegalArgumentException("Dataset [" + indexName + "] not found in CSV_DATASET");
+            }
+            load(client, dataset, INDEX_CREATOR);
+            loadedDatasets.add(dataset.indexName());
+        }
+        if (loadedDatasets.isEmpty() == false) {
+            forceMerge(client, loadedDatasets);
         }
     }
 
@@ -478,9 +548,14 @@ public class CsvTestsDataLoader {
     }
 
     private static void loadEnrichPolicies(RestClient client) throws IOException {
-        logger.info("Loading enrich policies");
-        for (var policy : ENRICH_POLICIES.values()) {
-            loadEnrichPolicy(client, policy);
+        // Does not load any enrich policies if specIndices is set and specEnrichPolicies is not.
+        if (specEnrichPolicies != null || specIndices == null) {
+            logger.info("Loading enrich policies");
+            for (var policy : ENRICH_POLICIES.values()) {
+                if (specEnrichPolicies == null || specEnrichPolicies.contains(policy.policyName)) {
+                    loadEnrichPolicy(client, policy);
+                }
+            }
         }
     }
 

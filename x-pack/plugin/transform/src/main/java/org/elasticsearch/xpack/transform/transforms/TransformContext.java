@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.Transform;
@@ -62,18 +63,31 @@ public class TransformContext {
     private final AtomicLong currentCheckpoint;
 
     private final Instant from;
+    private final ProjectId projectId;
 
     public TransformContext(TransformTaskState taskState, String stateReason, long currentCheckpoint, Listener taskListener) {
         this(taskState, stateReason, currentCheckpoint, null, taskListener);
     }
 
     public TransformContext(TransformTaskState taskState, String stateReason, long currentCheckpoint, Instant from, Listener taskListener) {
+        this(taskState, stateReason, currentCheckpoint, from, taskListener, ProjectId.DEFAULT);
+    }
+
+    public TransformContext(
+        TransformTaskState taskState,
+        String stateReason,
+        long currentCheckpoint,
+        Instant from,
+        Listener taskListener,
+        ProjectId projectId
+    ) {
         this.taskState = new AtomicReference<>(taskState);
         this.stateReason = new AtomicReference<>(stateReason);
         this.currentCheckpoint = new AtomicLong(currentCheckpoint);
         this.from = from;
         this.taskListener = taskListener;
         this.failureCount = new AtomicInteger(0);
+        this.projectId = projectId;
     }
 
     TransformTaskState getTaskState() {
@@ -122,6 +136,10 @@ public class TransformContext {
 
     Instant from() {
         return from;
+    }
+
+    ProjectId projectId() {
+        return projectId;
     }
 
     long incrementAndGetCheckpoint() {

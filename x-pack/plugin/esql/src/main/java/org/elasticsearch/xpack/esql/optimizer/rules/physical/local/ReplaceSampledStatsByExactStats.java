@@ -10,8 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
@@ -22,6 +21,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -30,63 +30,63 @@ import java.util.List;
  * should be skipped and the original aggregate should be executed.
  * <p>
  * In that case, this rule replaces the sampled aggregate by a regular
- * aggregate and nullifies all buckets. The plan:
+ * aggregate and replicates the exact intermediate values to all bucket
+ * intermediates. The plan:
  * <pre>
  * {@code FROM data | EVAL bucket_id=... | SAMPLED_STATS original_aggs, bucket_aggs}
  * </pre>
- * is transformed into:
+ * is (loosely) transformed into:
  * <pre>
- * {@code FROM data | EVAL bucket_id=... | STATS original_aggs | EVAL bucket_aggs=NULL}
+ * {@code FROM data | ES_STATS_QUERY original_aggs | EVAL bucket_aggs=original_aggs}
  * </pre>
- * All buckets being NULL indicates to the coordinator that the stats are exact.
- * <p>
- * The aggregate created by this rule is pushed down to Lucene by the
- * {@link PushStatsToSource} rule, whose logic is reused here.
+ * Replicating the exact value to all buckets makes exact data appear as
+ * zero-variance sampled data, so confidence intervals remain correct in
+ * mixed exact/sampled scenarios (where some nodes push down exact stats and
+ * others use sampling).
  */
 public class ReplaceSampledStatsByExactStats extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     SampledAggregateExec,
     LocalPhysicalOptimizerContext> {
 
     @Override
-    protected PhysicalPlan rule(SampledAggregateExec sampledAggregateExec, LocalPhysicalOptimizerContext context) {
-        if (sampledAggregateExec.getMode() == AggregatorMode.INITIAL
-            && sampledAggregateExec.child() instanceof EvalExec evalExec
-            && evalExec.expressions().size() == 1
-            && evalExec.expressions().getFirst() instanceof Alias alias
+    protected PhysicalPlan rule(SampledAggregateExec plan, LocalPhysicalOptimizerContext context) {
+        if (plan.getMode() == AggregatorMode.INITIAL
+            && plan.child() instanceof EvalExec eval
+            && eval.expressions().size() == 1
+            && eval.expressions().getFirst() instanceof Alias alias
             && alias.name().equals(ApproximationPlan.BUCKET_ID_COLUMN_NAME)
-            && evalExec.child() instanceof EsQueryExec queryExec) {
+            && eval.child() instanceof EsQueryExec queryExec) {
 
-            var tuple = PushStatsToSource.pushableStats(
-                sampledAggregateExec.groupings(),
-                sampledAggregateExec.originalAggregates(),
-                context
-            );
+            var tuple = PushStatsToSource.pushableStats(plan.groupings(), plan.originalAggregates(), context);
 
             // for the moment support pushing count just for one field
             List<EsStatsQueryExec.Stat> stats = tuple.v2();
-            if (stats.size() != 1 || stats.size() != sampledAggregateExec.originalAggregates().size()) {
-                return sampledAggregateExec;
+            if (stats.size() != 1 || stats.size() != plan.originalAggregates().size()) {
+                return plan;
             }
 
-            List<Alias> nullBuckets = sampledAggregateExec.outputSet()
-                .subtract(AttributeSet.of(sampledAggregateExec.originalIntermediateAttributes()))
-                .stream()
-                .map(attr -> new Alias(Source.EMPTY, attr.name(), new Literal(Source.EMPTY, null, attr.dataType()), attr.id()))
-                .toList();
-
-            PhysicalPlan plan = new AggregateExec(
-                sampledAggregateExec.source(),
+            AggregateExec aggregate = new AggregateExec(
+                plan.source(),
                 queryExec,
-                sampledAggregateExec.groupings(),
-                sampledAggregateExec.originalAggregates(),
-                sampledAggregateExec.getMode(),
-                sampledAggregateExec.originalIntermediateAttributes(),
-                sampledAggregateExec.estimatedRowSize()
+                plan.groupings(),
+                plan.originalAggregates(),
+                plan.getMode(),
+                plan.originalIntermediateAttributes(),
+                plan.estimatedRowSize()
             );
 
-            return new EvalExec(Source.EMPTY, plan, nullBuckets);
+            // The first intermediate attributes of the SampledAggregate are the original aggregations.
+            // Next follow the bucket aggregations. Each bucket has the same intermediate attributes
+            // as the original aggregate.
+            List<Alias> exactBuckets = new ArrayList<>();
+            for (int i = plan.originalIntermediateAttributes().size(); i < plan.intermediateAttributes().size(); i++) {
+                Attribute attribute = plan.intermediateAttributes().get(i);
+                Attribute originalAttribute = plan.originalIntermediateAttributes().get(i % plan.originalIntermediateAttributes().size());
+                exactBuckets.add(new Alias(Source.EMPTY, attribute.name(), originalAttribute, attribute.id()));
+            }
+            return new EvalExec(Source.EMPTY, aggregate, exactBuckets);
         } else {
-            return sampledAggregateExec;
+            return plan;
         }
     }
 }

@@ -253,11 +253,4 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, Embedding::new, inputValue, inferenceId, inputOptions);
     }
-
-    @Override
-    public String toString() {
-        return inputOptions == null
-            ? "EMBEDDING(" + inputValue + ", " + inferenceId + ")"
-            : "EMBEDDING(" + inputValue + ", " + inferenceId + ", " + inputOptions + ")";
-    }
 }

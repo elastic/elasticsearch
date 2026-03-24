@@ -265,6 +265,7 @@ public class IndexResolver {
         boolean useAggregateMetricDoubleWhenNotSupported,
         // Same as above
         boolean useDenseVectorWhenNotSupported,
+        boolean hasTimeSeriesAggregation,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
 
@@ -307,7 +308,8 @@ public class IndexResolver {
                     overallMinimumVersion,
                     Build.current().isSnapshot(),
                     useAggregateMetricDoubleWhenNotSupported,
-                    useDenseVectorWhenNotSupported
+                    useDenseVectorWhenNotSupported,
+                    hasTimeSeriesAggregation
                 );
 
                 l.onResponse(

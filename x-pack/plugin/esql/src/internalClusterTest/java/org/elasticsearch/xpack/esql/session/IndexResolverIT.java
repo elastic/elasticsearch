@@ -79,6 +79,7 @@ public class IndexResolverIT extends AbstractEsqlIntegTestCase {
                 TransportVersion.current(),
                 false,
                 false,
+                false,
                 future
             )
         ).actionGet().inner();

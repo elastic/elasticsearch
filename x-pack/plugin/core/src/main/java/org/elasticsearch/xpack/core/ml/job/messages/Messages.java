@@ -168,14 +168,17 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGED_LINKED = "Datafeed search scope changed: [{0}] linked."
         + " Data distribution may have changed due to new data sources,"
         + " which can cause temporary anomalies while the model adapts."
-        + " If detection quality degrades, consider specifying the source clusters explicitly and reviewing recent model snapshots for potential rollback.";
+        + " If detection quality degrades, consider specifying the source clusters explicitly"
+        + " and reviewing recent model snapshots for potential rollback.";
     public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGED_UNLINKED = "Datafeed search scope changed: [{0}] unlinked."
         + " Data distribution may have changed due to removed data sources,"
         + " which can cause temporary anomalies as patterns the model learned are no longer present."
-        + " If detection quality degrades, consider specifying the source clusters explicitly and reviewing recent model snapshots for potential rollback.";
+        + " If detection quality degrades, consider specifying the source clusters explicitly"
+        + " and reviewing recent model snapshots for potential rollback.";
     public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGED_BOTH = "Datafeed search scope changed: [{0}] linked, [{1}] unlinked."
         + " Data distribution may have changed, which can cause temporary anomalies while the model adapts."
-        + " If detection quality degrades, consider specifying the source clusters explicitly and reviewing recent model snapshots for potential rollback.";
+        + " If detection quality degrades, consider specifying the source clusters explicitly"
+        + " and reviewing recent model snapshots for potential rollback.";
     public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGE_ANOMALIES =
         "Elevated anomaly scores detected after search scope change at [{0}]"
             + " ({1}). [{2}] buckets with anomaly score >= 75 observed since the scope change."

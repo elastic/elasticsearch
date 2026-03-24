@@ -57,7 +57,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 
@@ -271,7 +270,7 @@ public class HttpClient implements Closeable {
 
         internalRequest.setConfig(config.build());
 
-        try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(httpHost, internalRequest, localContext))) {
+        try (CloseableHttpResponse response = client.execute(httpHost, internalRequest, localContext)) {
             // headers
             Header[] headers = response.getAllHeaders();
             Map<String, String[]> responseHeaders = Maps.newMapWithExpectedSize(headers.length);

@@ -125,11 +125,13 @@ public final class ResponseCollectorService implements ClusterStateListener {
         }
 
         ComputedNodeStats(int clientNum, NodeStatistics nodeStats) {
-            this.nodeId = nodeStats.nodeId;
-            this.clientNum = clientNum;
-            this.queueSize = (int) nodeStats.queueSize.getAverage();
-            this.responseTime = nodeStats.responseTime.getAverage();
-            this.serviceTime = nodeStats.serviceTime;
+            this(
+                nodeStats.nodeId,
+                clientNum,
+                (int) nodeStats.queueSize.getAverage(),
+                nodeStats.responseTime.getAverage(),
+                nodeStats.serviceTime
+            );
         }
 
         ComputedNodeStats(StreamInput in) throws IOException {

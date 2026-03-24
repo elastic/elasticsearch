@@ -1374,20 +1374,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // UnresolvedAttribute, causing a VerificationException. Short-circuit to an empty local relation instead
             // — Prometheus expects empty results (not errors) when the queried data does not exist.
             if (promql.child() instanceof EsRelation esRelation && esRelation.concreteQualifiedIndices().isEmpty()) {
-                return new LocalRelation(
-                    promql.source(),
+                var source = promql.source();
+                var localRelation = new LocalRelation(
+                    source,
                     List.of(
+                        new ReferenceAttribute(source, null, promql.valueColumnName(), DOUBLE, Nullability.FALSE, promql.valueId(), false),
                         new ReferenceAttribute(
-                            promql.source(),
-                            null,
-                            promql.valueColumnName(),
-                            DOUBLE,
-                            Nullability.FALSE,
-                            promql.valueId(),
-                            false
-                        ),
-                        new ReferenceAttribute(
-                            promql.source(),
+                            source,
                             null,
                             PromqlCommand.STEP_COLUMN_NAME,
                             DATETIME,
@@ -1398,6 +1391,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     ),
                     EmptyLocalSupplier.EMPTY
                 );
+                // Wrap in an explicit LIMIT 0 so that AddImplicitLimit skips the "No limit defined" warning,
+                // which would otherwise fire because the LocalRelation contains no PromqlCommand marker.
+                return new Limit(source, new Literal(source, 0, DataType.INTEGER), localRelation);
             }
             LogicalPlan promqlPlan = promql.promqlPlan();
             Function<UnresolvedAttribute, Expression> lambda = ua -> maybeResolveAttribute(ua, childrenOutput);

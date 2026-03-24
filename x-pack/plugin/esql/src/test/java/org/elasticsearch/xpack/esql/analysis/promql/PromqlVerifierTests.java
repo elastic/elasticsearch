@@ -120,7 +120,7 @@ public class PromqlVerifierTests extends ESTestCase {
 
     public void testQueryOnEmptyIndexReturnsEmptyLocalRelation() {
         // When the index pattern resolves to zero concrete indices (e.g. the data stream hasn't been created yet),
-        // the PROMQL command should be short-circuited to an empty LocalRelation rather than leaving
+        // the PROMQL command should be short-circuited to a Limit(0) -> LocalRelation rather than leaving
         // series attributes unresolved, which would cause a VerificationException.
         var plan = analyzer().addEmptyIndex().query("PROMQL index=empty_index step=5m test_metric");
         var localRelations = plan.collect(LocalRelation.class);

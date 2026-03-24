@@ -179,16 +179,6 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         assumeFalse("...", "roundToBirthWindow".equals(testName));  // ClassCastException
         assumeFalse("...", "functionUnderArithmeticOperationAggString".equals(testName));  // can't release already released object
 
-        // spatial
-        assumeFalse("...", "airportsDistanceLessThanInvalidPoint".equals(testName));  // ClassCastException
-        assumeFalse("...", "airportsDistanceLessThanInvalidPoint2".equals(testName));  // ClassCastException
-        assumeFalse("...", "airportsDistanceGreaterThanInvalidPoint".equals(testName));  // ClassCastException
-        assumeFalse("...", "airportsDistanceGreaterThanInvalidPoint2".equals(testName));  // ClassCastException
-        assumeFalse("...", "airportsDistanceGreaterThanInvalidPoint3".equals(testName));  // ClassCastException
-        assumeFalse("...", "airportsIntersectsInvalidShapeLiteralMvSlice".equals(testName));  // ClassCastException
-        assumeFalse("...", "cartesianPointDisjointEmptyGeometry".equals(testName));  // ClassCastException
-        assumeFalse("...", "cartesianPointDisjointInvalidGeometry".equals(testName));  // ClassCastException
-
         // spatial_shapes
         assumeFalse("...", "cartesianPolygonDisjointEmptyGeometry".equals(testName));  // ClassCastException
 

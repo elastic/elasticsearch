@@ -214,6 +214,105 @@ public class TestConfigurationTests extends ESTestCase {
         }
     }
 
+    public void testDatasetConfigParseFileDataset() throws Exception {
+        String json = """
+            {
+              "dataset": {
+                "file": {
+                  "doc_vectors": ["/data/docs1.fvec", "/data/docs2.fvec"],
+                  "query_vectors": "/data/queries.fvec"
+                }
+              },
+              "dimensions": 128,
+              "num_docs": 5000,
+              "num_queries": 50
+            }
+            """;
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            TestConfiguration config = TestConfiguration.fromXContent(parser);
+            assertThat(config.datasetConfig(), instanceOf(DatasetConfig.FileDataset.class));
+            DatasetConfig.FileDataset fd = (DatasetConfig.FileDataset) config.datasetConfig();
+            assertEquals(List.of("/data/docs1.fvec", "/data/docs2.fvec"), fd.docVectors());
+            assertEquals("/data/queries.fvec", fd.queryVectors());
+            assertEquals(2, config.docVectors().size());
+            assertEquals(PathUtils.get("/data/docs1.fvec"), config.docVectors().get(0));
+            assertEquals(PathUtils.get("/data/queries.fvec"), config.queryVectors());
+        }
+    }
+
+    public void testDatasetConfigParseFileDatasetNoQueries() throws Exception {
+        String json = """
+            {
+              "dataset": {
+                "file": {
+                  "doc_vectors": ["/data/docs.fvec"]
+                }
+              },
+              "dimensions": 64,
+              "num_docs": 100,
+              "num_queries": 10
+            }
+            """;
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            TestConfiguration config = TestConfiguration.fromXContent(parser);
+            assertThat(config.datasetConfig(), instanceOf(DatasetConfig.FileDataset.class));
+            DatasetConfig.FileDataset fd = (DatasetConfig.FileDataset) config.datasetConfig();
+            assertEquals(List.of("/data/docs.fvec"), fd.docVectors());
+            assertNull(fd.queryVectors());
+            assertNull(config.queryVectors());
+        }
+    }
+
+    public void testDatasetConfigFileDatasetMissingDocVectorsThrows() throws Exception {
+        String json = """
+            {
+              "dataset": {
+                "file": {
+                  "query_vectors": "/data/queries.fvec"
+                }
+              },
+              "dimensions": 128
+            }
+            """;
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            expectThrows(Exception.class, () -> TestConfiguration.fromXContent(parser));
+        }
+    }
+
+    public void testDatasetConfigRoundtripFileDataset() throws Exception {
+        String json = """
+            {
+              "dataset": {
+                "file": {
+                  "doc_vectors": ["/data/docs.fvec"],
+                  "query_vectors": "/data/queries.fvec"
+                }
+              },
+              "dimensions": 64,
+              "num_docs": 500,
+              "num_queries": 10
+            }
+            """;
+
+        TestConfiguration.Builder builder;
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            builder = TestConfiguration.PARSER.apply(parser, null);
+        }
+
+        String serialized = Strings.toString(builder, false, false);
+
+        try (XContentParser parser2 = createParser(XContentType.JSON.xContent(), serialized)) {
+            TestConfiguration.Builder builder2 = TestConfiguration.PARSER.apply(parser2, null);
+            assertThat(builder2.datasetConfig(), instanceOf(DatasetConfig.FileDataset.class));
+            DatasetConfig.FileDataset fd = (DatasetConfig.FileDataset) builder2.datasetConfig();
+            assertEquals(List.of("/data/docs.fvec"), fd.docVectors());
+            assertEquals("/data/queries.fvec", fd.queryVectors());
+        }
+    }
+
     public void testDatasetConfigInvalidDistributionThrows() throws Exception {
         String json = """
             {

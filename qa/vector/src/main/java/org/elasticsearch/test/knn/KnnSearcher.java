@@ -243,31 +243,8 @@ class KnnSearcher {
         public void accept(int[][] resultIds, KnnIndexTester.Results results, SearchParameters params) throws IOException {
             int totalSearches = provider.searchCount();
             int numSampledPartitions = provider.sampledPartitions().size();
-            logger.info("computing brute-force exact partitioned KNN matches for {} total queries", totalSearches);
-            long nnStartNS = System.nanoTime();
-            int[][] nn = new int[totalSearches][];
-            try (Directory indexDir = FSDirectory.open(indexPath); DirectoryReader reader = DirectoryReader.open(indexDir)) {
-                List<Callable<Void>> tasks = new ArrayList<>();
-                for (int p = 0; p < numSampledPartitions; p++) {
-                    Query partitionFilter = new TermQuery(new Term(PARTITION_ID_FIELD, provider.sampledPartitions().get(p)));
-                    Query combinedFilter = combineFilters(partitionFilter, selectivityFilter);
-                    for (int q = 0; q < numQueryVectors; q++) {
-                        int idx = p * numQueryVectors + q;
-                        if (vectorEncoding.equals(VectorEncoding.BYTE)) {
-                            tasks.add(
-                                new ComputeNNByteTask(idx, params.topK(), byteQueries[q], nn, reader, combinedFilter, similarityFunction)
-                            );
-                        } else {
-                            tasks.add(
-                                new ComputeNNFloatTask(idx, params.topK(), floatQueries[q], nn, reader, combinedFilter, similarityFunction)
-                            );
-                        }
-                    }
-                }
-                ForkJoinPool.commonPool().invokeAll(tasks);
-            }
-            long nnElapsedMS = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - nnStartNS);
-            logger.info("computed {} exact partitioned NN matches in {} ms", totalSearches, nnElapsedMS);
+
+            int[][] nn = getOrComputePartitionedNN(totalSearches, numSampledPartitions, params);
 
             Map<String, Float> perPartitionRecall = new LinkedHashMap<>();
             float totalRecall = 0;
@@ -296,6 +273,56 @@ class KnnSearcher {
 
             results.avgRecall = avgRecall;
             results.perPartitionRecall = perPartitionRecall;
+        }
+
+        private int[][] getOrComputePartitionedNN(int totalSearches, int numSampledPartitions, SearchParameters params) throws IOException {
+            String hash = Integer.toString(
+                Objects.hash(
+                    indexPath,
+                    provider.sampledPartitions(),
+                    numQueryVectors,
+                    params.topK(),
+                    similarityFunction.ordinal(),
+                    params.filterSelectivity(),
+                    params.seed()
+                ),
+                36
+            );
+            String nnFileName = "nn-partitioned-" + hash + ".bin";
+            Path nnPath = PathUtils.get("target/" + nnFileName);
+
+            if (Files.exists(nnPath)) {
+                logger.info("read pre-cached exact partitioned NN from cache file \"{}\"", nnPath);
+                return readNN(nnPath, totalSearches, params.topK());
+            }
+
+            logger.info("computing brute-force exact partitioned KNN matches for {} total queries", totalSearches);
+            long nnStartNS = System.nanoTime();
+            int[][] nn = new int[totalSearches][];
+            try (Directory indexDir = FSDirectory.open(indexPath); DirectoryReader reader = DirectoryReader.open(indexDir)) {
+                List<Callable<Void>> tasks = new ArrayList<>();
+                for (int p = 0; p < numSampledPartitions; p++) {
+                    Query partitionFilter = new TermQuery(new Term(PARTITION_ID_FIELD, provider.sampledPartitions().get(p)));
+                    Query combinedFilter = combineFilters(partitionFilter, selectivityFilter);
+                    for (int q = 0; q < numQueryVectors; q++) {
+                        int idx = p * numQueryVectors + q;
+                        if (vectorEncoding.equals(VectorEncoding.BYTE)) {
+                            tasks.add(
+                                new ComputeNNByteTask(idx, params.topK(), byteQueries[q], nn, reader, combinedFilter, similarityFunction)
+                            );
+                        } else {
+                            tasks.add(
+                                new ComputeNNFloatTask(idx, params.topK(), floatQueries[q], nn, reader, combinedFilter, similarityFunction)
+                            );
+                        }
+                    }
+                }
+                ForkJoinPool.commonPool().invokeAll(tasks);
+            }
+            long nnElapsedMS = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - nnStartNS);
+            logger.info("computed {} exact partitioned NN matches in {} ms", totalSearches, nnElapsedMS);
+            writeNN(nn, nnPath);
+            return nn;
         }
     }
 
@@ -681,12 +708,20 @@ class KnnSearcher {
     }
 
     private int[][] readExactNN(Path nnPath, int topK) throws IOException {
-        int[][] result = new int[numQueryVectors][];
+        return readNN(nnPath, numQueryVectors, topK);
+    }
+
+    private void writeExactNN(int[][] nn, Path nnPath) throws IOException {
+        writeNN(nn, nnPath);
+    }
+
+    static int[][] readNN(Path nnPath, int numEntries, int topK) throws IOException {
+        int[][] result = new int[numEntries][];
         try (FileChannel in = FileChannel.open(nnPath)) {
-            IntBuffer intBuffer = in.map(FileChannel.MapMode.READ_ONLY, 0, (long) numQueryVectors * topK * Integer.BYTES)
+            IntBuffer intBuffer = in.map(FileChannel.MapMode.READ_ONLY, 0, (long) numEntries * topK * Integer.BYTES)
                 .order(ByteOrder.LITTLE_ENDIAN)
                 .asIntBuffer();
-            for (int i = 0; i < numQueryVectors; i++) {
+            for (int i = 0; i < numEntries; i++) {
                 result[i] = new int[topK];
                 intBuffer.get(result[i]);
             }
@@ -694,12 +729,12 @@ class KnnSearcher {
         return result;
     }
 
-    private void writeExactNN(int[][] nn, Path nnPath) throws IOException {
-        logger.info("writing true nearest neighbors to cache file \"" + nnPath + "\"");
+    static void writeNN(int[][] nn, Path nnPath) throws IOException {
+        logger.info("writing true nearest neighbors to cache file \"{}\"", nnPath);
         ByteBuffer tmp = ByteBuffer.allocate(nn[0].length * Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         try (OutputStream out = Files.newOutputStream(nnPath)) {
-            for (int i = 0; i < numQueryVectors; i++) {
-                tmp.asIntBuffer().put(nn[i]);
+            for (int[] entry : nn) {
+                tmp.asIntBuffer().put(entry);
                 out.write(tmp.array());
             }
         }

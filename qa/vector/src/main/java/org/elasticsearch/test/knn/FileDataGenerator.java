@@ -23,7 +23,7 @@ import static org.elasticsearch.test.knn.KnnIndexTester.logger;
 
 /**
  * A {@link DataGenerator} that reads vectors from files on disk.
- * Used for datasets downloaded from Google Cloud Storage (GCP bucket).
+ * Used for both GCP bucket datasets and custome datasets.
  */
 class FileDataGenerator implements DataGenerator {
 

@@ -14,21 +14,24 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 /**
  * Represents the "dataset" configuration using NamedXContent style parsing:
  *
  * <pre>
- *   "dataset": "somegcpbucketdataset"                                  — shorthand for GCP
- *   "dataset": { "gcp": { "name": "somegcpbucketdataset" } }           — explicit GCP
- *   "dataset": { "partition_generated": { "num_partitions": 50, ... } } — synthetic data
+ *   "dataset": "somegcpbucketdataset"                                                       — shorthand for GCP
+ *   "dataset": { "gcp": { "name": "somegcpbucketdataset" } }                                — explicit GCP
+ *   "dataset": { "file": { "doc_vectors": [...], "query_vectors": "..." } }                 — local files
+ *   "dataset": { "partition_generated": { "num_partitions": 50, ... } }                      — synthetic data
  * </pre>
  *
  * Each variant provides a {@link DataGenerator} via {@link #createDataGenerator} that
  * encapsulates all data provisioning for indexing and searching.
  */
-sealed interface DatasetConfig permits DatasetConfig.GcpDataset, DatasetConfig.PartitionGenerated {
+sealed interface DatasetConfig permits DatasetConfig.GcpDataset, DatasetConfig.FileDataset, DatasetConfig.PartitionGenerated {
 
     /**
      * Creates a {@link DataGenerator} that supplies vectors for indexing and queries for searching.
@@ -37,6 +40,15 @@ sealed interface DatasetConfig permits DatasetConfig.GcpDataset, DatasetConfig.P
 
     /** A dataset that is downloaded from a Google Cloud Storage bucket. */
     record GcpDataset(String name) implements DatasetConfig {
+
+        @Override
+        public DataGenerator createDataGenerator(TestConfiguration config) throws IOException {
+            return new FileDataGenerator(config);
+        }
+    }
+
+    /** A dataset specified via local file paths for doc vectors and (optionally) query vectors. */
+    record FileDataset(List<String> docVectors, String queryVectors) implements DatasetConfig {
 
         @Override
         public DataGenerator createDataGenerator(TestConfiguration config) throws IOException {
@@ -105,8 +117,11 @@ sealed interface DatasetConfig permits DatasetConfig.GcpDataset, DatasetConfig.P
         parser.nextToken();
         DatasetConfig result = switch (typeName) {
             case "gcp" -> parseGcp(parser);
+            case "file" -> parseFile(parser);
             case "partition_generated" -> PartitionGenerated.fromXContent(parser);
-            default -> throw new IllegalArgumentException("Unknown dataset type: [" + typeName + "]. Supported: gcp, partition_generated");
+            default -> throw new IllegalArgumentException(
+                "Unknown dataset type: [" + typeName + "]. Supported: gcp, file, partition_generated"
+            );
         };
         // consume the outer END_OBJECT
         parser.nextToken();
@@ -129,5 +144,30 @@ sealed interface DatasetConfig permits DatasetConfig.GcpDataset, DatasetConfig.P
             throw new IllegalArgumentException("gcp dataset config requires a 'name' field");
         }
         return new GcpDataset(name);
+    }
+
+    private static FileDataset parseFile(XContentParser parser) throws IOException {
+        List<String> docVectors = null;
+        String queryVectors = null;
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                String fieldName = parser.currentName();
+                parser.nextToken();
+                switch (fieldName) {
+                    case "doc_vectors" -> {
+                        docVectors = new ArrayList<>();
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            docVectors.add(parser.text());
+                        }
+                    }
+                    case "query_vectors" -> queryVectors = parser.text();
+                    default -> throw new IllegalArgumentException("Unknown field in file dataset config: " + fieldName);
+                }
+            }
+        }
+        if (docVectors == null || docVectors.isEmpty()) {
+            throw new IllegalArgumentException("file dataset config requires 'doc_vectors'");
+        }
+        return new FileDataset(docVectors, queryVectors);
     }
 }

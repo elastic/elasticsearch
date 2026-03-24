@@ -655,27 +655,34 @@ public class KnnIndexTester {
                 "force_merge_time(ms)",
                 "num_segments" };
 
-            // Define column headers
-            String[] searchHeaders = {
-                "index_name",
-                "index_type",
-                "visit_percentage(%)",
-                "latency(ms)",
-                "net_cpu_time(ms)",
-                "avg_cpu_count",
-                "QPS",
-                "recall",
-                "visited",
-                "filter_selectivity",
-                "filter_cached",
-                "oversampling_factor",
-                "num_candidates",
-                "early_termination",
-                "partition_recall_min",
-                "partition_recall_max",
-                "partition_recall_avg" };
+            // Only include partition recall columns if any result has partition data
+            boolean hasPartitionRecall = queryResults.stream()
+                .anyMatch(r -> r.perPartitionRecall != null && r.perPartitionRecall.isEmpty() == false);
 
-            // Calculate appropriate column widths based on headers and data
+            List<String> searchHeaderList = new ArrayList<>(
+                List.of(
+                    "index_name",
+                    "index_type",
+                    "visit_percentage(%)",
+                    "latency(ms)",
+                    "net_cpu_time(ms)",
+                    "avg_cpu_count",
+                    "QPS",
+                    "recall",
+                    "visited",
+                    "filter_selectivity",
+                    "filter_cached",
+                    "oversampling_factor",
+                    "num_candidates",
+                    "early_termination"
+                )
+            );
+            if (hasPartitionRecall) {
+                searchHeaderList.add("partition_recall_min");
+                searchHeaderList.add("partition_recall_max");
+                searchHeaderList.add("partition_recall_avg");
+            }
+            String[] searchHeaders = searchHeaderList.toArray(String[]::new);
 
             StringBuilder sb = new StringBuilder();
 
@@ -695,40 +702,46 @@ public class KnnIndexTester {
             String[][] queryResultsArray = new String[queryResults.size()][];
             for (int i = 0; i < queryResults.size(); i++) {
                 Results queryResult = queryResults.get(i);
-                String partitionMin = "";
-                String partitionMax = "";
-                String partitionAvg = "";
-                if (queryResult.perPartitionRecall != null && queryResult.perPartitionRecall.isEmpty() == false) {
-                    float min = Float.MAX_VALUE;
-                    float max = Float.MIN_VALUE;
-                    float sum = 0;
-                    for (float recall : queryResult.perPartitionRecall.values()) {
-                        min = Math.min(min, recall);
-                        max = Math.max(max, recall);
-                        sum += recall;
+                List<String> row = new ArrayList<>(
+                    List.of(
+                        queryResult.indexName,
+                        queryResult.indexType,
+                        String.format(Locale.ROOT, "%.3f", queryResult.visitPercentage),
+                        String.format(Locale.ROOT, "%.2f", queryResult.avgLatency),
+                        String.format(Locale.ROOT, "%.2f", queryResult.netCpuTimeMS),
+                        String.format(Locale.ROOT, "%.2f", queryResult.avgCpuCount),
+                        String.format(Locale.ROOT, "%.2f", queryResult.qps),
+                        String.format(Locale.ROOT, "%.2f", queryResult.avgRecall),
+                        String.format(Locale.ROOT, "%.2f", queryResult.averageVisited),
+                        String.format(Locale.ROOT, "%.2f", queryResult.filterSelectivity),
+                        Boolean.toString(queryResult.filterCached),
+                        String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor),
+                        String.format(Locale.ROOT, "%d", queryResult.numCandidates),
+                        Boolean.toString(queryResult.earlyTermination)
+                    )
+                );
+                if (hasPartitionRecall) {
+                    String partitionMin = "";
+                    String partitionMax = "";
+                    String partitionAvg = "";
+                    if (queryResult.perPartitionRecall != null && queryResult.perPartitionRecall.isEmpty() == false) {
+                        float min = Float.MAX_VALUE;
+                        float max = Float.MIN_VALUE;
+                        float sum = 0;
+                        for (float recall : queryResult.perPartitionRecall.values()) {
+                            min = Math.min(min, recall);
+                            max = Math.max(max, recall);
+                            sum += recall;
+                        }
+                        partitionMin = String.format(Locale.ROOT, "%.4f", min);
+                        partitionMax = String.format(Locale.ROOT, "%.4f", max);
+                        partitionAvg = String.format(Locale.ROOT, "%.4f", sum / queryResult.perPartitionRecall.size());
                     }
-                    partitionMin = String.format(Locale.ROOT, "%.4f", min);
-                    partitionMax = String.format(Locale.ROOT, "%.4f", max);
-                    partitionAvg = String.format(Locale.ROOT, "%.4f", sum / queryResult.perPartitionRecall.size());
+                    row.add(partitionMin);
+                    row.add(partitionMax);
+                    row.add(partitionAvg);
                 }
-                queryResultsArray[i] = new String[] {
-                    queryResult.indexName,
-                    queryResult.indexType,
-                    String.format(Locale.ROOT, "%.3f", queryResult.visitPercentage),
-                    String.format(Locale.ROOT, "%.2f", queryResult.avgLatency),
-                    String.format(Locale.ROOT, "%.2f", queryResult.netCpuTimeMS),
-                    String.format(Locale.ROOT, "%.2f", queryResult.avgCpuCount),
-                    String.format(Locale.ROOT, "%.2f", queryResult.qps),
-                    String.format(Locale.ROOT, "%.2f", queryResult.avgRecall),
-                    String.format(Locale.ROOT, "%.2f", queryResult.averageVisited),
-                    String.format(Locale.ROOT, "%.2f", queryResult.filterSelectivity),
-                    Boolean.toString(queryResult.filterCached),
-                    String.format(Locale.ROOT, "%.2f", queryResult.overSamplingFactor),
-                    String.format(Locale.ROOT, "%d", queryResult.numCandidates),
-                    Boolean.toString(queryResult.earlyTermination),
-                    partitionMin,
-                    partitionMax,
-                    partitionAvg };
+                queryResultsArray[i] = row.toArray(String[]::new);
             }
 
             printBlock(sb, searchHeaders, queryResultsArray);

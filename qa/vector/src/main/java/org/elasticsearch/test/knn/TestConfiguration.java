@@ -204,8 +204,10 @@ record TestConfiguration(
             new ParameterHelp(
                 "dataset",
                 "string|object",
-                "Optional. GCP dataset name (string), or {\"type\":\"partition_generated\", \"num_partitions\":N, "
-                    + "\"partition_distribution\":\"uniform|zipf\", \"generator_seed\":L} (object)."
+                "Optional. GCP dataset name (string), or {\"gcp\": {\"name\": \"...\"}}, "
+                    + "{\"file\": {\"doc_vectors\": [...], \"query_vectors\": \"...\"}}, "
+                    + "or {\"partition_generated\": {\"num_partitions\": N, "
+                    + "\"partition_distribution\": \"uniform|zipf\", \"generator_seed\": L}}."
             ),
             new ParameterHelp("doc_vectors", "array[string]", "Required. Paths to document vectors files used for indexing."),
             new ParameterHelp("query_vectors", "string", "Optional. Path to query vectors file; omit to skip searches."),
@@ -762,6 +764,11 @@ record TestConfiguration(
         public TestConfiguration build() throws Exception {
             if (datasetConfig instanceof DatasetConfig.GcpDataset gcpDataset) {
                 resolveDataset(gcpDataset.name());
+            } else if (datasetConfig instanceof DatasetConfig.FileDataset fileDataset) {
+                docVectors = fileDataset.docVectors().stream().map(PathUtils::get).toList();
+                if (fileDataset.queryVectors() != null) {
+                    queryVectors = PathUtils.get(fileDataset.queryVectors());
+                }
             }
             // specify some defaults here, so they can be set by the config file or dataset first
             if (vectorSpace == null) {
@@ -863,6 +870,15 @@ record TestConfiguration(
             builder.startObject();
             if (datasetConfig instanceof DatasetConfig.GcpDataset gcpDataset) {
                 builder.field(DATASET_FIELD.getPreferredName(), gcpDataset.name());
+            } else if (datasetConfig instanceof DatasetConfig.FileDataset fileDataset) {
+                builder.startObject(DATASET_FIELD.getPreferredName());
+                builder.startObject("file");
+                builder.field("doc_vectors", fileDataset.docVectors());
+                if (fileDataset.queryVectors() != null) {
+                    builder.field("query_vectors", fileDataset.queryVectors());
+                }
+                builder.endObject();
+                builder.endObject();
             } else if (datasetConfig instanceof PartitionGenerated pg) {
                 builder.startObject(DATASET_FIELD.getPreferredName());
                 builder.startObject("partition_generated");

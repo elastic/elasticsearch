@@ -124,7 +124,7 @@ final class SoftDeletesPolicy {
              * When retainForPeerRecovery is true, this policy retains operations for two purposes:
              *  - Peer-recovery: driven by the local checkpoint of the safe commit. In peer-recovery, the primary transfers a safe
              *    commit, then sends operations after the local checkpoint of that commit. This requires keeping all ops after
-             *    localCheckpointOfSafeCommit. Retention leases (synced periodically, see IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING)
+             *    localCheckpointOfSafeCommit. Retention leases (synced periodically, see RETENTION_LEASE_SYNC_INTERVAL_SETTING)
              *    further constrain the minimum retained sequence number.
              *  - Changes APIs: driven by a combination of the global checkpoint, retention operations, and retention leases. Here we
              *    prefer using the global checkpoint instead of the maximum sequence number because only operations up to the global

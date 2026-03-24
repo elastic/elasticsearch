@@ -165,36 +165,34 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
         return List.of(params.get(0));
     }
 
-    public void testBucketBoundariesAlignToRangeStart() {
+    public void testBucketBoundariesAlignToEnd() {
         Duration step = Duration.ofMinutes(5);
-        Instant start = Instant.parse("2024-01-01T12:04:00Z");
         Instant end = Instant.parse("2024-01-01T12:32:00Z");
 
         assertThat(
-            evaluateWithBounds(step, start, end, millis("2024-01-01T12:04:00Z"), DataType.DATETIME, ZoneOffset.UTC),
-            equalTo(millis("2024-01-01T12:04:00Z"))
+            evaluateWithResolvedEnd(step, end, millis("2024-01-01T12:06:00Z"), DataType.DATETIME, ZoneOffset.UTC),
+            equalTo(millis("2024-01-01T12:07:00Z"))
         );
         assertThat(
-            evaluateWithBounds(step, start, end, millis("2024-01-01T12:06:00Z"), DataType.DATETIME, ZoneOffset.UTC),
-            equalTo(millis("2024-01-01T12:09:00Z"))
+            evaluateWithResolvedEnd(step, end, millis("2024-01-01T12:07:00Z"), DataType.DATETIME, ZoneOffset.UTC),
+            equalTo(millis("2024-01-01T12:07:00Z"))
         );
         assertThat(
-            evaluateWithBounds(step, start, end, millis("2024-01-01T12:08:00Z"), DataType.DATETIME, ZoneOffset.UTC),
-            equalTo(millis("2024-01-01T12:09:00Z"))
+            evaluateWithResolvedEnd(step, end, millis("2024-01-01T12:08:00Z"), DataType.DATETIME, ZoneOffset.UTC),
+            equalTo(millis("2024-01-01T12:12:00Z"))
         );
         assertThat(
-            evaluateWithBounds(step, start, end, millis("2024-01-01T12:32:00Z"), DataType.DATETIME, ZoneOffset.UTC),
-            equalTo(millis("2024-01-01T12:34:00Z"))
+            evaluateWithResolvedEnd(step, end, millis("2024-01-01T12:32:00Z"), DataType.DATETIME, ZoneOffset.UTC),
+            equalTo(millis("2024-01-01T12:32:00Z"))
         );
     }
 
     public void testTStepDiffersFromTBucket() {
         Duration step = Duration.ofMinutes(5);
-        Instant start = Instant.parse("2024-01-01T12:02:00Z");
         Instant end = Instant.parse("2024-01-01T12:02:00Z");
         long timestamp = millis("2024-01-01T12:06:00Z");
 
-        long tstepBucket = evaluateWithBounds(step, start, end, timestamp, DataType.DATETIME, ZoneOffset.UTC);
+        long tstepBucket = evaluateWithResolvedEnd(step, end, timestamp, DataType.DATETIME, ZoneOffset.UTC);
 
         Bucket tbucket = new Bucket(
             Source.EMPTY,
@@ -214,10 +212,9 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
 
     public void testTimezoneInvariance() {
         Duration step = Duration.ofMinutes(5);
-        Instant start = Instant.parse("2024-01-01T12:02:00Z");
         Instant end = Instant.parse("2024-01-01T12:02:00Z");
         long timestamp = millis("2024-01-01T12:08:00Z");
-        long expected = evaluateWithBounds(step, start, end, timestamp, DataType.DATETIME, ZoneOffset.UTC);
+        long expected = evaluateWithResolvedEnd(step, end, timestamp, DataType.DATETIME, ZoneOffset.UTC);
 
         for (ZoneId zone : List.of(
             ZoneOffset.UTC,
@@ -228,7 +225,7 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
         )) {
             assertThat(
                 "zone " + zone + " should produce same bucket",
-                evaluateWithBounds(step, start, end, timestamp, DataType.DATETIME, zone),
+                evaluateWithResolvedEnd(step, end, timestamp, DataType.DATETIME, zone),
                 equalTo(expected)
             );
         }
@@ -236,74 +233,35 @@ public class TStepTests extends AbstractConfigurationFunctionTestCase {
 
     public void testSingleBucketWhenStepExceedsRange() {
         Duration step = Duration.ofHours(2);
-        Instant start = Instant.parse("2024-01-01T12:00:00Z");
         Instant end = Instant.parse("2024-01-01T12:30:00Z");
 
-        assertThat(
-            evaluateWithBounds(step, start, end, millis("2024-01-01T12:00:00Z"), DataType.DATETIME, ZoneOffset.UTC),
-            equalTo(millis("2024-01-01T12:00:00Z"))
-        );
-        long bucket = evaluateWithBounds(step, start, end, millis("2024-01-01T12:15:00Z"), DataType.DATETIME, ZoneOffset.UTC);
-        assertThat(bucket, equalTo(millis("2024-01-01T14:00:00Z")));
-        assertThat(
-            evaluateWithBounds(step, start, end, millis("2024-01-01T12:15:00Z"), DataType.DATETIME, ZoneOffset.UTC),
-            equalTo(bucket)
-        );
-        assertThat(
-            evaluateWithBounds(step, start, end, millis("2024-01-01T12:29:00Z"), DataType.DATETIME, ZoneOffset.UTC),
-            equalTo(bucket)
-        );
+        long bucket = evaluateWithResolvedEnd(step, end, millis("2024-01-01T12:00:00Z"), DataType.DATETIME, ZoneOffset.UTC);
+        assertThat(evaluateWithResolvedEnd(step, end, millis("2024-01-01T12:15:00Z"), DataType.DATETIME, ZoneOffset.UTC), equalTo(bucket));
+        assertThat(evaluateWithResolvedEnd(step, end, millis("2024-01-01T12:29:00Z"), DataType.DATETIME, ZoneOffset.UTC), equalTo(bucket));
     }
 
     public void testTimestampExactlyAtEnd() {
         Duration step = Duration.ofMinutes(5);
-        Instant start = Instant.parse("2024-01-01T12:00:00Z");
         Instant end = Instant.parse("2024-01-01T12:10:00Z");
 
         assertThat(
-            evaluateWithBounds(step, start, end, millis("2024-01-01T12:10:00Z"), DataType.DATETIME, ZoneOffset.UTC),
+            evaluateWithResolvedEnd(step, end, millis("2024-01-01T12:10:00Z"), DataType.DATETIME, ZoneOffset.UTC),
             equalTo(millis("2024-01-01T12:10:00Z"))
         );
     }
 
     public void testOneMillisStep() {
         Duration step = Duration.ofMillis(1);
-        Instant start = Instant.parse("2024-01-01T12:00:00Z");
         Instant end = Instant.parse("2024-01-01T12:00:00Z");
         long ts = millis("2024-01-01T12:34:56.789Z");
 
-        assertThat(evaluateWithBounds(step, start, end, ts, DataType.DATETIME, ZoneOffset.UTC), equalTo(ts));
+        assertThat(evaluateWithResolvedEnd(step, end, ts, DataType.DATETIME, ZoneOffset.UTC), equalTo(ts));
     }
 
-    public void testLastCompleteBucketEnd() {
-        Duration step = Duration.ofHours(1);
-        Instant start = Instant.parse("2024-01-01T12:15:00Z");
-        Instant end = Instant.parse("2024-01-01T13:55:00Z");
-        Configuration configuration = randomConfigurationBuilder().query(TEST_SOURCE.text()).now(end).zoneId(ZoneOffset.UTC).build();
-        TStep tStep = new TStep(
-            Source.EMPTY,
-            Literal.timeDuration(Source.EMPTY, step),
-            Literal.dateTime(Source.EMPTY, start),
-            Literal.dateTime(Source.EMPTY, end),
-            Literal.dateTime(Source.EMPTY, start),
-            configuration
-        );
-        Literal lastBucketEnd = tStep.lastCompleteBucketEndLiteral(FoldContext.small());
-        assertThat(((Number) lastBucketEnd.fold(FoldContext.small())).longValue(), equalTo(millis("2024-01-01T13:15:00Z")));
-    }
-
-    private static long evaluateWithBounds(
-        Duration step,
-        Instant start,
-        Instant end,
-        long timestamp,
-        DataType timestampType,
-        ZoneId zoneId
-    ) {
+    private static long evaluateWithResolvedEnd(Duration step, Instant end, long timestamp, DataType timestampType, ZoneId zoneId) {
         Configuration configuration = randomConfigurationBuilder().query(TEST_SOURCE.text()).now(end).zoneId(zoneId).build();
         Literal timestampLiteral = timestampLiteral(timestamp, timestampType);
-        TStep tStep = new TStep(Source.EMPTY, Literal.timeDuration(Source.EMPTY, step), timestampLiteral, configuration).withBounds(
-            timestampLiteral(start, timestampType),
+        TStep tStep = new TStep(Source.EMPTY, Literal.timeDuration(Source.EMPTY, step), timestampLiteral, configuration).withEnd(
             timestampLiteral(end, timestampType)
         );
         return ((Number) tStep.surrogate().fold(FoldContext.small())).longValue();

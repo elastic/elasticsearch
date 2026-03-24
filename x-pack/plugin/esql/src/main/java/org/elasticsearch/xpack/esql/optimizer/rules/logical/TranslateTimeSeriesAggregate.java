@@ -226,7 +226,6 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         List<Alias> unpackDimensions = new ArrayList<>();
         Holder<NamedExpression> timeBucketRef = new Holder<>();
         Holder<Bucket> timeBucketSpecRef = new Holder<>();
-        Holder<Boolean> backwardLookingBucketRef = new Holder<>(false);
         Consumer<NamedExpression> extractTimeBucket = e -> {
             for (Expression child : e.children()) {
                 if (child instanceof Bucket bucket && aggregate.timestamp().semanticEquals(bucket.field())) {
@@ -235,7 +234,6 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                     }
                     timeBucketRef.set(e);
                     timeBucketSpecRef.set(bucket);
-                    backwardLookingBucketRef.set(false);
                 } else if (child instanceof TBucket tbucket && aggregate.timestamp().semanticEquals(tbucket.timestamp())) {
                     if (timeBucketRef.get() != null) {
                         throw new IllegalArgumentException("expected at most one time tbucket");
@@ -243,7 +241,6 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                     Bucket bucket = (Bucket) tbucket.surrogate();
                     timeBucketRef.set(new Alias(e.source(), bucket.functionName(), bucket, e.id()));
                     timeBucketSpecRef.set(bucket);
-                    backwardLookingBucketRef.set(false);
                 } else if (child instanceof TStep tstep && aggregate.timestamp().semanticEquals(tstep.timestamp())) {
                     if (timeBucketRef.get() != null) {
                         throw new IllegalArgumentException("expected at most one time tstep");
@@ -251,7 +248,6 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                     Bucket bucket = tstep.timeBucketSpecRef();
                     timeBucketRef.set(new Alias(e.source(), e.name(), tstep.surrogate(), e.id()));
                     timeBucketSpecRef.set(bucket);
-                    backwardLookingBucketRef.set(true);
                 } else if (child instanceof DateTrunc dateTrunc && aggregate.timestamp().semanticEquals(dateTrunc.field())) {
                     if (timeBucketRef.get() != null) {
                         throw new IllegalArgumentException("expected at most one time bucket");
@@ -259,7 +255,6 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                     Bucket bucket = dateTrunc.timeBucketSpecRef();
                     timeBucketRef.set(new Alias(e.source(), bucket.functionName(), bucket, e.id()));
                     timeBucketSpecRef.set(bucket);
-                    backwardLookingBucketRef.set(false);
                 }
             }
         };
@@ -341,10 +336,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             newChild,
             firstPassGroupings,
             mergeExpressions(firstPassAggs, firstPassGroupings),
-            internalBucket != null ? internalBucket : userBucket,
-            userBucket,
-            aggregate.timestamp(),
-            backwardLookingBucketRef.get()
+            timeBucketSpecRef.get(),
+            aggregate.timestamp()
         );
         checkWindow(firstPhase);
         if (packDimensions.isEmpty()) {

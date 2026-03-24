@@ -2,5 +2,5 @@
 
 ## Description
 
-Creates groups of values - buckets - out of a `@timestamp` attribute. Unlike `TBUCKET`, which aligns buckets at their `start`, `TSTEP` returns bucket `end` timestamps, anchored to UTC. With `TRANGE`, bucket boundaries advance from the range start.
+Creates groups of values - buckets - out of a `@timestamp` attribute. Unlike `TBUCKET`, which aligns buckets at their `start`, `TSTEP` aligns at the `end` and anchors to UTC regardless of the configured timezone.
 

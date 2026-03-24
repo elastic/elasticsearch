@@ -1828,11 +1828,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     .map(exp -> (NamedExpression) exp)
                     .toList();
 
-                var tSteps = collectTSteps(newGroupings, newAggregates);
-                var tightenedChild = tightenTRangeEnds(child, tSteps);
-
-                if (changed.get() || tightenedChild != child) {
-                    return agg.with(tightenedChild, newGroupings, newAggregates);
+                if (changed.get()) {
+                    return agg.with(child, newGroupings, newAggregates);
                 }
 
                 return agg;
@@ -1840,7 +1837,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static Expression rewriteExpression(Expression expression, LogicalPlan child, Holder<Boolean> changed) {
-            var newExpression = expression.transformUp(TStep.class, t -> transformWithBounds(t, child));
+            var newExpression = expression.transformUp(TStep.class, t -> transformWithEnd(t, child));
 
             if (newExpression != expression) {
                 changed.set(true);
@@ -1849,83 +1846,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return newExpression;
         }
 
-        private static List<TStep> collectTSteps(List<Expression> groupings, List<NamedExpression> aggregates) {
-            List<TStep> steps = new ArrayList<>();
-            for (Expression grouping : groupings) {
-                grouping.forEachDown(TStep.class, steps::add);
-            }
-            for (Expression aggregate : aggregates) {
-                aggregate.forEachDown(TStep.class, steps::add);
-            }
-            return steps;
-        }
-
-        private static LogicalPlan tightenTRangeEnds(LogicalPlan child, List<TStep> tSteps) {
-            if (tSteps.isEmpty()) {
-                return child;
-            }
-            return child.transformExpressionsUp(TRange.class, trange -> tightenTRangeEnd(trange, tSteps));
-        }
-
-        private static TRange tightenTRangeEnd(TRange trange, List<TStep> tSteps) {
-            if (trange.resolved() == false) {
-                return trange;
-            }
-
-            final DataType timestampType = trange.timestamp().dataType();
-            final long trangeEndMillis = literalToMillis(trange.rangeEndLiteral(FoldContext.small(), timestampType));
-            Long tightenedEndMillis = null;
-
-            for (TStep tStep : tSteps) {
-                Expression left = trange.timestamp();
-                if (left.semanticEquals(tStep.timestamp()) == false) {
-                    continue;
-                }
-                Literal lastBucketEnd = tStep.lastCompleteBucketEndLiteral(FoldContext.small());
-                if (lastBucketEnd == null) {
-                    continue;
-                }
-                long candidateEndMillis = literalToMillis(lastBucketEnd);
-                tightenedEndMillis = tightenedEndMillis == null ? candidateEndMillis : Math.min(tightenedEndMillis, candidateEndMillis);
-            }
-
-            if (tightenedEndMillis == null || tightenedEndMillis >= trangeEndMillis) {
-                return trange;
-            }
-
-            return new TRange(
-                trange.source(),
-                trange.rangeStartLiteral(FoldContext.small(), timestampType),
-                literalFromMillis(trange.source(), timestampType, tightenedEndMillis),
-                trange.timestamp(),
-                trange.configuration()
-            );
-        }
-
-        private static long literalToMillis(Literal literal) {
-            long value = ((Number) literal.fold(FoldContext.small())).longValue();
-            if (literal.dataType() == DataType.DATE_NANOS) {
-                value = DateUtils.toMilliSeconds(value);
-            }
-            return value;
-        }
-
-        private static Literal literalFromMillis(Source source, DataType type, long millis) {
-            return new Literal(source, type == DataType.DATE_NANOS ? DateUtils.toNanoSeconds(millis) : millis, type);
-        }
-
-        private static TStep transformWithBounds(TStep t, LogicalPlan child) {
-            if (t.start() != null && t.end() != null) {
+        private static TStep transformWithEnd(TStep t, LogicalPlan child) {
+            if (t.end() != null) {
                 return t;
             }
 
             var match = new Holder<TRange>();
             child.forEachExpressionDown(TRange.class, r -> {
-                if (match.get() == null) {
-                    Expression left = r.timestamp();
-                    if (left.semanticEquals(t.timestamp())) {
-                        match.set(r);
-                    }
+                if (match.get() == null && matchesTimestamp(r.timestamp(), t.timestamp())) {
+                    match.set(r);
                 }
             });
 
@@ -1935,12 +1864,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return t;
             }
 
-            return t.withBounds(
-                trange.rangeStartLiteral(FoldContext.small(), t.dataType()),
-                t.end() != null ? t.end() : trange.rangeEndLiteral(FoldContext.small(), t.dataType())
-            );
+            return t.withEnd(trange.rangeEndLiteral(FoldContext.small(), t.dataType()));
         }
 
+        private static boolean matchesTimestamp(Expression left, Expression right) {
+            if (left.semanticEquals(right)) {
+                return true;
+            }
+            return false;
+            // var l = Expressions.attribute(left);
+            // var r = Expressions.attribute(right);
+            //
+            // return l != null && r != null && l.name().equals(r.name());
+        }
     }
 
     private static class ResolveTimestampBoundsAware extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {

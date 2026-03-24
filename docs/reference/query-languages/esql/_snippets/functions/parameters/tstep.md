@@ -3,5 +3,5 @@
 ## Parameters
 
 `step`
-:   Fixed bucket width. With `TRANGE`, bucket ends are generated from the range start in increments of `step` and considered up to range end. Without `TRANGE`, buckets are anchored on the current query time.
+:   Fixed bucket width. One bucket boundary falls exactly on the end of `TRANGE`, or on the current query time when `TRANGE` is absent; all other boundaries are integer multiples of `step` away from that anchor.
 

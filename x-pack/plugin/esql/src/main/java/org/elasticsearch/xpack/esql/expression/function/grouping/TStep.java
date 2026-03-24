@@ -38,16 +38,15 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.IMPLICIT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * Creates fixed-width, end-labeled time buckets over the {@code @timestamp}.
+ * Creates fixed-width, end-aligned time buckets over the {@code @timestamp}.
  * <p>
  * Unlike {@link TBucket}, which aligns buckets at their <em>start</em> and respects the configured
- * timezone, {@code TSTEP} buckets are represented by their <em>end</em> and always anchor to UTC.
- * When combined with {@code TRANGE}, bucket boundaries advance from the range start in fixed
- * {@code step} increments.
+ * timezone, {@code TSTEP} buckets aligned at the <em>end</em> and always anchors to UTC. This makes it
+ * suitable for PromQL range queries where the most-recent bucket should end exactly at the
+ * query boundary.
  */
 public class TStep extends GroupingFunction.EvaluatableGroupingFunction
     implements
@@ -59,7 +58,6 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
 
     private final Configuration configuration;
     private final Expression step;
-    private final Expression start;
     private final Expression end;
     private final Expression timestamp;
 
@@ -67,17 +65,19 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         returnType = { "date", "date_nanos" },
         description = """
             Creates groups of values - buckets - out of a `@timestamp` attribute.
-            Unlike `TBUCKET`, which aligns buckets at their `start`, `TSTEP` returns bucket `end` timestamps,
-            anchored to UTC. With `TRANGE`, bucket boundaries advance from the range start.""",
+            Unlike `TBUCKET`, which aligns buckets at their `start`, `TSTEP` aligns at the `end` and anchors
+            to UTC regardless of the configured timezone.""",
         examples = {
             @Example(
-                description = "Provide a step size to create end-labeled buckets advancing from the start of `TRANGE`:",
+                description = "Provide a step size to create end-aligned buckets anchored to the end of `TRANGE`:",
                 file = "tstep",
                 tag = "docsTStepByOneHourDuration",
                 explanation = """
                     The returned `bucket` values are the `end` timestamps of each bucket.
-                    Boundaries are generated as `range_start + n * step` (UTC), and each bucket
-                    represents `(bucket_end - step, bucket_end]`."""
+                    For example, the bucket labelled `2023-10-23T12:55:01.543Z` contains all data points with
+                    `@timestamp` in `(2023-10-23T11:55:01.543Z, 2023-10-23T12:55:01.543Z]`. The bucket
+                    boundaries are stepped back from the end of `TRANGE` (`13:55:01.543Z`) in exact 1-hour
+                    increments, so every boundary aligns to that anchor."""
             ),
             @Example(
                 description = "The step size can also be provided as a string:",
@@ -87,30 +87,18 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         type = FunctionType.GROUPING
     )
     public TStep(Source source, @Param(name = "step", type = { "time_duration" }, description = """
-        Fixed bucket width. With `TRANGE`, bucket ends are generated from the range start in
-        increments of `step` and considered up to range end. Without `TRANGE`, buckets are anchored
-        on the current query time.""") Expression step, Expression timestamp, Configuration configuration) {
-        this(source, step, null, null, timestamp, configuration);
+        Fixed bucket width. One bucket boundary falls exactly on the end of `TRANGE`,
+        or on the current query time when `TRANGE` is absent; all other boundaries are integer
+        multiples of `step` away from that anchor.""") Expression step, Expression timestamp, Configuration configuration) {
+        this(source, step, null, timestamp, configuration);
     }
 
     public TStep(Source source, Expression step, Expression end, Expression timestamp, Configuration configuration) {
-        this(source, step, null, end, timestamp, configuration);
-    }
-
-    public TStep(Source source, Expression step, Expression start, Expression end, Expression timestamp, Configuration configuration) {
-        super(source, fields(step, start, end, timestamp));
+        super(source, end == null ? List.of(step, timestamp) : List.of(step, end, timestamp));
         this.step = step;
-        this.start = start;
         this.end = end;
         this.timestamp = timestamp;
         this.configuration = configuration;
-    }
-
-    private static List<Expression> fields(Expression step, Expression start, Expression end, Expression timestamp) {
-        if (start == null) {
-            return end == null ? List.of(step, timestamp) : List.of(step, end, timestamp);
-        }
-        return end == null ? List.of(step, start, timestamp) : List.of(step, start, end, timestamp);
     }
 
     @Override
@@ -146,7 +134,7 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
                 null,
                 null,
                 configuration.withZoneId(ZoneOffset.UTC),
-                anchorOffset(FoldContext.small())
+                offset(FoldContext.small())
             ),
             step,
             configuration
@@ -161,17 +149,7 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         TypeResolution resolution = isType(step, dt -> dt == DataType.TIME_DURATION, sourceText(), FIRST, "time_duration").and(
             isType(timestamp, DataType::isMillisOrNanos, sourceText(), IMPLICIT, "date_nanos or datetime")
         );
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        if (start != null) {
-            resolution = resolution.and(isType(start, DataType::isMillisOrNanos, sourceText(), SECOND, "date_nanos or datetime"));
-            if (resolution.unresolved() || end == null) {
-                return resolution;
-            }
-            return resolution.and(isType(end, DataType::isMillisOrNanos, sourceText(), THIRD, "date_nanos or datetime"));
-        }
-        if (end == null) {
+        if (resolution.unresolved() || end == null) {
             return resolution;
         }
         return resolution.and(isType(end, DataType::isMillisOrNanos, sourceText(), SECOND, "date_nanos or datetime"));
@@ -187,24 +165,18 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        Expression newStart = null;
-        Expression newEnd = null;
-        if (newChildren.size() == 3) {
-            if (start != null) {
-                newStart = newChildren.get(1);
-            } else {
-                newEnd = newChildren.get(1);
-            }
-        } else if (newChildren.size() == 4) {
-            newStart = newChildren.get(1);
-            newEnd = newChildren.get(2);
-        }
-        return new TStep(source(), newChildren.getFirst(), newStart, newEnd, newChildren.getLast(), configuration);
+        return new TStep(
+            source(),
+            newChildren.getFirst(),
+            newChildren.size() == 3 ? newChildren.get(1) : null,
+            newChildren.getLast(),
+            configuration
+        );
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, TStep::new, step, start, end, timestamp, configuration);
+        return NodeInfo.create(this, TStep::new, step, end, timestamp, configuration);
     }
 
     public Configuration configuration() {
@@ -219,34 +191,15 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         return end;
     }
 
-    public Expression start() {
-        return start;
-    }
-
     public TStep withEnd(Expression newEnd) {
         if (Objects.equals(end, newEnd)) {
             return this;
         }
-        return new TStep(source(), step, start, newEnd, timestamp, configuration);
-    }
-
-    public TStep withBounds(Expression newStart, Expression newEnd) {
-        if (Objects.equals(start, newStart) && Objects.equals(end, newEnd)) {
-            return this;
-        }
-        return new TStep(source(), step, newStart, newEnd, timestamp, configuration);
+        return new TStep(source(), step, newEnd, timestamp, configuration);
     }
 
     public Bucket timeBucketSpecRef() {
-        return new Bucket(
-            source(),
-            timestamp,
-            step,
-            null,
-            null,
-            configuration.withZoneId(ZoneOffset.UTC),
-            anchorOffset(FoldContext.small())
-        );
+        return new Bucket(source(), timestamp, step, null, null, configuration.withZoneId(ZoneOffset.UTC), offset(FoldContext.small()));
     }
 
     @Override
@@ -263,58 +216,22 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
         return new Literal(source(), value, timestamp.dataType());
     }
 
-    /**
-     * The last bucket end that does not exceed {@code end}. Returns {@code null} when either bound is missing.
-     */
-    public Literal lastCompleteBucketEndLiteral(FoldContext foldContext) {
-        if (start == null || end == null) {
-            return null;
-        }
-        long stepMillis = ((Duration) step.fold(foldContext)).toMillis();
-        if (stepMillis <= 0) {
-            return new Literal(source(), end.fold(foldContext), end.dataType());
-        }
-        long startMillis = toMillis(start, foldContext);
-        long endMillis = toMillis(end, foldContext);
-        long lastBucketEndMillis = startMillis + Math.floorDiv(endMillis - startMillis, stepMillis) * stepMillis;
-        long value = timestamp.dataType() == DataType.DATE_NANOS ? DateUtils.toNanoSeconds(lastBucketEndMillis) : lastBucketEndMillis;
-        return new Literal(source(), value, timestamp.dataType());
-    }
-
-    private long anchorOffset(FoldContext foldContext) {
+    private long offset(FoldContext foldContext) {
         long stepMillis = ((Duration) step.fold(foldContext)).toMillis();
         if (stepMillis == 0) {
             // sub-millisecond step: rounding infrastructure works in ms, so offset is 0
             return 0;
         }
-        long anchorMillis = toMillis(resolvedAnchor(), foldContext);
-        return DateUtils.floorRemainder(anchorMillis, stepMillis);
-    }
-
-    private Expression resolvedAnchor() {
-        if (start != null) {
-            return start;
+        long endMillis = ((Number) resolvedEnd().fold(foldContext)).longValue();
+        if (resolvedEnd().dataType() == DataType.DATE_NANOS) {
+            endMillis = DateUtils.toMilliSeconds(endMillis);
         }
-        return resolvedEnd();
-    }
-
-    private long toMillis(Expression value, FoldContext foldContext) {
-        long millis = ((Number) value.fold(foldContext)).longValue();
-        if (value.dataType() == DataType.DATE_NANOS) {
-            millis = DateUtils.toMilliSeconds(millis);
-        }
-        return millis;
+        return DateUtils.floorRemainder(endMillis, stepMillis);
     }
 
     @Override
     public String toString() {
-        return "TStep{step="
-            + step
-            + ", start="
-            + (start == null ? "<trange-start-or-end-anchor>" : start)
-            + ", end="
-            + (end == null ? "<trange-or-now>" : end)
-            + "}";
+        return "TStep{step=" + step + ", end=" + (end == null ? "<trange-or-now>" : end) + "}";
     }
 
     @Override

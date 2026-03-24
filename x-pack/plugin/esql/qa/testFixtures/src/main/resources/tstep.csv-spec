@@ -1,6 +1,6 @@
 // TSTEP-specific tests
 
-tstep_by_ten_minutes_duration
+tstepByTenMinutesDuration
 required_capability: tstep
 
 FROM sample_data
@@ -11,13 +11,13 @@ FROM sample_data
 ignoreOrder:true
 
 min:datetime             | max:datetime             | bucket:datetime
-2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z | 2023-10-23T12:25:00.000Z
-2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:35:00.000Z
-2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937Z | 2023-10-23T13:35:00.000Z
-2023-10-23T13:51:54.732Z | 2023-10-23T13:53:55.832Z | 2023-10-23T13:55:00.000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z | 2023-10-23T12:25:01.543Z
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:35:01.543Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937Z | 2023-10-23T13:35:01.543Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z
 ;
 
-tstep_by_ten_minutes_duration_as_string
+tstepByTenMinutesDurationAsString
 required_capability: implicit_casting_string_literal_to_temporal_amount
 required_capability: tstep
 
@@ -29,50 +29,52 @@ FROM sample_data
 ignoreOrder:true
 
 min:datetime             | max:datetime             | bucket:datetime
-2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z | 2023-10-23T12:25:00.000Z
-2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:35:00.000Z
-2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937Z | 2023-10-23T13:35:00.000Z
-2023-10-23T13:51:54.732Z | 2023-10-23T13:53:55.832Z | 2023-10-23T13:55:00.000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z | 2023-10-23T12:25:01.543Z
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:35:01.543Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937Z | 2023-10-23T13:35:01.543Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z
 ;
 
-docs_tstep_by_one_hour_duration
+docsTStepByOneHourDuration
 required_capability: tstep
 
-// tag::docs_tstep_by_one_hour_duration[]
+// tag::docsTStepByOneHourDuration[]
 FROM sample_data
 | WHERE TRANGE("2023-10-23T12:15:00.000Z", "2023-10-23T13:55:01.543Z")
 | STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TSTEP(1 hour)
 | SORT min
-// end::docs_tstep_by_one_hour_duration[]
+// end::docsTStepByOneHourDuration[]
 ;
 ignoreOrder:true
 
-// tag::docs_tstep_by_one_hour_duration-result[]
+// tag::docsTStepByOneHourDuration-result[]
 min:datetime             | max:datetime             | bucket:datetime
-2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T13:15:00.000Z
-// end::docs_tstep_by_one_hour_duration-result[]
+2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:55:01.543Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z
+// end::docsTStepByOneHourDuration-result[]
 ;
 
-docs_tstep_by_one_hour_duration_as_string
+docsTStepByOneHourDurationAsString
 required_capability: implicit_casting_string_literal_to_temporal_amount
 required_capability: tstep
 
-// tag::docs_tstep_by_one_hour_duration_as_string[]
+// tag::docsTStepByOneHourDurationAsString[]
 FROM sample_data
 | WHERE TRANGE("2023-10-23T12:15:00.000Z", "2023-10-23T13:55:01.543Z")
 | STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TSTEP("1 hour")
 | SORT min
-// end::docs_tstep_by_one_hour_duration_as_string[]
+// end::docsTStepByOneHourDurationAsString[]
 ;
 ignoreOrder:true
 
-// tag::docs_tstep_by_one_hour_duration_as_string-result[]
+// tag::docsTStepByOneHourDurationAsString-result[]
 min:datetime             | max:datetime             | bucket:datetime
-2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T13:15:00.000Z
-// end::docs_tstep_by_one_hour_duration_as_string-result[]
+2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:55:01.543Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z
+// end::docsTStepByOneHourDurationAsString-result[]
 ;
 
-tstep_with_timezone_and_duration
+tstepWithTimezoneAndDuration
 required_capability: global_timezone_parameter_with_output
 required_capability: tstep
 
@@ -84,6 +86,7 @@ FROM sample_data
 ;
 ignoreOrder:true
 
-min:datetime                  | max:datetime                  | bucket:datetime
-2023-10-23T17:15:03.360+05:00 | 2023-10-23T17:27:28.948+05:00 | 2023-10-23T18:15:00.000+05:00
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:55:01.543Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z
 ;

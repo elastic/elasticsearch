@@ -2,7 +2,7 @@
 
 ## Examples
 
-Provide a step size to create end-labeled buckets advancing from the start of `TRANGE`:
+Provide a step size to create end-aligned buckets anchored to the end of `TRANGE`:
 
 ```esql
 FROM sample_data
@@ -13,12 +13,15 @@ FROM sample_data
 
 | min:datetime | max:datetime | bucket:datetime |
 | --- | --- | --- |
-| 2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T13:15:01.543Z |
+| 2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:55:01.543Z |
+| 2023-10-23T13:33:34.937Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z |
 
 
 The returned `bucket` values are the `end` timestamps of each bucket.
-Boundaries are generated as `range_start + n * step` (UTC), and each bucket
-represents `(bucket_end - step, bucket_end]`.
+For example, the bucket labelled `2023-10-23T12:55:01.543Z` contains all data points with
+`@timestamp` in `(2023-10-23T11:55:01.543Z, 2023-10-23T12:55:01.543Z]`. The bucket
+boundaries are stepped back from the end of `TRANGE` (`13:55:01.543Z`) in exact 1-hour
+increments, so every boundary aligns to that anchor.
 
 The step size can also be provided as a string:
 
@@ -31,6 +34,7 @@ FROM sample_data
 
 | min:datetime | max:datetime | bucket:datetime |
 | --- | --- | --- |
-| 2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T13:15:01.543Z |
+| 2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:55:01.543Z |
+| 2023-10-23T13:33:34.937Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z |
 
 

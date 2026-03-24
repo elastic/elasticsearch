@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -176,7 +177,7 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, 
             if (primaries.canPush(nodeWithExpression) == false) {
                 return e;
             }
-            var preference = context.configuration().pragmas().fieldExtractPreference();
+            MappedFieldType.FieldExtractPreference preference = context.configuration().pragmas().fieldExtractPreference();
             if (context.searchStats().supportsLoaderConfig(fuse.field().fieldName(), fuse.config(), preference) == false) {
                 return e;
             }
@@ -192,8 +193,12 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, 
 
         private Expression replaceFieldsForFieldTransformations(Expression e, BlockLoaderExpression.PushedBlockLoaderExpression fuse) {
             FunctionEsField functionEsField = new FunctionEsField(fuse.field().field(), e.dataType(), fuse.config());
-            var name = rawTemporaryName(fuse.field().name(), fuse.config().function().toString(), String.valueOf(fuse.config().hashCode()));
-            var newFunctionAttr = new FieldAttribute(
+            String name = rawTemporaryName(
+                fuse.field().name(),
+                fuse.config().function().toString(),
+                String.valueOf(fuse.config().hashCode())
+            );
+            FieldAttribute newFunctionAttr = new FieldAttribute(
                 e.source(),
                 fuse.field().parentName(),
                 fuse.field().qualifier(),

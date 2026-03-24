@@ -111,7 +111,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         var fieldExtraction = new Batch<>(
             "Field extraction",
             Limiter.ONCE,
-            new PushExpressionsToFieldLoad(),
+            new PushExpressionsToFieldLoad(), // It's important for this to run after Query and Tags
             new ExtractDimensionFieldsAfterAggregation(),
             new InsertFieldExtraction(),
             new SpatialDocValuesExtraction(),

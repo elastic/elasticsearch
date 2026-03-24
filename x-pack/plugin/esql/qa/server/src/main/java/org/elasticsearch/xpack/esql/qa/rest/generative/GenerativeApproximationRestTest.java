@@ -166,20 +166,6 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         // dense_vector
         assumeFalse("...", "denseVectorLiteralCount".equals(testName));  // can't read released page
 
-        // dense_vector_aggs
-        assumeFalse("...", "sumDenseVectorBasic".equals(testName));  // unexpected data type [DENSE_VECTOR]
-        assumeFalse("...", "sumDenseVectorGroupByBooleanMoreRows".equals(testName));  // unexpected data type [DENSE_VECTOR]
-        assumeFalse("...", "sumDenseVectorEmptyResult".equals(testName));  // unexpected data type [DENSE_VECTOR]
-        assumeFalse("...", "sumDenseVectorFromDenseVectorIndex".equals(testName));  // unexpected data type [DENSE_VECTOR]
-        assumeFalse("...", "sumDenseVectorWithCount".equals(testName));  // unexpected data type [DENSE_VECTOR]
-        assumeFalse("...", "sumDenseVectorWithFilter".equals(testName));  // unexpected data type [DENSE_VECTOR]
-        assumeFalse("...", "sumDenseVectorGroupByWithCount".equals(testName));  // unexpected data type [DENSE_VECTOR]
-        assumeFalse("...", "sumDenseVectorMultipleAggs".equals(testName));  // unexpected data type [DENSE_VECTOR]
-        assumeFalse("...", "sumDenseVectorOverflow".equals(testName));  // unexpected data type [DENSE_VECTOR]
-        assumeFalse("...", "sumDenseVectorGroupBySingleGroup".equals(testName));  // unexpected data type [DENSE_VECTOR]
-        assumeFalse("...", "sumDenseVectorPrimaryColors".equals(testName));  // unexpected data type [DENSE_VECTOR]
-        assumeFalse("...", "sumDenseVectorSingleRow".equals(testName));  // unexpected data type [DENSE_VECTOR]
-
         // dense_vector-bit
         assumeFalse("...", "denseVectorCount".equals(testName));  // can't read released page
 

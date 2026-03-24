@@ -402,6 +402,15 @@ public class Approximation {
                                 aggFn.sourceText()
                             );
                         }
+                        if (aggFn.dataType().isNumeric() == false) {
+                            throw new VerificationException(
+                                "line {}:{}: approximation not supported: aggregation function [{}] must return a numeric value; got [{}]",
+                                aggFn.source().source().getLineNumber(),
+                                aggFn.source().source().getColumnNumber(),
+                                aggFn.sourceText(),
+                                aggFn.dataType()
+                            );
+                        }
                     });
                 } else if (plan instanceof LeafPlan == false) {
                     if (ROW_NON_DECREASING_COMMANDS.contains(plan.getClass()) == false) {

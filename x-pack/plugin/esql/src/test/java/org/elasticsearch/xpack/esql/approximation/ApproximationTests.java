@@ -136,6 +136,10 @@ public class ApproximationTests extends ApproximationTestCase {
             "FROM test | STATS 5+10*POW(MAX(emp_no), 2) BY gender",
             equalTo("line 1:28: approximation not supported: aggregation function [MAX(emp_no)] cannot be approximated")
         );
+        assertError(
+            "ROW x=[1,2]::DENSE_VECTOR | STATS SUM(x)",
+            equalTo("line 1:35: approximation not supported: aggregation function [SUM(x)] must return a numeric value; got [DENSE_VECTOR]")
+        );
     }
 
     public void testPlans_noData() throws Exception {

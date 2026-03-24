@@ -11,26 +11,19 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLocalPhysicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
@@ -42,22 +35,14 @@ import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
-import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -73,29 +58,17 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
 
     @Before
     public void initPushTests() {
-        Map<String, EsField> allTypesMapping = loadMapping("mapping-all-types.json");
-        EsIndex allTypesIndex = EsIndexGenerator.esIndex("test_all", allTypesMapping, Map.of("test_all", IndexMode.STANDARD));
-        allTypesPlannerOptimizer = new TestPlannerOptimizer(config, makeAnalyzer(IndexResolution.valid(allTypesIndex)));
+        Analyzer allTypesAnalyzer = EsqlTestUtils.analyzer()
+            .configuration(config)
+            .addIndex("test_all", "mapping-all-types.json")
+            .buildAnalyzer();
+        allTypesPlannerOptimizer = new TestPlannerOptimizer(config, allTypesAnalyzer);
 
-        Map<String, EsField> tsMapping = loadMapping("k8s-mappings.json");
-        EsIndex tsIndex = EsIndexGenerator.esIndex("k8s", tsMapping, Map.of("k8s", IndexMode.TIME_SERIES));
-        Map<String, EsField> tsDownsampledMapping = loadMapping("k8s-downsampled-mappings.json");
-        EsIndex tsDownsampledIndex = EsIndexGenerator.esIndex(
-            "k8s-downsampled",
-            tsDownsampledMapping,
-            Map.of("k8s-downsampled", IndexMode.TIME_SERIES)
-        );
-        Analyzer tsAnalyzer = new Analyzer(
-            testAnalyzerContext(
-                config,
-                TEST_FUNCTION_REGISTRY,
-                indexResolutions(tsIndex, tsDownsampledIndex),
-                defaultLookupResolution(),
-                new EnrichResolution(),
-                emptyInferenceResolution()
-            ),
-            new Verifier(new Metrics(TEST_FUNCTION_REGISTRY, true, true), new XPackLicenseState(() -> 0L))
-        );
+        Analyzer tsAnalyzer = EsqlTestUtils.analyzer()
+            .configuration(config)
+            .addIndex("k8s", "k8s-mappings.json", IndexMode.TIME_SERIES)
+            .addIndex("k8s-downsampled", "k8s-downsampled-mappings.json", IndexMode.TIME_SERIES)
+            .buildAnalyzer();
         tsPlannerOptimizer = new TestPlannerOptimizer(
             config,
             tsAnalyzer,

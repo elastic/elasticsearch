@@ -87,6 +87,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
 
     private final XContentParserConfiguration parserConfig;
     private final RequestParams params;
+    private final Set<String> markerParams = new HashSet<>();
     private final Map<String, List<String>> headers;
     private final String rawPath;
     private final Set<String> consumedParams = new HashSet<>();
@@ -170,6 +171,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
         this.httpRequest = other.httpRequest;
         this.httpChannel = other.httpChannel;
         this.params = other.params;
+        this.markerParams.addAll(other.markerParams);
         this.rawPath = other.rawPath;
         this.headers = other.headers;
         this.requestId = other.requestId;
@@ -397,23 +399,20 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     public final boolean hasParam(String key) {
-        return params.containsKey(key);
+        return params.containsKey(key) || markerParams.contains(key);
     }
 
     @Override
     public final String param(String key) {
         consumedParams.add(key);
-        return params.get(key);
+        String value = params.get(key);
+        return value != null ? value : (markerParams.contains(key) ? "true" : null);
     }
 
     @Override
     public final String param(String key, String defaultValue) {
-        consumedParams.add(key);
-        String value = params.get(key);
-        if (value == null) {
-            return defaultValue;
-        }
-        return value;
+        String value = param(key);
+        return value != null ? value : defaultValue;
     }
 
     public RequestParams params() {
@@ -728,12 +727,10 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     private void setParamTrueOnceAndConsume(String param) {
-        if (params.containsKey(param)) {
+        if (hasParam(param)) {
             throw new IllegalArgumentException("The parameter [" + param + "] is already defined.");
         }
-        params.put(param, "true");
-        // this parameter is intended be consumed via ToXContent.Params.param(..), not this.params(..) so don't require it is consumed here
-        consumedParams.add(param);
+        markerParams.add(param);
     }
 
     @Override

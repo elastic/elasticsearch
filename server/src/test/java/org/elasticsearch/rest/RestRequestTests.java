@@ -19,6 +19,7 @@ import org.elasticsearch.http.TestHttpRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -332,6 +333,67 @@ public class RestRequestTests extends ESTestCase {
         assertThat(exception.getMessage(), is("The parameter [" + OPERATOR_REQUEST + "] is already defined."));
     }
 
+    public void testSetParamTrueOnceAndConsume() {
+        // marker is visible via param(), hasParam(), and paramAsBoolean()
+        RestRequest request = contentRestRequest("content", new HashMap<>());
+        assertFalse(request.hasParam(SERVERLESS_REQUEST));
+        assertNull(request.param(SERVERLESS_REQUEST));
+        assertFalse(request.paramAsBoolean(SERVERLESS_REQUEST, false));
+
+        request.markAsServerlessRequest();
+
+        assertTrue(request.hasParam(SERVERLESS_REQUEST));
+        assertEquals("true", request.param(SERVERLESS_REQUEST));
+        assertTrue(request.paramAsBoolean(SERVERLESS_REQUEST, false));
+        assertTrue(request.isServerlessRequest());
+
+        // marker must NOT mutate the immutable RequestParams
+        assertFalse(request.params().containsKey(SERVERLESS_REQUEST));
+
+        // setting the same marker twice throws
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, request::markAsServerlessRequest);
+        assertThat(ex.getMessage(), is("The parameter [" + SERVERLESS_REQUEST + "] is already defined."));
+
+        // setting a marker that is already present in the original params throws
+        RestRequest withParam = contentRestRequest("content", Map.of(SERVERLESS_REQUEST, "true"));
+        ex = expectThrows(IllegalArgumentException.class, withParam::markAsServerlessRequest);
+        assertThat(ex.getMessage(), is("The parameter [" + SERVERLESS_REQUEST + "] is already defined."));
+    }
+
+    public void testSetParamTrueOnceAndConsumeVisibleAsToXContentParams() {
+        // verify markers are visible when the request is used as ToXContent.Params (the XContent serialization path)
+        RestRequest request = contentRestRequest("content", new HashMap<>());
+        request.markAsServerlessRequest();
+
+        ToXContent.Params xContentParams = request;
+        assertEquals("true", xContentParams.param(SERVERLESS_REQUEST));
+        assertEquals("true", xContentParams.param(SERVERLESS_REQUEST, "default"));
+        assertTrue(xContentParams.paramAsBoolean(SERVERLESS_REQUEST, false));
+
+        // absent marker still falls back to default
+        assertEquals("default", xContentParams.param(OPERATOR_REQUEST, "default"));
+        assertFalse(xContentParams.paramAsBoolean(OPERATOR_REQUEST, false));
+    }
+
+    public void testSetParamTrueOnceAndConsumeSerializationViaCopyConstructor() {
+        // marker set before copy is visible on the copy (serialization path)
+        RestRequest original = contentRestRequest("content", new HashMap<>());
+        original.markAsServerlessRequest();
+        original.markAsOperatorRequest();
+
+        RestRequest copy = new WrappedRestRequest(original);
+
+        assertTrue(copy.hasParam(SERVERLESS_REQUEST));
+        assertEquals("true", copy.param(SERVERLESS_REQUEST));
+        assertTrue(copy.paramAsBoolean(SERVERLESS_REQUEST, false));
+        assertTrue(copy.isServerlessRequest());
+
+        assertTrue(copy.hasParam(OPERATOR_REQUEST));
+        assertEquals("true", copy.param(OPERATOR_REQUEST));
+        assertTrue(copy.paramAsBoolean(OPERATOR_REQUEST, false));
+        assertTrue(copy.isOperatorRequest());
+    }
+
     public static RestRequest contentRestRequest(String content, Map<String, String> params) {
         Map<String, List<String>> headers = new HashMap<>();
         headers.put("Content-Type", Collections.singletonList("application/json"));
@@ -344,6 +406,33 @@ public class RestRequestTests extends ESTestCase {
         builder.withContent(new BytesArray(content), null);
         builder.withParams(params);
         return new ContentRestRequest(builder.build());
+    }
+
+    /**
+     * Wraps a {@link RestRequest} using the protected copy constructor, preserving marker params.
+     */
+    private static final class WrappedRestRequest extends RestRequest {
+        private final RestRequest wrapped;
+
+        private WrappedRestRequest(RestRequest other) {
+            super(other);
+            this.wrapped = other;
+        }
+
+        @Override
+        public Method method() {
+            return wrapped.method();
+        }
+
+        @Override
+        public String uri() {
+            return wrapped.uri();
+        }
+
+        @Override
+        public ReleasableBytesReference content() {
+            return wrapped.content();
+        }
     }
 
     public static final class ContentRestRequest extends RestRequest {

@@ -358,21 +358,15 @@ public final class FlattenedFieldMapper extends FieldMapper {
         protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
             Map<String, FieldMapper.Builder> currentProperties = new TreeMap<>(properties.getValue());
             super.mergeFromBuilder(incoming, conflicts, mergeContext);
-            Builder incomingFlattened = (Builder) incoming;
-            Map<String, FieldMapper.Builder> mergedProperties = new TreeMap<>(currentProperties);
-            for (Map.Entry<String, FieldMapper.Builder> entry : incomingFlattened.properties.getValue().entrySet()) {
-                String key = entry.getKey();
-                FieldMapper.Builder incomingPropBuilder = entry.getValue();
-                Mapper.Builder existingPropBuilder = currentProperties.get(key);
-                if (existingPropBuilder != null) {
-                    MapperMergeContext childContext = MapperMergeContext.from(mergeContext.getMapperBuilderContext(), Long.MAX_VALUE);
-                    Mapper.Builder merged = existingPropBuilder.mergeWith(incomingPropBuilder, childContext);
-                    mergedProperties.put(key, (FieldMapper.Builder) merged);
-                } else {
-                    mergedProperties.put(key, incomingPropBuilder);
-                }
+            MapperMergeContext childContext = MapperMergeContext.from(mergeContext.getMapperBuilderContext(), Long.MAX_VALUE);
+            for (Map.Entry<String, FieldMapper.Builder> entry : ((Builder) incoming).properties.getValue().entrySet()) {
+                currentProperties.merge(
+                    entry.getKey(),
+                    entry.getValue(),
+                    (existing, inc) -> (FieldMapper.Builder) existing.mergeWith(inc, childContext)
+                );
             }
-            properties.setValue(mergedProperties);
+            properties.setValue(currentProperties);
         }
 
         /**

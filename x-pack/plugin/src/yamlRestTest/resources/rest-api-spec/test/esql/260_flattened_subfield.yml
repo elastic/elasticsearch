@@ -153,7 +153,7 @@ setup:
       esql.query:
         body:
           # [foo] is flattened in index5
-          # [bar.baz] is flattened in index5
+          # [bar].[baz] is flattened in index5
           query: 'SET unmapped_fields="load"; FROM index5 metadata _index, _source | KEEP `foo..`, `foo...`, `foo....`, `foo.*`, `bar.baz.a`'
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Found 5 problems' }
@@ -161,4 +161,4 @@ setup:
   - contains: { error.reason: 'line 1:82: Loading subfield [foo...] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
   - contains: { error.reason: 'line 1:92: Loading subfield [foo....] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
   - contains: { error.reason: 'line 1:103: Loading subfield [foo.*] when parent [foo] is of flattened field type is not supported with unmapped_fields="load"' }
-  - contains: { error.reason: 'line 1:112: Loading subfield [bar.baz.a] when parent [bar.baz] is of flattened field type is not supported with unmapped_fields="load"' }
+  - contains: { error.reason: 'line 1:112: Loading subfield [bar.baz.a] when parent [bar].[baz] is of flattened field type is not supported with unmapped_fields="load"' }

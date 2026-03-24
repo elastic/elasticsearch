@@ -318,7 +318,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         public ShardsAllocationResults storagePreventsAllocation() {
-            AllocationQueryContext allocation = allocationService.createAllocationQueryContext(state);
+            AllocationQueryContext allocation = allocationService.createAllocationQueryContext(state, info, shardSizeInfo);
             List<ShardNodeAllocationDecision> unassignedShards = state.getRoutingNodes()
                 .unassigned()
                 .stream()
@@ -339,7 +339,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         public ShardsAllocationResults storagePreventsRemainOrMove() {
-            AllocationQueryContext allocation = allocationService.createAllocationQueryContext(state);
+            AllocationQueryContext allocation = allocationService.createAllocationQueryContext(state, info, shardSizeInfo);
 
             List<ShardRouting> candidates = new LinkedList<>();
             for (RoutingNode routingNode : state.getRoutingNodes()) {

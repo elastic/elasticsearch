@@ -678,7 +678,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         return allocationState.canRemainOnlyHighestTierPreference(
             shardRouting,
-            allocationService.createAllocationQueryContext(clusterState)
+            allocationService.createAllocationQueryContext(clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY)
         );
     }
 
@@ -785,7 +785,13 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)
         );
 
-        assertThat(allocationState.needsThisTier(shardRouting, allocationService.createAllocationQueryContext(clusterState)), is(expected));
+        assertThat(
+            allocationState.needsThisTier(
+                shardRouting,
+                allocationService.createAllocationQueryContext(clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY)
+            ),
+            is(expected)
+        );
     }
 
     public void testMessage() {
@@ -814,17 +820,21 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     /**
-     * Returns a mock AllocationService, with a functioning {@link AllocationService#createAllocationQueryContext(ClusterState)}
-     * method.
+     * Returns a mock AllocationService, with a functioning
+     * {@link AllocationService#createAllocationQueryContext(ClusterState, ClusterInfo, SnapshotShardSizeInfo)} method.
      *
      * @param allocationDeciders The allocation deciders to be effective in the {@link AllocationQueryContext}
      * @return the mocked AllocationService
      */
     public static AllocationService mockAllocationService(AllocationDeciders allocationDeciders) {
         AllocationService allocationService = mock(AllocationService.class);
-        when(allocationService.createAllocationQueryContext(any(ClusterState.class))).thenAnswer(
-            iom -> new MockAllocationQueryContext(iom.getArgument(0), allocationDeciders)
-        );
+        when(
+            allocationService.createAllocationQueryContext(
+                any(ClusterState.class),
+                any(ClusterInfo.class),
+                any(SnapshotShardSizeInfo.class)
+            )
+        ).thenAnswer(iom -> new MockAllocationQueryContext(iom.getArgument(0), allocationDeciders));
         return allocationService;
     }
 

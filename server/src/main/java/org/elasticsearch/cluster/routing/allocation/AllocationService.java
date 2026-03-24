@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
@@ -56,6 +57,7 @@ import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 
 import java.util.ArrayList;
@@ -759,10 +761,22 @@ public class AllocationService {
      * Create a query context useful for making multiple allocation queries for a particular cluster state
      *
      * @param clusterState The cluster state to use as the basis for the queries
+     * @param clusterInfo The cluster info to use as the basis for the queries
+     * @param snapshotShardSizeInfo The snapshot shard size info to use as the basis for the queries
      * @return An {@link AllocationQueryContext}
      */
-    public AllocationQueryContext createAllocationQueryContext(ClusterState clusterState) {
-        final RoutingAllocation allocation = createImmutableRoutingAllocation(clusterState, currentNanoTime());
+    public AllocationQueryContext createAllocationQueryContext(
+        ClusterState clusterState,
+        ClusterInfo clusterInfo,
+        SnapshotShardSizeInfo snapshotShardSizeInfo
+    ) {
+        final RoutingAllocation allocation = new ImmutableRoutingAllocation(
+            allocationDeciders,
+            clusterState,
+            clusterInfo,
+            snapshotShardSizeInfo,
+            System.nanoTime()
+        );
         return new AllocationQueryContext(allocation, allocationDeciders);
     }
 

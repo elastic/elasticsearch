@@ -330,13 +330,8 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         String lookupName = formatName != null ? formatName : sourceType;
         FormatReaderRegistry formatReaderRegistry = ctx.formatReaderRegistry();
         if (formatReaderRegistry != null && formatReaderRegistry.hasFormat(lookupName)) {
-            try {
-                FormatReader formatReader = formatReaderRegistry.byName(lookupName);
-                return formatReader.filterPushdownSupport();
-            } catch (Exception e) {
-                // Format reader not available — no pushdown
-                return null;
-            }
+            FormatReader formatReader = formatReaderRegistry.byName(lookupName);
+            return formatReader.filterPushdownSupport();
         }
         return null;
     }

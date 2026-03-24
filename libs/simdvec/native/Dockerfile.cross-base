@@ -1,0 +1,33 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the "Elastic License
+# 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+# Public License v 1"; you may not use this file except in compliance with, at
+# your election, the "Elastic License 2.0", the "GNU Affero General Public
+# License v3.0 only", or the "Server Side Public License, v 1".
+#
+
+# Base image for cross-compiling libvec to Darwin/aarch64.
+# Contains only the macOS SDK; toolchains are layered on top in Dockerfile.cross-toolchain.
+#
+# This image is built rarely (only when the macOS SDK needs updating) and must
+# be built on a Mac where the SDK tarball can be produced.
+#
+# To create the SDK tarball (on a Mac with Xcode CLI tools installed):
+#   tar -czf MacOSX.sdk.tar.gz -C "$(xcrun --show-sdk-path)/.." MacOSX.sdk
+#
+# To build and push (see also build_cross_base_image.sh):
+#   docker build --platform linux/amd64 \
+#     --build-arg SDK_TARBALL=MacOSX.sdk.tar.gz \
+#     -f Dockerfile.cross-base \
+#     -t docker.elastic.co/es-dev/es-native-cross-base:1 .
+#   docker push docker.elastic.co/es-dev/es-native-cross-base:1
+
+FROM debian:trixie-slim
+
+# The macOS SDK tarball must be supplied at build time.
+# It is never stored in the repository.
+ARG SDK_TARBALL=MacOSX.sdk.tar.gz
+COPY ${SDK_TARBALL} /tmp/sdk.tar.gz
+RUN tar -xzf /tmp/sdk.tar.gz -C /opt/ \
+    && rm /tmp/sdk.tar.gz

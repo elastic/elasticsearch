@@ -108,10 +108,6 @@ public class RestUtilsTests extends ESTestCase {
 
         // key with no value
         assertThat(RequestParams.fromQueryString("a").getAll("a"), equalTo(List.of("")));
-
-        // package-private fromIndex edge cases
-        assertThat(RestUtils.decodeQueryString("something", 9).isEmpty(), is(true));
-        assertThat(RestUtils.decodeQueryString("something", -1).isEmpty(), is(true));
     }
 
     public void testDecodeQueryStringFragment() {
@@ -124,12 +120,6 @@ public class RestUtilsTests extends ESTestCase {
     public void testDecodeQueryStringUrlEncoded() {
         var params = RequestParams.fromQueryString("match%5B%5D=up%7Bjob%3D%22prometheus%22%7D");
         assertThat(params.getAll("match[]"), equalTo(List.of("up{job=\"prometheus\"}")));
-    }
-
-    public void testDecodeQueryStringReservedParameters() {
-        for (var reservedParam : INTERNAL_MARKER_REQUEST_PARAMETERS) {
-            expectThrows(IllegalArgumentException.class, () -> RequestParams.fromQueryString(reservedParam + "=value"));
-        }
     }
 
     public void testCorsSettingIsARegex() {

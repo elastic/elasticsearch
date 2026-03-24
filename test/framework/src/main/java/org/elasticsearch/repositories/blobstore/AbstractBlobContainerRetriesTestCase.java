@@ -51,6 +51,7 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomF
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.elasticsearch.test.NeverMatcher.never;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -325,10 +326,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 containsString("unexpected end of file from server")
             )
         );
-        int meaningfulProgressRetries = Math.toIntExact(
-            retryContentSizes.stream().filter(contentSize -> contentSize >= meaningfulProgressSize.get()).count()
-        );
-        assertEquals(maxRetries + meaningfulProgressRetries, exception.getSuppressed().length);
+        assertExpectedNumberOfSuppressedExceptions(retryContentSizes, meaningfulProgressSize.get(), maxRetries, exception);
     }
 
     public void testReadBlobWithNoHttpResponse() {
@@ -397,10 +395,33 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 alwaysFlushBody ? never() : containsString("the target server failed to respond")
             )
         );
+        assertExpectedNumberOfSuppressedExceptions(retryContentSizes, meaningfulProgressSize.get(), maxRetries, exception);
+    }
+
+    /**
+     * Assert that we see the same number of suppressed exceptions as we'd expect to see, given the payloads
+     * we delivered on each retry.
+     *
+     * @param sentContentSizes The size of each payload sent
+     * @param meaningfulProgressSize The "meaningful progress" size
+     * @param maxRetries The configured retry limit
+     * @param exception The exception that was thrown
+     */
+    private static void assertExpectedNumberOfSuppressedExceptions(
+        List<Long> sentContentSizes,
+        long meaningfulProgressSize,
+        int maxRetries,
+        Exception exception
+    ) {
         int meaningfulProgressRetries = Math.toIntExact(
-            retryContentSizes.stream().filter(contentSize -> contentSize >= meaningfulProgressSize.get()).count()
+            sentContentSizes.stream().filter(contentSize -> contentSize >= meaningfulProgressSize).count()
         );
-        assertEquals(Math.min(10, maxRetries + meaningfulProgressRetries), exception.getSuppressed().length);
+
+        // Just because the server sent a "meaningful-progress" sized chunk doesn't mean the
+        // client read enough of it to also consider it meaningful
+        final int maximumSuppressed = Math.min(10, maxRetries + meaningfulProgressRetries);
+        final int minimumSuppressed = Math.min(10, maxRetries);
+        assertThat(exception.getSuppressed().length, allOf(greaterThanOrEqualTo(minimumSuppressed), lessThanOrEqualTo(maximumSuppressed)));
     }
 
     private long extractMeaningfulProgressSize(InputStream stream) {

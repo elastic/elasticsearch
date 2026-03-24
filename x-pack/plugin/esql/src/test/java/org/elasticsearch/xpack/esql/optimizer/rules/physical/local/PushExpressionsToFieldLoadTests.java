@@ -59,7 +59,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
@@ -118,7 +117,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             """);
 
         List<FieldAttribute> pushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.LENGTH);
-        assertThat(pushed, hasSize(greaterThanOrEqualTo(1)));
+        assertThat(pushed, hasSize(1));
     }
 
     public void testLengthInWhere() {
@@ -128,7 +127,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             """);
 
         List<FieldAttribute> pushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.LENGTH);
-        assertThat(pushed, hasSize(greaterThanOrEqualTo(1)));
+        assertThat(pushed, hasSize(1));
 
         FilterExec filterExec = findFirst(plan, FilterExec.class);
         assertNotNull("Should find FilterExec", filterExec);
@@ -143,7 +142,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             """);
 
         List<FieldAttribute> pushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.LENGTH);
-        assertThat(pushed, hasSize(greaterThanOrEqualTo(1)));
+        assertThat(pushed, hasSize(1));
 
         EvalExec evalExec = findFirst(plan, EvalExec.class, e -> e.fields().stream().anyMatch(f -> {
             if (f.child() instanceof FieldAttribute fa) {
@@ -168,7 +167,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             """);
 
         List<FieldAttribute> pushed = findPushedFields(plan, "last_name", BlockLoaderFunctionConfig.Function.LENGTH);
-        assertThat(pushed, hasSize(greaterThanOrEqualTo(1)));
+        assertThat(pushed, hasSize(1));
     }
 
     public void testLengthInWhereAndEval() {
@@ -365,7 +364,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         );
 
         List<FieldAttribute> pushed = findPushedFields(plan, "network.eth0.tx", BlockLoaderFunctionConfig.Function.AMD_MIN);
-        assertThat(pushed, hasSize(greaterThanOrEqualTo(1)));
+        assertThat(pushed, hasSize(1));
     }
 
     public void testAggregateMetricDoubleWithAvgAndOtherFunctions() {
@@ -376,8 +375,8 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
 
         List<FieldAttribute> sumPushed = findPushedFields(plan, "network.eth0.tx", BlockLoaderFunctionConfig.Function.AMD_SUM);
         List<FieldAttribute> countPushed = findPushedFields(plan, "network.eth0.tx", BlockLoaderFunctionConfig.Function.AMD_COUNT);
-        assertThat(sumPushed, hasSize(greaterThanOrEqualTo(1)));
-        assertThat(countPushed, hasSize(greaterThanOrEqualTo(1)));
+        assertThat(sumPushed, hasSize(1));
+        assertThat(countPushed, hasSize(1));
     }
 
     public void testAggregateMetricDoubleTSCommand() {
@@ -392,9 +391,9 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         List<FieldAttribute> maxPushed = findPushedFields(plan, "network.eth0.tx", BlockLoaderFunctionConfig.Function.AMD_MAX);
         List<FieldAttribute> countPushed = findPushedFields(plan, "network.eth0.tx", BlockLoaderFunctionConfig.Function.AMD_COUNT);
         List<FieldAttribute> sumPushed = findPushedFields(plan, "network.eth0.tx", BlockLoaderFunctionConfig.Function.AMD_SUM);
-        assertThat(maxPushed, hasSize(greaterThanOrEqualTo(1)));
-        assertThat(countPushed, hasSize(greaterThanOrEqualTo(1)));
-        assertThat(sumPushed, hasSize(greaterThanOrEqualTo(1)));
+        assertThat(maxPushed, hasSize(1));
+        assertThat(countPushed, hasSize(1));
+        assertThat(sumPushed, hasSize(1));
     }
 
     // ---- Reduction plan tests ----
@@ -487,7 +486,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         assertTrue("v_dot_product above union should NOT be pushed (multiple sources)", foundDotProductAboveUnion);
 
         List<FieldAttribute> textLengthPushed = findPushedFields(plan, "text", BlockLoaderFunctionConfig.Function.LENGTH);
-        assertThat("LENGTH(text) in subquery should be pushed", textLengthPushed, hasSize(greaterThanOrEqualTo(1)));
+        assertThat("LENGTH(text) in subquery should be pushed", textLengthPushed, hasSize(1));
     }
 
     // ---- Lookup join test (Primaries check) ----
@@ -508,7 +507,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
 
         // "s" (LENGTH(first_name)) is below the join — SHOULD be pushed
         List<FieldAttribute> firstNamePushed = findPushedFields(plan, "first_name", BlockLoaderFunctionConfig.Function.LENGTH);
-        assertThat("LENGTH(first_name) below join should be pushed", firstNamePushed, hasSize(greaterThanOrEqualTo(1)));
+        assertThat("LENGTH(first_name) below join should be pushed", firstNamePushed, hasSize(1));
 
         // "t" (LENGTH(last_name)) and "u" (LENGTH(language_name)) are above
         // the join. Because the Primaries check detects multiple sources above

@@ -32,7 +32,7 @@ import java.util.Set;
  * </ul>
  * Use {@link #getAll(String)} to retrieve all values for a repeated key.
  */
-public final class ParameterMap extends AbstractMap<String, String> {
+public final class RequestParams extends AbstractMap<String, String> {
 
     /** Single backing store: key → non-empty ordered list of all values. */
     private final LinkedHashMap<String, List<String>> map;
@@ -42,74 +42,74 @@ public final class ParameterMap extends AbstractMap<String, String> {
     // -------------------------------------------------------------------------
 
     /**
-     * Returns a new, empty {@code ParameterMap}.
+     * Returns a new, empty {@code RequestParams}.
      */
-    public static ParameterMap empty() {
-        return new ParameterMap(Map.of());
+    public static RequestParams empty() {
+        return new RequestParams(Map.of());
     }
 
     /**
-     * Creates a {@code ParameterMap} from a multi-value map.  Each list must be non-empty.
+     * Creates a {@code RequestParams} from a multi-value map.  Each list must be non-empty.
      * The last value in each list is what {@link #get(Object)} returns.
      *
      * @param multiValues a map from parameter name to all its values, in encounter order
      */
-    public static ParameterMap of(Map<String, List<String>> multiValues) {
-        return new ParameterMap(multiValues);
+    public static RequestParams of(Map<String, List<String>> multiValues) {
+        return new RequestParams(multiValues);
     }
 
     /**
-     * Parses a URL-encoded query string into a {@code ParameterMap}, preserving all values for
+     * Parses a URL-encoded query string into a {@code RequestParams}, preserving all values for
      * repeated parameters (e.g. {@code match[]=foo&match[]=bar} → {@code ["foo", "bar"]}).
      *
      * @param queryString the raw query string (the part after {@code ?}, without the {@code ?} itself)
-     * @return a {@code ParameterMap} from parameter name to all its values, in encounter order
+     * @return a {@code RequestParams} from parameter name to all its values, in encounter order
      */
-    public static ParameterMap fromQueryString(String queryString) {
+    public static RequestParams fromQueryString(String queryString) {
         return RestUtils.decodeQueryString(queryString, 0);
     }
 
     /**
-     * Parses the query string from a full URL string into a {@code ParameterMap}, preserving all
+     * Parses the query string from a full URL string into a {@code RequestParams}, preserving all
      * values for repeated parameters. Returns an empty map if the URL contains no {@code ?}.
      *
      * @param url a full URL string, e.g. {@code /index/_search?pretty&size=10}
-     * @return a {@code ParameterMap} from parameter name to all its values, in encounter order
+     * @return a {@code RequestParams} from parameter name to all its values, in encounter order
      */
-    public static ParameterMap fromUrl(String url) {
+    public static RequestParams fromUrl(String url) {
         int index = url.indexOf('?');
-        return index >= 0 ? RestUtils.decodeQueryString(url, index + 1) : ParameterMap.empty();
+        return index >= 0 ? RestUtils.decodeQueryString(url, index + 1) : RequestParams.empty();
     }
 
     /**
-     * Parses the query string from a {@link URI} into a {@code ParameterMap}, preserving all
+     * Parses the query string from a {@link URI} into a {@code RequestParams}, preserving all
      * values for repeated parameters. Returns an empty map if the URI has no query.
      *
      * @param uri the URI whose raw query string is parsed
-     * @return a {@code ParameterMap} from parameter name to all its values, in encounter order
+     * @return a {@code RequestParams} from parameter name to all its values, in encounter order
      */
-    public static ParameterMap from(URI uri) {
+    public static RequestParams from(URI uri) {
         final var rawQuery = uri.getRawQuery();
-        return rawQuery != null && rawQuery.isEmpty() == false ? fromQueryString(rawQuery) : ParameterMap.empty();
+        return rawQuery != null && rawQuery.isEmpty() == false ? fromQueryString(rawQuery) : RequestParams.empty();
     }
 
     /**
-     * Creates a {@code ParameterMap} from a plain single-value map.
+     * Creates a {@code RequestParams} from a plain single-value map.
      * Each value is wrapped in a singleton list so that {@link #getAll(String)} returns a
      * one-element list rather than an empty one.
      *
      * @param singleValues a map whose values are treated as the sole value for each key
      */
-    public static ParameterMap fromSingleValues(Map<String, String> singleValues) {
+    public static RequestParams fromSingleValues(Map<String, String> singleValues) {
         LinkedHashMap<String, List<String>> wrapped = new LinkedHashMap<>(singleValues.size() * 2);
         singleValues.forEach((k, v) -> wrapped.put(k, List.of(v)));
-        return new ParameterMap(wrapped);
+        return new RequestParams(wrapped);
     }
 
-    private ParameterMap(Map<String, List<String>> multiValues) {
+    private RequestParams(Map<String, List<String>> multiValues) {
         this.map = new LinkedHashMap<>(multiValues);
         assert map.values().stream().allMatch(list -> list != null && list.isEmpty() == false)
-            : "ParameterMap requires every value list to be non-empty";
+            : "RequestParams requires every value list to be non-empty";
     }
 
     // -------------------------------------------------------------------------

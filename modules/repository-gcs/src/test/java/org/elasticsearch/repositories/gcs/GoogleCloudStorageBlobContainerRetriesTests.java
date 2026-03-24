@@ -55,6 +55,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.ResponseInjectingHttpHandler;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
@@ -419,7 +420,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         httpServer.createContext("/upload/storage/v1/b/bucket/o", safeHandler(exchange -> {
             final BytesReference requestBody = Streams.readFully(exchange.getRequestBody());
 
-            final var params = ParameterMap.fromQueryString(exchange.getRequestURI().getQuery());
+            final var params = RequestParams.fromQueryString(exchange.getRequestURI().getQuery());
             assertThat(params.get("uploadType"), equalTo("resumable"));
 
             if ("POST".equals(exchange.getRequestMethod())) {

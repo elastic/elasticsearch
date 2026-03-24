@@ -86,7 +86,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
     private static final AtomicLong requestIdGenerator = new AtomicLong();
 
     private final XContentParserConfiguration parserConfig;
-    private final ParameterMap params;
+    private final RequestParams params;
     private final Map<String, List<String>> headers;
     private final String rawPath;
     private final Set<String> consumedParams = new HashSet<>();
@@ -108,7 +108,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
     @SuppressWarnings("this-escape")
     protected RestRequest(
         XContentParserConfiguration parserConfig,
-        ParameterMap params,
+        RequestParams params,
         String rawPath,
         Map<String, List<String>> headers,
         HttpRequest httpRequest,
@@ -120,7 +120,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
     @SuppressWarnings("this-escape")
     private RestRequest(
         XContentParserConfiguration parserConfig,
-        ParameterMap params,
+        RequestParams params,
         String rawPath,
         Map<String, List<String>> headers,
         HttpRequest httpRequest,
@@ -198,7 +198,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      * @throws MediaTypeHeaderException if the Content-Type or Accept header can not be parsed
      */
     public static RestRequest request(XContentParserConfiguration parserConfig, HttpRequest httpRequest, HttpChannel httpChannel) {
-        ParameterMap params = params(httpRequest.uri());
+        RequestParams params = params(httpRequest.uri());
         return new RestRequest(
             parserConfig,
             params,
@@ -210,9 +210,9 @@ public class RestRequest implements ToXContent.Params, Traceable {
         );
     }
 
-    private static ParameterMap params(final String uri) {
+    private static RequestParams params(final String uri) {
         try {
-            return ParameterMap.fromUrl(uri);
+            return RequestParams.fromUrl(uri);
         } catch (final IllegalArgumentException e) {
             throw new BadParameterException(e);
         }
@@ -231,7 +231,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
     ) {
         return new RestRequest(
             parserConfig,
-            ParameterMap.empty(),
+            RequestParams.empty(),
             httpRequest.uri(),
             httpRequest.getHeaders(),
             httpRequest,
@@ -416,7 +416,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
         return value;
     }
 
-    public ParameterMap params() {
+    public RequestParams params() {
         return params;
     }
 

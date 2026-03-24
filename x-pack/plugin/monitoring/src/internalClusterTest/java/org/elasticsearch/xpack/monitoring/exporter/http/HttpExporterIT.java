@@ -30,6 +30,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.http.MockRequest;
@@ -513,9 +514,9 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     }
 
     private void assertMonitorVersionQueryString(String query, final Map<String, String> parameters) {
-        var expectedQueryStringMap = ParameterMap.fromQueryString(query);
+        var expectedQueryStringMap = RequestParams.fromQueryString(query);
 
-        var resourceVersionQueryStringMap = ParameterMap.fromQueryString(resourceVersionQueryString());
+        var resourceVersionQueryStringMap = RequestParams.fromQueryString(resourceVersionQueryString());
 
         Map<String, String> actualQueryStringMap = new HashMap<>();
         actualQueryStringMap.putAll(resourceVersionQueryStringMap);

@@ -31,50 +31,50 @@ public class RestUtilsTests extends ESTestCase {
     }
 
     public void testDecodeQueryStringFromUrl() {
-        var params = ParameterMap.fromUrl("something?test=value");
+        var params = RequestParams.fromUrl("something?test=value");
         assertThat(params.size(), equalTo(1));
         assertThat(params.get("test"), equalTo("value"));
 
-        params = ParameterMap.fromUrl(Strings.format("something?test=value%ctest1=value1", randomDelimiter()));
+        params = RequestParams.fromUrl(Strings.format("something?test=value%ctest1=value1", randomDelimiter()));
         assertThat(params.size(), equalTo(2));
         assertThat(params.get("test"), equalTo("value"));
         assertThat(params.get("test1"), equalTo("value1"));
 
         // no query string
-        assertThat(ParameterMap.fromUrl("something").isEmpty(), is(true));
+        assertThat(RequestParams.fromUrl("something").isEmpty(), is(true));
     }
 
     public void testDecodeQueryStringFromUrlEdgeCases() {
         // empty query string
-        assertThat(ParameterMap.fromUrl("something?").size(), equalTo(0));
+        assertThat(RequestParams.fromUrl("something?").size(), equalTo(0));
 
-        assertThat(ParameterMap.fromUrl(Strings.format("something?%c", randomDelimiter())).size(), equalTo(0));
+        assertThat(RequestParams.fromUrl(Strings.format("something?%c", randomDelimiter())).size(), equalTo(0));
 
-        var params = ParameterMap.fromUrl(Strings.format("something?p=v%c%cp1=v1", randomDelimiter(), randomDelimiter()));
+        var params = RequestParams.fromUrl(Strings.format("something?p=v%c%cp1=v1", randomDelimiter(), randomDelimiter()));
         assertThat(params.size(), equalTo(2));
         assertThat(params.get("p"), equalTo("v"));
         assertThat(params.get("p1"), equalTo("v1"));
 
-        assertThat(ParameterMap.fromUrl("something?=").size(), equalTo(0));
+        assertThat(RequestParams.fromUrl("something?=").size(), equalTo(0));
 
-        assertThat(ParameterMap.fromUrl(Strings.format("something?%c=", randomDelimiter())).size(), equalTo(0));
+        assertThat(RequestParams.fromUrl(Strings.format("something?%c=", randomDelimiter())).size(), equalTo(0));
 
-        params = ParameterMap.fromUrl("something?a");
+        params = RequestParams.fromUrl("something?a");
         assertThat(params.size(), equalTo(1));
         assertThat(params.get("a"), equalTo(""));
 
-        params = ParameterMap.fromUrl(Strings.format("something?p=v%ca", randomDelimiter()));
+        params = RequestParams.fromUrl(Strings.format("something?p=v%ca", randomDelimiter()));
         assertThat(params.size(), equalTo(2));
         assertThat(params.get("a"), equalTo(""));
         assertThat(params.get("p"), equalTo("v"));
 
-        params = ParameterMap.fromUrl(Strings.format("something?p=v%ca%cp1=v1", randomDelimiter(), randomDelimiter()));
+        params = RequestParams.fromUrl(Strings.format("something?p=v%ca%cp1=v1", randomDelimiter(), randomDelimiter()));
         assertThat(params.size(), equalTo(3));
         assertThat(params.get("a"), equalTo(""));
         assertThat(params.get("p"), equalTo("v"));
         assertThat(params.get("p1"), equalTo("v1"));
 
-        params = ParameterMap.fromUrl(
+        params = RequestParams.fromUrl(
             Strings.format("something?p=v%ca%cb%cp1=v1", randomDelimiter(), randomDelimiter(), randomDelimiter())
         );
         assertThat(params.size(), equalTo(4));
@@ -85,29 +85,29 @@ public class RestUtilsTests extends ESTestCase {
     }
 
     public void testDecodeQueryString() {
-        var params = ParameterMap.fromQueryString("test=value");
+        var params = RequestParams.fromQueryString("test=value");
         assertThat(params.size(), equalTo(1));
         assertThat(params.getAll("test"), equalTo(List.of("value")));
     }
 
     public void testDecodeQueryStringMultipleValues() {
-        var params = ParameterMap.fromQueryString("match%5B%5D=up&match%5B%5D=http_requests_total&start=1609746000");
+        var params = RequestParams.fromQueryString("match%5B%5D=up&match%5B%5D=http_requests_total&start=1609746000");
         assertThat(params.getAll("match[]"), equalTo(List.of("up", "http_requests_total")));
         assertThat(params.getAll("start"), equalTo(List.of("1609746000")));
     }
 
     public void testDecodeQueryStringDelimiters() {
-        var params = ParameterMap.fromQueryString(Strings.format("a=1%cb=2", randomDelimiter()));
+        var params = RequestParams.fromQueryString(Strings.format("a=1%cb=2", randomDelimiter()));
         assertThat(params.getAll("a"), equalTo(List.of("1")));
         assertThat(params.getAll("b"), equalTo(List.of("2")));
     }
 
     public void testDecodeQueryStringEdgeCases() {
         // empty query string
-        assertThat(ParameterMap.fromQueryString("").isEmpty(), is(true));
+        assertThat(RequestParams.fromQueryString("").isEmpty(), is(true));
 
         // key with no value
-        assertThat(ParameterMap.fromQueryString("a").getAll("a"), equalTo(List.of("")));
+        assertThat(RequestParams.fromQueryString("a").getAll("a"), equalTo(List.of("")));
 
         // package-private fromIndex edge cases
         assertThat(RestUtils.decodeQueryString("something", 9).isEmpty(), is(true));
@@ -116,19 +116,19 @@ public class RestUtilsTests extends ESTestCase {
 
     public void testDecodeQueryStringFragment() {
         // fragment should be excluded
-        var params = ParameterMap.fromUrl("something?a=1#fragment");
+        var params = RequestParams.fromUrl("something?a=1#fragment");
         assertThat(params.getAll("a"), equalTo(List.of("1")));
         assertThat(params.containsKey("fragment"), is(false));
     }
 
     public void testDecodeQueryStringUrlEncoded() {
-        var params = ParameterMap.fromQueryString("match%5B%5D=up%7Bjob%3D%22prometheus%22%7D");
+        var params = RequestParams.fromQueryString("match%5B%5D=up%7Bjob%3D%22prometheus%22%7D");
         assertThat(params.getAll("match[]"), equalTo(List.of("up{job=\"prometheus\"}")));
     }
 
     public void testDecodeQueryStringReservedParameters() {
         for (var reservedParam : INTERNAL_MARKER_REQUEST_PARAMETERS) {
-            expectThrows(IllegalArgumentException.class, () -> ParameterMap.fromQueryString(reservedParam + "=value"));
+            expectThrows(IllegalArgumentException.class, () -> RequestParams.fromQueryString(reservedParam + "=value"));
         }
     }
 
@@ -170,7 +170,7 @@ public class RestUtilsTests extends ESTestCase {
             randomDelimiter(),
             randomDelimiter()
         );
-        var params = ParameterMap.fromUrl(uri);
+        var params = RequestParams.fromUrl(uri);
         assertThat(params.get("/?:@-._~!$'()* ,"), equalTo("/?:@-._~!$'()* ,=="));
         assertThat(params.size(), equalTo(1));
     }
@@ -179,7 +179,7 @@ public class RestUtilsTests extends ESTestCase {
         for (var reservedParam : INTERNAL_MARKER_REQUEST_PARAMETERS) {
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
-                () -> ParameterMap.fromUrl("something?" + reservedParam + "=value")
+                () -> RequestParams.fromUrl("something?" + reservedParam + "=value")
             );
             assertEquals(exception.getMessage(), "parameter [" + reservedParam + "] is reserved and may not be set");
         }

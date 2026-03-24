@@ -18,14 +18,14 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ParameterMapTests extends ESTestCase {
+public class RequestParamsTests extends ESTestCase {
 
     // -------------------------------------------------------------------------
     // Factory methods
     // -------------------------------------------------------------------------
 
     public void testEmpty() {
-        var map = ParameterMap.empty();
+        var map = RequestParams.empty();
         assertThat(map.isEmpty(), is(true));
         assertThat(map.size(), equalTo(0));
         assertThat(map.get("x"), nullValue());
@@ -33,14 +33,14 @@ public class ParameterMapTests extends ESTestCase {
     }
 
     public void testOf() {
-        var map = ParameterMap.of(Map.of("a", List.of("1", "2"), "b", List.of("3")));
+        var map = RequestParams.of(Map.of("a", List.of("1", "2"), "b", List.of("3")));
         assertThat(map.size(), equalTo(2));
         assertThat(map.getAll("a"), equalTo(List.of("1", "2")));
         assertThat(map.getAll("b"), equalTo(List.of("3")));
     }
 
     public void testFromSingleValues() {
-        var map = ParameterMap.fromSingleValues(Map.of("a", "1", "b", "2"));
+        var map = RequestParams.fromSingleValues(Map.of("a", "1", "b", "2"));
         assertThat(map.size(), equalTo(2));
         assertThat(map.get("a"), equalTo("1"));
         assertThat(map.get("b"), equalTo("2"));
@@ -53,22 +53,22 @@ public class ParameterMapTests extends ESTestCase {
     // -------------------------------------------------------------------------
 
     public void testGetReturnsLastValue() {
-        var map = ParameterMap.of(Map.of("k", List.of("first", "second", "last")));
+        var map = RequestParams.of(Map.of("k", List.of("first", "second", "last")));
         assertThat(map.get("k"), equalTo("last"));
     }
 
     public void testGetReturnsNullForAbsentKey() {
-        var map = ParameterMap.of(Map.of("k", List.of("v")));
+        var map = RequestParams.of(Map.of("k", List.of("v")));
         assertThat(map.get("missing"), nullValue());
     }
 
     public void testGetAllReturnsAllValues() {
-        var map = ParameterMap.of(Map.of("k", List.of("a", "b", "c")));
+        var map = RequestParams.of(Map.of("k", List.of("a", "b", "c")));
         assertThat(map.getAll("k"), equalTo(List.of("a", "b", "c")));
     }
 
     public void testGetAllReturnsEmptyListForAbsentKey() {
-        var map = ParameterMap.empty();
+        var map = RequestParams.empty();
         assertThat(map.getAll("missing"), equalTo(List.of()));
     }
 
@@ -77,17 +77,17 @@ public class ParameterMapTests extends ESTestCase {
     // -------------------------------------------------------------------------
 
     public void testGetSingleReturnsSingleValue() {
-        var map = ParameterMap.of(Map.of("k", List.of("only")));
+        var map = RequestParams.of(Map.of("k", List.of("only")));
         assertThat(map.getSingle("k"), equalTo("only"));
     }
 
     public void testGetSingleReturnsNullForAbsentKey() {
-        var map = ParameterMap.empty();
+        var map = RequestParams.empty();
         assertThat(map.getSingle("missing"), nullValue());
     }
 
     public void testGetSingleThrowsOnMultipleValues() {
-        var map = ParameterMap.of(Map.of("k", List.of("a", "b")));
+        var map = RequestParams.of(Map.of("k", List.of("a", "b")));
         var ex = expectThrows(IllegalArgumentException.class, () -> map.getSingle("k"));
         assertThat(ex.getMessage(), equalTo("parameter [k] must have a single value, but found: [a, b]"));
     }
@@ -97,7 +97,7 @@ public class ParameterMapTests extends ESTestCase {
     // -------------------------------------------------------------------------
 
     public void testPutReplacesAllValues() {
-        var map = ParameterMap.of(Map.of("k", List.of("a", "b")));
+        var map = RequestParams.of(Map.of("k", List.of("a", "b")));
         var previous = map.put("k", "new");
         assertThat(previous, equalTo("b")); // previous last value
         assertThat(map.get("k"), equalTo("new"));
@@ -105,26 +105,26 @@ public class ParameterMapTests extends ESTestCase {
     }
 
     public void testPutNewKey() {
-        var map = ParameterMap.empty();
+        var map = RequestParams.empty();
         var previous = map.put("k", "v");
         assertThat(previous, nullValue());
         assertThat(map.get("k"), equalTo("v"));
     }
 
     public void testRemove() {
-        var map = ParameterMap.of(Map.of("k", List.of("a", "b")));
+        var map = RequestParams.of(Map.of("k", List.of("a", "b")));
         var removed = map.remove("k");
         assertThat(removed, equalTo("b")); // last value
         assertThat(map.containsKey("k"), is(false));
     }
 
     public void testRemoveAbsentKey() {
-        var map = ParameterMap.empty();
+        var map = RequestParams.empty();
         assertThat(map.remove("missing"), nullValue());
     }
 
     public void testClear() {
-        var map = ParameterMap.of(Map.of("a", List.of("1"), "b", List.of("2")));
+        var map = RequestParams.of(Map.of("a", List.of("1"), "b", List.of("2")));
         map.clear();
         assertThat(map.isEmpty(), is(true));
     }
@@ -134,25 +134,25 @@ public class ParameterMapTests extends ESTestCase {
     // -------------------------------------------------------------------------
 
     public void testContainsKey() {
-        var map = ParameterMap.of(Map.of("present", List.of("v")));
+        var map = RequestParams.of(Map.of("present", List.of("v")));
         assertThat(map.containsKey("present"), is(true));
         assertThat(map.containsKey("absent"), is(false));
     }
 
     public void testKeySet() {
-        var map = ParameterMap.of(Map.of("a", List.of("1"), "b", List.of("2")));
+        var map = RequestParams.of(Map.of("a", List.of("1"), "b", List.of("2")));
         assertThat(map.keySet(), equalTo(java.util.Set.of("a", "b")));
     }
 
     public void testEntrySetValuesAreLastValues() {
-        var map = ParameterMap.of(Map.of("k", List.of("first", "last")));
+        var map = RequestParams.of(Map.of("k", List.of("first", "last")));
         var entry = map.entrySet().iterator().next();
         assertThat(entry.getKey(), equalTo("k"));
         assertThat(entry.getValue(), equalTo("last"));
     }
 
     public void testEntrySetRemove() {
-        var map = ParameterMap.of(Map.of("a", List.of("1"), "b", List.of("2")));
+        var map = RequestParams.of(Map.of("a", List.of("1"), "b", List.of("2")));
         var it = map.entrySet().iterator();
         it.next();
         it.remove();

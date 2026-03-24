@@ -19,6 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.MockLicenseState;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutResponse;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -356,7 +357,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         final JWT idToken = generateIdToken(randomAlphaOfLength(8), randomAlphaOfLength(8), randomAlphaOfLength(8));
         final OpenIdConnectLogoutResponse logoutResponse = realm.buildLogoutResponse(idToken);
         final String endSessionUrl = logoutResponse.getEndSessionUrl();
-        final var parameters = ParameterMap.fromUrl(endSessionUrl);
+        final var parameters = RequestParams.fromUrl(endSessionUrl);
         assertThat(parameters, aMapWithSize(3));
         assertThat(parameters, hasKey("id_token_hint"));
         assertThat(parameters, hasKey("post_logout_redirect_uri"));
@@ -379,7 +380,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         final JWT idToken = generateIdToken(randomAlphaOfLength(8), randomAlphaOfLength(8), randomAlphaOfLength(8));
         final OpenIdConnectLogoutResponse logoutResponse = realm.buildLogoutResponse(idToken);
         final String endSessionUrl = logoutResponse.getEndSessionUrl();
-        final var parameters = ParameterMap.fromUrl(endSessionUrl);
+        final var parameters = RequestParams.fromUrl(endSessionUrl);
         assertThat(parameters, aMapWithSize(4));
         assertThat(parameters, hasKey("parameter"));
         assertThat(parameters, hasKey("post_logout_redirect_uri"));
@@ -452,9 +453,9 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         assertThat(endOfPath, greaterThan(-1));
         assertThat(actual.substring(0, endOfPath + 1), equalTo(expected.substring(0, endOfPath + 1)));
 
-        final var actualParams = ParameterMap.fromUrl(actual);
+        final var actualParams = RequestParams.fromUrl(actual);
 
-        final var expectedParams = ParameterMap.fromUrl(expected);
+        final var expectedParams = RequestParams.fromUrl(expected);
 
         assertThat(actualParams, equalTo(expectedParams));
     }

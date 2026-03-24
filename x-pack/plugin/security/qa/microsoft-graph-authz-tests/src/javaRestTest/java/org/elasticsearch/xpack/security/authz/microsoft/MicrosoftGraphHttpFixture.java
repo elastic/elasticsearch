@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -121,7 +122,7 @@ public class MicrosoftGraphHttpFixture extends ExternalResource {
             }
 
             final var requestBody = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), Charset.defaultCharset()));
-            final var formFields = ParameterMap.fromQueryString(requestBody);
+            final var formFields = RequestParams.fromQueryString(requestBody);
 
             if (formFields.get("grant_type").equals("client_credentials") == false) {
                 graphError(exchange, RestStatus.BAD_REQUEST, Strings.format("Unexpected Grant Type: %s", formFields.get("grant_type")));

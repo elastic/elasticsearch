@@ -18,6 +18,7 @@ import com.nimbusds.openid.connect.sdk.OIDCScopeValue;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.TestSecurityClient;
@@ -137,7 +138,7 @@ public class JwtWithOidcAuthIT extends C2IdOpTestCase {
          * The three-part-encoded JWT id_token will be in the "id_token" field
          */
         final int hashChar = implicitFlowURI.indexOf('#');
-        final var hashParams = ParameterMap.fromQueryString(implicitFlowURI.substring(hashChar + 1));
+        final var hashParams = RequestParams.fromQueryString(implicitFlowURI.substring(hashChar + 1));
 
         assertThat("Hash value of URI [" + implicitFlowURI + "] should be a JWT with an id Token", hashParams, hasKey("id_token"));
         String idJwt = hashParams.get("id_token");

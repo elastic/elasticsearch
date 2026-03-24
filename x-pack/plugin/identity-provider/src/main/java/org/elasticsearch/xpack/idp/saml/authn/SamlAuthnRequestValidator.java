@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.idp.action.SamlValidateAuthnRequestResponse;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
@@ -124,7 +125,7 @@ public class SamlAuthnRequestValidator {
 
     private ParsedQueryString parseQueryString(String queryString) throws ElasticsearchSecurityException {
 
-        final var parameters = ParameterMap.fromQueryString(queryString);
+        final var parameters = RequestParams.fromQueryString(queryString);
         if (parameters.isEmpty()) {
             throw new ElasticsearchSecurityException("Invalid Authentication Request query string (zero parameters)");
         }

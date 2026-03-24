@@ -46,6 +46,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
+import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
@@ -367,7 +368,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_large_blob"), exchange -> {
 
             if ("PUT".equals(exchange.getRequestMethod())) {
-                final var params = ParameterMap.fromQueryString(exchange.getRequestURI().getRawQuery());
+                final var params = RequestParams.fromQueryString(exchange.getRequestURI().getRawQuery());
 
                 final String blockId = params.get("blockid");
                 assert Strings.hasText(blockId) == false || AzureFixtureHelper.assertValidBlockId(blockId);
@@ -436,7 +437,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_large_blob_streaming"), exchange -> {
 
             if ("PUT".equals(exchange.getRequestMethod())) {
-                final var params = ParameterMap.fromQueryString(exchange.getRequestURI().getRawQuery());
+                final var params = RequestParams.fromQueryString(exchange.getRequestURI().getRawQuery());
 
                 final String blockId = params.get("blockid");
                 assert Strings.hasText(blockId) == false || AzureFixtureHelper.assertValidBlockId(blockId);

@@ -28,7 +28,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.BiConsumer;
 import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 
@@ -53,20 +52,9 @@ public class RestUtils {
      * @return a map from parameter name to all its values, in encounter order
      */
     static Map<String, List<String>> decodeQueryString(String s, int fromIndex) {
-        Map<String, List<String>> result = new LinkedHashMap<>();
-        parseQueryStringPairs(s, fromIndex, (name, value) -> {
-            checkReservedParam(name);
-            result.computeIfAbsent(name, k -> new ArrayList<>()).add(value);
-        });
-        return result;
-    }
-
-    private static void parseQueryStringPairs(String s, int fromIndex, BiConsumer<String, String> consumer) {
-        if (fromIndex < 0) {
-            return;
-        }
-        if (fromIndex >= s.length()) {
-            return;
+        Map<String, List<String>> params = new LinkedHashMap<>();
+        if (fromIndex < 0 || fromIndex >= s.length()) {
+            return params;
         }
 
         int queryStringLength = s.contains("#") ? s.indexOf('#') : s.length();
@@ -87,9 +75,9 @@ public class RestUtils {
                     // We haven't seen an `=' so far but moved forward.
                     // Must be a param of the form '&a&' so add it with
                     // an empty value.
-                    consumer.accept(decodeQueryStringParam(s.substring(pos, i)), "");
+                    addParam(params, decodeQueryStringParam(s.substring(pos, i)), "");
                 } else if (name != null) {
-                    consumer.accept(name, decodeQueryStringParam(s.substring(pos, i)));
+                    addParam(params, name, decodeQueryStringParam(s.substring(pos, i)));
                     name = null;
                 }
                 pos = i + 1;
@@ -98,13 +86,20 @@ public class RestUtils {
 
         if (pos != i) {  // Are there characters we haven't dealt with?
             if (name == null) {     // Yes and we haven't seen any `='.
-                consumer.accept(decodeQueryStringParam(s.substring(pos, i)), "");
+                addParam(params, decodeQueryStringParam(s.substring(pos, i)), "");
             } else {                // Yes and this must be the last value.
-                consumer.accept(name, decodeQueryStringParam(s.substring(pos, i)));
+                addParam(params, name, decodeQueryStringParam(s.substring(pos, i)));
             }
         } else if (name != null) {  // Have we seen a name without value?
-            consumer.accept(name, "");
+            addParam(params, name, "");
         }
+
+        return params;
+    }
+
+    private static void addParam(Map<String, List<String>> result, String name, String value) {
+        checkReservedParam(name);
+        result.computeIfAbsent(name, k -> new ArrayList<>()).add(value);
     }
 
     private static String decodeQueryStringParam(final String s) {

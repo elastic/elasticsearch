@@ -1,5 +1,6 @@
 area: ES|QL
 issues:
+ - 142004
  - 141912
 pr: 143693
 summary: Type conflict resolution in unmapped-fields load

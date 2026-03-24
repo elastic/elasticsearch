@@ -4,10 +4,7 @@
 
 | field | key | buckets | from | to | result |
 | --- | --- | --- | --- | --- | --- |
-| double | double | integer | double | double | double |
-| double | integer | integer | text | text | double |
+| double | date | integer | text | text | double |
 | integer | date | integer | date | date | integer |
-| integer | integer | integer | integer | integer | integer |
-| long | date_nanos | integer | keyword | keyword | long |
-| long | long | integer | long | long | long |
+| long | date | integer | keyword | keyword | long |
 

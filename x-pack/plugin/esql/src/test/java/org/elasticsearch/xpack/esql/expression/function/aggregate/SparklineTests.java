@@ -38,15 +38,14 @@ public class SparklineTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.doubleCases(1, 100, 0, 1_000_000, true).get(0)
         );
 
-        var keyTypes = List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE, DataType.DATETIME, DataType.DATE_NANOS);
-        var fromToTypes = List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE, DataType.DATETIME, DataType.KEYWORD, DataType.TEXT);
+        var fromToTypes = List.of(DataType.DATETIME, DataType.KEYWORD, DataType.TEXT);
 
-        int maximumTypes = Math.max(fieldSuppliers.size(), Math.max(keyTypes.size(), fromToTypes.size()));
+        int maximumTypes = Math.max(fieldSuppliers.size(), fromToTypes.size());
         for (int i = 0; i < maximumTypes; i++) {
             suppliers.add(
                 makeSupplier(
                     fieldSuppliers.get(i % fieldSuppliers.size()),
-                    keyTypes.get(i % keyTypes.size()),
+                    DataType.DATETIME,
                     fromToTypes.get(i % fromToTypes.size()),
                     fromToTypes.get(i % fromToTypes.size())
                 )

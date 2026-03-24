@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
@@ -348,7 +349,24 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
     }
 
     public void testSparklineWithCompoundAggregate() {
-        plan("from test | sort last_name desc | stats s = " + SPARKLINE_EXPR + ", c = count(*) / 0.001 by last_name | sort c desc");
+        Project plan = as(
+            plan("from test | sample 0.5 | stats s = " + SPARKLINE_EXPR + ", c = count(*) / 0.001 by last_name | sort c desc"),
+            Project.class
+        );
+        TopN sortByCount = as(plan.child(), TopN.class);
+        Eval evalCompoundAggregate = as(sortByCount.child(), Eval.class);
+        assertThat(evalCompoundAggregate.fields(), hasSize(1));
+        assertThat(evalCompoundAggregate.fields().get(0), instanceOf(Alias.class));
+        Alias compoundAggregateAlias = as(evalCompoundAggregate.fields().get(0), Alias.class);
+        assertEquals(compoundAggregateAlias.name(), "c");
+
+        List<String> sparklineAggregateNames = List.of("s");
+        SparklineGenerateEmptyBuckets sparkline = as(evalCompoundAggregate.child(), SparklineGenerateEmptyBuckets.class);
+        validateSparklineGenerateEmptyBuckets(sparkline, sparklineAggregateNames);
+
+        Aggregate secondPhase = as(sparkline.child(), Aggregate.class);
+        Aggregate firstPhase = as(secondPhase.child(), Aggregate.class);
+        validateAggregates(secondPhase, firstPhase, sparklineAggregateNames, List.of("$$COUNT$count(*)_/_0.001$0"), List.of("last_name"));
     }
 
     public void testSparklineWithInlineWhere() {

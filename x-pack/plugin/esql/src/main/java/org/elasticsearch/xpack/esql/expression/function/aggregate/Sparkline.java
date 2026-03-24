@@ -51,11 +51,7 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
             type = { "integer", "long", "double" },
             description = "Expression that calculates the y-axis value of the sparkline graph for each datapoint."
         ) Expression field,
-        @Param(
-            name = "key",
-            type = { "integer", "long", "double", "date", "date_nanos" },
-            description = "Numeric or date expression from which to derive buckets."
-        ) Expression key,
+        @Param(name = "key", type = { "date" }, description = "Date expression from which to derive buckets.") Expression key,
         @Param(
             name = "buckets",
             type = { "integer" },
@@ -63,13 +59,13 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
         ) Expression buckets,
         @Param(
             name = "from",
-            type = { "integer", "long", "double", "date", "keyword", "text" },
-            description = "Start of the range. Can be a number, a date or a date expressed as a string."
+            type = { "date", "keyword", "text" },
+            description = "Start of the range. Can be a date or a date expressed as a string."
         ) Expression from,
         @Param(
             name = "to",
-            type = { "integer", "long", "double", "date", "keyword", "text" },
-            description = "End of the range. Can be a number, a date or a date expressed as a string."
+            type = { "date", "keyword", "text" },
+            description = "End of the range. Can be a date or a date expressed as a string."
         ) Expression to
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW, key, buckets, from, to);
@@ -110,36 +106,26 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
                     || dt == DataType.DATE_NANOS,
                 sourceText(),
                 SECOND,
-                "integer or long or double or datetime or date_nanos"
+                "datetime"
             )
         )
             .and(isWholeNumber(buckets(), sourceText(), THIRD))
             .and(
                 isType(
                     from(),
-                    dt -> dt == DataType.INTEGER
-                        || dt == DataType.LONG
-                        || dt == DataType.DOUBLE
-                        || dt == DataType.DATETIME
-                        || dt == DataType.KEYWORD
-                        || dt == DataType.TEXT,
+                    dt -> dt == DataType.DATETIME || dt == DataType.KEYWORD || dt == DataType.TEXT,
                     sourceText(),
                     FOURTH,
-                    "integer or long or double or date or keyword or text"
+                    "date or keyword or text"
                 )
             )
             .and(
                 isType(
                     to(),
-                    dt -> dt == DataType.INTEGER
-                        || dt == DataType.LONG
-                        || dt == DataType.DOUBLE
-                        || dt == DataType.DATETIME
-                        || dt == DataType.KEYWORD
-                        || dt == DataType.TEXT,
+                    dt -> dt == DataType.DATETIME || dt == DataType.KEYWORD || dt == DataType.TEXT,
                     sourceText(),
                     FIFTH,
-                    "integer or long or double or date or keyword or text"
+                    "date or keyword or text"
                 )
             );
 

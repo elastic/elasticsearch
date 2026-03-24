@@ -111,7 +111,7 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
     ) {}
 
     private record FirstPhaseAggregateData(
-        Aggregate aggregate,
+        LogicalPlan plan,
         List<Alias> sparklineValueAliases,
         List<Alias> toPartialAliases,
         List<AggregateFunction> originalAggFuncs,
@@ -202,7 +202,11 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
 
         ParserUtils.Stats firstPhaseStats = ParserUtils.buildStats(source, firstPhaseGroupings, firstPhaseAggregates);
         Aggregate aggregate = new Aggregate(plan.source(), dateBucketEval, firstPhaseStats.groupings(), firstPhaseStats.aggregates());
-        return new FirstPhaseAggregateData(aggregate, sparklineValueAliases, toPartialAliases, originalAggFuncs, dateBucketAttr);
+        // Since this rule has to occur after PropogateInlineEvals to work with INLINE STATS, we don't get surrogate substitution
+        // to handle inner aggregates that are SurrogateExpressions (e.g., AVG → Div(Sum, Count)). We apply the substitution here to ensure
+        // that any inner aggregates are properly replaced with their surrogates in the first phase plan.
+        LogicalPlan phase1Plan = new SubstituteSurrogateAggregations().apply(aggregate);
+        return new FirstPhaseAggregateData(phase1Plan, sparklineValueAliases, toPartialAliases, originalAggFuncs, dateBucketAttr);
     }
 
     // Builds the second phase aggregate STATS sparklineTops..., topKeys, fromPartials... BY groupings
@@ -221,9 +225,9 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
         List<Alias> topValuesAliases = new ArrayList<>();
         for (int i = 0; i < firstPhase.sparklineValueAliases().size(); i++) {
             Attribute sparklineValueAttribute = firstPhase.sparklineValueAliases().get(i).toAttribute();
-            Top topValuesAggregate = new Top(Source.EMPTY, dateBucketAttribute, limit, order, sparklineValueAttribute);
+            Top topValuesAggregate = new Top(source, dateBucketAttribute, limit, order, sparklineValueAttribute);
             Alias topValuesAlias = new Alias(
-                Source.EMPTY,
+                source,
                 sparklineValueAttribute.name(),
                 topValuesAggregate,
                 sparklineAggregates.get(i).getKey().id()
@@ -232,8 +236,8 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
             secondPhaseAggregates.add(topValuesAlias);
         }
 
-        Top topKeysAggregate = new Top(Source.EMPTY, dateBucketAttribute, limit, order, null);
-        Alias topKeysAlias = new Alias(Source.EMPTY, dateBucketAttribute.name(), topKeysAggregate);
+        Top topKeysAggregate = new Top(source, dateBucketAttribute, limit, order, null);
+        Alias topKeysAlias = new Alias(source, dateBucketAttribute.name(), topKeysAggregate);
         secondPhaseAggregates.add(topKeysAlias);
 
         List<Alias> fromPartialAliases = new ArrayList<>();
@@ -253,16 +257,11 @@ public class ReplaceSparklineAggregate extends OptimizerRules.ParameterizedOptim
 
         List<Attribute> secondPhaseGroupingAttributes = plan.groupings().stream().map(Expressions::attribute).toList();
         ParserUtils.Stats secondPhaseStats = ParserUtils.buildStats(
-            Source.EMPTY,
+            source,
             new ArrayList<>(secondPhaseGroupingAttributes),
             new ArrayList<>(secondPhaseAggregates)
         );
-        Aggregate aggregate = new Aggregate(
-            plan.source(),
-            firstPhase.aggregate(),
-            secondPhaseStats.groupings(),
-            secondPhaseStats.aggregates()
-        );
+        Aggregate aggregate = new Aggregate(plan.source(), firstPhase.plan(), secondPhaseStats.groupings(), secondPhaseStats.aggregates());
         return new SecondPhaseAggregateData(aggregate, topValuesAliases, topKeysAlias, fromPartialAliases);
     }
 

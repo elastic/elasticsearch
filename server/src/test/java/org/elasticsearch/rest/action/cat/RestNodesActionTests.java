@@ -105,14 +105,22 @@ public class RestNodesActionTests extends ESTestCase {
             clusterState.nodes().get("node-1"),
             nowMillis,
             null,
-            new OsStats(
-                nowMillis,
-                new OsStats.Cpu((short) 0, loadAvg),
-                new OsStats.Mem(0, 0, 0),
-                new OsStats.Swap(0, 0),
-                null
-            ),
-            null, null, null, null, null, null, null, null, null, null, null, null, null, null, null
+            new OsStats(nowMillis, new OsStats.Cpu((short) 0, loadAvg), new OsStats.Mem(0, 0, 0), new OsStats.Swap(0, 0), null),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
         );
 
         final var table = action.buildTable(

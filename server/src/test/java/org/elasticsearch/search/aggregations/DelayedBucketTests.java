@@ -35,7 +35,7 @@ public class DelayedBucketTests extends ESTestCase {
 
     public void testReduced() {
         AtomicInteger buckets = new AtomicInteger();
-        AggregationReduceContext context = new AggregationReduceContext.ForFinal(null, null, () -> false, null, buckets::addAndGet, null);
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(null, null, () -> false, null, buckets::addAndGet);
         BiFunction<List<InternalBucket>, AggregationReduceContext, InternalBucket> reduce = mockReduce(context);
         DelayedBucket<InternalBucket> b = new DelayedBucket<>(List.of(bucket("test", 1), bucket("test", 2)));
         assertThat(b.getDocCount(), equalTo(3L));
@@ -48,7 +48,7 @@ public class DelayedBucketTests extends ESTestCase {
 
     public void testReducedSubAggregation() {
         AtomicInteger buckets = new AtomicInteger();
-        AggregationReduceContext context = new AggregationReduceContext.ForFinal(null, null, () -> false, null, buckets::addAndGet, null);
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(null, null, () -> false, null, buckets::addAndGet);
         BiFunction<List<InternalBucket>, AggregationReduceContext, InternalBucket> reduce = mockReduce(context);
         DelayedBucket<InternalBucket> b = new DelayedBucket<>(
             List.of(bucket("test", 1, mockMultiBucketAgg()), bucket("test", 2, mockMultiBucketAgg()))
@@ -84,15 +84,14 @@ public class DelayedBucketTests extends ESTestCase {
             null,
             () -> false,
             null,
-            b -> fail("shouldn't be called"),
-            null
+            b -> fail("shouldn't be called")
         );
         new DelayedBucket<>(List.of(bucket("test", 1))).nonCompetitive(context);
     }
 
     public void testNonCompetitiveReduced() {
         AtomicInteger buckets = new AtomicInteger();
-        AggregationReduceContext context = new AggregationReduceContext.ForFinal(null, null, () -> false, null, buckets::addAndGet, null);
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(null, null, () -> false, null, buckets::addAndGet);
         BiFunction<List<InternalBucket>, AggregationReduceContext, InternalBucket> reduce = mockReduce(context);
         DelayedBucket<InternalBucket> b = new DelayedBucket<>(List.of(bucket("test", 1)));
         b.reduced(reduce, context);
@@ -104,7 +103,7 @@ public class DelayedBucketTests extends ESTestCase {
 
     public void testNonCompetitiveReducedSubAggregation() {
         AtomicInteger buckets = new AtomicInteger();
-        AggregationReduceContext context = new AggregationReduceContext.ForFinal(null, null, () -> false, null, buckets::addAndGet, null);
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(null, null, () -> false, null, buckets::addAndGet);
         BiFunction<List<InternalBucket>, AggregationReduceContext, InternalBucket> reduce = mockReduce(context);
         DelayedBucket<InternalBucket> b = new DelayedBucket<>(List.of(bucket("test", 1, mockMultiBucketAgg())));
         b.reduced(reduce, context);

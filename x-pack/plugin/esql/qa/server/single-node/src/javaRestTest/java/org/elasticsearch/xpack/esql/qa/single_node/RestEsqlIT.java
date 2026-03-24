@@ -1261,6 +1261,67 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assertMap(reader, matchesMap().extraOk().entry("status", matchesMap().extraOk().entry("readers_built", readersBuiltMatcher)));
     }
 
+    public void testAutoPartitioning() throws IOException {
+        indexTimestampData(1);
+        assumeTrue("require pragmas", Build.current().isSnapshot());
+        {
+            RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | STATS AVG(value)");
+            builder.profile(true);
+            builder.pragmas(
+                Settings.builder().put("data_partitioning", "auto").put("esql.docs_threshold_auto_partitioning", 1000_000).build()
+            );
+            Map<String, Object> result = runEsql(builder);
+            assertResultMap(
+                result,
+                getResultMatcher(result).entry("profile", getProfileMatcher()),
+                matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double")),
+                equalTo(List.of(List.of(499.5d)))
+            );
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+            for (Map<String, Object> p : profiles) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+                for (Map<String, Object> o : operators) {
+                    String name = signature(o);
+                    if (name.equals("LuceneSourceOperator")) {
+                        MapMatcher status = matchesMap().entry("total_slices", equalTo(1))
+                            .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"))
+                            .extraOk();
+                        assertMap(o, matchesMap().entry("operator", startsWith(name)).entry("status", status));
+                    }
+                }
+            }
+        }
+        {
+            RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | STATS AVG(value)");
+            builder.profile(true);
+            builder.pragmas(Settings.builder().put("data_partitioning", "auto").put("esql.docs_threshold_auto_partitioning", 20).build());
+            Map<String, Object> result = runEsql(builder);
+            assertResultMap(
+                result,
+                getResultMatcher(result).entry("profile", getProfileMatcher()),
+                matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double")),
+                equalTo(List.of(List.of(499.5d)))
+            );
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+            for (Map<String, Object> p : profiles) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+                for (Map<String, Object> o : operators) {
+                    String name = signature(o);
+                    if (name.equals("LuceneSourceOperator")) {
+                        MapMatcher status = matchesMap().entry("total_slices", greaterThan(1))
+                            .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "DOC"))
+                            .extraOk();
+                        assertMap(o, matchesMap().entry("operator", startsWith(name)).entry("status", status));
+                    }
+                }
+            }
+        }
+    }
+
     private Map<String, Object> findSingleReaderProfile(String driverDescription, Map<String, Object> result) {
         Map<String, Object> reader = null;
         @SuppressWarnings("unchecked")

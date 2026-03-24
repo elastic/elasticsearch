@@ -212,7 +212,6 @@ class TopHitsAggregator extends MetricsAggregator {
         if (fetchProfiles != null) {
             fetchProfiles.add(fetchResult.profileResult());
         }
-        subSearchContext.registerTopHitsForRelease(fetchResult.hits());
         SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();
         for (int i = 0; i < internalHits.length; i++) {
             ScoreDoc scoreDoc = topDocs.scoreDocs[i];

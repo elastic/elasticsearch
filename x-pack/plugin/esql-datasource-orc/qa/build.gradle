@@ -82,7 +82,7 @@ def orcFixtureOutputDir = file("${buildDir}/orc-fixtures/iceberg-fixtures")
 def orcFixtureDir = file("${orcFixtureOutputDir}/standalone")
 
 // Add CSV base names here to generate ORC fixtures; source: esql:qa:testFixtures/src/main/resources/data/{name}.csv
-def csvToOrcFixtures = ['employees', 'web_logs']
+def csvToOrcFixtures = ['employees', 'web_logs', 'books']
 
 def generateOrcTasks = []
 csvToOrcFixtures.each { baseName ->

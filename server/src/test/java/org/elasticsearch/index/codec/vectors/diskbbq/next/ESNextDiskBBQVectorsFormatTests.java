@@ -46,7 +46,6 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
-import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.index.codec.vectors.es93.DirectIOCapableLucene99FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BFloat16FlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorScorer;
@@ -622,9 +621,14 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                 return fmt.fieldsReader(state, dio);
             }) {
                 @Override
-                CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice, int depth)
-                    throws IOException {
-                    return new PrefetchingCentroidIterator(centroidIterator, postingListSlice, prefetchDepth);
+                CentroidIterator getPostingListPrefetchIterator(
+                    CentroidIterator centroidIterator,
+                    IndexInput postingListSlice,
+                    int initialCentroidBatchSize,
+                    int ringPrefetchDepth
+                ) throws IOException {
+                    // Match legacy PrefetchingCentroidIterator-only tests: vary ring depth, no initial centroid batch.
+                    return new BudgetPrefetchCentroidIterator(centroidIterator, postingListSlice, 0, prefetchDepth);
                 }
             };
         }

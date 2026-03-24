@@ -35,7 +35,6 @@ import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
-import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
@@ -74,9 +73,33 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
         );
     }
 
-    CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice, int depth)
-        throws IOException {
-        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice, depth);
+    CentroidIterator getPostingListPrefetchIterator(
+        CentroidIterator centroidIterator,
+        IndexInput postingListSlice,
+        int initialCentroidBatchSize,
+        int ringPrefetchDepth
+    ) throws IOException {
+        return new BudgetPrefetchCentroidIterator(centroidIterator, postingListSlice, initialCentroidBatchSize, ringPrefetchDepth);
+    }
+
+    /**
+     * How many centroids to include in the {@link BudgetPrefetchCentroidIterator} initial prefetch batch.
+     * <p>
+     * Under semi-balanced IVF clustering, vectors per centroid approximate {@code numVectors / numCentroids}. The batch size
+     * {@code min(max(centroidRatio * numCentroids, 1), numCentroids)} therefore tracks the same visit-ratio knob that drives
+     * {@code maxVectorVisited} (approximately {@code 2 * visitRatio * numVectors}) in
+     * {@link org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader#search}.
+     */
+    static int computeInitialCentroidBatchSize(float centroidRatio, int numCentroids, FixedBitSet acceptCentroids) {
+        int target = (int) Math.min(Math.max(centroidRatio * numCentroids, 1f), numCentroids);
+        if (acceptCentroids != null) {
+            int filtered = acceptCentroids.cardinality();
+            if (filtered == 0) {
+                return 0;
+            }
+            target = Math.min(target, filtered);
+        }
+        return target;
     }
 
     static long directWriterSizeOnDisk(long numValues, int bitsPerValue) {
@@ -150,10 +173,12 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
         centroids.seek(fp + sizeLookup);
         int numParents = centroids.readVInt();
 
-        CentroidIterator centroidIterator;
+        final float centroidRatioForBatch;
+        final CentroidIterator centroidIterator;
         if (numParents > 0) {
             // equivalent to (float) centroidsPerParentCluster / 2
             float centroidOversampling = (float) fieldEntry.numCentroids() / (2 * numParents);
+            centroidRatioForBatch = visitRatio * centroidOversampling;
             centroidIterator = getCentroidIteratorWithParents(
                 fieldInfo,
                 centroids,
@@ -163,11 +188,12 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
                 quantized,
                 queryParams,
                 fieldEntry.globalCentroidDp(),
-                visitRatio * centroidOversampling,
+                centroidRatioForBatch,
                 acceptCentroids,
                 bulkSize
             );
         } else {
+            centroidRatioForBatch = visitRatio;
             centroidIterator = getCentroidIteratorNoParent(
                 fieldInfo,
                 centroids,
@@ -180,8 +206,10 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
                 bulkSize
             );
         }
+        int initialCentroidBatch = computeInitialCentroidBatchSize(centroidRatioForBatch, numCentroids, acceptCentroids);
         int docBits = ((NextFieldEntry) fieldEntry).quantEncoding.bits();
-        return getPostingListPrefetchIterator(centroidIterator, postingListSlice, depthFromBudget(visitRatio, docBits));
+        int ringPrefetchDepth = depthFromBudget(visitRatio, docBits);
+        return getPostingListPrefetchIterator(centroidIterator, postingListSlice, initialCentroidBatch, ringPrefetchDepth);
     }
 
     private int depthFromBudget(float visitRatio, int docBits) {

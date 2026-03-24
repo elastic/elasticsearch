@@ -75,12 +75,19 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
         if (expectAllowed) {
             Response result = executeCheck();
             assertThat(result.getStatusLine().getStatusCode(), equalTo(200));
+            String noOpChanged = result.getHeader("noOpChanged");
+            if (noOpChanged != null) {
+                assertTrue("Action [" + actionName + "] expected state to change when allowed but it did not", "true".equals(noOpChanged));
+            }
         } else {
             try {
                 Response result = executeCheck();
                 assertThat(result.getStatusLine().getStatusCode(), equalTo(200));
-                if ("true".equals(result.getHeader("isExpectedNoOp"))) {
-                    // void method with elseReturnEarly — silent success is expected
+                if (result.getHeader("noOpChanged") != null) {
+                    assertFalse(
+                        "Action [" + actionName + "] expected no-op when denied but state changed",
+                        "true".equals(result.getHeader("noOpChanged"))
+                    );
                 } else if ("true".equals(result.getHeader("isExpectedDefaultNull"))) {
                     assertTrue(
                         "Action [" + actionName + "] expected null default but got a non-null result",
@@ -93,12 +100,11 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
                         actualValue,
                         equalTo(result.getHeader("expectedDefaultIfDenied"))
                     );
-                    String expectedType = result.getHeader("expectedDefaultType");
-                    if (expectedType != null) {
-                        assertThat(
-                            "Action [" + actionName + "] returned unexpected default type",
-                            result.getHeader("resultType"),
-                            equalTo(expectedType)
+                    String defaultTypeMatch = result.getHeader("defaultTypeMatch");
+                    if (defaultTypeMatch != null) {
+                        assertTrue(
+                            "Action [" + actionName + "] returned result not matching expected default type",
+                            "true".equals(defaultTypeMatch)
                         );
                     }
                 } else {

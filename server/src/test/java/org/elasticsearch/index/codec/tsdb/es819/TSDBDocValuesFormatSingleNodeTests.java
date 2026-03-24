@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.codecs.DocValuesFormat;
-import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;

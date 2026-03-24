@@ -1,6 +1,6 @@
 setup:
   - requires:
-      test_runner_features: capabilities
+      test_runner_features: [capabilities, allowed_warnings]
       reason: Reindex list is added as part of reindex management feature
       capabilities:
         - method: GET
@@ -95,6 +95,8 @@ setup:
 
   # Wait for reindex to complete
   - do:
+      allowed_warnings:
+        - "Using the task management APIs to get reindex tasks is deprecated. Use the dedicated reindex API instead, GET /_reindex/<task_id>."
       reindex_get:
         task_id: $taskId
         wait_for_completion: true
@@ -158,10 +160,14 @@ setup:
 
   # Wait for reindex to complete
   - do:
+      allowed_warnings:
+        - "Using the task management APIs to get reindex tasks is deprecated. Use the dedicated reindex API instead, GET /_reindex/<task_id>."
       reindex_get:
         task_id: $taskId1
         wait_for_completion: true
   - do:
+      allowed_warnings:
+        - "Using the task management APIs to get reindex tasks is deprecated. Use the dedicated reindex API instead, GET /_reindex/<task_id>."
       reindex_get:
         task_id: $taskId2
         wait_for_completion: true
@@ -206,6 +212,8 @@ setup:
 
   # Wait for reindex to complete
   - do:
+      allowed_warnings:
+        - "Using the task management APIs to get reindex tasks is deprecated. Use the dedicated reindex API instead, GET /_reindex/<task_id>."
       reindex_get:
         task_id: $taskId
         wait_for_completion: true

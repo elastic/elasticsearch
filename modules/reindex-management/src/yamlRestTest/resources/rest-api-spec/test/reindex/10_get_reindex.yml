@@ -1,6 +1,6 @@
 setup:
   - requires:
-      test_runner_features: capabilities
+      test_runner_features: [capabilities, allowed_warnings]
       reason: Reindex GET is added as part of reindex management feature
       capabilities:
         - method: GET
@@ -27,6 +27,8 @@ setup:
   - set: { task: taskId }
 
   - do:
+      allowed_warnings:
+        - "Using the task management APIs to get reindex tasks is deprecated. Use the dedicated reindex API instead, GET /_reindex/<task_id>."
       reindex_get:
         task_id: $taskId
         # wait for task to complete to ensure we get consistent result

@@ -33,6 +33,8 @@ public class SystemIndicesUpgradeIT extends AbstractRollingUpgradeTestCase {
     public void testSystemIndicesUpgrades() throws Exception {
         final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "
             + "access to system indices will be prevented by default";
+        final String reindexTaskGetApiDeprecation = "Using the task management APIs to get reindex tasks is deprecated. "
+            + "Use the dedicated reindex API instead, GET /_reindex/<task_id>.";
         if (isOldCluster()) {
             // create index
             Request createTestIndex = new Request("PUT", "/test_index_old");
@@ -65,6 +67,10 @@ public class SystemIndicesUpgradeIT extends AbstractRollingUpgradeTestCase {
             // wait for task
             Request getTask = new Request("GET", "/_tasks/" + taskId);
             getTask.addParameter("wait_for_completion", "true");
+            getTask.setOptions(expectVersionSpecificWarnings(v -> {
+                v.current(reindexTaskGetApiDeprecation);
+                v.compatible(reindexTaskGetApiDeprecation);
+            }));
             client().performRequest(getTask);
 
             // make sure .tasks index exists
@@ -75,10 +81,6 @@ public class SystemIndicesUpgradeIT extends AbstractRollingUpgradeTestCase {
             }));
             getTasksIndex.addParameter("allow_no_indices", "false");
 
-            getTasksIndex.setOptions(expectVersionSpecificWarnings(v -> {
-                v.current(systemIndexWarning);
-                v.compatible(systemIndexWarning);
-            }));
             assertBusy(() -> {
                 try {
                     assertThat(client().performRequest(getTasksIndex).getStatusLine().getStatusCode(), is(200));

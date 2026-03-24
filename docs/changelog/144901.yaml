@@ -1,0 +1,3 @@
+title: "Convert AntTask and AntFixture from Groovy to Java"
+description: "Refactor build tools to remove Groovy dependencies as part of #34459."
+type: enhancement

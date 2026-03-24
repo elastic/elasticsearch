@@ -35,18 +35,18 @@ import java.util.Set;
  */
 public final class RequestParams extends AbstractMap<String, String> {
 
+    private static final RequestParams EMPTY = new RequestParams(Map.of());
+
     /** Single backing store: key → non-empty ordered list of all values. */
     private final LinkedHashMap<String, List<String>> map;
 
-    // -------------------------------------------------------------------------
     // Factory methods
-    // -------------------------------------------------------------------------
 
     /**
-     * Returns a new, empty {@code RequestParams}.
+     * Returns a shared empty {@code RequestParams} instance.
      */
     public static RequestParams empty() {
-        return new RequestParams(Map.of());
+        return EMPTY;
     }
 
     /**
@@ -54,8 +54,9 @@ public final class RequestParams extends AbstractMap<String, String> {
      * The last value in each list is what {@link #get(Object)} returns.
      *
      * @param multiValues a map from parameter name to all its values, in encounter order
+     * @throws IllegalArgumentException if any value list is empty
      */
-    public static RequestParams of(Map<String, List<String>> multiValues) {
+    static RequestParams of(Map<String, List<String>> multiValues) {
         return new RequestParams(multiValues);
     }
 
@@ -67,7 +68,7 @@ public final class RequestParams extends AbstractMap<String, String> {
      * @return a {@code RequestParams} from parameter name to all its values, in encounter order
      */
     public static RequestParams fromQueryString(String queryString) {
-        return RestUtils.decodeQueryString(queryString, 0);
+        return of(RestUtils.decodeQueryString(queryString, 0));
     }
 
     /**
@@ -79,7 +80,7 @@ public final class RequestParams extends AbstractMap<String, String> {
      */
     public static RequestParams fromUrl(String url) {
         int index = url.indexOf('?');
-        return index >= 0 ? RestUtils.decodeQueryString(url, index + 1) : RequestParams.empty();
+        return index >= 0 ? of(RestUtils.decodeQueryString(url, index + 1)) : RequestParams.empty();
     }
 
     /**
@@ -102,21 +103,23 @@ public final class RequestParams extends AbstractMap<String, String> {
      * @param singleValues a map whose values are treated as the sole value for each key
      */
     public static RequestParams fromSingleValues(Map<String, String> singleValues) {
-        LinkedHashMap<String, List<String>> wrapped = new LinkedHashMap<>(singleValues.size() * 2);
+        LinkedHashMap<String, List<String>> wrapped = new LinkedHashMap<>((int) (singleValues.size() / 0.75f) + 1);
         singleValues.forEach((k, v) -> wrapped.put(k, List.of(v)));
         return new RequestParams(wrapped);
     }
 
     private RequestParams(Map<String, List<String>> multiValues) {
-        LinkedHashMap<String, List<String>> copy = new LinkedHashMap<>(multiValues.size() * 2);
-        multiValues.forEach((k, v) -> copy.put(k, List.copyOf(v)));
-        assert copy.values().stream().allMatch(list -> list.isEmpty() == false) : "RequestParams requires every value list to be non-empty";
+        LinkedHashMap<String, List<String>> copy = new LinkedHashMap<>((int) (multiValues.size() / 0.75f) + 1);
+        multiValues.forEach((k, v) -> {
+            if (v.isEmpty()) {
+                throw new IllegalArgumentException("value list for parameter [" + k + "] must not be empty");
+            }
+            copy.put(k, List.copyOf(v));
+        });
         this.map = copy;
     }
 
-    // -------------------------------------------------------------------------
     // Multi-value API
-    // -------------------------------------------------------------------------
 
     /**
      * Returns all values for {@code key} in the order they were added,
@@ -138,7 +141,7 @@ public final class RequestParams extends AbstractMap<String, String> {
      * @return the single value, or {@code null} if absent
      * @throws IllegalArgumentException if the key has multiple values
      */
-    public String getSingle(String key) {
+    public String requireSingle(String key) {
         var list = map.get(key);
         if (list == null) {
             return null;
@@ -149,12 +152,14 @@ public final class RequestParams extends AbstractMap<String, String> {
         return list.getFirst();
     }
 
-    // -------------------------------------------------------------------------
     // Map<String, String> — single-value view over the backing list map
-    // -------------------------------------------------------------------------
 
     /**
      * Returns the last value associated with {@code key}, or {@code null} if absent.
+     *
+     * <p>When a query parameter appears multiple times (e.g. {@code a=1&a=2}), this method returns
+     * the <em>last</em> value ({@code "2"}). Use {@link #getAll(String)} to retrieve all values, or
+     * {@link #requireSingle(String)} to assert that only one value is present.
      */
     @Override
     public String get(Object key) {

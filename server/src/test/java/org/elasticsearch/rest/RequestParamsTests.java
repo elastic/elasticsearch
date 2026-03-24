@@ -20,10 +20,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class RequestParamsTests extends ESTestCase {
 
-    // -------------------------------------------------------------------------
-    // Factory methods
-    // -------------------------------------------------------------------------
-
     public void testEmpty() {
         var map = RequestParams.empty();
         assertThat(map.isEmpty(), is(true));
@@ -39,6 +35,11 @@ public class RequestParamsTests extends ESTestCase {
         assertThat(map.getAll("b"), equalTo(List.of("3")));
     }
 
+    public void testOfEmptyListThrows() {
+        var ex = expectThrows(IllegalArgumentException.class, () -> RequestParams.of(Map.of("k", List.of())));
+        assertThat(ex.getMessage(), equalTo("value list for parameter [k] must not be empty"));
+    }
+
     public void testFromSingleValues() {
         var map = RequestParams.fromSingleValues(Map.of("a", "1", "b", "2"));
         assertThat(map.size(), equalTo(2));
@@ -47,10 +48,6 @@ public class RequestParamsTests extends ESTestCase {
         assertThat(map.getAll("a"), equalTo(List.of("1")));
         assertThat(map.getAll("b"), equalTo(List.of("2")));
     }
-
-    // -------------------------------------------------------------------------
-    // get / getAll
-    // -------------------------------------------------------------------------
 
     public void testGetReturnsLastValue() {
         var map = RequestParams.of(Map.of("k", List.of("first", "second", "last")));
@@ -72,29 +69,21 @@ public class RequestParamsTests extends ESTestCase {
         assertThat(map.getAll("missing"), equalTo(List.of()));
     }
 
-    // -------------------------------------------------------------------------
-    // getSingle
-    // -------------------------------------------------------------------------
-
-    public void testGetSingleReturnsSingleValue() {
+    public void testRequireSingleReturnsSingleValue() {
         var map = RequestParams.of(Map.of("k", List.of("only")));
-        assertThat(map.getSingle("k"), equalTo("only"));
+        assertThat(map.requireSingle("k"), equalTo("only"));
     }
 
-    public void testGetSingleReturnsNullForAbsentKey() {
+    public void testRequireSingleReturnsNullForAbsentKey() {
         var map = RequestParams.empty();
-        assertThat(map.getSingle("missing"), nullValue());
+        assertThat(map.requireSingle("missing"), nullValue());
     }
 
-    public void testGetSingleThrowsOnMultipleValues() {
+    public void testRequireSingleThrowsOnMultipleValues() {
         var map = RequestParams.of(Map.of("k", List.of("a", "b")));
-        var ex = expectThrows(IllegalArgumentException.class, () -> map.getSingle("k"));
+        var ex = expectThrows(IllegalArgumentException.class, () -> map.requireSingle("k"));
         assertThat(ex.getMessage(), equalTo("parameter [k] must have a single value, but found: [a, b]"));
     }
-
-    // -------------------------------------------------------------------------
-    // immutability
-    // -------------------------------------------------------------------------
 
     public void testPutThrows() {
         var map = RequestParams.of(Map.of("k", List.of("a", "b")));
@@ -110,10 +99,6 @@ public class RequestParamsTests extends ESTestCase {
         var map = RequestParams.of(Map.of("a", List.of("1"), "b", List.of("2")));
         expectThrows(UnsupportedOperationException.class, map::clear);
     }
-
-    // -------------------------------------------------------------------------
-    // Map interface — containsKey, keySet, entrySet
-    // -------------------------------------------------------------------------
 
     public void testContainsKey() {
         var map = RequestParams.of(Map.of("present", List.of("v")));

@@ -45,20 +45,20 @@ public class RestUtils {
     public static final UnaryOperator<String> REST_DECODER = RestUtils::decodeComponent;
 
     /**
-     * Parses a URL-encoded query string into a {@link RequestParams}, preserving all values for
+     * Parses a URL-encoded query string into a multi-value map, preserving all values for
      * repeated parameters (e.g. {@code match[]=foo&match[]=bar} → {@code ["foo", "bar"]}).
      *
      * @param s         the full string containing the query string
      * @param fromIndex the index at which the query string begins (i.e. one past the {@code ?})
-     * @return a {@link RequestParams} from parameter name to all its values, in encounter order
+     * @return a map from parameter name to all its values, in encounter order
      */
-    static RequestParams decodeQueryString(String s, int fromIndex) {
+    static Map<String, List<String>> decodeQueryString(String s, int fromIndex) {
         Map<String, List<String>> result = new LinkedHashMap<>();
         parseQueryStringPairs(s, fromIndex, (name, value) -> {
             checkReservedParam(name);
             result.computeIfAbsent(name, k -> new ArrayList<>()).add(value);
         });
-        return RequestParams.of(result);
+        return result;
     }
 
     private static void parseQueryStringPairs(String s, int fromIndex, BiConsumer<String, String> consumer) {

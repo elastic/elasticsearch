@@ -19,12 +19,10 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -50,7 +48,6 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.AbstractList;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -74,25 +71,17 @@ public class TermsReduceBenchmark {
 
     private final SearchPhaseController controller = new SearchPhaseController((task, req) -> new AggregationReduceContext.Builder() {
         @Override
-        public AggregationReduceContext forPartialReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
-            return new AggregationReduceContext.ForPartial(null, null, task, builder, b -> {}, topHitsToRelease);
+        public AggregationReduceContext forPartialReduction() {
+            return new AggregationReduceContext.ForPartial(null, null, task, builder, b -> {});
         }
 
         @Override
-        public AggregationReduceContext forFinalReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
+        public AggregationReduceContext forFinalReduction() {
             final MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
                 Integer.MAX_VALUE,
                 new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
             );
-            return new AggregationReduceContext.ForFinal(
-                null,
-                null,
-                task,
-                builder,
-                bucketConsumer,
-                PipelineAggregator.PipelineTree.EMPTY,
-                topHitsToRelease
-            );
+            return new AggregationReduceContext.ForFinal(null, null, task, builder, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY);
         }
     });
 

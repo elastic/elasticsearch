@@ -214,7 +214,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
         int index = uri.indexOf('?');
         if (index >= 0) {
             try {
-                return RestUtils.decodeQueryStringMulti(uri, index + 1);
+                return RestUtils.decodeQueryString(uri, index + 1);
             } catch (final IllegalArgumentException e) {
                 throw new BadParameterException(e);
             }

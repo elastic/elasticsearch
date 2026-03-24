@@ -125,7 +125,7 @@ public class SamlAuthnRequestValidator {
 
     private ParsedQueryString parseQueryString(String queryString) throws ElasticsearchSecurityException {
 
-        final var parameters = RestUtils.decodeQueryStringMulti(queryString, 0);
+        final var parameters = RestUtils.decodeQueryString(queryString, 0);
         if (parameters.isEmpty()) {
             throw new ElasticsearchSecurityException("Invalid Authentication Request query string (zero parameters)");
         }

@@ -368,7 +368,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_large_blob"), exchange -> {
 
             if ("PUT".equals(exchange.getRequestMethod())) {
-                final var params = RestUtils.decodeQueryStringMulti(exchange.getRequestURI().getRawQuery(), 0);
+                final var params = RestUtils.decodeQueryString(exchange.getRequestURI().getRawQuery(), 0);
 
                 final String blockId = params.get("blockid");
                 assert Strings.hasText(blockId) == false || AzureFixtureHelper.assertValidBlockId(blockId);
@@ -437,7 +437,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_large_blob_streaming"), exchange -> {
 
             if ("PUT".equals(exchange.getRequestMethod())) {
-                final var params = RestUtils.decodeQueryStringMulti(exchange.getRequestURI().getRawQuery(), 0);
+                final var params = RestUtils.decodeQueryString(exchange.getRequestURI().getRawQuery(), 0);
 
                 final String blockId = params.get("blockid");
                 assert Strings.hasText(blockId) == false || AzureFixtureHelper.assertValidBlockId(blockId);

@@ -542,7 +542,7 @@ public class HttpRequestTemplate implements ToXContentObject {
 
                 String rawQuery = uri.getRawQuery();
                 if (Strings.hasLength(rawQuery)) {
-                    RestUtils.decodeQueryStringMulti(rawQuery, 0).forEach((k, v) -> params.put(k, new TextTemplate(v)));
+                    RestUtils.decodeQueryString(rawQuery, 0).forEach((k, v) -> params.put(k, new TextTemplate(v)));
                 }
             } catch (URISyntaxException e) {
                 throw new ElasticsearchParseException("Malformed URL [{}]", supposedUrl);

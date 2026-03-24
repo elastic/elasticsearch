@@ -420,7 +420,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         httpServer.createContext("/upload/storage/v1/b/bucket/o", safeHandler(exchange -> {
             final BytesReference requestBody = Streams.readFully(exchange.getRequestBody());
 
-            final var params = RestUtils.decodeQueryStringMulti(exchange.getRequestURI().getQuery(), 0);
+            final var params = RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0);
             assertThat(params.get("uploadType"), equalTo("resumable"));
 
             if ("POST".equals(exchange.getRequestMethod())) {

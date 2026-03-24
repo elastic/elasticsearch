@@ -66,7 +66,7 @@ public class AzureOAuthTokenServiceHttpHandler implements HttpHandler {
             && ("/" + tenantId + "/oauth2/v2.0/token").equals(exchange.getRequestURI().getPath())) {
             final String requestBody = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8));
 
-            final var params = RestUtils.decodeQueryStringMulti(requestBody, 0);
+            final var params = RestUtils.decodeQueryString(requestBody, 0);
 
             if (clientId.equals(params.get("client_id"))
                 && federatedToken.equals(params.get("client_assertion"))

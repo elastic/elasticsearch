@@ -122,7 +122,7 @@ public class MicrosoftGraphHttpFixture extends ExternalResource {
             }
 
             final var requestBody = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), Charset.defaultCharset()));
-            final var formFields = RestUtils.decodeQueryStringMulti(requestBody, 0);
+            final var formFields = RestUtils.decodeQueryString(requestBody, 0);
 
             if (formFields.get("grant_type").equals("client_credentials") == false) {
                 graphError(exchange, RestStatus.BAD_REQUEST, Strings.format("Unexpected Grant Type: %s", formFields.get("grant_type")));

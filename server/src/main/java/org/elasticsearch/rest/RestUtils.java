@@ -45,10 +45,6 @@ public class RestUtils {
 
     public static final UnaryOperator<String> REST_DECODER = RestUtils::decodeComponent;
 
-    public static void decodeQueryString(String s, int fromIndex, Map<String, String> params) {
-        parseQueryStringPairs(s, fromIndex, (name, value) -> addParam(params, name, value));
-    }
-
     /**
      * Parses a URL-encoded query string into a {@link ParameterMap}, preserving all values for
      * repeated parameters (e.g. {@code match[]=foo&match[]=bar} → {@code ["foo", "bar"]}).
@@ -56,9 +52,9 @@ public class RestUtils {
      * @param uri the URI whose raw query string is parsed
      * @return a {@link ParameterMap} from parameter name to all its values, in encounter order
      */
-    public static ParameterMap decodeQueryStringMulti(URI uri) {
+    public static ParameterMap decodeQueryString(URI uri) {
         final var rawQuery = uri.getRawQuery();
-        return Strings.hasLength(rawQuery) ? decodeQueryStringMulti(rawQuery, 0) : ParameterMap.empty();
+        return Strings.hasLength(rawQuery) ? decodeQueryString(rawQuery, 0) : ParameterMap.empty();
     }
 
     /**
@@ -69,7 +65,7 @@ public class RestUtils {
      * @param fromIndex the index at which the query string begins (i.e. one past the {@code ?})
      * @return a {@link ParameterMap} from parameter name to all its values, in encounter order
      */
-    public static ParameterMap decodeQueryStringMulti(String s, int fromIndex) {
+    public static ParameterMap decodeQueryString(String s, int fromIndex) {
         Map<String, List<String>> result = new LinkedHashMap<>();
         parseQueryStringPairs(s, fromIndex, (name, value) -> {
             checkReservedParam(name);
@@ -134,11 +130,6 @@ public class RestUtils {
                 throw new IllegalArgumentException("parameter [" + name + "] is reserved and may not be set");
             }
         }
-    }
-
-    private static void addParam(Map<String, String> params, String name, String value) {
-        checkReservedParam(name);
-        params.put(name, value);
     }
 
     /**

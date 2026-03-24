@@ -357,7 +357,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         final JWT idToken = generateIdToken(randomAlphaOfLength(8), randomAlphaOfLength(8), randomAlphaOfLength(8));
         final OpenIdConnectLogoutResponse logoutResponse = realm.buildLogoutResponse(idToken);
         final String endSessionUrl = logoutResponse.getEndSessionUrl();
-        final var parameters = RestUtils.decodeQueryStringMulti(endSessionUrl, endSessionUrl.indexOf("?") + 1);
+        final var parameters = RestUtils.decodeQueryString(endSessionUrl, endSessionUrl.indexOf("?") + 1);
         assertThat(parameters, aMapWithSize(3));
         assertThat(parameters, hasKey("id_token_hint"));
         assertThat(parameters, hasKey("post_logout_redirect_uri"));
@@ -380,7 +380,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         final JWT idToken = generateIdToken(randomAlphaOfLength(8), randomAlphaOfLength(8), randomAlphaOfLength(8));
         final OpenIdConnectLogoutResponse logoutResponse = realm.buildLogoutResponse(idToken);
         final String endSessionUrl = logoutResponse.getEndSessionUrl();
-        final var parameters = RestUtils.decodeQueryStringMulti(endSessionUrl, endSessionUrl.indexOf("?") + 1);
+        final var parameters = RestUtils.decodeQueryString(endSessionUrl, endSessionUrl.indexOf("?") + 1);
         assertThat(parameters, aMapWithSize(4));
         assertThat(parameters, hasKey("parameter"));
         assertThat(parameters, hasKey("post_logout_redirect_uri"));
@@ -453,9 +453,9 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         assertThat(endOfPath, greaterThan(-1));
         assertThat(actual.substring(0, endOfPath + 1), equalTo(expected.substring(0, endOfPath + 1)));
 
-        final var actualParams = RestUtils.decodeQueryStringMulti(actual, endOfPath + 1);
+        final var actualParams = RestUtils.decodeQueryString(actual, endOfPath + 1);
 
-        final var expectedParams = RestUtils.decodeQueryStringMulti(expected, endOfPath + 1);
+        final var expectedParams = RestUtils.decodeQueryString(expected, endOfPath + 1);
 
         assertThat(actualParams, equalTo(expectedParams));
     }

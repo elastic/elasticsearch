@@ -396,7 +396,7 @@ public class SamlObjectHandler {
 
     protected ParsedQueryString parseQueryStringAndValidateSignature(String queryString, String samlMessageParameterName) {
         final String signatureInput = queryString.replaceAll("&Signature=.*$", "");
-        final var parameters = RestUtils.decodeQueryStringMulti(queryString, 0);
+        final var parameters = RestUtils.decodeQueryString(queryString, 0);
         final String samlMessage = parameters.get(samlMessageParameterName);
         if (samlMessage == null) {
             throw samlException("Could not parse {} from query string: [{}]", samlMessageParameterName, queryString);
